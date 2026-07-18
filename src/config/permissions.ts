@@ -67,6 +67,15 @@ export const PERMISSION_CATALOG: Permission[] = [
     legacyCodes: [],
   },
   {
+    code: 'core:brain:beautician-view',
+    name: '查看本人美容师经营事实',
+    type: 'operation',
+    module: 'Ami Brain',
+    platform: 'core',
+    description: '允许 Ami Brain 按当前账号绑定的美容师身份读取本人预约、服务客户卡项、标准用料和个人经营事实',
+    legacyCodes: [],
+  },
+  {
     code: 'core:brain:sensitive:view',
     name: '查看 Brain 敏感字段',
     type: 'operation',
@@ -1072,6 +1081,8 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
   ],
   beautician: [
     'core:dashboard:view',
+    'core:brain:use',
+    'core:brain:beautician-view',
     'core:customer:profile',
     'core:customer:script',
     'core:order:card-usage',

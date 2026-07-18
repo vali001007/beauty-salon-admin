@@ -3,7 +3,34 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 
 export interface BeauticianServiceSummary {
   serviceCount: number;
-  nextTasks: Array<{ customerName: string; projectName: string; appointmentTime: string; attentionItems: string[] }>;
+  cancelledCount: number;
+  scheduledMinutes: number;
+  nextTasks: BeauticianReservationFact[];
+  cancelledTasks: BeauticianReservationFact[];
+  gaps: Array<{ date: string; startTime: string; endTime: string; minutes: number }>;
+  materialPlan: Array<{ productId: number; productName: string; requiredQty: number; unit: string; projectNames: string[] }>;
+  bomCoveredReservationCount: number;
+  bomMissingProjects: string[];
+}
+
+export interface BeauticianReservationFact {
+  reservationId: number;
+  customerId: number;
+  projectId: number;
+  date: string;
+  startTime: string;
+  endTime?: string;
+  status: string;
+  customerName: string;
+  projectName: string;
+  appointmentTime: string;
+  memberLevel: string;
+  isFirstVisit: boolean;
+  checkedInAt?: Date;
+  arrivedEarly: boolean;
+  attentionItems: string[];
+  previousService?: { projectName: string; appointmentTime: Date; remark?: string };
+  cards: Array<{ cardName: string; totalTimes: number; usedTimes: number; remainingTimes: number; expiryDate: Date; status: string }>;
 }
 
 export interface BeauticianPerformanceSummary {
@@ -30,20 +57,26 @@ export class BrainBeauticianSkillsService {
     beauticianId?: number;
     userId?: number;
     timezone?: string;
+    includeMaterialPlan?: boolean;
+    includeCustomerCards?: boolean;
   }): Promise<BeauticianServiceSummary> {
     const beauticianId = input.beauticianId ?? (await this.findBeauticianId(input.storeId, input.userId));
     if (!beauticianId) throw new ForbiddenException('beautician_identity_not_linked');
+    const timezone = input.timezone ?? 'Asia/Shanghai';
+    const dateRange = this.businessDateRange(input.startDate, input.endDate, timezone);
     const reservations = await this.prisma.reservation.findMany({
       where: {
         storeId: input.storeId,
         beauticianId,
-        date: { gte: input.startDate, lte: input.endDate },
-        status: { notIn: ['cancelled', 'canceled'] },
+        date: { gte: dateRange.startDate, lt: dateRange.endExclusive },
       },
       include: {
         customer: {
           select: {
+            id: true,
             name: true,
+            memberLevel: true,
+            visitCount: true,
             hasAllergy: true,
             skinCondition: true,
             skinType: true,
@@ -60,17 +93,119 @@ export class BrainBeauticianSkillsService {
         project: { select: { name: true } },
       },
       orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
-      take: 20,
+      take: 500,
     });
 
-    return {
-      serviceCount: reservations.length,
-      nextTasks: reservations.map((reservation) => ({
+    const customerIds = [...new Set(reservations.map((reservation) => reservation.customerId))];
+    const projectIds = [...new Set(reservations.map((reservation) => reservation.projectId))];
+    const [previousTasks, bomItems, customerCards] = await Promise.all([
+      customerIds.length ? this.prisma.serviceTask.findMany({
+          where: {
+            storeId: input.storeId,
+            customerId: { in: customerIds },
+            appointmentTime: { lt: dateRange.startDate },
+            status: 'completed',
+          },
+          select: {
+            customerId: true,
+            appointmentTime: true,
+            remark: true,
+            project: { select: { name: true } },
+          },
+          orderBy: { appointmentTime: 'desc' },
+          take: 1000,
+        }) : [],
+      input.includeMaterialPlan && projectIds.length ? this.prisma.projectBomItem.findMany({
+        where: { projectId: { in: projectIds } },
+        select: {
+          projectId: true,
+          standardQty: true,
+          unit: true,
+          project: { select: { name: true } },
+          product: { select: { id: true, name: true } },
+        },
+        take: 2000,
+      }) : [],
+      input.includeCustomerCards && customerIds.length ? this.prisma.customerCard.findMany({
+        where: { customerId: { in: customerIds }, status: 'active' },
+        select: { customerId: true, cardName: true, totalTimes: true, remainingTimes: true, expiryDate: true, status: true },
+        orderBy: { expiryDate: 'asc' },
+        take: 2000,
+      }) : [],
+    ]);
+    const previousByCustomer = new Map<number, (typeof previousTasks)[number]>();
+    for (const task of previousTasks) {
+      if (!previousByCustomer.has(task.customerId)) previousByCustomer.set(task.customerId, task);
+    }
+    const cardsByCustomer = new Map<number, Array<(typeof customerCards)[number]>>();
+    for (const card of customerCards) cardsByCustomer.set(card.customerId, [...(cardsByCustomer.get(card.customerId) ?? []), card]);
+    const facts = reservations.map((reservation) => {
+      const date = this.formatDate(reservation.date, timezone);
+      const scheduledAt = this.reservationStartAt(date, reservation.startTime, timezone);
+      const previous = previousByCustomer.get(reservation.customerId);
+      return {
+        reservationId: reservation.id,
+        customerId: reservation.customerId,
+        projectId: reservation.projectId,
+        date,
+        startTime: reservation.startTime,
+        endTime: reservation.endTime ?? undefined,
+        status: reservation.status,
         customerName: reservation.customer?.name ?? '客户',
         projectName: reservation.project?.name ?? '服务项目',
-        appointmentTime: `${this.formatDate(reservation.date, input.timezone ?? 'Asia/Shanghai')} ${reservation.startTime}`,
+        appointmentTime: `${date} ${reservation.startTime}`,
+        memberLevel: reservation.customer?.memberLevel ?? '无',
+        isFirstVisit: (reservation.customer?.visitCount ?? 0) === 0,
+        checkedInAt: reservation.checkedInAt ?? undefined,
+        arrivedEarly: Boolean(reservation.checkedInAt && reservation.checkedInAt.getTime() < scheduledAt.getTime()),
         attentionItems: this.buildAttentionItems(reservation.customer),
-      })),
+        previousService: previous
+          ? { projectName: previous.project.name, appointmentTime: previous.appointmentTime, remark: previous.remark ?? undefined }
+          : undefined,
+        cards: (cardsByCustomer.get(reservation.customerId) ?? []).map((card) => ({
+          cardName: card.cardName,
+          totalTimes: card.totalTimes,
+          usedTimes: Math.max(0, card.totalTimes - card.remainingTimes),
+          remainingTimes: card.remainingTimes,
+          expiryDate: card.expiryDate,
+          status: card.status,
+        })),
+      } satisfies BeauticianReservationFact;
+    });
+    const cancelledStatuses = new Set(['cancelled', 'canceled', '已取消']);
+    const active = facts.filter((fact) => !cancelledStatuses.has(fact.status));
+    const cancelled = facts.filter((fact) => cancelledStatuses.has(fact.status));
+    const bomByProject = new Map<number, typeof bomItems>();
+    for (const item of bomItems) bomByProject.set(item.projectId, [...(bomByProject.get(item.projectId) ?? []), item]);
+    const materialPlan = new Map<string, { productId: number; productName: string; requiredQty: number; unit: string; projectNames: Set<string> }>();
+    for (const reservation of active) {
+      for (const item of bomByProject.get(reservation.projectId) ?? []) {
+        const key = `${item.product.id}:${item.unit}`;
+        const current = materialPlan.get(key) ?? {
+          productId: item.product.id,
+          productName: item.product.name,
+          requiredQty: 0,
+          unit: item.unit,
+          projectNames: new Set<string>(),
+        };
+        current.requiredQty += this.toNumber(item.standardQty);
+        current.projectNames.add(item.project.name);
+        materialPlan.set(key, current);
+      }
+    }
+
+    return {
+      serviceCount: active.length,
+      cancelledCount: cancelled.length,
+      scheduledMinutes: active.reduce((sum, fact) => sum + this.durationMinutes(fact.startTime, fact.endTime), 0),
+      nextTasks: active,
+      cancelledTasks: cancelled,
+      gaps: this.findReservationGaps(active),
+      materialPlan: [...materialPlan.values()]
+        .map((item) => ({ ...item, requiredQty: Number(item.requiredQty.toFixed(4)), projectNames: [...item.projectNames].sort() }))
+        .sort((left, right) => left.productName.localeCompare(right.productName, 'zh-CN')),
+      bomCoveredReservationCount: active.filter((reservation) => (bomByProject.get(reservation.projectId) ?? []).length > 0).length,
+      bomMissingProjects: [...new Set(active.filter((reservation) => !(bomByProject.get(reservation.projectId) ?? []).length).map((reservation) => reservation.projectName))].sort(),
     };
   }
 
@@ -201,6 +336,43 @@ export class BrainBeauticianSkillsService {
     }).formatToParts(date);
     const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? '';
     return `${value('year')}-${value('month')}-${value('day')}`;
+  }
+
+  private findReservationGaps(facts: BeauticianReservationFact[]) {
+    const gaps: BeauticianServiceSummary['gaps'] = [];
+    for (let index = 1; index < facts.length; index += 1) {
+      const previous = facts[index - 1]!;
+      const current = facts[index]!;
+      if (previous.date !== current.date || !previous.endTime) continue;
+      const minutes = this.timeMinutes(current.startTime) - this.timeMinutes(previous.endTime);
+      if (minutes > 0) gaps.push({ date: current.date, startTime: previous.endTime, endTime: current.startTime, minutes });
+    }
+    return gaps;
+  }
+
+  private durationMinutes(startTime: string, endTime?: string) {
+    if (!endTime) return 0;
+    return Math.max(0, this.timeMinutes(endTime) - this.timeMinutes(startTime));
+  }
+
+  private timeMinutes(value: string) {
+    const [hours = 0, minutes = 0] = value.split(':').map(Number);
+    return hours * 60 + minutes;
+  }
+
+  private reservationStartAt(date: string, startTime: string, timezone: string) {
+    return new Date(`${date}T${startTime}:00${timezone === 'Asia/Shanghai' ? '+08:00' : 'Z'}`);
+  }
+
+  private businessDateRange(startDate: Date, endDate: Date, timezone: string) {
+    const start = this.businessDateBoundary(this.formatDate(startDate, timezone), timezone);
+    const end = this.businessDateBoundary(this.formatDate(endDate, timezone), timezone);
+    end.setUTCDate(end.getUTCDate() + 1);
+    return { startDate: start, endExclusive: end };
+  }
+
+  private businessDateBoundary(date: string, timezone: string) {
+    return new Date(`${date}T00:00:00${timezone === 'Asia/Shanghai' ? '+08:00' : 'Z'}`);
   }
 
   private toNumber(value: unknown) {

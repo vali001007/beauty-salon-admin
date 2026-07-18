@@ -223,6 +223,21 @@ describe('BrainEvalExpectationResolverService', () => {
     expect(result.evidence.capabilityKeys).toEqual([]);
   });
 
+  it('does not require a capability or grounding for a declared system boundary', () => {
+    const result = service.resolve({
+      base: { intent: 'query', entities: ['reservation'], requiresGrounding: false, requiresComplete: false },
+      definitions,
+      roleKey: 'receptionist',
+      releaseSnapshot: {
+        capabilityKeys: ['reservation_list'],
+        capabilityCandidates: [{ key: 'reservation_list', allowedRoles: ['receptionist'], definitionRefs: [{ definitionKey: 'entity.reservation' }] }],
+      } as never,
+    });
+
+    expect(result.expectation.capabilityAnyOf).toBeUndefined();
+    expect(result.evidence.capabilityKeys).toEqual([]);
+  });
+
   it('includes release capabilities whose frozen definition refs cover the expected metric', () => {
     const result = service.resolve({
       base: { intent: 'query', metrics: ['paid_amount'] },

@@ -102,6 +102,23 @@ describe('Agent eval question bank', () => {
       expectedMetrics: ['dormant_reactivation_customer_count'],
       expectedDimensions: ['customer'],
     });
+    expect(bank.questions.find((item) => item.input === '帮我看一下今天整体的服务流程安排')).toMatchObject({
+      expectedIntentType: 'query',
+      expectedSemanticIntent: 'query',
+    });
+    expect(bank.questions.find((item) => item.input === '我今天要用到什么产品和耗材')?.systemSupportStatus)
+      .not.toBe('system_unsupported');
+    expect(bank.questions.find((item) => item.input === '下一个客人有没有皮肤过敏或者什么注意事项')?.systemSupportStatus)
+      .not.toBe('system_unsupported');
+    expect(bank.questions.find((item) => item.input === '帮我确认一下明天所有预约都通知到位了吗')).toMatchObject({
+      systemSupportStatus: 'system_unsupported',
+    });
+    expect(bank.questions.find((item) => item.input === '今天有没有安排我去做培训或其他任务')).toMatchObject({
+      systemSupportStatus: 'system_unsupported',
+    });
+    expect(bank.questions.find((item) => item.input === '下一个客人最近情绪状态怎么样，需要特别关心吗')).toMatchObject({
+      systemSupportStatus: 'system_unsupported',
+    });
   });
 
   it('selects the first 120 P0 gate cases by role and edge strategy', () => {

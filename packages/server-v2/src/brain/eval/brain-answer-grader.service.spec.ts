@@ -674,6 +674,13 @@ describe('BrainAnswerGraderService', () => {
       'list',
     ],
     [
+      '今天有几个预约是做面部的，几个是身体的',
+      '预约分类：\n1. 功效面部护理 2 个\n2. 身体护理 1 个',
+      'front_desk_reservation_schedule',
+      'list',
+      'list',
+    ],
+    [
       '有个客人临时来了没预约，现在还能安排吗',
       '临时到店安排建议：当前有 1 名美容师可接新单，1 张床位未占用，可以先确认项目时长后安排。',
       'front_desk_walk_in_availability',

@@ -349,6 +349,7 @@ export class BrainAnswerGraderService {
       return 'ranking';
     }
     if (/(几个客人|分别几点|下一个客人|服务安排|排班|预约.*几点|几点.*预约)/.test(text)) return 'list';
+    if (/(?:面部|身体).*(?:几个|多少).*(?:面部|身体)|(?:几个|多少).*预约.*(?:面部|身体)/.test(text)) return 'list';
     if (/(哪些|哪几个|名单|列出|明细|找一下.*(客户|客人|新客|老客)|办了卡.*(?:没|还没).*预约|客户.*(用了|没用|消费|没来)|有没有.*客户)/.test(text)) return 'list';
     if (/(库存.*(?:整体|情况|概览)|整体.*库存)/.test(text)) return 'diagnosis';
     if (this.detectExpectedMetric(question, 'metric_query')) return 'metric_query';

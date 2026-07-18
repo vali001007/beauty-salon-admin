@@ -5,7 +5,12 @@ import {
 import type { BrainCapabilityCandidate, BrainCapabilityCard } from './brain-capability.types.js';
 
 describe('BrainCapabilityCatalogService', () => {
-  const permissionCodes = new Set(['core:brain:use', 'core:finance:view', 'core:inventory:purchase']);
+  const permissionCodes = new Set([
+    'core:brain:use',
+    'core:brain:beautician-view',
+    'core:finance:view',
+    'core:inventory:purchase',
+  ]);
   const sourceFingerprint = 'a'.repeat(64);
   const definitionRefs = [
     {

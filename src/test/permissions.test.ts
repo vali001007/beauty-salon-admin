@@ -49,6 +49,10 @@ describe('permission catalog helpers', () => {
     );
     expect(hasPermission(ROLE_PERMISSIONS.store_manager, 'core:brain:use')).toBe(true);
     expect(hasPermission(ROLE_PERMISSIONS.store_manager, 'core:brain:execute')).toBe(true);
+    expect(hasPermission(ROLE_PERMISSIONS.beautician, 'core:brain:use')).toBe(true);
+    expect(hasPermission(ROLE_PERMISSIONS.beautician, 'core:brain:beautician-view')).toBe(true);
+    expect(hasPermission(ROLE_PERMISSIONS.beautician, 'core:customer:view')).toBe(false);
+    expect(hasPermission(ROLE_PERMISSIONS.beautician, 'core:beautician-performance:view')).toBe(false);
     expect(hasPermission(ROLE_PERMISSIONS.cashier, 'core:brain-governance:view')).toBe(false);
   });
 

@@ -164,6 +164,22 @@ const DOMAIN_BY_PERSONA: Record<Exclude<AgentQuestionBankPersona, 'edge'>, strin
 
 const SYSTEM_UNSUPPORTED_RULES: Array<{ pattern: RegExp; reason: string }> = [
   {
+    pattern: /(?:预约|客人).*(?:通知|提醒).*(?:到位|送达|收到)|(?:通知|提醒).*(?:到位|送达).*(?:预约|客人)/,
+    reason: '当前预约业务没有统一的消息发送与送达回执事实。',
+  },
+  {
+    pattern: /(?:可能|预测|风险).*(?:爽约|不来)|(?:爽约|不来).*(?:可能|预测|风险)/,
+    reason: '当前系统没有已治理的预约爽约预测结果。',
+  },
+  {
+    pattern: /安排我.*(?:培训|其他任务)|(?:培训|其他任务).*(?:安排|今天)/,
+    reason: '当前系统没有美容师培训和非预约任务的统一排期事实。',
+  },
+  {
+    pattern: /情绪状态|最近心情/,
+    reason: '当前客户档案没有结构化、可审计的近期情绪状态。',
+  },
+  {
     pattern: /消防|安全检查|税务|发票|纳税|报税/,
     reason: '当前系统没有消防安全、税务、发票或纳税业务闭环。',
   },
@@ -180,7 +196,7 @@ const SYSTEM_UNSUPPORTED_RULES: Array<{ pattern: RegExp; reason: string }> = [
     reason: '当前系统没有客户投诉、差评、满意度或评价反馈数据闭环。',
   },
   {
-    pattern: /服务事故|皮肤过敏|过敏|事故/,
+    pattern: /服务事故|皮肤.*(?:出现|发生).*(?:过敏|红肿|不良)|护理后.*(?:过敏|红肿|不适)|过敏(?:事故|事件|反应)|事故/,
     reason: '当前系统没有服务事故、皮肤过敏或不良反应记录业务闭环。',
   },
   {
@@ -231,6 +247,7 @@ function isHighRiskInput(input: string) {
 
 function inferIntentType(input: string, category: string): AgentQuestionIntentType {
   if (/意图模糊/.test(category)) return 'clarify';
+  if (/(?:看|查|查询).*(?:流程安排|预约安排|服务安排|排班)|(?:流程安排|预约安排|服务安排|排班).*(?:怎样|如何|情况)/.test(input)) return 'query';
   if (/设置|生成.*报告|制定|策划|设计|写|话术|文案|脚本|流程|规则|方案/.test(input)) return 'draft';
   if (/为什么|原因|分析|怎么处理|怎么办|建议|是否合理|风险|异常|问题|总结|概览|情况怎么样|情况如何/.test(input)) return 'analysis_and_recommendation';
   return 'query';

@@ -17,7 +17,7 @@ const DOMAIN_PERMISSIONS: Record<BrainDomainAdapterKey, string[]> = {
   store_manager: ['core:dashboard:view'],
   front_desk: ['core:store:reservations'],
   marketing_growth: ['core:marketing:create'],
-  beautician_service: ['core:customer:view'],
+  beautician_service: ['core:brain:beautician-view'],
   inventory_procurement: ['core:inventory:stock'],
   finance_risk: ['core:finance:view'],
   customer_service: ['core:customer:view'],

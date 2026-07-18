@@ -14,7 +14,7 @@ import { BrainActionConfirmationService } from '../../skills/brain-action-confir
 export class BrainBeauticianDomainAdapter implements BrainDomainAdapter {
   readonly key = 'beautician_service' as const;
   readonly role = 'beautician' as const;
-  readonly requiredPermissions = ['core:customer:view'];
+  readonly requiredPermissions = ['core:brain:beautician-view'];
 
   constructor(
     private readonly skillRuntime: BrainSkillRuntimeService,

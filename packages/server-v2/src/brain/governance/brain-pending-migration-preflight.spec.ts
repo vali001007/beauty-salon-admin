@@ -1,4 +1,5 @@
 import {
+  BEAUTICIAN_BRAIN_SELF_PERMISSION_MIGRATION,
   buildBrainPendingMigrationPreflight,
   CUSTOMER_FEEDBACK_REQUIRED_COLUMNS,
   CUSTOMER_FEEDBACK_REQUIRED_CONSTRAINTS,
@@ -24,9 +25,11 @@ function input(overrides: InputOverrides = {}): BrainMigrationPreflightInput {
       [STORE_MANAGER_SUPPLY_PERMISSION_MIGRATION]: { status: 'pending' },
       [CUSTOMER_SERVICE_FEEDBACK_MIGRATION]: { status: 'pending' },
       [CUSTOMER_WAITING_EPISODE_MIGRATION]: { status: 'pending' },
+      [BEAUTICIAN_BRAIN_SELF_PERMISSION_MIGRATION]: { status: 'pending' },
     },
     roleSchema: { tableExists: true, columns: ['key', 'status', 'permissions'] },
     storeManagerRole: { exists: true, status: 'active', permissions: ['core:supply:view'] },
+    beauticianRole: { exists: true, status: 'active', permissions: ['core:store:reservations'] },
     customerFeedbackSchema: { tableExists: false, columns: [], constraints: [], indexes: [] },
     customerWaitingSchema: { tableExists: false, columns: [], constraints: [], indexes: [] },
     dependencies: { Store: true, Customer: true, Reservation: true },
@@ -37,6 +40,7 @@ function input(overrides: InputOverrides = {}): BrainMigrationPreflightInput {
     migrations: { ...base.migrations, ...overrides.migrations },
     roleSchema: { ...base.roleSchema, ...overrides.roleSchema },
     storeManagerRole: { ...base.storeManagerRole, ...overrides.storeManagerRole },
+    beauticianRole: { ...base.beauticianRole, ...overrides.beauticianRole },
     customerFeedbackSchema: { ...base.customerFeedbackSchema, ...overrides.customerFeedbackSchema },
     customerWaitingSchema: { ...base.customerWaitingSchema, ...overrides.customerWaitingSchema },
     dependencies: { ...base.dependencies, ...overrides.dependencies },
@@ -50,7 +54,7 @@ describe('brain pending migration preflight', () => {
     expect(result.status).toBe('ready');
     expect(result.databaseWritePerformed).toBe(false);
     expect(result.approval).toMatchObject({ decisionRequired: true, allowedDecisions: ['approve', 'modify', 'reject'] });
-    expect(result.migrations).toHaveLength(3);
+    expect(result.migrations).toHaveLength(4);
     expect(result.migrations.every((item) => item.directApplyAllowed)).toBe(true);
   });
 
@@ -94,8 +98,14 @@ describe('brain pending migration preflight', () => {
           [STORE_MANAGER_SUPPLY_PERMISSION_MIGRATION]: { status: 'applied', finishedAt: '2026-07-17T01:00:00.000Z' },
           [CUSTOMER_SERVICE_FEEDBACK_MIGRATION]: { status: 'applied', finishedAt: '2026-07-17T01:00:01.000Z' },
           [CUSTOMER_WAITING_EPISODE_MIGRATION]: { status: 'applied', finishedAt: '2026-07-17T01:00:02.000Z' },
+          [BEAUTICIAN_BRAIN_SELF_PERMISSION_MIGRATION]: { status: 'applied', finishedAt: '2026-07-18T07:30:00.000Z' },
         },
         storeManagerRole: { exists: true, status: 'active', permissions: ['core:supply:manage'] },
+        beauticianRole: {
+          exists: true,
+          status: 'active',
+          permissions: ['core:brain:use', 'core:brain:beautician-view', 'core:store:reservations'],
+        },
         customerFeedbackSchema: {
           tableExists: true,
           columns: [...CUSTOMER_FEEDBACK_REQUIRED_COLUMNS],
@@ -144,5 +154,15 @@ describe('brain pending migration preflight', () => {
 
     expect(result.status).toBe('blocked');
     expect(result.migrations[2].summary).toContain('已经存在');
+  });
+
+  it('blocks the beautician Brain permission migration when the runtime role is absent', () => {
+    const result = buildBrainPendingMigrationPreflight(
+      input({ beauticianRole: { exists: false, status: null, permissions: [] } }),
+    );
+
+    expect(result.status).toBe('blocked');
+    expect(result.migrations[3]).toMatchObject({ status: 'blocked', directApplyAllowed: false });
+    expect(result.migrations[3].summary).toContain('beautician');
   });
 });

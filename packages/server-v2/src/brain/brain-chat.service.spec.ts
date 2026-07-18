@@ -3935,6 +3935,19 @@ describe('findCapabilityContractMissingDefinitions', () => {
     )).toEqual(['dimension.projectName']);
   });
 
+  it('trusts an exact governed positive example while the capability discloses unsupported recommendation rules', () => {
+    expect(findCapabilityContractMissingDefinitions(
+      { intent: 'query', metrics: [], dimensions: [definitionRef('dimension.customerName')] } as any,
+      {
+        key: 'beautician_customer_card_progress',
+        definitionRefs: [{ definitionKey: 'entity.customer' }],
+        domains: ['customer', 'beautician'],
+      } as any,
+      '今天有没有需要我帮客人续卡或者推荐项目的',
+      { exactGovernedExample: true },
+    )).toEqual([]);
+  });
+
   it('accepts customer and staff objects covered by dedicated service-operation capability keys', () => {
     expect(findCapabilityContractMissingDefinitions(
       { metrics: [], dimensions: [] } as any,

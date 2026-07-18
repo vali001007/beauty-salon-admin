@@ -1865,7 +1865,21 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         resources: [],
       }),
       buildReceptionServiceOverrunAnalysis: jest.fn().mockResolvedValue({ overrunCount: 0, impactedCount: 0, items: [] }),
-      listReceptionReservations: jest.fn().mockResolvedValue({ count: 2, reservations: [] }),
+      listReceptionReservations: jest.fn().mockResolvedValue({
+        count: 2,
+        reservations: [
+          {
+            reservationId: 1, customerId: 11, date: '2026-07-18', customerName: '王女士', memberLevel: '银卡', visitCount: 2,
+            projectName: '补水护理', startTime: '14:00', endTime: '15:00', status: 'confirmed', beauticianName: '唐伊',
+            attentionItems: [], createdAt: new Date('2026-07-17T08:00:00.000Z'),
+          },
+          {
+            reservationId: 2, customerId: 12, date: '2026-07-18', customerName: '李女士', memberLevel: '普通会员', visitCount: 1,
+            projectName: '射频护理', startTime: '15:00', endTime: '16:00', status: 'pending', beauticianName: '沈晴',
+            attentionItems: [], createdAt: new Date('2026-07-17T09:00:00.000Z'),
+          },
+        ],
+      }),
     };
     const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, new BrainTimeRangeParserService());
 
@@ -1878,10 +1892,124 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       args: { objective: '查询待到店客户名单', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
     });
 
-    expect(result.answer).toContain('14:00 王女士，补水护理');
-    expect(result.answer).toContain('15:00 李女士，射频护理');
+    expect(result.answer).toContain('2026-07-18 14:00-15:00 王女士，补水护理');
+    expect(result.answer).toContain('2026-07-18 15:00-16:00 李女士，射频护理');
     expect(result.metadata).toMatchObject({ answerScope: 'pending_arrival_customer_list', pendingArrival: 2 });
-    expect(result.blocks).toEqual([expect.objectContaining({ kind: 'table' })]);
+    expect(result.blocks).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'text' }), expect.objectContaining({ kind: 'table' })]));
+  });
+
+  it('filters a specific afternoon appointment and returns customer attention facts', async () => {
+    const skillRuntime = {
+      listReceptionReservations: jest.fn().mockResolvedValue({
+        count: 2,
+        reservations: [
+          reservationFact({ reservationId: 1, startTime: '14:00', endTime: '15:00', customerName: '王女士' }),
+          reservationFact({ reservationId: 2, startTime: '15:00', endTime: '16:00', customerName: '李女士', projectName: '射频护理', attentionItems: ['过敏史：酒精'] }),
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, new BrainTimeRangeParserService());
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'reservation_list', name: '门店预约清单' },
+      context: { userId: 31, storeId: 6, visibleStoreIds: [6], roles: ['receptionist'], permissions: ['*'], deniedPermissions: [], requestId: 'exact-time-reservation-test', timezone: 'Asia/Shanghai' },
+      runId: 75,
+      question: '下午3点那个预约是谁，有什么要注意的',
+      answerShape: 'list',
+      args: { objective: '查询下午3点预约', time: { label: '今天下午', timezone: 'Asia/Shanghai', startDate: '2026-07-18', endDate: '2026-07-18' }, entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('15:00-16:00 李女士，射频护理');
+    expect(result.answer).toContain('过敏史：酒精');
+    expect(result.answer).not.toContain('14:00-15:00 王女士');
+    expect(result.metadata).toMatchObject({ answerScope: 'filtered_reservation_list', exactTime: '15:00', count: 1 });
+  });
+
+  it('returns explicit gaps for missing notification receipts and no-show prediction', async () => {
+    const skillRuntime = { listReceptionReservations: jest.fn().mockResolvedValue({ count: 0, reservations: [] }) };
+    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, new BrainTimeRangeParserService());
+    const context = { userId: 31, storeId: 6, visibleStoreIds: [6], roles: ['receptionist'], permissions: ['*'], deniedPermissions: [], requestId: 'reservation-gap-test', timezone: 'Asia/Shanghai' };
+    const args = { objective: '核对预约风险', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] };
+
+    const notification = await executor.execute({ card: { ...storeCard(), key: 'reservation_list' }, context, runId: 76, question: '帮我确认一下明天所有预约都通知到位了吗', args });
+    const prediction = await executor.execute({ card: { ...storeCard(), key: 'reservation_list' }, context, runId: 77, question: '今天有没有可能爽约的预约需要提前联系', args });
+
+    expect(notification).toMatchObject({ grounding: 'none', citations: [], metadata: { unsupportedReason: 'reservation_notification_receipt_not_available' } });
+    expect(notification.answer).toContain('不会用预约状态代替消息送达状态');
+    expect(prediction).toMatchObject({ grounding: 'none', citations: [], metadata: { unsupportedReason: 'reservation_no_show_prediction_not_available' } });
+    expect(prediction.answer).toContain('不会把待确认预约直接标记为爽约风险');
+  });
+
+  it('groups reservations by real project type instead of returning a generic list', async () => {
+    const skillRuntime = {
+      listReceptionReservations: jest.fn().mockResolvedValue({
+        count: 3,
+        reservations: [
+          reservationFact({ reservationId: 1, projectTypeName: '功效面部护理' }),
+          reservationFact({ reservationId: 2, projectTypeName: '功效面部护理', startTime: '11:00' }),
+          reservationFact({ reservationId: 3, projectTypeName: '身体护理', startTime: '14:00' }),
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, new BrainTimeRangeParserService());
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'reservation_list' },
+      context: { userId: 31, storeId: 6, visibleStoreIds: [6], roles: ['receptionist'], permissions: ['*'], deniedPermissions: [], requestId: 'reservation-type-test', timezone: 'Asia/Shanghai' },
+      runId: 78,
+      question: '今天有几个预约是做面部的，几个是身体的',
+      answerShape: 'comparison',
+      args: { objective: '按项目类型统计预约', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('功效面部护理 2 个');
+    expect(result.answer).toContain('身体护理 1 个');
+    expect(result.metadata).toMatchObject({ answerScope: 'reservation_project_type_breakdown', count: 3 });
+  });
+
+  it('answers beautician gaps and previous service from the signed-in beautician facts', async () => {
+    const serviceRows = [
+      beauticianFact({
+        reservationId: 1,
+        startTime: '10:00',
+        endTime: '11:00',
+        customerName: '李女士',
+        projectName: '射频护理',
+        previousService: { projectName: '肩颈护理', appointmentTime: new Date('2026-07-01T02:00:00.000Z') },
+        attentionItems: ['过敏史：酒精'],
+        cards: [{ cardName: '射频护理10次卡', totalTimes: 10, usedTimes: 7, remainingTimes: 3, expiryDate: new Date('2099-09-01T00:00:00.000Z'), status: 'active' }],
+      }),
+      beauticianFact({ reservationId: 2, startTime: '12:00', endTime: '13:30', customerName: '王女士' }),
+    ];
+    const skillRuntime = {
+      buildBeauticianServiceSummary: jest.fn().mockResolvedValue({
+        serviceCount: 2, cancelledCount: 0, scheduledMinutes: 150, nextTasks: serviceRows, cancelledTasks: [],
+        gaps: [{ date: '2099-07-18', startTime: '11:00', endTime: '12:00', minutes: 60 }],
+        materialPlan: [{ productId: 101, productName: '补水精华', requiredQty: 10, unit: 'ml', projectNames: ['补水护理', '射频护理'] }],
+        bomCoveredReservationCount: 2,
+        bomMissingProjects: [],
+      }),
+      buildBeauticianPersonalPerformance: jest.fn().mockResolvedValue({ beauticianName: '沈晴', serviceCount: 2, completedCount: 0, revenueAmount: 0, commissionAmount: 0, repeatCustomerCount: 0, uniqueCustomerCount: 2, projectRanking: [] }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, new BrainTimeRangeParserService());
+    const context = { userId: 32, storeId: 6, visibleStoreIds: [6], roles: ['beautician'], permissions: ['*'], deniedPermissions: [], requestId: 'beautician-focused-test', timezone: 'Asia/Shanghai' };
+    const args = { objective: '查询个人安排', time: { label: '今天', timezone: 'Asia/Shanghai', startDate: '2099-07-18', endDate: '2099-07-18' }, entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] };
+
+    const gaps = await executor.execute({ card: { ...storeCard(), key: 'beautician_service_overview' }, context, runId: 79, question: '我今天有没有空档，几点到几点', args });
+    const history = await executor.execute({ card: { ...storeCard(), key: 'beautician_service_overview' }, context, runId: 80, question: '下一个客人上次做了什么，有没有什么特殊要求', args });
+    const materials = await executor.execute({ card: { ...storeCard(), key: 'beautician_material_preparation' }, context, runId: 81, question: '我今天要用到什么产品和耗材', args });
+    const cardProgress = await executor.execute({ card: { ...storeCard(), key: 'beautician_customer_card_progress' }, context, runId: 82, question: '下一个客人的疗程做到哪一步了', args });
+
+    expect(gaps.answer).toContain('11:00-12:00（60 分钟）');
+    expect(gaps.answer).toContain('只计算已接入预约之间的空档');
+    expect(gaps.metadata).toMatchObject({ answerScope: 'beautician_reservation_gaps' });
+    expect(history.answer).toContain('肩颈护理');
+    expect(history.blocks).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'table', rows: [expect.objectContaining({ attentionItems: '过敏史：酒精' })] })]));
+    expect(history.metadata).toMatchObject({ answerScope: 'beautician_customer_previous_service' });
+    expect(materials.answer).toContain('补水精华 10ml');
+    expect(materials.metadata).toMatchObject({ answerScope: 'beautician_material_preparation' });
+    expect(cardProgress.answer).toContain('射频护理10次卡已用 7/10 次，剩余 3 次');
+    expect(cardProgress.metadata).toMatchObject({ answerScope: 'beautician_next_customer_card_progress' });
   });
 
   it('returns inventory aging candidates without expanding into the generic inventory overview', async () => {
@@ -2103,6 +2231,46 @@ function reception(total: number): any {
 
 function finance(refundAmount: number, refundCount: number): any {
   return { refundAmount, refundCount, discountAmount: 0, grossMarginRate: 0.5, riskItems: [] };
+}
+
+function reservationFact(override: Record<string, unknown> = {}): any {
+  return {
+    reservationId: 1,
+    customerId: 11,
+    date: '2026-07-18',
+    customerName: '王女士',
+    memberLevel: '普通会员',
+    visitCount: 2,
+    projectName: '补水护理',
+    projectTypeName: '功效面部护理',
+    startTime: '10:00',
+    endTime: '11:00',
+    status: 'confirmed',
+    beauticianName: '沈晴',
+    attentionItems: [],
+    createdAt: new Date('2026-07-17T08:00:00.000Z'),
+    ...override,
+  };
+}
+
+function beauticianFact(override: Record<string, unknown> = {}): any {
+  return {
+    reservationId: 1,
+    customerId: 11,
+    date: '2099-07-18',
+    startTime: '10:00',
+    endTime: '11:00',
+    status: 'confirmed',
+    customerName: '王女士',
+    projectName: '补水护理',
+    appointmentTime: '2099-07-18 10:00',
+    memberLevel: '普通会员',
+    isFirstVisit: false,
+    arrivedEarly: false,
+    attentionItems: [],
+    cards: [],
+    ...override,
+  };
 }
 
 function storeCard(): BrainCapabilityCard {

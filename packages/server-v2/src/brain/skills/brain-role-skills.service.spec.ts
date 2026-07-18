@@ -51,6 +51,28 @@ describe('Brain role skills', () => {
     });
   });
 
+  it('queries an afternoon request by the whole business date instead of using noon as the date lower bound', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const service = new BrainReceptionSkillsService({ reservation: { findMany } } as any);
+
+    await service.listReservationSchedule({
+      storeId: 6,
+      startDate: new Date('2026-07-18T04:00:00.000Z'),
+      endDate: new Date('2026-07-18T15:59:59.999Z'),
+      timezone: 'Asia/Shanghai',
+    });
+
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        storeId: 6,
+        date: {
+          gte: new Date('2026-07-17T16:00:00.000Z'),
+          lt: new Date('2026-07-18T16:00:00.000Z'),
+        },
+      }),
+    }));
+  });
+
   it('generates marketing copy without pretending to query facts', () => {
     const service = new BrainMarketingSkillsService();
 
@@ -168,12 +190,21 @@ describe('Brain role skills', () => {
   it('builds beautician service summary and follow-up advice', async () => {
     const prisma = {
       beautician: { findFirst: jest.fn().mockResolvedValue({ id: 9 }) },
+      serviceTask: { findMany: jest.fn().mockResolvedValue([]) },
+      projectBomItem: { findMany: jest.fn().mockResolvedValue([]) },
+      customerCard: { findMany: jest.fn().mockResolvedValue([]) },
       reservation: {
         findMany: jest.fn().mockResolvedValue([
           {
+            id: 101,
+            customerId: 21,
+            projectId: 1,
             date: new Date('2026-07-10T09:00:00.000Z'),
             startTime: '10:00',
-            customer: { name: '李女士' },
+            endTime: '11:00',
+            status: 'confirmed',
+            checkedInAt: null,
+            customer: { id: 21, name: '李女士', memberLevel: '银卡', visitCount: 3 },
             project: { name: '补水护理' },
           },
         ]),
@@ -181,11 +212,13 @@ describe('Brain role skills', () => {
     };
     const service = new BrainBeauticianSkillsService(prisma as any);
 
-    const result = await service.buildTodayServiceSummary({ storeId: 6, userId: 18, startDate, endDate });
+    const result = await service.buildTodayServiceSummary({ storeId: 6, userId: 18, startDate, endDate, timezone: 'UTC' });
 
     expect(result).toMatchObject({
       serviceCount: 1,
-      nextTasks: [{ customerName: '李女士', projectName: '补水护理', appointmentTime: '2026-07-10 10:00' }],
+      cancelledCount: 0,
+      scheduledMinutes: 60,
+      nextTasks: [{ customerName: '李女士', projectName: '补水护理', appointmentTime: '2026-07-10 10:00', endTime: '11:00' }],
     });
     expect(service.composeFollowUpAdvice({ customerName: '李女士', projectName: '补水护理' })).toContain('7 天内安排一次跟进');
   });
@@ -200,6 +233,74 @@ describe('Brain role skills', () => {
     await expect(service.buildTodayServiceSummary({ storeId: 6, userId: 1, startDate, endDate }))
       .rejects.toThrow('beautician_identity_not_linked');
     expect(prisma.reservation.findMany).not.toHaveBeenCalled();
+  });
+
+  it('builds beautician gaps, cancellation, first-visit and previous-service facts from existing records', async () => {
+    const prisma = {
+      beautician: { findFirst: jest.fn().mockResolvedValue({ id: 9 }) },
+      reservation: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 201, customerId: 31, projectId: 1, date: new Date('2026-07-17T16:00:00.000Z'), startTime: '10:00', endTime: '11:00', status: 'confirmed', checkedInAt: new Date('2026-07-18T01:50:00.000Z'),
+            customer: { id: 31, name: '王女士', memberLevel: '普通会员', visitCount: 0 }, project: { name: '补水护理' },
+          },
+          {
+            id: 202, customerId: 32, projectId: 2, date: new Date('2026-07-17T16:00:00.000Z'), startTime: '12:00', endTime: '13:30', status: 'confirmed', checkedInAt: null,
+            customer: { id: 32, name: '李女士', memberLevel: '银卡', visitCount: 5 }, project: { name: '射频护理' },
+          },
+          {
+            id: 203, customerId: 33, projectId: 3, date: new Date('2026-07-17T16:00:00.000Z'), startTime: '14:00', endTime: '15:00', status: 'cancelled', checkedInAt: null,
+            customer: { id: 33, name: '赵女士', memberLevel: '金卡', visitCount: 8 }, project: { name: '亮肤护理' },
+          },
+        ]),
+      },
+      serviceTask: {
+        findMany: jest.fn().mockResolvedValue([
+          { customerId: 32, appointmentTime: new Date('2026-07-01T02:00:00.000Z'), remark: '注意肩颈', project: { name: '肩颈护理' } },
+        ]),
+      },
+      projectBomItem: {
+        findMany: jest.fn().mockResolvedValue([
+          { projectId: 1, standardQty: 5, unit: 'ml', project: { name: '补水护理' }, product: { id: 101, name: '补水精华' } },
+          { projectId: 2, standardQty: 1, unit: '片', project: { name: '射频护理' }, product: { id: 102, name: '一次性面巾' } },
+        ]),
+      },
+      customerCard: {
+        findMany: jest.fn().mockResolvedValue([
+          { customerId: 32, cardName: '射频护理10次卡', totalTimes: 10, remainingTimes: 3, expiryDate: new Date('2026-09-01T00:00:00.000Z'), status: 'active' },
+        ]),
+      },
+    };
+    const service = new BrainBeauticianSkillsService(prisma as any);
+
+    const result = await service.buildTodayServiceSummary({
+      storeId: 6,
+      userId: 18,
+      startDate: new Date('2026-07-17T16:00:00.000Z'),
+      endDate: new Date('2026-07-18T15:59:59.999Z'),
+      timezone: 'Asia/Shanghai',
+      includeMaterialPlan: true,
+      includeCustomerCards: true,
+    });
+
+    expect(result).toMatchObject({
+      serviceCount: 2,
+      cancelledCount: 1,
+      scheduledMinutes: 150,
+      gaps: [{ date: '2026-07-18', startTime: '11:00', endTime: '12:00', minutes: 60 }],
+      materialPlan: [
+        { productId: 101, productName: '补水精华', requiredQty: 5, unit: 'ml', projectNames: ['补水护理'] },
+        { productId: 102, productName: '一次性面巾', requiredQty: 1, unit: '片', projectNames: ['射频护理'] },
+      ],
+      bomCoveredReservationCount: 2,
+    });
+    expect(result.nextTasks[0]).toMatchObject({ customerName: '王女士', isFirstVisit: true, arrivedEarly: true });
+    expect(result.nextTasks[1]).toMatchObject({
+      customerName: '李女士',
+      previousService: { projectName: '肩颈护理' },
+      cards: [{ cardName: '射频护理10次卡', totalTimes: 10, usedTimes: 7, remainingTimes: 3 }],
+    });
+    expect(result.cancelledTasks).toEqual([expect.objectContaining({ customerName: '赵女士', status: 'cancelled' })]);
   });
 
   it('exposes six role skills through runtime', async () => {

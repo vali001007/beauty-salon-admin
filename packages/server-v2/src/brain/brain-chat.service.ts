@@ -1313,6 +1313,9 @@ export class BrainChatService {
       validation.intent,
       retrieval.selected,
       input.dto.message,
+      {
+        exactGovernedExample: governedExampleCard?.key === retrieval.selected.key,
+      },
     );
     if (contractMismatches.length > 0) {
       await this.recordModelFailure({
@@ -3363,7 +3366,9 @@ export function findCapabilityContractMissingDefinitions(
   intent: BrainSemanticIntent,
   card: Pick<BrainCapabilityCard, 'definitionRefs' | 'domains'> & Partial<Pick<BrainCapabilityCard, 'grounding'>> & { key?: string },
   question = '',
+  options: { exactGovernedExample?: boolean } = {},
 ): string[] {
+  if (options.exactGovernedExample) return [];
   const declared = Array.isArray(card.definitionRefs)
     ? card.definitionRefs.map((item) => normalizeDefinitionKey(item.definitionKey))
     : [];

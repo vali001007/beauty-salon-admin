@@ -4,6 +4,7 @@ describe('BrainBeauticianSkillsService', () => {
   it('includes customer allergy and skin notes for next service attention checks', async () => {
     const prisma = {
       beautician: { findFirst: jest.fn().mockResolvedValue({ id: 3 }) },
+      serviceTask: { findMany: jest.fn().mockResolvedValue([]) },
       reservation: {
         findMany: jest.fn().mockResolvedValue([
           {
@@ -74,6 +75,7 @@ describe('BrainBeauticianSkillsService', () => {
   it('does not turn explicit no-allergy values into an allergy warning', async () => {
     const prisma = {
       beautician: { findFirst: jest.fn().mockResolvedValue({ id: 3 }) },
+      serviceTask: { findMany: jest.fn().mockResolvedValue([]) },
       reservation: {
         findMany: jest.fn().mockResolvedValue([{
           date: new Date('2026-07-10T16:00:00.000Z'),

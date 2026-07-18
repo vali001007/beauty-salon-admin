@@ -39,6 +39,8 @@ const CAPABILITY_KEYS = [
   'customer_waiting_loss_overview',
   'front_desk_operations_overview',
   'beautician_service_overview',
+  'beautician_material_preparation',
+  'beautician_customer_card_progress',
   'inventory_operations_overview',
   'finance_risk_overview',
   'marketing_growth_overview',
@@ -239,11 +241,11 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
   @BrainCapability({
     key: 'front_desk_operations_overview',
     name: '前台现场运营概览',
-    description: '查询当前门店预约现场事实，支持待到店客户名单、已到店客户名单、预约排期、员工忙闲、到店率、爽约率、服务超时和受影响预约。名单题必须返回客户、时间和项目，不用预约总数替代。',
+    description: '查询当前门店预约现场事实，支持待到店、已到店、待确认、指定客户、指定美容师、指定时点、首个/下一个/最后一个预约、项目分类、预约日期排行、员工忙闲、到店率、爽约率和服务超时。名单题必须返回客户、时间和项目，不用预约总数或通用概览替代。',
     intents: ['query', 'diagnosis'],
-    examples: ['今天前台现场情况怎么样', '帮我搜一下今天预约了但还没来的客人', '帮我看一下今天所有到店客人的基本信息', '明天下午有哪些预约，员工忙不忙', '有哪些服务超时会影响后面的客户', '这周预约爽约率高不高', '今天有没有超过接待能力的情况'],
-    negativeExamples: ['直接替我修改客户预约', '查询其他门店的预约情况', '判断客户是否因为等待时间长而离开'],
-    synonyms: ['前台概览', '现场运营', '预约到店情况', '待到店客户', '已到店客户', '预约爽约率', '到店率', '员工忙闲', '服务超时', '接待能力', '接待承载', '超负荷接待'],
+    examples: ['今天前台现场情况怎么样', '帮我搜一下今天预约了但还没来的客人', '今天下午还有几个预约没到', '有没有预约了但还没确认的客人', '下午3点那个预约是谁，有什么要注意的', '今天赵美容师的预约安排', '今天下午最后一个预约是几点，是谁', '今天有几个预约是做面部的，几个是身体的', '有没有预约超过两小时没有确认的', '这个月预约最多的是哪几天', '有哪些服务超时会影响后面的客户'],
+    negativeExamples: ['直接替我修改客户预约', '查询其他门店的预约情况', '判断客户是否因为等待时间长而离开', '预测哪些客户一定会爽约', '确认预约通知是否已经送达'],
+    synonyms: ['前台概览', '现场运营', '预约到店情况', '待到店客户', '已到店客户', '待确认预约', '下一个预约', '最后一个预约', '预约分类', '预约日期排行', '预约爽约率', '到店率', '员工忙闲', '服务超时', '接待能力'],
     businessDefinitionKeys: ['entity.reservation', 'entity.customer', 'dimension.customerName', 'dimension.projectName'],
     readOnly: true,
     storeScope: 'required',
@@ -259,11 +261,11 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
   @BrainCapability({
     key: 'beautician_service_overview',
     name: '美容师个人服务概览',
-    description: '仅基于当前登录账号绑定的美容师身份，查询个人预约客户、时间、项目、客户注意事项、服务完成情况、个人业绩、提成和项目排行。未绑定美容师档案时失败关闭，绝不退化为全店美容师或全店预约数据。',
+    description: '仅基于当前登录账号绑定的美容师身份，查询个人预约客户、开始与结束时间、首个/下一个/最后一个预约、预约间空档、计划服务时长、取消记录、首次到店、提前到店、上次服务项目、客户注意事项、个人业绩、提成和项目排行。未绑定美容师档案时失败关闭，绝不退化为全店数据。',
     intents: ['query', 'diagnosis', 'recommendation'],
-    examples: ['我今天有几个客人，分别几点', '下一个客人是谁，做什么项目', '我今天第一个客人几点来', '我今天有没有空档，几点到几点', '下一个客人上次做了什么，有没有什么特殊要求', '今天我总共要服务几个小时', '我今天的客人里有没有首次来的新客', '下一个客人有没有皮肤过敏或者什么注意事项', '帮我看一下今天客人的护理历史', '本月我的服务和业绩怎么样', '这个月我的提成有多少', '下一位客户有哪些注意事项'],
-    negativeExamples: ['查看其他美容师的客户过敏史', '直接替我修改客户护理记录'],
-    synonyms: ['我的服务安排', '美容师工作台', '我的预约客户', '我的业绩', '我的提成', '下一位客户', '服务注意事项', '个人项目排行'],
+    examples: ['我今天有几个客人，分别几点', '下一个客人是谁，做什么项目', '我今天第一个客人几点来', '今天最后一个客人几点结束', '我今天有没有空档，几点到几点', '下一个客人上次做了什么，有没有什么特殊要求', '今天我总共要服务几个小时', '有没有客人取消了', '我今天的客人里有没有首次来的新客', '今天有没有客人提前到了在等我', '我这周的预约安排', '帮我看一下今天客人的上次服务记录', '今天有没有安排我去做培训或其他任务', '我今天的客人里有没有 VIP 需要特别对待', '下一个客人最近情绪状态怎么样，需要特别关心吗'],
+    negativeExamples: ['查看其他美容师的客户过敏史', '直接替我修改客户护理记录', '查询培训或非预约任务安排', '推断客户情绪状态'],
+    synonyms: ['我的服务安排', '美容师工作台', '我的预约客户', '我的空档', '我的取消预约', '我的业绩', '我的提成', '下一位客户', '最后一位客户', '服务注意事项', '个人项目排行'],
     businessDefinitionKeys: [
       'entity.reservation',
       'entity.customer',
@@ -278,13 +280,53 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     ],
     readOnly: true,
     storeScope: 'required',
-    permissions: ['core:brain:use', 'core:store:reservations', 'core:beautician-performance:view'],
+    permissions: ['core:brain:use', 'core:store:reservations', 'core:brain:beautician-view'],
     allowedRoles: ['beautician'],
     requiresConfirmation: false,
     idempotency: 'not_applicable',
   })
   beauticianServiceOverview(args: BrainCapabilityToolArgs, input: BrainCapabilityExecutionInput) {
     return this.executeDeclared('beautician_service_overview', args, input);
+  }
+
+  @BrainCapability({
+    key: 'beautician_material_preparation',
+    name: '美容师预约标准用料准备',
+    description: '仅基于当前登录美容师的有效预约和项目 BOM，汇总计划使用的产品、耗材、标准数量及对应项目。没有 BOM 时明确列出缺口，不用商品销量或库存排行替代。',
+    intents: ['query'],
+    examples: ['我今天要用到什么产品和耗材', '今天的预约需要准备哪些产品', '按我的预约汇总标准用料'],
+    negativeExamples: ['哪些商品卖得最多', '查询商品销售排行', '直接扣减库存', '替我确认实际耗材用量'],
+    synonyms: ['今日用料准备', '预约耗材清单', '项目标准用料', '护理产品准备'],
+    businessDefinitionKeys: ['entity.product'],
+    readOnly: true,
+    storeScope: 'required',
+    permissions: ['core:brain:use', 'core:store:reservations', 'core:brain:beautician-view'],
+    allowedRoles: ['beautician'],
+    requiresConfirmation: false,
+    idempotency: 'not_applicable',
+  })
+  beauticianMaterialPreparation(args: BrainCapabilityToolArgs, input: BrainCapabilityExecutionInput) {
+    return this.executeDeclared('beautician_material_preparation', args, input);
+  }
+
+  @BrainCapability({
+    key: 'beautician_customer_card_progress',
+    name: '美容师预约客户卡项进度',
+    description: '仅基于当前登录美容师的预约客户和有效 CustomerCard，查询卡项总次数、已用次数、剩余次数和到期日。没有统一续卡阈值或项目推荐规则时只展示事实，不自动判定必须续卡。',
+    intents: ['query', 'recommendation'],
+    examples: ['下一个客人的疗程做到哪一步了', '她的疗程做了几次了，还有几次', '今天有没有需要我帮客人续卡或者推荐项目的'],
+    negativeExamples: ['直接替客户续卡', '修改卡项剩余次数', '查看非本人预约客户的卡项'],
+    synonyms: ['客户疗程进度', '预约客户卡项余次', '下一个客户剩余次数', '卡项到期'],
+    businessDefinitionKeys: ['entity.customer'],
+    readOnly: true,
+    storeScope: 'required',
+    permissions: ['core:brain:use', 'core:store:reservations', 'core:brain:beautician-view'],
+    allowedRoles: ['beautician'],
+    requiresConfirmation: false,
+    idempotency: 'not_applicable',
+  })
+  beauticianCustomerCardProgress(args: BrainCapabilityToolArgs, input: BrainCapabilityExecutionInput) {
+    return this.executeDeclared('beautician_customer_card_progress', args, input);
   }
 
   @BrainCapability({
@@ -399,11 +441,11 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
   @BrainCapability({
     key: 'reservation_list',
     name: '门店预约清单',
-    description: '按服务端解析的时间范围列出当前门店有效预约，返回日期、时间、客户、项目和美容师。用于预约名单、下一个预约和某时段排期查询，不执行创建、改期或取消。',
+    description: '按服务端解析的时间范围查询当前门店预约，支持指定客户、指定美容师、上午/下午、指定时点、待确认、首个/下一个/最后一个预约、项目分类和预约日期排行，返回客户、项目、美容师、状态、开始与结束时间，不执行创建、改期或取消。',
     intents: ['query'],
-    examples: ['今天有哪些预约', '明天下午预约清单', '现在下一个预约是谁，什么时候', '张美丽的预约是几点，做什么项目', '帮我看一下今天赵美容师的预约安排'],
-    negativeExamples: ['直接帮我改期', '取消这个预约', '查询其他门店预约'],
-    synonyms: ['预约清单', '预约排期', '下一个预约', '预约安排', '时段预约'],
+    examples: ['今天有哪些预约', '明天下午预约清单', '现在几点了，下一个预约是谁，什么时候', '张美丽的预约是几点，做什么项目', '帮我看一下今天赵美容师的预约安排', '有没有预约了但还没确认的客人', '有没有预约超过两小时没有确认的', '今天下午最后一个预约是几点，是谁', '今天有几个预约是做面部的，几个是身体的', '这个月预约最多的是哪几天'],
+    negativeExamples: ['直接帮我改期', '取消这个预约', '查询其他门店预约', '确认通知是否送达', '预测客户一定会爽约'],
+    synonyms: ['预约清单', '预约排期', '下一个预约', '第一个预约', '最后一个预约', '预约安排', '时段预约', '待确认预约', '预约分类', '预约日期排行'],
     businessDefinitionKeys: ['entity.reservation', 'entity.customer', 'entity.project', 'entity.beautician', 'dimension.customerName', 'dimension.projectName'],
     readOnly: true,
     storeScope: 'required',
@@ -1478,6 +1520,8 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           { sourceType: 'db_skill', sourceId: 'reception_service_overrun_analysis', label: '服务超时影响分析' },
           { sourceType: 'db_skill', sourceId: 'reception_reservation_schedule', label: '门店预约排期' },
         ];
+        const focusedReservationAnswer = this.buildFocusedReservationAnswer(schedule, input, range, citations);
+        if (focusedReservationAnswer) return this.applyDataQualityGuard(this.ensureAnswerTextBlock(focusedReservationAnswer), dataQuality);
         if (/(?:预约了|有预约|预约).*(?:还没来|未到店|待到店)|(?:还没来|未到店|待到店).*(?:客人|客户)/.test(input.question)) {
           const rows = snapshot.pendingCustomers.slice(0, this.resolveLimit(input.args.limit, 20));
           return this.applyDataQualityGuard({
@@ -1640,6 +1684,8 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           { sourceType: 'db_skill', sourceId: 'beautician_service_summary', label: '当前美容师服务安排与客户注意事项' },
           { sourceType: 'db_skill', sourceId: 'beautician_personal_performance', label: '当前美容师个人服务与业绩' },
         ];
+        const focusedServiceAnswer = this.buildFocusedBeauticianAnswer(services, input, range, citations);
+        if (focusedServiceAnswer) return this.applyDataQualityGuard(this.ensureAnswerTextBlock(focusedServiceAnswer), dataQuality);
         return this.applyDataQualityGuard({
           status: 'completed',
           answer: `${range.label}${performance.beauticianName ? `${performance.beauticianName}的` : ''}个人服务概览已完成，包含服务安排、客户注意事项、完成情况、业绩和项目排行。`,
@@ -1697,6 +1743,97 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             identitySource: 'server_context_user',
             componentCapabilities: ['beautician_service_summary', 'beautician_personal_performance'],
             completionCriteria: ['service_schedule_loaded', 'customer_attention_loaded', 'personal_performance_loaded'],
+          },
+        }, dataQuality);
+      }
+      case 'beautician_material_preparation': {
+        const services = await this.skillRuntime.buildBeauticianServiceSummary({
+          storeId: input.context.storeId,
+          userId: input.context.userId,
+          startDate: range.startDate,
+          endDate: range.endDate,
+          timezone: input.context.timezone,
+          includeMaterialPlan: true,
+        });
+        const citation = { sourceType: 'db_skill', sourceId: 'beautician_project_bom_material_plan', label: '当前美容师预约项目与标准 BOM 用料' };
+        const plan = services.materialPlan;
+        const missingProjects = services.bomMissingProjects;
+        const limitation = missingProjects.length
+          ? `以下预约项目尚未配置项目 BOM：${missingProjects.join('、')}，其用料未计入。`
+          : '数量是项目 BOM 的标准计划用量，实际操作用量仍需服务时确认。';
+        const answer = plan.length
+          ? `${range.label}按 ${services.bomCoveredReservationCount}/${services.serviceCount} 个有 BOM 的有效预约汇总，需要准备：${plan.map((item) => `${item.productName} ${item.requiredQty}${item.unit}`).join('；')}。${limitation}`
+          : `${range.label}没有可汇总的项目 BOM 用料。${limitation}`;
+        return this.applyDataQualityGuard({
+          status: 'completed',
+          answer,
+          citations: [citation],
+          grounding: 'db_skill',
+          blocks: [
+            { kind: 'text', text: answer, citationIds: [citation.sourceId] },
+            { kind: 'table', rows: plan.map((item) => ({ productName: item.productName, requiredQty: item.requiredQty, unit: item.unit, projectNames: item.projectNames.join('、') })), columns: ['productName', 'requiredQty', 'unit', 'projectNames'], citationIds: [citation.sourceId] },
+            { kind: 'limitations', items: [limitation] },
+          ],
+          metadata: {
+            capabilityKey: 'beautician_material_preparation',
+            answerScope: 'beautician_material_preparation',
+            rangeLabel: range.label,
+            serviceCount: services.serviceCount,
+            bomCoveredReservationCount: services.bomCoveredReservationCount,
+            missingBomProjectCount: missingProjects.length,
+            identitySource: 'server_context_user',
+            completionCriteria: ['personal_reservations_loaded', 'project_bom_loaded', 'standard_materials_aggregated'],
+          },
+        }, dataQuality);
+      }
+      case 'beautician_customer_card_progress': {
+        const services = await this.skillRuntime.buildBeauticianServiceSummary({
+          storeId: input.context.storeId,
+          userId: input.context.userId,
+          startDate: range.startDate,
+          endDate: range.endDate,
+          timezone: input.context.timezone,
+          includeCustomerCards: true,
+        });
+        const citation = { sourceType: 'db_skill', sourceId: 'beautician_reservation_customer_cards', label: '当前美容师预约客户有效卡项' };
+        const nextOnly = /下一个|下一位|疗程做到|做了几次|还有几次/.test(input.question);
+        const selected = nextOnly ? this.nextBeauticianItems(services.nextTasks, input.context.timezone).slice(0, 1) : services.nextTasks;
+        const cardRows = selected.flatMap((item) => item.cards.map((card) => ({
+          customerName: item.customerName,
+          appointmentTime: item.appointmentTime,
+          cardName: card.cardName,
+          usedTimes: card.usedTimes,
+          totalTimes: card.totalTimes,
+          remainingTimes: card.remainingTimes,
+          expiryDate: this.formatDateOnly(card.expiryDate, input.context.timezone),
+        })));
+        const recommendationRequested = /续卡|推荐项目/.test(input.question);
+        const limitation = recommendationRequested
+          ? '统一续卡阈值与项目推荐规则尚未发布，因此只展示卡项余次和到期日，不自动判定必须续卡或推荐具体项目。'
+          : '卡项进度按 CustomerCard 总次数与剩余次数计算，不推断护理阶段名称。';
+        const answer = selected.length === 0
+          ? `${range.label}没有后续预约客户，无法查询卡项进度。`
+          : cardRows.length
+            ? `${selected.map((item) => item.customerName).join('、')}的有效卡项：${cardRows.map((card) => `${card.cardName}已用 ${card.usedTimes}/${card.totalTimes} 次，剩余 ${card.remainingTimes} 次，到期日 ${card.expiryDate}`).join('；')}。${limitation}`
+            : `${selected.map((item) => item.customerName).join('、')}当前没有有效卡项记录。${limitation}`;
+        return this.applyDataQualityGuard({
+          status: 'completed',
+          answer,
+          citations: [citation],
+          grounding: 'db_skill',
+          blocks: [
+            { kind: 'text', text: answer, citationIds: [citation.sourceId] },
+            { kind: 'table', rows: cardRows, columns: ['customerName', 'appointmentTime', 'cardName', 'usedTimes', 'totalTimes', 'remainingTimes', 'expiryDate'], citationIds: [citation.sourceId] },
+            { kind: 'limitations', items: [limitation] },
+          ],
+          metadata: {
+            capabilityKey: 'beautician_customer_card_progress',
+            answerScope: nextOnly ? 'beautician_next_customer_card_progress' : 'beautician_customer_card_facts',
+            rangeLabel: range.label,
+            customerCount: selected.length,
+            cardCount: cardRows.length,
+            identitySource: 'server_context_user',
+            completionCriteria: ['personal_reservations_loaded', 'active_customer_cards_loaded', 'card_progress_computed'],
           },
         }, dataQuality);
       }
@@ -2496,7 +2633,11 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           endDate: range.endDate,
           timezone: input.context.timezone,
         });
-        const rows = schedule.reservations
+        const citations = [{ sourceType: 'db_skill', sourceId: 'capability_reservation_list', label: '门店预约清单' }];
+        const focusedReservationAnswer = this.buildFocusedReservationAnswer(schedule, input, range, citations);
+        if (focusedReservationAnswer) return this.applyDataQualityGuard(this.ensureAnswerTextBlock(focusedReservationAnswer), dataQuality);
+        const activeReservations = schedule.reservations.filter((item) => !this.isCancelledReservation(item.status));
+        const rows = activeReservations
           .slice(0, this.resolveLimit(input.args.limit, 100))
           .map(
             (item, index) =>
@@ -2505,12 +2646,25 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
               }`,
           )
           .join('\n');
-        return this.answer({
-          answer: `预约清单：共 ${schedule.count} 个。${rows ? `\n${rows}` : ''}`,
-          citationId: 'capability_reservation_list',
-          citationLabel: '门店预约清单',
-          metadata: { rangeLabel: range.label, count: schedule.count },
-        });
+        return this.applyDataQualityGuard({
+          status: 'completed',
+          answer: `${range.label}有效预约共 ${activeReservations.length} 个。${rows ? `\n${rows}` : ''}`,
+          citations,
+          grounding: 'db_skill',
+          blocks: [{
+            kind: 'table',
+            rows: activeReservations.slice(0, this.resolveLimit(input.args.limit, 100)).map((item) => this.reservationRow(item)),
+            columns: ['date', 'startTime', 'endTime', 'customerName', 'projectName', 'beauticianName', 'status'],
+            citationIds: ['capability_reservation_list'],
+          }],
+          metadata: {
+            capabilityKey: 'reservation_list',
+            answerScope: 'reservation_schedule_list',
+            rangeLabel: range.label,
+            count: activeReservations.length,
+            completionCriteria: ['reservation_schedule_loaded'],
+          },
+        }, dataQuality);
       }
       case 'customer_facts': {
         if (/(?:等待时间长|等待过久|久等).*(?:离开|走了|流失)|(?:离开|走了|流失).*(?:等待时间长|等待过久|久等)/.test(input.question)) {
@@ -3257,6 +3411,478 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       unconfiguredProjectCount: projects.length - configuredProjects.length,
       blockedProjects,
     };
+  }
+
+  private buildFocusedReservationAnswer(
+    schedule: Awaited<ReturnType<BrainSkillRuntimeService['listReceptionReservations']>>,
+    input: BrainCapabilityExecutionInput,
+    range: BrainDateRange,
+    citations: BrainDomainAnswer['citations'],
+  ): BrainDomainAnswer | undefined {
+    const question = input.question;
+    const citationIds = citations.map((citation) => citation.sourceId);
+    if (/(?:通知|提醒).*(?:到位|送达|成功|收到)|(?:到位|送达).*(?:通知|提醒)/.test(question)) {
+      const limitation = '现有预约记录没有统一的通知发送与送达回执字段，无法确认预约是否已经通知到位。Ami Brain 不会用预约状态代替消息送达状态。';
+      return this.unsupportedFocusedAnswer('reservation_notification_receipt_not_available', limitation);
+    }
+    if (/(?:可能|预测|风险).*(?:爽约|不来)|(?:爽约|不来).*(?:可能|预测|风险)/.test(question)) {
+      const limitation = '现有预约记录只有已发生的预约状态，没有已治理的爽约预测结果，无法判断哪些客户可能爽约。Ami Brain 不会把待确认预约直接标记为爽约风险。';
+      return this.unsupportedFocusedAnswer('reservation_no_show_prediction_not_available', limitation);
+    }
+
+    const active = schedule.reservations.filter((item) => !this.isCancelledReservation(item.status));
+    const timeWindow = this.resolveQuestionTimeWindow(question);
+    const customerName = this.resolveEntityName(input, 'customer');
+    const beauticianName = this.resolveEntityName(input, 'beautician');
+    const filterRows = <T extends (typeof schedule.reservations)[number]>(rows: T[]) => rows.filter((item) => {
+      if (timeWindow && !this.timeInWindow(item.startTime, timeWindow)) return false;
+      if (customerName && !item.customerName.includes(customerName)) return false;
+      if (beauticianName && !String(item.beauticianName ?? '').includes(beauticianName)) return false;
+      return true;
+    });
+
+    if (/(?:预约).*(?:还没确认|没有确认|没确认|未确认|待确认)|(?:还没确认|没有确认|没确认|未确认|待确认).*(?:预约|客人|客户)/.test(question)) {
+      let rows = filterRows(schedule.reservations.filter((item) => this.isPendingConfirmation(item.status)));
+      const olderThanTwoHours = /(?:超过|超出).*(?:两|2)\s*小时|(?:两|2)\s*小时.*(?:未确认|没确认)/.test(question);
+      if (olderThanTwoHours) {
+        const threshold = Date.now() - 2 * 60 * 60_000;
+        rows = rows.filter((item) => item.createdAt.getTime() <= threshold);
+      }
+      const qualifier = olderThanTwoHours ? '超过两小时仍未确认' : '待确认';
+      return {
+        status: 'completed',
+        answer: rows.length
+          ? `${range.label}有 ${rows.length} 个${qualifier}预约：${this.summarizeReservationRows(rows)}。`
+          : `${range.label}没有${qualifier}预约。`,
+        citations,
+        grounding: 'db_skill',
+        blocks: [this.reservationTableBlock(rows, citationIds)],
+        metadata: { capabilityKey: input.card.key, answerScope: 'pending_confirmation_reservations', rangeLabel: range.label, count: rows.length, olderThanTwoHours },
+      };
+    }
+
+    if (/(?:预约了|有预约|预约).*(?:还没来|没到|未到店|待到店)|(?:还没来|没到|未到店|待到店).*(?:客人|客户|预约)/.test(question)) {
+      const rows = filterRows(active.filter((item) => this.isPendingArrival(item.status)));
+      return {
+        status: 'completed',
+        answer: rows.length
+          ? `${range.label}有 ${rows.length} 位已预约待到店客户：${this.summarizeReservationRows(rows)}。`
+          : `${range.label}没有已预约待到店客户。`,
+        citations,
+        grounding: 'db_skill',
+        blocks: [this.reservationTableBlock(rows, citationIds)],
+        metadata: { capabilityKey: input.card.key, answerScope: 'pending_arrival_customer_list', rangeLabel: range.label, count: rows.length, pendingArrival: rows.length },
+      };
+    }
+
+    if (/(?:所有|全部|今天).*(?:到店客人|到店客户).*(?:基本信息|名单|情况)|(?:到店客人|到店客户).*(?:基本信息|名单)/.test(question)) {
+      const rows = filterRows(active.filter((item) => this.isArrivedReservation(item.status)));
+      return {
+        status: 'completed',
+        answer: rows.length
+          ? `${range.label}已记录到店 ${rows.length} 位客户：${this.summarizeReservationRows(rows)}。`
+          : `${range.label}没有已记录到店客户。`,
+        citations,
+        grounding: 'db_skill',
+        blocks: [this.reservationTableBlock(rows, citationIds)],
+        metadata: { capabilityKey: input.card.key, answerScope: 'arrived_customer_list', rangeLabel: range.label, count: rows.length },
+      };
+    }
+
+    if (/VIP|高等级会员/.test(question)) {
+      const rows = filterRows(active);
+      const limitation = '系统当前只有预约客户的原始会员等级，尚未发布统一的 VIP 等级映射规则，因此只展示会员等级，不自动把某个等级判定为 VIP。';
+      return {
+        status: 'completed',
+        answer: rows.length
+          ? `${range.label}预约客户的会员等级如下，共 ${rows.length} 人。${limitation}`
+          : `${range.label}没有预约客户。${limitation}`,
+        citations,
+        grounding: 'db_skill',
+        blocks: [this.reservationTableBlock(rows, citationIds, ['date', 'startTime', 'customerName', 'memberLevel', 'projectName', 'beauticianName']), { kind: 'limitations', items: [limitation] }],
+        metadata: { capabilityKey: input.card.key, answerScope: 'reservation_member_level_list', rangeLabel: range.label, count: rows.length, unsupportedReason: 'vip_level_mapping_not_published' },
+      };
+    }
+
+    if (/(?:面部|身体).*(?:几个|多少|分类)|(?:几个|多少).*(?:面部|身体)/.test(question)) {
+      const rows = filterRows(active);
+      const grouped = new Map<string, number>();
+      for (const item of rows) grouped.set(item.projectTypeName ?? '未分类', (grouped.get(item.projectTypeName ?? '未分类') ?? 0) + 1);
+      const counts = [...grouped.entries()].sort((left, right) => right[1] - left[1]);
+      const answer = counts.length ? counts.map(([name, count]) => `${name} ${count} 个`).join('，') : '没有有效预约';
+      return {
+        status: 'completed',
+        answer: `${range.label}按项目分类统计：${answer}。`,
+        citations,
+        grounding: 'db_skill',
+        blocks: [{ kind: 'table', rows: counts.map(([projectType, count]) => ({ projectType, count })), columns: ['projectType', 'count'], citationIds }],
+        metadata: { capabilityKey: input.card.key, answerScope: 'reservation_project_type_breakdown', rangeLabel: range.label, count: rows.length },
+      };
+    }
+
+    if (/(?:预约最多|最忙).*(?:哪几天|哪天)|(?:哪几天|哪天).*(?:预约最多|最忙)/.test(question)) {
+      const grouped = new Map<string, number>();
+      for (const item of active) grouped.set(item.date, (grouped.get(item.date) ?? 0) + 1);
+      const rows = [...grouped.entries()].map(([date, count]) => ({ date, count })).sort((left, right) => right.count - left.count || left.date.localeCompare(right.date));
+      return {
+        status: 'completed',
+        answer: rows.length
+          ? `${range.label}预约最多的是 ${rows[0]!.date}，共 ${rows[0]!.count} 个；前 ${Math.min(rows.length, 5)} 天为：${rows.slice(0, 5).map((item) => `${item.date} ${item.count} 个`).join('，')}。`
+          : `${range.label}没有有效预约，无法形成日期排行。`,
+        citations,
+        grounding: 'db_skill',
+        blocks: [{ kind: 'ranking', rows: rows.slice(0, this.resolveLimit(input.args.limit, 10)), columns: ['date', 'count'], citationIds }],
+        metadata: { capabilityKey: input.card.key, answerScope: 'reservation_daily_ranking', rangeLabel: range.label, count: active.length },
+      };
+    }
+
+    const filtered = filterRows(active);
+    if (/(?:下一个|下一位|接下来).*(?:预约|客人|客户)|(?:预约|客人|客户).*(?:下一个|下一位)/.test(question)) {
+      const now = new Date();
+      const next = filtered.find((item) => this.reservationAt(item, input.context.timezone).getTime() >= now.getTime());
+      return this.singleReservationAnswer(next, input, range, citations, 'next_reservation', next
+        ? `下一个预约是 ${next.date} ${next.startTime} 的${next.customerName}，项目为${next.projectName}${next.beauticianName ? `，美容师 ${next.beauticianName}` : ''}`
+        : `${range.label}没有后续有效预约`, { currentTime: this.formatClock(now, input.context.timezone) });
+    }
+
+    if (/(?:最后一个|最后一位).*(?:预约|客人|客户)|(?:预约|客人|客户).*(?:最后一个|最后一位)/.test(question)) {
+      const last = filtered.at(-1);
+      return this.singleReservationAnswer(last, input, range, citations, 'last_reservation', last
+        ? `${range.label}最后一个预约是 ${last.date} ${last.startTime}${last.endTime ? `-${last.endTime}` : ''} 的${last.customerName}，项目为${last.projectName}`
+        : `${range.label}没有有效预约`);
+    }
+
+    if (/(?:第一个|首个|最早).*(?:预约|客人|客户)|(?:预约|客人|客户).*(?:第一个|首个|最早)/.test(question)) {
+      const first = filtered[0];
+      return this.singleReservationAnswer(first, input, range, citations, 'first_reservation', first
+        ? `${range.label}第一个预约是 ${first.date} ${first.startTime} 的${first.customerName}，项目为${first.projectName}`
+        : `${range.label}没有有效预约`);
+    }
+
+    if (timeWindow?.exactTime || customerName || beauticianName) {
+      return {
+        status: 'completed',
+        answer: filtered.length
+          ? `${range.label}找到 ${filtered.length} 个匹配预约：${this.summarizeReservationRows(filtered)}。`
+          : `${range.label}没有找到匹配的预约记录。`,
+        citations,
+        grounding: 'db_skill',
+        blocks: [this.reservationTableBlock(filtered, citationIds)],
+        metadata: { capabilityKey: input.card.key, answerScope: 'filtered_reservation_list', rangeLabel: range.label, count: filtered.length, customerName, beauticianName, exactTime: timeWindow?.exactTime },
+      };
+    }
+    return undefined;
+  }
+
+  private buildFocusedBeauticianAnswer(
+    services: Awaited<ReturnType<BrainSkillRuntimeService['buildBeauticianServiceSummary']>>,
+    input: BrainCapabilityExecutionInput,
+    range: BrainDateRange,
+    citations: BrainDomainAnswer['citations'],
+  ): BrainDomainAnswer | undefined {
+    const question = input.question;
+    const citationIds = citations.map((citation) => citation.sourceId);
+    const rows = services.nextTasks;
+    const table = (items: typeof rows, columns = ['date', 'startTime', 'endTime', 'customerName', 'projectName', 'status', 'attentionItems']) => ({
+      kind: 'table' as const,
+      rows: items.map((item) => ({
+        date: item.date,
+        startTime: item.startTime,
+        endTime: item.endTime ?? '',
+        customerName: item.customerName,
+        projectName: item.projectName,
+        status: item.status,
+        memberLevel: item.memberLevel,
+        isFirstVisit: item.isFirstVisit ? '是' : '否',
+        attentionItems: item.attentionItems.join('；'),
+        previousService: item.previousService ? `${item.previousService.projectName}（${this.formatDateTime(item.previousService.appointmentTime, input.context.timezone)}）` : '',
+      })),
+      columns,
+      citationIds,
+    });
+    const completed = (answer: string, answerScope: string, items: typeof rows = rows, blocks: BrainResponseBlock[] = [table(items)]): BrainDomainAnswer => ({
+      status: 'completed', answer, citations, grounding: 'db_skill', blocks,
+      metadata: { capabilityKey: input.card.key, answerScope, rangeLabel: range.label, count: items.length, identitySource: 'server_context_user' },
+    });
+
+    if (/培训|其他任务|非预约任务/.test(question)) {
+      return this.unsupportedFocusedAnswer('beautician_non_reservation_task_fact_not_available', '当前美容师能力只接入个人预约与服务事实，没有统一的培训或其他任务排期数据，无法判断今天是否另有培训或非预约任务。');
+    }
+    if (/情绪状态|最近心情/.test(question)) {
+      return this.unsupportedFocusedAnswer('customer_emotion_fact_not_available', '当前客户档案没有结构化、可审计的近期情绪状态，无法推断客户情绪。可以查看已有客户备注和明确注意事项，但不会据此给客户贴情绪标签。');
+    }
+    if (/取消/.test(question)) {
+      const items = services.cancelledTasks;
+      const limitation = '取消预约只说明预约状态，不能据此判断可以提前下班；培训、会议和其他非预约任务尚未接入。';
+      return completed(items.length
+        ? `${range.label}有 ${items.length} 个取消预约：${items.map((item) => `${item.startTime} ${item.customerName}，${item.projectName}`).join('；')}。${limitation}`
+        : `${range.label}没有取消预约。${limitation}`, 'beautician_cancelled_reservations', items, [table(items), { kind: 'limitations', items: [limitation] }]);
+    }
+
+    if (/(?:总共|一共).*(?:几个小时|多久)|(?:服务).*(?:几个小时|总时长)/.test(question)) {
+      return completed(`${range.label}有效预约 ${services.serviceCount} 个，按预约开始和结束时间合计计划服务 ${this.formatDuration(services.scheduledMinutes)}。`, 'beautician_scheduled_duration', rows, [
+        { kind: 'kpi', items: [{ label: '有效预约', value: `${services.serviceCount} 个` }, { label: '计划服务时长', value: this.formatDuration(services.scheduledMinutes) }], citationIds },
+        table(rows),
+      ]);
+    }
+
+    if (/空档|空闲时间/.test(question)) {
+      const limitation = '这里只计算已接入预约之间的空档，不包含营业前后时间，也不包含培训、会议和其他任务。';
+      const gaps = services.gaps;
+      return completed(gaps.length
+        ? `${range.label}有 ${gaps.length} 段预约间空档：${gaps.map((gap) => `${gap.date} ${gap.startTime}-${gap.endTime}（${gap.minutes} 分钟）`).join('；')}。${limitation}`
+        : `${range.label}没有检测到预约之间的空档。${limitation}`, 'beautician_reservation_gaps', rows, [
+        { kind: 'table', rows: gaps, columns: ['date', 'startTime', 'endTime', 'minutes'], citationIds },
+        { kind: 'limitations', items: [limitation] },
+      ]);
+    }
+
+    if (/首次|新客/.test(question)) {
+      const items = rows.filter((item) => item.isFirstVisit);
+      return completed(items.length
+        ? `${range.label}有 ${items.length} 位到店次数仍为 0 的首次到店候选：${items.map((item) => `${item.startTime} ${item.customerName}`).join('；')}。`
+        : `${range.label}没有到店次数为 0 的首次到店候选。`, 'beautician_first_visit_customers', items, [table(items, ['date', 'startTime', 'customerName', 'projectName', 'isFirstVisit'])]);
+    }
+
+    if (/提前到|已经到|在等我/.test(question)) {
+      const items = rows.filter((item) => item.arrivedEarly && this.isArrivedReservation(item.status));
+      return completed(items.length
+        ? `${range.label}有 ${items.length} 位客户已提前签到：${items.map((item) => `${item.startTime} ${item.customerName}`).join('；')}。`
+        : `${range.label}没有记录到提前签到并等待的客户。`, 'beautician_early_arrivals', items);
+    }
+
+    if (/护理历史|上次做了什么|上次服务|之前做过/.test(question)) {
+      const timeWindow = this.resolveQuestionTimeWindow(question);
+      const candidates = timeWindow ? rows.filter((item) => this.timeInWindow(item.startTime, timeWindow)) : rows;
+      const items = /下一个|下一位/.test(question) ? this.nextBeauticianItems(candidates, input.context.timezone).slice(0, 1) : candidates;
+      const withHistory = items.filter((item) => item.previousService);
+      return completed(withHistory.length
+        ? `${range.label}查到 ${withHistory.length} 位预约客户的上次服务：${withHistory.map((item) => `${item.customerName}上次做${item.previousService!.projectName}（${this.formatDateTime(item.previousService!.appointmentTime, input.context.timezone)}）`).join('；')}。`
+        : `${range.label}当前预约客户没有可用的已完成历史服务记录。`, 'beautician_customer_previous_service', items, [table(items, ['date', 'startTime', 'customerName', 'projectName', 'previousService', 'attentionItems'])]);
+    }
+
+    if (/VIP|高等级会员/.test(question)) {
+      const limitation = '当前只展示客户原始会员等级，统一 VIP 等级映射规则尚未发布，不能自动判定哪些等级属于 VIP。';
+      return completed(`${range.label}预约客户会员等级已列出。${limitation}`, 'beautician_customer_member_levels', rows, [table(rows, ['date', 'startTime', 'customerName', 'memberLevel', 'projectName']), { kind: 'limitations', items: [limitation] }]);
+    }
+
+    if (/比较难服务|需要注意什么/.test(question) && !/下一个|下一位|下午|点/.test(question)) {
+      const items = rows.filter((item) => item.attentionItems.length > 0);
+      const limitation = '系统不会给客户贴“难服务”标签，只列出档案中已有的过敏、肤质、皮肤状态和明确备注。';
+      return completed(items.length
+        ? `${range.label}有 ${items.length} 位客户存在明确注意事项。${limitation}`
+        : `${range.label}没有记录到明确注意事项。${limitation}`, 'beautician_customer_attention_list', items, [table(items), { kind: 'limitations', items: [limitation] }]);
+    }
+
+    if (/(?:最后一个|最后一位).*(?:结束|客人|客户)|(?:最后一个|最后一位).*(?:之后|后面)/.test(question)) {
+      const last = rows.at(-1);
+      const limitation = '这里只能确认后续是否还有个人预约，培训、会议和其他任务尚未接入。';
+      return completed(last
+        ? `${range.label}最后一个预约是 ${last.startTime}${last.endTime ? `-${last.endTime}` : ''} 的${last.customerName}，项目为${last.projectName}。${limitation}`
+        : `${range.label}没有有效预约。${limitation}`, 'beautician_last_reservation', last ? [last] : [], [table(last ? [last] : []), { kind: 'limitations', items: [limitation] }]);
+    }
+
+    const timeWindow = this.resolveQuestionTimeWindow(question);
+    const timeFiltered = timeWindow ? rows.filter((item) => this.timeInWindow(item.startTime, timeWindow)) : rows;
+    if (/(?:第一个|首个|最早).*(?:客人|客户|预约)/.test(question)) {
+      const first = timeFiltered[0];
+      return completed(first ? `${range.label}第一个预约是 ${first.startTime} 的${first.customerName}，项目为${first.projectName}。` : `${range.label}没有有效预约。`, 'beautician_first_reservation', first ? [first] : []);
+    }
+    if (/(?:下一个|下一位|接下来).*(?:客人|客户|预约)|(?:客人|客户).*(?:下一个|下一位)/.test(question)) {
+      const next = this.nextBeauticianItems(timeFiltered, input.context.timezone)[0];
+      if (!next) return completed(`${range.label}没有后续有效预约。`, 'beautician_next_reservation', []);
+      const previous = next.previousService ? `；上次服务为${next.previousService.projectName}（${this.formatDateTime(next.previousService.appointmentTime, input.context.timezone)}）` : '';
+      const attention = next.attentionItems.length ? `；注意事项：${next.attentionItems.join('；')}` : '；没有记录到明确注意事项';
+      return completed(`下一位客户是 ${next.startTime} 的${next.customerName}，项目为${next.projectName}${previous}${attention}。`, 'beautician_next_reservation', [next]);
+    }
+    if (timeWindow?.exactTime || /下午那个客人|下午的客人/.test(question)) {
+      return completed(timeFiltered.length
+        ? `${range.label}找到 ${timeFiltered.length} 个匹配预约：${timeFiltered.map((item) => `${item.startTime} ${item.customerName}，${item.projectName}${item.attentionItems.length ? `，注意：${item.attentionItems.join('；')}` : ''}`).join('；')}。`
+        : `${range.label}没有找到匹配预约。`, 'beautician_time_filtered_reservations', timeFiltered);
+    }
+    if (/这周.*(?:排班|安排)|本周.*(?:排班|安排)/.test(question)) {
+      const limitation = '当前输出的是个人预约排期，不等同于考勤排班，也不包含培训和其他任务。';
+      return completed(`${range.label}有 ${rows.length} 个有效预约。${limitation}`, 'beautician_weekly_reservations', rows, [table(rows), { kind: 'limitations', items: [limitation] }]);
+    }
+    if (/整体.*(?:服务流程|安排)|(?:几个客人|分别几点)|(?:今天|明天).*(?:预约安排|服务安排)/.test(question)) {
+      return completed(rows.length
+        ? `${range.label}有 ${rows.length} 个有效预约，计划服务 ${this.formatDuration(services.scheduledMinutes)}：${rows.map((item) => `${item.startTime}${item.endTime ? `-${item.endTime}` : ''} ${item.customerName}，${item.projectName}`).join('；')}。`
+        : `${range.label}没有有效预约安排。`, 'beautician_service_timeline', rows, [
+        { kind: 'kpi', items: [{ label: '有效预约', value: `${rows.length} 个` }, { label: '计划服务时长', value: this.formatDuration(services.scheduledMinutes) }], citationIds },
+        table(rows),
+      ]);
+    }
+    return undefined;
+  }
+
+  private unsupportedFocusedAnswer(reason: string, limitation: string): BrainDomainAnswer {
+    return {
+      status: 'completed',
+      answer: limitation,
+      citations: [],
+      grounding: 'none',
+      blocks: [{ kind: 'limitations', items: [limitation] }],
+      metadata: { unsupportedReason: reason, completion: { status: 'complete', missingCriteria: [], recoverable: false } },
+    };
+  }
+
+  private ensureAnswerTextBlock(answer: BrainDomainAnswer): BrainDomainAnswer {
+    if (answer.blocks?.some((block) => block.kind === 'text')) return answer;
+    return {
+      ...answer,
+      blocks: [
+        { kind: 'text', text: answer.answer, citationIds: answer.citations.map((citation) => citation.sourceId) },
+        ...(answer.blocks ?? []),
+      ],
+    };
+  }
+
+  private singleReservationAnswer(
+    item: Awaited<ReturnType<BrainSkillRuntimeService['listReceptionReservations']>>['reservations'][number] | undefined,
+    input: BrainCapabilityExecutionInput,
+    range: BrainDateRange,
+    citations: BrainDomainAnswer['citations'],
+    answerScope: string,
+    answer: string,
+    extraMetadata: Record<string, unknown> = {},
+  ): BrainDomainAnswer {
+    return {
+      status: 'completed',
+      answer: `${answer}。`,
+      citations,
+      grounding: 'db_skill',
+      blocks: [this.reservationTableBlock(item ? [item] : [], citations.map((citation) => citation.sourceId))],
+      metadata: { capabilityKey: input.card.key, answerScope, rangeLabel: range.label, count: item ? 1 : 0, ...extraMetadata },
+    };
+  }
+
+  private reservationTableBlock(
+    rows: Awaited<ReturnType<BrainSkillRuntimeService['listReceptionReservations']>>['reservations'],
+    citationIds: string[],
+    columns = ['date', 'startTime', 'endTime', 'customerName', 'projectName', 'beauticianName', 'status', 'attentionItems'],
+  ): Extract<BrainResponseBlock, { kind: 'table' }> {
+    return { kind: 'table', rows: rows.map((item) => this.reservationRow(item)), columns, citationIds };
+  }
+
+  private reservationRow(item: Awaited<ReturnType<BrainSkillRuntimeService['listReceptionReservations']>>['reservations'][number]) {
+    const attentionItems = item.attentionItems ?? [];
+    return {
+      reservationId: item.reservationId,
+      date: item.date,
+      startTime: item.startTime,
+      endTime: item.endTime ?? '',
+      customerName: item.customerName,
+      memberLevel: item.memberLevel,
+      projectName: item.projectName,
+      projectTypeName: item.projectTypeName ?? '',
+      beauticianName: item.beauticianName ?? '未分配',
+      status: item.status,
+      attentionItems: attentionItems.join('；'),
+    };
+  }
+
+  private summarizeReservationRows(rows: Awaited<ReturnType<BrainSkillRuntimeService['listReceptionReservations']>>['reservations']) {
+    return rows.slice(0, 20).map((item, index) => {
+      const attentionItems = item.attentionItems ?? [];
+      return `${index + 1}. ${item.date} ${item.startTime}${item.endTime ? `-${item.endTime}` : ''} ${item.customerName}，${item.projectName}${item.beauticianName ? `，美容师 ${item.beauticianName}` : ''}${attentionItems.length ? `，注意：${attentionItems.join('；')}` : ''}`;
+    }).join('；');
+  }
+
+  private resolveEntityName(input: BrainCapabilityExecutionInput, entityType: 'customer' | 'beautician') {
+    const mention = structuredEntityMentions(input.args as BrainCapabilityToolArgs).find((entity) => entity.entityType === entityType && entity.source !== 'system')?.mention;
+    const cleaned = String(mention ?? '').replace(/(?:美容师|老师|客户|顾客|女士|先生)$/g, '').trim();
+    if (cleaned && !/^(这个|那个|某个|哪个|各个|每个|所有|全部|当前|下一个|下一位)$/.test(cleaned)) return cleaned;
+    if (entityType === 'customer') {
+      const matched = input.question.match(/([\u4e00-\u9fa5]{2,4})的预约/);
+      const candidate = matched?.[1];
+      if (candidate && !/^(这个|那个|客户|顾客|所有|全部|今天|明天|下午|上午)$/.test(candidate)) return candidate;
+    } else {
+      const matched = input.question.match(/([\u4e00-\u9fa5]{1,4})(?:美容师|老师)/);
+      const candidate = matched?.[1];
+      if (candidate && !/^(哪个|某个|这个|各个|每个|所有|全部)$/.test(candidate)) return candidate;
+    }
+    return undefined;
+  }
+
+  private resolveQuestionTimeWindow(question: string): { startTime: string; endTime: string; exactTime?: string } | undefined {
+    const exact = question.match(/(上午|下午|晚上)?\s*([零一二两三四五六七八九十\d]{1,3})\s*点(?:([0-5]?\d)\s*分|半)?/);
+    if (exact) {
+      let hour = this.chineseHour(exact[2]!);
+      if (Number.isFinite(hour)) {
+        if ((exact[1] === '下午' || exact[1] === '晚上') && hour < 12) hour += 12;
+        const minute = exact[3] ? Number(exact[3]) : question.includes('半') ? 30 : 0;
+        const exactTime = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+        return { startTime: exactTime, endTime: exactTime, exactTime };
+      }
+    }
+    if (question.includes('上午')) return { startTime: '00:00', endTime: '11:59' };
+    if (question.includes('下午')) return { startTime: '12:00', endTime: '23:59' };
+    return undefined;
+  }
+
+  private chineseHour(value: string) {
+    if (/^\d+$/.test(value)) return Number(value);
+    const digits: Record<string, number> = { 零: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
+    if (value === '十') return 10;
+    if (value.startsWith('十')) return 10 + (digits[value[1]!] ?? 0);
+    if (value.endsWith('十')) return (digits[value[0]!] ?? 0) * 10;
+    if (value.includes('十')) return (digits[value[0]!] ?? 0) * 10 + (digits[value[2]!] ?? 0);
+    return digits[value] ?? Number.NaN;
+  }
+
+  private timeInWindow(value: string, window: { startTime: string; endTime: string; exactTime?: string }) {
+    return value >= window.startTime && value <= window.endTime;
+  }
+
+  private isCancelledReservation(status: string) {
+    return ['cancelled', 'canceled', '已取消'].includes(status);
+  }
+
+  private isPendingConfirmation(status: string) {
+    return ['pending', '待确认'].includes(status);
+  }
+
+  private isPendingArrival(status: string) {
+    return ['pending', 'confirmed', 'scheduled', '待确认', '已确认'].includes(status);
+  }
+
+  private isArrivedReservation(status: string) {
+    return ['checked_in', 'in_service', 'arrived', 'completed', 'served', '已到店', '服务中', '已完成'].includes(status);
+  }
+
+  private reservationAt(
+    item: Awaited<ReturnType<BrainSkillRuntimeService['listReceptionReservations']>>['reservations'][number],
+    timezone: string,
+  ) {
+    return new Date(`${item.date}T${item.startTime}:00${timezone === 'Asia/Shanghai' ? '+08:00' : 'Z'}`);
+  }
+
+  private nextBeauticianItems(
+    rows: Awaited<ReturnType<BrainSkillRuntimeService['buildBeauticianServiceSummary']>>['nextTasks'],
+    timezone: string,
+  ) {
+    const now = Date.now();
+    const future = rows.filter((item) => new Date(`${item.date}T${item.startTime}:00${timezone === 'Asia/Shanghai' ? '+08:00' : 'Z'}`).getTime() >= now);
+    return future.length ? future : rows;
+  }
+
+  private formatDuration(minutes: number) {
+    if (!minutes) return '0 分钟';
+    const hours = Math.floor(minutes / 60);
+    const remainder = minutes % 60;
+    return `${hours ? `${hours} 小时` : ''}${remainder ? `${remainder} 分钟` : ''}`;
+  }
+
+  private formatClock(value: Date, timezone: string) {
+    return new Intl.DateTimeFormat('zh-CN', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false }).format(value);
+  }
+
+  private formatDateTime(value: Date, timezone: string) {
+    return new Intl.DateTimeFormat('zh-CN', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(value);
+  }
+
+  private formatDateOnly(value: Date, timezone: string) {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(value);
   }
 
   private async productSalesAmount(storeId: number, startDate: Date, endDate: Date) {

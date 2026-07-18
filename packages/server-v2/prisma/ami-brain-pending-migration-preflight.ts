@@ -7,6 +7,7 @@ config({ path: resolve(import.meta.dirname, '..', '.env') });
 import { Prisma, PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import {
+  BEAUTICIAN_BRAIN_SELF_PERMISSION_MIGRATION,
   buildBrainPendingMigrationPreflight,
   CUSTOMER_FEEDBACK_REQUIRED_COLUMNS,
   CUSTOMER_FEEDBACK_REQUIRED_CONSTRAINTS,
@@ -34,6 +35,7 @@ const MIGRATION_NAMES = [
   STORE_MANAGER_SUPPLY_PERMISSION_MIGRATION,
   CUSTOMER_SERVICE_FEEDBACK_MIGRATION,
   CUSTOMER_WAITING_EPISODE_MIGRATION,
+  BEAUTICIAN_BRAIN_SELF_PERMISSION_MIGRATION,
 ] as const;
 
 type MigrationRow = {
@@ -163,6 +165,9 @@ async function collectInput(): Promise<BrainMigrationPreflightInput> {
   const storeManagerRole = roleTableExists
     ? await prisma.role.findUnique({ where: { key: 'store_manager' }, select: { status: true, permissions: true } })
     : null;
+  const beauticianRole = roleTableExists
+    ? await prisma.role.findUnique({ where: { key: 'beautician' }, select: { status: true, permissions: true } })
+    : null;
 
   return {
     migrationTableExists,
@@ -172,12 +177,20 @@ async function collectInput(): Promise<BrainMigrationPreflightInput> {
       ),
       [CUSTOMER_SERVICE_FEEDBACK_MIGRATION]: historyState(migrationByName.get(CUSTOMER_SERVICE_FEEDBACK_MIGRATION)),
       [CUSTOMER_WAITING_EPISODE_MIGRATION]: historyState(migrationByName.get(CUSTOMER_WAITING_EPISODE_MIGRATION)),
+      [BEAUTICIAN_BRAIN_SELF_PERMISSION_MIGRATION]: historyState(
+        migrationByName.get(BEAUTICIAN_BRAIN_SELF_PERMISSION_MIGRATION),
+      ),
     },
     roleSchema: { tableExists: roleTableExists, columns: roleColumns },
     storeManagerRole: {
       exists: Boolean(storeManagerRole),
       status: storeManagerRole?.status ?? null,
       permissions: storeManagerRole?.permissions ?? [],
+    },
+    beauticianRole: {
+      exists: Boolean(beauticianRole),
+      status: beauticianRole?.status ?? null,
+      permissions: beauticianRole?.permissions ?? [],
     },
     customerFeedbackSchema: {
       tableExists: customerFeedbackTableExists,
@@ -213,7 +226,7 @@ function renderMarkdown(result: BrainPendingMigrationPreflightResult) {
     })
     .join('\n\n');
 
-  return `# Ami Brain 待迁移项只读预检报告\n\n生成时间：${result.generatedAt}\n\n## 1. 总结\n\n- 总体状态：\`${result.status}\`\n- 数据库写入：未执行\n- 是否进入审批：${result.approval.decisionRequired ? '是' : '否'}\n- 审批动作：通过 / 修改 / 拒绝\n- 审批摘要：${result.approval.summary}\n\n${migrationSections}\n\n## ${result.migrations.length + 2}. 执行边界\n\n- 本脚本只读取 migration 历史、系统目录、Role 和 store_manager 权限。\n- 本脚本不会执行 migration、resolve、DDL、DML、回填或权限修改。\n- 只有状态为 \`ready\` 且用户另行明确授权后，才可进入 apply -> verify。\n`;
+  return `# Ami Brain 待迁移项只读预检报告\n\n生成时间：${result.generatedAt}\n\n## 1. 总结\n\n- 总体状态：\`${result.status}\`\n- 数据库写入：未执行\n- 是否进入审批：${result.approval.decisionRequired ? '是' : '否'}\n- 审批动作：通过 / 修改 / 拒绝\n- 审批摘要：${result.approval.summary}\n\n${migrationSections}\n\n## ${result.migrations.length + 2}. 执行边界\n\n- 本脚本只读取 migration 历史、系统目录、Role、store_manager 和 beautician 权限。\n- 本脚本不会执行 migration、resolve、DDL、DML、回填或权限修改。\n- 只有状态为 \`ready\` 且用户另行明确授权后，才可进入 apply -> verify。\n`;
 }
 
 async function main() {

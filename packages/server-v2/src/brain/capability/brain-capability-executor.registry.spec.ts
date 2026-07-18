@@ -1978,7 +1978,7 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
         label: expect.stringMatching(/[\u4e00-\u9fff]/),
       }),
     ]);
-    expect(answer.metadata).toEqual({ rangeLabel: '今天', count: 1 });
+    expect(answer.metadata).toMatchObject({ rangeLabel: '今天', count: 1 });
   });
 
   it('uses dedicated handlers for exact customer facts and marketing segments', async () => {

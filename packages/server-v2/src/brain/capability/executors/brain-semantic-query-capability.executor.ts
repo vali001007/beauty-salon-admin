@@ -99,7 +99,7 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
     description: '按当前门店和时间范围查询商品销售数量或商品净销售额；支持总额问数和按商品排行，严格区分商品销售额与全店实收。',
     intents: ['query', 'ranking'],
     examples: ['本月商品销售排行', '本月商品销售额', '哪些商品卖得最多', '哪些商品销售额最高'],
-    negativeExamples: ['查询全店所有收入', '查看其他门店商品销售'],
+    negativeExamples: ['查询全店所有收入', '查看其他门店商品销售', '我今天要用到什么产品和耗材', '根据预约准备护理产品和耗材'],
     synonyms: ['商品销量排行', '产品销量排行', '商品销售额', '产品销售额', '热销商品'],
     businessDefinitionKeys: [
       'metric.product_sales_quantity',
