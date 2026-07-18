@@ -628,7 +628,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     switch (input.card.key) {
       case 'store_operations_overview': {
         if (/(?:等待时间长|等待过久|久等).*(?:离开|走了|流失)|(?:离开|走了|流失).*(?:等待时间长|等待过久|久等)/.test(input.question)) {
-          const limitation = '当前等待流失事实表尚未迁移并采集真实数据，无法判断客户是否因等待时间长而离开。Ami Brain 不会用预约取消、爽约、经营概览或普通备注替代离店原因。';
+          const limitation = '客户等待事实表和预约接待入口已上线，但当前门店尚未采集可证明等待过久离店的记录。Ami Brain 不会用预约取消、爽约、经营概览或普通备注替代离店原因。';
           return {
             status: 'completed',
             answer: limitation,
@@ -2675,7 +2675,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       }
       case 'customer_facts': {
         if (/(?:等待时间长|等待过久|久等).*(?:离开|走了|流失)|(?:离开|走了|流失).*(?:等待时间长|等待过久|久等)/.test(input.question)) {
-          const limitation = '当前等待流失事实表尚未迁移并采集真实数据，无法判断客户是否因等待时间长而离开。Ami Brain 不会用客户档案、预约取消、爽约或普通备注替代离店原因。';
+          const limitation = '客户等待事实表和预约接待入口已上线，但当前门店尚未采集可证明等待过久离店的记录。Ami Brain 不会用客户档案、预约取消、爽约或普通备注替代离店原因。';
           return {
             status: 'completed',
             answer: limitation,
@@ -2690,7 +2690,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           };
         }
         if (/(?:投诉|客诉|满意度|不[^，。；]{0,6}满意|负面反馈)/.test(input.question)) {
-          const limitation = '当前客户反馈事实表尚未迁移并采集真实投诉、满意度与处置状态，无法回答该问题。Ami Brain 不会用客户档案、会员权益、消费金额或营销响应替代投诉与满意度事实。';
+          const limitation = '客户反馈管理端、后端和事实表已上线，但当前门店尚未采集可回答该问题的投诉、满意度与处置记录。Ami Brain 不会用客户档案、会员权益、消费金额或营销响应替代投诉与满意度事实。';
           return {
             status: 'completed',
             answer: limitation,
@@ -3175,7 +3175,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       }
       case 'marketing_customer_segment': {
         if (/(?:投诉|客诉|满意度|不[^，。；]{0,6}满意|负面反馈)/.test(input.question)) {
-          const limitation = '当前客户反馈事实表尚未迁移并采集真实投诉、满意度与处置状态，无法回答该问题。Ami Brain 不会用客户分层、会员卡余额、消费金额或营销响应替代投诉与满意度事实。';
+          const limitation = '客户反馈管理端、后端和事实表已上线，但当前门店尚未采集可回答该问题的投诉、满意度与处置记录。Ami Brain 不会用客户分层、会员卡余额、消费金额或营销响应替代投诉与满意度事实。';
           return {
             status: 'completed',
             answer: limitation,

@@ -2839,18 +2839,6 @@ export class BrainChatService {
   }
 
   private resolveCurrentBackendFactGap(question: string): { unsupportedReason: string; answer: string } | undefined {
-    if (/(?:等待时间长|等待过久|久等).*(?:离开|走了|流失)|(?:离开|走了|流失).*(?:等待时间长|等待过久|久等)/.test(question)) {
-      return {
-        unsupportedReason: 'customer_waiting_departure_fact_not_available',
-        answer: '当前管理端和后台尚未迁移并采集客户等待、开始服务和离店原因事实，无法判断客户是否因等待时间长而离开。Ami Brain 不会用预约取消、爽约或普通备注替代离店原因。',
-      };
-    }
-    if (/(?:有没有|最近|多少|整体|统计|排行|哪个|哪些|还没处理|感觉)[^。！？]{0,40}(?:投诉|客诉|满意度|不[^，。；！？]{0,6}满意|最[^，。；！？]{0,6}满意|负面反馈)|(?:投诉|客诉|满意度|不[^，。；！？]{0,6}满意|最[^，。；！？]{0,6}满意|负面反馈)[^。！？]{0,40}(?:有没有|最近|多少|整体|统计|排行|哪个|哪些|还没处理)/.test(question)) {
-      return {
-        unsupportedReason: 'customer_feedback_fact_not_available',
-        answer: '当前管理端和后台尚未迁移并采集客户投诉、满意度、处置状态和服务关联事实，无法回答该问题。Ami Brain 不会用客户档案、消费金额、会员权益或营销响应替代客户反馈事实。',
-      };
-    }
     if (/(?:员工|美容师)[^。！？]{0,30}(?:没有授权|未经授权|未授权)[^。！？]{0,20}(?:优惠|折扣)|(?:优惠|折扣)[^。！？]{0,30}(?:没有授权|未经授权|未授权)/.test(question)) {
       return {
         unsupportedReason: 'discount_authorization_audit_not_available',

@@ -2437,10 +2437,6 @@ describe('BrainChatService', () => {
   });
 
   it.each([
-    ['最近有没有客户因为等待时间长而离开', 'customer_waiting_departure_fact_not_available'],
-    ['有没有客户最近投诉了但我还没处理', 'customer_feedback_fact_not_available'],
-    ['有没有客户用过会员权益但感觉不是很满意', 'customer_feedback_fact_not_available'],
-    ['哪个美容师擅长的项目客户最满意', 'customer_feedback_fact_not_available'],
     ['有没有员工在没有授权的情况下给了额外优惠', 'discount_authorization_audit_not_available'],
     ['店里设备最近有没有什么问题', 'equipment_status_fact_not_available'],
     ['最近储值卡提现风险高不高', 'stored_value_withdrawal_audit_not_available'],
@@ -2467,6 +2463,16 @@ describe('BrainChatService', () => {
     expect(modelPipeline!.compiler.compile).not.toHaveBeenCalled();
     expect(modelPipeline!.retriever.retrieve).not.toHaveBeenCalled();
     expect(trace.recordStep).toHaveBeenCalledWith(expect.objectContaining({ stepKey: 'current_backend_fact_gap' }));
+  });
+
+  it.each([
+    '最近有没有客户因为等待时间长而离开',
+    '有没有客户最近投诉了但我还没处理',
+    '有没有客户用过会员权益但感觉不是很满意',
+    '哪个美容师擅长的项目客户最满意',
+  ])('does not block migrated customer feedback and waiting facts before capability planning: %s', (message) => {
+    const { service } = createService({ modelPipeline: {} });
+    expect((service as any).resolveCurrentBackendFactGap(message)).toBeUndefined();
   });
 
   it('restores governed conversion metrics when the model diagnosis omits them', () => {

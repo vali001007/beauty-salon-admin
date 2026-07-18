@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "targets": [
+    {
+      "host": "aws-1-ap-northeast-1.pooler.supabase.com",
+      "port": "5432",
+      "database": "postgres",
+      "schema": "public",
+      "approvedAt": "2026-07-19",
+      "approvalScope": "cloud database migration publication",
+      "reason": "The recorded SQL sources are not present in branches, tags, reflogs or sibling checkouts. Their required structures were verified in the target database. Preserve the database history and allow only these exact recorded checksums.",
+      "exceptions": [
+        {
+          "migration": "20260602195000_marketing_recommendation_card_upgrade",
+          "recordedChecksum": "48dc375828409eed4b2c4dc169e72d4b8eed64de4f0b8cce1caa3e2450b50ee8"
+        },
+        {
+          "migration": "20260619121500_member_card_operator",
+          "recordedChecksum": "fd2e73c49118fae56c9e75314b90e742cd04e351737f272ed2c4a4c3e222fb41"
+        },
+        {
+          "migration": "20260620152000_project_display_fields",
+          "recordedChecksum": "c1d3b1f99b89bf7b8acf2fefe7ca675beabf914458ecb4ec2fba0e47593eb7fb"
+        },
+        {
+          "migration": "20260707120000_agent_v3_text_to_sql",
+          "recordedChecksum": "6261d23ef88536654558115d93c17c02ed54d2aaab723f337c000bbc9ed94264"
+        }
+      ]
+    }
+  ]
+}

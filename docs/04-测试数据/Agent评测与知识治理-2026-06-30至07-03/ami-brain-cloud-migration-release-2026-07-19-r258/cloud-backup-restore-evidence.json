@@ -1,0 +1,56 @@
+{
+  "generatedAt": "2026-07-19T02:02:00+08:00",
+  "status": "passed",
+  "target": {
+    "host": "aws-1-ap-northeast-1.pooler.supabase.com",
+    "port": "5432",
+    "database": "postgres",
+    "schema": "public"
+  },
+  "backupScope": {
+    "schema": "complete public schema",
+    "data": [
+      "_prisma_migrations",
+      "Role",
+      "CardUsageRecord",
+      "Reservation",
+      "PurchaseOrder",
+      "TerminalFollowUpTask",
+      "ProcurementOrder"
+    ],
+    "excludedFromDataBackup": "tables not modified by the authorized nine migrations"
+  },
+  "schemaBackup": {
+    "artifact": "C:\\Users\\huawie\\AppData\\Local\\Codex\\Backups\\beauty-salon-admin\\ami-brain-pre-9-migrations-r257-schema-20260718T175402Z.dump",
+    "sizeBytes": 1021953,
+    "sha256": "9284C4CD9F814E8B5E9B6D78B505DF9F521E41F524E4DE4A91D3E4CBA4E06FF9",
+    "pgRestoreListEntries": 2257
+  },
+  "dataBackup": {
+    "artifact": "C:\\Users\\huawie\\AppData\\Local\\Codex\\Backups\\beauty-salon-admin\\ami-brain-pre-9-migrations-r257-data-20260718T175604Z.dump",
+    "sizeBytes": 182995,
+    "sha256": "4365BBFABDFD37BD4D07FE15634847724B25E9094D9362591CC4C271DE5A0259",
+    "pgRestoreListEntries": 13
+  },
+  "restoreValidation": {
+    "postgres": "17-alpine",
+    "schemaRestore": "passed",
+    "dataRestore": "passed",
+    "rowCounts": {
+      "_prisma_migrations": 98,
+      "Role": 7,
+      "CardUsageRecord": 254,
+      "Reservation": 384,
+      "PurchaseOrder": 21,
+      "TerminalFollowUpTask": 2065,
+      "ProcurementOrder": 3
+    },
+    "cloudCountsMatched": true,
+    "containerRemoved": true
+  },
+  "failedFullBackupAttempts": [
+    "custom-format full data dump exceeded the pooler timeout and failed restore with end of file",
+    "parallel directory dump was interrupted by the pooler during COPY of brain_run_step"
+  ],
+  "databaseWritePerformed": false
+}

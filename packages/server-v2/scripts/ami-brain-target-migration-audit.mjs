@@ -8,6 +8,7 @@ import pg from 'pg';
 const { Client } = pg;
 const packageRoot = resolve(import.meta.dirname, '..');
 const migrationsRoot = join(packageRoot, 'prisma', 'migrations');
+const checksumExceptionsPath = join(packageRoot, 'prisma', 'migration-checksum-exceptions.json');
 
 config({ path: join(packageRoot, '.env') });
 
@@ -62,6 +63,55 @@ function sanitizeDatabaseTarget(connectionString) {
   };
 }
 
+function loadChecksumExceptions() {
+  if (!existsSync(checksumExceptionsPath)) return { version: 0, targets: [] };
+  const manifest = JSON.parse(readFileSync(checksumExceptionsPath, 'utf8'));
+  if (!Number.isInteger(manifest.version) || !Array.isArray(manifest.targets)) {
+    throw new Error('Invalid migration checksum exception manifest.');
+  }
+  return manifest;
+}
+
+function applyChecksumExceptions(history, target, manifest) {
+  const targetException = manifest.targets.find(
+    (candidate) =>
+      candidate.host === target.host &&
+      String(candidate.port) === String(target.port) &&
+      candidate.database === target.database &&
+      candidate.schema === target.schema,
+  );
+  const approved = [];
+  const unresolved = [];
+  for (const mismatch of history.checksumMismatchDetails) {
+    const exception = targetException?.exceptions?.find(
+      (candidate) =>
+        candidate.migration === mismatch.migration && candidate.recordedChecksum === mismatch.recordedChecksum,
+    );
+    if (exception) {
+      approved.push({
+        migration: mismatch.migration,
+        recordedChecksum: mismatch.recordedChecksum,
+        approvedAt: targetException.approvedAt,
+        approvalScope: targetException.approvalScope,
+        reason: targetException.reason,
+      });
+    } else {
+      unresolved.push(mismatch);
+    }
+  }
+  return {
+    ...history,
+    checksumMismatches: unresolved.map((mismatch) => mismatch.migration),
+    checksumMismatchDetails: unresolved,
+    approvedChecksumExceptions: approved,
+    checksumExceptionManifest: {
+      version: manifest.version,
+      targetMatched: Boolean(targetException),
+      path: 'prisma/migration-checksum-exceptions.json',
+    },
+  };
+}
+
 async function queryRows(client, sql, params = []) {
   const result = await client.query(sql, params);
   return result.rows;
@@ -76,6 +126,7 @@ async function collectHistory(client, inventory) {
       appliedCount: 0,
       pending: inventory.migrations.map((migration) => migration.name),
       checksumMismatches: [],
+      checksumMismatchDetails: [],
       lineEndingVariants: [],
       failedOrRolledBack: [],
       unexpected: [],
@@ -103,18 +154,25 @@ async function collectHistory(client, inventory) {
       .map((row) => row.migration_name),
   );
 
+  const checksumMismatchDetails = latestRows
+    .filter((row) => {
+      const checksums = expected.get(row.migration_name);
+      return checksums && !Object.values(checksums).includes(row.checksum);
+    })
+    .map((row) => ({
+      migration: row.migration_name,
+      recordedChecksum: row.checksum,
+      localChecksums: expected.get(row.migration_name),
+    }));
+
   return {
     migrationTableExists: true,
     appliedCount: appliedNames.size,
     pending: inventory.migrations
       .filter((migration) => !appliedNames.has(migration.name))
       .map((migration) => migration.name),
-    checksumMismatches: latestRows
-      .filter((row) => {
-        const checksums = expected.get(row.migration_name);
-        return checksums && !Object.values(checksums).includes(row.checksum);
-      })
-      .map((row) => row.migration_name),
+    checksumMismatches: checksumMismatchDetails.map((mismatch) => mismatch.migration),
+    checksumMismatchDetails,
     lineEndingVariants: latestRows
       .filter((row) => {
         const checksums = expected.get(row.migration_name);
@@ -215,6 +273,7 @@ async function main() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) throw new Error('DATABASE_URL is required for read-only target migration audit.');
   const inventory = inspectMigrations();
+  const checksumExceptions = loadChecksumExceptions();
   const client = new Client({ connectionString, application_name: 'ami-brain-target-migration-audit' });
   await client.connect();
 
@@ -225,9 +284,12 @@ async function main() {
       client,
       `SELECT current_database() AS database, current_schema() AS schema, version() AS version`,
     );
-    const history = await collectHistory(client, inventory);
+    const rawHistory = await collectHistory(client, inventory);
     const structure = await collectCriticalStructure(client);
     await client.query('COMMIT');
+
+    const target = { ...sanitizeDatabaseTarget(connectionString), ...databaseRows[0] };
+    const history = applyChecksumExceptions(rawHistory, target, checksumExceptions);
 
     const blockers = [];
     if (!history.migrationTableExists) blockers.push('migration_table_missing');
@@ -244,7 +306,7 @@ async function main() {
       status: blockers.length ? 'blocked' : 'ready',
       databaseWritePerformed: false,
       targetLabel: argValue('label') ?? 'target-database',
-      target: { ...sanitizeDatabaseTarget(connectionString), ...databaseRows[0] },
+      target,
       inventory: {
         count: inventory.count,
         first: inventory.first,
