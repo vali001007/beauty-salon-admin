@@ -237,10 +237,16 @@ export class BrainCustomerFactResolverService {
     if (/消费.*(?:明显减少|明显下降|下降很多|减少很多)/.test(message)) {
       return this.decliningCustomerConsumption(input.storeId, 'amount');
     }
+    if (/(?:新客).*(?:潜力).*(?:长期客户|长期)|(?:潜力转成长期).*(?:新客|客户)/.test(message)) {
+      return this.newCustomerLongTermPotential(input.storeId);
+    }
+    if (/(?:客户).*(?:项目).*(?:特别感兴趣|感兴趣).*(?:还没办卡|未办卡|没有办卡)|(?:项目).*(?:特别感兴趣|感兴趣).*(?:还没办卡|未办卡|没有办卡)/.test(message)) {
+      return this.projectInterestWithoutActiveCard(input.storeId);
+    }
     if (/高价值|消费很多|消费金额|分层/.test(message)) {
       return this.highValueCustomers(input.storeId);
     }
-    if (/只来一次|一次就再没回来|潜力转成长期/.test(message)) {
+    if (/只来一次|一次就再没回来/.test(message)) {
       return this.oneTimeCustomers(input.storeId);
     }
     if (/(?:沉睡客户.*唤醒.*迹象|唤醒.*迹象.*沉睡客户)/.test(message)) {
@@ -1118,6 +1124,145 @@ ${cardLines}`;
     return this.formatCustomerRows('一次到店客户名单', customers, (customer) =>
       `${customer.name}：来源 ${customer.source ?? '未记录'}，累计消费 ${formatBrainMoney(toBrainNumber(customer.totalSpent))}${this.lastVisitText(customer.lastVisitDate)}`,
     );
+  }
+
+  private async newCustomerLongTermPotential(storeId: number) {
+    const run = await this.prisma.predictionRun.findFirst({
+      where: { storeId, status: 'completed' },
+      orderBy: [{ finishedAt: 'desc' }, { id: 'desc' }],
+      select: { id: true, modelVersion: true, businessDate: true, finishedAt: true },
+    });
+    if (!run) {
+      return '当前门店没有已完成的客户预测批次，无法识别新客长期转化潜力。Ami Brain 不会用一次到店名单或累计消费替代预测结果。';
+    }
+    const asOf = run.businessDate ?? run.finishedAt ?? new Date();
+    const newCustomerStart = new Date(asOf.getTime() - 90 * 86_400_000);
+    const snapshots = await this.prisma.customerPredictionSnapshot.findMany({
+      where: {
+        storeId,
+        runId: run.id,
+        repurchase30dScore: { gte: 70 },
+        customer: {
+          deletedAt: null,
+          createdAt: { gte: newCustomerStart, lte: asOf },
+          visitCount: { lte: 2 },
+        },
+      },
+      select: {
+        repurchase30dScore: true,
+        marketingResponseScore: true,
+        ltv6m: true,
+        ltvTier: true,
+        customer: {
+          select: {
+            name: true,
+            createdAt: true,
+            visitCount: true,
+            totalSpent: true,
+            lastVisitDate: true,
+          },
+        },
+      },
+      orderBy: [{ repurchase30dScore: 'desc' }, { ltv6m: 'desc' }],
+      take: 100,
+    });
+    const visible = snapshots.slice(0, 10);
+    const lines = visible.length
+      ? visible.map((snapshot, index) =>
+          `${index + 1}. ${snapshot.customer.name}：近 90 天建档、到店 ${snapshot.customer.visitCount} 次，30 天复购评分 ${snapshot.repurchase30dScore}，6 个月预期价值 ${formatBrainMoney(toBrainNumber(snapshot.ltv6m))}（${snapshot.ltvTier}），营销响应评分 ${snapshot.marketingResponseScore}${this.lastVisitText(snapshot.customer.lastVisitDate)}`,
+        ).join('\n')
+      : '1. 当前没有命中新客潜力候选。';
+    return `新客长期转化潜力候选：共 ${snapshots.length} 人，展示前 ${visible.length} 人。口径为最新预测批次中近 90 天建档、当前到店不超过 2 次且 30 天复购评分不低于 70 分。\n${lines}\n说明：这是 ${run.modelVersion} 在 ${asOf.toISOString().slice(0, 10)} 生成的预测候选，不是客户一定会转为长期客户；需要结合实时沟通结果复核。`;
+  }
+
+  private async projectInterestWithoutActiveCard(storeId: number) {
+    const endDate = new Date();
+    const startDate = new Date(endDate.getTime() - 90 * 86_400_000);
+    const events = await this.prisma.customerAppEvent.findMany({
+      where: {
+        storeId,
+        customerId: { not: null },
+        targetType: 'project',
+        targetId: { not: null },
+        eventType: { in: ['h5_view_project', 'h5_click_book', 'miniapp_reservation_success', 'promotion_reserved'] },
+        occurredAt: { gte: startDate, lte: endDate },
+      },
+      select: {
+        customerId: true,
+        eventType: true,
+        targetId: true,
+        occurredAt: true,
+        customer: {
+          select: {
+            name: true,
+            totalSpent: true,
+            customerCards: {
+              where: { status: 'active' },
+              select: { id: true },
+            },
+          },
+        },
+      },
+      orderBy: { occurredAt: 'desc' },
+      take: 10_000,
+    });
+    const scoreByEvent: Record<string, number> = {
+      h5_view_project: 1,
+      h5_click_book: 3,
+      miniapp_reservation_success: 4,
+      promotion_reserved: 3,
+    };
+    const signalByEvent: Record<string, string> = {
+      h5_view_project: '浏览项目',
+      h5_click_book: '点击预约',
+      miniapp_reservation_success: '预约成功',
+      promotion_reserved: '活动预约',
+    };
+    const grouped = new Map<string, {
+      customerName: string;
+      customerId: number;
+      projectId: number;
+      score: number;
+      latestAt: Date;
+      signals: Set<string>;
+      totalSpent: number;
+    }>();
+    for (const event of events) {
+      if (!event.customerId || !event.customer || event.customer.customerCards.length > 0) continue;
+      const projectId = Number(event.targetId);
+      if (!Number.isInteger(projectId) || projectId <= 0) continue;
+      const key = `${event.customerId}:${projectId}`;
+      const current = grouped.get(key) ?? {
+        customerName: event.customer.name,
+        customerId: event.customerId,
+        projectId,
+        score: 0,
+        latestAt: event.occurredAt,
+        signals: new Set<string>(),
+        totalSpent: toBrainNumber(event.customer.totalSpent),
+      };
+      current.score += scoreByEvent[event.eventType] ?? 0;
+      current.signals.add(signalByEvent[event.eventType] ?? event.eventType);
+      if (event.occurredAt > current.latestAt) current.latestAt = event.occurredAt;
+      grouped.set(key, current);
+    }
+    const candidates = [...grouped.values()].filter((item) => item.score >= 3);
+    const projectIds = [...new Set(candidates.map((item) => item.projectId))];
+    const projects = projectIds.length
+      ? await this.prisma.project.findMany({
+          where: { storeId, id: { in: projectIds }, deletedAt: null },
+          select: { id: true, name: true },
+        })
+      : [];
+    const projectNameById = new Map(projects.map((project) => [project.id, project.name]));
+    const rows = candidates
+      .filter((item) => projectNameById.has(item.projectId))
+      .sort((left, right) => right.score - left.score || right.latestAt.getTime() - left.latestAt.getTime())
+      .slice(0, 10);
+    const lines = rows.length
+      ? rows.map((row, index) => `${index + 1}. ${row.customerName}：${projectNameById.get(row.projectId)}，信号 ${[...row.signals].join('、')}，兴趣分 ${row.score}，最近信号 ${row.latestAt.toISOString().slice(0, 10)}，当前无活跃卡`).join('\n')
+      : '1. 当前没有命中客户。';
+    return `项目兴趣但未办卡候选：共 ${candidates.filter((item) => projectNameById.has(item.projectId)).length} 人次，展示前 ${rows.length} 人次。\n${lines}\n说明：只使用最近 90 天已绑定客户的 Ami Glow 项目浏览、点击预约、预约成功和活动预约行为；严格排除已有任何活跃卡的客户。行为信号表示运营候选，不等同于客户已明确承诺购买。`;
   }
 
   private async upcomingBirthdayCustomers(storeId: number) {

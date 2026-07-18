@@ -1852,6 +1852,130 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     expect(result.metadata).toMatchObject({ answerScope: 'reception_capacity_diagnosis', overloaded: true, availableStaffCount: 0 });
   });
 
+  it('returns inventory aging candidates without expanding into the generic inventory overview', async () => {
+    const skillRuntime = {
+      buildInventoryAgingAnalysis: jest.fn().mockResolvedValue({
+        totalProductCount: 45,
+        batchCoveredProductCount: 41,
+        candidateCount: 2,
+        observationDays: 90,
+        minimumRecordedAgeDays: 30,
+        minimumCoverageDays: 180,
+        products: [{
+          productId: 1,
+          sku: 'P-1',
+          name: '清透防晒乳',
+          stock: 120,
+          safetyStock: 20,
+          stockValue: 2400,
+          oldestBatchAgeDays: 47,
+          lastOutboundDays: 35,
+          outboundQuantity: 1,
+          coverageDays: 3660,
+          reason: '已记录在库 47 天，按近 47 天出库速度预计可用 3660 天',
+        }],
+      }),
+      buildInventoryRiskSummary: jest.fn(),
+      buildInventoryDetailAnalysis: jest.fn(),
+      buildInventoryProcurementAnalysis: jest.fn(),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, new BrainTimeRangeParserService());
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'inventory_operations_overview', name: '库存采购运营概览' },
+      context: { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'], deniedPermissions: [], requestId: 'inventory-aging-test', timezone: 'Asia/Shanghai' },
+      runId: 75,
+      question: '有什么产品积压太久了',
+      answerShape: 'ranking',
+      args: { objective: '查询库存积压商品', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('当前识别 2 个库存积压候选');
+    expect(result.answer).toContain('清透防晒乳');
+    expect(result.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'ranking' }),
+      expect.objectContaining({ kind: 'limitations' }),
+    ]));
+    expect(result.metadata).toMatchObject({ answerScope: 'inventory_aging_candidates', candidateCount: 2 });
+    expect(skillRuntime.buildInventoryAgingAnalysis).toHaveBeenCalledWith(expect.objectContaining({ storeId: 6, observationDays: 90 }));
+    expect(skillRuntime.buildInventoryRiskSummary).not.toHaveBeenCalled();
+    expect(skillRuntime.buildInventoryDetailAnalysis).not.toHaveBeenCalled();
+    expect(skillRuntime.buildInventoryProcurementAnalysis).not.toHaveBeenCalled();
+  });
+
+  it('summarizes only current supported urgent risks and discloses external fact gaps', async () => {
+    const skillRuntime = {
+      buildReceptionOperationsSnapshot: jest.fn().mockResolvedValue({
+        ...reception(6),
+        pendingArrival: 3,
+        noShow: 2,
+        noShowRate: 1 / 3,
+        staff: [{ name: '唐伊', appointmentCount: 4, onTimeOff: false, inService: true, available: false, nextAvailableAt: '16:00' }],
+      }),
+      buildFinanceRiskSummary: jest.fn().mockResolvedValue({
+        refundAmount: 300,
+        refundCount: 2,
+        discountAmount: 0,
+        grossMarginRate: 0.35,
+        riskItems: [],
+      }),
+      buildInventoryRiskSummary: jest.fn().mockResolvedValue({
+        lowStockProducts: [{ name: '补水面膜' }],
+        expiringStockValue: 880,
+      }),
+      buildReceptionServiceOverrunAnalysis: jest.fn().mockResolvedValue({ overrunCount: 2, impactedCount: 1, items: [] }),
+      buildManagerOperationsAnalysis: jest.fn(),
+    };
+    const customerFacts = { summarizeCustomerSegments: jest.fn(), answerCustomerFactQuestion: jest.fn() };
+    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, customerFacts as never, new BrainTimeRangeParserService());
+
+    const result = await executor.execute({
+      card: storeCard(),
+      context: { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'], deniedPermissions: [], requestId: 'urgent-risk-test', timezone: 'Asia/Shanghai' },
+      runId: 76,
+      question: '今天有没有需要我马上处理的紧急事项',
+      answerShape: 'diagnosis',
+      args: { objective: '查询今日紧急事项', time: { label: '今天', timezone: 'Asia/Shanghai', startDate: '2026-07-18', endDate: '2026-07-18' }, entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('服务超时影响后续预约');
+    expect(result.answer).toContain('低库存待复核');
+    expect(result.answer).toContain('设备、消防、客户反馈、服务事故等未落地事实不会被推断为无风险');
+    expect(result.metadata).toMatchObject({ answerScope: 'current_supported_urgent_risk_summary', findingCount: 7 });
+    expect(result.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'diagnosis' }),
+      expect.objectContaining({ kind: 'limitations' }),
+    ]));
+    expect(skillRuntime.buildManagerOperationsAnalysis).not.toHaveBeenCalled();
+    expect(customerFacts.summarizeCustomerSegments).not.toHaveBeenCalled();
+    expect(customerFacts.answerCustomerFactQuestion).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    '新客中哪些人最有潜力转成长期客户',
+    '有没有客户对某个项目特别感兴趣但还没办卡',
+  ])('routes concrete marketing candidates through customer facts: %s', async (question) => {
+    const customerFacts = {
+      answerCustomerFactQuestion: jest.fn().mockResolvedValue('真实客户候选：共 2 人。'),
+      summarizeCustomerSegments: jest.fn(),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor({} as never, customerFacts as never, new BrainTimeRangeParserService());
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'marketing_customer_segment', name: '营销客户分群摘要' },
+      context: { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['marketing'], permissions: ['*'], deniedPermissions: [], requestId: 'marketing-candidate-test', timezone: 'Asia/Shanghai' },
+      runId: 77,
+      question,
+      answerShape: 'list',
+      args: { objective: '查询营销候选客户', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(customerFacts.answerCustomerFactQuestion).toHaveBeenCalledWith(expect.objectContaining({ storeId: 6, message: question }));
+    expect(customerFacts.summarizeCustomerSegments).not.toHaveBeenCalled();
+    expect(result.answer).toContain('真实客户候选');
+    expect(result.metadata).toMatchObject({ segmentDetail: true });
+  });
+
   it('does not let generic operations or customer segments impersonate missing waiting and feedback facts', async () => {
     const skillRuntime = {
       buildManagerOperationsAnalysis: jest.fn(),

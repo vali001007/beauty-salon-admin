@@ -84,6 +84,42 @@ describe('Brain role skills', () => {
     expect(result.lowStockProducts[0]).toMatchObject({ productId: 1, name: '补水面膜' });
   });
 
+  it('ranks inventory aging candidates from batch age and outbound velocity', async () => {
+    const prisma = {
+      product: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 1, sku: 'P1', name: '慢动销精华', currentStock: 120, safetyStock: 30, costPrice: 20 },
+          { id: 2, sku: 'P2', name: '正常面膜', currentStock: 20, safetyStock: 10, costPrice: 10 },
+        ]),
+      },
+      stockBatch: {
+        findMany: jest.fn().mockResolvedValue([
+          { productId: 1, createdAt: new Date('2026-05-01T00:00:00.000Z') },
+          { productId: 2, createdAt: new Date('2026-05-01T00:00:00.000Z') },
+        ]),
+      },
+      stockMovement: {
+        findMany: jest.fn().mockResolvedValue([
+          { productId: 1, movementType: 'sale_out', quantity: -2, occurredAt: new Date('2026-06-01T00:00:00.000Z') },
+          { productId: 2, movementType: 'sale_out', quantity: -30, occurredAt: new Date('2026-07-15T00:00:00.000Z') },
+        ]),
+      },
+    };
+    const result = await new BrainInventorySkillsService(prisma as any).buildInventoryAgingAnalysis({
+      storeId: 6,
+      asOf: new Date('2026-07-18T23:59:59.999Z'),
+      observationDays: 90,
+    });
+
+    expect(result).toMatchObject({
+      totalProductCount: 2,
+      batchCoveredProductCount: 2,
+      candidateCount: 1,
+      products: [expect.objectContaining({ productId: 1, name: '慢动销精华', oldestBatchAgeDays: 78 })],
+    });
+    expect(result.products[0]!.coverageDays).toBeGreaterThanOrEqual(180);
+  });
+
   it('summarizes finance risks from refunds, discounts and settlement margin', async () => {
     const prisma = {
       refundRecord: { findMany: jest.fn().mockResolvedValue([{ amount: 120 }, { amount: 80 }]) },
@@ -161,7 +197,10 @@ describe('Brain role skills', () => {
       { buildDailyOverview: jest.fn().mockResolvedValue({ revenue: 1 }) } as any,
       { countReservations: jest.fn().mockResolvedValue(2), previewReservationAction: jest.fn().mockReturnValue({ actionType: 'create_reservation' }) } as any,
       { draftAppointmentReminder: jest.fn().mockReturnValue('reminder'), draftCustomerRecall: jest.fn().mockReturnValue('recall') } as any,
-      { buildInventoryRiskSummary: jest.fn().mockResolvedValue({ stockoutSkuCount: 0 }) } as any,
+      {
+        buildInventoryRiskSummary: jest.fn().mockResolvedValue({ stockoutSkuCount: 0 }),
+        buildInventoryAgingAnalysis: jest.fn().mockResolvedValue({ candidateCount: 1 }),
+      } as any,
       {
         buildFinanceRiskSummary: jest.fn().mockResolvedValue({ refundAmount: 0 }),
         buildMemberBalanceFlowSummary: jest.fn().mockResolvedValue({ rechargeAmount: 100, consumedAmount: 50 }),
@@ -173,6 +212,7 @@ describe('Brain role skills', () => {
     await expect(runtime.countReceptionReservations({ storeId: 6, startDate, endDate })).resolves.toBe(2);
     expect(runtime.draftAppointmentReminder({})).toBe('reminder');
     await expect(runtime.buildInventoryRiskSummary({ storeId: 6, expiringBefore: endDate })).resolves.toMatchObject({ stockoutSkuCount: 0 });
+    await expect(runtime.buildInventoryAgingAnalysis({ storeId: 6, asOf: endDate })).resolves.toMatchObject({ candidateCount: 1 });
     await expect(runtime.buildFinanceRiskSummary({ storeId: 6, startDate, endDate })).resolves.toMatchObject({ refundAmount: 0 });
     await expect(runtime.buildFinanceMemberBalanceFlowSummary({ storeId: 6, startDate, endDate })).resolves.toMatchObject({ rechargeAmount: 100, consumedAmount: 50 });
     await expect(runtime.buildBeauticianServiceSummary({ storeId: 6, startDate, endDate })).resolves.toMatchObject({ serviceCount: 0 });

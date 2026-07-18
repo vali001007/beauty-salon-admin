@@ -113,6 +113,10 @@ export class BrainSkillRuntimeService {
     return this.inventorySkills.buildInventoryDetailAnalysis(input);
   }
 
+  buildInventoryAgingAnalysis(input: Parameters<BrainInventorySkillsService['buildInventoryAgingAnalysis']>[0]) {
+    return this.inventorySkills.buildInventoryAgingAnalysis(input);
+  }
+
   buildInventoryProcurementAnalysis(input: Parameters<BrainInventorySkillsService['buildProcurementAnalysis']>[0]) {
     return this.inventorySkills.buildProcurementAnalysis(input);
   }

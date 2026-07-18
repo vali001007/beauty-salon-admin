@@ -26,6 +26,28 @@ export interface InventoryDetailAnalysis {
   movements: Array<{ occurredAt: string; productName: string; type: string; quantity: number; costAmount: number }>;
 }
 
+export interface InventoryAgingAnalysis {
+  totalProductCount: number;
+  batchCoveredProductCount: number;
+  candidateCount: number;
+  observationDays: number;
+  minimumRecordedAgeDays: number;
+  minimumCoverageDays: number;
+  products: Array<{
+    productId: number;
+    sku: string;
+    name: string;
+    stock: number;
+    safetyStock: number;
+    stockValue: number;
+    oldestBatchAgeDays: number;
+    lastOutboundDays?: number;
+    outboundQuantity: number;
+    coverageDays?: number;
+    reason: string;
+  }>;
+}
+
 export interface InventoryProcurementAnalysis {
   suggestions: Array<{
     productId: number;
@@ -177,6 +199,111 @@ export class BrainInventorySkillsService {
         quantity: this.toNumber(movement.quantity),
         costAmount: this.toNumber(movement.costAmount),
       })),
+    };
+  }
+
+  async buildInventoryAgingAnalysis(input: {
+    storeId: number;
+    asOf?: Date;
+    observationDays?: number;
+  }): Promise<InventoryAgingAnalysis> {
+    const asOf = input.asOf ? new Date(input.asOf) : new Date();
+    const observationDays = Math.max(30, Math.min(180, input.observationDays ?? 90));
+    const minimumRecordedAgeDays = 30;
+    const minimumCoverageDays = 180;
+    const observationStart = new Date(asOf.getTime() - observationDays * 86_400_000);
+    const products = await this.prisma.product.findMany({
+      where: { storeId: input.storeId, deletedAt: null, status: 'active', currentStock: { gt: 0 } },
+      select: {
+        id: true,
+        sku: true,
+        name: true,
+        currentStock: true,
+        safetyStock: true,
+        costPrice: true,
+      },
+      take: 500,
+    });
+    const productIds = products.map((product) => product.id);
+    const [batches, movements] = productIds.length
+      ? await Promise.all([
+          this.prisma.stockBatch.findMany({
+            where: { productId: { in: productIds }, stock: { gt: 0 } },
+            select: { productId: true, createdAt: true },
+            orderBy: [{ productId: 'asc' }, { createdAt: 'asc' }],
+            take: 10_000,
+          }),
+          this.prisma.stockMovement.findMany({
+            where: {
+              storeId: input.storeId,
+              productId: { in: productIds },
+              occurredAt: { lte: asOf },
+            },
+            select: { productId: true, movementType: true, quantity: true, occurredAt: true },
+            orderBy: { occurredAt: 'desc' },
+            take: 20_000,
+          }),
+        ])
+      : [[], []];
+    const oldestBatchByProduct = new Map<number, Date>();
+    for (const batch of batches) {
+      const current = oldestBatchByProduct.get(batch.productId);
+      if (!current || batch.createdAt < current) oldestBatchByProduct.set(batch.productId, batch.createdAt);
+    }
+    const outboundByProduct = new Map<number, { quantity: number; lastAt?: Date }>();
+    for (const movement of movements) {
+      if (!/(out|consume|consumption|sale|usage|deduct|scrap|transfer_out|manual_outbound|出库|消耗|销售|报损)/i.test(movement.movementType)) continue;
+      const current = outboundByProduct.get(movement.productId) ?? { quantity: 0 };
+      if (!current.lastAt || movement.occurredAt > current.lastAt) current.lastAt = movement.occurredAt;
+      if (movement.occurredAt >= observationStart) current.quantity += Math.abs(this.toNumber(movement.quantity));
+      outboundByProduct.set(movement.productId, current);
+    }
+    const ageDays = (value: Date) => Math.max(0, Math.floor((asOf.getTime() - value.getTime()) / 86_400_000));
+    const rows = products.flatMap((product) => {
+      const oldestBatch = oldestBatchByProduct.get(product.id);
+      if (!oldestBatch) return [];
+      const oldestBatchAgeDays = ageDays(oldestBatch);
+      const outbound = outboundByProduct.get(product.id) ?? { quantity: 0 };
+      const effectiveObservationDays = Math.max(1, Math.min(observationDays, oldestBatchAgeDays || 1));
+      const stock = this.toNumber(product.currentStock);
+      const safetyStock = this.toNumber(product.safetyStock);
+      const dailyOutbound = outbound.quantity / effectiveObservationDays;
+      const coverageDays = dailyOutbound > 0 ? Math.ceil(stock / dailyOutbound) : undefined;
+      const lastOutboundDays = outbound.lastAt ? ageDays(outbound.lastAt) : undefined;
+      const isSlowMoving = outbound.quantity === 0 ||
+        (coverageDays !== undefined && coverageDays >= minimumCoverageDays) ||
+        (lastOutboundDays !== undefined && lastOutboundDays >= 30 && safetyStock > 0 && stock >= safetyStock * 2);
+      if (oldestBatchAgeDays < minimumRecordedAgeDays || !isSlowMoving) return [];
+      const reason = outbound.quantity === 0
+        ? `已记录在库 ${oldestBatchAgeDays} 天，观察期内无出库`
+        : `已记录在库 ${oldestBatchAgeDays} 天，按近 ${effectiveObservationDays} 天出库速度预计可用 ${coverageDays} 天`;
+      return [{
+        productId: product.id,
+        sku: product.sku,
+        name: product.name,
+        stock,
+        safetyStock,
+        stockValue: stock * this.toNumber(product.costPrice),
+        oldestBatchAgeDays,
+        lastOutboundDays,
+        outboundQuantity: outbound.quantity,
+        coverageDays,
+        reason,
+      }];
+    }).sort((left, right) => {
+      if (left.outboundQuantity === 0 && right.outboundQuantity !== 0) return -1;
+      if (right.outboundQuantity === 0 && left.outboundQuantity !== 0) return 1;
+      return (right.coverageDays ?? Number.MAX_SAFE_INTEGER) - (left.coverageDays ?? Number.MAX_SAFE_INTEGER) ||
+        right.oldestBatchAgeDays - left.oldestBatchAgeDays || right.stockValue - left.stockValue;
+    });
+    return {
+      totalProductCount: products.length,
+      batchCoveredProductCount: oldestBatchByProduct.size,
+      candidateCount: rows.length,
+      observationDays,
+      minimumRecordedAgeDays,
+      minimumCoverageDays,
+      products: rows,
     };
   }
 

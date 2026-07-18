@@ -107,11 +107,13 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '今天客单价多少，跟平时比怎么样',
       '现在店里哪些美容师在忙，哪些空着',
       '今天有没有什么异常情况我需要知道',
+      '今天有没有什么需要我特别注意的风险',
+      '今天有没有需要我马上处理的紧急事项',
       '今天最大的一笔消费是多少',
       '这周有没有哪天特别差，为什么',
     ],
     negativeExamples: ['帮我直接修改本月经营目标', '查询其他门店的经营数据'],
-    synonyms: ['经营概览', '经营总结', '店里情况', '门店经营诊断', '经营对比', '目标完成率', '客单价', '美容师忙闲', '新客老客到店'],
+    synonyms: ['经营概览', '经营总结', '店里情况', '门店经营诊断', '经营对比', '目标完成率', '客单价', '美容师忙闲', '新客老客到店', '今日风险', '紧急事项'],
     businessDefinitionKeys: [
       'metric.paid_amount',
       'metric.project_service_count',
@@ -279,9 +281,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     name: '库存采购运营概览',
     description: '组合库存金额、低库存、临期批次、库存消耗、采购建议、供应商和最近采购单，返回只读库存运营诊断。',
     intents: ['query', 'ranking', 'diagnosis', 'recommendation'],
-    examples: ['本月库存有什么风险', '现在哪些产品库存不够了', '哪些产品该补货了', '临期和低库存商品怎么处理', '有没有快过期的产品，数量多少', '最近采购了什么，花了多少钱', '哪些耗材消耗速度最快', '有没有哪个项目因为缺耗材没法做', '这个月产品销售额是多少'],
+    examples: ['本月库存有什么风险', '现在哪些产品库存不够了', '哪些产品该补货了', '临期和低库存商品怎么处理', '有没有快过期的产品，数量多少', '有什么产品积压太久了', '最近采购了什么，花了多少钱', '哪些耗材消耗速度最快', '有没有哪个项目因为缺耗材没法做', '这个月产品销售额是多少'],
     negativeExamples: ['直接创建采购单', '修改商品当前库存'],
-    synonyms: ['库存概览', '库存风险', '采购建议', '低库存', '临期库存', '快过期产品'],
+    synonyms: ['库存概览', '库存风险', '采购建议', '低库存', '临期库存', '快过期产品', '库存积压', '产品积压', '慢周转库存'],
     businessDefinitionKeys: [
       'entity.product',
       'entity.project',
@@ -464,9 +466,11 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '有没有客户对优惠很敏感，老是等打折才来',
       '帮我找一下只做过基础项目没有升单的客户',
       '疗程快结束的客户有多少，适合推续购',
+      '新客中哪些人最有潜力转成长期客户',
+      '有没有客户对某个项目特别感兴趣但还没办卡',
     ],
     negativeExamples: ['直接给沉睡客户群发消息', '查看其他门店的客户分群', '查询未处理客户投诉', '判断会员权益使用后的满意度'],
-    synonyms: ['客户分群', '营销客群', 'VIP客户分层', '沉睡客户分层', '消费金额分层', '优惠敏感客户', '基础项目未升单客户', '疗程续购客户'],
+    synonyms: ['客户分群', '营销客群', 'VIP客户分层', '沉睡客户分层', '消费金额分层', '优惠敏感客户', '基础项目未升单客户', '疗程续购客户', '新客长期潜力', '项目兴趣未办卡'],
     businessDefinitionKeys: ['entity.customer', 'entity.project', 'dimension.customerId', 'dimension.customerName'],
     readOnly: true,
     storeScope: 'required',
@@ -571,6 +575,103 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
               completion: { status: 'complete', missingCriteria: [], recoverable: false },
             },
           };
+        }
+        if (/(?:特别注意).*(?:风险)|(?:马上处理|紧急事项)|(?:风险).*(?:马上处理|优先处理)/.test(input.question)) {
+          const expiringBefore = new Date(range.endDate.getTime() + 30 * 86_400_000);
+          const [reception, finance, inventory, overrun] = await Promise.all([
+            this.skillRuntime.buildReceptionOperationsSnapshot({
+              storeId: input.context.storeId,
+              startDate: range.startDate,
+              endDate: range.endDate,
+            }),
+            this.skillRuntime.buildFinanceRiskSummary({
+              storeId: input.context.storeId,
+              startDate: range.startDate,
+              endDate: range.endDate,
+            }),
+            this.skillRuntime.buildInventoryRiskSummary({ storeId: input.context.storeId, expiringBefore }),
+            this.skillRuntime.buildReceptionServiceOverrunAnalysis({
+              storeId: input.context.storeId,
+              startDate: range.startDate,
+              endDate: range.endDate,
+              timezone: input.context.timezone,
+            }),
+          ]);
+          const availableStaffCount = reception.staff.filter((item) => item.available && !item.onTimeOff).length;
+          const findings = [
+            ...(overrun.impactedCount > 0 ? [{
+              title: '服务超时影响后续预约',
+              detail: `${range.label}有 ${overrun.overrunCount} 个服务超时，影响 ${overrun.impactedCount} 个后续预约。`,
+              severity: 'critical' as const,
+            }] : []),
+            ...(reception.pendingArrival > 0 && availableStaffCount === 0 ? [{
+              title: '接待能力不足',
+              detail: `${range.label}有 ${reception.pendingArrival} 位客户待到店，当前没有可接待员工。`,
+              severity: 'critical' as const,
+            }] : []),
+            ...(inventory.lowStockProducts.length > 0 ? [{
+              title: '低库存待复核',
+              detail: `${inventory.lowStockProducts.length} 个 SKU 低于安全库存：${inventory.lowStockProducts.slice(0, 3).map((item) => item.name).join('、')}。`,
+              severity: 'warning' as const,
+            }] : []),
+            ...(inventory.expiringStockValue > 0 ? [{
+              title: '临期库存待处理',
+              detail: `未来 30 天临期库存估算金额 ${inventory.expiringStockValue.toFixed(2)} 元。`,
+              severity: 'warning' as const,
+            }] : []),
+            ...(finance.grossMarginRate !== undefined && finance.grossMarginRate > 0 && finance.grossMarginRate < 0.4 ? [{
+              title: '毛利率低于预警线',
+              detail: `${range.label}毛利率 ${(finance.grossMarginRate * 100).toFixed(1)}%，低于 40% 预警线。`,
+              severity: 'warning' as const,
+            }] : []),
+            ...(finance.refundAmount > 0 ? [{
+              title: '退款待复核',
+              detail: `${range.label}退款 ${finance.refundCount} 笔、合计 ${finance.refundAmount.toFixed(2)} 元。`,
+              severity: 'warning' as const,
+            }] : []),
+            ...(reception.noShow >= 2 && reception.noShowRate >= 0.2 ? [{
+              title: '爽约率偏高',
+              detail: `${range.label}爽约 ${reception.noShow} 人，爽约率 ${(reception.noShowRate * 100).toFixed(1)}%。`,
+              severity: 'warning' as const,
+            }] : []),
+          ];
+          const limitation = '本摘要只覆盖当前已接入的预约接待、服务超时、财务退款/毛利和库存风险；设备、消防、客户反馈、服务事故等未落地事实不会被推断为无风险。';
+          const answer = findings.length
+            ? `${range.label}发现 ${findings.length} 项需要优先处理的已证实事项：${findings.map((item, index) => `${index + 1}. ${item.title}：${item.detail}`).join(' ')} ${limitation}`
+            : `${range.label}在已接入事实范围内没有发现需要马上处理的事项。${limitation}`;
+          return this.applyDataQualityGuard({
+            status: 'completed',
+            answer,
+            citations: [
+              { sourceType: 'db_skill', sourceId: 'reception_operations_snapshot', label: '预约到店与员工忙闲快照' },
+              { sourceType: 'db_skill', sourceId: 'reception_service_overrun_analysis', label: '服务超时影响分析' },
+              { sourceType: 'db_skill', sourceId: 'finance_risk_summary', label: '退款、优惠与毛利风险' },
+              { sourceType: 'db_skill', sourceId: 'inventory_risk_summary', label: '低库存与临期批次风险' },
+            ],
+            grounding: 'db_skill',
+            blocks: [
+              {
+                kind: 'kpi',
+                items: [
+                  { label: '需优先处理', value: `${findings.length} 项` },
+                  { label: '待到店', value: `${reception.pendingArrival} 人` },
+                  { label: '可接待员工', value: `${availableStaffCount} 人` },
+                  { label: '低库存', value: `${inventory.lowStockProducts.length} 个 SKU` },
+                ],
+                citationIds: ['reception_operations_snapshot', 'inventory_risk_summary'],
+              },
+              ...(findings.length ? [{ kind: 'diagnosis' as const, findings, citationIds: ['reception_operations_snapshot', 'reception_service_overrun_analysis', 'finance_risk_summary', 'inventory_risk_summary'] }] : []),
+              { kind: 'limitations', items: [limitation] },
+            ],
+            metadata: {
+              capabilityKey: 'store_operations_overview',
+              answerScope: 'current_supported_urgent_risk_summary',
+              rangeLabel: range.label,
+              findingCount: findings.length,
+              coverageDomains: ['reservation', 'service_overrun', 'finance', 'inventory'],
+              completionCriteria: ['supported_risks_loaded', 'unsupported_domains_disclosed'],
+            },
+          }, dataQuality);
         }
         const comparisonRange = this.resolveComparisonRange(input, range);
         const [operations, reception, finance, comparisonOperations, comparisonReception, comparisonFinance] = await Promise.all([
@@ -1545,6 +1646,51 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         }, dataQuality);
       }
       case 'inventory_operations_overview': {
+        if (/(?:产品|商品|库存).*(?:积压太久|积压很久|积压|周转慢)|(?:积压太久|积压很久).*(?:产品|商品|库存)/.test(input.question)) {
+          const aging = await this.skillRuntime.buildInventoryAgingAnalysis({
+            storeId: input.context.storeId,
+            asOf: range.endDate,
+            observationDays: 90,
+          });
+          const rows = aging.products.slice(0, this.resolveLimit(input.args.limit, 10));
+          const limitation = `仅评估有在库批次记录的 ${aging.batchCoveredProductCount}/${aging.totalProductCount} 个商品；候选需已记录在库至少 ${aging.minimumRecordedAgeDays} 天，并满足观察期无出库、预计库存覆盖至少 ${aging.minimumCoverageDays} 天，或长期低动销且库存明显高于安全库存。`;
+          return this.applyDataQualityGuard({
+            status: 'completed',
+            answer: rows.length
+              ? `当前识别 ${aging.candidateCount} 个库存积压候选，展示前 ${rows.length} 个：${rows.map((row, index) => `${index + 1}. ${row.name}，当前库存 ${row.stock}，${row.reason}`).join('；')}。${limitation}`
+              : `当前没有满足统一口径的库存积压候选。${limitation}`,
+            citations: [{ sourceType: 'db_skill', sourceId: 'inventory_aging_analysis', label: '库存批次龄期与出库速度分析' }],
+            grounding: 'db_skill',
+            blocks: [
+              {
+                kind: 'ranking',
+                rows: rows.map((row) => ({
+                  productName: row.name,
+                  currentStock: row.stock,
+                  safetyStock: row.safetyStock,
+                  stockValue: row.stockValue.toFixed(2),
+                  oldestBatchAgeDays: row.oldestBatchAgeDays,
+                  lastOutboundDays: row.lastOutboundDays ?? '',
+                  outboundQuantity: row.outboundQuantity,
+                  coverageDays: row.coverageDays ?? '',
+                  reason: row.reason,
+                })),
+                columns: ['productName', 'currentStock', 'safetyStock', 'stockValue', 'oldestBatchAgeDays', 'lastOutboundDays', 'outboundQuantity', 'coverageDays', 'reason'],
+                citationIds: ['inventory_aging_analysis'],
+              },
+              { kind: 'limitations', items: [limitation] },
+            ],
+            metadata: {
+              capabilityKey: 'inventory_operations_overview',
+              answerScope: 'inventory_aging_candidates',
+              candidateCount: aging.candidateCount,
+              observationDays: aging.observationDays,
+              batchCoveredProductCount: aging.batchCoveredProductCount,
+              totalProductCount: aging.totalProductCount,
+              completionCriteria: ['batch_age_loaded', 'outbound_velocity_loaded', 'aging_candidates_ranked'],
+            },
+          }, dataQuality);
+        }
         const expiringBefore = new Date(range.endDate.getTime() + 30 * 86_400_000);
         const requestedMetricKeys = structuredDefinitionKeys(input.args.metrics);
         const stockRiskRanking = requestedMetricKeys.has('metric.stock_risk_score');
@@ -2808,7 +2954,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             },
           };
         }
-        if (/(?:消费金额.*(?:分层|分一下层|分组)|优惠.*敏感|等打折|打折才来|基础项目.*(?:升单|升级)|疗程.*(?:快结束|临近结束|续购)|续购.*(?:疗程|次卡|客户))/.test(input.question)) {
+        if (/(?:消费金额.*(?:分层|分一下层|分组)|优惠.*敏感|等打折|打折才来|基础项目.*(?:升单|升级)|疗程.*(?:快结束|临近结束|续购)|续购.*(?:疗程|次卡|客户)|新客.*潜力.*长期|项目.*感兴趣.*(?:还没办卡|未办卡|没有办卡))/.test(input.question)) {
           const answer = await this.customerFacts.answerCustomerFactQuestion({
             storeId: input.context.storeId,
             message: input.question,

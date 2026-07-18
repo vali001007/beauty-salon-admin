@@ -122,6 +122,82 @@ describe('BrainCustomerFactResolverService', () => {
     expect(customerLifecycle.getDormantReactivationEvidence).toHaveBeenCalledWith(6, expect.objectContaining({ limit: 10 }));
   });
 
+  it('uses the latest prediction run for new-customer long-term potential instead of a one-time customer list', async () => {
+    const predictionRunFindFirst = jest.fn().mockResolvedValue({
+      id: 62,
+      modelVersion: 'rules-v2.1',
+      businessDate: new Date('2026-07-16T00:00:00.000Z'),
+      finishedAt: new Date('2026-07-15T16:00:56.000Z'),
+    });
+    const snapshotFindMany = jest.fn().mockResolvedValue([
+      {
+        repurchase30dScore: 82,
+        marketingResponseScore: 76,
+        ltv6m: 1800,
+        ltvTier: '白银',
+        customer: {
+          name: '高晓雯',
+          createdAt: new Date('2026-05-14T02:00:00.000Z'),
+          visitCount: 2,
+          totalSpent: 961,
+          lastVisitDate: new Date('2026-06-30T02:28:02.604Z'),
+        },
+      },
+    ]);
+    const service = new BrainCustomerFactResolverService({
+      predictionRun: { findFirst: predictionRunFindFirst },
+      customerPredictionSnapshot: { findMany: snapshotFindMany },
+    } as never);
+
+    await expect(service.answerCustomerFactQuestion({
+      storeId: 6,
+      message: '新客中哪些人最有潜力转成长期客户',
+    })).resolves.toContain('高晓雯：近 90 天建档、到店 2 次，30 天复购评分 82');
+    expect(snapshotFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        storeId: 6,
+        runId: 62,
+        repurchase30dScore: { gte: 70 },
+        customer: expect.objectContaining({ visitCount: { lte: 2 } }),
+      }),
+    }));
+  });
+
+  it('uses bound project behavior and excludes customers with active cards from project-interest candidates', async () => {
+    const eventFindMany = jest.fn().mockResolvedValue([
+      {
+        customerId: 10,
+        eventType: 'h5_click_book',
+        targetId: '88',
+        occurredAt: new Date('2026-07-08T07:45:12.000Z'),
+        customer: { name: '王女士', totalSpent: 0, customerCards: [] },
+      },
+      {
+        customerId: 11,
+        eventType: 'miniapp_reservation_success',
+        targetId: '92',
+        occurredAt: new Date('2026-07-07T07:45:12.000Z'),
+        customer: { name: '李女士', totalSpent: 5000, customerCards: [{ id: 1 }] },
+      },
+    ]);
+    const projectFindMany = jest.fn().mockResolvedValue([{ id: 88, name: '水光护理' }]);
+    const service = new BrainCustomerFactResolverService({
+      customerAppEvent: { findMany: eventFindMany },
+      project: { findMany: projectFindMany },
+    } as never);
+
+    const answer = await service.answerCustomerFactQuestion({
+      storeId: 6,
+      message: '有没有客户对某个项目特别感兴趣但还没办卡',
+    });
+
+    expect(answer).toContain('王女士：水光护理，信号 点击预约');
+    expect(answer).not.toContain('李女士');
+    expect(projectFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { storeId: 6, id: { in: [88] }, deletedAt: null },
+    }));
+  });
+
   it('uses the requested time range and returns a ranked new-customer source distribution', async () => {
     const findMany = jest.fn().mockResolvedValue([
       { createdAt: new Date('2026-07-02T02:00:00.000Z'), source: 'ami_glow' },
