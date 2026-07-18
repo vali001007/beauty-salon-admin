@@ -1709,6 +1709,7 @@ model CustomerCard {
 
 model CardUsageRecord {
   id             Int      @id @default(autoincrement())
+  idempotencyKey String?  @unique
   customerCardId Int?
   cardId         Int?
   projectId      Int?

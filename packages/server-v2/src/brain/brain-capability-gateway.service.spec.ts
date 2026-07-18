@@ -11,7 +11,7 @@ describe('BrainCapabilityGatewayService', () => {
     });
   });
 
-  it('declares safe replay only for reservation reschedule and cancellation', () => {
+  it('declares safe replay only for idempotent update and card usage actions', () => {
     const service = new BrainCapabilityGatewayService();
 
     expect(service.failureRecovery('reschedule_reservation')).toBe('safe_replay');
@@ -19,7 +19,7 @@ describe('BrainCapabilityGatewayService', () => {
     expect(service.failureRecovery('create_reservation')).toBe('manual_reconcile');
     expect(service.failureRecovery('create_purchase_order')).toBe('manual_reconcile');
     expect(service.failureRecovery('create_marketing_touch_draft')).toBe('manual_reconcile');
-    expect(service.failureRecovery('verify_card_usage')).toBe('manual_reconcile');
+    expect(service.failureRecovery('verify_card_usage')).toBe('safe_replay');
   });
 
   it('canonicalizes approved arguments and rejects model confirmation claims', () => {
@@ -179,7 +179,12 @@ describe('BrainCapabilityGatewayService', () => {
         times: 1,
         beauticianId: 2,
       },
-      context: { userId: 9, storeId: 6, permissions: ['core:order:card-usage'] },
+      context: {
+        userId: 9,
+        storeId: 6,
+        permissions: ['core:order:card-usage'],
+        idempotencyKey: 'brain-action-71',
+      },
     });
 
     expect(service.resolve('verify_card_usage')).toMatchObject({ riskLevel: 'critical', permission: 'core:order:card-usage' });
@@ -190,6 +195,7 @@ describe('BrainCapabilityGatewayService', () => {
       times: 1,
       beauticianId: 2,
       operatorId: 9,
+      idempotencyKey: 'brain-action-71',
     }));
     expect(receipt).toMatchObject({
       capabilityKey: 'verify_card_usage',

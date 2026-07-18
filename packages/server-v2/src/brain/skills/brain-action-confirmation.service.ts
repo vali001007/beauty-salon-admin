@@ -256,6 +256,7 @@ export class BrainActionConfirmationService {
       executionId: claimed.id,
       payload: validation.payload,
       permissions: input.permissions,
+      idempotencyKey: approval.idempotencyKey,
     });
   }
 
@@ -315,7 +316,7 @@ export class BrainActionConfirmationService {
       return { actionId: action.actionId, executionId: existing.id, status: 'expired', retryable: false };
     }
 
-    const { validation } = await this.validateApprovedAction(action, input);
+    const { approval, validation } = await this.validateApprovedAction(action, input);
     let claimed = false;
     try {
       claimed = await this.prisma.$transaction(async (tx) => {
@@ -357,6 +358,7 @@ export class BrainActionConfirmationService {
       executionId: existing.id,
       payload: validation.payload,
       permissions: input.permissions,
+      idempotencyKey: approval.idempotencyKey,
       retried: true,
     });
   }
@@ -417,6 +419,7 @@ export class BrainActionConfirmationService {
       capabilityKey: approval.capabilityKey,
       storeId: input.storeId,
       args: validation.payload,
+      idempotencyKey: approval.idempotencyKey,
     });
     return { approval, validation };
   }
@@ -432,6 +435,7 @@ export class BrainActionConfirmationService {
     executionId: number;
     payload: Record<string, unknown>;
     permissions: string[];
+    idempotencyKey: string;
     retried?: boolean;
   }) {
     if (!this.capabilityGateway) throw new Error('capability_gateway_unavailable');
@@ -444,6 +448,7 @@ export class BrainActionConfirmationService {
           userId: action.userId,
           storeId: action.storeId,
           permissions: input.permissions,
+          idempotencyKey: input.idempotencyKey,
         },
       });
       const executionStatus = receipt.status === 'partially_succeeded' ? 'partially_succeeded' : 'succeeded';

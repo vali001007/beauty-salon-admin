@@ -1,0 +1,6 @@
+{
+  "migration": "20260718190000_card_usage_action_idempotency",
+  "localChecksum": "54b07fd2cd5cb8d7e716206ea03bed310e442877f1f4207cb576f273efecf569",
+  "databaseChecksum": "54b07fd2cd5cb8d7e716206ea03bed310e442877f1f4207cb576f273efecf569",
+  "matches": true
+}

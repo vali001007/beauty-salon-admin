@@ -61,7 +61,7 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
   @BrainCapability({
     key: 'card_usage_action_preview',
     name: '次卡核销预览',
-    description: '解析当前门店内的唯一客户、有效次卡、卡内项目、核销次数和服务美容师，生成关键风险待确认预览。确认后复用统一 CardsService 完成扣次、核销流水、耗材、收入和提成，不直接修改卡余额。',
+    description: '解析当前门店内的唯一客户、有效次卡、卡内项目、核销次数和服务美容师，生成关键风险待确认预览。确认后复用统一 CardsService 完成扣次、核销流水、耗材、收入和提成；同一幂等键可安全重放并返回原核销回执，不重复扣次、扣库存或计提成。',
     intents: ['action'],
     examples: ['给张女士的补水次卡核销深层补水护理 1 次，服务人员是王美容师', '预览为指定客户划扣一次卡项并归属到指定美容师'],
     negativeExamples: ['直接核销不要确认', '核销其他门店客户的卡', '没有客户卡项和服务人员也直接扣次', '只查询客户次卡剩余次数'],

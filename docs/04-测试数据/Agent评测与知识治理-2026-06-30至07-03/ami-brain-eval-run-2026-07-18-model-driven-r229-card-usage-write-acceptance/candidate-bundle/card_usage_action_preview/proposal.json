@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "policy": "synthetic_contract_only",
+  "productionReady": false,
+  "proposalStatus": "synthetic_contract_only",
+  "capabilityKey": "card_usage_action_preview",
+  "sourceFingerprint": "10cc7b95a1f6c24ab7835f60e43c2de13178a0084dc3f8837f733994a4768052",
+  "proposalFingerprint": "67b3a0f5d963b7defef3af5ed3ac8b4b0fd793a0e649887fd77d08db333d162b",
+  "bindingFingerprint": "16289c84b9bd766b7d069656ce3fcf9ddfe2c7ef673c19b799519e8859b82af4",
+  "executorBinding": {
+    "schemaVersion": 1,
+    "capabilityKey": "card_usage_action_preview",
+    "sourceFingerprint": "10cc7b95a1f6c24ab7835f60e43c2de13178a0084dc3f8837f733994a4768052",
+    "target": {
+      "kind": "service",
+      "className": "BrainActionCapabilityExecutor",
+      "methodName": "cardUsageActionPreview",
+      "sourcePath": "packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts",
+      "exportedClass": true,
+      "methodAccess": "public",
+      "parameterCount": 2,
+      "parameterTypes": [
+        "BrainCapabilityToolArgs",
+        "BrainCapabilityExecutionInput"
+      ],
+      "returnType": "unknown"
+    },
+    "generatedSourcePath": "packages/server-v2/src/brain/capability/generated/card_usage_action_preview/binding.ts",
+    "targetImportPath": "../../executors/brain-action-capability.executor.js",
+    "requiredPermissions": [
+      "core:brain:use",
+      "core:order:card-usage"
+    ],
+    "storeScope": "required",
+    "requiresConfirmation": true,
+    "idempotency": "required",
+    "readOnly": false,
+    "sideEffect": true,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "comparisonTarget": {
+          "type": "object"
+        },
+        "dimensions": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "entities": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "filters": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "limit": {
+          "type": "number"
+        },
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "objective": {
+          "type": "string"
+        },
+        "orderBy": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "time": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "dimensions",
+        "entities",
+        "filters",
+        "metrics",
+        "objective",
+        "orderBy"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "bindingFingerprint": "16289c84b9bd766b7d069656ce3fcf9ddfe2c7ef673c19b799519e8859b82af4"
+  },
+  "businessDefinitions": [
+    {
+      "definitionId": 1,
+      "versionId": 10001,
+      "definitionKey": "entity.beautician",
+      "version": 1,
+      "definitionFingerprint": "590bbe3f8997cb92e3c4e042b7b53a7cf110918ede3b6ceaa26e04f3ffd3770c",
+      "sourceFingerprint": "bb9929c9e04beb11b09b23d441de8e8dbe95051ee450c860c9a78b982824e28f"
+    },
+    {
+      "definitionId": 2,
+      "versionId": 10002,
+      "definitionKey": "entity.customer",
+      "version": 1,
+      "definitionFingerprint": "1053aa9e8241847c017a429dbc21aadb5a7e6d3e37d8804f725dba3371d82969",
+      "sourceFingerprint": "7060e378d59a17556679b49f8c425deac02681d3df8193a7138ddb4981c3167d"
+    },
+    {
+      "definitionId": 3,
+      "versionId": 10003,
+      "definitionKey": "entity.project",
+      "version": 1,
+      "definitionFingerprint": "abeb4c22be72a58c4d60dd3146fdc8df519a0d83e52477694bd4d908f68e19d3",
+      "sourceFingerprint": "d3bc8be9f2090628a8adbf1ce93c66f13a6a29dd9c883faa4a7d7d1cacb0d67c"
+    }
+  ],
+  "artifacts": {
+    "manifest": "manifest.json",
+    "binding": "binding.ts",
+    "contractTest": "contract.spec.ts",
+    "gateReport": "gate-report.json"
+  }
+}

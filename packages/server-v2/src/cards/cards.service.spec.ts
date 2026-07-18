@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { ConflictException } from '@nestjs/common';
 import { CardsService } from './cards.service';
 
@@ -13,6 +14,7 @@ describe('CardsService inventory consumption', () => {
     };
     tx = {
       $queryRaw: jest.fn().mockResolvedValue([{ id: 66 }]),
+      $executeRaw: jest.fn().mockResolvedValue(1),
       customerCard: {
         findFirst: jest.fn().mockResolvedValue({
           id: 66,
@@ -20,6 +22,7 @@ describe('CardsService inventory consumption', () => {
           cardName: '补水护理 10 次卡',
           totalTimes: 10,
           remainingTimes: 5,
+          status: 'active',
           expiryDate: new Date('2026-12-31T00:00:00.000Z'),
           createdAt: new Date('2026-01-01T00:00:00.000Z'),
           paidAmount: 680,
@@ -34,6 +37,7 @@ describe('CardsService inventory consumption', () => {
         update: jest.fn().mockResolvedValue({ id: 66, remainingTimes: 4 }),
       },
       cardUsageRecord: {
+        findUnique: jest.fn().mockResolvedValue(null),
         aggregate: jest.fn().mockResolvedValue({ _sum: { times: 0 } }),
         create: jest.fn().mockResolvedValue({
           id: 88,
@@ -130,6 +134,7 @@ describe('CardsService inventory consumption', () => {
       cardName: '补水护理 10 次卡',
       totalTimes: 10,
       remainingTimes: 5,
+      status: 'active',
       expiryDate: new Date('2026-12-31T00:00:00.000Z'),
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       paidAmount: 680,
@@ -239,6 +244,81 @@ describe('CardsService inventory consumption', () => {
       }),
       tx,
     );
+  });
+
+  it('persists a store-scoped idempotency key on the first committed usage', async () => {
+    const expectedKey = createHash('sha256').update('card_usage:1:brain-action-71').digest('hex');
+
+    await service.verifyCardUsage({
+      customerCardId: 66,
+      projectName: '深层补水护理',
+      consumedTimes: 1,
+      operatorId: 7,
+      idempotencyKey: 'brain-action-71',
+    });
+
+    expect(tx.cardUsageRecord.findUnique).toHaveBeenCalledWith({ where: { idempotencyKey: expectedKey } });
+    expect(tx.cardUsageRecord.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ idempotencyKey: expectedKey }),
+    });
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns the committed usage for the same idempotency key without repeating side effects', async () => {
+    const existing = {
+      id: 88,
+      customerCardId: 66,
+      customerId: 10,
+      projectId: 101,
+      projectName: '深层补水护理',
+      times: 1,
+      beauticianId: 2,
+      remainingTimes: 4,
+    };
+    tx.cardUsageRecord.findUnique.mockResolvedValue(existing);
+
+    const result = await service.verifyCardUsage({
+      customerCardId: 66,
+      customerId: 10,
+      projectId: 101,
+      projectName: '深层补水护理',
+      consumedTimes: 1,
+      operatorId: 7,
+      beauticianId: 2,
+      idempotencyKey: 'brain-action-71',
+    });
+
+    expect(result).toBe(existing);
+    expect(tx.customerCard.update).not.toHaveBeenCalled();
+    expect(tx.cardUsageRecord.create).not.toHaveBeenCalled();
+    expect(tx.stockMovement.create).not.toHaveBeenCalled();
+    expect(commissionService.calculateCommission).not.toHaveBeenCalled();
+  });
+
+  it('rejects a reused idempotency key when the requested usage is different', async () => {
+    tx.cardUsageRecord.findUnique.mockResolvedValue({
+      id: 88,
+      customerCardId: 66,
+      customerId: 10,
+      projectId: 101,
+      projectName: '深层补水护理',
+      times: 1,
+      beauticianId: 2,
+    });
+
+    await expect(service.verifyCardUsage({
+      customerCardId: 66,
+      customerId: 10,
+      projectId: 101,
+      projectName: '深层补水护理',
+      consumedTimes: 2,
+      beauticianId: 2,
+      idempotencyKey: 'brain-action-71',
+    })).rejects.toThrow('幂等键已用于另一笔次卡核销');
+
+    expect(tx.customerCard.update).not.toHaveBeenCalled();
+    expect(tx.cardUsageRecord.create).not.toHaveBeenCalled();
   });
 
   it('rejects a beautician outside the card store before writing the usage record', async () => {

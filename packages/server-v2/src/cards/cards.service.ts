@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { CommissionService } from '../commission/commission.service.js';
 import { deductStockItems } from '../common/inventory-stock-deduction.js';
 import { normalizeCardMasterName } from './card-master-deduplication.js';
+import { buildCardUsageIdempotencyKey } from './card-usage-idempotency.js';
 
 @Injectable()
 export class CardsService {
@@ -33,6 +34,27 @@ export class CardsService {
 
   private roundCurrency(value: number) {
     return Math.round((value + Number.EPSILON) * 100) / 100;
+  }
+
+  private assertIdempotentUsageMatches(
+    existing: any,
+    input: {
+      customerCardId: number;
+      customerId?: number;
+      projectId?: number;
+      projectName?: string;
+      times: number;
+      beauticianId?: number;
+    },
+  ) {
+    const mismatch =
+      Number(existing.customerCardId) !== input.customerCardId ||
+      (input.customerId !== undefined && Number(existing.customerId) !== input.customerId) ||
+      Number(existing.times) !== input.times ||
+      (input.projectId !== undefined && Number(existing.projectId) !== input.projectId) ||
+      (input.projectName && String(existing.projectName).trim() !== input.projectName) ||
+      (input.beauticianId !== undefined && Number(existing.beauticianId) !== input.beauticianId);
+    if (mismatch) throw new ConflictException('幂等键已用于另一笔次卡核销，请核对原业务记录');
   }
 
   private normalizeCardStatus(status: unknown) {
@@ -334,6 +356,7 @@ export class CardsService {
     beauticianId?: number;
     deviceId?: number;
     remark?: string;
+    idempotencyKey?: string;
   }) {
     const customerCardId = Number(data.customerCardId ?? data.cardOrderId ?? 0);
     const times = Number(data.times ?? data.consumedTimes ?? 1);
@@ -345,7 +368,7 @@ export class CardsService {
     return this.prisma.$transaction(async (tx) => {
       let customerCard = await tx.customerCard.findFirst({
         where: customerCardId
-          ? { id: customerCardId, status: 'active' }
+          ? { id: customerCardId }
           : { customerId: Number(data.customerId), cardName: data.cardName, status: 'active' },
         include: {
           customer: { select: { name: true, storeId: true } },
@@ -355,13 +378,30 @@ export class CardsService {
       if (!customerCard) throw new NotFoundException('未找到有效次卡');
       await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "CustomerCard" WHERE "id" = ${customerCard.id} FOR UPDATE`);
       customerCard = await tx.customerCard.findFirst({
-        where: { id: customerCard.id, status: 'active' },
+        where: { id: customerCard.id },
         include: {
           customer: { select: { name: true, storeId: true } },
           card: { select: { id: true, name: true, price: true, totalTimes: true, projects: true } },
         },
       });
       if (!customerCard) throw new NotFoundException('未找到有效次卡');
+      const idempotencyKey = buildCardUsageIdempotencyKey(customerCard.customer.storeId, data.idempotencyKey);
+      if (idempotencyKey) {
+        await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${idempotencyKey}, 0))`);
+        const existing = await tx.cardUsageRecord.findUnique({ where: { idempotencyKey } });
+        if (existing) {
+          this.assertIdempotentUsageMatches(existing, {
+            customerCardId: customerCard.id,
+            customerId: data.customerId ? Number(data.customerId) : undefined,
+            projectId: requestedProjectId,
+            projectName: requestedProjectName || undefined,
+            times,
+            beauticianId: data.beauticianId,
+          });
+          return existing;
+        }
+      }
+      if (customerCard.status !== 'active') throw new BadRequestException('次卡未启用');
       if (data.customerId && customerCard.customerId !== Number(data.customerId)) {
         throw new BadRequestException('卡项不属于该客户');
       }
@@ -450,6 +490,7 @@ export class CardsService {
 
       const record = await tx.cardUsageRecord.create({
         data: {
+          idempotencyKey,
           customerCardId: customerCard.id,
           cardId,
           projectId: resolvedProjectId,

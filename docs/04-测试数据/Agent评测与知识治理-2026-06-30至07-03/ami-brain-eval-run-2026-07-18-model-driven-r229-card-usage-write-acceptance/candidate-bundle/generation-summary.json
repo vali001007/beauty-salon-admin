@@ -1,0 +1,735 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-18T08:50:34.331Z",
+  "policy": "synthetic_contract_only",
+  "productionReady": false,
+  "scanSummary": {
+    "total": 1,
+    "draft": 1,
+    "blocked": 0,
+    "explicit": 1
+  },
+  "result": {
+    "proposals": [
+      {
+        "status": "synthetic_contract_only",
+        "capabilityKey": "card_usage_action_preview",
+        "sourceFingerprint": "10cc7b95a1f6c24ab7835f60e43c2de13178a0084dc3f8837f733994a4768052",
+        "proposalFingerprint": "67b3a0f5d963b7defef3af5ed3ac8b4b0fd793a0e649887fd77d08db333d162b",
+        "businessDefinitions": [
+          {
+            "definitionId": 1,
+            "versionId": 10001,
+            "definitionKey": "entity.beautician",
+            "version": 1,
+            "definitionFingerprint": "590bbe3f8997cb92e3c4e042b7b53a7cf110918ede3b6ceaa26e04f3ffd3770c",
+            "sourceFingerprint": "bb9929c9e04beb11b09b23d441de8e8dbe95051ee450c860c9a78b982824e28f"
+          },
+          {
+            "definitionId": 2,
+            "versionId": 10002,
+            "definitionKey": "entity.customer",
+            "version": 1,
+            "definitionFingerprint": "1053aa9e8241847c017a429dbc21aadb5a7e6d3e37d8804f725dba3371d82969",
+            "sourceFingerprint": "7060e378d59a17556679b49f8c425deac02681d3df8193a7138ddb4981c3167d"
+          },
+          {
+            "definitionId": 3,
+            "versionId": 10003,
+            "definitionKey": "entity.project",
+            "version": 1,
+            "definitionFingerprint": "abeb4c22be72a58c4d60dd3146fdc8df519a0d83e52477694bd4d908f68e19d3",
+            "sourceFingerprint": "d3bc8be9f2090628a8adbf1ce93c66f13a6a29dd9c883faa4a7d7d1cacb0d67c"
+          }
+        ],
+        "manifest": {
+          "key": "card_usage_action_preview",
+          "version": 1,
+          "sourceFingerprint": "10cc7b95a1f6c24ab7835f60e43c2de13178a0084dc3f8837f733994a4768052",
+          "name": "次卡核销预览",
+          "description": "解析当前门店内的唯一客户、有效次卡、卡内项目、核销次数和服务美容师，生成关键风险待确认预览。确认后复用统一 CardsService 完成扣次、核销流水、耗材、收入和提成；同一幂等键可安全重放并返回原核销回执，不重复扣次、扣库存或计提成。",
+          "domains": [
+            "fixture"
+          ],
+          "intents": [
+            "action"
+          ],
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "comparisonTarget": {
+                "type": "object"
+              },
+              "dimensions": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "entities": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "filters": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "limit": {
+                "type": "number"
+              },
+              "metrics": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "objective": {
+                "type": "string"
+              },
+              "orderBy": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "time": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "dimensions",
+              "entities",
+              "filters",
+              "metrics",
+              "objective",
+              "orderBy"
+            ],
+            "additionalProperties": false
+          },
+          "outputSchema": {
+            "type": "object"
+          },
+          "requiredPermissions": [
+            "core:brain:use",
+            "core:order:card-usage"
+          ],
+          "allowedRoles": [
+            "receptionist",
+            "store_manager"
+          ],
+          "readOnly": false,
+          "sideEffect": true,
+          "riskLevel": "high",
+          "requiresConfirmation": true,
+          "idempotency": "required",
+          "timeoutMs": 10000,
+          "grounding": "preview_action",
+          "examples": [
+            "给张女士的补水次卡核销深层补水护理 1 次，服务人员是王美容师",
+            "预览为指定客户划扣一次卡项并归属到指定美容师"
+          ],
+          "negativeExamples": [
+            "核销其他门店客户的卡",
+            "没有客户卡项和服务人员也直接扣次",
+            "直接核销不要确认",
+            "只查询客户次卡剩余次数"
+          ],
+          "synonyms": [
+            "次卡扣次预览",
+            "卡项核销确认",
+            "疗程卡划扣预览"
+          ],
+          "successSchema": {
+            "type": "object"
+          },
+          "definitionRefs": [
+            {
+              "definitionId": 1,
+              "versionId": 10001,
+              "definitionKey": "entity.beautician",
+              "version": 1,
+              "definitionFingerprint": "590bbe3f8997cb92e3c4e042b7b53a7cf110918ede3b6ceaa26e04f3ffd3770c",
+              "sourceFingerprint": "bb9929c9e04beb11b09b23d441de8e8dbe95051ee450c860c9a78b982824e28f"
+            },
+            {
+              "definitionId": 2,
+              "versionId": 10002,
+              "definitionKey": "entity.customer",
+              "version": 1,
+              "definitionFingerprint": "1053aa9e8241847c017a429dbc21aadb5a7e6d3e37d8804f725dba3371d82969",
+              "sourceFingerprint": "7060e378d59a17556679b49f8c425deac02681d3df8193a7138ddb4981c3167d"
+            },
+            {
+              "definitionId": 3,
+              "versionId": 10003,
+              "definitionKey": "entity.project",
+              "version": 1,
+              "definitionFingerprint": "abeb4c22be72a58c4d60dd3146fdc8df519a0d83e52477694bd4d908f68e19d3",
+              "sourceFingerprint": "d3bc8be9f2090628a8adbf1ce93c66f13a6a29dd9c883faa4a7d7d1cacb0d67c"
+            }
+          ]
+        },
+        "languageCandidates": {
+          "description": "解析当前门店内的唯一客户、有效次卡、卡内项目、核销次数和服务美容师，生成关键风险待确认预览。确认后复用统一 CardsService 完成扣次、核销流水、耗材、收入和提成；同一幂等键可安全重放并返回原核销回执，不重复扣次、扣库存或计提成。",
+          "positiveExamples": [
+            "给张女士的补水次卡核销深层补水护理 1 次，服务人员是王美容师",
+            "预览为指定客户划扣一次卡项并归属到指定美容师"
+          ],
+          "negativeExamples": [
+            "核销其他门店客户的卡",
+            "没有客户卡项和服务人员也直接扣次",
+            "直接核销不要确认",
+            "只查询客户次卡剩余次数"
+          ],
+          "synonyms": [
+            "次卡扣次预览",
+            "卡项核销确认",
+            "疗程卡划扣预览"
+          ],
+          "successSchema": {
+            "type": "object"
+          },
+          "riskExplanation": "Deterministic fixture: read-only proposal with fixed scanner evidence."
+        },
+        "executorBinding": {
+          "schemaVersion": 1,
+          "capabilityKey": "card_usage_action_preview",
+          "sourceFingerprint": "10cc7b95a1f6c24ab7835f60e43c2de13178a0084dc3f8837f733994a4768052",
+          "target": {
+            "kind": "service",
+            "className": "BrainActionCapabilityExecutor",
+            "methodName": "cardUsageActionPreview",
+            "sourcePath": "packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts",
+            "exportedClass": true,
+            "methodAccess": "public",
+            "parameterCount": 2,
+            "parameterTypes": [
+              "BrainCapabilityToolArgs",
+              "BrainCapabilityExecutionInput"
+            ],
+            "returnType": "unknown"
+          },
+          "generatedSourcePath": "packages/server-v2/src/brain/capability/generated/card_usage_action_preview/binding.ts",
+          "targetImportPath": "../../executors/brain-action-capability.executor.js",
+          "requiredPermissions": [
+            "core:brain:use",
+            "core:order:card-usage"
+          ],
+          "storeScope": "required",
+          "requiresConfirmation": true,
+          "idempotency": "required",
+          "readOnly": false,
+          "sideEffect": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "comparisonTarget": {
+                "type": "object"
+              },
+              "dimensions": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "entities": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "filters": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "limit": {
+                "type": "number"
+              },
+              "metrics": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "objective": {
+                "type": "string"
+              },
+              "orderBy": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "time": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "dimensions",
+              "entities",
+              "filters",
+              "metrics",
+              "objective",
+              "orderBy"
+            ],
+            "additionalProperties": false
+          },
+          "outputSchema": {
+            "type": "object"
+          },
+          "bindingFingerprint": "16289c84b9bd766b7d069656ce3fcf9ddfe2c7ef673c19b799519e8859b82af4"
+        },
+        "bindingSource": "import type { BrainActionCapabilityExecutor } from \"../../executors/brain-action-capability.executor.js\";\nimport { assertGeneratedCapabilityArgs } from '../../brain-generated-capability-binding.js';\n\nexport interface GeneratedCapabilityArgs {\n  readonly [key: string]: unknown;\n  readonly \"comparisonTarget\"?: Record<string, unknown>;\n  readonly \"dimensions\": Array<Record<string, unknown>>;\n  readonly \"entities\": Array<Record<string, unknown>>;\n  readonly \"filters\": Array<Record<string, unknown>>;\n  readonly \"limit\"?: number;\n  readonly \"metrics\": Array<Record<string, unknown>>;\n  readonly \"objective\": string;\n  readonly \"orderBy\": Array<Record<string, unknown>>;\n  readonly \"time\"?: Record<string, unknown>;\n}\n\ntype TargetMethod = Pick<BrainActionCapabilityExecutor, 'cardUsageActionPreview'>['cardUsageActionPreview'];\n\nexport interface GeneratedCapabilityExecutionContextProvider {\n  current(): Parameters<TargetMethod>[1];\n}\n\nexport const GENERATED_CAPABILITY_BINDING = Object.freeze({\n  \"schemaVersion\": 1,\n  \"capabilityKey\": \"card_usage_action_preview\",\n  \"sourceFingerprint\": \"10cc7b95a1f6c24ab7835f60e43c2de13178a0084dc3f8837f733994a4768052\",\n  \"target\": {\n    \"kind\": \"service\",\n    \"className\": \"BrainActionCapabilityExecutor\",\n    \"methodName\": \"cardUsageActionPreview\",\n    \"sourcePath\": \"packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts\",\n    \"exportedClass\": true,\n    \"methodAccess\": \"public\",\n    \"parameterCount\": 2,\n    \"parameterTypes\": [\n      \"BrainCapabilityToolArgs\",\n      \"BrainCapabilityExecutionInput\"\n    ],\n    \"returnType\": \"unknown\"\n  },\n  \"generatedSourcePath\": \"packages/server-v2/src/brain/capability/generated/card_usage_action_preview/binding.ts\",\n  \"targetImportPath\": \"../../executors/brain-action-capability.executor.js\",\n  \"requiredPermissions\": [\n    \"core:brain:use\",\n    \"core:order:card-usage\"\n  ],\n  \"storeScope\": \"required\",\n  \"requiresConfirmation\": true,\n  \"idempotency\": \"required\",\n  \"readOnly\": false,\n  \"sideEffect\": true,\n  \"inputSchema\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"comparisonTarget\": {\n        \"type\": \"object\"\n      },\n      \"dimensions\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"entities\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"filters\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"limit\": {\n        \"type\": \"number\"\n      },\n      \"metrics\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"objective\": {\n        \"type\": \"string\"\n      },\n      \"orderBy\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"time\": {\n        \"type\": \"object\"\n      }\n    },\n    \"required\": [\n      \"dimensions\",\n      \"entities\",\n      \"filters\",\n      \"metrics\",\n      \"objective\",\n      \"orderBy\"\n    ],\n    \"additionalProperties\": false\n  },\n  \"outputSchema\": {\n    \"type\": \"object\"\n  },\n  \"bindingFingerprint\": \"16289c84b9bd766b7d069656ce3fcf9ddfe2c7ef673c19b799519e8859b82af4\"\n} as const);\n\nexport class CardUsageActionPreviewGeneratedCapabilityBinding {\n  constructor(private readonly target: Pick<BrainActionCapabilityExecutor, 'cardUsageActionPreview'>, private readonly contextProvider: GeneratedCapabilityExecutionContextProvider) {}\n\n  execute(args: GeneratedCapabilityArgs): ReturnType<TargetMethod> {\n    assertGeneratedCapabilityArgs(GENERATED_CAPABILITY_BINDING.inputSchema, args);\n    return this.target.cardUsageActionPreview(args, this.contextProvider.current());\n  }\n}\n",
+        "contractArtifact": {
+          "manifest": {
+            "key": "card_usage_action_preview",
+            "version": 1,
+            "sourceFingerprint": "10cc7b95a1f6c24ab7835f60e43c2de13178a0084dc3f8837f733994a4768052",
+            "name": "次卡核销预览",
+            "description": "解析当前门店内的唯一客户、有效次卡、卡内项目、核销次数和服务美容师，生成关键风险待确认预览。确认后复用统一 CardsService 完成扣次、核销流水、耗材、收入和提成；同一幂等键可安全重放并返回原核销回执，不重复扣次、扣库存或计提成。",
+            "domains": [
+              "fixture"
+            ],
+            "intents": [
+              "action"
+            ],
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "comparisonTarget": {
+                  "type": "object"
+                },
+                "dimensions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "entities": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "filters": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "limit": {
+                  "type": "number"
+                },
+                "metrics": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "objective": {
+                  "type": "string"
+                },
+                "orderBy": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "time": {
+                  "type": "object"
+                }
+              },
+              "required": [
+                "dimensions",
+                "entities",
+                "filters",
+                "metrics",
+                "objective",
+                "orderBy"
+              ],
+              "additionalProperties": false
+            },
+            "outputSchema": {
+              "type": "object"
+            },
+            "requiredPermissions": [
+              "core:brain:use",
+              "core:order:card-usage"
+            ],
+            "allowedRoles": [
+              "receptionist",
+              "store_manager"
+            ],
+            "readOnly": false,
+            "sideEffect": true,
+            "riskLevel": "high",
+            "requiresConfirmation": true,
+            "idempotency": "required",
+            "timeoutMs": 10000,
+            "grounding": "preview_action",
+            "examples": [
+              "给张女士的补水次卡核销深层补水护理 1 次，服务人员是王美容师",
+              "预览为指定客户划扣一次卡项并归属到指定美容师"
+            ],
+            "negativeExamples": [
+              "核销其他门店客户的卡",
+              "没有客户卡项和服务人员也直接扣次",
+              "直接核销不要确认",
+              "只查询客户次卡剩余次数"
+            ],
+            "synonyms": [
+              "次卡扣次预览",
+              "卡项核销确认",
+              "疗程卡划扣预览"
+            ],
+            "successSchema": {
+              "type": "object"
+            },
+            "definitionRefs": [
+              {
+                "definitionId": 1,
+                "versionId": 10001,
+                "definitionKey": "entity.beautician",
+                "version": 1,
+                "definitionFingerprint": "590bbe3f8997cb92e3c4e042b7b53a7cf110918ede3b6ceaa26e04f3ffd3770c",
+                "sourceFingerprint": "bb9929c9e04beb11b09b23d441de8e8dbe95051ee450c860c9a78b982824e28f"
+              },
+              {
+                "definitionId": 2,
+                "versionId": 10002,
+                "definitionKey": "entity.customer",
+                "version": 1,
+                "definitionFingerprint": "1053aa9e8241847c017a429dbc21aadb5a7e6d3e37d8804f725dba3371d82969",
+                "sourceFingerprint": "7060e378d59a17556679b49f8c425deac02681d3df8193a7138ddb4981c3167d"
+              },
+              {
+                "definitionId": 3,
+                "versionId": 10003,
+                "definitionKey": "entity.project",
+                "version": 1,
+                "definitionFingerprint": "abeb4c22be72a58c4d60dd3146fdc8df519a0d83e52477694bd4d908f68e19d3",
+                "sourceFingerprint": "d3bc8be9f2090628a8adbf1ce93c66f13a6a29dd9c883faa4a7d7d1cacb0d67c"
+              }
+            ]
+          },
+          "scanEvidence": {
+            "capabilityKey": "card_usage_action_preview",
+            "sourceFingerprint": "10cc7b95a1f6c24ab7835f60e43c2de13178a0084dc3f8837f733994a4768052",
+            "requiredPermissions": [
+              "core:brain:use",
+              "core:order:card-usage"
+            ],
+            "storeScope": "required",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "comparisonTarget": {
+                  "type": "object"
+                },
+                "dimensions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "entities": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "filters": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "limit": {
+                  "type": "number"
+                },
+                "metrics": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "objective": {
+                  "type": "string"
+                },
+                "orderBy": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "time": {
+                  "type": "object"
+                }
+              },
+              "required": [
+                "dimensions",
+                "entities",
+                "filters",
+                "metrics",
+                "objective",
+                "orderBy"
+              ],
+              "additionalProperties": false
+            },
+            "outputSchema": {
+              "type": "object"
+            },
+            "executorBinding": {
+              "schemaVersion": 1,
+              "capabilityKey": "card_usage_action_preview",
+              "sourceFingerprint": "10cc7b95a1f6c24ab7835f60e43c2de13178a0084dc3f8837f733994a4768052",
+              "target": {
+                "kind": "service",
+                "className": "BrainActionCapabilityExecutor",
+                "methodName": "cardUsageActionPreview",
+                "sourcePath": "packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts",
+                "exportedClass": true,
+                "methodAccess": "public",
+                "parameterCount": 2,
+                "parameterTypes": [
+                  "BrainCapabilityToolArgs",
+                  "BrainCapabilityExecutionInput"
+                ],
+                "returnType": "unknown"
+              },
+              "generatedSourcePath": "packages/server-v2/src/brain/capability/generated/card_usage_action_preview/binding.ts",
+              "targetImportPath": "../../executors/brain-action-capability.executor.js",
+              "requiredPermissions": [
+                "core:brain:use",
+                "core:order:card-usage"
+              ],
+              "storeScope": "required",
+              "requiresConfirmation": true,
+              "idempotency": "required",
+              "readOnly": false,
+              "sideEffect": true,
+              "inputSchema": {
+                "type": "object",
+                "properties": {
+                  "comparisonTarget": {
+                    "type": "object"
+                  },
+                  "dimensions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "entities": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "filters": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "limit": {
+                    "type": "number"
+                  },
+                  "metrics": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "objective": {
+                    "type": "string"
+                  },
+                  "orderBy": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "time": {
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "dimensions",
+                  "entities",
+                  "filters",
+                  "metrics",
+                  "objective",
+                  "orderBy"
+                ],
+                "additionalProperties": false
+              },
+              "outputSchema": {
+                "type": "object"
+              },
+              "bindingFingerprint": "16289c84b9bd766b7d069656ce3fcf9ddfe2c7ef673c19b799519e8859b82af4"
+            }
+          },
+          "proposal": {
+            "capabilityKey": "card_usage_action_preview",
+            "sourceFingerprint": "10cc7b95a1f6c24ab7835f60e43c2de13178a0084dc3f8837f733994a4768052",
+            "businessDefinitions": [
+              {
+                "definitionId": 1,
+                "versionId": 10001,
+                "definitionKey": "entity.beautician",
+                "version": 1,
+                "definitionFingerprint": "590bbe3f8997cb92e3c4e042b7b53a7cf110918ede3b6ceaa26e04f3ffd3770c",
+                "sourceFingerprint": "bb9929c9e04beb11b09b23d441de8e8dbe95051ee450c860c9a78b982824e28f"
+              },
+              {
+                "definitionId": 2,
+                "versionId": 10002,
+                "definitionKey": "entity.customer",
+                "version": 1,
+                "definitionFingerprint": "1053aa9e8241847c017a429dbc21aadb5a7e6d3e37d8804f725dba3371d82969",
+                "sourceFingerprint": "7060e378d59a17556679b49f8c425deac02681d3df8193a7138ddb4981c3167d"
+              },
+              {
+                "definitionId": 3,
+                "versionId": 10003,
+                "definitionKey": "entity.project",
+                "version": 1,
+                "definitionFingerprint": "abeb4c22be72a58c4d60dd3146fdc8df519a0d83e52477694bd4d908f68e19d3",
+                "sourceFingerprint": "d3bc8be9f2090628a8adbf1ce93c66f13a6a29dd9c883faa4a7d7d1cacb0d67c"
+              }
+            ],
+            "storeScope": "required",
+            "executorBinding": {
+              "schemaVersion": 1,
+              "capabilityKey": "card_usage_action_preview",
+              "sourceFingerprint": "10cc7b95a1f6c24ab7835f60e43c2de13178a0084dc3f8837f733994a4768052",
+              "target": {
+                "kind": "service",
+                "className": "BrainActionCapabilityExecutor",
+                "methodName": "cardUsageActionPreview",
+                "sourcePath": "packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts",
+                "exportedClass": true,
+                "methodAccess": "public",
+                "parameterCount": 2,
+                "parameterTypes": [
+                  "BrainCapabilityToolArgs",
+                  "BrainCapabilityExecutionInput"
+                ],
+                "returnType": "unknown"
+              },
+              "generatedSourcePath": "packages/server-v2/src/brain/capability/generated/card_usage_action_preview/binding.ts",
+              "targetImportPath": "../../executors/brain-action-capability.executor.js",
+              "requiredPermissions": [
+                "core:brain:use",
+                "core:order:card-usage"
+              ],
+              "storeScope": "required",
+              "requiresConfirmation": true,
+              "idempotency": "required",
+              "readOnly": false,
+              "sideEffect": true,
+              "inputSchema": {
+                "type": "object",
+                "properties": {
+                  "comparisonTarget": {
+                    "type": "object"
+                  },
+                  "dimensions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "entities": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "filters": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "limit": {
+                    "type": "number"
+                  },
+                  "metrics": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "objective": {
+                    "type": "string"
+                  },
+                  "orderBy": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "time": {
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "dimensions",
+                  "entities",
+                  "filters",
+                  "metrics",
+                  "objective",
+                  "orderBy"
+                ],
+                "additionalProperties": false
+              },
+              "outputSchema": {
+                "type": "object"
+              },
+              "bindingFingerprint": "16289c84b9bd766b7d069656ce3fcf9ddfe2c7ef673c19b799519e8859b82af4"
+            }
+          }
+        },
+        "contractTestSource": "import { GENERATED_CAPABILITY_BINDING } from './binding.js';\n\nexport function assertGeneratedBindingContract(): void {\n  if (GENERATED_CAPABILITY_BINDING.capabilityKey !== \"card_usage_action_preview\") {\n    throw new Error('generated_binding_capability_key_mismatch');\n  }\n  if (GENERATED_CAPABILITY_BINDING.sourceFingerprint !== \"10cc7b95a1f6c24ab7835f60e43c2de13178a0084dc3f8837f733994a4768052\") {\n    throw new Error('generated_binding_source_fingerprint_mismatch');\n  }\n  if (GENERATED_CAPABILITY_BINDING.bindingFingerprint !== \"16289c84b9bd766b7d069656ce3fcf9ddfe2c7ef673c19b799519e8859b82af4\") {\n    throw new Error('generated_binding_fingerprint_mismatch');\n  }\n  if (GENERATED_CAPABILITY_BINDING.target.kind !== \"service\" ||\n      GENERATED_CAPABILITY_BINDING.target.className !== \"BrainActionCapabilityExecutor\" ||\n      GENERATED_CAPABILITY_BINDING.target.methodName !== \"cardUsageActionPreview\" ||\n      GENERATED_CAPABILITY_BINDING.target.sourcePath !== \"packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts\") {\n    throw new Error('generated_binding_target_mismatch');\n  }\n}\n\nassertGeneratedBindingContract();\n",
+        "gateReport": {
+          "passed": true,
+          "gates": [
+            {
+              "gate": "compile",
+              "passed": true,
+              "reasons": [],
+              "remediation": []
+            },
+            {
+              "gate": "contract",
+              "passed": true,
+              "reasons": [],
+              "remediation": []
+            },
+            {
+              "gate": "security",
+              "passed": true,
+              "reasons": [],
+              "remediation": []
+            },
+            {
+              "gate": "test",
+              "passed": true,
+              "reasons": [],
+              "remediation": []
+            }
+          ]
+        }
+      }
+    ],
+    "blocked": []
+  }
+}

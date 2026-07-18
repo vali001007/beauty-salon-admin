@@ -239,6 +239,9 @@ describe('BrainActionConfirmationService', () => {
     });
 
     expect(gateway.execute).toHaveBeenCalledTimes(1);
+    expect(gateway.execute).toHaveBeenCalledWith(expect.objectContaining({
+      context: expect.objectContaining({ idempotencyKey: 'act_3' }),
+    }));
     expect(tx.brainActionConfirmation.updateMany).toHaveBeenCalledWith({
       where: { actionId: 'act_3', status: 'pending' },
       data: expect.objectContaining({ status: 'executing' }),
@@ -305,6 +308,7 @@ describe('BrainActionConfirmationService', () => {
       capabilityKey: 'reschedule_reservation',
       storeId: 6,
       args: validatedArgs,
+      idempotencyKey: expect.any(String),
     });
     expect(tx.brainActionConfirmation.updateMany).toHaveBeenCalledTimes(1);
   });

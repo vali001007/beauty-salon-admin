@@ -10,6 +10,7 @@ export interface BrainCapabilityContext {
   userId: number;
   storeId: number;
   permissions: string[];
+  idempotencyKey?: string;
 }
 
 export interface BrainCapabilityReceipt {
@@ -138,7 +139,7 @@ const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
     allowedFields: ['customerCardId', 'customerId', 'projectId', 'projectName', 'times', 'beauticianId', 'remark'],
     transactionBoundary: 'CardsService.verifyCardUsage',
     receiptType: 'card_usage_record',
-    failureRecovery: 'manual_reconcile',
+    failureRecovery: 'safe_replay',
   },
 };
 
@@ -305,6 +306,7 @@ export class BrainCapabilityGatewayService {
       times: this.positiveInteger(payload.times, 'times'),
       beauticianId: this.positiveInteger(payload.beauticianId, 'beauticianId'),
       operatorId: context.userId,
+      idempotencyKey: context.idempotencyKey,
       remark: typeof payload.remark === 'string' ? payload.remark : 'Ami Brain 确认执行次卡核销',
     });
     return this.receipt(

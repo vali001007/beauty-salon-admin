@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { buildCardUsageIdempotencyKey } from '../../cards/card-usage-idempotency.js';
 import { extractCustomerPhoneTail } from './brain-customer-identity.js';
 
 export type BrainTargetResolution<T> =
@@ -14,6 +15,7 @@ export class BrainActionTargetResolverService {
     capabilityKey: string;
     storeId: number;
     args: Record<string, unknown>;
+    idempotencyKey?: string;
   }): Promise<void> {
     switch (input.capabilityKey) {
       case 'create_reservation':
@@ -34,7 +36,7 @@ export class BrainActionTargetResolverService {
         await this.requireScopedRecord('serviceTask', input.args.taskId, input.storeId);
         return;
       case 'verify_card_usage':
-        await this.revalidateCardUsageTarget(input.storeId, input.args);
+        await this.revalidateCardUsageTarget(input.storeId, input.args, input.idempotencyKey);
         return;
       case 'create_purchase_order': {
         if (!Array.isArray(input.args.items) || input.args.items.length === 0) {
@@ -342,7 +344,12 @@ export class BrainActionTargetResolverService {
     return value.length >= 4 ? `***${value.slice(-4)}` : '未记录';
   }
 
-  private async revalidateCardUsageTarget(storeId: number, args: Record<string, unknown>) {
+  private async revalidateCardUsageTarget(storeId: number, args: Record<string, unknown>, rawIdempotencyKey?: string) {
+    const idempotencyKey = buildCardUsageIdempotencyKey(storeId, rawIdempotencyKey);
+    if (idempotencyKey) {
+      const committed = await this.prisma.cardUsageRecord.findUnique({ where: { idempotencyKey }, select: { id: true } });
+      if (committed) return;
+    }
     const customerCardId = this.positiveId(args.customerCardId);
     const customerId = this.positiveId(args.customerId);
     const projectId = this.positiveId(args.projectId);

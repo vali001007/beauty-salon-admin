@@ -7,7 +7,7 @@ describe('BrainActionTargetResolverService', () => {
     reservation: { findMany: jest.fn(), findFirst: jest.fn() },
     serviceTask: { findMany: jest.fn(), findFirst: jest.fn() },
     customerCard: { findMany: jest.fn(), findFirst: jest.fn() },
-    cardUsageRecord: { aggregate: jest.fn() },
+    cardUsageRecord: { aggregate: jest.fn(), findUnique: jest.fn() },
     beautician: { findMany: jest.fn(), findFirst: jest.fn() },
     product: { count: jest.fn() },
   };
@@ -193,5 +193,18 @@ describe('BrainActionTargetResolverService', () => {
       storeId: 6,
       args: { customerCardId: 66, customerId: 7, projectId: 101, projectName: '深层补水护理', times: 1, beauticianId: 2 },
     })).rejects.toThrow('cross_store_action_target');
+  });
+
+  it('accepts a committed card usage during safe replay before checking mutable card state', async () => {
+    prisma.cardUsageRecord.findUnique.mockResolvedValue({ id: 88 });
+
+    await expect(service.revalidateCapabilityTarget({
+      capabilityKey: 'verify_card_usage',
+      storeId: 6,
+      idempotencyKey: 'brain-action-71',
+      args: { customerCardId: 66, customerId: 7, projectId: 101, projectName: '深层补水护理', times: 10, beauticianId: 2 },
+    })).resolves.toBeUndefined();
+
+    expect(prisma.customerCard.findFirst).not.toHaveBeenCalled();
   });
 });
