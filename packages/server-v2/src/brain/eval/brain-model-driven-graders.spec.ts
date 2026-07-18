@@ -159,6 +159,22 @@ describe('Ami Brain model-driven deterministic graders', () => {
     })).toMatchObject({ passed: false, failures: ['brain_status:clarify'] });
   });
 
+  it('treats governed campaign drafts and recommendations as compatible generative outcomes', () => {
+    const grader = new BrainIntentGraderService();
+    expect(grader.grade({
+      expected: { intent: 'recommendation' },
+      actual: { intent: 'draft', answerShape: 'draft' },
+    })).toMatchObject({ passed: true, failures: [] });
+    expect(grader.grade({
+      expected: { intent: 'draft' },
+      actual: { intent: 'recommendation', answerShape: 'draft' },
+    })).toMatchObject({ passed: true, failures: [] });
+    expect(grader.grade({
+      expected: { intent: 'recommendation' },
+      actual: { intent: 'draft', answerShape: 'scalar' },
+    })).toMatchObject({ passed: false, failures: ['intent_mismatch'] });
+  });
+
 });
 
 describe('BrainIntentGraderService implicit list dimensions', () => {

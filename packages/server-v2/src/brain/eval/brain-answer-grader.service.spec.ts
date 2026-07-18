@@ -66,6 +66,22 @@ describe('BrainAnswerGraderService', () => {
     expect(result.status).toBe('unsupported_intent');
   });
 
+  it('does not mark a grounded multi-capability report unsupported because one component discloses a local gap', () => {
+    const result = grader.grade({
+      question: '帮我做一个本月经营分析报告',
+      answer: '本月经营分析已完成。当前客户事实能力尚未注册其中一个细分口径，不会编造回答。',
+      citations: [{ sourceType: 'db_skill', sourceId: 'store_manager_operations_analysis', label: '经营分析' }],
+      blocks: [
+        { kind: 'kpi', items: [{ label: '实收', value: '28756.30 元' }], citationIds: ['store_manager_operations_analysis'] },
+        { kind: 'diagnosis', findings: [{ title: '退款风险', detail: '退款 4 笔', severity: 'warning' }], citationIds: ['store_manager_operations_analysis'] },
+      ],
+      expectedIntent: 'diagnosis',
+      brainStatus: 'completed',
+    });
+
+    expect(result.status).toBe('usable_exact');
+  });
+
   it('classifies cashier and card-redemption interface requests as actions', () => {
     const result = grader.grade({
       question: '帮我打开核销界面，客人要用次卡',
@@ -383,7 +399,7 @@ describe('BrainAnswerGraderService', () => {
     expect(result.status).toBe('usable_exact');
   });
 
-  it('classifies an exact customer miss as not found instead of a false positive', () => {
+  it('treats a grounded exact customer miss as a usable audited result', () => {
     const result = grader.grade({
       question: '帮我查一下张雯，她上次来是什么时候',
       answer: '当前门店没有找到匹配客户，请核对姓名或手机号后四位。',
@@ -391,7 +407,20 @@ describe('BrainAnswerGraderService', () => {
       brainStatus: 'completed',
     });
 
-    expect(result.status).toBe('not_found');
+    expect(result.status).toBe('usable_exact');
+  });
+
+  it('recognizes a generic appointment lookup as a list request', () => {
+    const result = grader.grade({
+      question: '帮我看今天的预约。',
+      answer: '明细：当前没有匹配数据。',
+      blocks: [{ kind: 'table', rows: [], columns: ['customerName'] }],
+      citations: [{ sourceType: 'db_skill', sourceId: 'reservation_schedule', label: '门店预约清单' }],
+      brainStatus: 'completed',
+    });
+
+    expect(result.expectedShape).toBe('list');
+    expect(result.status).toBe('usable_exact');
   });
 
   it('classifies missing customer identity as an unsupported clarification', () => {

@@ -106,7 +106,20 @@ export class BrainAnswerGraderService {
         legacyUsableWithCitation,
       });
     }
-    if (input.error?.includes('不存在') || input.answer.includes('不存在') || input.answer.includes('没有找到匹配客户')) {
+    if (input.brainStatus === 'completed' && input.answer.includes('没有找到匹配客户') && this.hasAnswerCitation(input.citations)) {
+      return this.buildGrade(input, {
+        status: 'usable_exact',
+        expectedIntent,
+        actualIntent,
+        expectedShape,
+        actualShape,
+        expectedMetric,
+        actualMetric,
+        reason: '在当前门店范围完成精确查询并返回可审计的查无结果。',
+        legacyUsableWithCitation,
+      });
+    }
+    if (input.error?.includes('不存在') || input.answer.includes('不存在')) {
       return this.buildGrade(input, {
         status: 'not_found',
         expectedIntent,
@@ -159,7 +172,7 @@ export class BrainAnswerGraderService {
         legacyUsableWithCitation,
       });
     }
-    if (this.isUnsupportedIntent(input.answer)) {
+    if (this.isUnsupportedIntent(input.answer, input.blocks)) {
       return this.buildGrade(input, {
         status: 'unsupported_intent',
         expectedIntent,
@@ -348,7 +361,7 @@ export class BrainAnswerGraderService {
     if (/(排行|排名|top|前\d|前十|谁.*(最好|最高|最多|最低|最差)|最高|最多|最好|最低|最差)/i.test(text)) {
       return 'ranking';
     }
-    if (/(几个客人|分别几点|下一个客人|服务安排|排班|预约.*几点|几点.*预约)/.test(text)) return 'list';
+    if (/(几个客人|分别几点|下一个客人|服务安排|排班|预约.*几点|几点.*预约|(?:看|查|列).*(?:今天|明天|本周|本月)?.*预约|预约.*(?:清单|安排|情况))/.test(text)) return 'list';
     if (/(?:面部|身体).*(?:几个|多少).*(?:面部|身体)|(?:几个|多少).*预约.*(?:面部|身体)/.test(text)) return 'list';
     if (/(哪些|哪几个|名单|列出|明细|找一下.*(客户|客人|新客|老客)|办了卡.*(?:没|还没).*预约|客户.*(用了|没用|消费|没来)|有没有.*客户)/.test(text)) return 'list';
     if (/(库存.*(?:整体|情况|概览)|整体.*库存)/.test(text)) return 'diagnosis';
@@ -535,11 +548,15 @@ export class BrainAnswerGraderService {
     return answer.includes('尚未完成门店级真实口径接入');
   }
 
-  private isUnsupportedIntent(answer: string) {
-    return answer.includes('尚未注册') ||
-      /^(?:当前[^。\n]{0,40})?尚未接入/.test(answer.trim()) ||
+  private isUnsupportedIntent(answer: string, blocks?: unknown[]) {
+    const trimmed = answer.trim();
+    if (/^(?:当前[^。\n]{0,40})?尚未接入/.test(trimmed)) return true;
+    const containsBoundary = answer.includes('尚未注册') ||
       answer.includes('已接入门店经营指标问答') ||
       answer.includes('不会编造回答');
+    if (!containsBoundary) return false;
+    const kinds = this.blockKinds(blocks);
+    return !['kpi', 'ranking', 'table', 'chart', 'comparison', 'diagnosis'].some((kind) => kinds.has(kind));
   }
 
   private isClarificationRequired(answer: string) {

@@ -33,7 +33,7 @@ import { BrainRuntimeConfigService } from './config/brain-runtime-config.service
 import { BrainSemanticIntentCompilerService } from './cognition/brain-semantic-intent-compiler.service.js';
 import { BrainSemanticIntentValidatorService } from './cognition/brain-semantic-intent-validator.service.js';
 import { BrainOntologyRuntimeService } from './cognition/brain-ontology-runtime.service.js';
-import { BRAIN_SEMANTIC_ANSWER_SHAPES } from './cognition/brain-semantic-intent.types.js';
+import { BRAIN_SEMANTIC_ANSWER_SHAPES, BRAIN_SEMANTIC_INTENTS } from './cognition/brain-semantic-intent.types.js';
 import type { BrainDefinitionRef, BrainSemanticIntent } from './cognition/brain-semantic-intent.types.js';
 import type { BusinessDefinitionBase, ProductionReadyBusinessDefinitionSnapshot } from './cognition/business-definition-snapshot.types.js';
 import { BrainCapabilityCatalogService } from './capability/brain-capability-catalog.service.js';
@@ -1038,7 +1038,12 @@ export class BrainChatService {
       stepKey: 'model_intent_compile',
       layer: 'cognition',
       input: this.toJsonValue({ snapshotFingerprint: snapshot.fingerprint, catalogCount: cards.length }),
-      output: this.toJsonValue({ status: compilation.status, provider: compilation.provider, model: compilation.model }),
+      output: this.toJsonValue({
+        status: compilation.status,
+        provider: compilation.provider,
+        model: compilation.model,
+        semanticIntent: this.modelIntentTraceSummary(compilation.intent),
+      }),
       status: 'completed',
     });
 
@@ -1048,7 +1053,11 @@ export class BrainChatService {
           intent: this.normalizeUnboundReferenceIntent({
             intent: this.normalizeGovernedCapabilityContractIntent({
               intent: this.normalizeGovernedCapabilityExampleIntent({
-                intent: this.normalizeModelClarificationIntent(this.enrichModelEntityRefs(compilation.intent)),
+                intent: this.normalizeReadOnlyQuestionIntent({
+                  intent: this.normalizeModelClarificationIntent(this.enrichModelEntityRefs(compilation.intent)),
+                  question: input.dto.message,
+                  cards,
+                }),
                 question: input.dto.message,
                 cards,
                 snapshot,
@@ -1066,6 +1075,22 @@ export class BrainChatService {
       }),
       conversationSlots: compilerInput.conversationSlots,
       question: input.dto.message,
+    });
+    enrichedIntent = this.normalizeConversationContinuationIntent({
+      intent: enrichedIntent,
+      question: input.dto.message,
+      conversationSlots: compilerInput.conversationSlots,
+      cards,
+    });
+    await this.recordModelTrace({
+      runId: input.runId,
+      stepKey: 'model_intent_normalized',
+      layer: 'cognition',
+      output: this.toJsonValue({
+        status: 'completed',
+        semanticIntent: this.modelIntentTraceSummary(enrichedIntent),
+      }),
+      status: 'completed',
     });
     const governedValidationScope = {
       domains: [...new Set(cards.flatMap((card) => card.domains))],
@@ -1109,13 +1134,17 @@ export class BrainChatService {
         },
       });
       if (repairCompilation.status === 'completed') {
-        const repairedIntent = this.normalizePendingClarificationResolution({
+        let repairedIntent = this.normalizePendingClarificationResolution({
           intent: this.normalizeExactCustomerFactIntent({
             intent: this.normalizeConversationEntityInheritance({
               intent: this.normalizeUnboundReferenceIntent({
                 intent: this.normalizeGovernedCapabilityContractIntent({
                   intent: this.normalizeGovernedCapabilityExampleIntent({
-                    intent: this.normalizeModelClarificationIntent(this.enrichModelEntityRefs(repairCompilation.intent)),
+                    intent: this.normalizeReadOnlyQuestionIntent({
+                      intent: this.normalizeModelClarificationIntent(this.enrichModelEntityRefs(repairCompilation.intent)),
+                      question: input.dto.message,
+                      cards,
+                    }),
                     question: input.dto.message,
                     cards,
                     snapshot,
@@ -1133,6 +1162,12 @@ export class BrainChatService {
           }),
           conversationSlots: compilerInput.conversationSlots,
           question: input.dto.message,
+        });
+        repairedIntent = this.normalizeConversationContinuationIntent({
+          intent: repairedIntent,
+          question: input.dto.message,
+          conversationSlots: compilerInput.conversationSlots,
+          cards,
         });
         const repairedValidation = this.semanticIntentValidator!.validate(repairedIntent, governedValidationScope);
         compilation = repairCompilation;
@@ -1478,7 +1513,7 @@ export class BrainChatService {
       });
       const grounded = execution.grounding === 'none'
         ? undefined
-        : this.groundedAnswerComposer?.composeDomainAnswer(execution);
+        : this.groundedAnswerComposer?.composeDomainAnswer(execution, validation.intent);
       return {
         status: 'completed',
         answer: grounded?.answer ?? execution.answer,
@@ -1603,6 +1638,79 @@ export class BrainChatService {
     };
   }
 
+  private normalizeReadOnlyQuestionIntent(input: {
+    intent: BrainSemanticIntent;
+    question: string;
+    cards: readonly BrainCapabilityCard[];
+  }): BrainSemanticIntent {
+    const explicitSideEffect = this.hasExplicitSideEffectRequest(input.question);
+    if (input.intent.intent === 'draft' && explicitSideEffect) {
+      return {
+        ...input.intent,
+        intent: 'action',
+        answerShape: 'action_preview',
+        successCriteria: [
+          ...input.intent.successCriteria,
+          '生成待确认操作预览，用户确认前不发送消息或写入业务数据',
+        ],
+        assumptions: [
+          ...input.intent.assumptions,
+          '用户明确要求发送或执行，按受控动作处理，不把动作请求降级为普通文案。',
+        ],
+      };
+    }
+    if (input.intent.intent !== 'action' || explicitSideEffect) return input.intent;
+    const candidates = input.cards
+      .filter((card) =>
+        card.readOnly &&
+        !card.sideEffect &&
+        card.intents.some((intent) => ['query', 'recommendation', 'diagnosis'].includes(intent)),
+      )
+      .map((card) => ({ card, score: this.governedCapabilitySemanticScore(input.question, card) }))
+      .sort((left, right) => right.score - left.score || left.card.key.localeCompare(right.card.key));
+    const matched = candidates[0];
+    if (!matched || matched.score < 0.35) return input.intent;
+
+    const asksForRecommendation = /可以|能否|能不能|是否|应该|建议|合适|怎么办|怎么处理/.test(input.question);
+    const nextIntent = asksForRecommendation && matched.card.intents.includes('recommendation')
+      ? 'recommendation'
+      : matched.card.intents.includes('query')
+        ? 'query'
+        : matched.card.intents.includes('recommendation')
+          ? 'recommendation'
+          : 'diagnosis';
+    return {
+      ...input.intent,
+      intent: nextIntent,
+      answerShape: nextIntent === 'query' ? 'list' : 'diagnosis',
+      ambiguities: input.intent.ambiguities.filter((item) => item.slot !== 'actionTarget'),
+      missingSlots: input.intent.missingSlots.filter((slot) => slot !== 'actionTarget'),
+      successCriteria: [`使用只读能力 ${matched.card.key} 返回可审计的${nextIntent === 'query' ? '查询结果' : '经营建议'}`],
+      assumptions: [
+        ...input.intent.assumptions,
+        '当前问题未请求系统执行副作用，按只读查询或建议处理。',
+      ],
+    };
+  }
+
+  private hasExplicitSideEffectRequest(question: string) {
+    return /(?:帮我|请|直接|立即|马上|替我|给我)?\s*(?:创建|新建|修改|更新|改约|取消预约|核销|扣次|退款|发送|群发|发放|发布|保存|记录|提交|下单|采购|安排预约|完成服务|开始服务|结束服务)|(?:给|向).{0,20}发(?:个|一条)?.{0,12}(?:通知|消息|短信)/.test(question);
+  }
+
+  private modelIntentTraceSummary(intent: BrainSemanticIntent) {
+    return {
+      schemaVersion: intent.schemaVersion,
+      intent: intent.intent,
+      answerShape: intent.answerShape,
+      domains: [...intent.domains],
+      metricKeys: intent.metrics.map((item) => item.definitionKey),
+      dimensionKeys: intent.dimensions.map((item) => item.definitionKey),
+      entityTypes: intent.entities.map((item) => item.entityType),
+      missingSlots: [...intent.missingSlots],
+      ambiguities: intent.ambiguities.map((item) => ({ slot: item.slot, reason: item.reason })),
+    };
+  }
+
   private normalizeGovernedCapabilityContractIntent(input: {
     intent: BrainSemanticIntent;
     question: string;
@@ -1613,7 +1721,13 @@ export class BrainChatService {
       ...input.intent.missingSlots.map((slot) => slot.trim().toLowerCase()),
       ...input.intent.ambiguities.map((ambiguity) => ambiguity.slot.trim().toLowerCase()),
     ]);
-    const contractMayResolveModelExpansion = ['action', 'draft', 'recommendation', 'diagnosis'].includes(input.intent.intent);
+    const requestedDefinitionKeys = new Set([
+      ...input.intent.metrics.map((metric) => metric.definitionKey),
+      ...input.intent.dimensions.map((dimension) => dimension.definitionKey),
+    ]);
+    const contractMayResolveModelExpansion =
+      ['action', 'draft', 'recommendation', 'diagnosis'].includes(input.intent.intent) ||
+      requestedDefinitionKeys.size > 0;
     if (
       (!requestedSlots.size && !contractMayResolveModelExpansion) ||
       this.hasProtectedCapabilityClarification(input.intent)
@@ -1622,10 +1736,6 @@ export class BrainChatService {
     }
     const isAction = input.intent.intent === 'action';
     const isDraft = input.intent.intent === 'draft';
-    const requestedDefinitionKeys = new Set([
-      ...input.intent.metrics.map((metric) => metric.definitionKey),
-      ...input.intent.dimensions.map((dimension) => dimension.definitionKey),
-    ]);
     const candidates = input.cards
       .filter((card) =>
         (isAction
@@ -1643,6 +1753,8 @@ export class BrainChatService {
         return {
           card,
           score: this.governedCapabilitySemanticScore(input.question, card),
+          supportedDomainCount: input.intent.domains.filter((domain) => card.domains.includes(domain)).length,
+          unsupportedDomainCount: input.intent.domains.filter((domain) => !card.domains.includes(domain)).length,
           supportedRequestedCount,
           unsupportedRequestedCount: requestedDefinitionKeys.size - supportedRequestedCount,
           intentBreadth: card.intents.length,
@@ -1676,18 +1788,33 @@ export class BrainChatService {
       (!specificityCandidates[1] || specificityCandidates[0].intentBreadth < specificityCandidates[1].intentBreadth)
       ? specificityCandidates[0]
       : undefined;
-    const matched = definitionMatched ?? specificityMatched ?? candidates[0];
+    const domainCandidates = [...candidates].sort((left, right) =>
+      right.supportedDomainCount - left.supportedDomainCount ||
+      left.unsupportedDomainCount - right.unsupportedDomainCount ||
+      right.score - left.score ||
+      left.intentBreadth - right.intentBreadth ||
+      left.card.key.localeCompare(right.card.key),
+    );
+    const domainMatched = domainCandidates[0] &&
+      domainCandidates[0].supportedDomainCount > 0 &&
+      (!domainCandidates[1] ||
+        domainCandidates[0].supportedDomainCount > domainCandidates[1].supportedDomainCount ||
+        domainCandidates[0].unsupportedDomainCount < domainCandidates[1].unsupportedDomainCount)
+      ? domainCandidates[0]
+      : undefined;
+    const matched = definitionMatched ?? domainMatched ?? specificityMatched ?? candidates[0];
     const margin = matched
       ? matched.score - (candidates.find((candidate) => candidate !== matched)?.score ?? 0)
       : 0;
     const governedSingleIntentCapability = (isAction || isDraft) && candidates.length === 1;
     if (
       !matched ||
-      (!governedSingleIntentCapability && !definitionMatched && !specificityMatched &&
+      (!governedSingleIntentCapability && !definitionMatched && !domainMatched && !specificityMatched &&
         (matched.score < 0.68 || (matched.score < 0.82 && margin < 0.08)))
     ) return input.intent;
 
     const supportedDefinitions = new Set((matched.card.definitionRefs ?? []).map((ref) => ref.definitionKey));
+    const supportedInputDomains = input.intent.domains.filter((domain) => matched.card.domains.includes(domain));
     const supportedInputMetrics = input.intent.metrics.filter((metric) => supportedDefinitions.has(metric.definitionKey));
     const inferredMetrics = inferGovernedQuestionMetricKeys(input.question)
       .flatMap((definitionKey) => (matched.card.definitionRefs ?? []).filter((ref) => ref.definitionKey === definitionKey))
@@ -1724,6 +1851,7 @@ export class BrainChatService {
     return {
       ...input.intent,
       ...(unorderedList ? { intent: 'query' as const, answerShape: 'list' as const } : {}),
+      domains: supportedInputDomains.length ? supportedInputDomains : [...matched.card.domains],
       metrics,
       dimensions,
       entities,
@@ -1762,6 +1890,96 @@ export class BrainChatService {
       answerShape: 'clarification',
       missingSlots: [...new Set(missingSlots.length ? missingSlots : ['objective'])],
     };
+  }
+
+  private normalizeConversationContinuationIntent(input: {
+    intent: BrainSemanticIntent;
+    question: string;
+    conversationSlots: Record<string, unknown>;
+    cards: readonly BrainCapabilityCard[];
+  }): BrainSemanticIntent {
+    const presentationNormalized = this.normalizeConversationPresentationIntent(input);
+    return this.normalizeConversationTimeIntent({
+      intent: presentationNormalized,
+      conversationSlots: input.conversationSlots,
+    });
+  }
+
+  private normalizeConversationPresentationIntent(input: {
+    intent: BrainSemanticIntent;
+    question: string;
+    conversationSlots: Record<string, unknown>;
+    cards: readonly BrainCapabilityCard[];
+  }): BrainSemanticIntent {
+    if (!/(?:不要表格.*(?:文字|说)|用文字说|简单说|说重点|简洁一点|太复杂)/.test(input.question)) {
+      return input.intent;
+    }
+    const modelContext = this.modelContextRecord(input.conversationSlots.modelContext);
+    const previousIntent = BRAIN_SEMANTIC_INTENTS.includes(modelContext.intent as never)
+      ? modelContext.intent as BrainSemanticIntent['intent']
+      : undefined;
+    const previousAnswerShape = BRAIN_SEMANTIC_ANSWER_SHAPES.includes(modelContext.answerShape as never)
+      ? modelContext.answerShape as BrainSemanticIntent['answerShape']
+      : undefined;
+    if (!previousIntent || !previousAnswerShape || typeof modelContext.objective !== 'string') return input.intent;
+
+    const capability = this.modelContextRecord(modelContext.capability);
+    const card = typeof capability.key === 'string'
+      ? input.cards.find((candidate) => candidate.key === capability.key)
+      : undefined;
+    const metrics = Array.isArray(modelContext.metrics)
+      ? modelContext.metrics.filter((value): value is BrainSemanticIntent['metrics'][number] => Boolean(value && typeof value === 'object'))
+      : [];
+    const dimensions = Array.isArray(modelContext.dimensions)
+      ? modelContext.dimensions.filter((value): value is BrainSemanticIntent['dimensions'][number] => Boolean(value && typeof value === 'object'))
+      : [];
+    const entities = Array.isArray(modelContext.entities)
+      ? modelContext.entities.filter((value): value is BrainSemanticIntent['entities'][number] => Boolean(value && typeof value === 'object'))
+      : [];
+    const timeRange = this.modelContextTimeRange(modelContext.timeRange);
+    return {
+      ...input.intent,
+      objective: modelContext.objective,
+      domains: card?.domains.length ? [...card.domains] : input.intent.domains,
+      intent: previousIntent,
+      answerShape: previousAnswerShape,
+      metrics: metrics.map((value) => ({ ...value })),
+      dimensions: dimensions.map((value) => ({ ...value })),
+      entities: entities.map((value) => ({
+        ...value,
+        source: 'conversation',
+        ...(value.definitionRef ? { definitionRef: { ...value.definitionRef } } : {}),
+      })),
+      ...(timeRange ? { timeRange } : {}),
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [
+        ...input.intent.assumptions,
+        /简单说|说重点|简洁一点|太复杂/.test(input.question)
+          ? '沿用上一轮业务目标，仅调整为简洁重点表达。'
+          : '沿用上一轮业务目标，以文本叙述表达结构化结果。',
+      ],
+      successCriteria: [
+        ...input.intent.successCriteria,
+        '保持上一轮事实口径和范围，不因表达方式变化而改写查询目标',
+      ],
+    };
+  }
+
+  private normalizeConversationTimeIntent(input: {
+    intent: BrainSemanticIntent;
+    conversationSlots: Record<string, unknown>;
+  }): BrainSemanticIntent {
+    const directives = this.modelContextRecord(input.conversationSlots.turnDirectives);
+    const replace = this.modelContextRecord(directives.replace);
+    const replacement = this.modelContextTimeRange(replace.timeRange);
+    if (replacement) return { ...input.intent, timeRange: replacement };
+
+    const inherit = Array.isArray(directives.inherit) ? directives.inherit : [];
+    if (!inherit.includes('timeRange')) return input.intent;
+    const modelContext = this.modelContextRecord(input.conversationSlots.modelContext);
+    const inherited = this.modelContextTimeRange(modelContext.timeRange);
+    return inherited ? { ...input.intent, timeRange: inherited } : input.intent;
   }
 
   private normalizeUnboundReferenceIntent(input: {
@@ -1889,7 +2107,7 @@ export class BrainChatService {
     question: string;
   }): BrainSemanticIntent {
     const directives = this.modelContextRecord(input.conversationSlots.turnDirectives);
-    if (directives.mode !== 'resolve_pending_or_new') return input.intent;
+    const resolvesPending = directives.mode === 'resolve_pending_or_new';
     const pendingSlots = Array.isArray(directives.pendingSlots)
       ? directives.pendingSlots.filter((slot): slot is string => typeof slot === 'string')
       : [];
@@ -1903,6 +2121,7 @@ export class BrainChatService {
         /(?:尾号|手机尾号|手机号后四位|手机后四位)[^0-9]*\d{4}/.test(input.question)
       );
     if (
+      resolvesPending &&
       suppliesCustomerIdentity &&
       ['query', 'diagnosis', 'recommendation'].includes(String(modelContext.intent)) &&
       this.isCustomerIdentityOnlyReply(input.question) &&
@@ -1924,6 +2143,7 @@ export class BrainChatService {
       };
     }
     if (
+      resolvesPending &&
       pendingSlots.some((slot) => slot === 'actionTarget' || slot === 'entity') &&
       ['action', 'workflow'].includes(String(modelContext.intent)) &&
       (
@@ -1965,12 +2185,15 @@ export class BrainChatService {
   private isSpecificModelEntity(entity: BrainSemanticIntent['entities'][number]) {
     const mention = entity.mention.trim();
     if (!entity.definitionRef || !mention) return false;
-    if (entity.entityKey && entity.entityKey !== entity.entityType) return true;
     const normalizedMention = mention.toLocaleLowerCase('en-US').replace(/[\s_-]+/g, '');
     if (/^(?:customer|customers|member|members|staff|employee|employees|beautician|beauticians|product|products|project|projects|reservation|reservations|appointment|appointments|order|orders|payment|payments)$/.test(normalizedMention)) {
       return false;
     }
-    return !/(客户|顾客|老客|新客|会员|客群|人群|员工|美容师|商品|产品|项目|预约|她|他|这个|那个)/.test(mention);
+    if (/^(?:(?:今天|明天|下午|上午|当前|刚才)的?)?(?:(?:下一个|上一个|第一个|最后一个|这个|那个|这位)的?)?(?:客户|顾客|客人|老客|新客|会员|客群|人群|员工|美容师|商品|产品|项目|预约|她|他)$/.test(mention)) {
+      return false;
+    }
+    if (entity.entityKey && entity.entityKey !== entity.entityType) return true;
+    return true;
   }
 
   private isExplicitPendingObjectiveAbandonment(question: string) {

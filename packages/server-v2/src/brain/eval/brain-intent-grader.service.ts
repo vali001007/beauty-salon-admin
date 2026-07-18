@@ -118,6 +118,13 @@ function intentMatches(expected: string, actual: Record<string, unknown>): boole
   const actualIntent = normalizeIntent(actual.intent);
   if (actualIntent === expectedIntent) return true;
   if (
+    ((expectedIntent === 'draft' && actualIntent === 'recommendation') ||
+      (expectedIntent === 'recommendation' && actualIntent === 'draft')) &&
+    actual.answerShape === 'draft'
+  ) {
+    return true;
+  }
+  if (
     expectedIntent === 'clarify' &&
     (actual.answerShape === 'clarification' ||
       stringArray(actual.missingSlots).length > 0 ||

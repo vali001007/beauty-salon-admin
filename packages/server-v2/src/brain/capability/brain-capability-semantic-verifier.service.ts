@@ -418,6 +418,12 @@ function executorGrounding(
     return 'domain_service';
   }
   if (
+    className === 'BrainMarketingCampaignCapabilityExecutor' &&
+    sourcePath === 'packages/server-v2/src/brain/capability/executors/brain-marketing-campaign-capability.executor.ts'
+  ) {
+    return 'domain_service';
+  }
+  if (
     className === 'BrainSemanticQueryCapabilityExecutor' &&
     sourcePath === 'packages/server-v2/src/brain/capability/executors/brain-semantic-query-capability.executor.ts'
   ) {

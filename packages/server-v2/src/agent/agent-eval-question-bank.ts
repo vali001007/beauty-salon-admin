@@ -50,12 +50,21 @@ export type AgentEvalQuestionCase = {
     requiresPreview?: boolean;
     requiredCapabilityKeys?: string[];
   };
+  expectedBrainStatus?: 'completed' | 'clarify';
   riskLevel?: 'low' | 'medium' | 'high';
   requiresApproval?: boolean;
   notes?: string;
   systemSupportStatus: AgentQuestionSystemSupportStatus;
   systemSupportReason: string;
   coverageStage: AgentQuestionCoverageStage;
+};
+
+export type AgentEvalP0QuestionCase = AgentEvalQuestionCase & {
+  conversationTurns?: AgentEvalP0QuestionCase[];
+  scenarioId?: string;
+  turnId?: string;
+  turnIndex?: number;
+  turnCount?: number;
 };
 
 export type AgentEvalQuestionBank = {
@@ -242,14 +251,19 @@ function slugCategory(category: string) {
 }
 
 function isHighRiskInput(input: string) {
-  return /自动(?:发|发送|触达|提醒|扣|核销|退款|收款)|群发|直接(?:退款|核销|收款|扣款|发送)|设置.*规则|执行退卡|发起退款|立即退款|执行扣款|发券|发放优惠券/.test(input);
+  return /自动(?:发|发送|触达|提醒|扣|核销|退款|收款)|群发|直接(?:退款|核销|收款|扣款|发送)|设置.*规则|执行退卡|发起退款|立即退款|执行扣款|发券|发放优惠券|(?:给|向).{0,20}发(?:个|一条)?.{0,12}(?:通知|消息|短信)|(?:再加|新增|安排).{0,12}(?:客人|客户).{0,8}(?:预约|进去)/.test(input);
 }
 
 function inferIntentType(input: string, category: string): AgentQuestionIntentType {
-  if (/意图模糊/.test(category)) return 'clarify';
+  if (/意图模糊/.test(category)) return /活动/.test(input) ? 'draft' : 'clarify';
+  if (category === '活动策划') {
+    return /适合|应该|有哪些|有什么|多少合适|有没有.*方法/.test(input)
+      ? 'analysis_and_recommendation'
+      : 'draft';
+  }
   if (/(?:看|查|查询).*(?:流程安排|预约安排|服务安排|排班)|(?:流程安排|预约安排|服务安排|排班).*(?:怎样|如何|情况)/.test(input)) return 'query';
   if (/设置|生成.*报告|制定|策划|设计|写|话术|文案|脚本|流程|规则|方案/.test(input)) return 'draft';
-  if (/为什么|原因|分析|怎么处理|怎么办|建议|是否合理|风险|异常|问题|总结|概览|情况怎么样|情况如何/.test(input)) return 'analysis_and_recommendation';
+  if (/为什么|原因|分析|怎么处理|怎么办|建议|适合|是否合理|风险|异常|问题|总结|概览|情况怎么样|情况如何/.test(input)) return 'analysis_and_recommendation';
   return 'query';
 }
 
@@ -266,6 +280,7 @@ function inferOutputKinds(input: string, intentType: AgentQuestionIntentType): A
   if (/哪些|列|清单|明细|所有|排名|对比|列表|记录|客户|客人|员工|产品|预约|订单|次卡|卡项|权益/.test(input)) {
     kinds.add('table');
   }
+  if (/汇总/.test(input)) kinds.add('table');
   if (/趋势|近三|最近三|这周每天|最近三个月|季度|对比/.test(input)) kinds.add('chart');
   if (
     /设置|创建|新建|执行|提交|发起|自动(?:提醒|触达|发送)|群发|发券|改约|取消预约|打开收银|打开核销|生成.*(?:任务|预览|采购单)/.test(input)
@@ -304,10 +319,10 @@ function inferQuestion(input: string, persona: AgentQuestionBankPersona, categor
     expectedSemanticIntent: semanticIntent,
     expectedDomains: businessPersona ? [DOMAIN_BY_PERSONA[businessPersona]] : [],
     expectedEntities: inferExpectedEntities(input, category),
-    expectedMetrics: inferExpectedMetrics(input),
-    expectedDimensions: inferExpectedDimensions(input, semanticIntent),
+    expectedMetrics: category === '活动策划' ? [] : inferExpectedMetrics(input),
+    expectedDimensions: category === '活动策划' ? [] : inferExpectedDimensions(input, semanticIntent),
     expectedCapabilityKeys: expectedSkill ? [expectedSkill] : [],
-    expectedPlanShape: systemSupport.status === 'system_unsupported'
+    expectedPlanShape: intentType === 'clarify' || systemSupport.status === 'system_unsupported'
       ? undefined
       : {
           minNodes: /跨场景融合/.test(category) ? 2 : 1,
@@ -315,6 +330,7 @@ function inferQuestion(input: string, persona: AgentQuestionBankPersona, categor
           requiresPreview: requiresApproval,
           requiredCapabilityKeys: [],
         },
+    expectedBrainStatus: intentType === 'clarify' ? ('clarify' as const) : undefined,
     riskLevel: requiresApproval ? ('high' as const) : ('low' as const),
     requiresApproval,
     systemSupportStatus: systemSupport.status,
@@ -331,9 +347,13 @@ function inferSemanticIntent(
   if (intentType === 'clarify') return 'clarify';
   if (requiresApproval) return 'action';
   if (intentType === 'draft') return 'draft';
-  if (intentType === 'analysis_and_recommendation') return /建议|怎么办|怎么处理|推荐/.test(input) ? 'recommendation' : 'diagnosis';
+  if (intentType === 'analysis_and_recommendation') {
+    return /建议|怎么办|怎么处理|推荐|适合|应该|什么活动|哪些营销节点|方法|合适/.test(input)
+      ? 'recommendation'
+      : 'diagnosis';
+  }
   if (/趋势|走势|每天|近三天|最近三天|最近三个月/.test(input)) return 'trend';
-  if (/相比|对比|跟.*比|和.*比|比.*差|差多少/.test(input)) return 'comparison';
+  if (/相比|对比|跟.*比|和.*比|比.*差|差多少|比.*(?:高|低|多|少).*多少/.test(input)) return 'comparison';
   if (/排行|排名|谁.*(?:最好|最高|最多|最少)|(?:最好|最高|最多|最少).*(?:谁|哪个)|哪个.*(?:最好|最高|最多|最少)|哪些.*(?:最高|最多|最快|最慢)/.test(input)) return 'ranking';
   return 'query';
 }
@@ -363,7 +383,8 @@ function inferExpectedMetrics(input: string) {
   if (/退款.*(?:金额|多少)/.test(input)) values.add('refund_amount');
   if (/退款有几笔|退款.*(?:笔数|几笔|次数)/.test(input)) values.add('refund_count');
   if (/(折扣|优惠|让利).*(?:多少钱|多少|金额|送出去)/.test(input)) values.add('discount_amount');
-  if (/商品|产品/.test(input) && /销售额|销售金额/.test(input)) values.add('product_sales_amount');
+  if (/商品|产品/.test(input) && /销售排行|销售排名/.test(input) && !/销量|数量|卖得最多/.test(input)) values.add('product_sales_amount');
+  else if (/商品|产品/.test(input) && /销售额|销售金额/.test(input)) values.add('product_sales_amount');
   else if (/商品|产品/.test(input) && /销售|卖得|销量/.test(input)) values.add('product_sales_quantity');
   if (/(耗材|物料|产品|商品).*(消耗|用量|出库).*(最快|最多|排行|排名)/.test(input)) values.add('inventory_consumption_quantity');
   if (/员工|美容师|谁/.test(input) && /业绩|表现/.test(input) && !/(下滑|下降|环比|趋势|变化)/.test(input)) {
@@ -506,7 +527,7 @@ export function parseAgentEvalQuestionMarkdown(markdown: string): AgentEvalQuest
   return { title, version, date, description, questions };
 }
 
-export function selectP0QuestionBankCases(questions: AgentEvalQuestionCase[]) {
+export function selectP0QuestionBankCases(questions: AgentEvalQuestionCase[]): AgentEvalP0QuestionCase[] {
   const result: AgentEvalQuestionCase[] = [];
   const businessPersonas: AgentQuestionBankPersona[] = ['manager', 'marketing', 'reception', 'beautician', 'inventory', 'finance'];
   for (const persona of businessPersonas) {
@@ -521,7 +542,78 @@ export function selectP0QuestionBankCases(questions: AgentEvalQuestionCase[]) {
     ...edgeQuestions.filter((item) => item.sourceCategory === '极限与压力测试').slice(0, 5),
   );
 
-  return result.map((item) => ({ ...item, priority: 'P0' as const, coverageStage: 'p0_daily' as const }));
+  return result.map((item) => withP0ConversationTurns({
+    ...item,
+    priority: 'P0' as const,
+    coverageStage: 'p0_daily' as const,
+  }));
+}
+
+const P0_CORRECTION_CONTEXT: Readonly<Record<number, string>> = {
+  31: '这个月营业额是多少',
+  32: '这个月营业额是多少',
+  33: '本月商品销售排行',
+  34: '帮我做一个本月经营分析报告',
+  35: '帮我查一下张雯，她上次来是什么时候',
+};
+
+function withP0ConversationTurns(item: AgentEvalQuestionCase): AgentEvalP0QuestionCase {
+  const embeddedTurns = item.sourceCategory === '代词和上下文继承测试'
+    ? item.input.split('（然后）').map((value) => value.trim()).filter(Boolean)
+    : [];
+  if (item.sourceCategory === '代词和上下文继承测试' && item.sourceIndex === 11 && embeddedTurns[0]) {
+    embeddedTurns[0] = embeddedTurns[0].replace('张雯的信息', '客户马美琳，手机号后四位6325的信息');
+  }
+  const correctionContext = item.sourceCategory === '否定与纠正测试'
+    ? P0_CORRECTION_CONTEXT[item.sourceIndex]
+    : undefined;
+  const turnInputs = embeddedTurns.length > 1
+    ? embeddedTurns
+    : correctionContext
+      ? [correctionContext, item.input]
+      : [];
+  if (turnInputs.length < 2) return item;
+
+  let conversationTurns: AgentEvalP0QuestionCase[] = turnInputs.map((input, index) => ({
+    id: `${item.id}-turn-${index + 1}`,
+    sourceCategory: item.sourceCategory,
+    sourceSection: item.sourceSection,
+    sourceIndex: item.sourceIndex,
+    persona: item.persona,
+    evalRole: item.evalRole,
+    input,
+    ...inferQuestion(input, item.persona, item.sourceCategory, index + 1),
+    priority: 'P0' as const,
+    coverageStage: 'p0_daily' as const,
+    scenarioId: item.id,
+    turnId: `turn-${index + 1}`,
+    turnIndex: index,
+    turnCount: turnInputs.length,
+  }));
+  if (item.sourceCategory === '否定与纠正测试' && conversationTurns.length === 2) {
+    const previous = conversationTurns[0]!;
+    const correction = conversationTurns[1]!;
+    conversationTurns = [previous, {
+      ...correction,
+      expectedIntentType: previous.expectedIntentType,
+      expectedSemanticIntent: previous.expectedSemanticIntent,
+      expectedDomains: previous.expectedDomains ? [...previous.expectedDomains] : [],
+      expectedEntities: previous.expectedEntities ? [...previous.expectedEntities] : [],
+      expectedMetrics: previous.expectedMetrics ? [...previous.expectedMetrics] : [],
+      expectedDimensions: previous.expectedDimensions ? [...previous.expectedDimensions] : [],
+      expectedCapabilityKeys: previous.expectedCapabilityKeys ? [...previous.expectedCapabilityKeys] : [],
+      expectedPlanShape: previous.expectedPlanShape ? { ...previous.expectedPlanShape } : undefined,
+      expectedOutputKinds: /不要表格|简单说|说重点|太复杂/.test(correction.input)
+        ? ['text', 'evidence']
+        : previous.expectedOutputKinds ? [...previous.expectedOutputKinds] : ['text', 'evidence'],
+    }];
+  }
+  return {
+    ...item,
+    conversationTurns,
+    scenarioId: item.id,
+    turnCount: conversationTurns.length,
+  };
 }
 
 export function annotateQuestionBankCoverage(questions: AgentEvalQuestionCase[]) {

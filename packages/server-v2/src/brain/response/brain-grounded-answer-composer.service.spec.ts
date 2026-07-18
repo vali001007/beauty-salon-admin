@@ -226,6 +226,154 @@ describe('BrainGroundedAnswerComposerService', () => {
     expect(() => guard.assertValid({ answer: 'x', citations: [], suggestedActions: [], completion: { status: 'complete', missingCriteria: [] }, blocks: [{ kind: 'text', text: '<script>alert(1)</script>' }] })).toThrow('brain_response_html_forbidden');
     expect(() => guard.assertValid({ answer: 'x', citations: [], suggestedActions: [], completion: { status: 'complete', missingCriteria: [] }, blocks: [{ kind: 'kpi', items: [{ label: '收入', value: '1' }] }] })).toThrow('brain_response_citation_required:kpi');
   });
+
+  it('fails closed when a single capability returns the wrong answer shape', () => {
+    const guard = new BrainAnswerCompletionGuardService();
+    expect(() => guard.assertMatchesIntent(
+      { intent: 'draft', answerShape: 'draft' },
+      {
+        answer: '实收金额为 100 元。',
+        citations: [{ sourceType: 'business_definition', sourceId: 'metric.paid_amount@1' }],
+        suggestedActions: [],
+        completion: { status: 'complete', missingCriteria: [] },
+        blocks: [{ kind: 'kpi', items: [{ label: '实收', value: '100 元' }], citationIds: ['metric.paid_amount@1'] }],
+      },
+    )).toThrow('brain_response_answer_contract_mismatch:draft:text');
+
+    expect(() => guard.assertMatchesIntent(
+      { intent: 'ranking', answerShape: 'ranking' },
+      { answer: '总计 100 元。', citations: [], suggestedActions: [], completion: { status: 'complete', missingCriteria: [] }, blocks: [] },
+    )).toThrow('brain_response_answer_contract_mismatch:ranking:ranking');
+  });
+
+  it('accepts a grounded draft text response', () => {
+    const guard = new BrainAnswerCompletionGuardService();
+    expect(() => guard.assertMatchesIntent(
+      { intent: 'draft', answerShape: 'draft' },
+      {
+        answer: '活动方案：先小范围试发。',
+        citations: [{ sourceType: 'skill', sourceId: 'marketing_campaign_plan' }],
+        suggestedActions: [],
+        completion: { status: 'complete', missingCriteria: [] },
+        blocks: [{ kind: 'text', text: '活动方案：先小范围试发。', citationIds: ['marketing_campaign_plan'] }],
+      },
+    )).not.toThrow();
+  });
+
+  it('accepts a grounded empty table as an explicit no-data list result', () => {
+    const result = composer.composeDomainAnswer(
+      {
+        status: 'completed',
+        answer: '今天没有找到匹配预约。',
+        blocks: [{ kind: 'table', rows: [], columns: ['customerName', 'startTime'] }],
+        citations: [{ sourceType: 'db_skill', sourceId: 'beautician_service_summary' }],
+        grounding: 'db_skill',
+        suggestedActions: [],
+        metadata: { capabilityKey: 'beautician_service_overview', capabilityVersion: 1 },
+      },
+      { intent: 'query', answerShape: 'list' },
+    );
+
+    expect(result.answer).toContain('当前没有匹配数据');
+    expect(result.answer).toContain('当前时间范围没有匹配的明细数据');
+    expect(result.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'limitations', items: expect.arrayContaining(['no_data:table']) }),
+    ]));
+  });
+
+  it('accepts grounded recommendation text with a supporting fact list', () => {
+    const guard = new BrainAnswerCompletionGuardService();
+    expect(() => guard.assertMatchesIntent(
+      { intent: 'recommendation', answerShape: 'diagnosis' },
+      {
+        answer: '当前没有必须续卡的统一规则，先查看卡项余次。',
+        citations: [{ sourceType: 'db_skill', sourceId: 'customer_card_progress' }],
+        suggestedActions: [],
+        completion: { status: 'complete', missingCriteria: [] },
+        blocks: [
+          { kind: 'text', text: '当前没有必须续卡的统一规则，先查看卡项余次。', citationIds: ['customer_card_progress'] },
+          { kind: 'table', rows: [], columns: ['customerName', 'remainingTimes'], citationIds: ['customer_card_progress'] },
+          { kind: 'limitations', items: ['no_data:table'] },
+        ],
+      },
+    )).not.toThrow();
+  });
+
+  it('accepts cited KPIs as supporting evidence for a recommendation with ranked candidates', () => {
+    const guard = new BrainAnswerCompletionGuardService();
+    expect(() => guard.assertMatchesIntent(
+      { intent: 'recommendation', answerShape: 'list' },
+      {
+        answer: '建议优先联系评分最高的客户，名单和依据如下。',
+        citations: [{ sourceType: 'db_skill', sourceId: 'customer_priority_recommendation' }],
+        suggestedActions: [],
+        completion: { status: 'complete', missingCriteria: [] },
+        blocks: [
+          {
+            kind: 'kpi',
+            items: [{ label: '候选客户', value: '10 人' }],
+            citationIds: ['customer_priority_recommendation'],
+          },
+          {
+            kind: 'ranking',
+            rows: [{ customerName: '张女士', score: 92 }],
+            columns: ['customerName', 'score'],
+            citationIds: ['customer_priority_recommendation'],
+          },
+        ],
+      },
+    )).not.toThrow();
+  });
+
+  it('rejects a recommendation answered only by a scalar KPI', () => {
+    const guard = new BrainAnswerCompletionGuardService();
+    expect(() => guard.assertMatchesIntent(
+      { intent: 'recommendation', answerShape: 'diagnosis' },
+      {
+        answer: '候选客户 10 人。',
+        citations: [{ sourceType: 'db_skill', sourceId: 'customer_priority_recommendation' }],
+        suggestedActions: [],
+        completion: { status: 'complete', missingCriteria: [] },
+        blocks: [{
+          kind: 'kpi',
+          items: [{ label: '候选客户', value: '10 人' }],
+          citationIds: ['customer_priority_recommendation'],
+        }],
+      },
+    )).toThrow('brain_response_answer_contract_mismatch:recommendation:content');
+  });
+
+  it('accepts a diagnosis backed by cited operating facts when no risk finding exists', () => {
+    const guard = new BrainAnswerCompletionGuardService();
+    expect(() => guard.assertMatchesIntent(
+      { intent: 'diagnosis', answerShape: 'diagnosis' },
+      {
+        answer: '今日经营概览已完成，当前已接入事实没有形成风险发现。',
+        citations: [{ sourceType: 'db_skill', sourceId: 'store_manager_operations_analysis' }],
+        suggestedActions: [],
+        completion: { status: 'complete', missingCriteria: [] },
+        blocks: [{
+          kind: 'kpi',
+          items: [{ label: '实收', value: '19907.10 元' }],
+          citationIds: ['store_manager_operations_analysis'],
+        }],
+      },
+    )).not.toThrow();
+  });
+
+  it('still rejects an ungrounded text-only diagnosis', () => {
+    const guard = new BrainAnswerCompletionGuardService();
+    expect(() => guard.assertMatchesIntent(
+      { intent: 'diagnosis', answerShape: 'diagnosis' },
+      {
+        answer: '今天经营情况不错。',
+        citations: [],
+        suggestedActions: [],
+        completion: { status: 'complete', missingCriteria: [] },
+        blocks: [{ kind: 'text', text: '今天经营情况不错。' }],
+      },
+    )).toThrow('brain_response_answer_contract_mismatch:diagnosis:grounded_context');
+  });
 });
 
 function observation(overrides: Record<string, unknown> = {}) {

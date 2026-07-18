@@ -219,7 +219,7 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
     });
     if (!answer) return this.clarification(definition.adapterKey, 'capability_not_open');
     this.assertPreviewOnly(answer);
-    return answer;
+    return this.withClarificationBlock(answer);
   }
 
   private assertPreviewOnly(answer: BrainDomainAnswer) {
@@ -257,13 +257,26 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
   }
 
   private clarification(adapterKey: BrainDomainAdapterKey, unsupportedReason: string): BrainDomainAnswer {
-    return {
+    return this.withClarificationBlock({
       status: 'completed',
       answer: '当前动作目标或能力尚未就绪，请补充缺失目标后再生成操作预览。',
       citations: [],
       suggestedActions: [],
       grounding: 'none',
       metadata: { adapterKey, unsupportedReason },
+    });
+  }
+
+  private withClarificationBlock(answer: BrainDomainAnswer): BrainDomainAnswer {
+    if (answer.grounding !== 'none') return answer;
+    if ((answer.blocks ?? []).some((block) => block.kind === 'clarification')) return answer;
+    return {
+      ...answer,
+      blocks: [{ kind: 'clarification', question: answer.answer, options: [] }],
+      metadata: {
+        ...answer.metadata,
+        completion: { status: 'partial', missingCriteria: ['actionTarget'], recoverable: true },
+      },
     };
   }
 

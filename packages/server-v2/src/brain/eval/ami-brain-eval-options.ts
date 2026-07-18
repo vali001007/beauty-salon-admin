@@ -3,6 +3,7 @@ import type { AgentQuestionBankPersona } from '../../agent/agent-eval-question-b
 
 export type AmiBrainEvalOptions = {
   questionFile?: string;
+  gate?: 'p0';
   limit?: number;
   persona?: AgentQuestionBankPersona;
   questionIds?: string[];
@@ -18,8 +19,10 @@ export type AmiBrainEvalOptions = {
 
 export function parseAmiBrainEvalOptions(args: string[], defaultOutputDir: string): AmiBrainEvalOptions {
   const questionFile = optionalResolvedPathArg(args, 'question-file');
+  const gate = parseGate(stringArg(args, 'gate'));
   return {
     ...(questionFile ? { questionFile } : {}),
+    ...(gate ? { gate } : {}),
     limit: positiveIntegerArg(args, 'limit'),
     persona: parsePersona(stringArg(args, 'persona')),
     questionIds: listArg(args, 'question-ids'),
@@ -32,6 +35,12 @@ export function parseAmiBrainEvalOptions(args: string[], defaultOutputDir: strin
     evaluationRoleKey: nonEmptyStringArg(args, 'evaluation-role') ?? 'persona',
     outputDir: resolve(stringArg(args, 'output-dir') ?? defaultOutputDir),
   };
+}
+
+function parseGate(value?: string): 'p0' | undefined {
+  if (value === undefined) return undefined;
+  if (value === 'p0') return value;
+  throw new Error(`Invalid gate: ${value}`);
 }
 
 function optionalResolvedPathArg(args: string[], name: string) {

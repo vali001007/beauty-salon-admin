@@ -5,12 +5,13 @@ describe('parseAmiBrainEvalOptions', () => {
   it('parses an explicit candidate release for offline development evaluation', () => {
     expect(
       parseAmiBrainEvalOptions(
-        ['--store-id=6', '--release-id=21', '--limit=10', '--persona=finance', '--question-ids=q1,q2,q1', '--evaluation-role=cashier', '--output-dir=outputs/eval'],
+        ['--store-id=6', '--release-id=21', '--gate=p0', '--limit=10', '--persona=finance', '--question-ids=q1,q2,q1', '--evaluation-role=cashier', '--output-dir=outputs/eval'],
         'default-output',
       ),
     ).toEqual({
       storeId: 6,
       releaseId: 21,
+      gate: 'p0',
       concurrency: 1,
       resume: false,
       checkpointEvery: 25,
@@ -70,6 +71,10 @@ describe('parseAmiBrainEvalOptions', () => {
 
   it('fails closed for an invalid resume flag', () => {
     expect(() => parseAmiBrainEvalOptions(['--resume=yes'], 'default-output')).toThrow('Invalid resume');
+  });
+
+  it('fails closed for an unsupported named gate', () => {
+    expect(() => parseAmiBrainEvalOptions(['--gate=first-120'], 'default-output')).toThrow('Invalid gate');
   });
 
   it('fails closed for an explicitly empty evaluation role', () => {

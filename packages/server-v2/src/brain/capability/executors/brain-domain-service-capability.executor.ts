@@ -2107,6 +2107,15 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             capabilityKey: 'inventory_operations_overview',
             rangeLabel: range.label,
             expiringBefore: expiringBefore.toISOString(),
+            mappingOutputs: {
+              expiringBatches: risk.expiringProducts.map((item) => ({
+                entityType: 'product',
+                entityKey: String(item.productId),
+                mention: item.name,
+                source: 'system',
+                confidence: 1,
+              })),
+            },
             componentCapabilities: ['inventory_risk_summary', 'inventory_detail_analysis', 'inventory_procurement_analysis'],
             completionCriteria: ['inventory_value_loaded', 'risk_loaded', 'consumption_loaded', 'procurement_preview_loaded'],
           },
@@ -2130,6 +2139,35 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         }
         const diagnosisAnswer = input.answerShape === 'diagnosis';
         const diagnosisRange = diagnosisAnswer ? this.resolveFinanceDiagnosisRange(input, range) : range;
+        if (/毛利率/.test(input.question) && !/(?:产品|商品|货品|项目)/.test(input.question) && input.answerShape === 'scalar') {
+          const summary = await this.skillRuntime.buildFinanceRiskSummary({
+            storeId: input.context.storeId,
+            startDate: diagnosisRange.startDate,
+            endDate: diagnosisRange.endDate,
+          });
+          const grossMarginRate = summary.grossMarginRate;
+          return this.answer({
+            answer: grossMarginRate === undefined
+              ? `${diagnosisRange.label}缺少可计算毛利率的完整收入和成本口径。`
+              : `${diagnosisRange.label}毛利率为 ${(grossMarginRate * 100).toFixed(1)}%。`,
+            citationId: 'finance_risk_summary',
+            citationLabel: '收入、成本与毛利汇总',
+            citations: [{ sourceType: 'business_definition', sourceId: 'metric.gross_margin_rate', label: '业务定义：毛利率' }],
+            blocks: grossMarginRate === undefined
+              ? [{ kind: 'limitations', items: [`${diagnosisRange.label}缺少可计算毛利率的完整收入和成本口径`] }]
+              : [{
+                  kind: 'kpi',
+                  items: [{ label: '毛利率', value: `${(grossMarginRate * 100).toFixed(1)}%` }],
+                  citationIds: ['finance_risk_summary'],
+                }],
+            metadata: {
+              capabilityKey: 'finance_risk_overview',
+              answerScope: 'gross_margin_rate_scalar',
+              rangeLabel: diagnosisRange.label,
+              metricDefinitionKey: 'metric.gross_margin_rate',
+            },
+          });
+        }
         if (/(?:退款|退货).*(?:原因|为什么)|(?:原因|为什么).*(?:退款|退货)/.test(input.question)) {
           const refundAnalysis = await this.skillRuntime.buildFinanceRefundReasonAnalysis({
             storeId: input.context.storeId,
@@ -2642,7 +2680,17 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         });
         const citations = [{ sourceType: 'db_skill', sourceId: 'capability_reservation_list', label: '门店预约清单' }];
         const focusedReservationAnswer = this.buildFocusedReservationAnswer(schedule, input, range, citations);
-        if (focusedReservationAnswer) return this.applyDataQualityGuard(this.ensureAnswerTextBlock(focusedReservationAnswer), dataQuality);
+        if (focusedReservationAnswer) {
+          return this.applyDataQualityGuard(this.ensureAnswerTextBlock({
+            ...focusedReservationAnswer,
+            metadata: {
+              ...focusedReservationAnswer.metadata,
+              mappingOutputs: {
+                customerIds: [...new Set(schedule.reservations.map((item) => item.customerId))],
+              },
+            },
+          }), dataQuality);
+        }
         const activeReservations = schedule.reservations.filter((item) => !this.isCancelledReservation(item.status));
         const rows = activeReservations
           .slice(0, this.resolveLimit(input.args.limit, 100))
@@ -2669,6 +2717,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             answerScope: 'reservation_schedule_list',
             rangeLabel: range.label,
             count: activeReservations.length,
+            mappingOutputs: {
+              customerIds: [...new Set(activeReservations.map((item) => item.customerId))],
+            },
             completionCriteria: ['reservation_schedule_loaded'],
           },
         }, dataQuality);
@@ -2924,6 +2975,71 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             },
           };
         }
+        if (/vip|高等级|重要客户/i.test(input.question)) {
+          const result = await this.customerFacts.getVipCustomerSummary(
+            input.context.storeId,
+            this.resolveLimit(input.args.limit, 10),
+          );
+          return this.answer({
+            answer: `当前门店共有 ${result.total} 位 VIP/高等级客户，展示累计消费最高的前 ${result.rows.length} 位。`,
+            citationId: 'customer_vip_facts',
+            citationLabel: '客户会员等级与累计消费事实',
+            blocks: [
+              {
+                kind: 'kpi',
+                items: [{ label: 'VIP/高等级客户', value: `${result.total} 人` }],
+                citationIds: ['customer_vip_facts'],
+              },
+              {
+                kind: 'table',
+                rows: result.rows,
+                columns: ['customerName', 'memberLevel', 'totalSpent', 'lastVisitDate'],
+                citationIds: ['customer_vip_facts'],
+              },
+            ],
+            metadata: {
+              capabilityKey: 'customer_facts',
+              answerScope: 'vip_customer_summary',
+              total: result.total,
+              definition: 'memberLevel not in 无/普通/普通会员/empty',
+            },
+          });
+        }
+        if (/好久没来|不活跃|沉睡|流失|消费频率.*下降|续购|疗程快结束|\d+天没来|三个月没来/.test(input.question)) {
+          const thresholdDays = input.question.includes('三个月')
+            ? 90
+            : Number(input.question.match(/(\d+)天没来/)?.[1] ?? 60);
+          const result = await this.customerFacts.getInactiveCustomerSummary(
+            input.context.storeId,
+            thresholdDays,
+            this.resolveLimit(input.args.limit, 10),
+          );
+          return this.answer({
+            answer: `${result.thresholdDays} 天未到店客户共 ${result.total} 人，展示累计消费最高的前 ${result.rows.length} 位。`,
+            citationId: 'customer_inactive_facts',
+            citationLabel: '客户最近到店与累计消费事实',
+            blocks: [
+              {
+                kind: 'kpi',
+                items: [{ label: `${result.thresholdDays} 天未到店客户`, value: `${result.total} 人` }],
+                citationIds: ['customer_inactive_facts'],
+              },
+              {
+                kind: 'table',
+                rows: result.rows,
+                columns: ['customerName', 'totalSpent', 'visitCount', 'lastVisitDate'],
+                citationIds: ['customer_inactive_facts'],
+              },
+            ],
+            metadata: {
+              capabilityKey: 'customer_facts',
+              answerScope: 'inactive_customer_summary',
+              total: result.total,
+              thresholdDays: result.thresholdDays,
+              definition: 'lastVisitDate is null or earlier than threshold date',
+            },
+          });
+        }
         if (/(老客|客户).*(回头率|复购率)|(?:回头率|复购率).*(老客|客户)/.test(input.question)) {
           const explicitTime = readCapabilityStructuredTime(input.args, input.context.timezone);
           const summary = await this.customerFacts.getCustomerRetentionSummary({
@@ -3142,6 +3258,61 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           .filter((entity) => entity.entityType === 'customer')
           .map((entity) => specificCustomerMention(entity))
           .find((mention): mention is string => Boolean(mention));
+        if (customerMention && /(?:上次|最近).*(?:来|到店)|(?:客户)?.{0,10}(?:资料|信息|基本信息)|多久没来/.test(input.question)) {
+          const result = await this.customerFacts.getExactCustomerBasicSummary({
+            storeId: input.context.storeId,
+            message: input.question,
+            customerName: customerMention,
+          });
+          if (result.status === 'ambiguous') {
+            const question = '找到多位匹配客户，请补充手机号后四位后继续。';
+            return {
+              status: 'completed',
+              answer: question,
+              citations: [],
+              grounding: 'none',
+              blocks: [{ kind: 'clarification', question, options: [] }],
+              metadata: {
+                capabilityKey: 'customer_facts',
+                unsupportedReason: 'customer_identity_requires_clarification',
+                clarification: { questions: [question], missingSlots: ['entity'], ambiguities: [] },
+                completion: { status: 'partial', missingCriteria: ['entity'], recoverable: true },
+              },
+            };
+          }
+          const customer = result.rows[0];
+          const asksLastProject = /(?:上次|最近).*(?:项目|做了什么|做的什么)|(?:项目|做了什么|做的什么).*(?:上次|最近)/.test(input.question);
+          return this.answer({
+            answer: customer
+              ? asksLastProject
+                ? `${customer.customerName}最近一次完成服务项目为 ${customer.lastProjectName ?? '未记录'}，美容师 ${customer.lastBeauticianName ?? '未记录'}，服务日期 ${customer.lastServiceDate ?? customer.lastVisitDate ?? '未记录'}。`
+                : `${customer.customerName}最近到店日期为 ${customer.lastVisitDate ?? '未记录'}，累计到店 ${customer.visitCount} 次。`
+              : '当前门店没有找到匹配客户，请核对姓名或手机号后四位。',
+            citationId: 'customer_exact_basic_facts',
+            citationLabel: '客户档案与最近到店事实',
+            blocks: [{
+              kind: 'table',
+              rows: result.rows,
+              columns: [
+                'customerName',
+                'maskedPhone',
+                'memberLevel',
+                'totalSpent',
+                'visitCount',
+                'lastVisitDate',
+                'lastProjectName',
+                'lastBeauticianName',
+                'lastServiceDate',
+              ],
+              citationIds: ['customer_exact_basic_facts'],
+            }],
+            metadata: {
+              capabilityKey: 'customer_facts',
+              answerScope: 'exact_customer_basic_summary',
+              matchStatus: result.status,
+            },
+          });
+        }
         const answer = await this.customerFacts.answerCustomerQuestion({
           storeId: input.context.storeId,
           message: input.question,

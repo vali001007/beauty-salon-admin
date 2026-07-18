@@ -1210,6 +1210,62 @@ describe('BrainSemanticIntentCompilerService', () => {
     });
   });
 
+  it('uses the governed sales-amount default when a generic product sales ranking exposes amount and quantity', async () => {
+    const quantityRef = {
+      definitionType: 'metric' as const,
+      definitionKey: 'metric.product_sales_quantity',
+      definitionVersion: 1,
+      definitionFingerprint: 'a'.repeat(64),
+      sourceFingerprint: 'b'.repeat(64),
+    };
+    const aiService = fakeAiService(async () => {
+      throw new Error('model must not be called for an exact frozen contract');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput('本月商品销售排行');
+    input.ontologySnapshot = {
+      ...ontologySnapshot,
+      metrics: [
+        ...ontologySnapshot.metrics,
+        {
+          definitionKey: quantityRef.definitionKey,
+          version: quantityRef.definitionVersion,
+          definitionFingerprint: quantityRef.definitionFingerprint,
+          sourceFingerprint: quantityRef.sourceFingerprint,
+          metricKey: 'product_sales_quantity',
+          name: '商品销售数量',
+          aliases: ['商品销售', '销量'],
+          domain: 'product_sales',
+          formula: { sql: 'SUM(quantity)' },
+          source: { model: 'SensitiveOrderTable' },
+          defaultFilters: {},
+          permissions: ['store:finance:read'],
+          description: '商品销售数量',
+        },
+      ],
+    } as never;
+    input.capabilitySummaries = [{
+      key: 'product_sales_ranking',
+      name: '商品销售排行',
+      description: '按商品汇总销售金额和销售数量并排序',
+      domains: ['product_sales'],
+      intents: ['ranking'],
+      examples: ['本月商品销售排行'],
+      readOnly: true,
+      definitionRefs: [productEntityRef, productDimensionRef, productSalesMetricRef, quantityRef],
+    }];
+
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      provider: 'governed_contract',
+      intent: {
+        metrics: [productSalesMetricRef],
+        orderBy: [{ definitionRef: productSalesMetricRef, direction: 'desc' }],
+      },
+    });
+    expect(aiService.generateStructured).not.toHaveBeenCalled();
+  });
+
   it('hydrates candidate refund metrics from an exact governed contract before they enter the published ontology', async () => {
     const aiService = fakeAiService(async () => {
       throw new Error('model must not be called for an exact frozen contract');

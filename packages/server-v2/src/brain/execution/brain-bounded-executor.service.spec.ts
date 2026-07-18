@@ -21,7 +21,7 @@ describe('BrainBoundedExecutorService', () => {
       await new Promise((resolve) => setTimeout(resolve, 10));
       active -= 1;
       if (card.key === 'customers') {
-        return answer({ metadata: { customerIds: ['customer:1'] } });
+        return answer({ metadata: { mappingOutputs: { customerIds: ['customer:1'] } } });
       }
       if (card.key === 'draft') {
         expect(args.entities).toEqual(['customer:1']);
@@ -34,7 +34,7 @@ describe('BrainBoundedExecutorService', () => {
       nodes: [
         node('customers', cards[0]),
         node('schedule', cards[1]),
-        { ...node('draft', cards[2], ['customers', 'schedule']), inputMappings: [{ fromNodeId: 'customers', sourcePath: '$.data.metadata.customerIds', targetPath: '$.entities' }] },
+        { ...node('draft', cards[2], ['customers', 'schedule']), inputMappings: [{ fromNodeId: 'customers', sourcePath: '$.data.customerIds', targetPath: '$.entities' }] },
       ],
     };
     const result = await executor(execute).execute({ plan, topK: ranked(cards), context: context as any, runId: 1, question: 'workflow', intent });

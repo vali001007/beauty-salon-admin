@@ -39,6 +39,7 @@ import {
 } from './capability/brain-capability-executor.registry.js';
 import { BrainActionCapabilityExecutor } from './capability/executors/brain-action-capability.executor.js';
 import { BrainDomainServiceCapabilityExecutor } from './capability/executors/brain-domain-service-capability.executor.js';
+import { BrainMarketingCampaignCapabilityExecutor } from './capability/executors/brain-marketing-campaign-capability.executor.js';
 import { BrainSemanticQueryCapabilityExecutor } from './capability/executors/brain-semantic-query-capability.executor.js';
 import { BrainCognitionService } from './cognition/brain-cognition.service.js';
 import { BrainCognitionShadowService } from './cognition/brain-cognition-shadow.service.js';
@@ -257,19 +258,22 @@ import { CustomerFeedbackModule } from '../customer-feedback/customer-feedback.m
     BrainCapabilityScannerService,
     BrainSemanticQueryCapabilityExecutor,
     BrainDomainServiceCapabilityExecutor,
+    BrainMarketingCampaignCapabilityExecutor,
     BrainActionCapabilityExecutor,
     {
       provide: BRAIN_CAPABILITY_EXECUTORS,
       inject: [
         BrainSemanticQueryCapabilityExecutor,
         BrainDomainServiceCapabilityExecutor,
+        BrainMarketingCampaignCapabilityExecutor,
         BrainActionCapabilityExecutor,
       ],
       useFactory: (
         semantic: BrainSemanticQueryCapabilityExecutor,
         domain: BrainDomainServiceCapabilityExecutor,
+        marketingCampaign: BrainMarketingCampaignCapabilityExecutor,
         action: BrainActionCapabilityExecutor,
-      ) => [semantic, domain, action],
+      ) => [semantic, domain, marketingCampaign, action],
     },
     BrainCapabilityExecutorRegistryService,
     BrainCapabilityDefinitionSnapshotSourceService,

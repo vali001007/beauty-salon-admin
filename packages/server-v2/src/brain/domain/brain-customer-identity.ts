@@ -7,6 +7,7 @@ export function extractSpecificCustomerNameFromMention(mention: string): string 
     .trim()
     .replace(/[（(][^）)]*(?:手机|号码|尾号|后四位)[^）)]*[）)]/g, '')
     .replace(/[，,\s]*(?:手机|手机号)?(?:尾号|后四位)(?:是|为)?[^0-9]*\d{4}.*$/g, '')
+    .replace(/^(?:客户|顾客|客人|会员)(?:叫|是|为)?/u, '')
     .trim();
   if (
     !nameOnly ||

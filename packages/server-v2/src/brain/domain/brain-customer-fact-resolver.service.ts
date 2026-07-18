@@ -59,6 +59,42 @@ export interface BrainExpiringCardBalanceRow {
   unfulfilledValue: number;
 }
 
+export interface BrainVipCustomerSummary {
+  total: number;
+  rows: Array<{
+    customerName: string;
+    memberLevel: string;
+    totalSpent: number;
+    lastVisitDate: string | null;
+  }>;
+}
+
+export interface BrainInactiveCustomerSummary {
+  total: number;
+  thresholdDays: number;
+  rows: Array<{
+    customerName: string;
+    totalSpent: number;
+    visitCount: number;
+    lastVisitDate: string | null;
+  }>;
+}
+
+export interface BrainExactCustomerBasicSummary {
+  status: 'found' | 'ambiguous' | 'not_found' | 'missing_identity';
+  rows: Array<{
+    customerName: string;
+    maskedPhone: string;
+    memberLevel: string;
+    totalSpent: number;
+    visitCount: number;
+    lastVisitDate: string | null;
+    lastProjectName: string | null;
+    lastBeauticianName: string | null;
+    lastServiceDate: string | null;
+  }>;
+}
+
 @Injectable()
 export class BrainCustomerFactResolverService {
   constructor(
@@ -92,6 +128,124 @@ export class BrainCustomerFactResolverService {
       startDate: input.startDate,
       endDate: input.endDate,
     });
+  }
+
+  async getVipCustomerSummary(storeId: number, limit = 10): Promise<BrainVipCustomerSummary> {
+    const where = { storeId, deletedAt: null, memberLevel: { notIn: ['无', '普通', '普通会员', ''] } };
+    const [total, customers] = await Promise.all([
+      this.prisma.customer.count({ where }),
+      this.prisma.customer.findMany({
+        where,
+        orderBy: [{ totalSpent: 'desc' }],
+        select: { name: true, memberLevel: true, totalSpent: true, lastVisitDate: true },
+        take: limit,
+      }),
+    ]);
+    return {
+      total,
+      rows: customers.map((customer) => ({
+        customerName: customer.name,
+        memberLevel: customer.memberLevel,
+        totalSpent: toBrainNumber(customer.totalSpent),
+        lastVisitDate: customer.lastVisitDate?.toISOString().slice(0, 10) ?? null,
+      })),
+    };
+  }
+
+  async getInactiveCustomerSummary(
+    storeId: number,
+    thresholdDays = 60,
+    limit = 10,
+  ): Promise<BrainInactiveCustomerSummary> {
+    const inactiveBefore = new Date();
+    inactiveBefore.setDate(inactiveBefore.getDate() - thresholdDays);
+    const where = {
+      storeId,
+      deletedAt: null,
+      OR: [{ lastVisitDate: null }, { lastVisitDate: { lt: inactiveBefore } }],
+    };
+    const [total, customers] = await Promise.all([
+      this.prisma.customer.count({ where }),
+      this.prisma.customer.findMany({
+        where,
+        orderBy: [{ totalSpent: 'desc' }],
+        select: { name: true, totalSpent: true, visitCount: true, lastVisitDate: true },
+        take: limit,
+      }),
+    ]);
+    return {
+      total,
+      thresholdDays,
+      rows: customers.map((customer) => ({
+        customerName: customer.name,
+        totalSpent: toBrainNumber(customer.totalSpent),
+        visitCount: customer.visitCount,
+        lastVisitDate: customer.lastVisitDate?.toISOString().slice(0, 10) ?? null,
+      })),
+    };
+  }
+
+  async getExactCustomerBasicSummary(input: {
+    storeId: number;
+    message: string;
+    customerName?: string;
+  }): Promise<BrainExactCustomerBasicSummary> {
+    const customerMention = input.customerName?.trim();
+    const name = (customerMention ? extractSpecificCustomerNameFromMention(customerMention) : undefined) ||
+      this.extractCustomerName(input.message);
+    const phoneTail = extractCustomerPhoneTail(`${customerMention ?? ''} ${input.message}`);
+    if (!name && !phoneTail) return { status: 'missing_identity', rows: [] };
+
+    const customers = await this.prisma.customer.findMany({
+      where: {
+        storeId: input.storeId,
+        deletedAt: null,
+        ...(name && phoneTail
+          ? { AND: [{ name: { contains: name } }, { phone: { endsWith: phoneTail } }] }
+          : name
+            ? { name: { contains: name } }
+            : { phone: { endsWith: phoneTail! } }),
+      },
+      select: {
+        name: true,
+        phone: true,
+        memberLevel: true,
+        totalSpent: true,
+        visitCount: true,
+        lastVisitDate: true,
+        serviceTasks: {
+          where: { storeId: input.storeId, status: 'completed' },
+          orderBy: [{ completedAt: 'desc' }, { appointmentTime: 'desc' }],
+          take: 1,
+          select: {
+            completedAt: true,
+            appointmentTime: true,
+            project: { select: { name: true } },
+            beautician: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: [{ totalSpent: 'desc' }],
+      take: 5,
+    });
+    const rows = customers.map((customer) => {
+      const latestService = customer.serviceTasks[0];
+      return {
+        customerName: customer.name,
+        maskedPhone: this.maskPhone(customer.phone),
+        memberLevel: customer.memberLevel,
+        totalSpent: toBrainNumber(customer.totalSpent),
+        visitCount: customer.visitCount,
+        lastVisitDate: customer.lastVisitDate?.toISOString().slice(0, 10) ?? null,
+        lastProjectName: latestService?.project.name ?? null,
+        lastBeauticianName: latestService?.beautician?.name ?? null,
+        lastServiceDate: (latestService?.completedAt ?? latestService?.appointmentTime)?.toISOString().slice(0, 10) ?? null,
+      };
+    });
+    return {
+      status: rows.length === 0 ? 'not_found' : rows.length === 1 ? 'found' : 'ambiguous',
+      rows,
+    };
   }
 
   async answerExactCustomerQuestion(input: { storeId: number; message: string; customerName?: string; permissions: string[] }) {
@@ -905,47 +1059,23 @@ ${cardLines}`;
   }
 
   private async vipCustomers(storeId: number) {
-    const where = { storeId, deletedAt: null, memberLevel: { notIn: ['无', '普通', '普通会员', ''] } };
-    const [total, customers] = await Promise.all([
-      this.prisma.customer.count({ where }),
-      this.prisma.customer.findMany({
-        where,
-        orderBy: [{ totalSpent: 'desc' }],
-        select: { name: true, memberLevel: true, totalSpent: true, lastVisitDate: true },
-        take: 10,
-      }),
-    ]);
+    const { total, rows } = await this.getVipCustomerSummary(storeId);
     return this.formatCustomerRows(
       'VIP 客户名单',
-      customers,
+      rows,
       (customer) =>
-        `${customer.name}：${customer.memberLevel}，累计消费 ${formatBrainMoney(toBrainNumber(customer.totalSpent))}${this.lastVisitText(customer.lastVisitDate)}`,
+        `${customer.customerName}：${customer.memberLevel}，累计消费 ${formatBrainMoney(customer.totalSpent)}${this.lastVisitText(customer.lastVisitDate ? new Date(customer.lastVisitDate) : null)}`,
       total,
     );
   }
 
   private async inactiveCustomers(storeId: number, days = 60) {
-    const inactiveBefore = new Date();
-    inactiveBefore.setDate(inactiveBefore.getDate() - days);
-    const where = {
-      storeId,
-      deletedAt: null,
-      OR: [{ lastVisitDate: null }, { lastVisitDate: { lt: inactiveBefore } }],
-    };
-    const [total, customers] = await Promise.all([
-      this.prisma.customer.count({ where }),
-      this.prisma.customer.findMany({
-        where,
-        orderBy: [{ totalSpent: 'desc' }],
-        select: { name: true, totalSpent: true, visitCount: true, lastVisitDate: true },
-        take: 10,
-      }),
-    ]);
+    const { total, rows } = await this.getInactiveCustomerSummary(storeId, days);
     return this.formatCustomerRows(
       `${days} 天未到店客户名单`,
-      customers,
+      rows,
       (customer) =>
-        `${customer.name}：累计消费 ${formatBrainMoney(toBrainNumber(customer.totalSpent))}，到店 ${customer.visitCount} 次${this.lastVisitText(customer.lastVisitDate)}`,
+        `${customer.customerName}：累计消费 ${formatBrainMoney(customer.totalSpent)}，到店 ${customer.visitCount} 次${this.lastVisitText(customer.lastVisitDate ? new Date(customer.lastVisitDate) : null)}`,
       total,
     );
   }
@@ -1351,6 +1481,7 @@ ${cardLines}`;
 
   private extractCustomerName(message: string) {
     const patterns = [
+      /(?:查一下|看一下|找一下|搜一下)(?:客户|顾客|客人|会员)?([\u4e00-\u9fa5·]{2,4})(?=的|，|,|。|$)/u,
       /(?:查一下|看一下|找一下|搜一下|叫)([\u4e00-\u9fa5]{2,4})/,
       /^([\u4e00-\u9fa5]{2,4})(?:上次|有没有|之前|的)/,
     ];

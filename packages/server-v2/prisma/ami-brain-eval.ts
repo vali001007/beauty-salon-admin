@@ -104,6 +104,7 @@ import { loadWorkspaceEnvironment } from '../src/brain/capability/brain-capabili
 import {
   annotateQuestionBankCoverage,
   parseAgentEvalQuestionMarkdown,
+  selectP0QuestionBankCases,
   type AgentEvalQuestionCase,
   type AgentQuestionBankPersona,
 } from '../src/agent/agent-eval-question-bank.js';
@@ -199,6 +200,7 @@ async function main() {
 
   const questionFile = options.questionFile ?? DEFAULT_QUESTION_FILE;
   let questions = annotateQuestionBankCoverage(loadEvalQuestions(questionFile));
+  if (options.gate === 'p0') questions = selectP0QuestionBankCases(questions) as BrainEvalQuestionCase[];
   if (options.persona) questions = questions.filter((item) => item.persona === options.persona);
   if (options.questionIds?.length) {
     const requested = new Set(options.questionIds);
@@ -368,6 +370,7 @@ async function main() {
         requestedStoreId: options.storeId,
         storeId: runtimeStoreId,
         releaseId: options.releaseId ?? null,
+        gate: options.gate ?? null,
         releaseSnapshot: releaseSnapshot
           ? {
               releaseFingerprint: releaseSnapshot.releaseFingerprint,

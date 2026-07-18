@@ -106,6 +106,27 @@ describe('Agent eval question bank', () => {
       expectedIntentType: 'query',
       expectedSemanticIntent: 'query',
     });
+    expect(bank.questions.find((item) => item.input === '帮我搞一下活动')).toMatchObject({
+      expectedIntentType: 'draft',
+      expectedSemanticIntent: 'draft',
+    });
+    expect(bank.questions.find((item) => item.input === '帮我做一个今天的收入汇总')?.expectedOutputKinds)
+      .toEqual(expect.arrayContaining(['kpi', 'table']));
+    const campaignPlanning = bank.questions.filter((item) => item.sourceCategory === '活动策划');
+    expect(campaignPlanning).toHaveLength(20);
+    expect(campaignPlanning.find((item) => item.sourceIndex === 24)).toMatchObject({
+      expectedIntentType: 'draft',
+      expectedSemanticIntent: 'draft',
+    });
+    expect(campaignPlanning.find((item) => item.sourceIndex === 23)).toMatchObject({
+      expectedIntentType: 'analysis_and_recommendation',
+      expectedSemanticIntent: 'recommendation',
+    });
+    expect(campaignPlanning.find((item) => item.sourceIndex === 29)).toMatchObject({
+      expectedSemanticIntent: 'recommendation',
+      expectedMetrics: [],
+      expectedDimensions: [],
+    });
     expect(bank.questions.find((item) => item.input === '我今天要用到什么产品和耗材')?.systemSupportStatus)
       .not.toBe('system_unsupported');
     expect(bank.questions.find((item) => item.input === '下一个客人有没有皮肤过敏或者什么注意事项')?.systemSupportStatus)
@@ -169,9 +190,34 @@ describe('Agent eval question bank', () => {
           input: '帮我看看',
           persona: 'edge',
           expectedIntentType: 'clarify',
+          expectedBrainStatus: 'clarify',
+          expectedPlanShape: undefined,
         }),
       ]),
     );
+    expect(p0Cases.find((item) => item.id === 'qb-edge-context-inherit-011')?.conversationTurns
+      ?.map((turn) => turn.input)).toEqual([
+      '帮我查一下客户马美琳，手机号后四位6325的信息。',
+      '她上次来是什么项目？',
+    ]);
+    expect(p0Cases.find((item) => item.id === 'qb-edge-context-inherit-018')?.conversationTurns)
+      .toHaveLength(3);
+    expect(p0Cases.find((item) => item.id === 'qb-edge-correction-031')?.conversationTurns
+      ?.map((turn) => turn.input)).toEqual([
+      '这个月营业额是多少',
+      '不对，我问的是上个月不是这个月',
+    ]);
+    expect(p0Cases.find((item) => item.id === 'qb-edge-correction-033')?.conversationTurns?.[0])
+      .toMatchObject({
+        input: '本月商品销售排行',
+        expectedSemanticIntent: 'ranking',
+        expectedMetrics: ['product_sales_amount'],
+      });
+    expect(
+      p0Cases
+        .flatMap((item) => item.conversationTurns ?? [])
+        .some((turn) => turn.input.includes('（然后）')),
+    ).toBe(false);
   });
 
   it('can convert P0 question bank cases into existing AgentEvalCaseDefinition shape', () => {

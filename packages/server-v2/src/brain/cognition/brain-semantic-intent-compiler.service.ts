@@ -284,11 +284,18 @@ export class BrainSemanticIntentCompilerService {
             governedMetricKeyMatchesQuestion(input.question, ref.definitionKey)
         : governedMetricKeyMatchesQuestion(input.question, ref.definitionKey);
     });
-    const metrics = matchedMetrics.length > 0
+    let metrics = matchedMetrics.length > 0
       ? matchedMetrics
       : availableMetrics.length === 1 || intent === 'ranking'
         ? availableMetrics
         : [];
+    if (intent === 'ranking' && capability.key === 'product_sales_ranking') {
+      const preferredKey = /销量|数量|卖得最多/.test(input.question)
+        ? 'metric.product_sales_quantity'
+        : 'metric.product_sales_amount';
+      const preferred = availableMetrics.find((metric) => metric.definitionKey === preferredKey);
+      if (preferred) metrics = [preferred];
+    }
     const entityDefinitions = refs.flatMap((ref) => {
       if (ref.definitionType !== 'entity') return [];
       const definition = input.ontologySnapshot?.entities.find((item) => item.definitionKey === ref.definitionKey);

@@ -1,6 +1,21 @@
 import { BrainCustomerFactResolverService } from './brain-customer-fact-resolver.service.js';
 
 describe('BrainCustomerFactResolverService', () => {
+  it('extracts an exact customer name after a customer label', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const service = new BrainCustomerFactResolverService({ customer: { findMany } } as never);
+
+    await service.getExactCustomerBasicSummary({
+      storeId: 6,
+      message: '帮我查一下客户张雯的信息。',
+      customerName: '客户张雯',
+    });
+
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ name: { contains: '张雯' } }),
+    }));
+  });
+
   it('requires both customer name and phone tail when both are provided', async () => {
     const findMany = jest.fn().mockResolvedValue([]);
     const service = new BrainCustomerFactResolverService({ customer: { findMany } } as never);

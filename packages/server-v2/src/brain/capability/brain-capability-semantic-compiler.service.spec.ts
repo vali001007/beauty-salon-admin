@@ -186,6 +186,31 @@ describe('BrainCapabilitySemanticCompilerService', () => {
     expect(result.canonicalSemantics.examples).toEqual(['写一条预约提醒消息', '准备一段沉睡客户召回文案']);
   });
 
+  it('classifies generated activity plans and entitlement designs as draft deliverables', async () => {
+    const model: BrainCapabilitySemanticModel = {
+      generate: jest.fn().mockResolvedValue({
+        name: '营销活动方案草稿',
+        description: '生成可编辑活动方案，不发布活动。',
+        domains: ['customer'],
+        intents: ['draft'],
+        positiveExamples: ['策划会员节活动方案', '设计疗程套餐权益'],
+        negativeExamples: ['分析活动转化率'],
+        synonyms: ['活动策划'],
+        riskExplanation: '仅生成草稿。',
+      }),
+    };
+    const service = new BrainCapabilitySemanticCompilerService(model);
+
+    const result = await service.compile({
+      capability: { ...candidate(), key: 'marketing_campaign_plan', businessDefinitionKeys: ['entity.customer'] },
+      definitions: [definition('entity.customer', 'entity', 'customer', ['marketing_campaign_plan'], [])],
+      successSchema: { type: 'object' },
+    });
+
+    expect(result.canonicalSemantics.intents).toEqual(['draft']);
+    expect(result.canonicalSemantics.examples).toEqual(['策划会员节活动方案', '设计疗程套餐权益']);
+  });
+
   it('keeps confirmation-gated action preview examples executable', async () => {
     const model: BrainCapabilitySemanticModel = {
       generate: jest.fn().mockResolvedValue({

@@ -242,7 +242,14 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
 
   it('uses generic customer analysis unless the semantic plan resolved a specific customer instance', async () => {
     const customerFacts = {
-      answerCustomerQuestion: jest.fn().mockResolvedValue('沉睡客户名单'),
+      getInactiveCustomerSummary: jest.fn().mockResolvedValue({
+        total: 2,
+        thresholdDays: 60,
+        rows: [
+          { customerName: '张女士', totalSpent: 1200, visitCount: 3, lastVisitDate: '2026-04-01' },
+          { customerName: '李女士', totalSpent: 800, visitCount: 2, lastVisitDate: null },
+        ],
+      }),
     };
     const executor = new BrainDomainServiceCapabilityExecutor(
       {} as never,
@@ -275,23 +282,28 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       },
     });
 
-    expect(customerFacts.answerCustomerQuestion).toHaveBeenCalledWith(expect.objectContaining({
-      storeId: 6,
-      message: '最近哪些老客好久没来了，帮我列一下',
-      specificCustomerMention: undefined,
-    }));
-    expect(result.answer).toBe('沉睡客户名单');
+    expect(customerFacts.getInactiveCustomerSummary).toHaveBeenCalledWith(6, 60, 10);
+    expect(result.answer).toContain('60 天未到店客户共 2 人');
+    expect(result.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'kpi' }),
+      expect.objectContaining({ kind: 'table', rows: expect.arrayContaining([expect.objectContaining({ customerName: '张女士' })]) }),
+    ]));
   });
 
   it('does not treat a governed customer segment key as a concrete customer identity', async () => {
-    const customerFacts = { answerCustomerQuestion: jest.fn().mockResolvedValue('VIP 客户名单') };
+    const customerFacts = {
+      getVipCustomerSummary: jest.fn().mockResolvedValue({
+        total: 1,
+        rows: [{ customerName: '王女士', memberLevel: 'VIP', totalSpent: 5000, lastVisitDate: '2026-07-01' }],
+      }),
+    };
     const executor = new BrainDomainServiceCapabilityExecutor(
       {} as never,
       customerFacts as never,
       new BrainTimeRangeParserService(),
     );
 
-    await executor.execute({
+    const result = await executor.execute({
       card: { ...storeCard(), key: 'customer_facts' },
       context: {
         userId: 9,
@@ -315,9 +327,11 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       },
     });
 
-    expect(customerFacts.answerCustomerQuestion).toHaveBeenCalledWith(expect.objectContaining({
-      specificCustomerMention: undefined,
-    }));
+    expect(customerFacts.getVipCustomerSummary).toHaveBeenCalledWith(6, 10);
+    expect(result.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'kpi', items: [{ label: 'VIP/高等级客户', value: '1 人' }] }),
+      expect.objectContaining({ kind: 'table', rows: [expect.objectContaining({ customerName: '王女士' })] }),
+    ]));
   });
 
   it('returns structured clarification when an exact customer mention matches multiple records', async () => {
@@ -364,6 +378,121 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         completion: { status: 'partial', recoverable: true },
       },
     });
+  });
+
+  it('returns exact customer visit facts as a structured table', async () => {
+    const customerFacts = {
+      getExactCustomerBasicSummary: jest.fn().mockResolvedValue({
+        status: 'found',
+        rows: [{
+          customerName: '张雯',
+          maskedPhone: '***1234',
+          memberLevel: 'VIP',
+          totalSpent: 6800,
+          visitCount: 12,
+          lastVisitDate: '2026-07-03',
+          lastProjectName: '深层补水护理',
+          lastBeauticianName: '宋乔',
+          lastServiceDate: '2026-07-03',
+        }],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      customerFacts as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'customer_facts' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['receptionist'],
+        permissions: ['core:brain:use', 'core:customer:view'],
+        deniedPermissions: [],
+        requestId: 'customer-last-visit-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 31,
+      question: '帮我查一下张雯，她上次来是什么时候',
+      answerShape: 'list',
+      args: {
+        objective: '查询客户最近到店',
+        entities: [{ entityType: 'customer', entityKey: '张雯', mention: '张雯' }],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(customerFacts.getExactCustomerBasicSummary).toHaveBeenCalledWith({
+      storeId: 6,
+      message: '帮我查一下张雯，她上次来是什么时候',
+      customerName: '张雯',
+    });
+    expect(result.answer).toContain('最近到店日期为 2026-07-03');
+    expect(result.blocks).toEqual([expect.objectContaining({
+      kind: 'table',
+      rows: [expect.objectContaining({
+        customerName: '张雯',
+        lastVisitDate: '2026-07-03',
+        lastProjectName: '深层补水护理',
+      })],
+    })]);
+  });
+
+  it('answers the latest project from structured exact customer facts', async () => {
+    const customerFacts = {
+      getExactCustomerBasicSummary: jest.fn().mockResolvedValue({
+        status: 'found',
+        rows: [{
+          customerName: '马美琳',
+          maskedPhone: '***6325',
+          memberLevel: '钻石会员',
+          totalSpent: 196626,
+          visitCount: 119,
+          lastVisitDate: '2026-07-15',
+          lastProjectName: '水氧清洁焕肤',
+          lastBeauticianName: '沈晴',
+          lastServiceDate: '2026-07-15',
+        }],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      customerFacts as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'customer_facts' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['receptionist'],
+        permissions: ['core:brain:use', 'core:customer:view'],
+        deniedPermissions: [],
+        requestId: 'customer-last-project-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 32,
+      question: '她上次来是什么项目？',
+      answerShape: 'list',
+      args: {
+        objective: '查询客户最近服务项目',
+        entities: [{ entityType: 'customer', entityKey: '马美琳', mention: '马美琳（手机号后四位6325）' }],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(result.answer).toContain('最近一次完成服务项目为 水氧清洁焕肤');
   });
 
   it('extracts the inherited name from a name-and-phone semantic mention', async () => {
@@ -1733,6 +1862,50 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       expect.objectContaining({ kind: 'kpi' }),
       expect.objectContaining({ kind: 'limitations', items: [expect.stringContaining('未记录不代表客户没有不满')] }),
     ]));
+  });
+
+  it('returns only the requested store gross-margin scalar', async () => {
+    const skillRuntime = {
+      buildFinanceRiskSummary: jest.fn().mockResolvedValue({
+        refundAmount: 88,
+        refundCount: 2,
+        discountAmount: 30,
+        grossMarginRate: 0.595,
+        riskItems: [],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'finance_risk_overview', name: '财务经营风险概览' },
+      context: {
+        userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'],
+        deniedPermissions: [], requestId: 'finance-margin-scalar-test', timezone: 'Asia/Shanghai',
+      },
+      runId: 71,
+      question: '这个月毛利率是多少',
+      answerShape: 'scalar',
+      args: {
+        objective: '查询门店毛利率',
+        entities: [],
+        metrics: [{ definitionKey: 'metric.gross_margin_rate' }],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(result.answer).toContain('毛利率为 59.5%');
+    expect(result.answer).not.toContain('会员卡负债');
+    expect(result.blocks).toEqual([expect.objectContaining({
+      kind: 'kpi',
+      items: [{ label: '毛利率', value: '59.5%' }],
+    })]);
+    expect(result.metadata).toMatchObject({ answerScope: 'gross_margin_rate_scalar' });
   });
 
   it('returns satisfaction KPIs without treating missing ratings as zero', async () => {

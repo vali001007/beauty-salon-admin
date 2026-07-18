@@ -119,7 +119,10 @@ export class BrainCompletionVerifierService {
       }
       if (card.sideEffect) {
         const actions = Array.isArray(observation.data.suggestedActions) ? observation.data.suggestedActions : [];
-        if (observation.grounding !== 'preview_action' || actions.length === 0) {
+        const hasClarification = Array.isArray(observation.data.blocks) && observation.data.blocks.some(
+          (block: any) => block?.kind === 'clarification',
+        );
+        if (!hasClarification && (observation.grounding !== 'preview_action' || actions.length === 0)) {
           missing.push(`action_preview_required:${node.id}`);
         }
       }

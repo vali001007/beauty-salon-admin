@@ -1044,6 +1044,326 @@ describe('BrainChatService', () => {
     });
   });
 
+  it('downgrades a false action classification to a governed read-only schedule query', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const actionIntent = {
+      schemaVersion: '1.0',
+      objective: '我现在服务完这个客人，下一个几点来',
+      domains: ['reservation', 'beautician'],
+      intent: 'action',
+      entities: [],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'action_preview',
+      successCriteria: ['完成服务并返回下一个预约'],
+      ambiguities: [],
+      missingSlots: ['actionTarget'],
+      assumptions: [],
+      confidence: 0.8,
+      decisionSummary: '错误识别为完成服务动作',
+    };
+    const cards = [{
+      key: 'beautician_service_overview',
+      name: '美容师个人服务概览',
+      description: '查询当前登录美容师的下一个预约、客户和时间。',
+      examples: ['我现在服务完这个客人，下一个几点来'],
+      synonyms: ['我的下一个预约'],
+      readOnly: true,
+      sideEffect: false,
+      intents: ['query', 'recommendation'],
+    }];
+
+    const normalized = (service as any).normalizeReadOnlyQuestionIntent({
+      intent: actionIntent,
+      question: '我现在服务完这个客人，下一个几点来',
+      cards,
+    });
+
+    expect(normalized).toMatchObject({
+      intent: 'query',
+      answerShape: 'list',
+      missingSlots: [],
+      successCriteria: ['使用只读能力 beautician_service_overview 返回可审计的查询结果'],
+    });
+  });
+
+  it('keeps an explicit side-effect request as an action', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const actionIntent = {
+      schemaVersion: '1.0',
+      objective: '帮我取消预约',
+      domains: ['reservation'],
+      intent: 'action',
+      entities: [],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'action_preview',
+      successCriteria: ['生成取消预约预览'],
+      ambiguities: [],
+      missingSlots: ['actionTarget'],
+      assumptions: [],
+      confidence: 1,
+      decisionSummary: '取消预约',
+    };
+
+    const normalized = (service as any).normalizeReadOnlyQuestionIntent({
+      intent: actionIntent,
+      question: '帮我取消预约',
+      cards: [{
+        key: 'front_desk_operations_overview',
+        name: '前台预约查询',
+        description: '查询预约',
+        examples: [],
+        synonyms: [],
+        readOnly: true,
+        sideEffect: false,
+        intents: ['query'],
+      }],
+    });
+
+    expect(normalized).toBe(actionIntent);
+  });
+
+  it('upgrades an explicit send request from draft to a controlled action preview', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const draftIntent = {
+      schemaVersion: '1.0',
+      objective: '给沉睡客户发送召回消息',
+      domains: ['customer', 'marketing'],
+      intent: 'draft',
+      entities: [],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'draft',
+      successCriteria: ['生成召回文案'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 1,
+      decisionSummary: '错误识别为普通文案',
+    };
+
+    const normalized = (service as any).normalizeReadOnlyQuestionIntent({
+      intent: draftIntent,
+      question: '给她们发一条召回消息',
+      cards: [],
+    });
+
+    expect(normalized).toMatchObject({
+      intent: 'action',
+      answerShape: 'action_preview',
+    });
+    expect(normalized.assumptions).toContain('用户明确要求发送或执行，按受控动作处理，不把动作请求降级为普通文案。');
+  });
+
+  it('narrows model-added domains to the selected governed capability contract', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
+      intent: {
+        schemaVersion: '1.0',
+        objective: '最近销售下滑，有什么活动可以拉动一下',
+        domains: ['marketing', 'customer', 'project'],
+        intent: 'recommendation',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'draft',
+        successCriteria: ['给出活动方向', '给出风险提示'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.9,
+        decisionSummary: '活动建议',
+      },
+      question: '最近销售下滑，有什么活动可以拉动一下',
+      cards: [{
+        key: 'marketing_campaign_plan',
+        name: '营销活动方案草稿',
+        description: '根据经营目标生成门店营销活动建议。',
+        examples: ['最近销售下滑，有什么活动可以拉动一下'],
+        synonyms: ['活动方案'],
+        domains: ['customer', 'project'],
+        intents: ['draft', 'recommendation'],
+        definitionRefs: [],
+        readOnly: true,
+        sideEffect: false,
+      }],
+    });
+
+    expect(normalized.domains).toEqual(['customer', 'project']);
+    expect(normalized.intent).toBe('recommendation');
+  });
+
+  it('uses governed domain coverage to turn a generic activity request into an editable campaign draft', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
+      intent: {
+        schemaVersion: '1.0',
+        objective: '帮我搞一下活动',
+        domains: ['customer', 'project'],
+        intent: 'draft',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'draft',
+        successCriteria: ['生成可编辑活动草稿'],
+        ambiguities: [{ slot: 'objective', reason: '未指定活动目标', candidates: [] }],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.8,
+        decisionSummary: '活动草稿',
+      },
+      question: '帮我搞一下活动',
+      cards: [
+        {
+          key: 'marketing_campaign_plan',
+          name: '营销活动方案草稿',
+          description: '生成可编辑的营销活动机制与权益方向。',
+          examples: ['设计老带新活动机制'],
+          synonyms: ['活动方案'],
+          domains: ['customer', 'project'],
+          intents: ['draft', 'recommendation'],
+          definitionRefs: [],
+          readOnly: true,
+          sideEffect: false,
+        },
+        {
+          key: 'marketing_message_draft',
+          name: '营销邀约文案草稿',
+          description: '生成客户邀约或召回文案。',
+          examples: ['写一条预约提醒'],
+          synonyms: ['邀约文案'],
+          domains: ['customer', 'reservation'],
+          intents: ['draft'],
+          definitionRefs: [],
+          readOnly: true,
+          sideEffect: false,
+        },
+      ],
+    });
+
+    expect(normalized).toMatchObject({
+      intent: 'draft',
+      answerShape: 'draft',
+      domains: ['customer', 'project'],
+      ambiguities: [],
+      missingSlots: [],
+    });
+  });
+
+  it('narrows model-added finance query domains through a governed metric contract', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const paidAmount = definitionRef('metric.paid_amount');
+    const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
+      intent: {
+        schemaVersion: '1.0',
+        objective: '查询今天实收',
+        domains: ['finance', 'payment', 'payment_record'],
+        intent: 'query',
+        entities: [],
+        metrics: [paidAmount],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'scalar',
+        successCriteria: ['返回已发布实收口径'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.9,
+        decisionSummary: '实收查询',
+      },
+      question: '今天收了多少钱',
+      cards: [{
+        key: 'finance_payment_breakdown',
+        name: '实收与储值流水拆分',
+        description: '查询实收金额和支付方式。',
+        examples: ['今天收了多少钱'],
+        synonyms: ['实收金额'],
+        domains: ['finance', 'payment'],
+        intents: ['query', 'comparison', 'ranking', 'trend'],
+        definitionRefs: [paidAmount],
+        readOnly: true,
+        sideEffect: false,
+      }],
+    });
+
+    expect(normalized.domains).toEqual(['finance', 'payment']);
+    expect(normalized.metrics).toEqual([paidAmount]);
+  });
+
+  it('inherits the previous time range for a requery and applies an explicit time replacement', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const intent = {
+      schemaVersion: '1.0', objective: '重新查询营业额', domains: ['payment'], intent: 'query', entities: [],
+      metrics: [definitionRef('metric.paid_amount')], dimensions: [], filters: [], orderBy: [], answerShape: 'scalar',
+      successCriteria: ['返回实收'], ambiguities: [], missingSlots: [], assumptions: [], confidence: 0.9,
+      decisionSummary: '重新查询营业额',
+    };
+    const modelContext = { timeRange: { preset: 'this_month', label: '本月', timezone: 'Asia/Shanghai' } };
+
+    const inherited = (service as any).normalizeConversationTimeIntent({
+      intent,
+      conversationSlots: { modelContext, turnDirectives: { inherit: ['timeRange'] } },
+    });
+    expect(inherited.timeRange).toMatchObject({ preset: 'this_month', label: '本月' });
+
+    const replaced = (service as any).normalizeConversationTimeIntent({
+      intent: inherited,
+      conversationSlots: {
+        modelContext,
+        turnDirectives: { replace: { timeRange: { preset: 'last_month', label: '上月', timezone: 'Asia/Shanghai' } } },
+      },
+    });
+    expect(replaced.timeRange).toMatchObject({ preset: 'last_month', label: '上月' });
+  });
+
+  it('keeps the previous business intent when the user only changes presentation style', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const paidAmount = definitionRef('metric.paid_amount');
+    const normalized = (service as any).normalizeConversationPresentationIntent({
+      intent: {
+        schemaVersion: '1.0', objective: '只用文字', domains: [], intent: 'clarify', entities: [], metrics: [],
+        dimensions: [], filters: [], orderBy: [], answerShape: 'clarification', successCriteria: [],
+        ambiguities: [{ slot: 'objective', reason: '缺少目标', candidates: [] }], missingSlots: ['objective'],
+        assumptions: [], confidence: 0.5, decisionSummary: '格式要求',
+      },
+      question: '我不要表格，给我用文字说',
+      conversationSlots: {
+        modelContext: {
+          objective: '本月商品销售排行',
+          intent: 'ranking',
+          answerShape: 'ranking',
+          metrics: [paidAmount],
+          dimensions: [],
+          entities: [],
+          capability: { key: 'product_sales_ranking', version: 20 },
+        },
+      },
+      cards: [{ key: 'product_sales_ranking', domains: ['product', 'order'] }],
+    });
+
+    expect(normalized).toMatchObject({
+      objective: '本月商品销售排行',
+      intent: 'ranking',
+      answerShape: 'ranking',
+      domains: ['product', 'order'],
+      metrics: [paidAmount],
+      missingSlots: [],
+      ambiguities: [],
+    });
+  });
+
   it('forces an unbound deictic reference back into clarification without discarding a bound prior turn', () => {
     const { service } = createService({ modelPipeline: {} });
     const diagnosisIntent = {
@@ -1130,6 +1450,31 @@ describe('BrainChatService', () => {
       comparisonTarget: { type: 'time', timeRange: previous },
       missingSlots: [],
       ambiguities: [],
+    });
+  });
+
+  it('merges a relative comparison target during a normal continuation turn', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const current = { preset: 'this_month', label: '本月', timezone: 'Asia/Shanghai' };
+    const previous = { preset: 'last_month', label: '上月', timezone: 'Asia/Shanghai' };
+    const normalized = (service as any).normalizePendingClarificationResolution({
+      intent: {
+        schemaVersion: '1.0', objective: '比较本月与上月实收', domains: ['finance'], intent: 'comparison',
+        entities: [], metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'comparison',
+        successCriteria: ['返回差额'], ambiguities: [], missingSlots: ['comparisonTarget'], assumptions: [],
+        confidence: 1, decisionSummary: '对比实收', timeRange: current,
+      },
+      question: '比上个月高了多少',
+      conversationSlots: {
+        modelContext: { timeRange: current },
+        turnDirectives: { mode: 'continue', inherit: ['timeRange'], resolve: { comparisonTarget: previous } },
+      },
+    });
+
+    expect(normalized).toMatchObject({
+      timeRange: current,
+      comparisonTarget: { type: 'time', timeRange: previous },
+      missingSlots: [],
     });
   });
 
@@ -2765,6 +3110,31 @@ describe('BrainChatService', () => {
 
     expect(normalized).toEqual(intent);
     expect(normalized).toMatchObject({ intent: 'ranking', answerShape: 'ranking' });
+  });
+
+  it('does not treat role-relative customer references as explicit customer identities', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const customerRef = definitionRef('entity.customer');
+
+    for (const mention of ['下一个客人', '今天的客人', '下午那个客人', '这位客户', '她']) {
+      expect((service as any).isSpecificModelEntity({
+        entityType: 'customer',
+        entityKey: `model_generated_${mention}`,
+        mention,
+        source: 'user',
+        definitionRef: customerRef,
+        confidence: 1,
+      })).toBe(false);
+    }
+
+    expect((service as any).isSpecificModelEntity({
+      entityType: 'customer',
+      entityKey: 'customer:马美琳',
+      mention: '马美琳',
+      source: 'user',
+      definitionRef: customerRef,
+      confidence: 1,
+    })).toBe(true);
   });
 
   it('uses the governed unique-customer metric for an exact staff customer ranking example', () => {

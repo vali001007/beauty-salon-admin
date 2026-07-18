@@ -169,6 +169,62 @@ describe('BrainConversationContextService model conversation preparation', () =>
     });
   });
 
+  it('uses the explicitly corrected period instead of the negated period', async () => {
+    const { service, timeRangeParser } = createService({ model: validModelSnapshot() });
+    timeRangeParser.parse.mockReturnValue({
+      mentionedTime: true,
+      range: {
+        label: '上月',
+        startDate: new Date('2026-05-31T16:00:00.000Z'),
+        endDate: new Date('2026-06-30T15:59:59.999Z'),
+        granularity: 'month',
+      },
+      filters: [],
+      requiresComparison: false,
+      unsupportedExpressions: [],
+    });
+
+    const prepared = await service.prepareModelTurn({
+      conversationId: 12,
+      dto: { message: '不对，我问的是上个月不是这个月', timezone: 'Asia/Shanghai' },
+      snapshot: productionSnapshot as never,
+    });
+
+    expect(timeRangeParser.parse).toHaveBeenCalledWith('上个月');
+    expect(prepared.directives).toMatchObject({
+      inherit: expect.arrayContaining(['objective', 'metrics']),
+      replace: { timeRange: expect.objectContaining({ label: '上月' }) },
+    });
+  });
+
+  it('treats a relative period question as a comparison target and preserves the previous main period', async () => {
+    const { service, timeRangeParser } = createService({ model: validModelSnapshot() });
+    timeRangeParser.parse.mockReturnValue({
+      mentionedTime: true,
+      range: {
+        label: '上月',
+        startDate: new Date('2026-05-31T16:00:00.000Z'),
+        endDate: new Date('2026-06-30T15:59:59.999Z'),
+        granularity: 'month',
+      },
+      filters: [],
+      requiresComparison: false,
+      unsupportedExpressions: [],
+    });
+
+    const prepared = await service.prepareModelTurn({
+      conversationId: 12,
+      dto: { message: '比上个月高了多少？', timezone: 'Asia/Shanghai' },
+      snapshot: productionSnapshot as never,
+    });
+
+    expect(prepared.directives).toMatchObject({
+      inherit: expect.arrayContaining(['objective', 'metrics', 'timeRange']),
+      resolve: { comparisonTarget: expect.objectContaining({ label: '上月' }) },
+    });
+    expect(prepared.directives).not.toHaveProperty('replace');
+  });
+
   it('records explicit entity corrections and prevents the previous entity from being inherited', async () => {
     const { service, timeRangeParser } = createService({ model: validModelSnapshot() });
     timeRangeParser.parse.mockReturnValue({ mentionedTime: false, filters: [], requiresComparison: false, unsupportedExpressions: [] });

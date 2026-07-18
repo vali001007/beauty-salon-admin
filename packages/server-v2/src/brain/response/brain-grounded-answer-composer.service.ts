@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { BrainSemanticIntent } from '../cognition/brain-semantic-intent.types.js';
 import type { BrainDomainAnswer } from '../domain/brain-domain-adapter.types.js';
 import type { BrainCompletionResult } from '../execution/brain-completion-verifier.service.js';
 import type { BrainObservation } from '../execution/brain-observation.service.js';
@@ -12,6 +13,7 @@ export class BrainGroundedAnswerComposerService {
   compose(input: {
     observations: readonly BrainObservation[];
     completion: Pick<BrainCompletionResult, 'status' | 'missingCriteria'>;
+    intent?: Pick<BrainSemanticIntent, 'intent' | 'answerShape'>;
   }): BrainResponseEnvelope {
     const completed = input.observations.filter(
       (item) => item.status === 'completed' || (item.status === 'no_data' && item.grounding !== 'none'),
@@ -55,10 +57,14 @@ export class BrainGroundedAnswerComposerService {
       completion: { status: input.completion.status, missingCriteria: [...input.completion.missingCriteria] },
     };
     this.guard.assertValid(envelope);
+    if (input.intent) this.guard.assertMatchesIntent(input.intent, envelope);
     return envelope;
   }
 
-  composeDomainAnswer(answer: BrainDomainAnswer): BrainResponseEnvelope {
+  composeDomainAnswer(
+    answer: BrainDomainAnswer,
+    intent?: Pick<BrainSemanticIntent, 'intent' | 'answerShape'>,
+  ): BrainResponseEnvelope {
     const observation: BrainObservation = {
       nodeId: 'single_capability',
       capabilityKey: String(answer.metadata?.capabilityKey ?? 'single_capability'),
@@ -76,6 +82,7 @@ export class BrainGroundedAnswerComposerService {
       completion: answer.status === 'completed'
         ? { status: 'complete', missingCriteria: [] }
         : { status: 'incomplete', missingCriteria: ['capability_failed'] },
+      intent,
     });
   }
 }
@@ -91,7 +98,9 @@ function normalizeBlock(value: unknown, citationIds: string[], limitations: stri
     return { kind: 'ranking', rows, columns: stringArray(block.columns), citationIds };
   }
   if (block.kind === 'table') {
-    return { kind: 'table', rows: Array.isArray(block.rows) ? block.rows.filter(isRecord) : [], columns: stringArray(block.columns), citationIds };
+    const rows = Array.isArray(block.rows) ? block.rows.filter(isRecord) : [];
+    if (!rows.length) limitations.push('no_data:table');
+    return { kind: 'table', rows, columns: stringArray(block.columns), citationIds };
   }
   if (block.kind === 'kpi') {
     const items = Array.isArray(block.items)
@@ -214,6 +223,10 @@ function renderBlockText(block: BrainResponseBlock): string {
 
 function renderLimitation(value: string) {
   if (value === 'no_data:ranking') return '当前时间范围没有可排行的数据';
+  if (value === 'no_data:table') return '当前时间范围没有匹配的明细数据';
+  if (value === 'no_data:touch_preview') {
+    return '当前能力只能为唯一客户生成触达预览，不能把上一轮客户群体直接群发；请改用已启用的自动触达策略并在发送前审批受众与渠道';
+  }
   return value.replace(/[。；;]+$/u, '');
 }
 

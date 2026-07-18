@@ -28,6 +28,7 @@ export class BrainObservationService {
     completedAt?: Date;
   }): BrainObservation {
     const status = this.answerStatus(input.answer);
+    const metadata = input.answer.metadata ?? {};
     return Object.freeze({
       nodeId: input.nodeId,
       capabilityKey: input.capabilityKey,
@@ -37,8 +38,9 @@ export class BrainObservationService {
       summary: input.answer.answer,
       data: freezeJson({
         blocks: input.answer.blocks ?? [],
-        metadata: input.answer.metadata ?? {},
+        metadata,
         suggestedActions: input.answer.suggestedActions ?? [],
+        ...this.mappingOutputs(metadata),
       }),
       citations: freezeJson(input.answer.citations),
       startedAt: input.startedAt.toISOString(),
@@ -72,6 +74,7 @@ export class BrainObservationService {
 
   private answerStatus(answer: BrainDomainAnswer): BrainObservationStatus {
     if (answer.status === 'failed') return 'failed';
+    if ((answer.blocks ?? []).some((block) => block.kind === 'clarification')) return 'completed';
     if (answer.grounding === 'none') return 'no_data';
     const rowBlocks = (answer.blocks ?? []).filter(
       (block): block is Extract<NonNullable<BrainDomainAnswer['blocks']>[number], { kind: 'ranking' | 'table' }> =>
@@ -79,6 +82,12 @@ export class BrainObservationService {
     );
     if (rowBlocks.length && rowBlocks.every((block) => block.rows.length === 0)) return 'no_data';
     return 'completed';
+  }
+
+  private mappingOutputs(metadata: Record<string, unknown>): Record<string, unknown> {
+    const value = metadata.mappingOutputs;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    return value as Record<string, unknown>;
   }
 }
 

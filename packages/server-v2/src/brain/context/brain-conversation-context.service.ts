@@ -316,7 +316,7 @@ export class BrainConversationContextService {
   }
 
   private isContinuation(message: string) {
-    return /^(再|继续|接着|那|这个|那个|该|她|他|换成|改成|上一个|刚才)|[呢吗]$/.test(message.trim());
+    return /^(再|继续|接着|那|这个|那个|该|她|她们|他|他们|其中|具体|换成|改成|上一个|刚才|不对|我不要|不要|太复杂|简单说|给她|给他们|给她们|比上|为什么比|适合搭配|能不能再)|[呢吗]$/.test(message.trim());
   }
 
   private parseSnapshot(value: Prisma.JsonValue | null | undefined): BrainConversationContextSnapshot | undefined {
@@ -684,11 +684,15 @@ export class BrainConversationContextService {
       doNotInherit.push('entities', 'objective');
     }
 
-    const parsed = this.timeRangeParser.parse(dto.message);
+    const correctedTimeExpression = this.correctedTimeExpression(dto.message);
+    const parsed = this.timeRangeParser.parse(correctedTimeExpression ?? dto.message);
     const timeRange =
       parsed?.mentionedTime && parsed.range ? this.fromLegacyTimeRange(parsed.range, dto.timezone) : undefined;
+    const relativeComparison = Boolean(
+      timeRange && previous.timeRange && /(?:比|相比|对比|高了多少|低了多少|多了多少|少了多少)/.test(dto.message),
+    );
     const resolvesComparisonTarget = Boolean(
-      timeRange && pendingClarification?.missingSlots.includes('comparisonTarget'),
+      timeRange && (pendingClarification?.missingSlots.includes('comparisonTarget') || relativeComparison),
     );
     if ((!timeRange || resolvesComparisonTarget) && previous.timeRange) inherit.push('timeRange');
 
@@ -706,6 +710,13 @@ export class BrainConversationContextService {
           }
         : {}),
     };
+  }
+
+  private correctedTimeExpression(message: string): string | undefined {
+    const preferred = message.match(/(?:问的是|改成|要看|只看)\s*(今天|昨天|明天|本周|上周|本月|这个月|上个月|本季度|上季度|今年|去年)/)?.[1];
+    if (preferred) return preferred;
+    const replacement = message.match(/不是\s*(今天|昨天|明天|本周|上周|本月|这个月|上个月|本季度|上季度|今年|去年)[^，,。；;]{0,20}(?:是|改成)\s*(今天|昨天|明天|本周|上周|本月|这个月|上个月|本季度|上季度|今年|去年)/)?.[2];
+    return replacement;
   }
 
   private isModelPendingClarification(value: unknown): value is BrainModelPendingClarification {

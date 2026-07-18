@@ -3,6 +3,7 @@ import { BrainTimeRangeParserService } from '../cognition/brain-time-range-parse
 import type { BrainDomainAdapter } from '../domain/brain-domain-adapter.types.js';
 import { BrainActionCapabilityExecutor } from './executors/brain-action-capability.executor.js';
 import { BrainDomainServiceCapabilityExecutor } from './executors/brain-domain-service-capability.executor.js';
+import { BrainMarketingCampaignCapabilityExecutor } from './executors/brain-marketing-campaign-capability.executor.js';
 import { BrainSemanticQueryCapabilityExecutor } from './executors/brain-semantic-query-capability.executor.js';
 import {
   BrainCapabilityExecutorRegistryService,
@@ -33,6 +34,7 @@ const DOMAIN_KEYS = [
   'customer_facts',
   'marketing_customer_segment',
   'marketing_message_draft',
+  'marketing_campaign_plan',
   'finance_payment_breakdown',
   'inventory_procurement_advice',
 ] as const;
@@ -126,7 +128,7 @@ const stubExecutor = (
 });
 
 describe('BrainCapabilityExecutorRegistryService', () => {
-  it('resolves all 26 discoverable capability keys', () => {
+  it('resolves all 27 discoverable capability keys', () => {
     const snapshot = { loadActiveDefinitions: jest.fn() };
     const timeParser = { parse: jest.fn() };
     const semanticQuery = { execute: jest.fn() };
@@ -136,10 +138,11 @@ describe('BrainCapabilityExecutorRegistryService', () => {
     const registry = new BrainCapabilityExecutorRegistryService([
       new BrainSemanticQueryCapabilityExecutor(snapshot as never, timeParser as never, semanticQuery as never),
       new BrainDomainServiceCapabilityExecutor(skillRuntime as never, customerFacts as never, timeParser as never),
+      new BrainMarketingCampaignCapabilityExecutor(skillRuntime as never),
       new BrainActionCapabilityExecutor(adapterRegistry as never),
     ]);
 
-    expect([...SEMANTIC_KEYS, ...DOMAIN_KEYS, ...ACTION_KEYS]).toHaveLength(26);
+    expect([...SEMANTIC_KEYS, ...DOMAIN_KEYS, ...ACTION_KEYS]).toHaveLength(27);
     for (const key of SEMANTIC_KEYS) expect(registry.resolve(key).kind).toBe('semantic');
     for (const key of DOMAIN_KEYS) expect(registry.resolve(key).kind).toBe('domain');
     for (const key of ACTION_KEYS) expect(registry.resolve(key).kind).toBe('action');
