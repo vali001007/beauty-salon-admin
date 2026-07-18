@@ -1,5 +1,6 @@
 import type {
   BrainActionDecisionResponse,
+  BrainActionStatusListResponse,
   BrainChatRequest,
   BrainChatResponse,
   BrainCapabilityRegenerationJob,
@@ -122,6 +123,10 @@ export async function getBrainRunEvents(runId: number): Promise<BrainRunEventsRe
 
 export async function getBrainRunContext(runId: number): Promise<BrainRunContextResponse> {
   return apiClient.get<unknown, BrainRunContextResponse>(`/brain/runs/${runId}/context`);
+}
+
+export async function listBrainActionStatuses(runId: number): Promise<BrainActionStatusListResponse> {
+  return apiClient.get<unknown, BrainActionStatusListResponse>(`/brain/runs/${runId}/actions`);
 }
 
 export async function confirmBrainAction(actionId: string, runId: number): Promise<BrainActionDecisionResponse> {

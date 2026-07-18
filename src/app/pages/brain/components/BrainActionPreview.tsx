@@ -18,6 +18,7 @@ const riskLabels: Record<BrainActionPreviewType['riskLevel'], string> = {
 };
 
 const statusLabels: Record<BrainActionDecisionResponse['status'], string> = {
+  pending: '等待确认',
   queued: '动作已排队',
   executing: '正在执行',
   succeeded: '执行成功',
@@ -29,6 +30,7 @@ const statusLabels: Record<BrainActionDecisionResponse['status'], string> = {
 
 export function BrainActionPreview({ action, result, loading, onConfirm, onReject, onRetry }: BrainActionPreviewProps) {
   const receipt = result?.receipt;
+  const awaitingDecision = !result || result.status === 'pending';
   return (
     <div className="rounded-md border border-border bg-background p-3">
       <div className="flex items-start gap-2">
@@ -41,7 +43,7 @@ export function BrainActionPreview({ action, result, loading, onConfirm, onRejec
         </div>
       </div>
 
-      {result ? (
+      {!awaitingDecision && result ? (
         <div className="mt-3 space-y-1 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
           <div>{statusLabels[result.status]}</div>
           {receipt?.message ? <div className="text-foreground">{receipt.message}</div> : null}

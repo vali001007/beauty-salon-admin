@@ -10,6 +10,7 @@ export type BrainRoleKey =
 export type BrainRiskLevel = 'low' | 'medium' | 'high' | 'critical';
 export type BrainRunStatus = 'queued' | 'running' | 'needs_confirmation' | 'completed' | 'failed' | 'cancelled';
 export type BrainActionDecisionStatus =
+  | 'pending'
   | 'queued'
   | 'executing'
   | 'succeeded'
@@ -188,6 +189,12 @@ export interface BrainActionDecisionResponse {
     [key: string]: unknown;
   } | null;
   error?: { code?: string; message?: string };
+}
+
+export interface BrainActionStatusListResponse {
+  runId: number;
+  storeId: number;
+  items: BrainActionDecisionResponse[];
 }
 
 export interface BrainFeedbackResponse {

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, NotFoundException, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
@@ -147,6 +147,27 @@ export class BrainController {
   getRunContext(@Req() req: Request, @Param('runId') runId: string) {
     const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
     return this.chatService.getRunContext(context, Number(runId));
+  }
+
+  @Get('runs/:runId/actions')
+  @Permissions('core:brain:use')
+  async listRunActionStatuses(@Req() req: Request, @Param('runId') runId: string) {
+    const parsedRunId = Number(runId);
+    if (!Number.isInteger(parsedRunId) || parsedRunId < 1) {
+      throw new BadRequestException('invalid_brain_run_id');
+    }
+    const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
+    const statuses = await this.actionConfirmationService?.listExecutionStatuses({
+      runId: parsedRunId,
+      userId: context.userId,
+      storeId: context.storeId,
+    }) ?? [];
+    const items = statuses.map((status) => ({
+      ...status,
+      runId: parsedRunId,
+      storeId: context.storeId,
+    }));
+    return { runId: parsedRunId, storeId: context.storeId, items };
   }
 
   @Post('actions/:actionId/confirm')

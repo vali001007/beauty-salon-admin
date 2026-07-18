@@ -302,6 +302,33 @@ describe('BrainController', () => {
     });
   });
 
+  it('lists persisted action statuses for the current run, user and store', async () => {
+    const actionConfirmationService = {
+      listExecutionStatuses: jest.fn().mockResolvedValue([
+        { actionId: 'act_1', executionId: 31, status: 'succeeded', receipt: { businessObjectId: 88 } },
+      ]),
+    };
+    const actionController = controllerWithActionService(actionConfirmationService);
+
+    await expect(actionController.listRunActionStatuses(request, '5')).resolves.toEqual({
+      runId: 5,
+      storeId: 2,
+      items: [{
+        actionId: 'act_1',
+        executionId: 31,
+        status: 'succeeded',
+        receipt: { businessObjectId: 88 },
+        runId: 5,
+        storeId: 2,
+      }],
+    });
+    expect(actionConfirmationService.listExecutionStatuses).toHaveBeenCalledWith({
+      runId: 5,
+      userId: 9,
+      storeId: 2,
+    });
+  });
+
   it('exposes governance collection endpoints for the management console', async () => {
     await expect(controller.listTraces(request)).resolves.toMatchObject({ items: [], total: 0 });
     await expect(controller.listSemanticResource('metrics')).resolves.toMatchObject({ resource: 'metrics', items: [] });

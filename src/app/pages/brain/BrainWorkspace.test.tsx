@@ -8,6 +8,7 @@ const apiMocks = vi.hoisted(() => ({
   createBrainConversation: vi.fn(),
   createBrainFeedback: vi.fn(),
   getBrainRunEvents: vi.fn(),
+  listBrainActionStatuses: vi.fn(),
   listBrainConversations: vi.fn(),
   listBrainMessages: vi.fn(),
   rejectBrainAction: vi.fn(),
@@ -38,6 +39,7 @@ describe('BrainWorkspace', () => {
     apiMocks.listBrainConversations.mockResolvedValue({ items: [], total: 0, storeId: 6 });
     apiMocks.listBrainMessages.mockResolvedValue({ conversationId: 42, items: [], total: 0, storeId: 6 });
     apiMocks.getBrainRunEvents.mockResolvedValue({ runId: 100, events: [], storeId: 6 });
+    apiMocks.listBrainActionStatuses.mockResolvedValue({ runId: 100, items: [], storeId: 6 });
     apiMocks.createBrainConversation.mockResolvedValue(conversation);
     apiMocks.streamBrainMessage.mockImplementation(async (_conversationId, _payload, onEvent) => {
       onEvent({ type: 'run_started', data: { conversationId: 42 } });
@@ -198,6 +200,62 @@ describe('BrainWorkspace', () => {
     await waitFor(() => expect(apiMocks.confirmBrainAction).toHaveBeenCalledWith('act_reservation_1', 101));
     expect(await screen.findByText('预约已创建')).toBeInTheDocument();
     expect(screen.getByText('业务单据：reservation #88')).toBeInTheDocument();
+  });
+
+  it('restores a persisted action receipt when reopening a conversation', async () => {
+    apiMocks.listBrainConversations.mockResolvedValue({ items: [conversation], total: 1, storeId: 6 });
+    apiMocks.listBrainMessages.mockResolvedValue({
+      conversationId: 42,
+      total: 1,
+      storeId: 6,
+      items: [
+        {
+          id: 14,
+          conversationId: 42,
+          role: 'assistant',
+          content: '已生成预约创建预览。',
+          metadata: {
+            runId: 103,
+            status: 'needs_confirmation',
+            suggestedActions: [
+              {
+                actionId: 'act_reservation_restored',
+                skillKey: 'create_reservation',
+                riskLevel: 'high',
+                summary: '为张女士创建明天 10:00 的护理预约',
+                requiresConfirmation: true,
+              },
+            ],
+          },
+          createdAt: '2026-07-11T01:00:01.000Z',
+        },
+      ],
+    });
+    apiMocks.listBrainActionStatuses.mockResolvedValue({
+      runId: 103,
+      storeId: 6,
+      items: [
+        {
+          actionId: 'act_reservation_restored',
+          runId: 103,
+          storeId: 6,
+          executionId: 33,
+          status: 'succeeded',
+          receipt: {
+            businessObjectType: 'reservation',
+            businessObjectId: 90,
+            message: '预约已创建',
+          },
+        },
+      ],
+    });
+
+    render(<BrainWorkspace />);
+
+    expect(await screen.findByText('预约已创建')).toBeInTheDocument();
+    expect(screen.getByText('业务单据：reservation #90')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '确认执行' })).not.toBeInTheDocument();
+    expect(apiMocks.listBrainActionStatuses).toHaveBeenCalledWith(103);
   });
 
   it('retries a replay-safe failed action and replaces the failed result with its receipt', async () => {

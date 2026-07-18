@@ -103,6 +103,41 @@ export class BrainActionConfirmationService {
     });
   }
 
+  async listExecutionStatuses(input: { runId: number; userId: number; storeId: number }) {
+    const actions = await this.prisma.brainActionConfirmation.findMany({
+      where: {
+        runId: input.runId,
+        userId: input.userId,
+        storeId: input.storeId,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (!actions.length) return [];
+
+    const executions = await this.prisma.brainActionExecution.findMany({
+      where: {
+        runId: input.runId,
+        userId: input.userId,
+        storeId: input.storeId,
+        actionId: { in: actions.map((action) => action.actionId) },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    const executionByActionId = new Map<string, (typeof executions)[number]>();
+    for (const execution of executions) {
+      if (!executionByActionId.has(execution.actionId)) {
+        executionByActionId.set(execution.actionId, execution);
+      }
+    }
+
+    return actions.map((action) => {
+      const execution = executionByActionId.get(action.actionId);
+      return execution
+        ? this.existingExecutionResult(action, execution, false)
+        : this.confirmationOnlyResult(action);
+    });
+  }
+
   async confirmPreviewOnly(input: { actionId: string; runId: number; userId: number; storeId: number }) {
     const action = await this.findPendingForUser(input);
     if (!action) return null;
@@ -488,6 +523,7 @@ export class BrainActionConfirmationService {
       errorCode?: string | null;
       errorMessage?: string | null;
     },
+    duplicated = true,
   ) {
     const recovery = this.failureRecovery(action.skillKey);
     return {
@@ -495,7 +531,7 @@ export class BrainActionConfirmationService {
       executionId: execution.id,
       status: execution.status,
       receipt: execution.receiptPayload,
-      duplicated: true,
+      ...(duplicated ? { duplicated: true } : {}),
       ...(execution.status === 'failed'
         ? {
             retryable: recovery === 'safe_replay',
@@ -506,6 +542,44 @@ export class BrainActionConfirmationService {
             },
           }
         : {}),
+    };
+  }
+
+  private confirmationOnlyResult(action: {
+    actionId: string;
+    skillKey: string;
+    status: string;
+    result: Prisma.JsonValue | null;
+  }) {
+    if (action.status === 'pending') {
+      return { actionId: action.actionId, status: 'pending' as const };
+    }
+    if (action.status === 'executing') {
+      return { actionId: action.actionId, status: 'executing' as const };
+    }
+    if (action.status === 'rejected') {
+      return { actionId: action.actionId, status: 'rejected' as const };
+    }
+    if (action.status === 'expired') {
+      return { actionId: action.actionId, status: 'expired' as const };
+    }
+    if (action.status === 'succeeded' || action.status === 'partially_succeeded') {
+      return { actionId: action.actionId, status: action.status, receipt: action.result };
+    }
+
+    const result = this.asRecord(action.result);
+    const recovery = this.failureRecovery(action.skillKey);
+    return {
+      actionId: action.actionId,
+      status: 'failed' as const,
+      retryable: false,
+      recovery,
+      error: {
+        code: typeof result.errorCode === 'string' ? result.errorCode : 'action_execution_missing',
+        message: typeof result.message === 'string'
+          ? result.message
+          : '动作状态缺少执行记录，请核对后台业务单据。',
+      },
     };
   }
 

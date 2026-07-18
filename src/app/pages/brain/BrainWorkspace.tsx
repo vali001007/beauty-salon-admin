@@ -7,6 +7,7 @@ import {
   createBrainConversation,
   createBrainFeedback,
   getBrainRunEvents,
+  listBrainActionStatuses,
   listBrainConversations,
   listBrainMessages,
   rejectBrainAction,
@@ -56,14 +57,24 @@ export function BrainWorkspace() {
     if (!runId) return;
 
     setLoadingEvents(true);
-    try {
-      const response = await getBrainRunEvents(runId);
-      setRunEvents(response.events);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '运行轨迹加载失败');
-    } finally {
-      setLoadingEvents(false);
+    const [eventsResult, actionsResult] = await Promise.allSettled([
+      getBrainRunEvents(runId),
+      listBrainActionStatuses(runId),
+    ]);
+    if (eventsResult.status === 'fulfilled') {
+      setRunEvents(eventsResult.value.events);
+    } else {
+      toast.error(eventsResult.reason instanceof Error ? eventsResult.reason.message : '运行轨迹加载失败');
     }
+    if (actionsResult.status === 'fulfilled') {
+      setActionResults((current) => ({
+        ...current,
+        ...Object.fromEntries(actionsResult.value.items.map((item) => [item.actionId, item])),
+      }));
+    } else {
+      toast.error(actionsResult.reason instanceof Error ? actionsResult.reason.message : '动作状态加载失败');
+    }
+    setLoadingEvents(false);
   }, []);
 
   const loadMessages = useCallback(
@@ -72,6 +83,7 @@ export function BrainWorkspace() {
       setMessages([]);
       setSelectedAssistant(null);
       setRunEvents([]);
+      setActionResults({});
       try {
         const response = await listBrainMessages(id);
         setMessages(response.items);
@@ -130,6 +142,7 @@ export function BrainWorkspace() {
       setMessages([]);
       setSelectedAssistant(null);
       setRunEvents([]);
+      setActionResults({});
       return conversation;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '新建会话失败');

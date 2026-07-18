@@ -78,6 +78,60 @@ describe('BrainActionConfirmationService', () => {
     expect(service.requiresConfirmation('low')).toBe(false);
   });
 
+  it('restores run action statuses only for the current user and store', async () => {
+    const prisma = {
+      brainActionConfirmation: {
+        findMany: jest.fn().mockResolvedValue([
+          { actionId: 'act_pending', skillKey: 'create_reservation', status: 'pending', result: null },
+          { actionId: 'act_failed', skillKey: 'reschedule_reservation', status: 'failed', result: null },
+        ]),
+      },
+      brainActionExecution: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 31,
+            actionId: 'act_failed',
+            status: 'failed',
+            receiptPayload: null,
+            errorCode: 'upstream_timeout',
+            errorMessage: '改约回执超时',
+            createdAt: new Date('2026-07-18T10:00:00.000Z'),
+          },
+        ]),
+      },
+    };
+    const gateway = {
+      resolve: jest.fn().mockImplementation((key: string) => ({
+        key,
+        failureRecovery: key === 'reschedule_reservation' ? 'safe_replay' : 'manual_reconcile',
+      })),
+    };
+    const service = new BrainActionConfirmationService(prisma as never, gateway as never);
+
+    const result = await service.listExecutionStatuses({ runId: 5, userId: 9, storeId: 2 });
+
+    expect(prisma.brainActionConfirmation.findMany).toHaveBeenCalledWith({
+      where: { runId: 5, userId: 9, storeId: 2 },
+      orderBy: { createdAt: 'asc' },
+    });
+    expect(prisma.brainActionExecution.findMany).toHaveBeenCalledWith({
+      where: { runId: 5, userId: 9, storeId: 2, actionId: { in: ['act_pending', 'act_failed'] } },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(result).toEqual([
+      { actionId: 'act_pending', status: 'pending' },
+      {
+        actionId: 'act_failed',
+        executionId: 31,
+        status: 'failed',
+        receipt: null,
+        retryable: true,
+        recovery: 'safe_replay',
+        error: { code: 'upstream_timeout', message: '改约回执超时' },
+      },
+    ]);
+  });
+
   it('confirms only a pending action owned by current run, store and user', async () => {
     const prisma = {
       brainActionConfirmation: {
