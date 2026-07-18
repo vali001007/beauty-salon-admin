@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, Optional } from '@nestjs/common';
 import type { BrainRiskLevel } from '@prisma/client';
+import { CardsService } from '../../cards/cards.service.js';
 import { InventoryService } from '../../inventory/inventory.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { ReservationsService } from '../../reservations/reservations.service.js';
@@ -17,6 +18,7 @@ export interface BrainCapabilityReceipt {
   businessObjectId: number | string;
   result: unknown;
   status?: 'succeeded' | 'partially_succeeded';
+  message?: string;
 }
 
 export interface BrainCapabilityDescriptor {
@@ -125,6 +127,19 @@ const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
     receiptType: 'service_task',
     failureRecovery: 'manual_reconcile',
   },
+  verify_card_usage: {
+    key: 'verify_card_usage',
+    version: 1,
+    endpoint: 'cards/verify-usage',
+    method: 'POST',
+    permission: 'core:order:card-usage',
+    riskLevel: 'critical',
+    requiredFields: ['customerCardId', 'customerId', 'projectId', 'projectName', 'times', 'beauticianId'],
+    allowedFields: ['customerCardId', 'customerId', 'projectId', 'projectName', 'times', 'beauticianId', 'remark'],
+    transactionBoundary: 'CardsService.verifyCardUsage',
+    receiptType: 'card_usage_record',
+    failureRecovery: 'manual_reconcile',
+  },
 };
 
 @Injectable()
@@ -134,6 +149,7 @@ export class BrainCapabilityGatewayService {
     @Optional() private readonly inventoryService?: InventoryService,
     @Optional() private readonly terminalService?: TerminalService,
     @Optional() private readonly prisma?: PrismaService,
+    @Optional() private readonly cardsService?: CardsService,
   ) {}
 
   resolve(skillKey: string) {
@@ -170,6 +186,8 @@ export class BrainCapabilityGatewayService {
         return this.createFollowUp(payload, input.context, 'brain_marketing_touch_draft');
       case 'save_service_record':
         return this.saveServiceRecord(payload, input.context);
+      case 'verify_card_usage':
+        return this.verifyCardUsage(payload, input.context);
       default:
         throw new BadRequestException(`unsupported_capability:${input.skillKey}`);
     }
@@ -277,6 +295,27 @@ export class BrainCapabilityGatewayService {
     return this.receipt('save_service_record', 'service_task', result.id, result);
   }
 
+  private async verifyCardUsage(payload: Record<string, unknown>, context: BrainCapabilityContext) {
+    const service = this.requireService(this.cardsService, 'CardsService');
+    const result = await service.verifyCardUsage({
+      customerCardId: this.positiveInteger(payload.customerCardId, 'customerCardId'),
+      customerId: this.positiveInteger(payload.customerId, 'customerId'),
+      projectId: this.positiveInteger(payload.projectId, 'projectId'),
+      projectName: this.nonEmptyString(payload.projectName, 'projectName'),
+      times: this.positiveInteger(payload.times, 'times'),
+      beauticianId: this.positiveInteger(payload.beauticianId, 'beauticianId'),
+      operatorId: context.userId,
+      remark: typeof payload.remark === 'string' ? payload.remark : 'Ami Brain 确认执行次卡核销',
+    });
+    return this.receipt(
+      'verify_card_usage',
+      'card_usage_record',
+      result.id,
+      result,
+      `次卡核销成功，核销后剩余 ${result.remainingTimes} 次。`,
+    );
+  }
+
   private validatePayload(descriptor: BrainCapabilityDescriptor, value: unknown) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new BadRequestException('invalid_capability_payload');
     const source = value as Record<string, unknown>;
@@ -367,7 +406,13 @@ export class BrainCapabilityGatewayService {
     return service;
   }
 
-  private receipt(capabilityKey: string, businessObjectType: string, businessObjectId: number | string, result: unknown): BrainCapabilityReceipt {
-    return { capabilityKey, businessObjectType, businessObjectId, result };
+  private receipt(
+    capabilityKey: string,
+    businessObjectType: string,
+    businessObjectId: number | string,
+    result: unknown,
+    message?: string,
+  ): BrainCapabilityReceipt {
+    return { capabilityKey, businessObjectType, businessObjectId, result, ...(message ? { message } : {}) };
   }
 }

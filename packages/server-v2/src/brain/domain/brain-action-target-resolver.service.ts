@@ -33,6 +33,9 @@ export class BrainActionTargetResolverService {
       case 'save_service_record':
         await this.requireScopedRecord('serviceTask', input.args.taskId, input.storeId);
         return;
+      case 'verify_card_usage':
+        await this.revalidateCardUsageTarget(input.storeId, input.args);
+        return;
       case 'create_purchase_order': {
         if (!Array.isArray(input.args.items) || input.args.items.length === 0) {
           throw new BadRequestException('purchase_items_required');
@@ -144,6 +147,127 @@ export class BrainActionTargetResolverService {
     return { ok: true, value: { id: tasks[0].id, customerName: tasks[0].customer.name, projectName: tasks[0].project.name } };
   }
 
+  async resolveCardUsageTarget(input: { storeId: number; message: string }): Promise<BrainTargetResolution<{
+    customerId: number;
+    customerName: string;
+    customerCardId: number;
+    cardName: string;
+    projectId: number;
+    projectName: string;
+    remainingTimes: number;
+    projectRemainingTimes: number;
+  }>> {
+    const customer = await this.resolveCustomer(input);
+    if (!customer.ok) return customer;
+    const cards = await this.prisma.customerCard.findMany({
+      where: {
+        customerId: customer.value.id,
+        status: 'active',
+        remainingTimes: { gt: 0 },
+        expiryDate: { gte: new Date() },
+        customer: { storeId: input.storeId, deletedAt: null },
+      },
+      include: { card: { select: { projects: true } } },
+      orderBy: [{ expiryDate: 'asc' }, { id: 'asc' }],
+      take: 20,
+    });
+    if (!cards.length) {
+      return { ok: false, reason: 'active_customer_card_not_found', message: `${customer.value.name}在当前门店没有可核销的有效次卡。` };
+    }
+
+    const explicitCards = cards.filter((card) => input.message.includes(card.cardName));
+    if (explicitCards.length > 1) {
+      return { ok: false, reason: 'ambiguous_customer_card', message: '问题中命中多张次卡，请明确本次要核销的卡名。' };
+    }
+    const scopedCards = explicitCards.length === 1 ? explicitCards : cards;
+    const candidates = scopedCards.flatMap((card) => {
+      const projects = Array.isArray(card.card?.projects) ? card.card.projects : [];
+      return projects.flatMap((raw) => {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
+        const project = raw as Record<string, unknown>;
+        const projectName = String(project.projectName ?? project.name ?? '').trim();
+        if (!projectName) return [];
+        return [{
+          card,
+          projectName,
+          projectId: this.optionalPositiveId(project.projectId ?? project.id),
+          projectTotalTimes: Number(project.timesPerCard ?? project.totalCount ?? card.totalTimes ?? 0),
+        }];
+      });
+    });
+    const explicitProjects = candidates.filter((candidate) => input.message.includes(candidate.projectName));
+    const matched = explicitProjects.length
+      ? explicitProjects
+      : scopedCards.length === 1 && candidates.length === 1
+        ? candidates
+        : [];
+    const unique = [...new Map(matched.map((candidate) => [`${candidate.card.id}:${candidate.projectName}`, candidate])).values()];
+    if (!unique.length) {
+      return { ok: false, reason: 'missing_card_project', message: '请明确本次核销的项目名称；如果客户有多张次卡，还需要说明卡名。' };
+    }
+    if (unique.length > 1) {
+      return { ok: false, reason: 'ambiguous_card_project', message: '当前客户有多张卡可核销该项目，请补充具体卡名。' };
+    }
+
+    const selected = unique[0];
+    const project = await this.prisma.project.findFirst({
+      where: {
+        storeId: input.storeId,
+        deletedAt: null,
+        OR: [
+          ...(selected.projectId ? [{ id: selected.projectId }] : []),
+          { name: selected.projectName },
+        ],
+      },
+      select: { id: true, name: true },
+    });
+    if (!project) {
+      return { ok: false, reason: 'card_project_not_found', message: '次卡配置的项目在当前门店不存在或已停用，不能生成核销预览。' };
+    }
+    const used = await this.prisma.cardUsageRecord.aggregate({
+      where: { customerCardId: selected.card.id, projectName: selected.projectName },
+      _sum: { times: true },
+    });
+    const projectRemainingTimes = Math.max(selected.projectTotalTimes - Number(used._sum.times ?? 0), 0);
+    if (projectRemainingTimes <= 0) {
+      return { ok: false, reason: 'card_project_times_exhausted', message: `${selected.card.cardName}中的${selected.projectName}已无可核销次数。` };
+    }
+    return {
+      ok: true,
+      value: {
+        customerId: customer.value.id,
+        customerName: customer.value.name,
+        customerCardId: selected.card.id,
+        cardName: selected.card.cardName,
+        projectId: project.id,
+        projectName: project.name,
+        remainingTimes: selected.card.remainingTimes,
+        projectRemainingTimes,
+      },
+    };
+  }
+
+  async resolveBeautician(input: { storeId: number; message: string }): Promise<BrainTargetResolution<{ id: number; name: string }>> {
+    const beauticians = await this.prisma.beautician.findMany({
+      where: { storeId: input.storeId, status: 'active' },
+      select: { id: true, name: true },
+      take: 100,
+    });
+    const matches = beauticians.filter((beautician) => input.message.includes(beautician.name));
+    if (!matches.length) return { ok: false, reason: 'missing_beautician', message: '请说明本次服务人员，用于核销记录和提成归属。' };
+    if (matches.length > 1) return { ok: false, reason: 'ambiguous_beautician', message: '问题中命中多位美容师，请明确本次服务人员。' };
+    return { ok: true, value: matches[0] };
+  }
+
+  resolveUsageTimes(message: string) {
+    const numeric = message.match(/(?:核销|扣|划扣)?\s*([1-9]\d*)\s*次/);
+    if (numeric) return Number(numeric[1]);
+    const chinese = message.match(/(?:核销|扣|划扣)?\s*([一二两三四五六七八九十])\s*次/);
+    if (!chinese) return undefined;
+    const values: Record<string, number> = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
+    return values[chinese[1]];
+  }
+
   resolveAppointmentTime(message: string, now = new Date()) {
     const clock = this.extractClock(message);
     if (!clock) return undefined;
@@ -202,7 +326,7 @@ export class BrainActionTargetResolverService {
 
   private extractCustomerName(message: string) {
     const patterns = [
-      /(?:给|为|把|帮|帮我给|帮我为|查一下|找一下|叫)([\u4e00-\u9fa5]{2,5})(?=安排|创建|建立|改约|改期|取消|发|做|预约|的预约|把|，|,|\s|$)/,
+      /(?:给|为|把|帮|帮我给|帮我为|查一下|找一下|叫)([\u4e00-\u9fa5]{2,5})(?=安排|创建|建立|改约|改期|取消|发|做|预约|核销|扣次|划扣|的|把|，|,|\s|$)/,
       /客户(?:是|叫)?([\u4e00-\u9fa5]{2,5})(?=，|,|\s|$|的)/,
       /^([\u4e00-\u9fa5]{2,5})(?=的预约|改约|改期|取消预约|做)/,
     ];
@@ -216,6 +340,34 @@ export class BrainActionTargetResolverService {
   private maskPhone(phone?: string | null) {
     const value = String(phone ?? '').replace(/\s+/g, '');
     return value.length >= 4 ? `***${value.slice(-4)}` : '未记录';
+  }
+
+  private async revalidateCardUsageTarget(storeId: number, args: Record<string, unknown>) {
+    const customerCardId = this.positiveId(args.customerCardId);
+    const customerId = this.positiveId(args.customerId);
+    const projectId = this.positiveId(args.projectId);
+    const beauticianId = this.positiveId(args.beauticianId);
+    const times = this.positiveId(args.times);
+    const card = await this.prisma.customerCard.findFirst({
+      where: { id: customerCardId, customer: { storeId, deletedAt: null } },
+      include: { card: { select: { projects: true } } },
+    });
+    if (!card) throw new ForbiddenException('cross_store_action_target');
+    if (card.customerId !== customerId) throw new BadRequestException('card_customer_mismatch');
+    if (card.status !== 'active' || card.expiryDate < new Date()) throw new BadRequestException('customer_card_not_active');
+    if (card.remainingTimes < times) throw new BadRequestException('customer_card_remaining_times_insufficient');
+    const [project, beautician] = await Promise.all([
+      this.prisma.project.findFirst({ where: { id: projectId, storeId, deletedAt: null }, select: { id: true, name: true } }),
+      this.prisma.beautician.findFirst({ where: { id: beauticianId, storeId, status: 'active' }, select: { id: true } }),
+    ]);
+    if (!project || !beautician) throw new ForbiddenException('cross_store_action_target');
+    const configuredProjects = Array.isArray(card.card?.projects) ? card.card.projects : [];
+    const configured = configuredProjects.some((raw) => {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false;
+      const value = raw as Record<string, unknown>;
+      return this.optionalPositiveId(value.projectId ?? value.id) === project.id || String(value.projectName ?? value.name ?? '').trim() === project.name;
+    });
+    if (!configured) throw new BadRequestException('card_project_mismatch');
   }
 
   private async requireScopedRecord(
@@ -235,5 +387,10 @@ export class BrainActionTargetResolverService {
     const id = Number(value);
     if (!Number.isInteger(id) || id <= 0) throw new BadRequestException('invalid_action_target_id');
     return id;
+  }
+
+  private optionalPositiveId(value: unknown) {
+    const id = Number(value);
+    return Number.isInteger(id) && id > 0 ? id : undefined;
   }
 }

@@ -329,7 +329,7 @@ function normalizeScopedExample(value: string): string {
 function inferExampleIntent(value: string): BrainSemanticIntentKind {
   if (/(完整流程|完整方案|组合.*(?:再|并|最后)|先.*再.*(?:最后|生成)|规划.*流程)/.test(value)) return 'workflow';
   if (
-    /(?:创建|修改|改约|改期|取消|提交|执行|采购|触达|跟进|回访|预约).*(?:预览|草稿|待确认|等我确认|先不要执行)|(?:预览|草稿|待确认).*(?:预约|采购|触达|任务|操作)/.test(value)
+    /(?:创建|修改|改约|改期|取消|提交|执行|采购|触达|跟进|回访|预约|核销|扣次|划扣).*(?:预览|草稿|待确认|等我确认|先不要执行)|(?:预览|草稿|待确认).*(?:预约|采购|触达|任务|操作|核销|扣次|划扣|卡项)/.test(value)
   ) return 'action';
   if (/(?:写|拟|生成|准备|编辑).*(?:文案|话术|短信|消息|通知|邀请)|(?:文案|话术|短信|消息).*(?:写|拟|生成|准备)/.test(value)) return 'draft';
   if (/(比较|对比|相比|差多少)/.test(value)) return 'comparison';

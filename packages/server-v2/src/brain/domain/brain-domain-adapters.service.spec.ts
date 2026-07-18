@@ -261,6 +261,21 @@ describe('Brain domain adapters', () => {
     }),
     resolveAppointmentTime: jest.fn(() => new Date('2026-07-12T07:00:00.000Z')),
     resolveServiceTask: jest.fn().mockResolvedValue({ ok: true, value: { id: 51, customerName: '张女士', projectName: '补水护理' } }),
+    resolveCardUsageTarget: jest.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        customerId: 7,
+        customerName: '张女士',
+        customerCardId: 66,
+        cardName: '补水护理 10 次卡',
+        projectId: 101,
+        projectName: '深层补水护理',
+        remainingTimes: 5,
+        projectRemainingTimes: 7,
+      },
+    }),
+    resolveBeautician: jest.fn().mockResolvedValue({ ok: true, value: { id: 2, name: '王美容师' } }),
+    resolveUsageTimes: jest.fn().mockReturnValue(1),
   };
   const predictionSkills = {
     getCustomerPrediction: jest.fn().mockResolvedValue({
@@ -348,12 +363,61 @@ describe('Brain domain adapters', () => {
     }));
   });
 
-  it('front desk adapter does not expose an executable confirmation for unopened card redemption', async () => {
-    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never);
-    const answer = await adapter.execute(execution('帮我打开核销界面，客人要用次卡', 'front_desk', 'action'));
+  it('front desk adapter creates a critical card usage preview without writing business state', async () => {
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never, actionTargets as never);
+    const answer = await adapter.execute(execution(
+      '给张女士的补水护理 10 次卡核销深层补水护理 1 次，王美容师服务',
+      'front_desk',
+      'action',
+      'card_usage_action_preview',
+    ));
+
+    expect(answer?.grounding).toBe('preview_action');
+    expect(answer?.suggestedActions?.[0]).toMatchObject({ actionId: 'persisted_action', actionType: 'verify_card_usage', riskLevel: 'critical' });
+    expect(actionConfirmation.createPreview).toHaveBeenCalledWith(expect.objectContaining({
+      skillKey: 'verify_card_usage',
+      riskLevel: 'critical',
+      payload: expect.objectContaining({ customerCardId: 66, projectId: 101, times: 1, beauticianId: 2 }),
+    }));
+  });
+
+  it('front desk adapter refuses card usage preview without the dedicated permission', async () => {
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never, actionTargets as never);
+    const input = execution(
+      '给张女士的补水护理 10 次卡核销深层补水护理 1 次，王美容师服务',
+      'front_desk',
+      'action',
+      'card_usage_action_preview',
+    );
+    input.context = { ...context, permissions: ['core:store:reservations'] };
+
+    await expect(adapter.execute(input)).rejects.toThrow('missing_permission:core:order:card-usage');
+  });
+
+  it('front desk adapter asks for an explicit usage count instead of defaulting a deduction', async () => {
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never, actionTargets as never);
+    actionTargets.resolveUsageTimes.mockReturnValueOnce(undefined);
+
+    const answer = await adapter.execute(execution(
+      '给张女士的补水护理 10 次卡核销深层补水护理，王美容师服务',
+      'front_desk',
+      'action',
+      'card_usage_action_preview',
+    ));
 
     expect(answer?.suggestedActions).toEqual([]);
-    expect(answer?.answer).toContain('尚未开放 Ami Brain 真实执行');
+    expect(answer?.answer).toContain('明确本次核销次数');
+  });
+
+  it('front desk adapter keeps card-status questions read-only instead of turning them into deductions', async () => {
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never, actionTargets as never);
+    const previewCalls = actionConfirmation.createPreview.mock.calls.length;
+
+    const answer = await adapter.execute(execution('这个客人用次卡核销，帮我看一下她的次卡情况', 'front_desk', 'list'));
+
+    expect(answer?.grounding).toBe('db_skill');
+    expect(answer?.answer).toContain('客户：张雯');
+    expect(actionConfirmation.createPreview).toHaveBeenCalledTimes(previewCalls);
   });
 
   it('front desk adapter returns reception service advice for onsite questions', async () => {

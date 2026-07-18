@@ -6,6 +6,9 @@ describe('BrainActionTargetResolverService', () => {
     project: { findMany: jest.fn(), findFirst: jest.fn() },
     reservation: { findMany: jest.fn(), findFirst: jest.fn() },
     serviceTask: { findMany: jest.fn(), findFirst: jest.fn() },
+    customerCard: { findMany: jest.fn(), findFirst: jest.fn() },
+    cardUsageRecord: { aggregate: jest.fn() },
+    beautician: { findMany: jest.fn(), findFirst: jest.fn() },
     product: { count: jest.fn() },
   };
   const service = new BrainActionTargetResolverService(prisma as never);
@@ -119,5 +122,76 @@ describe('BrainActionTargetResolverService', () => {
       where: { id: 18, storeId: 6 },
       select: { id: true },
     });
+  });
+
+  it('resolves one active customer card, project, usage count and beautician', async () => {
+    prisma.customer.findMany.mockResolvedValue([{ id: 7, name: '张女士', phone: '13800001234' }]);
+    prisma.customerCard.findMany.mockResolvedValue([{
+      id: 66,
+      customerId: 7,
+      cardName: '补水护理 10 次卡',
+      totalTimes: 10,
+      remainingTimes: 5,
+      expiryDate: new Date('2026-12-31T00:00:00.000Z'),
+      card: { projects: [{ projectId: 101, projectName: '深层补水护理', timesPerCard: 10 }] },
+    }]);
+    prisma.project.findFirst.mockResolvedValue({ id: 101, name: '深层补水护理' });
+    prisma.cardUsageRecord.aggregate.mockResolvedValue({ _sum: { times: 3 } });
+    prisma.beautician.findMany.mockResolvedValue([{ id: 2, name: '王美容师' }]);
+
+    await expect(service.resolveCardUsageTarget({
+      storeId: 6,
+      message: '给张女士的补水护理 10 次卡核销深层补水护理 1 次，王美容师服务',
+    })).resolves.toEqual({
+      ok: true,
+      value: {
+        customerId: 7,
+        customerName: '张女士',
+        customerCardId: 66,
+        cardName: '补水护理 10 次卡',
+        projectId: 101,
+        projectName: '深层补水护理',
+        remainingTimes: 5,
+        projectRemainingTimes: 7,
+      },
+    });
+    await expect(service.resolveBeautician({ storeId: 6, message: '由王美容师服务' })).resolves.toEqual({
+      ok: true,
+      value: { id: 2, name: '王美容师' },
+    });
+    expect(service.resolveUsageTimes('核销 1 次')).toBe(1);
+    expect(service.resolveUsageTimes('划扣两次')).toBe(2);
+  });
+
+  it('revalidates card usage targets with card, project and beautician store scope', async () => {
+    prisma.customerCard.findFirst.mockResolvedValue({
+      id: 66,
+      customerId: 7,
+      status: 'active',
+      remainingTimes: 5,
+      expiryDate: new Date('2026-12-31T00:00:00.000Z'),
+      card: { projects: [{ projectId: 101, projectName: '深层补水护理' }] },
+    });
+    prisma.project.findFirst.mockResolvedValue({ id: 101, name: '深层补水护理' });
+    prisma.beautician.findFirst.mockResolvedValue({ id: 2 });
+
+    await expect(service.revalidateCapabilityTarget({
+      capabilityKey: 'verify_card_usage',
+      storeId: 6,
+      args: { customerCardId: 66, customerId: 7, projectId: 101, projectName: '深层补水护理', times: 1, beauticianId: 2 },
+    })).resolves.toBeUndefined();
+    expect(prisma.customerCard.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 66, customer: { storeId: 6, deletedAt: null } },
+    }));
+  });
+
+  it('rejects a card usage target outside the current store', async () => {
+    prisma.customerCard.findFirst.mockResolvedValue(null);
+
+    await expect(service.revalidateCapabilityTarget({
+      capabilityKey: 'verify_card_usage',
+      storeId: 6,
+      args: { customerCardId: 66, customerId: 7, projectId: 101, projectName: '深层补水护理', times: 1, beauticianId: 2 },
+    })).rejects.toThrow('cross_store_action_target');
   });
 });

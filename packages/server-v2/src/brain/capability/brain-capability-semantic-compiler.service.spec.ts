@@ -214,6 +214,42 @@ describe('BrainCapabilitySemanticCompilerService', () => {
     expect(result.canonicalSemantics.examples).toEqual(['创建一份待确认的预约调整方案', '生成预约改期预览']);
   });
 
+  it('keeps confirmation-gated card usage examples executable', async () => {
+    const model: BrainCapabilitySemanticModel = {
+      generate: jest.fn().mockResolvedValue({
+        name: '次卡核销预览',
+        description: '生成指定客户次卡核销待确认预览。',
+        domains: ['customer'],
+        intents: ['action'],
+        positiveExamples: ['生成一次次卡核销预览', '给指定客户准备卡项扣次待确认方案'],
+        negativeExamples: ['直接扣次不要确认'],
+        synonyms: ['卡项划扣预览'],
+        riskExplanation: '确认前不扣减客户权益。',
+      }),
+    };
+    const service = new BrainCapabilitySemanticCompilerService(model);
+
+    const result = await service.compile({
+      capability: {
+        ...candidate(), key: 'card_usage_action_preview', businessDefinitionKeys: ['entity.customer'],
+        readOnly: false, sideEffect: true, riskLevel: 'high', requiresConfirmation: true, idempotency: 'required',
+        semanticHints: {
+          name: '次卡核销预览', description: '生成待确认次卡核销方案。', intents: ['action'],
+          examples: ['预览为指定客户划扣一次卡项', '给指定客户生成次卡核销待确认方案'],
+          negativeExamples: ['直接核销不要确认'], synonyms: ['次卡扣次预览'],
+        },
+      },
+      definitions: [definition('entity.customer', 'entity', 'customer', ['card_usage_action_preview'], [])],
+      successSchema: { type: 'object' },
+    });
+
+    expect(result.canonicalSemantics.intents).toEqual(['action']);
+    expect(result.canonicalSemantics.examples).toEqual(expect.arrayContaining([
+      '给指定客户生成次卡核销待确认方案',
+      '预览为指定客户划扣一次卡项',
+    ]));
+  });
+
   it('uses explicit decorator examples when model wording is not executable for the governed intent', async () => {
     const model: BrainCapabilitySemanticModel = {
       generate: jest.fn().mockResolvedValue({

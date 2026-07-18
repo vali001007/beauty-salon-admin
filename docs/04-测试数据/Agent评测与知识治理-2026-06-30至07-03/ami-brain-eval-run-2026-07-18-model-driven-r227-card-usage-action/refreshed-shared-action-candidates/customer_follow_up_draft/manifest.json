@@ -1,0 +1,115 @@
+{
+  "key": "customer_follow_up_draft",
+  "version": 1,
+  "sourceFingerprint": "0669f02d24915e23ca734e4624e558c208d5d349390e11c7048a6eed05c7fe75",
+  "name": "客户跟进任务预览",
+  "description": "解析当前门店内的唯一客户并生成待确认的客户跟进任务预览，不直接创建任务。",
+  "domains": [
+    "customer"
+  ],
+  "intents": [
+    "action"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "comparisonTarget": {
+        "type": "object"
+      },
+      "dimensions": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "entities": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "filters": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "limit": {
+        "type": "number"
+      },
+      "metrics": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "objective": {
+        "type": "string"
+      },
+      "orderBy": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "time": {
+        "type": "object"
+      }
+    },
+    "required": [
+      "dimensions",
+      "entities",
+      "filters",
+      "metrics",
+      "objective",
+      "orderBy"
+    ],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object"
+  },
+  "requiredPermissions": [
+    "core:brain:use",
+    "core:customer:view"
+  ],
+  "allowedRoles": [
+    "customer_service",
+    "receptionist",
+    "store_manager"
+  ],
+  "readOnly": false,
+  "sideEffect": true,
+  "riskLevel": "high",
+  "requiresConfirmation": true,
+  "idempotency": "required",
+  "timeoutMs": 10000,
+  "grounding": "preview_action",
+  "examples": [
+    "给指定客户准备一个待确认跟进任务",
+    "生成客户回访任务预览"
+  ],
+  "negativeExamples": [
+    "操作其他门店客户",
+    "直接创建客户任务不要确认",
+    "只写一段通用回访文案"
+  ],
+  "synonyms": [
+    "跟进任务方案",
+    "客户跟进预览",
+    "客户回访任务草稿"
+  ],
+  "successSchema": {
+    "type": "object"
+  },
+  "definitionRefs": [
+    {
+      "definitionId": 43,
+      "versionId": 43,
+      "definitionKey": "entity.customer",
+      "version": 1,
+      "definitionFingerprint": "e2a455e1bb6fca496a965db988e5547f4bee98a5e43f4c0daf9a04777a0e908e",
+      "sourceFingerprint": "528c308346ae2b37db26eae2c35397fd02d981182ceb30d2378fb588e294ce04"
+    }
+  ]
+}

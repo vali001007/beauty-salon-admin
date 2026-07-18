@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CommissionService } from '../commission/commission.service.js';
 import { deductStockItems } from '../common/inventory-stock-deduction.js';
@@ -342,10 +343,19 @@ export class CardsService {
     if (!Number.isFinite(times) || times <= 0) throw new BadRequestException('核销次数必须大于 0');
 
     return this.prisma.$transaction(async (tx) => {
-      const customerCard = await tx.customerCard.findFirst({
+      let customerCard = await tx.customerCard.findFirst({
         where: customerCardId
           ? { id: customerCardId, status: 'active' }
           : { customerId: Number(data.customerId), cardName: data.cardName, status: 'active' },
+        include: {
+          customer: { select: { name: true, storeId: true } },
+          card: { select: { id: true, name: true, price: true, totalTimes: true, projects: true } },
+        },
+      });
+      if (!customerCard) throw new NotFoundException('未找到有效次卡');
+      await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "CustomerCard" WHERE "id" = ${customerCard.id} FOR UPDATE`);
+      customerCard = await tx.customerCard.findFirst({
+        where: { id: customerCard.id, status: 'active' },
         include: {
           customer: { select: { name: true, storeId: true } },
           card: { select: { id: true, name: true, price: true, totalTimes: true, projects: true } },
@@ -387,19 +397,24 @@ export class CardsService {
       const projectTotalTimes = Number((matchedProject as any).timesPerCard ?? (matchedProject as any).totalCount ?? customerCard.totalTimes ?? 0);
       const usedProjectTimes = await tx.cardUsageRecord.aggregate({
         where: {
-          customerId: customerCard.customerId,
-          cardName: customerCard.cardName,
+          customerCardId: customerCard.id,
           projectName: matchedProjectName,
-          verifiedAt: {
-            gte: customerCard.createdAt,
-            lte: customerCard.expiryDate,
-          },
         },
         _sum: { times: true },
       });
       const projectRemainingTimes = Math.max(projectTotalTimes - Number(usedProjectTimes._sum.times ?? 0), 0);
       if (projectRemainingTimes < times) {
         throw new BadRequestException('该项目剩余次数不足');
+      }
+
+      const beautician = data.beauticianId
+        ? await tx.beautician.findFirst({
+            where: { id: data.beauticianId, storeId: customerCard.customer.storeId, status: 'active' },
+            select: { id: true, levelId: true, userId: true },
+          })
+        : null;
+      if (data.beauticianId && !beautician) {
+        throw new BadRequestException('服务人员不属于当前门店或未启用');
       }
 
       const updatedCard = await tx.customerCard.update({
@@ -451,7 +466,7 @@ export class CardsService {
           sourceOrderItemId: customerCard.sourceOrderItemId,
           pricingSnapshot,
           operatorId: data.operatorId,
-          beauticianId: data.beauticianId,
+          beauticianId: beautician?.id,
           deviceId: data.deviceId,
         },
       });
@@ -466,11 +481,7 @@ export class CardsService {
         remark: data.remark,
       });
 
-      if (data.beauticianId && recognizedAmount > 0) {
-        const beautician = await tx.beautician.findFirst({
-          where: { id: data.beauticianId, storeId: customerCard.customer.storeId, status: 'active' },
-          select: { id: true, levelId: true, userId: true },
-        });
+      if (beautician && recognizedAmount > 0) {
         if (beautician?.userId) {
           await this.commissionService.calculateCommission(
             {

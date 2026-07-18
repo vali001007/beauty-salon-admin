@@ -19,6 +19,7 @@ describe('BrainCapabilityGatewayService', () => {
     expect(service.failureRecovery('create_reservation')).toBe('manual_reconcile');
     expect(service.failureRecovery('create_purchase_order')).toBe('manual_reconcile');
     expect(service.failureRecovery('create_marketing_touch_draft')).toBe('manual_reconcile');
+    expect(service.failureRecovery('verify_card_usage')).toBe('manual_reconcile');
   });
 
   it('canonicalizes approved arguments and rejects model confirmation claims', () => {
@@ -160,5 +161,41 @@ describe('BrainCapabilityGatewayService', () => {
 
     expect(terminal.completeTask).toHaveBeenCalledWith(41, expect.objectContaining({ remark: '客户肤况稳定' }));
     expect(receipt).toMatchObject({ businessObjectType: 'service_task', businessObjectId: 41 });
+  });
+
+  it('executes card usage through CardsService with the current operator and critical permission', async () => {
+    const cards = {
+      verifyCardUsage: jest.fn().mockResolvedValue({ id: 71, remainingTimes: 3, projectName: '深层补水护理' }),
+    };
+    const service = new BrainCapabilityGatewayService(undefined, undefined, undefined, undefined, cards as never);
+
+    const receipt = await service.execute({
+      skillKey: 'verify_card_usage',
+      payload: {
+        customerCardId: 66,
+        customerId: 10,
+        projectId: 101,
+        projectName: '深层补水护理',
+        times: 1,
+        beauticianId: 2,
+      },
+      context: { userId: 9, storeId: 6, permissions: ['core:order:card-usage'] },
+    });
+
+    expect(service.resolve('verify_card_usage')).toMatchObject({ riskLevel: 'critical', permission: 'core:order:card-usage' });
+    expect(cards.verifyCardUsage).toHaveBeenCalledWith(expect.objectContaining({
+      customerCardId: 66,
+      customerId: 10,
+      projectId: 101,
+      times: 1,
+      beauticianId: 2,
+      operatorId: 9,
+    }));
+    expect(receipt).toMatchObject({
+      capabilityKey: 'verify_card_usage',
+      businessObjectType: 'card_usage_record',
+      businessObjectId: 71,
+      message: '次卡核销成功，核销后剩余 3 次。',
+    });
   });
 });

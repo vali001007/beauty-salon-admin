@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AiModule } from '../ai/ai.module.js';
+import { CardsModule } from '../cards/cards.module.js';
 import { InventoryModule } from '../inventory/inventory.module.js';
 import { MarketingModule } from '../marketing/marketing.module.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
@@ -134,6 +135,7 @@ import { CustomerFeedbackModule } from '../customer-feedback/customer-feedback.m
 @Module({
   imports: [
     AiModule,
+    CardsModule,
     PrismaModule,
     ReservationsModule,
     InventoryModule,

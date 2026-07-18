@@ -24,6 +24,7 @@ interface ActionCapabilityDefinition {
 
 const CAPABILITIES: Record<string, ActionCapabilityDefinition> = {
   reservation_action_preview: { adapterKey: 'front_desk', role: 'receptionist', domain: 'front_desk' },
+  card_usage_action_preview: { adapterKey: 'front_desk', role: 'receptionist', domain: 'front_desk' },
   customer_follow_up_draft: { adapterKey: 'customer_service', role: 'customer_service', domain: 'customer_service' },
   purchase_order_draft: { adapterKey: 'inventory_procurement', role: 'inventory', domain: 'inventory_procurement' },
   marketing_touch_draft: { adapterKey: 'marketing_growth', role: 'marketing', domain: 'marketing_growth' },
@@ -55,6 +56,26 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
   })
   reservationActionPreview(args: BrainCapabilityToolArgs, input: BrainCapabilityExecutionInput) {
     return this.executeDeclared('reservation_action_preview', args, input);
+  }
+
+  @BrainCapability({
+    key: 'card_usage_action_preview',
+    name: '次卡核销预览',
+    description: '解析当前门店内的唯一客户、有效次卡、卡内项目、核销次数和服务美容师，生成关键风险待确认预览。确认后复用统一 CardsService 完成扣次、核销流水、耗材、收入和提成，不直接修改卡余额。',
+    intents: ['action'],
+    examples: ['给张女士的补水次卡核销深层补水护理 1 次，服务人员是王美容师', '预览为指定客户划扣一次卡项并归属到指定美容师'],
+    negativeExamples: ['直接核销不要确认', '核销其他门店客户的卡', '没有客户卡项和服务人员也直接扣次', '只查询客户次卡剩余次数'],
+    synonyms: ['次卡扣次预览', '卡项核销确认', '疗程卡划扣预览'],
+    businessDefinitionKeys: ['entity.customer', 'entity.project', 'entity.beautician'],
+    readOnly: false,
+    storeScope: 'required',
+    permissions: ['core:brain:use', 'core:order:card-usage'],
+    allowedRoles: ['receptionist', 'store_manager'],
+    requiresConfirmation: true,
+    idempotency: 'required',
+  })
+  cardUsageActionPreview(args: BrainCapabilityToolArgs, input: BrainCapabilityExecutionInput) {
+    return this.executeDeclared('card_usage_action_preview', args, input);
   }
 
   @BrainCapability({

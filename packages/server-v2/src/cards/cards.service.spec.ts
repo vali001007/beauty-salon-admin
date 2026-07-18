@@ -12,6 +12,7 @@ describe('CardsService inventory consumption', () => {
       calculateCommission: jest.fn(),
     };
     tx = {
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 66 }]),
       customerCard: {
         findFirst: jest.fn().mockResolvedValue({
           id: 66,
@@ -80,6 +81,8 @@ describe('CardsService inventory consumption', () => {
       where: { id: 66 },
       data: { remainingTimes: 4 },
     });
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(tx.cardUsageRecord.aggregate.mock.invocationCallOrder[0]);
     expect(tx.projectBomItem.findMany).toHaveBeenCalledWith({
       where: { projectId: 101 },
       select: { productId: true, standardQty: true },
@@ -161,11 +164,7 @@ describe('CardsService inventory consumption', () => {
       select: { id: true, name: true },
     });
     expect(tx.cardUsageRecord.aggregate).toHaveBeenCalledWith({
-      where: expect.objectContaining({
-        customerId: 10,
-        cardName: '补水护理 10 次卡',
-        projectName: '深层补水护理',
-      }),
+      where: { customerCardId: 66, projectName: '深层补水护理' },
       _sum: { times: true },
     });
     expect(tx.cardUsageRecord.create).toHaveBeenCalledWith({
@@ -240,6 +239,21 @@ describe('CardsService inventory consumption', () => {
       }),
       tx,
     );
+  });
+
+  it('rejects a beautician outside the card store before writing the usage record', async () => {
+    tx.beautician.findFirst.mockResolvedValue(null);
+
+    await expect(service.verifyCardUsage({
+      customerCardId: 66,
+      projectName: '深层补水护理',
+      consumedTimes: 1,
+      operatorId: 7,
+      beauticianId: 99,
+    })).rejects.toThrow('服务人员不属于当前门店或未启用');
+
+    expect(tx.cardUsageRecord.create).not.toHaveBeenCalled();
+    expect(tx.customerCard.update).not.toHaveBeenCalled();
   });
 });
 
