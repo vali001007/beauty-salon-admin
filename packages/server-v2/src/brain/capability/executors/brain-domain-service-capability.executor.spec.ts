@@ -1852,6 +1852,38 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     expect(result.metadata).toMatchObject({ answerScope: 'reception_capacity_diagnosis', overloaded: true, availableStaffCount: 0 });
   });
 
+  it('returns the pending-arrival customer list instead of only an appointment count', async () => {
+    const skillRuntime = {
+      buildReceptionOperationsSnapshot: jest.fn().mockResolvedValue({
+        ...reception(2),
+        pendingArrival: 2,
+        pendingCustomers: [
+          { customerName: '王女士', startTime: '14:00', projectName: '补水护理', status: 'confirmed' },
+          { customerName: '李女士', startTime: '15:00', projectName: '射频护理', status: 'pending' },
+        ],
+        arrivedCustomers: [],
+        resources: [],
+      }),
+      buildReceptionServiceOverrunAnalysis: jest.fn().mockResolvedValue({ overrunCount: 0, impactedCount: 0, items: [] }),
+      listReceptionReservations: jest.fn().mockResolvedValue({ count: 2, reservations: [] }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, new BrainTimeRangeParserService());
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'front_desk_operations_overview', name: '前台现场运营概览' },
+      context: { userId: 31, storeId: 6, visibleStoreIds: [6], roles: ['receptionist'], permissions: ['*'], deniedPermissions: [], requestId: 'pending-arrival-list-test', timezone: 'Asia/Shanghai' },
+      runId: 74,
+      question: '帮我搜一下今天预约了但还没来的客人',
+      answerShape: 'list',
+      args: { objective: '查询待到店客户名单', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('14:00 王女士，补水护理');
+    expect(result.answer).toContain('15:00 李女士，射频护理');
+    expect(result.metadata).toMatchObject({ answerScope: 'pending_arrival_customer_list', pendingArrival: 2 });
+    expect(result.blocks).toEqual([expect.objectContaining({ kind: 'table' })]);
+  });
+
   it('returns inventory aging candidates without expanding into the generic inventory overview', async () => {
     const skillRuntime = {
       buildInventoryAgingAnalysis: jest.fn().mockResolvedValue({

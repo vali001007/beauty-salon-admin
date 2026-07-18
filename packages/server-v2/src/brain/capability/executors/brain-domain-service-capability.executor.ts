@@ -239,12 +239,12 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
   @BrainCapability({
     key: 'front_desk_operations_overview',
     name: '前台现场运营概览',
-    description: '组合预约到店、待到店客户、到店率、爽约率、员工忙闲、服务超时和受影响预约，返回前台可执行的现场运营概览。',
+    description: '查询当前门店预约现场事实，支持待到店客户名单、已到店客户名单、预约排期、员工忙闲、到店率、爽约率、服务超时和受影响预约。名单题必须返回客户、时间和项目，不用预约总数替代。',
     intents: ['query', 'diagnosis'],
-    examples: ['今天前台现场情况怎么样', '明天下午有哪些预约，员工忙不忙', '有哪些服务超时会影响后面的客户', '这周预约爽约率高不高', '今天有没有超过接待能力的情况'],
+    examples: ['今天前台现场情况怎么样', '帮我搜一下今天预约了但还没来的客人', '帮我看一下今天所有到店客人的基本信息', '明天下午有哪些预约，员工忙不忙', '有哪些服务超时会影响后面的客户', '这周预约爽约率高不高', '今天有没有超过接待能力的情况'],
     negativeExamples: ['直接替我修改客户预约', '查询其他门店的预约情况', '判断客户是否因为等待时间长而离开'],
-    synonyms: ['前台概览', '现场运营', '预约到店情况', '预约爽约率', '到店率', '员工忙闲', '服务超时', '接待能力', '接待承载', '超负荷接待'],
-    businessDefinitionKeys: ['entity.reservation'],
+    synonyms: ['前台概览', '现场运营', '预约到店情况', '待到店客户', '已到店客户', '预约爽约率', '到店率', '员工忙闲', '服务超时', '接待能力', '接待承载', '超负荷接待'],
+    businessDefinitionKeys: ['entity.reservation', 'entity.customer', 'dimension.customerName', 'dimension.projectName'],
     readOnly: true,
     storeScope: 'required',
     permissions: ['core:brain:use', 'core:store:reservations'],
@@ -259,12 +259,23 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
   @BrainCapability({
     key: 'beautician_service_overview',
     name: '美容师个人服务概览',
-    description: '基于当前登录美容师身份，组合服务安排、客户注意事项、个人服务完成情况、业绩、提成和项目排行。',
+    description: '仅基于当前登录账号绑定的美容师身份，查询个人预约客户、时间、项目、客户注意事项、服务完成情况、个人业绩、提成和项目排行。未绑定美容师档案时失败关闭，绝不退化为全店美容师或全店预约数据。',
     intents: ['query', 'diagnosis', 'recommendation'],
-    examples: ['我今天有哪些客户要服务', '本月我的服务和业绩怎么样', '下一位客户有哪些注意事项'],
+    examples: ['我今天有几个客人，分别几点', '下一个客人是谁，做什么项目', '我今天第一个客人几点来', '我今天有没有空档，几点到几点', '下一个客人上次做了什么，有没有什么特殊要求', '今天我总共要服务几个小时', '我今天的客人里有没有首次来的新客', '下一个客人有没有皮肤过敏或者什么注意事项', '帮我看一下今天客人的护理历史', '本月我的服务和业绩怎么样', '这个月我的提成有多少', '下一位客户有哪些注意事项'],
     negativeExamples: ['查看其他美容师的客户过敏史', '直接替我修改客户护理记录'],
-    synonyms: ['我的服务安排', '美容师工作台', '我的业绩', '下一位客户', '服务注意事项'],
-    businessDefinitionKeys: ['entity.reservation', 'metric.staff_performance_score'],
+    synonyms: ['我的服务安排', '美容师工作台', '我的预约客户', '我的业绩', '我的提成', '下一位客户', '服务注意事项', '个人项目排行'],
+    businessDefinitionKeys: [
+      'entity.reservation',
+      'entity.customer',
+      'entity.project',
+      'entity.beautician',
+      'dimension.customerName',
+      'dimension.projectName',
+      'metric.staff_service_count',
+      'metric.staff_unique_customer_count',
+      'metric.staff_commission_amount',
+      'metric.staff_performance_score',
+    ],
     readOnly: true,
     storeScope: 'required',
     permissions: ['core:brain:use', 'core:store:reservations', 'core:beautician-performance:view'],
@@ -387,7 +398,13 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
 
   @BrainCapability({
     key: 'reservation_list',
-    businessDefinitionKeys: ['entity.reservation'],
+    name: '门店预约清单',
+    description: '按服务端解析的时间范围列出当前门店有效预约，返回日期、时间、客户、项目和美容师。用于预约名单、下一个预约和某时段排期查询，不执行创建、改期或取消。',
+    intents: ['query'],
+    examples: ['今天有哪些预约', '明天下午预约清单', '现在下一个预约是谁，什么时候', '张美丽的预约是几点，做什么项目', '帮我看一下今天赵美容师的预约安排'],
+    negativeExamples: ['直接帮我改期', '取消这个预约', '查询其他门店预约'],
+    synonyms: ['预约清单', '预约排期', '下一个预约', '预约安排', '时段预约'],
+    businessDefinitionKeys: ['entity.reservation', 'entity.customer', 'entity.project', 'entity.beautician', 'dimension.customerName', 'dimension.projectName'],
     readOnly: true,
     storeScope: 'required',
     permissions: ['core:brain:use', 'core:store:reservations'],
@@ -1461,6 +1478,44 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           { sourceType: 'db_skill', sourceId: 'reception_service_overrun_analysis', label: '服务超时影响分析' },
           { sourceType: 'db_skill', sourceId: 'reception_reservation_schedule', label: '门店预约排期' },
         ];
+        if (/(?:预约了|有预约|预约).*(?:还没来|未到店|待到店)|(?:还没来|未到店|待到店).*(?:客人|客户)/.test(input.question)) {
+          const rows = snapshot.pendingCustomers.slice(0, this.resolveLimit(input.args.limit, 20));
+          return this.applyDataQualityGuard({
+            status: 'completed',
+            answer: rows.length
+              ? `${range.label}有 ${snapshot.pendingArrival} 位已预约待到店客户：${rows.map((item, index) => `${index + 1}. ${item.startTime} ${item.customerName}，${item.projectName}`).join('；')}。`
+              : `${range.label}没有已预约待到店客户。`,
+            citations,
+            grounding: 'db_skill',
+            blocks: [{ kind: 'table', rows, columns: ['startTime', 'customerName', 'projectName', 'status'], citationIds: ['reception_operations_snapshot'] }],
+            metadata: {
+              capabilityKey: 'front_desk_operations_overview',
+              answerScope: 'pending_arrival_customer_list',
+              rangeLabel: range.label,
+              pendingArrival: snapshot.pendingArrival,
+              completionCriteria: ['pending_arrival_customers_loaded'],
+            },
+          }, dataQuality);
+        }
+        if (/(?:所有|全部|今天).*(?:到店客人|到店客户).*(?:基本信息|名单|情况)|(?:到店客人|到店客户).*(?:基本信息|名单)/.test(input.question)) {
+          const rows = snapshot.arrivedCustomers.slice(0, this.resolveLimit(input.args.limit, 20));
+          return this.applyDataQualityGuard({
+            status: 'completed',
+            answer: rows.length
+              ? `${range.label}已到店 ${snapshot.checkedIn} 位客户：${rows.map((item, index) => `${index + 1}. ${item.startTime} ${item.customerName}，${item.projectName}`).join('；')}。`
+              : `${range.label}没有已记录到店客户。`,
+            citations,
+            grounding: 'db_skill',
+            blocks: [{ kind: 'table', rows, columns: ['startTime', 'customerName', 'projectName', 'status'], citationIds: ['reception_operations_snapshot'] }],
+            metadata: {
+              capabilityKey: 'front_desk_operations_overview',
+              answerScope: 'arrived_customer_list',
+              rangeLabel: range.label,
+              checkedIn: snapshot.checkedIn,
+              completionCriteria: ['arrived_customers_loaded'],
+            },
+          }, dataQuality);
+        }
         if (/(?:超过|超出|超负荷|超载).*(?:接待能力|接待承载)|(?:接待能力|接待承载).*(?:不足|不够|超过|超出)/.test(input.question)) {
           const availableStaffCount = snapshot.staff.filter((staff) => staff.available && !staff.onTimeOff).length;
           const overloaded = overrun.impactedCount > 0 || (snapshot.pendingArrival > 0 && availableStaffCount === 0);

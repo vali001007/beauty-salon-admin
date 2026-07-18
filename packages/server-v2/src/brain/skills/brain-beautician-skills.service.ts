@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 
 export interface BeauticianServiceSummary {
@@ -32,10 +32,11 @@ export class BrainBeauticianSkillsService {
     timezone?: string;
   }): Promise<BeauticianServiceSummary> {
     const beauticianId = input.beauticianId ?? (await this.findBeauticianId(input.storeId, input.userId));
+    if (!beauticianId) throw new ForbiddenException('beautician_identity_not_linked');
     const reservations = await this.prisma.reservation.findMany({
       where: {
         storeId: input.storeId,
-        ...(beauticianId ? { beauticianId } : {}),
+        beauticianId,
         date: { gte: input.startDate, lte: input.endDate },
         status: { notIn: ['cancelled', 'canceled'] },
       },

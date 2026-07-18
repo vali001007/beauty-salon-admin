@@ -49,6 +49,7 @@ import { BrainEvalExpectationResolverService } from '../src/brain/eval/brain-eva
 import { BrainCompletionGraderService } from '../src/brain/eval/brain-completion-grader.service.js';
 import { statusForLayerFailure } from '../src/brain/eval/brain-eval-status.js';
 import { parseAmiBrainEvalOptions } from '../src/brain/eval/ami-brain-eval-options.js';
+import { resolveBrainEvalRoleUsers } from '../src/brain/eval/brain-eval-role-user-resolver.js';
 import {
   finalizeAmiBrainEvalCheckpoint,
   loadAmiBrainEvalCheckpoint,
@@ -246,6 +247,7 @@ async function main() {
     const evaluationRoleKeys = [...new Set(
       questions.map((question) => resolveBrainEvalQuestionRole(options.evaluationRoleKey, question.persona)),
     )].sort();
+    const evaluationUserIds = await resolveBrainEvalRoleUsers(prisma, runtimeStoreId, evaluationRoleKeys);
 
     const startedAt = new Date();
     const records = new Array<AmiBrainEvalRecord>(questions.length);
@@ -296,6 +298,7 @@ async function main() {
             question,
             runtimeStoreId,
             options.evaluationRoleKey,
+            evaluationUserIds,
             permissionsByRole,
             releaseSnapshot,
             definitions,
@@ -380,6 +383,7 @@ async function main() {
           ? 'active_backend_role_catalog_plus_candidate_minimum_permissions'
           : 'active_backend_role_catalog',
         evaluationRoleKeys,
+        evaluationUserIds,
         permissionCatalogRoleKeys: [...permissionsByRole.keys()].sort(),
         scoring: {
           legacyUsableWithCitation: '旧口径：Ami Brain 返回 completed 且包含 metric citation。',
@@ -437,6 +441,7 @@ async function runOne(
   question: BrainEvalQuestionCase,
   storeId: number,
   evaluationRoleKey: string,
+  evaluationUserIds: Record<string, number>,
   permissionsByRole: BrainEvalRolePermissionMap,
   releaseSnapshot?: BrainEvaluationReleaseSnapshot,
   definitions?: BusinessDefinitionSnapshotInput,
@@ -446,6 +451,7 @@ async function runOne(
   try {
     const evaluationRole = resolveBrainEvalQuestionRole(evaluationRoleKey, question.persona);
     const context = buildEvalContext(
+      evaluationUserIds[evaluationRole] ?? 1,
       storeId,
       question.id,
       evaluationRole,
@@ -699,6 +705,7 @@ async function readRunOutput(prisma: PrismaService, runId: number) {
 }
 
 function buildEvalContext(
+  userId: number,
   storeId: number,
   questionId: string,
   role: string,
@@ -711,7 +718,7 @@ function buildEvalContext(
     releaseSnapshot?.capabilityCandidates ?? [],
   );
   return {
-    userId: 1,
+    userId,
     storeId,
     visibleStoreIds: [storeId],
     roles: [role],

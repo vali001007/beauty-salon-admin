@@ -190,6 +190,18 @@ describe('Brain role skills', () => {
     expect(service.composeFollowUpAdvice({ customerName: '李女士', projectName: '补水护理' })).toContain('7 天内安排一次跟进');
   });
 
+  it('fails closed when the current user is not linked to an active beautician profile', async () => {
+    const prisma = {
+      beautician: { findFirst: jest.fn().mockResolvedValue(null) },
+      reservation: { findMany: jest.fn() },
+    };
+    const service = new BrainBeauticianSkillsService(prisma as any);
+
+    await expect(service.buildTodayServiceSummary({ storeId: 6, userId: 1, startDate, endDate }))
+      .rejects.toThrow('beautician_identity_not_linked');
+    expect(prisma.reservation.findMany).not.toHaveBeenCalled();
+  });
+
   it('exposes six role skills through runtime', async () => {
     const runtime = new BrainSkillRuntimeService(
       { listEnabledSkills: jest.fn().mockResolvedValue([]) } as any,
