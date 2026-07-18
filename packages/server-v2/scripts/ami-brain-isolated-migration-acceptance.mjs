@@ -92,12 +92,7 @@ function run(command, args, options = {}) {
   const stderr = result.stderr?.trim() ?? '';
   if (result.error || result.status !== 0) {
     throw new Error(
-      [
-        `Command failed: ${command} ${args.join(' ')}`,
-        result.error?.message,
-        stdout,
-        stderr,
-      ]
+      [`Command failed: ${command} ${args.join(' ')}`, result.error?.message, stdout, stderr]
         .filter(Boolean)
         .join('\n'),
     );
@@ -126,10 +121,14 @@ function validateOptions() {
   const port = Number(argValue('port') ?? defaultPort);
   const baselineCount = Number(argValue('baseline-count') ?? defaultBaselineCount);
   if (!/^ami-brain-migration-[a-z0-9-]+$/.test(container)) {
-    throw new Error('Container name must start with ami-brain-migration- and contain lowercase letters, digits or hyphens.');
+    throw new Error(
+      'Container name must start with ami-brain-migration- and contain lowercase letters, digits or hyphens.',
+    );
   }
-  if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('Port must be an integer from 1024 to 65535.');
-  if (!Number.isInteger(baselineCount) || baselineCount < 1) throw new Error('baseline-count must be a positive integer.');
+  if (!Number.isInteger(port) || port < 1024 || port > 65535)
+    throw new Error('Port must be an integer from 1024 to 65535.');
+  if (!Number.isInteger(baselineCount) || baselineCount < 1)
+    throw new Error('baseline-count must be a positive integer.');
   return { container, port, baselineCount };
 }
 
@@ -144,12 +143,14 @@ function ensureContainerAbsent(container) {
 
 function waitForPostgres(container) {
   const deadline = Date.now() + 60000;
+  let consecutiveReadyChecks = 0;
   while (Date.now() < deadline) {
     const result = spawnSync('docker', ['exec', container, 'pg_isready', '-U', postgresUser, '-d', 'postgres'], {
       encoding: 'utf8',
       timeout: 5000,
     });
-    if (result.status === 0) return;
+    consecutiveReadyChecks = result.status === 0 ? consecutiveReadyChecks + 1 : 0;
+    if (consecutiveReadyChecks >= 2) return;
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000);
   }
   throw new Error('PostgreSQL container did not become ready within 60 seconds.');
@@ -233,6 +234,18 @@ async function seedIncrementalBaseline(connectionString) {
         900001, 900001, 900001, 'manual', 'Baseline Follow-up', 'pending', NOW(), NOW()
       );
 
+      INSERT INTO "SupplySupplier" (
+        "id", "name", "qualificationStatus", "status", "createdAt", "updatedAt"
+      ) VALUES (
+        900001, 'Baseline Supply Supplier', 'approved', 'active', NOW(), NOW()
+      );
+
+      INSERT INTO "ProcurementOrder" (
+        "id", "orderNo", "storeId", "supplierId", "status", "totalAmount", "sourceType", "createdAt", "updatedAt"
+      ) VALUES (
+        900001, 'SPO-BASELINE-900001', 900001, 900001, 'pending_supplier_confirm', 200, 'manual', NOW(), NOW()
+      );
+
       INSERT INTO "brain_store_operating_target" (
         "id", "storeId", "periodType", "periodStart", "periodEnd", "revenueTarget", "status", "createdAt", "updatedAt"
       ) VALUES (
@@ -253,11 +266,11 @@ async function migrationHistory(connectionString, inventory) {
     const checksumMismatches = result.rows
       .filter((row) => expected.get(row.migration_name) !== row.checksum)
       .map((row) => row.migration_name);
-    const failed = result.rows
-      .filter((row) => !row.finished_at || row.rolled_back_at)
-      .map((row) => row.migration_name);
+    const failed = result.rows.filter((row) => !row.finished_at || row.rolled_back_at).map((row) => row.migration_name);
     const unexpected = result.rows.filter((row) => !expected.has(row.migration_name)).map((row) => row.migration_name);
-    const missing = inventory.migrations.filter((item) => !result.rows.some((row) => row.migration_name === item.name)).map((item) => item.name);
+    const missing = inventory.migrations
+      .filter((item) => !result.rows.some((row) => row.migration_name === item.name))
+      .map((item) => item.name);
     return {
       appliedCount: result.rows.length,
       checksumMismatches,
@@ -287,6 +300,8 @@ async function structuralEvidence(connectionString) {
       'PurchaseOrder',
       'Reservation',
       'TerminalFollowUpTask',
+      'ProcurementOrder',
+      'ProcurementReceipt',
     ];
     const tables = await client.query(
       `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY($1::text[])`,
@@ -302,6 +317,13 @@ async function structuralEvidence(connectionString) {
       ['Reservation', 'bookingSource'],
       ['TerminalFollowUpTask', 'idempotencyKey'],
       ['TerminalFollowUpTask', 'creationFingerprint'],
+      ['ProcurementOrder', 'idempotencyKey'],
+      ['ProcurementOrder', 'creationFingerprint'],
+      ['ProcurementOrder', 'batchIdempotencyKey'],
+      ['ProcurementOrder', 'batchCreationFingerprint'],
+      ['ProcurementReceipt', 'idempotencyKey'],
+      ['ProcurementReceipt', 'creationFingerprint'],
+      ['ProcurementReceipt', 'items'],
       ['store_metric_target', 'definitionVersion'],
       ['customer_service_feedback', 'rating'],
       ['customer_waiting_episode', 'outcome'],
@@ -315,15 +337,23 @@ async function structuralEvidence(connectionString) {
     const indexes = await client.query(`
       SELECT indexname FROM pg_indexes
       WHERE schemaname = 'public'
-        AND indexname IN ('CardUsageRecord_idempotencyKey_key', 'PurchaseOrder_idempotencyKey_key', 'Reservation_idempotencyKey_key', 'TerminalFollowUpTask_idempotencyKey_key')
+        AND indexname IN ('CardUsageRecord_idempotencyKey_key', 'PurchaseOrder_idempotencyKey_key', 'Reservation_idempotencyKey_key', 'TerminalFollowUpTask_idempotencyKey_key', 'ProcurementOrder_idempotencyKey_key', 'ProcurementOrder_batchIdempotencyKey_idx', 'ProcurementReceipt_idempotencyKey_key')
     `);
     const indexSet = new Set(indexes.rows.map((row) => row.indexname));
     return {
       missingTables: requiredTables.filter((name) => !foundTables.has(name)),
-      missingColumns: requiredColumns.map(([table, column]) => `${table}.${column}`).filter((name) => !columnSet.has(name)),
-      missingIndexes: ['CardUsageRecord_idempotencyKey_key', 'PurchaseOrder_idempotencyKey_key', 'Reservation_idempotencyKey_key', 'TerminalFollowUpTask_idempotencyKey_key'].filter(
-        (name) => !indexSet.has(name),
-      ),
+      missingColumns: requiredColumns
+        .map(([table, column]) => `${table}.${column}`)
+        .filter((name) => !columnSet.has(name)),
+      missingIndexes: [
+        'CardUsageRecord_idempotencyKey_key',
+        'PurchaseOrder_idempotencyKey_key',
+        'Reservation_idempotencyKey_key',
+        'TerminalFollowUpTask_idempotencyKey_key',
+        'ProcurementOrder_idempotencyKey_key',
+        'ProcurementOrder_batchIdempotencyKey_idx',
+        'ProcurementReceipt_idempotencyKey_key',
+      ].filter((name) => !indexSet.has(name)),
     };
   });
 }
@@ -332,7 +362,8 @@ async function expectConstraintViolation(client, sql, expectedConstraint) {
   try {
     await client.query(sql);
   } catch (error) {
-    if (error?.constraint === expectedConstraint || String(error?.message ?? '').includes(expectedConstraint)) return true;
+    if (error?.constraint === expectedConstraint || String(error?.message ?? '').includes(expectedConstraint))
+      return true;
     throw error;
   }
   return false;
@@ -340,7 +371,9 @@ async function expectConstraintViolation(client, sql, expectedConstraint) {
 
 async function incrementalDataEvidence(connectionString) {
   return withClient(connectionString, async (client) => {
-    const roles = await client.query(`SELECT "key", "permissions" FROM "Role" WHERE "key" IN ('store_manager', 'beautician') ORDER BY "key"`);
+    const roles = await client.query(
+      `SELECT "key", "permissions" FROM "Role" WHERE "key" IN ('store_manager', 'beautician') ORDER BY "key"`,
+    );
     const metric = await client.query(`
       SELECT "metricKey", "periodType", "targetValue"::text AS "targetValue"
       FROM "store_metric_target"
@@ -375,6 +408,15 @@ async function incrementalDataEvidence(connectionString) {
       FROM "TerminalFollowUpTask"
       WHERE "id" = 900001
     `);
+    const procurementOrder = await client.query(`
+      SELECT COUNT(*)::int AS count,
+             COUNT("idempotencyKey")::int AS "idempotencyPopulated",
+             COUNT("creationFingerprint")::int AS "fingerprintPopulated",
+             COUNT("batchIdempotencyKey")::int AS "batchKeyPopulated",
+             MIN("status") AS status
+      FROM "ProcurementOrder"
+      WHERE "id" = 900001
+    `);
 
     await client.query(`
       INSERT INTO "customer_service_feedback" ("storeId", "feedbackType", "rating", "content")
@@ -382,8 +424,12 @@ async function incrementalDataEvidence(connectionString) {
       INSERT INTO "customer_waiting_episode" ("storeId", "status", "expectedWaitMinutes")
       VALUES (900001, 'waiting', 10);
     `);
-    const feedbackCount = await client.query(`SELECT COUNT(*)::int AS count FROM "customer_service_feedback" WHERE "storeId" = 900001`);
-    const waitingCount = await client.query(`SELECT COUNT(*)::int AS count FROM "customer_waiting_episode" WHERE "storeId" = 900001`);
+    const feedbackCount = await client.query(
+      `SELECT COUNT(*)::int AS count FROM "customer_service_feedback" WHERE "storeId" = 900001`,
+    );
+    const waitingCount = await client.query(
+      `SELECT COUNT(*)::int AS count FROM "customer_waiting_episode" WHERE "storeId" = 900001`,
+    );
     const feedbackConstraintRejected = await expectConstraintViolation(
       client,
       `INSERT INTO "customer_service_feedback" ("storeId", "feedbackType", "rating") VALUES (900001, 'satisfaction', 6)`,
@@ -449,7 +495,9 @@ async function incrementalDataEvidence(connectionString) {
     await client.query('BEGIN');
     let followUpTaskUniqueRejected = false;
     try {
-      await client.query(`UPDATE "TerminalFollowUpTask" SET "idempotencyKey" = 'follow-up-r234-key' WHERE "id" = 900001`);
+      await client.query(
+        `UPDATE "TerminalFollowUpTask" SET "idempotencyKey" = 'follow-up-r234-key' WHERE "id" = 900001`,
+      );
       await client.query(`
         INSERT INTO "TerminalFollowUpTask" (
           "storeId", "customerId", "source", "title", "status", "idempotencyKey", "creationFingerprint", "createdAt", "updatedAt"
@@ -463,6 +511,48 @@ async function incrementalDataEvidence(connectionString) {
       await client.query('ROLLBACK');
     }
 
+    await client.query('BEGIN');
+    let procurementOrderUniqueRejected = false;
+    try {
+      await client.query(
+        `UPDATE "ProcurementOrder" SET "idempotencyKey" = 'supply-order-r236-key' WHERE "id" = 900001`,
+      );
+      await client.query(`
+        INSERT INTO "ProcurementOrder" (
+          "orderNo", "storeId", "supplierId", "status", "totalAmount", "sourceType", "idempotencyKey", "creationFingerprint", "createdAt", "updatedAt"
+        ) VALUES (
+          'SPO-DUPLICATE-R236', 900001, 900001, 'pending_supplier_confirm', 200, 'manual', 'supply-order-r236-key', repeat('a', 64), NOW(), NOW()
+        )
+      `);
+    } catch (error) {
+      procurementOrderUniqueRejected = error?.constraint === 'ProcurementOrder_idempotencyKey_key';
+    } finally {
+      await client.query('ROLLBACK');
+    }
+
+    await client.query('BEGIN');
+    let procurementReceiptUniqueRejected = false;
+    try {
+      await client.query(`
+        INSERT INTO "ProcurementReceipt" (
+          "orderId", "storeId", "idempotencyKey", "creationFingerprint", "items", "createdAt", "updatedAt"
+        ) VALUES (
+          900001, 900001, 'supply-receipt-r236-key', repeat('b', 64), '[]'::jsonb, NOW(), NOW()
+        )
+      `);
+      await client.query(`
+        INSERT INTO "ProcurementReceipt" (
+          "orderId", "storeId", "idempotencyKey", "creationFingerprint", "items", "createdAt", "updatedAt"
+        ) VALUES (
+          900001, 900001, 'supply-receipt-r236-key', repeat('c', 64), '[]'::jsonb, NOW(), NOW()
+        )
+      `);
+    } catch (error) {
+      procurementReceiptUniqueRejected = error?.constraint === 'ProcurementReceipt_idempotencyKey_key';
+    } finally {
+      await client.query('ROLLBACK');
+    }
+
     return {
       roles: roles.rows,
       metric: metric.rows,
@@ -470,6 +560,7 @@ async function incrementalDataEvidence(connectionString) {
       cardUsage: cardUsage.rows[0],
       purchaseOrder: purchaseOrder.rows[0],
       followUpTask: followUpTask.rows[0],
+      procurementOrder: procurementOrder.rows[0],
       feedbackCount: feedbackCount.rows[0].count,
       waitingCount: waitingCount.rows[0].count,
       feedbackConstraintRejected,
@@ -478,6 +569,8 @@ async function incrementalDataEvidence(connectionString) {
       cardUsageUniqueRejected,
       purchaseOrderUniqueRejected,
       followUpTaskUniqueRejected,
+      procurementOrderUniqueRejected,
+      procurementReceiptUniqueRejected,
     };
   });
 }
@@ -518,7 +611,12 @@ function assertAcceptance(summary) {
       summary.incrementalData.followUpTask.count === 1 &&
       summary.incrementalData.followUpTask.idempotencyPopulated === 0 &&
       summary.incrementalData.followUpTask.fingerprintPopulated === 0 &&
-      summary.incrementalData.followUpTask.status === 'pending',
+      summary.incrementalData.followUpTask.status === 'pending' &&
+      summary.incrementalData.procurementOrder.count === 1 &&
+      summary.incrementalData.procurementOrder.idempotencyPopulated === 0 &&
+      summary.incrementalData.procurementOrder.fingerprintPopulated === 0 &&
+      summary.incrementalData.procurementOrder.batchKeyPopulated === 0 &&
+      summary.incrementalData.procurementOrder.status === 'pending_supplier_confirm',
     metricBackfilled:
       summary.incrementalData.metric.length === 1 &&
       summary.incrementalData.metric[0].metricKey === 'store.operating_revenue.month' &&
@@ -538,9 +636,13 @@ function assertAcceptance(summary) {
       summary.incrementalData.reservationUniqueRejected &&
       summary.incrementalData.cardUsageUniqueRejected &&
       summary.incrementalData.purchaseOrderUniqueRejected &&
-      summary.incrementalData.followUpTaskUniqueRejected,
+      summary.incrementalData.followUpTaskUniqueRejected &&
+      summary.incrementalData.procurementOrderUniqueRejected &&
+      summary.incrementalData.procurementReceiptUniqueRejected,
   };
-  const failedChecks = Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name);
+  const failedChecks = Object.entries(checks)
+    .filter(([, passed]) => !passed)
+    .map(([name]) => name);
   return { checks, failedChecks, passed: failedChecks.length === 0 };
 }
 
@@ -549,8 +651,10 @@ async function main() {
   const options = validateOptions();
   const outputDir = resolve(process.cwd(), argValue('output-dir') ?? 'migration-acceptance-output');
   const inventory = inspectMigrations();
-  if (inventory.count !== 104) {
-    throw new Error(`Expected the current frozen chain to contain 104 migrations, found ${inventory.count}. Update the gate deliberately.`);
+  if (inventory.count !== 105) {
+    throw new Error(
+      `Expected the current frozen chain to contain 105 migrations, found ${inventory.count}. Update the gate deliberately.`,
+    );
   }
   const baseline = createBaselinePrismaDirectory(inventory, options.baselineCount);
   let containerStarted = false;
