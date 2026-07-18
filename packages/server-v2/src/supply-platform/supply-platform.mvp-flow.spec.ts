@@ -13,6 +13,7 @@ describe('SupplyPlatform MVP flow', () => {
       products: [{ id: 101, storeId: 3, name: 'Repair Mask', currentStock: 2, unit: 'box', deletedAt: null }],
       stockBatches: [] as any[],
       stockMovements: [] as any[],
+      receipts: [] as any[],
       settlements: [] as any[],
       orderItems: [] as any[],
     };
@@ -23,13 +24,16 @@ describe('SupplyPlatform MVP flow', () => {
     const matchWhere = (item: any, where: any = {}) =>
       Object.entries(where).every(([key, value]) => {
         if (value === undefined) return true;
-        if (value && typeof value === 'object' && 'in' in value) return (value as { in: unknown[] }).in.includes(item[key]);
+        if (value && typeof value === 'object' && 'in' in value)
+          return (value as { in: unknown[] }).in.includes(item[key]);
         if (value && typeof value === 'object' && 'gte' in value) return item[key] >= (value as { gte: any }).gte;
         if (value && typeof value === 'object' && 'lt' in value) return item[key] < (value as { lt: any }).lt;
         return item[key] === value;
       });
     const prisma: any = {
       $transaction: async (input: any) => (Array.isArray(input) ? Promise.all(input) : input(prisma)),
+      $executeRaw: jest.fn(async () => 0),
+      $queryRaw: jest.fn(async () => []),
       supplySupplier: {
         findFirst: jest.fn(async ({ where }: any) => state.suppliers.find((item) => matchWhere(item, where))),
       },
@@ -40,7 +44,12 @@ describe('SupplyPlatform MVP flow', () => {
         findFirst: jest.fn(async ({ where }: any) => state.skus.find((item) => matchWhere(item, where))),
         findMany: jest.fn(async ({ where }: any) => state.skus.filter((item) => matchWhere(item, where))),
         create: jest.fn(async ({ data }: any) => {
-          const item = { id: nextId(), deletedAt: null, ...data, supplier: state.suppliers.find((supplier) => supplier.id === data.supplierId) };
+          const item = {
+            id: nextId(),
+            deletedAt: null,
+            ...data,
+            supplier: state.suppliers.find((supplier) => supplier.id === data.supplierId),
+          };
           state.skus.push(item);
           return item;
         }),
@@ -66,7 +75,12 @@ describe('SupplyPlatform MVP flow', () => {
       },
       procurementOrder: {
         create: jest.fn(async ({ data }: any) => {
-          const items = data.items.create.map((item: any) => ({ id: nextId(), orderId: undefined, receivedQty: 0, ...item }));
+          const items = data.items.create.map((item: any) => ({
+            id: nextId(),
+            orderId: undefined,
+            receivedQty: 0,
+            ...item,
+          }));
           const order = {
             id: nextId(),
             ...data,
@@ -83,7 +97,11 @@ describe('SupplyPlatform MVP flow', () => {
           state.orders.push(order);
           return order;
         }),
-        findUnique: jest.fn(async ({ where }: any) => state.orders.find((item) => item.id === where.id)),
+        findUnique: jest.fn(async ({ where }: any) =>
+          state.orders.find((item) =>
+            where.id !== undefined ? item.id === where.id : item.idempotencyKey === where.idempotencyKey,
+          ),
+        ),
         update: jest.fn(async ({ where, data }: any) => {
           const item = state.orders.find((target) => target.id === where.id);
           Object.assign(item, data);
@@ -91,13 +109,28 @@ describe('SupplyPlatform MVP flow', () => {
         }),
         findMany: jest.fn(async ({ where }: any) => state.orders.filter((item) => matchWhere(item, where))),
       },
+      procurementReceipt: {
+        findUnique: jest.fn(async ({ where }: any) =>
+          state.receipts.find((item) => item.idempotencyKey === where.idempotencyKey),
+        ),
+        create: jest.fn(async ({ data }: any) => {
+          const item = { id: nextId(), ...data };
+          state.receipts.push(item);
+          return item;
+        }),
+      },
       supplierShipment: {
         create: jest.fn(async ({ data }: any) => {
           const shipment = {
             id: nextId(),
             ...data,
             status: 'shipped',
-            items: data.items.create.map((item: any) => ({ id: nextId(), shipmentId: undefined, receivedQty: 0, ...item })),
+            items: data.items.create.map((item: any) => ({
+              id: nextId(),
+              shipmentId: undefined,
+              receivedQty: 0,
+              ...item,
+            })),
           };
           shipment.items.forEach((item: any) => {
             item.shipmentId = shipment.id;
@@ -152,7 +185,9 @@ describe('SupplyPlatform MVP flow', () => {
       supplySettlement: {
         upsert: jest.fn(async ({ where, create, update }: any) => {
           const existing = state.settlements.find(
-            (item) => item.supplierId === where.supplierId_settleMonth.supplierId && item.settleMonth === where.supplierId_settleMonth.settleMonth,
+            (item) =>
+              item.supplierId === where.supplierId_settleMonth.supplierId &&
+              item.settleMonth === where.supplierId_settleMonth.settleMonth,
           );
           if (existing) {
             Object.assign(existing, update);
@@ -171,10 +206,14 @@ describe('SupplyPlatform MVP flow', () => {
 
     const sku = await service.createSku({ supplierId: 8, name: 'Repair Mask', unit: 'box' } as any, supplierActor);
     await service.auditSku(sku.id, { auditStatus: 'approved', status: 'active' } as any, managerActor);
-    const quote = await service.createQuote({ supplySkuId: sku.id, price: 12, moq: 10, stockStatus: 'available' } as any, supplierActor);
+    const quote = await service.createQuote(
+      { supplySkuId: sku.id, price: 12, moq: 10, stockStatus: 'available' } as any,
+      supplierActor,
+    );
     await service.auditQuote(quote.id, { auditStatus: 'approved', status: 'active' } as any, managerActor);
 
     const order = await service.createOrder({
+      idempotencyKey: 'mvp-order-1',
       storeId: 3,
       supplierId: 8,
       sourceType: 'replenishment',
@@ -187,14 +226,19 @@ describe('SupplyPlatform MVP flow', () => {
       supplierActor,
     );
     const receipt = await service.receiveOrder(order.id, {
+      idempotencyKey: 'mvp-receipt-1',
       items: [{ shipmentItemId: shipment.items[0].id, productId: 101, receivedQty: 10 }],
     } as any);
-    const settlement = await service.generateSettlement({ supplierId: 8, settleMonth: new Date().toISOString().slice(0, 7) } as any);
+    const settlement = await service.generateSettlement({
+      supplierId: 8,
+      settleMonth: new Date().toISOString().slice(0, 7),
+    } as any);
 
     expect(order.totalAmount).toBe(120);
     expect(state.orders[0].status).toBe('received');
     expect(receipt).toEqual(expect.objectContaining({ affectedStoreId: 3 }));
     expect(state.products[0].currentStock).toBe(12);
+    expect(state.receipts).toHaveLength(1);
     expect(state.stockMovements[0]).toEqual(
       expect.objectContaining({
         productId: 101,

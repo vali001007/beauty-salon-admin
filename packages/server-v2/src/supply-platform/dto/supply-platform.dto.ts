@@ -10,6 +10,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -499,6 +500,12 @@ export class CreateProcurementOrderItemDto {
 }
 
 export class CreateProcurementOrderDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  idempotencyKey?: string;
+
   @ApiProperty()
   @Type(() => Number)
   @IsInt()
@@ -564,6 +571,12 @@ export class CreateReplenishmentProcurementOrderItemDto {
 }
 
 export class CreateProcurementOrdersFromReplenishmentDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  idempotencyKey?: string;
+
   @ApiProperty()
   @Type(() => Number)
   @IsInt()
@@ -675,6 +688,12 @@ export class ReceiveProcurementItemDto {
 }
 
 export class ReceiveProcurementOrderDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  idempotencyKey?: string;
+
   @ApiProperty({ type: [ReceiveProcurementItemDto] })
   @IsArray()
   @ArrayMinSize(1)

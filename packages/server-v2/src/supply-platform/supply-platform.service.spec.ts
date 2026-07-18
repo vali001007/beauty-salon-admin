@@ -7,6 +7,8 @@ describe('SupplyPlatformService', () => {
   beforeEach(() => {
     prisma = {
       $transaction: jest.fn(),
+      $executeRaw: jest.fn().mockResolvedValue(0),
+      $queryRaw: jest.fn().mockResolvedValue([]),
       supplySupplier: {
         findFirst: jest.fn(),
         findMany: jest.fn(),
@@ -49,6 +51,10 @@ describe('SupplyPlatformService', () => {
         findMany: jest.fn(),
         count: jest.fn(),
       },
+      procurementReceipt: {
+        findUnique: jest.fn(),
+        create: jest.fn(),
+      },
       supplierShipment: {
         create: jest.fn(),
       },
@@ -80,13 +86,23 @@ describe('SupplyPlatformService', () => {
       if (Array.isArray(operations)) return Promise.all(operations);
       return operations(prisma);
     });
+    prisma.procurementOrder.findUnique.mockResolvedValue(null);
+    prisma.procurementOrder.findMany.mockResolvedValue([]);
+    prisma.procurementReceipt.findUnique.mockResolvedValue(null);
     service = new SupplyPlatformService(prisma);
   });
 
   it('creates procurement orders from approved supply quotes with locked price', async () => {
-    prisma.supplySupplier.findFirst.mockResolvedValue({ id: 8, name: 'Supply A', platformFeeRate: 0.02, rebateRate: 0.05 });
+    prisma.supplySupplier.findFirst.mockResolvedValue({
+      id: 8,
+      name: 'Supply A',
+      platformFeeRate: 0.02,
+      rebateRate: 0.05,
+    });
     prisma.store.findFirst.mockResolvedValue({ id: 3, name: 'Store A' });
-    prisma.supplySku.findMany.mockResolvedValue([{ id: 1001, supplierId: 8, name: 'Mask', status: 'active', auditStatus: 'approved' }]);
+    prisma.supplySku.findMany.mockResolvedValue([
+      { id: 1001, supplierId: 8, name: 'Mask', status: 'active', auditStatus: 'approved' },
+    ]);
     prisma.supplyQuote.findMany.mockResolvedValue([
       { id: 2001, supplySkuId: 1001, supplierId: 8, price: 12, moq: 10, status: 'active', auditStatus: 'approved' },
     ]);
@@ -99,6 +115,7 @@ describe('SupplyPlatformService', () => {
     }));
 
     const result = await service.createOrder({
+      idempotencyKey: 'order-create-3001',
       storeId: 3,
       supplierId: 8,
       sourceType: 'replenishment',
@@ -151,10 +168,11 @@ describe('SupplyPlatformService', () => {
     ).rejects.toThrow('供应商账号只能访问自己的供应链数据');
 
     await expect(
-      service.createSku(
-        { supplierId: 9, name: 'Other supplier product' } as any,
-        { id: 91, permissions: ['core:supply:supplier'], supplySupplierId: 8 },
-      ),
+      service.createSku({ supplierId: 9, name: 'Other supplier product' } as any, {
+        id: 91,
+        permissions: ['core:supply:supplier'],
+        supplySupplierId: 8,
+      }),
     ).rejects.toThrow('供应商账号只能访问自己的供应链数据');
   });
 
@@ -169,14 +187,16 @@ describe('SupplyPlatformService', () => {
   });
 
   it('allows supplier accounts to accept their own pending procurement orders', async () => {
-    jest.spyOn(service, 'findOrder').mockResolvedValue({ id: 3001, supplierId: 8, status: 'pending_supplier_confirm' } as any);
+    jest
+      .spyOn(service, 'findOrder')
+      .mockResolvedValue({ id: 3001, supplierId: 8, status: 'pending_supplier_confirm' } as any);
     prisma.procurementOrder.update.mockResolvedValue({ id: 3001, status: 'accepted' });
 
-    const result = await service.updateOrderStatus(
-      3001,
-      { status: 'accepted' } as any,
-      { id: 91, permissions: ['core:supply:supplier'], supplySupplierId: 8 },
-    );
+    const result = await service.updateOrderStatus(3001, { status: 'accepted' } as any, {
+      id: 91,
+      permissions: ['core:supply:supplier'],
+      supplySupplierId: 8,
+    });
 
     expect(prisma.procurementOrder.update).toHaveBeenCalledWith({
       where: { id: 3001 },
@@ -187,14 +207,16 @@ describe('SupplyPlatformService', () => {
   });
 
   it('blocks supplier accounts from advancing procurement orders beyond accept or reject', async () => {
-    jest.spyOn(service, 'findOrder').mockResolvedValue({ id: 3001, supplierId: 8, status: 'pending_supplier_confirm' } as any);
+    jest
+      .spyOn(service, 'findOrder')
+      .mockResolvedValue({ id: 3001, supplierId: 8, status: 'pending_supplier_confirm' } as any);
 
     await expect(
-      service.updateOrderStatus(
-        3001,
-        { status: 'settled' } as any,
-        { id: 91, permissions: ['core:supply:supplier'], supplySupplierId: 8 },
-      ),
+      service.updateOrderStatus(3001, { status: 'settled' } as any, {
+        id: 91,
+        permissions: ['core:supply:supplier'],
+        supplySupplierId: 8,
+      }),
     ).rejects.toThrow('供应商只能接单或拒单');
   });
 
@@ -208,7 +230,11 @@ describe('SupplyPlatformService', () => {
       supplier: { id: 8, name: 'Supply A' },
     });
     prisma.product.findFirst.mockResolvedValue({ id: 101, storeId: 3, sku: 'LOCAL-101', name: 'Local Mask' });
-    prisma.industryProductTemplate.findFirst.mockResolvedValue({ id: 201, standardProductCode: 'STD-201', name: 'Standard Mask' });
+    prisma.industryProductTemplate.findFirst.mockResolvedValue({
+      id: 201,
+      standardProductCode: 'STD-201',
+      name: 'Standard Mask',
+    });
     prisma.supplyCatalogMapping.updateMany.mockResolvedValue({ count: 1 });
     prisma.supplyCatalogMapping.create.mockImplementation(async ({ data }: any) => ({
       id: 301,
@@ -242,7 +268,9 @@ describe('SupplyPlatformService', () => {
         data: expect.objectContaining({ productId: 101, storeId: 3, supplySkuId: 1001, isPreferred: true }),
       }),
     );
-    expect(result).toEqual(expect.objectContaining({ purchasableStatus: 'available', latestQuote: expect.objectContaining({ id: 401 }) }));
+    expect(result).toEqual(
+      expect.objectContaining({ purchasableStatus: 'available', latestQuote: expect.objectContaining({ id: 401 }) }),
+    );
   });
 
   it('blocks catalog mappings to unapproved supply SKUs', async () => {
@@ -260,8 +288,18 @@ describe('SupplyPlatformService', () => {
   });
 
   it('creates procurement orders from replenishment mappings with locked quote source', async () => {
+    prisma.supplySupplier.findFirst.mockResolvedValue({
+      id: 8,
+      name: 'Supply A',
+      platformFeeRate: 0.02,
+      rebateRate: 0.05,
+    });
     prisma.store.findFirst.mockResolvedValue({ id: 3, name: 'Store A' });
     prisma.product.findMany.mockResolvedValue([{ id: 101, storeId: 3, name: 'Local Mask' }]);
+    prisma.supplySku.findMany.mockResolvedValue([{ id: 1001, supplierId: 8, name: 'Supply Mask' }]);
+    prisma.supplyQuote.findMany.mockResolvedValue([
+      { id: 2001, supplySkuId: 1001, supplierId: 8, price: 12, moq: 10, status: 'active', auditStatus: 'approved' },
+    ]);
     prisma.supplyCatalogMapping.findMany.mockResolvedValue([
       {
         id: 301,
@@ -272,26 +310,45 @@ describe('SupplyPlatformService', () => {
           id: 1001,
           supplierId: 8,
           name: 'Supply Mask',
-          quotes: [{ id: 2001, supplySkuId: 1001, supplierId: 8, price: 12, moq: 10, status: 'active', auditStatus: 'approved' }],
+          quotes: [
+            {
+              id: 2001,
+              supplySkuId: 1001,
+              supplierId: 8,
+              price: 12,
+              moq: 10,
+              status: 'active',
+              auditStatus: 'approved',
+            },
+          ],
         },
       },
     ]);
-    jest.spyOn(service, 'createOrder').mockResolvedValue({ id: 3001, supplierId: 8, sourceType: 'inventory_replenishment' } as any);
+    prisma.procurementOrder.create.mockImplementation(async ({ data }: any) => ({
+      id: 3001,
+      ...data,
+      items: data.items.create,
+    }));
 
     const result = await service.createOrdersFromReplenishment({
+      idempotencyKey: 'replenishment-batch-1',
       storeId: 3,
       sourceNo: 'REP-1',
       items: [{ productId: 101, mappingId: 301, supplySkuId: 1001, quoteId: 2001, quantity: 3 }],
     });
 
-    expect(service.createOrder).toHaveBeenCalledWith({
-      storeId: 3,
-      supplierId: 8,
-      expectedArrivalDate: undefined,
-      sourceType: 'inventory_replenishment',
-      sourceNo: 'REP-1',
-      items: [{ productId: 101, supplySkuId: 1001, quoteId: 2001, quantity: 3 }],
-    });
+    expect(prisma.procurementOrder.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          storeId: 3,
+          supplierId: 8,
+          sourceType: 'inventory_replenishment',
+          sourceNo: 'REP-1',
+          batchIdempotencyKey: expect.stringMatching(/^[a-f0-9]{64}$/),
+          batchCreationFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+        }),
+      }),
+    );
     expect(result).toEqual(expect.objectContaining({ total: 1, sourceType: 'inventory_replenishment' }));
   });
 
@@ -317,11 +374,16 @@ describe('SupplyPlatformService', () => {
           supplierId: 8,
           logisticsCompany: 'SF',
           trackingNo: 'SF001',
-          items: { create: [expect.objectContaining({ orderItemId: 1, supplySkuId: 1001, shippedQty: 10, batchNo: 'B001' })] },
+          items: {
+            create: [expect.objectContaining({ orderItemId: 1, supplySkuId: 1001, shippedQty: 10, batchNo: 'B001' })],
+          },
         }),
       }),
     );
-    expect(prisma.procurementOrder.update).toHaveBeenCalledWith({ where: { id: 3001 }, data: { status: 'shipped', shippedAt: expect.any(Date) } });
+    expect(prisma.procurementOrder.update).toHaveBeenCalledWith({
+      where: { id: 3001 },
+      data: { status: 'shipped', shippedAt: expect.any(Date) },
+    });
     expect(result).toEqual(expect.objectContaining({ id: 4001 }));
   });
 
@@ -333,26 +395,55 @@ describe('SupplyPlatformService', () => {
       status: 'shipped',
       receivedAt: null,
       items: [
-        { id: 1, productId: 101, supplySkuId: 1001, quantity: 10, receivedQty: 0, supplySku: { id: 1001, name: 'Mask' } },
+        {
+          id: 1,
+          productId: 101,
+          supplySkuId: 1001,
+          quantity: 10,
+          receivedQty: 0,
+          supplySku: { id: 1001, name: 'Mask' },
+        },
       ],
       shipments: [
         {
           id: 4001,
-          items: [{ id: 5001, orderItemId: 1, supplySkuId: 1001, shippedQty: 10, receivedQty: 0, batchNo: 'B001', productionDate: null, expiryDate: null }],
+          items: [
+            {
+              id: 5001,
+              orderItemId: 1,
+              supplySkuId: 1001,
+              shippedQty: 10,
+              receivedQty: 0,
+              batchNo: 'B001',
+              productionDate: null,
+              expiryDate: null,
+            },
+          ],
         },
       ],
     });
-    prisma.product.findFirst.mockResolvedValue({ id: 101, storeId: 3, name: 'Mask local', currentStock: 5, unit: 'box' });
+    prisma.product.findFirst.mockResolvedValue({
+      id: 101,
+      storeId: 3,
+      name: 'Mask local',
+      currentStock: 5,
+      unit: 'box',
+    });
     prisma.stockBatch.create.mockResolvedValue({ id: 6001 });
+    prisma.stockMovement.create.mockResolvedValue({ id: 7001 });
+    prisma.procurementReceipt.create.mockResolvedValue({ id: 8001, storeId: 3 });
     prisma.procurementOrderItem.findMany.mockResolvedValue([{ id: 1, quantity: 10, receivedQty: 10 }]);
     jest.spyOn(service, 'findOrder').mockResolvedValue({ id: 3001, status: 'received' } as any);
 
     const result = await service.receiveOrder(3001, {
+      idempotencyKey: 'receipt-3001-1',
       items: [{ shipmentItemId: 5001, productId: 101, receivedQty: 10 }],
       remark: 'ok',
     });
 
-    expect(prisma.stockBatch.create).toHaveBeenCalledWith({ data: expect.objectContaining({ productId: 101, batchNo: 'B001', stock: 10 }) });
+    expect(prisma.stockBatch.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ productId: 101, batchNo: 'B001', stock: 10 }),
+    });
     expect(prisma.stockMovement.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         storeId: 3,
@@ -364,6 +455,14 @@ describe('SupplyPlatformService', () => {
       }),
     });
     expect(result).toEqual(expect.objectContaining({ affectedStoreId: 3 }));
+    expect(prisma.procurementReceipt.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        orderId: 3001,
+        storeId: 3,
+        idempotencyKey: expect.stringMatching(/^[a-f0-9]{64}$/),
+        creationFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+      }),
+    });
   });
 
   it('generates supplier settlement from received procurement orders', async () => {
@@ -371,7 +470,12 @@ describe('SupplyPlatformService', () => {
       { supplierId: 8, totalAmount: 120, rebateAmount: 6, platformFee: 2.4 },
       { supplierId: 8, totalAmount: 80, rebateAmount: 4, platformFee: 1.6 },
     ]);
-    prisma.supplySettlement.upsert.mockResolvedValue({ id: 7001, supplierId: 8, settleMonth: '2026-06', orderCount: 2 });
+    prisma.supplySettlement.upsert.mockResolvedValue({
+      id: 7001,
+      supplierId: 8,
+      settleMonth: '2026-06',
+      orderCount: 2,
+    });
 
     const result = await service.generateSettlement({ settleMonth: '2026-06' });
 

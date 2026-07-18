@@ -107,6 +107,7 @@ model Store {
   marketingRecommendationOfferSnapshots MarketingRecommendationOfferSnapshot[]
   amiMonthlyBills          AmiMonthlyBill[]
   procurementOrders        ProcurementOrder[]
+  procurementReceipts      ProcurementReceipt[]
   schedulingRuleConfigs    SchedulingRuleConfig[]
   beauticianAvailabilities BeauticianAvailability[]
   beauticianTimeOffs       BeauticianTimeOff[]
@@ -178,6 +179,7 @@ model User {
   confirmedCommissionAdjustments CommissionAdjustment[]         @relation("CommissionAdjustmentConfirmedBy")
   publishedLifecycleRules CustomerLifecycleRuleVersion[] @relation("LifecycleRulePublisher")
   createdLifecycleBusinessPlans LifecycleBusinessPlan[] @relation("LifecycleBusinessPlanCreator")
+  procurementReceipts ProcurementReceipt[] @relation("ProcurementReceiptOperator")
   supplySupplier         SupplySupplier?         @relation(fields: [supplySupplierId], references: [id], onDelete: SetNull)
 
   @@index([status])
@@ -880,6 +882,10 @@ model SupplyCatalogMapping {
 model ProcurementOrder {
   id                  Int       @id @default(autoincrement())
   orderNo             String    @unique
+  idempotencyKey      String?   @unique
+  creationFingerprint String?   @db.VarChar(64)
+  batchIdempotencyKey String?
+  batchCreationFingerprint String? @db.VarChar(64)
   storeId             Int
   supplierId          Int
   status              String    @default("pending_supplier_confirm")
@@ -903,11 +909,13 @@ model ProcurementOrder {
   supplier   SupplySupplier         @relation(fields: [supplierId], references: [id])
   items      ProcurementOrderItem[]
   shipments  SupplierShipment[]
+  receipts   ProcurementReceipt[]
 
   @@index([storeId])
   @@index([supplierId, status])
   @@index([status])
   @@index([createdAt])
+  @@index([batchIdempotencyKey])
 }
 
 model ProcurementOrderItem {
@@ -1503,6 +1511,27 @@ model ProductOrder {
   @@index([checkoutGroupNo])
   @@index([orderKind])
   @@index([source])
+}
+
+model ProcurementReceipt {
+  id                  Int      @id @default(autoincrement())
+  orderId             Int
+  storeId             Int
+  idempotencyKey      String   @unique
+  creationFingerprint String   @db.VarChar(64)
+  operatorId          Int?
+  remark              String?
+  items               Json
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  order    ProcurementOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  store    Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  operator User?            @relation("ProcurementReceiptOperator", fields: [operatorId], references: [id], onDelete: SetNull)
+
+  @@index([orderId, createdAt])
+  @@index([storeId, createdAt])
+  @@index([operatorId])
 }
 
 model OrderItem {
