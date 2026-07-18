@@ -152,13 +152,7 @@ export class BrainActionConfirmationService {
       },
     });
     if (existing) {
-      return {
-        actionId: action.actionId,
-        executionId: existing.id,
-        status: existing.status,
-        receipt: existing.receiptPayload,
-        duplicated: true,
-      };
+      return this.existingExecutionResult(action, existing);
     }
 
     if (action.status !== 'pending') {
@@ -175,37 +169,7 @@ export class BrainActionConfirmationService {
       return { actionId: action.actionId, status: 'expired' };
     }
 
-    const descriptor = this.capabilityGateway.resolve(action.skillKey);
-    const approval = this.approvalEnvelope(action, descriptor.version);
-    if (approval.capabilityKey !== action.skillKey || approval.capabilityVersion !== descriptor.version) {
-      throw new BadRequestException('action_capability_version_mismatch');
-    }
-    if (approval.actor.userId !== input.userId || approval.actor.userId !== action.userId) {
-      throw new ForbiddenException('action_actor_mismatch');
-    }
-    if (approval.store.storeId !== input.storeId || approval.store.storeId !== action.storeId) {
-      throw new ForbiddenException('action_store_mismatch');
-    }
-    if (approval.riskLevel !== action.riskLevel || approval.riskLevel !== descriptor.riskLevel) {
-      throw new BadRequestException('action_risk_mismatch');
-    }
-    this.assertNoConfirmationClaim(approval.validatedArgs);
-    const validation = this.capabilityGateway.validateForExecution(
-      approval.capabilityKey,
-      approval.capabilityVersion,
-      approval.validatedArgs,
-    );
-    if (this.digest(validation.payload) !== approval.argsDigest) {
-      throw new BadRequestException('action_args_digest_mismatch');
-    }
-    if (!input.permissions.includes('*') && !input.permissions.includes(descriptor.permission)) {
-      throw new ForbiddenException(`missing_permission:${descriptor.permission}`);
-    }
-    await this.targetResolver?.revalidateCapabilityTarget({
-      capabilityKey: approval.capabilityKey,
-      storeId: input.storeId,
-      args: validation.payload,
-    });
+    const { approval, validation } = await this.validateApprovedAction(action, input);
 
     const claimed = await this.prisma.$transaction(async (tx) => {
       const claim = await tx.brainActionConfirmation.updateMany({
@@ -252,24 +216,211 @@ export class BrainActionConfirmationService {
       status: 'executing',
     });
 
+    return this.executeClaimedAction({
+      action,
+      executionId: claimed.id,
+      payload: validation.payload,
+      permissions: input.permissions,
+    });
+  }
+
+  async retryFailedExecution(input: {
+    actionId: string;
+    runId: number;
+    userId: number;
+    storeId: number;
+    permissions: string[];
+  }) {
+    if (!this.capabilityGateway) throw new Error('capability_gateway_unavailable');
+    const action = await this.prisma.brainActionConfirmation.findFirst({
+      where: {
+        actionId: input.actionId,
+        runId: input.runId,
+        userId: input.userId,
+        storeId: input.storeId,
+      },
+    });
+    if (!action) return null;
+
+    const idempotencyKey = this.actionIdempotencyKey(action);
+    const existing = await this.prisma.brainActionExecution.findUnique({
+      where: {
+        storeId_capabilityKey_idempotencyKey: {
+          storeId: input.storeId,
+          capabilityKey: action.skillKey,
+          idempotencyKey,
+        },
+      },
+    });
+    if (!existing) {
+      return {
+        actionId: action.actionId,
+        status: action.status,
+        retryable: false,
+        recovery: 'manual_reconcile' as const,
+        error: { code: 'action_execution_missing', message: '未找到原执行记录，请人工核对业务单据。' },
+      };
+    }
+    if (action.status !== 'failed' || existing.status !== 'failed') {
+      return this.existingExecutionResult(action, existing);
+    }
+    if (this.failureRecovery(action.skillKey) !== 'safe_replay') {
+      return this.existingExecutionResult(action, existing);
+    }
+
+    const storedPayload = this.asRecord(action.payload);
+    const expiresAt = typeof storedPayload.expiresAt === 'string'
+      ? new Date(storedPayload.expiresAt)
+      : new Date(action.createdAt.getTime() + 15 * 60_000);
+    if (Number.isNaN(expiresAt.getTime()) || Date.now() > expiresAt.getTime()) {
+      await this.prisma.brainActionConfirmation.update({
+        where: { actionId: action.actionId },
+        data: { status: 'expired', result: { execution: 'retry_confirmation_expired' } },
+      });
+      return { actionId: action.actionId, executionId: existing.id, status: 'expired', retryable: false };
+    }
+
+    const { validation } = await this.validateApprovedAction(action, input);
+    let claimed = false;
+    try {
+      claimed = await this.prisma.$transaction(async (tx) => {
+        const confirmationClaim = await tx.brainActionConfirmation.updateMany({
+          where: { actionId: action.actionId, status: 'failed' },
+          data: { status: 'executing', result: Prisma.JsonNull },
+        });
+        if (confirmationClaim.count !== 1) return false;
+        const executionClaim = await tx.brainActionExecution.updateMany({
+          where: { id: existing.id, status: 'failed' },
+          data: {
+            status: 'executing',
+            errorCode: null,
+            errorMessage: null,
+            completedAt: null,
+            startedAt: new Date(),
+          },
+        });
+        if (executionClaim.count !== 1) throw new Error('action_retry_execution_claim_conflict');
+        return true;
+      });
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== 'action_retry_execution_claim_conflict') throw error;
+    }
+    if (!claimed) {
+      const concurrent = await this.prisma.brainActionExecution.findUnique({ where: { id: existing.id } });
+      return concurrent ? this.existingExecutionResult(action, concurrent) : null;
+    }
+
+    await this.recordExecutionTrace({
+      runId: action.runId,
+      actionId: action.actionId,
+      capabilityKey: action.skillKey,
+      executionId: existing.id,
+      status: 'retrying',
+    });
+    return this.executeClaimedAction({
+      action,
+      executionId: existing.id,
+      payload: validation.payload,
+      permissions: input.permissions,
+      retried: true,
+    });
+  }
+
+  async rejectPreview(input: { actionId: string; runId: number; userId: number; storeId: number }) {
+    const action = await this.findPendingForUser(input);
+    if (!action) return null;
+
+    return this.prisma.brainActionConfirmation.update({
+      where: { actionId: input.actionId },
+      data: {
+        status: 'rejected',
+        result: { execution: 'user_rejected' },
+      },
+    });
+  }
+
+  private async validateApprovedAction(
+    action: {
+      actionId: string;
+      userId: number;
+      storeId: number;
+      skillKey: string;
+      riskLevel: BrainRiskLevel;
+      payload: Prisma.JsonValue;
+      createdAt: Date;
+    },
+    input: { userId: number; storeId: number; permissions: string[] },
+  ) {
+    if (!this.capabilityGateway) throw new Error('capability_gateway_unavailable');
+    const descriptor = this.capabilityGateway.resolve(action.skillKey);
+    const approval = this.approvalEnvelope(action, descriptor.version);
+    if (approval.capabilityKey !== action.skillKey || approval.capabilityVersion !== descriptor.version) {
+      throw new BadRequestException('action_capability_version_mismatch');
+    }
+    if (approval.actor.userId !== input.userId || approval.actor.userId !== action.userId) {
+      throw new ForbiddenException('action_actor_mismatch');
+    }
+    if (approval.store.storeId !== input.storeId || approval.store.storeId !== action.storeId) {
+      throw new ForbiddenException('action_store_mismatch');
+    }
+    if (approval.riskLevel !== action.riskLevel || approval.riskLevel !== descriptor.riskLevel) {
+      throw new BadRequestException('action_risk_mismatch');
+    }
+    this.assertNoConfirmationClaim(approval.validatedArgs);
+    const validation = this.capabilityGateway.validateForExecution(
+      approval.capabilityKey,
+      approval.capabilityVersion,
+      approval.validatedArgs,
+    );
+    if (this.digest(validation.payload) !== approval.argsDigest) {
+      throw new BadRequestException('action_args_digest_mismatch');
+    }
+    if (!input.permissions.includes('*') && !input.permissions.includes(descriptor.permission)) {
+      throw new ForbiddenException(`missing_permission:${descriptor.permission}`);
+    }
+    await this.targetResolver?.revalidateCapabilityTarget({
+      capabilityKey: approval.capabilityKey,
+      storeId: input.storeId,
+      args: validation.payload,
+    });
+    return { approval, validation };
+  }
+
+  private async executeClaimedAction(input: {
+    action: {
+      actionId: string;
+      runId: number;
+      userId: number;
+      storeId: number;
+      skillKey: string;
+    };
+    executionId: number;
+    payload: Record<string, unknown>;
+    permissions: string[];
+    retried?: boolean;
+  }) {
+    if (!this.capabilityGateway) throw new Error('capability_gateway_unavailable');
+    const action = input.action;
     try {
       const receipt = await this.capabilityGateway.execute({
         skillKey: action.skillKey,
-        payload: validation.payload,
+        payload: input.payload,
         context: {
-          userId: input.userId,
-          storeId: input.storeId,
+          userId: action.userId,
+          storeId: action.storeId,
           permissions: input.permissions,
         },
       });
       const executionStatus = receipt.status === 'partially_succeeded' ? 'partially_succeeded' : 'succeeded';
       await this.prisma.brainActionExecution.update({
-        where: { id: claimed.id },
+        where: { id: input.executionId },
         data: {
           status: executionStatus,
           receiptPayload: receipt as unknown as Prisma.InputJsonValue,
           businessObjectType: receipt.businessObjectType,
           businessObjectId: String(receipt.businessObjectId),
+          errorCode: null,
+          errorMessage: null,
           completedAt: new Date(),
         },
       });
@@ -285,45 +436,95 @@ export class BrainActionConfirmationService {
         runId: action.runId,
         actionId: action.actionId,
         capabilityKey: action.skillKey,
-        executionId: claimed.id,
+        executionId: input.executionId,
         status: executionStatus,
         receipt,
       });
-      return { actionId: action.actionId, executionId: claimed.id, status: executionStatus, receipt };
+      return {
+        actionId: action.actionId,
+        executionId: input.executionId,
+        status: executionStatus,
+        receipt,
+        ...(input.retried ? { retried: true } : {}),
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'capability_execution_failed';
       const errorCode = message.split(':')[0] || 'capability_execution_failed';
+      const recovery = this.failureRecovery(action.skillKey);
       await this.prisma.brainActionExecution.update({
-        where: { id: claimed.id },
+        where: { id: input.executionId },
         data: { status: 'failed', errorCode, errorMessage: message, completedAt: new Date() },
       });
       await this.prisma.brainActionConfirmation.update({
         where: { actionId: action.actionId },
-        data: { status: 'failed', executedAt: new Date(), result: { errorCode, message } },
+        data: { status: 'failed', executedAt: new Date(), result: { errorCode, message, recovery } },
       });
       await this.recordExecutionTrace({
         runId: action.runId,
         actionId: action.actionId,
         capabilityKey: action.skillKey,
-        executionId: claimed.id,
+        executionId: input.executionId,
         status: 'failed',
-        error: { errorCode, message },
+        error: { errorCode, message, recovery },
       });
-      return { actionId: action.actionId, executionId: claimed.id, status: 'failed', error: { code: errorCode, message } };
+      return {
+        actionId: action.actionId,
+        executionId: input.executionId,
+        status: 'failed',
+        retryable: recovery === 'safe_replay',
+        recovery,
+        error: { code: errorCode, message },
+        ...(input.retried ? { retried: true } : {}),
+      };
     }
   }
 
-  async rejectPreview(input: { actionId: string; runId: number; userId: number; storeId: number }) {
-    const action = await this.findPendingForUser(input);
-    if (!action) return null;
+  private existingExecutionResult(
+    action: { actionId: string; skillKey: string },
+    execution: {
+      id: number;
+      status: string;
+      receiptPayload?: Prisma.JsonValue | null;
+      errorCode?: string | null;
+      errorMessage?: string | null;
+    },
+  ) {
+    const recovery = this.failureRecovery(action.skillKey);
+    return {
+      actionId: action.actionId,
+      executionId: execution.id,
+      status: execution.status,
+      receipt: execution.receiptPayload,
+      duplicated: true,
+      ...(execution.status === 'failed'
+        ? {
+            retryable: recovery === 'safe_replay',
+            recovery,
+            error: {
+              code: execution.errorCode ?? 'capability_execution_failed',
+              message: execution.errorMessage ?? '动作执行失败，请按恢复策略处理。',
+            },
+          }
+        : {}),
+    };
+  }
 
-    return this.prisma.brainActionConfirmation.update({
-      where: { actionId: input.actionId },
-      data: {
-        status: 'rejected',
-        result: { execution: 'user_rejected' },
-      },
-    });
+  private failureRecovery(skillKey: string): 'safe_replay' | 'manual_reconcile' {
+    const gateway = this.capabilityGateway as unknown as {
+      resolve?: (key: string) => { failureRecovery?: 'safe_replay' | 'manual_reconcile' };
+    } | undefined;
+    const configured = gateway?.resolve?.(skillKey)?.failureRecovery;
+    if (configured === 'safe_replay' || configured === 'manual_reconcile') return configured;
+    return skillKey === 'reschedule_reservation' || skillKey === 'cancel_reservation'
+      ? 'safe_replay'
+      : 'manual_reconcile';
+  }
+
+  private actionIdempotencyKey(action: { actionId: string; payload: Prisma.JsonValue }) {
+    const payload = this.asRecord(action.payload);
+    return typeof payload.idempotencyKey === 'string' && payload.idempotencyKey.trim()
+      ? payload.idempotencyKey.trim()
+      : action.actionId;
   }
 
   private asRecord(value: unknown): Record<string, unknown> {

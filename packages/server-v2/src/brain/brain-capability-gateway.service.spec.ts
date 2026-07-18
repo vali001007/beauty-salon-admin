@@ -11,6 +11,16 @@ describe('BrainCapabilityGatewayService', () => {
     });
   });
 
+  it('declares safe replay only for reservation reschedule and cancellation', () => {
+    const service = new BrainCapabilityGatewayService();
+
+    expect(service.failureRecovery('reschedule_reservation')).toBe('safe_replay');
+    expect(service.failureRecovery('cancel_reservation')).toBe('safe_replay');
+    expect(service.failureRecovery('create_reservation')).toBe('manual_reconcile');
+    expect(service.failureRecovery('create_purchase_order')).toBe('manual_reconcile');
+    expect(service.failureRecovery('create_marketing_touch_draft')).toBe('manual_reconcile');
+  });
+
   it('canonicalizes approved arguments and rejects model confirmation claims', () => {
     const service = new BrainCapabilityGatewayService();
 
@@ -64,6 +74,23 @@ describe('BrainCapabilityGatewayService', () => {
       }),
     ).rejects.toThrow('cross_store_business_object');
     expect(reservations.update).not.toHaveBeenCalled();
+  });
+
+  it('reconciles an already-cancelled reservation without issuing a second cancellation', async () => {
+    const reservations = {
+      findById: jest.fn().mockResolvedValue({ id: 101, storeId: 6, status: 'cancelled' }),
+      cancel: jest.fn(),
+    };
+    const service = new BrainCapabilityGatewayService(reservations as never, undefined, undefined, undefined);
+
+    const receipt = await service.execute({
+      skillKey: 'cancel_reservation',
+      payload: { reservationId: 101, reason: '客户改期' },
+      context: { userId: 9, storeId: 6, permissions: ['core:store:reservations'] },
+    });
+
+    expect(reservations.cancel).not.toHaveBeenCalled();
+    expect(receipt).toMatchObject({ capabilityKey: 'cancel_reservation', businessObjectId: 101 });
   });
 
   it('creates a purchase draft and submits it for approval through InventoryService', async () => {

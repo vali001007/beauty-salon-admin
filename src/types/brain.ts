@@ -178,6 +178,9 @@ export interface BrainActionDecisionResponse {
   storeId: number;
   executionId?: number;
   duplicated?: boolean;
+  retried?: boolean;
+  retryable?: boolean;
+  recovery?: 'safe_replay' | 'manual_reconcile';
   receipt?: {
     businessObjectType?: string;
     businessObjectId?: string | number;

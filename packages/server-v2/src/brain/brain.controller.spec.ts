@@ -271,6 +271,37 @@ describe('BrainController', () => {
     });
   });
 
+  it('retries a failed replay-safe action with current permission context', async () => {
+    const actionConfirmationService = {
+      retryFailedExecution: jest.fn().mockResolvedValue({
+        actionId: 'act_1',
+        executionId: 31,
+        status: 'succeeded',
+        retried: true,
+        receipt: { businessObjectType: 'reservation', businessObjectId: 88 },
+      }),
+    };
+    const actionController = controllerWithActionService(actionConfirmationService);
+
+    await expect(
+      actionController.retryAction(request, 'act_1', { runId: 5, actionId: 'act_1' }),
+    ).resolves.toMatchObject({
+      actionId: 'act_1',
+      runId: 5,
+      executionId: 31,
+      status: 'succeeded',
+      retried: true,
+      storeId: 2,
+    });
+    expect(actionConfirmationService.retryFailedExecution).toHaveBeenCalledWith({
+      actionId: 'act_1',
+      runId: 5,
+      userId: 9,
+      storeId: 2,
+      permissions: ['core:brain:use'],
+    });
+  });
+
   it('exposes governance collection endpoints for the management console', async () => {
     await expect(controller.listTraces(request)).resolves.toMatchObject({ items: [], total: 0 });
     await expect(controller.listSemanticResource('metrics')).resolves.toMatchObject({ resource: 'metrics', items: [] });

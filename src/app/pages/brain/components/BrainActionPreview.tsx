@@ -1,4 +1,4 @@
-import { Check, Loader2, ShieldAlert, X } from 'lucide-react';
+import { Check, Loader2, RotateCcw, ShieldAlert, X } from 'lucide-react';
 import type { BrainActionDecisionResponse, BrainActionPreview as BrainActionPreviewType } from '@/types/brain';
 
 interface BrainActionPreviewProps {
@@ -7,6 +7,7 @@ interface BrainActionPreviewProps {
   loading?: boolean;
   onConfirm: () => void;
   onReject: () => void;
+  onRetry: () => void;
 }
 
 const riskLabels: Record<BrainActionPreviewType['riskLevel'], string> = {
@@ -26,7 +27,7 @@ const statusLabels: Record<BrainActionDecisionResponse['status'], string> = {
   rejected: '已拒绝该动作',
 };
 
-export function BrainActionPreview({ action, result, loading, onConfirm, onReject }: BrainActionPreviewProps) {
+export function BrainActionPreview({ action, result, loading, onConfirm, onReject, onRetry }: BrainActionPreviewProps) {
   const receipt = result?.receipt;
   return (
     <div className="rounded-md border border-border bg-background p-3">
@@ -48,6 +49,20 @@ export function BrainActionPreview({ action, result, loading, onConfirm, onRejec
             <div>业务单据：{receipt.businessObjectType} #{String(receipt.businessObjectId)}</div>
           ) : null}
           {result.error?.message ? <div className="text-destructive">{result.error.message}</div> : null}
+          {result.status === 'failed' && result.retryable ? (
+            <button
+              type="button"
+              className="mt-2 inline-flex h-8 items-center justify-center gap-1 rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground disabled:opacity-60"
+              onClick={onRetry}
+              disabled={loading}
+            >
+              {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+              重试执行
+            </button>
+          ) : null}
+          {result.status === 'failed' && result.recovery === 'manual_reconcile' ? (
+            <div className="text-amber-700">请先核对后台业务单据，确认未写入后再重新生成动作预览。</div>
+          ) : null}
         </div>
       ) : (
         <div className="mt-3 flex gap-2">

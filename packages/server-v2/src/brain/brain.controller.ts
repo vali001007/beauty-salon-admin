@@ -184,6 +184,24 @@ export class BrainController {
     return { actionId, runId: dto.runId, status: 'rejected', storeId: context.storeId };
   }
 
+  @Post('actions/:actionId/retry')
+  @Permissions('core:brain:execute')
+  async retryAction(@Req() req: Request, @Param('actionId') actionId: string, @Body() dto: ConfirmBrainActionDto) {
+    const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
+    const result = await this.actionConfirmationService?.retryFailedExecution({
+      actionId,
+      runId: dto.runId,
+      userId: context.userId,
+      storeId: context.storeId,
+      permissions: context.permissions.filter((permission) => !context.deniedPermissions.includes(permission)),
+    });
+    if (!result) {
+      throw new NotFoundException('动作执行记录不存在');
+    }
+
+    return { ...result, actionId, runId: dto.runId, storeId: context.storeId };
+  }
+
   @Get('governance/traces')
   @Permissions('core:brain-governance:view')
   async listTraces(@Req() req: Request) {

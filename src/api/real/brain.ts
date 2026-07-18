@@ -132,6 +132,10 @@ export async function rejectBrainAction(actionId: string, runId: number): Promis
   return apiClient.post<unknown, BrainActionDecisionResponse>(`/brain/actions/${actionId}/reject`, { actionId, runId });
 }
 
+export async function retryBrainAction(actionId: string, runId: number): Promise<BrainActionDecisionResponse> {
+  return apiClient.post<unknown, BrainActionDecisionResponse>(`/brain/actions/${actionId}/retry`, { actionId, runId });
+}
+
 export async function listBrainTraces(): Promise<BrainGovernanceTraceListResponse> {
   return apiClient.get<unknown, BrainGovernanceTraceListResponse>('/brain/governance/traces');
 }

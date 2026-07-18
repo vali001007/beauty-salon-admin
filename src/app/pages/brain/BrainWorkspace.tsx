@@ -10,6 +10,7 @@ import {
   listBrainConversations,
   listBrainMessages,
   rejectBrainAction,
+  retryBrainAction,
   streamBrainMessage,
 } from '@/api/brain';
 import type {
@@ -220,11 +221,14 @@ export function BrainWorkspace() {
     }
   }
 
-  async function handleAction(actionId: string, runId: number, decision: 'confirm' | 'reject') {
+  async function handleAction(actionId: string, runId: number, decision: 'confirm' | 'reject' | 'retry') {
     setPendingActionId(actionId);
     try {
-      const response =
-        decision === 'confirm' ? await confirmBrainAction(actionId, runId) : await rejectBrainAction(actionId, runId);
+      const response = decision === 'confirm'
+        ? await confirmBrainAction(actionId, runId)
+        : decision === 'retry'
+          ? await retryBrainAction(actionId, runId)
+          : await rejectBrainAction(actionId, runId);
       setActionResults((current) => ({ ...current, [actionId]: response }));
       if (response.status === 'succeeded') toast.success(response.receipt?.message ?? '动作执行成功');
       else if (response.status === 'rejected') toast.success('已拒绝动作');
@@ -282,6 +286,7 @@ export function BrainWorkspace() {
         feedbackLoading={feedbackLoading}
         onConfirmAction={(actionId, runId) => void handleAction(actionId, runId, 'confirm')}
         onRejectAction={(actionId, runId) => void handleAction(actionId, runId, 'reject')}
+        onRetryAction={(actionId, runId) => void handleAction(actionId, runId, 'retry')}
         onFeedback={(runId, rating) => void handleFeedback(runId, rating)}
       />
     </div>

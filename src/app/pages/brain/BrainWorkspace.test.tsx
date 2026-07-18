@@ -11,6 +11,7 @@ const apiMocks = vi.hoisted(() => ({
   listBrainConversations: vi.fn(),
   listBrainMessages: vi.fn(),
   rejectBrainAction: vi.fn(),
+  retryBrainAction: vi.fn(),
   streamBrainMessage: vi.fn(),
 }));
 
@@ -197,5 +198,69 @@ describe('BrainWorkspace', () => {
     await waitFor(() => expect(apiMocks.confirmBrainAction).toHaveBeenCalledWith('act_reservation_1', 101));
     expect(await screen.findByText('预约已创建')).toBeInTheDocument();
     expect(screen.getByText('业务单据：reservation #88')).toBeInTheDocument();
+  });
+
+  it('retries a replay-safe failed action and replaces the failed result with its receipt', async () => {
+    apiMocks.listBrainConversations.mockResolvedValue({ items: [conversation], total: 1, storeId: 6 });
+    apiMocks.listBrainMessages.mockResolvedValue({
+      conversationId: 42,
+      total: 1,
+      storeId: 6,
+      items: [
+        {
+          id: 13,
+          conversationId: 42,
+          role: 'assistant',
+          content: '已生成预约改期预览。',
+          metadata: {
+            runId: 102,
+            status: 'needs_confirmation',
+            suggestedActions: [
+              {
+                actionId: 'act_reschedule_1',
+                skillKey: 'reschedule_reservation',
+                riskLevel: 'high',
+                summary: '将张女士预约改到明天 15:00',
+                requiresConfirmation: true,
+              },
+            ],
+          },
+          createdAt: '2026-07-11T01:00:01.000Z',
+        },
+      ],
+    });
+    apiMocks.confirmBrainAction.mockResolvedValue({
+      actionId: 'act_reschedule_1',
+      runId: 102,
+      storeId: 6,
+      executionId: 32,
+      status: 'failed',
+      retryable: true,
+      recovery: 'safe_replay',
+      error: { code: 'upstream_timeout', message: '改约回执超时' },
+    });
+    apiMocks.retryBrainAction.mockResolvedValue({
+      actionId: 'act_reschedule_1',
+      runId: 102,
+      storeId: 6,
+      executionId: 32,
+      status: 'succeeded',
+      retried: true,
+      receipt: {
+        businessObjectType: 'reservation',
+        businessObjectId: 89,
+        message: '预约已改期',
+      },
+    });
+
+    render(<BrainWorkspace />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '确认执行' }));
+    expect(await screen.findByText('改约回执超时')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '重试执行' }));
+
+    await waitFor(() => expect(apiMocks.retryBrainAction).toHaveBeenCalledWith('act_reschedule_1', 102));
+    expect(await screen.findByText('预约已改期')).toBeInTheDocument();
+    expect(screen.getByText('业务单据：reservation #89')).toBeInTheDocument();
   });
 });

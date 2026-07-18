@@ -30,6 +30,7 @@ export interface BrainCapabilityDescriptor {
   allowedFields: string[];
   transactionBoundary: string;
   receiptType: string;
+  failureRecovery: 'safe_replay' | 'manual_reconcile';
 }
 
 const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
@@ -44,6 +45,7 @@ const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
     allowedFields: ['customerId', 'projectId', 'appointmentTime', 'duration', 'beauticianId', 'remark'],
     transactionBoundary: 'ReservationsService.create',
     receiptType: 'reservation',
+    failureRecovery: 'manual_reconcile',
   },
   reschedule_reservation: {
     key: 'reschedule_reservation',
@@ -56,6 +58,7 @@ const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
     allowedFields: ['reservationId', 'appointmentTime', 'duration', 'beauticianId', 'reason', 'remark'],
     transactionBoundary: 'ReservationsService.update',
     receiptType: 'reservation',
+    failureRecovery: 'safe_replay',
   },
   cancel_reservation: {
     key: 'cancel_reservation',
@@ -68,6 +71,7 @@ const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
     allowedFields: ['reservationId', 'reason'],
     transactionBoundary: 'ReservationsService.cancel',
     receiptType: 'reservation',
+    failureRecovery: 'safe_replay',
   },
   create_customer_followup: {
     key: 'create_customer_followup',
@@ -80,6 +84,7 @@ const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
     allowedFields: ['customerId', 'title', 'note', 'script', 'channel'],
     transactionBoundary: 'TerminalService.createFollowUpTask',
     receiptType: 'follow_up_task',
+    failureRecovery: 'manual_reconcile',
   },
   create_purchase_order: {
     key: 'create_purchase_order',
@@ -92,6 +97,7 @@ const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
     allowedFields: ['supplier', 'items', 'submitForApproval'],
     transactionBoundary: 'InventoryService.createPurchaseOrder',
     receiptType: 'purchase_order',
+    failureRecovery: 'manual_reconcile',
   },
   create_marketing_touch_draft: {
     key: 'create_marketing_touch_draft',
@@ -104,6 +110,7 @@ const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
     allowedFields: ['customerId', 'title', 'note', 'script', 'channel'],
     transactionBoundary: 'TerminalService.createFollowUpTask',
     receiptType: 'marketing_touch_draft',
+    failureRecovery: 'manual_reconcile',
   },
   save_service_record: {
     key: 'save_service_record',
@@ -116,6 +123,7 @@ const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
     allowedFields: ['taskId', 'remark', 'consumptionItems', 'images', 'beauticianId'],
     transactionBoundary: 'TerminalService.completeTask',
     receiptType: 'service_task',
+    failureRecovery: 'manual_reconcile',
   },
 };
 
@@ -132,6 +140,10 @@ export class BrainCapabilityGatewayService {
     const capability = CAPABILITY_MAP[skillKey];
     if (!capability) throw new Error(`unsupported_capability:${skillKey}`);
     return capability;
+  }
+
+  failureRecovery(skillKey: string) {
+    return this.resolve(skillKey).failureRecovery;
   }
 
   async execute(input: {
@@ -195,6 +207,9 @@ export class BrainCapabilityGatewayService {
     const reservationId = this.positiveInteger(payload.reservationId, 'reservationId');
     const current = await service.findById(reservationId);
     this.assertStore(current.storeId, context.storeId);
+    if (current.status === 'cancelled' || current.status === 'canceled' || current.status === '已取消') {
+      return this.receipt('cancel_reservation', 'reservation', current.id, current);
+    }
     const result = await service.cancel(reservationId, typeof payload.reason === 'string' ? payload.reason : undefined);
     return this.receipt('cancel_reservation', 'reservation', result.id, result);
   }

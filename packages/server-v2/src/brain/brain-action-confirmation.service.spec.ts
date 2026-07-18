@@ -337,4 +337,133 @@ describe('BrainActionConfirmationService', () => {
     expect(gateway.execute).not.toHaveBeenCalled();
     expect(result).toMatchObject({ status: 'succeeded', receipt: { businessObjectId: 102 }, duplicated: true });
   });
+
+  it('safely replays a failed reservation reschedule with the original approval envelope', async () => {
+    const validatedArgs = { reservationId: 18, appointmentTime: '2026-07-14T15:00:00+08:00' };
+    const gateway = {
+      validateForExecution: jest.fn().mockReturnValue({
+        descriptor: {
+          key: 'reschedule_reservation',
+          version: 1,
+          riskLevel: 'high',
+          permission: 'core:store:reservations',
+          failureRecovery: 'safe_replay',
+        },
+        payload: validatedArgs,
+      }),
+      resolve: jest.fn().mockReturnValue({
+        key: 'reschedule_reservation',
+        version: 1,
+        riskLevel: 'high',
+        permission: 'core:store:reservations',
+        failureRecovery: 'safe_replay',
+      }),
+      execute: jest.fn().mockResolvedValue({
+        capabilityKey: 'reschedule_reservation',
+        businessObjectType: 'reservation',
+        businessObjectId: 18,
+        result: { id: 18 },
+      }),
+    };
+    const bootstrapPrisma = {
+      brainActionConfirmation: {
+        create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 1, createdAt: new Date(), ...data })),
+      },
+    };
+    const created = await new BrainActionConfirmationService(bootstrapPrisma as never, gateway as never).createPreview({
+      runId: 7,
+      userId: 9,
+      storeId: 6,
+      skillKey: 'reschedule_reservation',
+      capabilityVersion: 1,
+      riskLevel: 'high',
+      preview: { summary: '改约' },
+      payload: validatedArgs,
+    } as never);
+    const action = { ...created, status: 'failed', createdAt: new Date() };
+    const execution = {
+      id: 91,
+      status: 'failed',
+      errorCode: 'upstream_timeout',
+      errorMessage: 'upstream_timeout',
+    };
+    const tx = {
+      brainActionConfirmation: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      brainActionExecution: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    };
+    const prisma = {
+      brainActionConfirmation: { findFirst: jest.fn().mockResolvedValue(action), update: jest.fn() },
+      brainActionExecution: {
+        findUnique: jest.fn().mockResolvedValue(execution),
+        update: jest.fn(),
+      },
+      $transaction: jest.fn((callback: (client: typeof tx) => unknown) => callback(tx)),
+    };
+    const targetResolver = { revalidateCapabilityTarget: jest.fn().mockResolvedValue(undefined) };
+    const service = new BrainActionConfirmationService(prisma as never, gateway as never, undefined, targetResolver as never);
+
+    const result = await service.retryFailedExecution({
+      actionId: action.actionId,
+      runId: 7,
+      userId: 9,
+      storeId: 6,
+      permissions: ['core:store:reservations'],
+    });
+
+    expect(tx.brainActionConfirmation.updateMany).toHaveBeenCalledWith({
+      where: { actionId: action.actionId, status: 'failed' },
+      data: { status: 'executing', result: expect.anything() },
+    });
+    expect(tx.brainActionExecution.updateMany).toHaveBeenCalledWith({
+      where: { id: 91, status: 'failed' },
+      data: expect.objectContaining({ status: 'executing', errorCode: null, errorMessage: null }),
+    });
+    expect(gateway.execute).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ status: 'succeeded', executionId: 91, retried: true });
+  });
+
+  it('requires manual reconciliation for failed create actions instead of blind retry', async () => {
+    const action = {
+      actionId: 'act_purchase_failed',
+      runId: 8,
+      userId: 9,
+      storeId: 6,
+      skillKey: 'create_purchase_order',
+      riskLevel: 'high',
+      status: 'failed',
+      payload: { idempotencyKey: 'purchase-1' },
+      createdAt: new Date(),
+    };
+    const execution = {
+      id: 92,
+      status: 'failed',
+      errorCode: 'upstream_timeout',
+      errorMessage: '采购单回执超时',
+    };
+    const prisma = {
+      brainActionConfirmation: { findFirst: jest.fn().mockResolvedValue(action) },
+      brainActionExecution: { findUnique: jest.fn().mockResolvedValue(execution) },
+    };
+    const gateway = {
+      resolve: jest.fn().mockReturnValue({ failureRecovery: 'manual_reconcile' }),
+      execute: jest.fn(),
+    };
+    const service = new BrainActionConfirmationService(prisma as never, gateway as never);
+
+    const result = await service.retryFailedExecution({
+      actionId: action.actionId,
+      runId: 8,
+      userId: 9,
+      storeId: 6,
+      permissions: ['core:supply:manage'],
+    });
+
+    expect(gateway.execute).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      status: 'failed',
+      retryable: false,
+      recovery: 'manual_reconcile',
+      error: { message: '采购单回执超时' },
+    });
+  });
 });

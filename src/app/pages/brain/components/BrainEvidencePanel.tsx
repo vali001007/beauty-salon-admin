@@ -16,6 +16,7 @@ interface BrainEvidencePanelProps {
   feedbackLoading: boolean;
   onConfirmAction: (actionId: string, runId: number) => void;
   onRejectAction: (actionId: string, runId: number) => void;
+  onRetryAction: (actionId: string, runId: number) => void;
   onFeedback: (runId: number, rating: string) => void;
 }
 
@@ -33,6 +34,7 @@ export function BrainEvidencePanel({
   feedbackLoading,
   onConfirmAction,
   onRejectAction,
+  onRetryAction,
   onFeedback,
 }: BrainEvidencePanelProps) {
   const metadata = message?.metadata;
@@ -89,6 +91,7 @@ export function BrainEvidencePanel({
                       loading={pendingActionId === action.actionId}
                       onConfirm={() => onConfirmAction(action.actionId, runId)}
                       onReject={() => onRejectAction(action.actionId, runId)}
+                      onRetry={() => onRetryAction(action.actionId, runId)}
                     />
                   ))}
                 </div>

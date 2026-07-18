@@ -44,6 +44,7 @@ describe('brain real API contract', () => {
     await brainApi.getBrainRunEvents(3);
     await brainApi.confirmBrainAction('act_1', 7);
     await brainApi.rejectBrainAction('act_1', 7);
+    await brainApi.retryBrainAction('act_1', 7);
     await brainApi.listBrainTraces();
     await brainApi.listBrainSemanticResource('metrics');
     await brainApi.updateBrainSemanticResource('metrics', 'paid_revenue', { status: 'active' });
@@ -72,6 +73,7 @@ describe('brain real API contract', () => {
     expect(apiClientMock.get).toHaveBeenCalledWith('/brain/runs/3/events');
     expect(apiClientMock.post).toHaveBeenCalledWith('/brain/actions/act_1/confirm', { actionId: 'act_1', runId: 7 });
     expect(apiClientMock.post).toHaveBeenCalledWith('/brain/actions/act_1/reject', { actionId: 'act_1', runId: 7 });
+    expect(apiClientMock.post).toHaveBeenCalledWith('/brain/actions/act_1/retry', { actionId: 'act_1', runId: 7 });
     expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/traces');
     expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/semantic/metrics');
     expect(apiClientMock.patch).toHaveBeenCalledWith('/brain/governance/semantic/metrics/paid_revenue', { status: 'active' });
