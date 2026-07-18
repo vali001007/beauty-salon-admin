@@ -962,6 +962,66 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     expect(skillRuntime.buildManagerStaffAnalysis).not.toHaveBeenCalled();
   });
 
+  it('fails closed for probation conversion tasks and customer ownership history', async () => {
+    const skillRuntime = {
+      buildManagerStaffAnalysis: jest.fn(),
+      buildReceptionOperationsSnapshot: jest.fn(),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, new BrainTimeRangeParserService());
+    const base = {
+      card: { ...storeCard(), key: 'manager_staff_overview', intents: ['diagnosis'] },
+      context: { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'], deniedPermissions: [], requestId: 'staff-boundary-test', timezone: 'Asia/Shanghai' },
+      runId: 71,
+      answerShape: 'diagnosis' as const,
+      args: { objective: '员工风险', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    };
+
+    const conversion = await executor.execute({ ...base, question: '有没有员工到期转正需要我处理' });
+    const ownership = await executor.execute({ ...base, runId: 72, question: '有没有员工的客户被别的美容师挖走的迹象' });
+
+    expect(conversion).toMatchObject({ grounding: 'none', citations: [], metadata: { unsupportedReason: 'staff_probation_fact_not_available' } });
+    expect(ownership).toMatchObject({ grounding: 'none', citations: [], metadata: { unsupportedReason: 'customer_ownership_history_not_available' } });
+    expect(ownership.answer).toContain('不会用当前客户归属、员工业绩或接客排行反推历史流转');
+    expect(skillRuntime.buildManagerStaffAnalysis).not.toHaveBeenCalled();
+  });
+
+  it('compares staff revenue with the previous equal-length period for decline diagnosis', async () => {
+    const skillRuntime = {
+      buildManagerStaffAnalysis: jest.fn()
+        .mockResolvedValueOnce({
+          staff: [
+            { beauticianId: 1, name: '唐伊', revenueAmount: 400, serviceCount: 2, completedCount: 2, uniqueCustomerCount: 2, repeatCustomerCount: 0, commissionAmount: 20, timeOffHours: 0 },
+            { beauticianId: 2, name: '沈晴', revenueAmount: 900, serviceCount: 3, completedCount: 3, uniqueCustomerCount: 3, repeatCustomerCount: 1, commissionAmount: 40, timeOffHours: 0 },
+          ],
+        })
+        .mockResolvedValueOnce({
+          staff: [
+            { beauticianId: 1, name: '唐伊', revenueAmount: 1000, serviceCount: 4, completedCount: 4, uniqueCustomerCount: 4, repeatCustomerCount: 1, commissionAmount: 50, timeOffHours: 0 },
+            { beauticianId: 2, name: '沈晴', revenueAmount: 1000, serviceCount: 4, completedCount: 4, uniqueCustomerCount: 4, repeatCustomerCount: 1, commissionAmount: 50, timeOffHours: 0 },
+          ],
+        }),
+      buildReceptionOperationsSnapshot: jest.fn(),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, new BrainTimeRangeParserService());
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'manager_staff_overview', intents: ['diagnosis', 'comparison'] },
+      context: { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'], deniedPermissions: [], requestId: 'staff-decline-test', timezone: 'Asia/Shanghai' },
+      runId: 73,
+      question: '有没有员工这周业绩明显下滑',
+      answerShape: 'diagnosis',
+      args: {
+        objective: '诊断员工业绩下滑', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [],
+        time: { label: '本周', timezone: 'Asia/Shanghai', startDate: '2026-07-13', endDate: '2026-07-19' },
+      },
+    });
+
+    expect(result.answer).toContain('唐伊 下降 60.0%');
+    expect(result.answer).not.toContain('沈晴 下降');
+    expect(result.metadata).toMatchObject({ answerScope: 'staff_revenue_decline_comparison', declineThreshold: 0.3 });
+    expect(skillRuntime.buildReceptionOperationsSnapshot).not.toHaveBeenCalled();
+  });
+
   it('returns only low-stock rows for a governed stock-risk ranking', async () => {
     const skillRuntime = {
       buildInventoryRiskSummary: jest.fn().mockResolvedValue({
@@ -1536,6 +1596,46 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     });
   });
 
+  it('does not replace missing project cost attribution with whole-store finance metrics', async () => {
+    const skillRuntime = {
+      buildFinanceRiskSummary: jest.fn(),
+      buildFinanceIncomeAnalysis: jest.fn(),
+      buildFinanceCostAnalysis: jest.fn(),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'finance_risk_overview', name: '财务经营风险概览' },
+      context: {
+        userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'],
+        deniedPermissions: [], requestId: 'project-cost-attribution-boundary-test', timezone: 'Asia/Shanghai',
+      },
+      runId: 10,
+      question: '有没有项目成本明显上涨影响毛利的',
+      answerShape: 'diagnosis',
+      args: {
+        objective: '诊断项目成本上涨对毛利的影响',
+        time: { label: '本月', timezone: 'Asia/Shanghai', startDate: '2026-07-01', endDate: '2026-07-31' },
+        entities: [], metrics: [], dimensions: [], filters: [], orderBy: [],
+      },
+    });
+
+    expect(result.status).toBe('completed');
+    expect(result.grounding).toBe('none');
+    expect(result.citations).toEqual([]);
+    expect(result.metadata).toEqual(expect.objectContaining({
+      unsupportedReason: 'project_cost_attribution_not_available',
+    }));
+    expect(result.answer).toContain('不会用全店毛利率');
+    expect(skillRuntime.buildFinanceRiskSummary).not.toHaveBeenCalled();
+    expect(skillRuntime.buildFinanceIncomeAnalysis).not.toHaveBeenCalled();
+    expect(skillRuntime.buildFinanceCostAnalysis).not.toHaveBeenCalled();
+  });
+
   it('answers complaint summary from the unified feedback fact and discloses collection coverage', async () => {
     const customerFeedback = { analytics: jest.fn().mockResolvedValue(feedbackAnalytics()) };
     const executor = new BrainDomainServiceCapabilityExecutor(
@@ -1693,6 +1793,96 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       expect.objectContaining({ kind: 'limitations', items: [expect.stringContaining('未记录不代表客户没有等待或离店')] }),
     ]));
     expect(result.metadata).toMatchObject({ capabilityKey: 'customer_waiting_loss_overview' });
+  });
+
+  it('uses concrete customer facts for specific marketing segment questions', async () => {
+    const customerFacts = {
+      answerCustomerFactQuestion: jest.fn().mockResolvedValue('优惠敏感客户候选名单：共 2 人。'),
+      summarizeCustomerSegments: jest.fn(),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      customerFacts as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'marketing_customer_segment', name: '营销客户分群摘要' },
+      context: {
+        userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['marketing'], permissions: ['*'],
+        deniedPermissions: [], requestId: 'marketing-segment-detail-test', timezone: 'Asia/Shanghai',
+      },
+      runId: 14,
+      question: '有没有客户对优惠很敏感，老是等打折才来',
+      args: { objective: '查询优惠敏感客户', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(customerFacts.answerCustomerFactQuestion).toHaveBeenCalledWith(expect.objectContaining({ storeId: 6 }));
+    expect(customerFacts.summarizeCustomerSegments).not.toHaveBeenCalled();
+    expect(result.answer).toContain('优惠敏感客户候选名单');
+    expect(result.metadata).toMatchObject({ segmentDetail: true });
+  });
+
+  it('answers reception capacity from overruns, pending arrivals and available staff', async () => {
+    const skillRuntime = {
+      buildReceptionOperationsSnapshot: jest.fn().mockResolvedValue({
+        total: 6,
+        checkedIn: 2,
+        pendingArrival: 3,
+        noShow: 1,
+        arrivalRate: 1 / 3,
+        noShowRate: 1 / 6,
+        staff: [{ name: '唐伊', appointmentCount: 4, onTimeOff: false, inService: true, available: false, nextAvailableAt: '16:00' }],
+      }),
+      buildReceptionServiceOverrunAnalysis: jest.fn().mockResolvedValue({ overrunCount: 1, impactedCount: 1, items: [] }),
+      listReceptionReservations: jest.fn().mockResolvedValue({ reservations: [] }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, new BrainTimeRangeParserService());
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'front_desk_operations_overview', name: '前台现场运营概览' },
+      context: { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'], deniedPermissions: [], requestId: 'capacity-test', timezone: 'Asia/Shanghai' },
+      runId: 74,
+      question: '今天有没有超过接待能力的情况',
+      answerShape: 'diagnosis',
+      args: { objective: '诊断接待能力', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('存在接待承载风险');
+    expect(result.metadata).toMatchObject({ answerScope: 'reception_capacity_diagnosis', overloaded: true, availableStaffCount: 0 });
+  });
+
+  it('does not let generic operations or customer segments impersonate missing waiting and feedback facts', async () => {
+    const skillRuntime = {
+      buildManagerOperationsAnalysis: jest.fn(),
+      buildReceptionOperationsSnapshot: jest.fn(),
+      buildFinanceRiskSummary: jest.fn(),
+    };
+    const customerFacts = {
+      summarizeCustomerSegments: jest.fn(),
+      answerCustomerFactQuestion: jest.fn(),
+      answerCustomerQuestion: jest.fn(),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, customerFacts as never, new BrainTimeRangeParserService());
+    const context = { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['*'], deniedPermissions: [], requestId: 'missing-fact-boundary-test', timezone: 'Asia/Shanghai' };
+    const args = { objective: '查询风险', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] };
+
+    const waiting = await executor.execute({ card: storeCard(), context, runId: 75, question: '最近有没有客户因为等待时间长而离开', args });
+    const complaint = await executor.execute({ card: { ...storeCard(), key: 'marketing_customer_segment' }, context, runId: 76, question: '有没有客户最近投诉了但我还没处理', args });
+    const satisfaction = await executor.execute({ card: { ...storeCard(), key: 'marketing_customer_segment' }, context, runId: 77, question: '有没有客户用过会员权益但感觉不是很满意', args });
+    const customerFactComplaint = await executor.execute({ card: { ...storeCard(), key: 'customer_facts' }, context, runId: 78, question: '有没有客户最近投诉了但我还没处理', args });
+    const customerFactSatisfaction = await executor.execute({ card: { ...storeCard(), key: 'customer_facts' }, context, runId: 79, question: '有没有客户用过会员权益但感觉不是很满意', args });
+    const customerFactWaiting = await executor.execute({ card: { ...storeCard(), key: 'customer_facts' }, context, runId: 80, question: '最近有没有客户因为等待时间长而离开', args });
+
+    expect(waiting).toMatchObject({ grounding: 'none', citations: [], metadata: { unsupportedReason: 'customer_waiting_departure_fact_not_available' } });
+    expect(complaint).toMatchObject({ grounding: 'none', citations: [], metadata: { unsupportedReason: 'customer_feedback_fact_not_available' } });
+    expect(satisfaction).toMatchObject({ grounding: 'none', citations: [], metadata: { unsupportedReason: 'customer_feedback_fact_not_available' } });
+    expect(customerFactComplaint).toMatchObject({ grounding: 'none', citations: [], metadata: { unsupportedReason: 'customer_feedback_fact_not_available' } });
+    expect(customerFactSatisfaction).toMatchObject({ grounding: 'none', citations: [], metadata: { unsupportedReason: 'customer_feedback_fact_not_available' } });
+    expect(customerFactWaiting).toMatchObject({ grounding: 'none', citations: [], metadata: { unsupportedReason: 'customer_waiting_departure_fact_not_available' } });
+    expect(skillRuntime.buildManagerOperationsAnalysis).not.toHaveBeenCalled();
+    expect(customerFacts.summarizeCustomerSegments).not.toHaveBeenCalled();
+    expect(customerFacts.answerCustomerQuestion).not.toHaveBeenCalled();
   });
 });
 

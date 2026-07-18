@@ -95,7 +95,7 @@ export class BrainMarketingDomainAdapter implements BrainDomainAdapter {
     if (
       (input.plan.intent === 'list' ||
         input.plan.intent === 'diagnosis' ||
-        /(客户分层|客群|名单|哪些客户|找一下|响应.*客户|沉睡客户|流失客户|召回客户|消费很多|消失|没来|重要客户|特别关注|优惠.*敏感|等打折|打折才来|新客.*渠道|渠道.*新客|新客最多|时间段.*新客)/.test(
+        /(客户分层|客群|名单|哪些客户|找一下|响应.*客户|沉睡客户|流失客户|召回客户|消费很多|消费金额|消失|没来|重要客户|特别关注|优惠.*敏感|等打折|打折才来|基础项目|升单|疗程快结束|续购|新客.*渠道|渠道.*新客|新客最多|时间段.*新客)/.test(
           message,
         )) &&
       !/(写|文案|话术|短信|消息)/.test(message)

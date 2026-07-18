@@ -327,4 +327,80 @@ describe('BrainCustomerFactResolverService', () => {
       expect.objectContaining({ customerName: '赵女士', remainingTimes: 2, remainingRate: 0.4, daysToExpiry: 14, unfulfilledValue: 600 }),
     ]);
   });
+
+  it('reuses the management customer monetary tiers for spending segmentation', async () => {
+    const service = new BrainCustomerFactResolverService({
+      customer: {
+        count: jest.fn().mockResolvedValue(4),
+        findMany: jest.fn().mockResolvedValue([
+          { name: '甲', totalSpent: 52000, visitCount: 20, lastVisitDate: null },
+          { name: '乙', totalSpent: 9000, visitCount: 8, lastVisitDate: null },
+          { name: '丙', totalSpent: 3200, visitCount: 3, lastVisitDate: null },
+          { name: '丁', totalSpent: 0, visitCount: 0, lastVisitDate: null },
+        ]),
+      },
+    } as never);
+
+    const answer = await service.answerCustomerFactQuestion({ storeId: 6, message: '帮我把客户按消费金额分一下层' });
+
+    expect(answer).toContain('复用管理端客户画像 M 值阈值');
+    expect(answer).toContain('M5 核心消费层');
+    expect(answer).toContain('M0 未消费层');
+  });
+
+  it('finds discount-sensitive customers from real order discount facts', async () => {
+    const service = new BrainCustomerFactResolverService({
+      productOrder: {
+        findMany: jest.fn().mockResolvedValue([
+          { customerId: 1, totalAmount: 500, totalDiscountAmount: 100, createdAt: new Date(), customer: { name: '李女士', totalSpent: 5000, visitCount: 5, lastVisitDate: null } },
+          { customerId: 1, totalAmount: 600, totalDiscountAmount: 80, createdAt: new Date(), customer: { name: '李女士', totalSpent: 5000, visitCount: 5, lastVisitDate: null } },
+        ]),
+      },
+    } as never);
+
+    await expect(service.answerCustomerFactQuestion({ storeId: 6, message: '有没有客户对优惠很敏感，老是等打折才来' }))
+      .resolves.toContain('2 单中 2 单使用优惠');
+  });
+
+  it('uses project type semantics to find basic-project customers without an upgrade', async () => {
+    const service = new BrainCustomerFactResolverService({
+      project: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 72, name: '深层补水护理', type: { name: '基础面部护理' } },
+          { id: 75, name: '亮肤淡斑管理', type: { name: '功效面部护理' } },
+        ]),
+      },
+      orderItem: {
+        findMany: jest.fn().mockResolvedValue([
+          { itemId: 72, name: '深层补水护理', createdAt: new Date(), order: { customerId: 1, customer: { name: '李女士', totalSpent: 3000, lastVisitDate: null } } },
+          { itemId: 72, name: '深层补水护理', createdAt: new Date(), order: { customerId: 2, customer: { name: '王女士', totalSpent: 5000, lastVisitDate: null } } },
+          { itemId: 75, name: '亮肤淡斑管理', createdAt: new Date(), order: { customerId: 2, customer: { name: '王女士', totalSpent: 5000, lastVisitDate: null } } },
+        ]),
+      },
+    } as never);
+
+    const answer = await service.answerCustomerFactQuestion({ storeId: 6, message: '帮我找一下只做过基础项目没有升单的客户' });
+
+    expect(answer).toContain('李女士');
+    expect(answer).not.toContain('王女士');
+    expect(answer).toContain('ProjectType 名称含“基础”');
+  });
+
+  it('deduplicates active low-balance cards into treatment-renewal customers', async () => {
+    const service = new BrainCustomerFactResolverService({
+      customerCard: {
+        findMany: jest.fn().mockResolvedValue([
+          { customerId: 1, cardName: '补水 10 次卡', totalTimes: 10, remainingTimes: 1, expiryDate: new Date('2026-08-01T00:00:00.000Z'), customer: { name: '李女士', totalSpent: 6000, lastVisitDate: null } },
+          { customerId: 1, cardName: '修护 5 次卡', totalTimes: 5, remainingTimes: 2, expiryDate: new Date('2026-08-02T00:00:00.000Z'), customer: { name: '李女士', totalSpent: 6000, lastVisitDate: null } },
+          { customerId: 2, cardName: '抗衰 6 次卡', totalTimes: 6, remainingTimes: 2, expiryDate: new Date('2026-09-01T00:00:00.000Z'), customer: { name: '王女士', totalSpent: 8000, lastVisitDate: null } },
+        ]),
+      },
+    } as never);
+
+    const answer = await service.answerCustomerFactQuestion({ storeId: 6, message: '疗程快结束的客户有多少，适合推续购' });
+
+    expect(answer).toContain('共 2 人');
+    expect(answer.match(/李女士/g)).toHaveLength(1);
+    expect(answer).toContain('仅生成候选，不自动触达');
+  });
 });

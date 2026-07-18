@@ -736,6 +736,23 @@ describe('BrainAnswerGraderService', () => {
     expect(result.status).toBe('usable_exact');
   });
 
+  it('grades staff revenue decline as a comparison instead of a scalar revenue metric', () => {
+    const result = grader.grade({
+      question: '有没有员工这周业绩明显下滑',
+      answer: '本周未发现员工业绩较上一同长度周期下降 30% 以上。',
+      citations: [{ sourceType: 'db_skill', sourceId: 'manager_staff_revenue_comparison', label: '员工当前期与上一期业绩对比' }],
+      blocks: [{
+        kind: 'comparison',
+        items: [{ label: '明显下滑员工数', current: '0 人', previous: '判定阈值 30%', delta: '未发现' }],
+      }],
+      brainStatus: 'completed',
+    });
+
+    expect(result.expectedIntent).toBe('comparison');
+    expect(result.expectedMetric).toBeUndefined();
+    expect(result.status).toBe('usable_exact');
+  });
+
   it.each([
     [
       '今天店里情况怎么样，给我来个总结',

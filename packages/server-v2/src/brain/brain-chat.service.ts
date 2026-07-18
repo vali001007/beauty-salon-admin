@@ -867,6 +867,34 @@ export class BrainChatService {
     capabilityCandidates?: readonly BrainCapabilityCandidate[];
   }): Promise<BrainChatAnswer> {
     let modelMetadata = this.modelMetadata('prepare');
+    const currentBackendGap = this.resolveCurrentBackendFactGap(input.dto.message);
+    if (currentBackendGap) {
+      await this.recordModelTrace({
+        runId: input.runId,
+        stepKey: 'current_backend_fact_gap',
+        layer: 'governance',
+        input: { question: input.dto.message } as Prisma.InputJsonValue,
+        output: {
+          unsupportedReason: currentBackendGap.unsupportedReason,
+          scope: 'current_management_backend',
+        } as Prisma.InputJsonValue,
+        status: 'completed',
+      });
+      return {
+        status: 'completed',
+        answer: currentBackendGap.answer,
+        citations: [],
+        suggestedActions: [],
+        blocks: [{ kind: 'limitations', items: [currentBackendGap.answer] }],
+        grounding: 'none',
+        adapterMetadata: {
+          unsupportedReason: currentBackendGap.unsupportedReason,
+          scope: 'current_management_backend',
+          completion: { status: 'complete', missingCriteria: [], recoverable: false },
+        },
+        modelMetadata,
+      };
+    }
     if (
       !this.semanticIntentCompiler ||
       !this.semanticIntentValidator ||
@@ -2619,6 +2647,64 @@ export class BrainChatService {
       cognition,
       routePlan,
     };
+  }
+
+  private resolveCurrentBackendFactGap(question: string): { unsupportedReason: string; answer: string } | undefined {
+    if (/(?:等待时间长|等待过久|久等).*(?:离开|走了|流失)|(?:离开|走了|流失).*(?:等待时间长|等待过久|久等)/.test(question)) {
+      return {
+        unsupportedReason: 'customer_waiting_departure_fact_not_available',
+        answer: '当前管理端和后台尚未迁移并采集客户等待、开始服务和离店原因事实，无法判断客户是否因等待时间长而离开。Ami Brain 不会用预约取消、爽约或普通备注替代离店原因。',
+      };
+    }
+    if (/(?:有没有|最近|多少|整体|统计|排行|哪个|哪些|还没处理|感觉)[^。！？]{0,40}(?:投诉|客诉|满意度|不[^，。；！？]{0,6}满意|最[^，。；！？]{0,6}满意|负面反馈)|(?:投诉|客诉|满意度|不[^，。；！？]{0,6}满意|最[^，。；！？]{0,6}满意|负面反馈)[^。！？]{0,40}(?:有没有|最近|多少|整体|统计|排行|哪个|哪些|还没处理)/.test(question)) {
+      return {
+        unsupportedReason: 'customer_feedback_fact_not_available',
+        answer: '当前管理端和后台尚未迁移并采集客户投诉、满意度、处置状态和服务关联事实，无法回答该问题。Ami Brain 不会用客户档案、消费金额、会员权益或营销响应替代客户反馈事实。',
+      };
+    }
+    if (/(?:员工|美容师)[^。！？]{0,30}(?:没有授权|未经授权|未授权)[^。！？]{0,20}(?:优惠|折扣)|(?:优惠|折扣)[^。！？]{0,30}(?:没有授权|未经授权|未授权)/.test(question)) {
+      return {
+        unsupportedReason: 'discount_authorization_audit_not_available',
+        answer: '当前管理端和后台只有订单优惠金额，没有优惠授权规则、审批记录、实际操作人和例外事件事实，无法判断员工是否未经授权给予额外优惠。Ami Brain 不会用员工排行或全店优惠总额替代授权审计。',
+      };
+    }
+    if (/(?:店里|门店)?[^。！？]{0,10}设备[^。！？]{0,20}(?:问题|故障|异常)|设备[^。！？]{0,20}(?:最近|有没有)[^。！？]{0,20}(?:问题|故障|异常)/.test(question)) {
+      return {
+        unsupportedReason: 'equipment_status_fact_not_available',
+        answer: '当前管理端和后台没有设备台账、巡检、保养、故障和维修状态事实，无法判断门店设备是否存在问题。Ami Brain 不会用库存、预约或经营异常替代设备状态。',
+      };
+    }
+    if (/(?:储值卡|会员卡)[^。！？]{0,20}(?:提现|套现)[^。！？]{0,20}(?:风险|异常|高不高)|(?:提现|套现)[^。！？]{0,20}(?:储值卡|会员卡)/.test(question)) {
+      return {
+        unsupportedReason: 'stored_value_withdrawal_audit_not_available',
+        answer: '当前管理端和后台没有储值提现申请、审批、打款和异常规则事实，无法评估储值卡提现或套现风险。Ami Brain 不会用会员卡负债或普通余额交易替代提现审计。',
+      };
+    }
+    if (/(?:美容师|员工)[^。！？]{0,20}客户流失率|客户流失率[^。！？]{0,20}(?:美容师|员工)/.test(question)) {
+      return {
+        unsupportedReason: 'staff_customer_churn_attribution_not_available',
+        answer: '当前管理端和后台没有按美容师归属的客户留存基线、流失事件和归因事实，无法判断某位美容师的客户流失率是否异常。Ami Brain 不会用员工表现分、服务量或复购人数替代客户流失率。',
+      };
+    }
+    if (/(?:服务事故|皮肤过敏)[^。！？]{0,20}(?:情况|有没有|最近)|(?:有没有|最近)[^。！？]{0,30}(?:服务事故|皮肤过敏)/.test(question)) {
+      return {
+        unsupportedReason: 'service_incident_fact_not_available',
+        answer: '当前管理端和后台没有服务事故、皮肤过敏事件、处置过程和责任归因事实，无法统计或判断近期是否发生相关情况。Ami Brain 不会用客户过敏档案、服务备注或投诉数据替代事故记录。',
+      };
+    }
+    if (/(?:员工|美容师)[^。！？]{0,20}离职[^。！？]{0,20}(?:带走|流失)[^。！？]{0,10}客户|离职[^。！？]{0,20}(?:带走|流失)[^。！？]{0,10}客户/.test(question)) {
+      return {
+        unsupportedReason: 'staff_departure_customer_risk_not_available',
+        answer: '当前管理端和后台没有员工离职流程、客户归属历史、客户转移和离职后流失证据，无法判断员工离职带走客户的风险。Ami Brain 不会用员工排行、当前客户归属或复购人数替代离职风险。',
+      };
+    }
+    if (/消防[^。！？]{0,20}(?:检查|安全|隐患)|(?:检查|隐患)[^。！？]{0,20}消防/.test(question)) {
+      return {
+        unsupportedReason: 'fire_safety_inspection_fact_not_available',
+        answer: '当前管理端和后台没有消防检查计划、检查记录、隐患、整改和到期提醒事实，无法判断本店是否需要执行或补做消防安全检查。Ami Brain 不会用财务、库存或经营风险替代消防安全结论。',
+      };
+    }
+    return undefined;
   }
 
   private async tryDomainAdapterAnswer(

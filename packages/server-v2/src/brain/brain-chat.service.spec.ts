@@ -2295,6 +2295,39 @@ describe('BrainChatService', () => {
     expect(normalized.dimensions).toEqual([]);
   });
 
+  it.each([
+    ['最近有没有客户因为等待时间长而离开', 'customer_waiting_departure_fact_not_available'],
+    ['有没有客户最近投诉了但我还没处理', 'customer_feedback_fact_not_available'],
+    ['有没有客户用过会员权益但感觉不是很满意', 'customer_feedback_fact_not_available'],
+    ['哪个美容师擅长的项目客户最满意', 'customer_feedback_fact_not_available'],
+    ['有没有员工在没有授权的情况下给了额外优惠', 'discount_authorization_audit_not_available'],
+    ['店里设备最近有没有什么问题', 'equipment_status_fact_not_available'],
+    ['最近储值卡提现风险高不高', 'stored_value_withdrawal_audit_not_available'],
+    ['最近某个美容师的客户流失率异常高吗', 'staff_customer_churn_attribution_not_available'],
+    ['最近有没有出现服务事故或皮肤过敏的情况', 'service_incident_fact_not_available'],
+    ['最近有没有员工离职带走客户的风险', 'staff_departure_customer_risk_not_available'],
+    ['店里消防安全检查需要做吗', 'fire_safety_inspection_fact_not_available'],
+  ])('blocks unavailable management facts before model planning: %s', async (message, unsupportedReason) => {
+    const { prisma, trace, modelPipeline, service } = createService({ modelPipeline: {} });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create.mockResolvedValue({ id: 101 });
+    prisma.brainRun.create.mockResolvedValue({ id: 77 });
+    prisma.brainRun.update.mockResolvedValue({ id: 77 });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+
+    const response = await service.sendMessage(context, 12, { message, timezone: 'Asia/Shanghai' });
+
+    expect(response).toMatchObject({
+      status: 'completed',
+      grounding: 'none',
+      citations: [],
+      adapterMetadata: { unsupportedReason, scope: 'current_management_backend' },
+    });
+    expect(modelPipeline!.compiler.compile).not.toHaveBeenCalled();
+    expect(modelPipeline!.retriever.retrieve).not.toHaveBeenCalled();
+    expect(trace.recordStep).toHaveBeenCalledWith(expect.objectContaining({ stepKey: 'current_backend_fact_gap' }));
+  });
+
   it('restores governed conversion metrics when the model diagnosis omits them', () => {
     const { service } = createService({ modelPipeline: {} });
     const newCustomerCount = definitionRef('metric.new_customer_count');

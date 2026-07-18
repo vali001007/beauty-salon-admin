@@ -328,6 +328,9 @@ export class BrainAnswerGraderService {
       return 'recommendation';
     }
     if (/(新建|创建|下单|开单|改约|取消|发券|发送|导出|调整|保存|确认|执行|帮我约|打开收银|打开核销|核销|结账)/.test(text)) return 'action';
+    if (/(?:员工|美容师).*(?:业绩|实收).*(?:下滑|下降)|(?:业绩|实收).*(?:下滑|下降).*(?:员工|美容师)/.test(text)) {
+      return 'comparison';
+    }
     if (/(爽约率|到店率|超时服务|超时.*影响.*预约|爽约.*高不高)/.test(text)) return 'diagnosis';
     if (
       /(按支付方式|支付方式.*(?:多少|拆分)|现金.*(?:微信|支付宝)|微信.*(?:现金|支付宝)|支付宝.*(?:现金|微信)|(?:现金|微信|支付宝|银行卡|储值).*(?:各|分别).*(?:多少|金额))/.test(text)
@@ -425,6 +428,9 @@ export class BrainAnswerGraderService {
     if (intent !== 'metric_query' && intent !== 'comparison' && intent !== 'ranking' && intent !== 'list') return undefined;
 
     const text = this.normalize(question);
+    if (/(?:员工|美容师).*(?:业绩|实收).*(?:下滑|下降)|(?:业绩|实收).*(?:下滑|下降).*(?:员工|美容师)/.test(text)) {
+      return undefined;
+    }
     if (/(预约|到店|空档|排班)/.test(text)) return 'appointment_count';
     if (/(商品|产品).*(销售额|销售金额)|(销售额|销售金额).*(商品|产品)/.test(text)) return 'product_sales_amount';
     if (/(耗材|物料|产品|商品).*(消耗|用量|出库).*(最快|最多|排行|排名)/.test(text)) return 'inventory_consumption_quantity';

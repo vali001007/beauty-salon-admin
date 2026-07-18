@@ -135,7 +135,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
   @BrainCapability({
     key: 'manager_staff_overview',
     name: '店长员工运营分析',
-    description: '按当前门店和时间范围分析美容师服务次数、独立客户数、客户复购率、业绩、提成、请假时长、排班忙闲和可用空档，支持按用户明确指定的员工指标排行、对比和工作饱和度诊断。试用期评估没有后台事实闭环时必须明确拒答，不得用通用员工排行替代。客户投诉与满意度由专用客户反馈能力处理。',
+    description: '按当前门店和时间范围分析美容师服务次数、独立客户数、客户复购率、业绩、提成、请假时长、排班忙闲和可用空档，支持按用户明确指定的员工指标排行、对比和工作饱和度诊断。试用期、转正待办和客户归属变更没有后台事实闭环时必须明确拒答，不得用通用员工排行替代。客户投诉与满意度由专用客户反馈能力处理。',
     intents: ['query', 'ranking', 'comparison', 'diagnosis'],
     examples: [
       '哪个美容师接的客人最多',
@@ -146,10 +146,13 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '这个月提成最高的是谁，大概多少',
       '本月员工总提成大概多少',
       '今天谁请假了，有没有影响接待',
+      '有没有员工这周业绩明显下滑',
       '新员工试用期表现怎么样',
+      '有没有员工到期转正需要我处理',
+      '有没有员工的客户被别的美容师挖走的迹象',
     ],
     negativeExamples: ['查看其他门店员工数据', '直接修改员工排班或提成', '最近有没有客户投诉或者表达不满'],
-    synonyms: ['员工运营分析', '美容师服务排行', '美容师接客排行', '员工服务次数对比', '员工客户复购率排行', '员工提成排行', '员工排班空档', '员工工作饱和度'],
+    synonyms: ['员工运营分析', '美容师服务排行', '美容师接客排行', '员工服务次数对比', '员工客户复购率排行', '员工提成排行', '员工排班空档', '员工工作饱和度', '员工业绩下滑', '员工转正待办', '客户归属流转'],
     businessDefinitionKeys: [
       'metric.staff_service_count',
       'metric.staff_unique_customer_count',
@@ -236,9 +239,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     name: '前台现场运营概览',
     description: '组合预约到店、待到店客户、到店率、爽约率、员工忙闲、服务超时和受影响预约，返回前台可执行的现场运营概览。',
     intents: ['query', 'diagnosis'],
-    examples: ['今天前台现场情况怎么样', '明天下午有哪些预约，员工忙不忙', '有哪些服务超时会影响后面的客户', '这周预约爽约率高不高'],
-    negativeExamples: ['直接替我修改客户预约', '查询其他门店的预约情况'],
-    synonyms: ['前台概览', '现场运营', '预约到店情况', '预约爽约率', '到店率', '员工忙闲', '服务超时'],
+    examples: ['今天前台现场情况怎么样', '明天下午有哪些预约，员工忙不忙', '有哪些服务超时会影响后面的客户', '这周预约爽约率高不高', '今天有没有超过接待能力的情况'],
+    negativeExamples: ['直接替我修改客户预约', '查询其他门店的预约情况', '判断客户是否因为等待时间长而离开'],
+    synonyms: ['前台概览', '现场运营', '预约到店情况', '预约爽约率', '到店率', '员工忙闲', '服务超时', '接待能力', '接待承载', '超负荷接待'],
     businessDefinitionKeys: ['entity.reservation'],
     readOnly: true,
     storeScope: 'required',
@@ -318,7 +321,11 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '最近毛利掉下来的主要原因是什么',
       '查一下毛利异常是折扣、成本还是项目结构造成的',
     ],
-    negativeExamples: ['直接修改结算数据', '查看其他门店的财务数据'],
+    negativeExamples: [
+      '直接修改结算数据',
+      '查看其他门店的财务数据',
+      '有没有项目成本明显上涨影响毛利的',
+    ],
     synonyms: ['财务概览', '财务风险', '收入成本分析', '退款优惠风险', '退款原因', '商品毛利排行', '低于成本销售', '大额异常退款', '会员卡负债', '毛利下降', '利润率变差', '盈利能力下降', '不赚钱', '毛利根因', '项目结构影响'],
     businessDefinitionKeys: [
       'metric.paid_amount',
@@ -448,12 +455,19 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
   @BrainCapability({
     key: 'marketing_customer_segment',
     name: '营销客户分群摘要',
-    description: '基于当前门店客户事实，汇总 VIP、新客、老客和沉睡客户等营销分群，只返回客群规模与数据边界。',
+    description: '基于当前门店客户、订单、项目类型、优惠和客户卡事实，返回营销分群摘要或消费分层、优惠敏感、基础项目未升单、疗程续购等具体客户名单。',
     intents: ['query', 'diagnosis'],
-    examples: ['本月客户可以分成哪些营销人群', 'VIP 和沉睡客户分别有多少人'],
-    negativeExamples: ['直接给沉睡客户群发消息', '查看其他门店的客户分群'],
-    synonyms: ['客户分群', '营销客群', 'VIP客户分层', '沉睡客户分层'],
-    businessDefinitionKeys: ['entity.customer'],
+    examples: [
+      '本月客户可以分成哪些营销人群',
+      'VIP 和沉睡客户分别有多少人',
+      '帮我把客户按消费金额分一下层',
+      '有没有客户对优惠很敏感，老是等打折才来',
+      '帮我找一下只做过基础项目没有升单的客户',
+      '疗程快结束的客户有多少，适合推续购',
+    ],
+    negativeExamples: ['直接给沉睡客户群发消息', '查看其他门店的客户分群', '查询未处理客户投诉', '判断会员权益使用后的满意度'],
+    synonyms: ['客户分群', '营销客群', 'VIP客户分层', '沉睡客户分层', '消费金额分层', '优惠敏感客户', '基础项目未升单客户', '疗程续购客户'],
+    businessDefinitionKeys: ['entity.customer', 'entity.project', 'dimension.customerId', 'dimension.customerName'],
     readOnly: true,
     storeScope: 'required',
     permissions: ['core:brain:use', 'core:marketing:analytics'],
@@ -543,6 +557,21 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
 
     switch (input.card.key) {
       case 'store_operations_overview': {
+        if (/(?:等待时间长|等待过久|久等).*(?:离开|走了|流失)|(?:离开|走了|流失).*(?:等待时间长|等待过久|久等)/.test(input.question)) {
+          const limitation = '当前等待流失事实表尚未迁移并采集真实数据，无法判断客户是否因等待时间长而离开。Ami Brain 不会用预约取消、爽约、经营概览或普通备注替代离店原因。';
+          return {
+            status: 'completed',
+            answer: limitation,
+            citations: [],
+            grounding: 'none',
+            blocks: [{ kind: 'limitations', items: [limitation] }],
+            metadata: {
+              capabilityKey: 'store_operations_overview',
+              unsupportedReason: 'customer_waiting_departure_fact_not_available',
+              completion: { status: 'complete', missingCriteria: [], recoverable: false },
+            },
+          };
+        }
         const comparisonRange = this.resolveComparisonRange(input, range);
         const [operations, reception, finance, comparisonOperations, comparisonReception, comparisonFinance] = await Promise.all([
           this.skillRuntime.buildManagerOperationsAnalysis({
@@ -844,7 +873,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             },
           };
         }
-        if (/(试用期|转正评估|新员工.*表现)/.test(input.question)) {
+        if (/(试用期|转正|新员工.*表现)/.test(input.question)) {
           const limitation = '当前后台没有员工试用期目标、阶段评价、带教记录或转正结论事实闭环，无法评价新员工试用期表现。Ami Brain 不会用服务量、接客数或通用业绩分替代试用期评估。';
           return {
             status: 'completed',
@@ -856,6 +885,88 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
               capabilityKey: 'manager_staff_overview',
               unsupportedReason: 'staff_probation_fact_not_available',
               completion: { status: 'complete', missingCriteria: [], recoverable: false },
+            },
+          };
+        }
+        if (/(?:客户.*(?:被|让).*(?:别的|其他).*(?:美容师|员工).*(?:挖走|转走)|挖走.*客户|客户归属.*(?:变更|流转))/.test(input.question)) {
+          const limitation = '当前后台没有客户归属历史、归属变更事件或转移原因事实闭环，无法判断客户是否被其他美容师挖走。Ami Brain 不会用当前客户归属、员工业绩或接客排行反推历史流转。';
+          return {
+            status: 'completed',
+            answer: limitation,
+            citations: [],
+            grounding: 'none',
+            blocks: [{ kind: 'limitations', items: [limitation] }],
+            metadata: {
+              capabilityKey: 'manager_staff_overview',
+              unsupportedReason: 'customer_ownership_history_not_available',
+              completion: { status: 'complete', missingCriteria: [], recoverable: false },
+            },
+          };
+        }
+        if (/(?:业绩|实收).*(?:明显)?(?:下滑|下降)|(?:下滑|下降).*(?:业绩|实收)/.test(input.question)) {
+          const durationMs = Math.max(1, range.endDate.getTime() - range.startDate.getTime() + 1);
+          const previousEndDate = new Date(range.startDate.getTime() - 1);
+          const previousStartDate = new Date(previousEndDate.getTime() - durationMs + 1);
+          const [current, previous] = await Promise.all([
+            this.skillRuntime.buildManagerStaffAnalysis({ storeId: input.context.storeId, startDate: range.startDate, endDate: range.endDate }),
+            this.skillRuntime.buildManagerStaffAnalysis({ storeId: input.context.storeId, startDate: previousStartDate, endDate: previousEndDate }),
+          ]);
+          const previousById = new Map(previous.staff.map((staff) => [staff.beauticianId, staff]));
+          const rows = current.staff
+            .map((staff) => {
+              const previousStaff = previousById.get(staff.beauticianId);
+              const previousRevenue = previousStaff?.revenueAmount ?? 0;
+              const declineRate = previousRevenue > 0 ? (previousRevenue - staff.revenueAmount) / previousRevenue : 0;
+              return {
+                staff: staff.name,
+                currentRevenue: staff.revenueAmount,
+                previousRevenue,
+                changeAmount: staff.revenueAmount - previousRevenue,
+                declineRate,
+              };
+            })
+            .filter((staff) => staff.previousRevenue > 0 && staff.currentRevenue < staff.previousRevenue && staff.declineRate >= 0.3)
+            .sort((left, right) => right.declineRate - left.declineRate || right.previousRevenue - left.previousRevenue);
+          const answer = rows.length
+            ? `${range.label}发现 ${rows.length} 位员工业绩较上一同长度周期下降 30% 以上：${rows.map((staff) => `${staff.staff} 下降 ${(staff.declineRate * 100).toFixed(1)}%（${staff.previousRevenue.toFixed(2)} -> ${staff.currentRevenue.toFixed(2)} 元）`).join('；')}。`
+            : `${range.label}未发现员工业绩较上一同长度周期下降 30% 以上。判断基于有效订单实收，并排除上一周期实收为 0 的员工。`;
+          return {
+            status: 'completed',
+            answer,
+            citations: [{ sourceType: 'db_skill', sourceId: 'manager_staff_revenue_comparison', label: '员工当前期与上一期业绩对比' }],
+            grounding: 'db_skill',
+            blocks: [
+              {
+                kind: 'text',
+                text: answer,
+                citationIds: ['manager_staff_revenue_comparison'],
+              },
+              {
+                kind: 'comparison',
+                items: rows.length
+                  ? rows.map((staff) => ({
+                      label: staff.staff,
+                      current: `${staff.currentRevenue.toFixed(2)} 元`,
+                      previous: `${staff.previousRevenue.toFixed(2)} 元`,
+                      delta: `${(staff.declineRate * 100).toFixed(1)}%`,
+                    }))
+                  : [{ label: '明显下滑员工数', current: '0 人', previous: '判定阈值 30%', delta: '未发现' }],
+                citationIds: ['manager_staff_revenue_comparison'],
+              },
+              {
+                kind: 'table',
+                rows: rows.map((staff) => ({ ...staff, declineRate: `${(staff.declineRate * 100).toFixed(1)}%` })),
+                columns: ['staff', 'currentRevenue', 'previousRevenue', 'changeAmount', 'declineRate'],
+                citationIds: ['manager_staff_revenue_comparison'],
+              },
+            ],
+            metadata: {
+              capabilityKey: 'manager_staff_overview',
+              answerScope: 'staff_revenue_decline_comparison',
+              rangeLabel: range.label,
+              previousStartDate: previousStartDate.toISOString(),
+              previousEndDate: previousEndDate.toISOString(),
+              declineThreshold: 0.3,
             },
           };
         }
@@ -1249,6 +1360,40 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           { sourceType: 'db_skill', sourceId: 'reception_service_overrun_analysis', label: '服务超时影响分析' },
           { sourceType: 'db_skill', sourceId: 'reception_reservation_schedule', label: '门店预约排期' },
         ];
+        if (/(?:超过|超出|超负荷|超载).*(?:接待能力|接待承载)|(?:接待能力|接待承载).*(?:不足|不够|超过|超出)/.test(input.question)) {
+          const availableStaffCount = snapshot.staff.filter((staff) => staff.available && !staff.onTimeOff).length;
+          const overloaded = overrun.impactedCount > 0 || (snapshot.pendingArrival > 0 && availableStaffCount === 0);
+          const answer = overloaded
+            ? `${range.label}存在接待承载风险：服务超时 ${overrun.overrunCount} 个，受影响预约 ${overrun.impactedCount} 个，待到店 ${snapshot.pendingArrival} 人，当前可接待员工 ${availableStaffCount} 人。`
+            : `${range.label}未发现超过当前接待能力的证据：有效预约 ${snapshot.total} 个，服务超时 ${overrun.overrunCount} 个，受影响预约 ${overrun.impactedCount} 个，待到店 ${snapshot.pendingArrival} 人，当前可接待员工 ${availableStaffCount} 人。`;
+          return this.applyDataQualityGuard({
+            status: 'completed',
+            answer,
+            citations,
+            grounding: 'db_skill',
+            blocks: [
+              { kind: 'text', text: answer, citationIds: citations.map((citation) => citation.sourceId) },
+              {
+                kind: 'kpi',
+                items: [
+                  { label: '有效预约', value: `${snapshot.total} 个` },
+                  { label: '待到店', value: `${snapshot.pendingArrival} 人` },
+                  { label: '可接待员工', value: `${availableStaffCount} 人` },
+                  { label: '受影响预约', value: `${overrun.impactedCount} 个` },
+                ],
+                citationIds: citations.map((citation) => citation.sourceId),
+              },
+            ],
+            metadata: {
+              capabilityKey: 'front_desk_operations_overview',
+              answerScope: 'reception_capacity_diagnosis',
+              rangeLabel: range.label,
+              overloaded,
+              availableStaffCount,
+              overloadRule: 'impacted_reservation_or_pending_arrival_without_available_staff',
+            },
+          }, dataQuality);
+        }
         return this.applyDataQualityGuard({
           status: 'completed',
           answer: `${range.label}前台现场概览已完成，包含预约到店、待到店客户、员工忙闲和服务超时影响。`,
@@ -1623,6 +1768,21 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         }, dataQuality);
       }
       case 'finance_risk_overview': {
+        if (/(?:项目).*(?:成本).*(?:上涨|上升).*(?:毛利|利润)|(?:项目).*(?:毛利|利润).*(?:成本).*(?:上涨|上升)/.test(input.question)) {
+          const limitation = '当前结算数据没有项目级收入、优惠、成本快照及可比期间归因，无法判断哪个项目因成本上涨影响毛利。Ami Brain 不会用全店毛利率或商品成本替代项目级成本归因。';
+          return {
+            status: 'completed',
+            answer: limitation,
+            citations: [],
+            grounding: 'none',
+            blocks: [{ kind: 'limitations', items: [limitation] }],
+            metadata: {
+              capabilityKey: 'finance_risk_overview',
+              unsupportedReason: 'project_cost_attribution_not_available',
+              completion: { status: 'complete', missingCriteria: [], recoverable: false },
+            },
+          };
+        }
         const diagnosisAnswer = input.answerShape === 'diagnosis';
         const diagnosisRange = diagnosisAnswer ? this.resolveFinanceDiagnosisRange(input, range) : range;
         if (/(?:退款|退货).*(?:原因|为什么)|(?:原因|为什么).*(?:退款|退货)/.test(input.question)) {
@@ -2152,6 +2312,36 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         });
       }
       case 'customer_facts': {
+        if (/(?:等待时间长|等待过久|久等).*(?:离开|走了|流失)|(?:离开|走了|流失).*(?:等待时间长|等待过久|久等)/.test(input.question)) {
+          const limitation = '当前等待流失事实表尚未迁移并采集真实数据，无法判断客户是否因等待时间长而离开。Ami Brain 不会用客户档案、预约取消、爽约或普通备注替代离店原因。';
+          return {
+            status: 'completed',
+            answer: limitation,
+            citations: [],
+            grounding: 'none',
+            blocks: [{ kind: 'limitations', items: [limitation] }],
+            metadata: {
+              capabilityKey: 'customer_facts',
+              unsupportedReason: 'customer_waiting_departure_fact_not_available',
+              completion: { status: 'complete', missingCriteria: [], recoverable: false },
+            },
+          };
+        }
+        if (/(?:投诉|客诉|满意度|不[^，。；]{0,6}满意|负面反馈)/.test(input.question)) {
+          const limitation = '当前客户反馈事实表尚未迁移并采集真实投诉、满意度与处置状态，无法回答该问题。Ami Brain 不会用客户档案、会员权益、消费金额或营销响应替代投诉与满意度事实。';
+          return {
+            status: 'completed',
+            answer: limitation,
+            citations: [],
+            grounding: 'none',
+            blocks: [{ kind: 'limitations', items: [limitation] }],
+            metadata: {
+              capabilityKey: 'customer_facts',
+              unsupportedReason: 'customer_feedback_fact_not_available',
+              completion: { status: 'complete', missingCriteria: [], recoverable: false },
+            },
+          };
+        }
         if (/(?:沉睡客户.*(?:唤醒|回流).*(?:迹象|信号)|(?:唤醒|回流).*(?:迹象|信号).*沉睡客户)/.test(input.question)) {
           if (!this.customerLifecycle) throw new Error('customer_lifecycle_service_not_configured');
           const explicitTime = readCapabilityStructuredTime(input.args, input.context.timezone);
@@ -2603,6 +2793,35 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         });
       }
       case 'marketing_customer_segment': {
+        if (/(?:投诉|客诉|满意度|不[^，。；]{0,6}满意|负面反馈)/.test(input.question)) {
+          const limitation = '当前客户反馈事实表尚未迁移并采集真实投诉、满意度与处置状态，无法回答该问题。Ami Brain 不会用客户分层、会员卡余额、消费金额或营销响应替代投诉与满意度事实。';
+          return {
+            status: 'completed',
+            answer: limitation,
+            citations: [],
+            grounding: 'none',
+            blocks: [{ kind: 'limitations', items: [limitation] }],
+            metadata: {
+              capabilityKey: 'marketing_customer_segment',
+              unsupportedReason: 'customer_feedback_fact_not_available',
+              completion: { status: 'complete', missingCriteria: [], recoverable: false },
+            },
+          };
+        }
+        if (/(?:消费金额.*(?:分层|分一下层|分组)|优惠.*敏感|等打折|打折才来|基础项目.*(?:升单|升级)|疗程.*(?:快结束|临近结束|续购)|续购.*(?:疗程|次卡|客户))/.test(input.question)) {
+          const answer = await this.customerFacts.answerCustomerFactQuestion({
+            storeId: input.context.storeId,
+            message: input.question,
+            startDate: range.startDate,
+            endDate: range.endDate,
+          });
+          return this.answer({
+            answer,
+            citationId: 'capability_marketing_customer_segment',
+            citationLabel: '营销客户分群事实',
+            metadata: { rangeLabel: range.label, segmentDetail: true },
+          });
+        }
         const summary = await this.customerFacts.summarizeCustomerSegments({
           storeId: input.context.storeId,
           startDate: range.startDate,

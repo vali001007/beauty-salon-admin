@@ -62,6 +62,8 @@ describe('Agent eval question bank', () => {
       expectedSemanticIntent: 'ranking',
       expectedMetrics: ['staff_customer_repurchase_rate'],
     });
+    expect(bank.questions.find((item) => item.input === '有没有员工这周业绩明显下滑')?.expectedMetrics)
+      .not.toContain('staff_performance_score');
     expect(bank.questions.find((item) => item.input === '今天退款有几笔，金额多少')?.expectedMetrics)
       .toEqual(expect.arrayContaining(['refund_amount', 'refund_count']));
     expect(bank.questions.find((item) => item.input === '今天折扣优惠送出去多少钱')?.expectedMetrics)

@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { CustomerLifecycleOntologyService } from '../../marketing/customer-lifecycle-ontology.service.js';
 import { formatBrainMoney, toBrainNumber } from './brain-domain-formatters.js';
 import { extractCustomerPhoneTail } from './brain-customer-identity.js';
+import { CUSTOMER_MONETARY_TIERS, customerMonetaryTier } from '../../customers/customer-value-segmentation.js';
 
 export interface BrainNewCustomerSourceDistribution {
   total: number;
@@ -201,6 +202,15 @@ export class BrainCustomerFactResolverService {
     }
     if (/(优惠.*敏感|等打折|打折才来)/.test(message)) {
       return this.discountSensitiveCustomers(input.storeId);
+    }
+    if (/(?:按|根据)?消费金额.*(?:分层|分一下层|分组)|客户.*消费金额.*层/.test(message)) {
+      return this.customerSpendingTiers(input.storeId);
+    }
+    if (/(?:只做过|做过).*(?:基础项目|基础护理).*(?:没有|没).*(?:升单|升级)|基础项目.*(?:未升单|没升单)/.test(message)) {
+      return this.basicProjectWithoutUpgradeCustomers(input.storeId);
+    }
+    if (/(?:疗程|次卡).*(?:快结束|临近结束|续购)|(?:续购).*(?:疗程|次卡|客户)/.test(message)) {
+      return this.treatmentRenewalCustomers(input.storeId);
     }
     if (/(新客.*(?:渠道|来源)|(?:渠道|来源).*新客|新客最多|时间段.*新客)/.test(message)) {
       return this.newCustomerSourceTrend({
@@ -622,16 +632,135 @@ export class BrainCustomerFactResolverService {
         ...customer,
         discountOrderRate: customer.orderCount > 0 ? customer.discountOrderCount / customer.orderCount : 0,
       }))
-      .filter((customer) => customer.discountOrderCount >= 2 || customer.discountOrderRate >= 0.5)
+      .filter((customer) => customer.orderCount >= 2 && customer.discountOrderCount >= 2 && customer.discountOrderRate >= 0.5)
       .sort((left, right) => right.discountOrderRate - left.discountOrderRate || right.discountAmount - left.discountAmount)
       .slice(0, 10);
 
-    return this.formatCustomerRows('优惠敏感客户候选名单', rows, (customer) =>
+    return this.formatCustomerRows('优惠敏感客户候选名单（近 180 天至少 2 单、至少 2 笔优惠单且优惠订单占比不低于 50%）', rows, (customer) =>
       `${customer.name}：近 180 天 ${customer.orderCount} 单中 ${customer.discountOrderCount} 单使用优惠，优惠订单占比 ${Math.round(
         customer.discountOrderRate * 100,
       )}%，累计优惠 ${formatBrainMoney(customer.discountAmount)}，累计消费 ${formatBrainMoney(customer.totalSpent)}${this.lastVisitText(
         customer.lastVisitDate,
       )}`,
+    );
+  }
+
+  private async customerSpendingTiers(storeId: number) {
+    const [total, customers] = await Promise.all([
+      this.prisma.customer.count({ where: { storeId, deletedAt: null } }),
+      this.prisma.customer.findMany({
+        where: { storeId, deletedAt: null },
+        select: { name: true, totalSpent: true, visitCount: true, lastVisitDate: true },
+        orderBy: [{ totalSpent: 'desc' }],
+        take: 20_000,
+      }),
+    ]);
+    const grouped = new Map<number, typeof customers>();
+    for (const customer of customers) {
+      const tier = customerMonetaryTier(toBrainNumber(customer.totalSpent));
+      const rows = grouped.get(tier.score) ?? [];
+      rows.push(customer);
+      grouped.set(tier.score, rows);
+    }
+    const lines = CUSTOMER_MONETARY_TIERS.map((tier, index) => {
+      const rows = grouped.get(tier.score) ?? [];
+      const range = tier.max === null
+        ? `${formatBrainMoney(tier.min)} 以上`
+        : tier.score === 0
+          ? '累计消费为 0'
+          : `${formatBrainMoney(tier.min)} 至 ${formatBrainMoney(tier.max)} 以下`;
+      const examples = rows.slice(0, 3).map((customer) => `${customer.name} ${formatBrainMoney(toBrainNumber(customer.totalSpent))}`).join('、');
+      return `${index + 1}. ${tier.label}（${range}）：${rows.length} 人${examples ? `；示例 ${examples}` : ''}`;
+    });
+    const coverage = total > customers.length ? `本次分析前 ${customers.length}/${total} 位客户，结果为受控样本` : `覆盖当前门店 ${total} 位客户`;
+    return `客户累计消费金额分层（复用管理端客户画像 M 值阈值，${coverage}）：\n${lines.join('\n')}`;
+  }
+
+  private async basicProjectWithoutUpgradeCustomers(storeId: number) {
+    const projects = await this.prisma.project.findMany({
+      where: { storeId, deletedAt: null, status: 'active' },
+      select: { id: true, name: true, type: { select: { name: true } } },
+    });
+    const projectById = new Map(projects.map((project) => [project.id, project]));
+    const basicProjectIds = new Set(projects.filter((project) => /基础/.test(project.type?.name ?? '')).map((project) => project.id));
+    if (!basicProjectIds.size) {
+      return '当前门店项目类型没有标记“基础”的项目，无法识别基础项目未升单客户；Ami Brain 不会按价格猜测项目层级。';
+    }
+    const items = await this.prisma.orderItem.findMany({
+      where: {
+        itemType: 'project',
+        itemId: { not: null },
+        order: {
+          storeId,
+          customerId: { not: null },
+          status: { notIn: ['cancelled', 'canceled', 'refunded', '已取消'] },
+          netAmount: { gt: 0 },
+        },
+      },
+      select: {
+        itemId: true,
+        name: true,
+        createdAt: true,
+        order: { select: { customerId: true, customer: { select: { name: true, totalSpent: true, lastVisitDate: true } } } },
+      },
+      orderBy: [{ createdAt: 'desc' }],
+      take: 20_000,
+    });
+    const grouped = new Map<number, { name: string; totalSpent: number; lastVisitDate: Date | null; basicProjects: Set<string>; hasNonBasic: boolean }>();
+    for (const item of items) {
+      const customerId = item.order.customerId;
+      const customer = item.order.customer;
+      if (!customerId || !customer || !item.itemId || !projectById.has(item.itemId)) continue;
+      const current = grouped.get(customerId) ?? {
+        name: customer.name,
+        totalSpent: toBrainNumber(customer.totalSpent),
+        lastVisitDate: customer.lastVisitDate,
+        basicProjects: new Set<string>(),
+        hasNonBasic: false,
+      };
+      if (basicProjectIds.has(item.itemId)) current.basicProjects.add(item.name);
+      else current.hasNonBasic = true;
+      grouped.set(customerId, current);
+    }
+    const rows = Array.from(grouped.values())
+      .filter((customer) => customer.basicProjects.size > 0 && !customer.hasNonBasic)
+      .sort((left, right) => right.totalSpent - left.totalSpent);
+    return this.formatCustomerRows(
+      '只购买过基础项目、尚无非基础项目消费的客户（基础项目按管理端 ProjectType 名称含“基础”识别）',
+      rows.slice(0, 10),
+      (customer) => `${customer.name}：基础项目 ${Array.from(customer.basicProjects).join('、')}，累计消费 ${formatBrainMoney(customer.totalSpent)}${this.lastVisitText(customer.lastVisitDate)}`,
+      rows.length,
+    );
+  }
+
+  private async treatmentRenewalCustomers(storeId: number) {
+    const now = new Date();
+    const expiryCutoff = new Date(now);
+    expiryCutoff.setDate(expiryCutoff.getDate() + 30);
+    const cards = await this.prisma.customerCard.findMany({
+      where: {
+        status: 'active',
+        remainingTimes: { gt: 0 },
+        customer: { storeId, deletedAt: null },
+        OR: [{ remainingTimes: { lte: 2 } }, { expiryDate: { gte: now, lte: expiryCutoff } }],
+      },
+      select: {
+        customerId: true,
+        cardName: true,
+        totalTimes: true,
+        remainingTimes: true,
+        expiryDate: true,
+        customer: { select: { name: true, totalSpent: true, lastVisitDate: true } },
+      },
+      orderBy: [{ remainingTimes: 'asc' }, { expiryDate: 'asc' }],
+      take: 20_000,
+    });
+    const unique = [...new Map(cards.map((card) => [card.customerId, card])).values()];
+    return this.formatCustomerRows(
+      '疗程续购候选客户（活跃卡剩余 1-2 次，或 30 天内到期；仅生成候选，不自动触达）',
+      unique.slice(0, 10),
+      (card) => `${card.customer.name}：${card.cardName} 剩余 ${card.remainingTimes}/${card.totalTimes} 次，有效期至 ${card.expiryDate.toISOString().slice(0, 10)}，累计消费 ${formatBrainMoney(toBrainNumber(card.customer.totalSpent))}${this.lastVisitText(card.customer.lastVisitDate)}`,
+      unique.length,
     );
   }
 
