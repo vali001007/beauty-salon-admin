@@ -8,6 +8,7 @@ export type SemanticQueryTemplateDefinition = {
   description: string;
   capabilityIds?: string[];
   metricKeys: string[];
+  requiredMetricKeys?: string[];
   defaultDimensions: string[];
   supportedOutputShapes: SemanticQueryOutputShape[];
   sourceModels: string[];
@@ -71,7 +72,13 @@ export class QueryTemplateRegistryService {
       title: '商品销量查询',
       description: '查询商品销量、销售额和周期增长。',
       capabilityIds: ['product_sales_ranking', 'product_sales_trend', 'finance_risk_overview'],
-      metricKeys: ['product_sales_quantity', 'product_sales_amount', 'product_sales_growth', 'product_gross_margin_rate', 'product_below_cost_sale_count'],
+      metricKeys: [
+        'product_sales_quantity',
+        'product_sales_amount',
+        'product_sales_growth',
+        'product_gross_margin_rate',
+        'product_below_cost_sale_count',
+      ],
       defaultDimensions: ['productId', 'productName'],
       supportedOutputShapes: ['list', 'table'],
       sourceModels: ['ProductOrder', 'OrderItem', 'RefundRecord', 'RefundItem', 'Product'],
@@ -243,11 +250,7 @@ export class QueryTemplateRegistryService {
       title: '新客获取与转化查询',
       description: '查询周期新增客户、周期内首单转化人数和转化率。',
       capabilityIds: ['customer_facts'],
-      metricKeys: [
-        'new_customer_count',
-        'new_customer_conversion_count',
-        'new_customer_conversion_rate',
-      ],
+      metricKeys: ['new_customer_count', 'new_customer_conversion_count', 'new_customer_conversion_rate'],
       defaultDimensions: [],
       supportedOutputShapes: ['summary'],
       sourceModels: ['Customer', 'ProductOrder'],
@@ -258,6 +261,7 @@ export class QueryTemplateRegistryService {
       description: '查询预约数量、到店率和时段趋势。',
       capabilityIds: ['reservation_schedule_diagnosis', 'reservation_today'],
       metricKeys: ['reservation_count', 'arrival_rate'],
+      requiredMetricKeys: ['reservation_count', 'arrival_rate'],
       defaultDimensions: ['date'],
       supportedOutputShapes: ['summary', 'trend', 'table'],
       sourceModels: ['Reservation'],
@@ -289,17 +293,15 @@ export class QueryTemplateRegistryService {
   private withCanonicalCapabilityBindings(
     templates: SemanticQueryTemplateDefinition[],
   ): SemanticQueryTemplateDefinition[] {
-    const explicitlyAssignedCapabilities = new Set(
-      templates.flatMap((template) => template.capabilityIds ?? []),
-    );
+    const explicitlyAssignedCapabilities = new Set(templates.flatMap((template) => template.capabilityIds ?? []));
     return templates.map((template) => {
-      const canonicalCapabilities = AMI_CORE_BUSINESS_METRIC_CONTRACTS
-        .filter((contract) => template.metricKeys.includes(contract.metricKey))
+      const canonicalCapabilities = AMI_CORE_BUSINESS_METRIC_CONTRACTS.filter((contract) =>
+        template.metricKeys.includes(contract.metricKey),
+      )
         .flatMap((contract) => contract.payload.bindings.capability)
         .filter(
           (capabilityId) =>
-            !explicitlyAssignedCapabilities.has(capabilityId) ||
-            template.capabilityIds?.includes(capabilityId),
+            !explicitlyAssignedCapabilities.has(capabilityId) || template.capabilityIds?.includes(capabilityId),
         );
       return {
         ...template,

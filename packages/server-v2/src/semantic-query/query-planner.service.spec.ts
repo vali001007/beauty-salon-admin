@@ -51,7 +51,7 @@ describe('QueryPlannerService', () => {
         actor: actor({ permissions: ['core:inventory:view'] }),
         capabilityId: 'order_revenue_analysis',
       } as any),
-    ).toThrow('business_metric_catalog_permission_denied:net_revenue:core:finance:view');
+    ).toThrow('business_metric_catalog_permission_denied:paid_amount:core:finance:view');
   });
 
   it('plans last 7 days cashier trend as date-based semantic query', () => {
@@ -85,7 +85,7 @@ describe('QueryPlannerService', () => {
       capabilityId: 'order_revenue_analysis',
       templateId: 'order_revenue',
       role: 'manager',
-      dimensions: ['payMethod'],
+      dimensions: ['paymentMethod'],
       outputShape: 'summary',
       timeRange: { preset: 'today', label: '今天' },
       storeScope: { storeIds: [1], scopeType: 'current_store' },
@@ -109,7 +109,9 @@ describe('QueryPlannerService', () => {
       orderBy: [{ key: 'paid_amount', direction: 'desc' }],
       limit: 20,
     });
-    expect(result.plan?.metrics.map((item) => item.key)).toEqual(expect.arrayContaining(['paid_amount', 'order_count']));
+    expect(result.plan?.metrics.map((item) => item.key)).toEqual(
+      expect.arrayContaining(['paid_amount', 'order_count']),
+    );
   });
 
   it('plans product ranking with product dimensions and user limit', () => {
@@ -123,6 +125,26 @@ describe('QueryPlannerService', () => {
       outputShape: 'list',
     });
     expect(result.plan?.metrics.map((item) => item.key)).toEqual(expect.arrayContaining(['product_sales_growth']));
+    expect(result.plan?.metrics.map((item) => item.key)).toEqual(['product_sales_growth']);
+  });
+
+  it('does not require unrelated optional template metrics when the user requested a specific metric', () => {
+    const productQuantityOnlyCatalog = createInMemoryBusinessMetricCatalog(
+      LEGACY_SEMANTIC_METRICS.filter((metric) => metric.key === 'product_sales_quantity'),
+    );
+    const productQuantityPlanner = new QueryPlannerService(
+      productQuantityOnlyCatalog,
+      dimensionRegistry,
+      new QuerySafetyGuardService(productQuantityOnlyCatalog, dimensionRegistry),
+      templateRegistry,
+    );
+    const { task } = preParser.parse({ message: '本月商品销量排行', role: 'manager' });
+    task.metrics = ['product_sales_quantity'];
+
+    const result = productQuantityPlanner.plan({ task, actor: actor(), capabilityId: 'product_sales_ranking' });
+
+    expect(result.rejectedReason).toBeUndefined();
+    expect(result.plan?.metrics.map((item) => item.key)).toEqual(['product_sales_quantity']);
   });
 
   it('blocks sensitive finance metric for reception', () => {
@@ -147,9 +169,9 @@ describe('QueryPlannerService', () => {
     );
     const { task } = preParser.parse({ message: '今天实收多少', role: 'manager' });
 
-    expect(() =>
-      restrictedPlanner.plan({ task, actor: actor(), capabilityId: 'order_revenue_analysis' }),
-    ).toThrow('business_metric_catalog_task_type_not_allowed:paid_amount:query');
+    expect(() => restrictedPlanner.plan({ task, actor: actor(), capabilityId: 'order_revenue_analysis' })).toThrow(
+      'business_metric_catalog_task_type_not_allowed:paid_amount:query',
+    );
   });
 
   it('blocks beautician broad staff query without self scope', () => {
@@ -184,7 +206,9 @@ describe('QueryPlannerService', () => {
       storeScope: { storeIds: [1], scopeType: 'current_store' },
       filters: { storeId: 1 },
     });
-    expect(result.plan?.metrics.map((item) => item.key)).toEqual(expect.arrayContaining(['reservation_count', 'arrival_rate']));
+    expect(result.plan?.metrics.map((item) => item.key)).toEqual(
+      expect.arrayContaining(['reservation_count', 'arrival_rate']),
+    );
   });
 
   it('plans recent marketing activity questions as activity list instead of conversion diagnosis', () => {

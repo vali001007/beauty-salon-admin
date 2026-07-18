@@ -75,7 +75,9 @@ export class SemanticQueryExecutorService {
       title: currentMetrics.length === 1 ? currentMetrics[0].name : '经营指标查询',
       summary: plan.dimensions.length
         ? `${range.label}查询完成，共返回 ${rows.length} 条指标结果。`
-        : currentMetrics.map((metric, index) => `${metric.name}为 ${formatMetricValue(results[index].overallValue)}`).join('；'),
+        : currentMetrics
+            .map((metric, index) => `${metric.name}为 ${formatMetricValue(results[index].overallValue)}`)
+            .join('；'),
       rows,
       kpis: currentMetrics.map((metric, index) => ({
         label: metric.name,
@@ -116,7 +118,8 @@ export class SemanticQueryExecutorService {
     }
     const allowedFilterKeys = new Set(['storeId', 'scope', 'beauticianId']);
     const unsupported = Object.keys(plan.filters).filter((key) => !allowedFilterKeys.has(key));
-    if (unsupported.length) throw new Error(`semantic_runtime_dynamic_filter_unsupported:${unsupported.sort().join(',')}`);
+    if (unsupported.length)
+      throw new Error(`semantic_runtime_dynamic_filter_unsupported:${unsupported.sort().join(',')}`);
     if (!plan.metrics.length) throw new Error('semantic_runtime_metric_binding_missing');
     if (Number(plan.filters.storeId) !== plan.actor.storeId) throw new Error('semantic_runtime_store_filter_tampered');
     if (plan.actor.role === 'beautician') {
@@ -275,24 +278,24 @@ export class SemanticQueryExecutorService {
       const paidAmount = this.getOrderPaidAmount(order);
       if (paidAmount <= 0) continue;
       const customerId = Number(order.customerId) || null;
-      const customerName = String(order.customer?.name || order.customerName || (customerId ? `客户${customerId}` : '散客'));
+      const customerName = String(
+        order.customer?.name || order.customerName || (customerId ? `客户${customerId}` : '散客'),
+      );
       const key = customerId ? `customer:${customerId}` : `guest:${customerName}`;
       const existing = customers.get(key);
       const lastOrderTime = new Date(order.createdAt);
-      const target =
-        existing ??
-        {
-          customerId,
-          customerName,
-          phoneMasked: this.maskPhone(order.customer?.phone),
-          memberLevel: order.customer?.memberLevel ?? '',
-          paidAmount: 0,
-          orderCount: 0,
-          lastOrderTime,
-          orderNos: [] as string[],
-          payMethods: new Set<string>(),
-          itemNames: new Map<string, number>(),
-        };
+      const target = existing ?? {
+        customerId,
+        customerName,
+        phoneMasked: this.maskPhone(order.customer?.phone),
+        memberLevel: order.customer?.memberLevel ?? '',
+        paidAmount: 0,
+        orderCount: 0,
+        lastOrderTime,
+        orderNos: [] as string[],
+        payMethods: new Set<string>(),
+        itemNames: new Map<string, number>(),
+      };
       target.paidAmount += paidAmount;
       target.orderCount += 1;
       if (lastOrderTime.getTime() > target.lastOrderTime.getTime()) target.lastOrderTime = lastOrderTime;
@@ -329,7 +332,8 @@ export class SemanticQueryExecutorService {
           itemsSummary: itemsSummary || '未记录明细',
           payMethods: Array.from(item.payMethods).join('、') || '未知',
           orderNos: item.orderNos.slice(0, 5),
-          suggestion: item.paidAmount >= 1000 ? '高消费客户，建议结合服务记录做复购承接。' : '建议完成消费后回访与满意度确认。',
+          suggestion:
+            item.paidAmount >= 1000 ? '高消费客户，建议结合服务记录做复购承接。' : '建议完成消费后回访与满意度确认。',
         };
       })
       .sort((a, b) => b.paidAmount - a.paidAmount || b.orderCount - a.orderCount)
@@ -340,7 +344,8 @@ export class SemanticQueryExecutorService {
     const evidence = this.evidence(plan, {
       source: ['ProductOrder', 'PaymentRecord', 'OrderItem', 'Customer'],
       dateRange: this.formatRange(range),
-      metricDefinition: '消费客户清单 = 查询周期内未取消/未退款订单，按客户聚合有效支付金额；金额优先取支付记录合计，其次取订单 netAmount，再次取 totalAmount。',
+      metricDefinition:
+        '消费客户清单 = 查询周期内未取消/未退款订单，按客户聚合有效支付金额；金额优先取支付记录合计，其次取订单 netAmount，再次取 totalAmount。',
       filters: ['storeId=当前门店', 'status not in cancelled/refunded', 'createdAt=查询周期', `limit=${plan.limit}`],
       sampleSize: (orders as any[]).length,
       limitations: ['散客或缺失 customerId 的订单按客户姓名聚合；退款中的部分退款订单暂按订单当前有效金额展示。'],
@@ -373,13 +378,28 @@ export class SemanticQueryExecutorService {
         take: 5000,
       }),
       (this.prisma as any).paymentRecord.findMany({
-        where: { order: { storeId }, status: { in: ['paid', 'completed', 'success', '已支付', '已完成'] }, paidAt: { gte: range.start, lt: range.end } },
+        where: {
+          order: { storeId },
+          status: { in: ['paid', 'completed', 'success', '已支付', '已完成'] },
+          paidAt: { gte: range.start, lt: range.end },
+        },
         select: { id: true, orderId: true, method: true, amount: true, paidAt: true, status: true },
         take: 5000,
       }),
       (this.prisma as any).refundRecord.findMany({
-        where: { order: { storeId }, status: { in: ['refunded', 'success', 'completed', '已退款', '已完成'] }, refundedAt: { gte: range.start, lt: range.end } },
-        select: { id: true, orderId: true, amount: true, refundedAt: true, status: true, order: { select: { payMethod: true } } },
+        where: {
+          order: { storeId },
+          status: { in: ['refunded', 'success', 'completed', '已退款', '已完成'] },
+          refundedAt: { gte: range.start, lt: range.end },
+        },
+        select: {
+          id: true,
+          orderId: true,
+          amount: true,
+          refundedAt: true,
+          status: true,
+          order: { select: { payMethod: true } },
+        },
         take: 5000,
       }),
     ]);
@@ -389,7 +409,8 @@ export class SemanticQueryExecutorService {
     const evidence = this.evidence(plan, {
       source: ['ProductOrder', 'PaymentRecord', 'RefundRecord'],
       dateRange: this.formatRange(range),
-      metricDefinition: '营收 = 有效订单收入；实收 = 支付成功流水；退款 = 已完成退款流水；净额 = 实收 - 退款；客单价 = 实收 / 有效订单数。',
+      metricDefinition:
+        '营收 = 有效订单收入；实收 = 支付成功流水；退款 = 已完成退款流水；净额 = 实收 - 退款；客单价 = 实收 / 有效订单数。',
       filters: ['当前门店', '订单状态为已支付或已完成', '支付/退款时间在查询周期内'],
       sampleSize: (orders as any[]).length + (payments as any[]).length + (refunds as any[]).length,
     });
@@ -401,9 +422,10 @@ export class SemanticQueryExecutorService {
     const totalOrders = rows.reduce((sum, row) => sum + this.toNumber(row.orderCount), 0);
     return this.success(plan, {
       title: plan.outputShape === 'trend' ? '收银趋势' : '收银收入',
-      summary: plan.outputShape === 'trend'
-        ? `${range.label}共 ${rows.length} 天有收银记录，实收合计 ${this.formatMoney(totalPaid)}。`
-        : `${range.label}实收 ${this.formatMoney(totalPaid)}，退款 ${this.formatMoney(totalRefund)}，净额 ${this.formatMoney(totalNet)}，订单 ${totalOrders} 笔。`,
+      summary:
+        plan.outputShape === 'trend'
+          ? `${range.label}共 ${rows.length} 天有收银记录，实收合计 ${this.formatMoney(totalPaid)}。`
+          : `${range.label}实收 ${this.formatMoney(totalPaid)}，退款 ${this.formatMoney(totalRefund)}，净额 ${this.formatMoney(totalNet)}，订单 ${totalOrders} 笔。`,
       rows,
       evidence,
       kpis: [
@@ -418,10 +440,33 @@ export class SemanticQueryExecutorService {
     });
   }
 
-  private buildRevenueTrendRows(orders: any[], payments: any[], refunds: any[], range: DateRange, plan: SemanticQueryPlan) {
-    const buckets = new Map<string, { date: string; revenue: number; paidAmount: number; refundAmount: number; orderCount: number; customerIds: Set<number> }>();
+  private buildRevenueTrendRows(
+    orders: any[],
+    payments: any[],
+    refunds: any[],
+    range: DateRange,
+    plan: SemanticQueryPlan,
+  ) {
+    const buckets = new Map<
+      string,
+      {
+        date: string;
+        revenue: number;
+        paidAmount: number;
+        refundAmount: number;
+        orderCount: number;
+        customerIds: Set<number>;
+      }
+    >();
     for (const day of this.enumerateDays(range)) {
-      buckets.set(day, { date: day, revenue: 0, paidAmount: 0, refundAmount: 0, orderCount: 0, customerIds: new Set<number>() });
+      buckets.set(day, {
+        date: day,
+        revenue: 0,
+        paidAmount: 0,
+        refundAmount: 0,
+        orderCount: 0,
+        customerIds: new Set<number>(),
+      });
     }
     for (const order of orders) {
       const key = this.formatDate(new Date(order.createdAt));
@@ -462,13 +507,29 @@ export class SemanticQueryExecutorService {
     if (!orders.length && !payments.length) return [];
     const buckets = new Map<
       string,
-      { payMethod: string; revenue: number; paidAmount: number; refundAmount: number; orderCount: number; paymentCount: number; customerIds: Set<number> }
+      {
+        payMethod: string;
+        revenue: number;
+        paidAmount: number;
+        refundAmount: number;
+        orderCount: number;
+        paymentCount: number;
+        customerIds: Set<number>;
+      }
     >();
     const ensureBucket = (method: unknown) => {
       const key = String(method || '未知');
       const existing = buckets.get(key);
       if (existing) return existing;
-      const created = { payMethod: key, revenue: 0, paidAmount: 0, refundAmount: 0, orderCount: 0, paymentCount: 0, customerIds: new Set<number>() };
+      const created = {
+        payMethod: key,
+        revenue: 0,
+        paidAmount: 0,
+        refundAmount: 0,
+        orderCount: 0,
+        paymentCount: 0,
+        customerIds: new Set<number>(),
+      };
       buckets.set(key, created);
       return created;
     };
@@ -493,7 +554,7 @@ export class SemanticQueryExecutorService {
         const effectivePaidAmount = hasPayments ? bucket.paidAmount : bucket.revenue;
         const netAmount = effectivePaidAmount - bucket.refundAmount;
         return {
-          payMethod: bucket.payMethod,
+          paymentMethod: bucket.payMethod,
           revenue: Math.round(bucket.revenue * 100) / 100,
           paidAmount: Math.round(effectivePaidAmount * 100) / 100,
           refundAmount: Math.round(bucket.refundAmount * 100) / 100,
@@ -523,13 +584,28 @@ export class SemanticQueryExecutorService {
       include: { order: { select: { id: true, customerId: true, createdAt: true, status: true } } },
       take: 5000,
     });
-    const bucket = new Map<number, { productId: number; productName: string; quantity: number; previousQuantity: number; salesAmount: number; customers: Set<number> }>();
+    const bucket = new Map<
+      number,
+      {
+        productId: number;
+        productName: string;
+        quantity: number;
+        previousQuantity: number;
+        salesAmount: number;
+        customers: Set<number>;
+      }
+    >();
     for (const item of records as any[]) {
       const productId = Number(item.itemId);
       if (!productId) continue;
-      const target =
-        bucket.get(productId) ??
-        { productId, productName: item.name, quantity: 0, previousQuantity: 0, salesAmount: 0, customers: new Set<number>() };
+      const target = bucket.get(productId) ?? {
+        productId,
+        productName: item.name,
+        quantity: 0,
+        previousQuantity: 0,
+        salesAmount: 0,
+        customers: new Set<number>(),
+      };
       const createdAt = new Date(item.order?.createdAt ?? item.createdAt);
       const isCurrent = createdAt >= range.start && createdAt < range.end;
       if (isCurrent) {
@@ -544,7 +620,8 @@ export class SemanticQueryExecutorService {
     const rows = Array.from(bucket.values())
       .map((item) => {
         const growthQuantity = item.quantity - item.previousQuantity;
-        const growthRate = item.previousQuantity > 0 ? growthQuantity / item.previousQuantity : item.quantity > 0 ? 1 : 0;
+        const growthRate =
+          item.previousQuantity > 0 ? growthQuantity / item.previousQuantity : item.quantity > 0 ? 1 : 0;
         return {
           productId: item.productId,
           productName: item.productName,
@@ -560,7 +637,10 @@ export class SemanticQueryExecutorService {
       .filter((item) => item.quantity > 0)
       .sort((a, b) => {
         const orderKey = plan.orderBy[0]?.key ?? 'quantity';
-        return this.toNumber(b[orderKey as keyof typeof b]) - this.toNumber(a[orderKey as keyof typeof a]) || b.quantity - a.quantity;
+        return (
+          this.toNumber(b[orderKey as keyof typeof b]) - this.toNumber(a[orderKey as keyof typeof a]) ||
+          b.quantity - a.quantity
+        );
       })
       .slice(0, plan.limit);
     const evidence = this.evidence(plan, {
@@ -579,9 +659,18 @@ export class SemanticQueryExecutorService {
       kpis: [
         { label: '上榜商品', value: `${rows.length}` },
         { label: '最高销量', value: `${rows[0].quantity}` },
-        { label: '销售额', value: this.formatMoney(rows.reduce((sum, row) => sum + this.toNumber(row.salesAmount), 0)) },
+        {
+          label: '销售额',
+          value: this.formatMoney(rows.reduce((sum, row) => sum + this.toNumber(row.salesAmount), 0)),
+        },
       ],
-      actions: [{ label: '查看商品明细', action: rows[0].productId ? `product:${rows[0].productId}` : 'manager.inventory', riskLevel: 'low' }],
+      actions: [
+        {
+          label: '查看商品明细',
+          action: rows[0].productId ? `product:${rows[0].productId}` : 'manager.inventory',
+          riskLevel: 'low',
+        },
+      ],
     });
   }
 
@@ -601,13 +690,28 @@ export class SemanticQueryExecutorService {
       include: { order: { select: { id: true, customerId: true, createdAt: true, status: true } } },
       take: 5000,
     });
-    const bucket = new Map<number, { projectId: number; projectName: string; serviceCount: number; previousServiceCount: number; revenue: number; customers: Set<number> }>();
+    const bucket = new Map<
+      number,
+      {
+        projectId: number;
+        projectName: string;
+        serviceCount: number;
+        previousServiceCount: number;
+        revenue: number;
+        customers: Set<number>;
+      }
+    >();
     for (const item of records as any[]) {
       const projectId = Number(item.itemId);
       if (!projectId) continue;
-      const target =
-        bucket.get(projectId) ??
-        { projectId, projectName: item.name, serviceCount: 0, previousServiceCount: 0, revenue: 0, customers: new Set<number>() };
+      const target = bucket.get(projectId) ?? {
+        projectId,
+        projectName: item.name,
+        serviceCount: 0,
+        previousServiceCount: 0,
+        revenue: 0,
+        customers: new Set<number>(),
+      };
       const createdAt = new Date(item.order?.createdAt ?? item.createdAt);
       const isCurrent = createdAt >= range.start && createdAt < range.end;
       if (isCurrent) {
@@ -622,7 +726,8 @@ export class SemanticQueryExecutorService {
     const rows = Array.from(bucket.values())
       .map((item) => {
         const growthCount = item.serviceCount - item.previousServiceCount;
-        const growthRate = item.previousServiceCount > 0 ? growthCount / item.previousServiceCount : item.serviceCount > 0 ? 1 : 0;
+        const growthRate =
+          item.previousServiceCount > 0 ? growthCount / item.previousServiceCount : item.serviceCount > 0 ? 1 : 0;
         return {
           projectId: item.projectId,
           projectName: item.projectName,
@@ -650,7 +755,13 @@ export class SemanticQueryExecutorService {
       summary: `${range.label}服务最多的是 ${rows[0].projectName}，共 ${rows[0].serviceCount} 次。`,
       rows,
       evidence,
-      actions: [{ label: '查看项目明细', action: rows[0].projectId ? `project:${rows[0].projectId}` : 'manager.projects', riskLevel: 'low' }],
+      actions: [
+        {
+          label: '查看项目明细',
+          action: rows[0].projectId ? `project:${rows[0].projectId}` : 'manager.projects',
+          riskLevel: 'low',
+        },
+      ],
     });
   }
 
@@ -658,12 +769,30 @@ export class SemanticQueryExecutorService {
     const [customers, snapshots] = await Promise.all([
       this.prisma.customer.findMany({
         where: { storeId: plan.storeScope.storeIds[0], deletedAt: null },
-        select: { id: true, name: true, phone: true, memberLevel: true, totalSpent: true, visitCount: true, lastVisitDate: true, tags: true },
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          memberLevel: true,
+          totalSpent: true,
+          visitCount: true,
+          lastVisitDate: true,
+          tags: true,
+        },
         take: 5000,
       }),
       (this.prisma as any).customerPredictionSnapshot.findMany({
         where: { storeId: plan.storeScope.storeIds[0] },
-        select: { customerId: true, churnScore: true, churnLevel: true, repurchase30dScore: true, marketingResponseScore: true, ltv12m: true, ltvTier: true, createdAt: true },
+        select: {
+          customerId: true,
+          churnScore: true,
+          churnLevel: true,
+          repurchase30dScore: true,
+          marketingResponseScore: true,
+          ltv12m: true,
+          ltvTier: true,
+          createdAt: true,
+        },
         orderBy: { createdAt: 'desc' },
         take: 5000,
       }),
@@ -677,18 +806,26 @@ export class SemanticQueryExecutorService {
     const rows = (customers as any[])
       .map((customer) => {
         const snapshot = latestSnapshotByCustomer.get(Number(customer.id));
-        const daysSinceVisit = customer.lastVisitDate ? Math.max(0, Math.floor((now.getTime() - new Date(customer.lastVisitDate).getTime()) / DAY_MS)) : null;
+        const daysSinceVisit = customer.lastVisitDate
+          ? Math.max(0, Math.floor((now.getTime() - new Date(customer.lastVisitDate).getTime()) / DAY_MS))
+          : null;
         const churnScore = this.toNumber(snapshot?.churnScore);
         const repurchaseScore = this.toNumber(snapshot?.repurchase30dScore);
         const responseScore = this.toNumber(snapshot?.marketingResponseScore);
         const ltv = this.toNumber(snapshot?.ltv12m ?? customer.totalSpent);
-        const followUpScore = Math.round(churnScore * 0.4 + repurchaseScore * 0.25 + responseScore * 0.2 + Math.min(30, ltv / 1000) + (daysSinceVisit ? Math.min(20, daysSinceVisit / 10) : 0));
+        const followUpScore = Math.round(
+          churnScore * 0.4 +
+            repurchaseScore * 0.25 +
+            responseScore * 0.2 +
+            Math.min(30, ltv / 1000) +
+            (daysSinceVisit ? Math.min(20, daysSinceVisit / 10) : 0),
+        );
         return {
           customerId: customer.id,
           customerName: customer.name,
           phone: this.maskPhone(customer.phone),
           memberLevel: customer.memberLevel ?? '无',
-          tags: Array.isArray(customer.tags) ? customer.tags.join('、') : customer.tags ?? '',
+          tags: Array.isArray(customer.tags) ? customer.tags.join('、') : (customer.tags ?? ''),
           daysSinceVisit,
           totalSpent: this.toNumber(customer.totalSpent),
           churnScore,
@@ -719,7 +856,16 @@ export class SemanticQueryExecutorService {
   private async queryInventoryRisk(plan: SemanticQueryPlan): Promise<SemanticQueryResult> {
     const products = await (this.prisma as any).product.findMany({
       where: { storeId: plan.storeScope.storeIds[0], deletedAt: null },
-      select: { id: true, name: true, sku: true, currentStock: true, safetyStock: true, unit: true, specUnit: true, status: true },
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        currentStock: true,
+        safetyStock: true,
+        unit: true,
+        specUnit: true,
+        status: true,
+      },
       take: 5000,
     });
     const rows = (products as any[])
@@ -803,12 +949,25 @@ export class SemanticQueryExecutorService {
       where: { storeId: plan.storeScope.storeIds[0], verifiedAt: { gte: range.start, lt: range.end } },
       take: 5000,
     });
-    const bucket = new Map<string, { cardName: string; projectName: string; usageTimes: number; customerIds: Set<number>; beauticianIds: Set<number> }>();
+    const bucket = new Map<
+      string,
+      {
+        cardName: string;
+        projectName: string;
+        usageTimes: number;
+        customerIds: Set<number>;
+        beauticianIds: Set<number>;
+      }
+    >();
     for (const item of records as any[]) {
       const key = `${item.cardName ?? '未知卡项'}|${item.projectName ?? '未关联项目'}`;
-      const target =
-        bucket.get(key) ??
-        { cardName: item.cardName ?? '未知卡项', projectName: item.projectName ?? '未关联项目', usageTimes: 0, customerIds: new Set<number>(), beauticianIds: new Set<number>() };
+      const target = bucket.get(key) ?? {
+        cardName: item.cardName ?? '未知卡项',
+        projectName: item.projectName ?? '未关联项目',
+        usageTimes: 0,
+        customerIds: new Set<number>(),
+        beauticianIds: new Set<number>(),
+      };
       target.usageTimes += this.toNumber(item.times) || 1;
       if (item.customerId) target.customerIds.add(Number(item.customerId));
       if (item.beauticianId) target.beauticianIds.add(Number(item.beauticianId));
@@ -910,7 +1069,18 @@ export class SemanticQueryExecutorService {
         take: 5000,
       }),
     ]);
-    const bucket = new Map<number, { beauticianId: number; beauticianName: string; level?: string; serviceCount: number; completedCount: number; orderCount: number; revenue: number }>();
+    const bucket = new Map<
+      number,
+      {
+        beauticianId: number;
+        beauticianName: string;
+        level?: string;
+        serviceCount: number;
+        completedCount: number;
+        orderCount: number;
+        revenue: number;
+      }
+    >();
     for (const beautician of beauticians as any[]) {
       bucket.set(Number(beautician.id), {
         beauticianId: Number(beautician.id),
@@ -927,7 +1097,8 @@ export class SemanticQueryExecutorService {
       const target = bucket.get(beauticianId);
       if (!target) continue;
       target.serviceCount += 1;
-      if (['completed', 'arrived', 'done', '已完成', '已到店'].includes(String(reservation.status))) target.completedCount += 1;
+      if (['completed', 'arrived', 'done', '已完成', '已到店'].includes(String(reservation.status)))
+        target.completedCount += 1;
     }
     for (const item of orderItems as any[]) {
       const beauticianId = Number(item.beauticianId);
@@ -939,7 +1110,9 @@ export class SemanticQueryExecutorService {
     const rows = Array.from(bucket.values())
       .map((item) => {
         const completionRate = item.serviceCount ? item.completedCount / item.serviceCount : 0;
-        const score = Math.round(item.revenue / 100 + item.completedCount * 10 + item.orderCount * 5 + completionRate * 20);
+        const score = Math.round(
+          item.revenue / 100 + item.completedCount * 10 + item.orderCount * 5 + completionRate * 20,
+        );
         return {
           ...item,
           revenue: Math.round(item.revenue * 100) / 100,
@@ -975,7 +1148,10 @@ export class SemanticQueryExecutorService {
       select: { id: true, date: true, status: true, customerId: true, beauticianId: true },
       take: 5000,
     });
-    const bucket = new Map<string, { date: string; reservationCount: number; arrivedCount: number; completedCount: number; noShowCount: number }>();
+    const bucket = new Map<
+      string,
+      { date: string; reservationCount: number; arrivedCount: number; completedCount: number; noShowCount: number }
+    >();
     for (const day of this.enumerateDays(range)) {
       bucket.set(day, { date: day, reservationCount: 0, arrivedCount: 0, completedCount: 0, noShowCount: 0 });
     }
@@ -1044,7 +1220,9 @@ export class SemanticQueryExecutorService {
       take: plan.limit,
     });
 
-    const activityIds = (activities as any[]).map((activity) => Number(activity.id)).filter((id) => Number.isFinite(id));
+    const activityIds = (activities as any[])
+      .map((activity) => Number(activity.id))
+      .filter((id) => Number.isFinite(id));
     const pages = activityIds.length
       ? await (this.prisma as any).marketingPage.findMany({
           where: { activityId: { in: activityIds } },
@@ -1084,7 +1262,9 @@ export class SemanticQueryExecutorService {
     });
     if (!rows.length) return this.noData(plan, `${range.label}没有可查看的营销活动。`, evidence);
     const runningCount = rows.filter((row) => String(row.status).includes('进行中')).length;
-    const draftCount = rows.filter((row) => String(row.status).includes('draft') || String(row.publishStatus).includes('未发布')).length;
+    const draftCount = rows.filter(
+      (row) => String(row.status).includes('draft') || String(row.publishStatus).includes('未发布'),
+    ).length;
     return this.success(plan, {
       title: '近期营销活动',
       summary: `${range.label}共找到 ${rows.length} 条营销活动，进行中 ${runningCount} 条，草稿/未发布 ${draftCount} 条；最近更新的是「${rows[0].campaignName}」。`,
@@ -1115,7 +1295,11 @@ export class SemanticQueryExecutorService {
       }),
     ]);
     const activityIds = Array.from(
-      new Set((pages as any[]).map((page) => Number(page.activityId)).filter((activityId) => Number.isFinite(activityId) && activityId > 0)),
+      new Set(
+        (pages as any[])
+          .map((page) => Number(page.activityId))
+          .filter((activityId) => Number.isFinite(activityId) && activityId > 0),
+      ),
     );
     const activities = activityIds.length
       ? await (this.prisma as any).marketingActivity.findMany({
@@ -1126,7 +1310,10 @@ export class SemanticQueryExecutorService {
       : [];
     const activityById = new Map((activities as any[]).map((item) => [Number(item.id), item]));
     const pageById = new Map((pages as any[]).map((item) => [Number(item.id), item]));
-    const bucket = new Map<number, { campaignId: number; campaignName: string; viewCount: number; leadCount: number; convertedCount: number }>();
+    const bucket = new Map<
+      number,
+      { campaignId: number; campaignName: string; viewCount: number; leadCount: number; convertedCount: number }
+    >();
     for (const page of pages as any[]) {
       const activity = activityById.get(Number(page.activityId));
       const campaignId = Number(page.activityId || page.id);
@@ -1151,12 +1338,17 @@ export class SemanticQueryExecutorService {
       const target = bucket.get(campaignId);
       if (!target) continue;
       target.leadCount += 1;
-      if (['converted', 'completed', 'won', '已转化', '已成交'].includes(String(lead.status))) target.convertedCount += 1;
+      if (['converted', 'completed', 'won', '已转化', '已成交'].includes(String(lead.status)))
+        target.convertedCount += 1;
     }
     const rows = Array.from(bucket.values())
       .map((item) => {
         const conversionRate = item.viewCount ? item.leadCount / item.viewCount : item.leadCount > 0 ? 1 : 0;
-        return { ...item, conversionRateText: this.formatPercent(conversionRate), score: Math.round(conversionRate * 100 + item.leadCount * 2) };
+        return {
+          ...item,
+          conversionRateText: this.formatPercent(conversionRate),
+          score: Math.round(conversionRate * 100 + item.leadCount * 2),
+        };
       })
       .filter((item) => item.viewCount > 0 || item.leadCount > 0)
       .sort((a, b) => b.score - a.score || b.leadCount - a.leadCount)
@@ -1200,7 +1392,8 @@ export class SemanticQueryExecutorService {
       actions: input.actions ?? [],
       userEvidence: {
         dateRange: input.evidence.dateRange,
-        dataSummary: input.evidence.sampleSize !== undefined ? `基于 ${input.evidence.sampleSize} 条业务记录统计` : undefined,
+        dataSummary:
+          input.evidence.sampleSize !== undefined ? `基于 ${input.evidence.sampleSize} 条业务记录统计` : undefined,
       },
       auditEvidence: input.evidence,
     };
@@ -1239,7 +1432,10 @@ export class SemanticQueryExecutorService {
     };
   }
 
-  private evidence(plan: SemanticQueryPlan, input: Omit<SemanticQueryEvidence, 'auditId' | 'sqlFingerprint'>): SemanticQueryEvidence {
+  private evidence(
+    plan: SemanticQueryPlan,
+    input: Omit<SemanticQueryEvidence, 'auditId' | 'sqlFingerprint'>,
+  ): SemanticQueryEvidence {
     return {
       ...input,
       sourceTables: input.sourceTables?.length ? input.sourceTables : input.source,
@@ -1253,8 +1449,10 @@ export class SemanticQueryExecutorService {
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     if (value?.preset === 'today') return { start: today, end: new Date(today.getTime() + DAY_MS), label: '今天' };
     if (value?.preset === 'yesterday') return { start: new Date(today.getTime() - DAY_MS), end: today, label: '昨天' };
-    if (value?.preset === 'this_month') return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: now, label: '本月' };
-    if (value?.preset === 'last_7_days') return { start: new Date(now.getTime() - 7 * DAY_MS), end: now, label: '近7天' };
+    if (value?.preset === 'this_month')
+      return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: now, label: '本月' };
+    if (value?.preset === 'last_7_days')
+      return { start: new Date(now.getTime() - 7 * DAY_MS), end: now, label: '近7天' };
     if (value?.preset === 'custom' && value.startDate && value.endDate) {
       const start = new Date(value.startDate);
       const end = new Date(value.endDate);
@@ -1266,7 +1464,11 @@ export class SemanticQueryExecutorService {
 
   private previousSameLengthRange(range: DateRange): DateRange {
     const duration = range.end.getTime() - range.start.getTime();
-    return { start: new Date(range.start.getTime() - duration), end: new Date(range.start.getTime()), label: `上一${range.label}` };
+    return {
+      start: new Date(range.start.getTime() - duration),
+      end: new Date(range.start.getTime()),
+      label: `上一${range.label}`,
+    };
   }
 
   private enumerateDays(range: DateRange) {
@@ -1323,7 +1525,9 @@ export class SemanticQueryExecutorService {
   }
 
   private getOrderPaidAmount(order: Record<string, unknown>) {
-    const paymentRecords = Array.isArray(order.paymentRecords) ? (order.paymentRecords as Array<Record<string, unknown>>) : [];
+    const paymentRecords = Array.isArray(order.paymentRecords)
+      ? (order.paymentRecords as Array<Record<string, unknown>>)
+      : [];
     const paidByRecords = paymentRecords
       .filter((payment) => !/cancel|failed|void|取消|失败/.test(String(payment.status || '').toLowerCase()))
       .reduce((total, payment) => total + this.toNumber(payment.amount), 0);
@@ -1336,7 +1540,8 @@ export class SemanticQueryExecutorService {
   private toNumber(value: unknown) {
     if (value === null || value === undefined) return 0;
     if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
-    if (typeof value === 'object' && value && 'toNumber' in value && typeof (value as any).toNumber === 'function') return (value as any).toNumber();
+    if (typeof value === 'object' && value && 'toNumber' in value && typeof (value as any).toNumber === 'function')
+      return (value as any).toNumber();
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : 0;
   }
