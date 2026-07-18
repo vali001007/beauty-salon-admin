@@ -56,6 +56,7 @@ import {
 } from './dto/follow-up-task.dto.js';
 import type { TerminalCustomerSelectQueryDto, TerminalCustomerSelectScene } from './dto/customer-select.dto.js';
 import { MarketingAttributionService } from '../marketing/attribution/marketing-attribution.service.js';
+import { ReservationsService } from '../reservations/reservations.service.js';
 import { MarketingEffectFactService } from '../marketing/attribution/marketing-effect-fact.service.js';
 import {
   isMarketingFeatureEnabledForStore,
@@ -116,6 +117,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     private marketingAttributionService?: MarketingAttributionService,
     @Optional() private marketingEffectFactService?: MarketingEffectFactService,
     @Optional() private marketingFeatureFlags?: MarketingFeatureFlagsService,
+    @Optional() private reservationsService?: ReservationsService,
   ) {}
 
   onModuleInit() {
@@ -5189,55 +5191,18 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
   }
 
   async createReservation(storeId: number, dto: CreateReservationDto) {
-    const appointment = new Date(dto.appointmentTime);
-    if (Number.isNaN(appointment.getTime())) {
-      throw new BadRequestException('预约时间无效');
-    }
-    const customer = dto.customerId
-      ? await this.prisma.customer.findUnique({ where: { id: dto.customerId } })
-      : await this.prisma.customer.create({
-          data: {
-            storeId,
-            name: dto.customerName || '新客户',
-            phone: dto.customerPhone || '',
-            gender: '女',
-            source: 'terminal',
-          },
-        });
-    if (!customer) throw new NotFoundException('客户不存在');
-    const project = dto.projectId
-      ? await this.prisma.project.findUnique({ where: { id: dto.projectId } })
-      : dto.projectName
-        ? await this.prisma.project.findFirst({
-            where: { storeId, name: { contains: dto.projectName }, deletedAt: null },
-          })
-        : await this.prisma.project.findFirst({ where: { storeId, deletedAt: null, status: 'active' } });
-    if (!project) throw new BadRequestException('当前门店没有可预约项目');
-    const beautician = dto.beauticianId
-      ? await this.prisma.beautician.findFirst({ where: { id: dto.beauticianId, storeId } })
-      : dto.beauticianName
-        ? await this.prisma.beautician.findFirst({
-            where: { storeId, name: { contains: dto.beauticianName }, status: 'active' },
-          })
-        : null;
-    const startTime = appointment.toTimeString().slice(0, 5);
-    const end = new Date(appointment);
-    end.setMinutes(end.getMinutes() + (dto.duration ?? project.duration ?? 60));
-    const reservation = await this.prisma.reservation.create({
-      data: {
-        storeId,
-        customerId: customer.id,
-        projectId: project.id,
-        beauticianId: beautician?.id ?? dto.beauticianId,
-        date: appointment,
-        startTime,
-        endTime: end.toTimeString().slice(0, 5),
-        status: 'pending',
-        remark: dto.remark,
-      },
+    const reservationService = this.reservationsService;
+    if (!reservationService) throw new Error('reservations_service_unavailable');
+    const result = await reservationService.createIdempotent({
+      ...dto,
+      storeId,
+      status: 'pending',
+      bookingSource: 'ami_aura_lite',
+      allowCreateCustomer: !dto.customerId,
+      allowDefaultProject: !dto.projectId && !dto.projectName,
     });
     this.invalidateReservationDashboardCache(storeId, true);
-    return this.mapReservation(reservation);
+    return result.reservation;
   }
 
   async updateReservation(reservationId: number, dto: UpdateReservationDto) {

@@ -2961,6 +2961,7 @@ export async function createAppointmentFromTerminal(input: AppointmentCreateInpu
   }
 
   const payload: TerminalReservationCreateRequest = {
+    idempotencyKey: globalThis.crypto?.randomUUID?.() ?? `aura-reservation-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     customerId: customer.id,
     customerName: customer.name,
     customerPhone: customer.phone || '',
@@ -5165,6 +5166,7 @@ export async function getOperationResult(action: string): Promise<OperationResul
   switch (action) {
     case 'reception.appointments': {
       const reservation = await createTerminalReservation({
+        idempotencyKey: globalThis.crypto?.randomUUID?.() ?? `aura-quick-reservation-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         customerId: customer?.id,
         customerName: customer?.name ?? '到店客户',
         customerPhone: customer?.phone ?? '',

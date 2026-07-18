@@ -3,6 +3,7 @@ import { CustomerAppService } from './customer-app.service';
 describe('CustomerAppService promotion attribution', () => {
   let service: CustomerAppService;
   let prisma: jest.Mocked<any>;
+  let reservationsService: { recoverIdempotentCreate: jest.Mock; createIdempotent: jest.Mock };
 
   const user = {
     sub: 'customer-app:1',
@@ -71,7 +72,17 @@ describe('CustomerAppService promotion attribution', () => {
       },
     };
 
-    service = new CustomerAppService(prisma as any, {} as any, {} as any);
+    reservationsService = {
+      recoverIdempotentCreate: jest.fn().mockResolvedValue(undefined),
+      createIdempotent: jest.fn(async (data: any) => ({
+        replayed: false,
+        reservation: await prisma.reservation.create({
+          data,
+          include: { store: true, customer: true, project: true, beautician: true },
+        }),
+      })),
+    };
+    service = new CustomerAppService(prisma as any, {} as any, {} as any, undefined, undefined, reservationsService as any);
   });
 
   it('lists only notifications delivered to the current customer and store', async () => {
@@ -468,6 +479,26 @@ describe('CustomerAppService promotion attribution', () => {
         }),
       }),
     });
+  });
+
+  it('returns an existing idempotent reservation before availability checks and does not duplicate events', async () => {
+    reservationsService.recoverIdempotentCreate.mockResolvedValue({
+      replayed: true,
+      reservation: { id: 88, storeId: 1, customerId: 10, projectId: 7, status: 'pending' },
+    });
+
+    const result = await service.createReservation(user as any, {
+      storeId: 1,
+      projectId: 7,
+      date: '2026-06-20',
+      startTime: '10:00',
+      idempotencyKey: 'ami-glow-replay-88',
+    } as any);
+
+    expect(result).toMatchObject({ id: 88 });
+    expect(reservationsService.createIdempotent).not.toHaveBeenCalled();
+    expect(prisma.project.findFirst).not.toHaveBeenCalled();
+    expect(prisma.customerAppEvent.create).not.toHaveBeenCalled();
   });
 
   it('preserves H5 source when reservation carries a promotion', async () => {

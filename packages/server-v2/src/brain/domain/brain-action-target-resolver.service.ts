@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { buildCardUsageIdempotencyKey } from '../../cards/card-usage-idempotency.js';
+import { buildReservationIdempotencyKey } from '../../reservations/reservation-idempotency.js';
 import { extractCustomerPhoneTail } from './brain-customer-identity.js';
 
 export type BrainTargetResolution<T> =
@@ -19,6 +20,11 @@ export class BrainActionTargetResolverService {
   }): Promise<void> {
     switch (input.capabilityKey) {
       case 'create_reservation':
+        if (input.idempotencyKey) {
+          const idempotencyKey = buildReservationIdempotencyKey(input.storeId, 'ami_brain', input.idempotencyKey);
+          const committed = await this.prisma.reservation.findUnique({ where: { idempotencyKey }, select: { id: true } });
+          if (committed) return;
+        }
         await Promise.all([
           this.requireScopedRecord('customer', input.args.customerId, input.storeId),
           this.requireScopedRecord('project', input.args.projectId, input.storeId),

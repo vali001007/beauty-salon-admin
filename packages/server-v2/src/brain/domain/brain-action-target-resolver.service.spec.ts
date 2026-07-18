@@ -4,7 +4,7 @@ describe('BrainActionTargetResolverService', () => {
   const prisma = {
     customer: { findMany: jest.fn(), findFirst: jest.fn() },
     project: { findMany: jest.fn(), findFirst: jest.fn() },
-    reservation: { findMany: jest.fn(), findFirst: jest.fn() },
+    reservation: { findMany: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn() },
     serviceTask: { findMany: jest.fn(), findFirst: jest.fn() },
     customerCard: { findMany: jest.fn(), findFirst: jest.fn() },
     cardUsageRecord: { aggregate: jest.fn(), findUnique: jest.fn() },
@@ -122,6 +122,20 @@ describe('BrainActionTargetResolverService', () => {
       where: { id: 18, storeId: 6 },
       select: { id: true },
     });
+  });
+
+  it('accepts a committed reservation during safe replay before checking mutable targets', async () => {
+    prisma.reservation.findUnique.mockResolvedValue({ id: 81 });
+
+    await expect(service.revalidateCapabilityTarget({
+      capabilityKey: 'create_reservation',
+      storeId: 6,
+      idempotencyKey: 'brain-reservation-81',
+      args: { customerId: 7, projectId: 101, appointmentTime: '2026-07-20T15:00:00+08:00' },
+    })).resolves.toBeUndefined();
+
+    expect(prisma.customer.findFirst).not.toHaveBeenCalled();
+    expect(prisma.project.findFirst).not.toHaveBeenCalled();
   });
 
   it('resolves one active customer card, project, usage count and beautician', async () => {

@@ -23,6 +23,7 @@ import {
 import type { CustomerAppTokenPayload } from './types.js';
 import { MarketingEffectFactService } from '../marketing/attribution/marketing-effect-fact.service.js';
 import { isMarketingFeatureEnabledForStore, MarketingFeatureFlagsService } from '../marketing/marketing-feature-flags.service.js';
+import { ReservationsService } from '../reservations/reservations.service.js';
 
 @Injectable()
 export class CustomerAppService {
@@ -32,6 +33,7 @@ export class CustomerAppService {
     private aiService: AiService,
     @Optional() private readonly factService?: MarketingEffectFactService,
     @Optional() private readonly marketingFeatureFlags?: MarketingFeatureFlagsService,
+    @Optional() private readonly reservationsService?: ReservationsService,
   ) {}
 
   async h5Guest(dto: CustomerAppH5GuestDto) {
@@ -492,6 +494,18 @@ export class CustomerAppService {
 
   async createReservation(user: CustomerAppTokenPayload, dto: CustomerAppCreateReservationDto) {
     const customer = await this.requireCustomer(user.customerId, dto.storeId);
+    const appointment = this.combineDateAndTime(dto.date, dto.startTime);
+    const bookingSource = dto.source === 'ami_glow_h5' ? 'ami_glow_h5' : 'ami_glow';
+    const reservationService = this.requireReservationsService();
+    const recovered = await reservationService.recoverIdempotentCreate({
+      ...dto,
+      storeId: dto.storeId,
+      customerId: customer.id,
+      appointmentTime: appointment,
+      bookingSource,
+    });
+    if (recovered) return recovered.reservation;
+
     if (dto.customerPhone && customer.phone !== dto.customerPhone) {
       await this.prisma.customer.update({
         where: { id: customer.id },
@@ -520,7 +534,6 @@ export class CustomerAppService {
     const selectedSlot = availability.slots.find((slot) => slot.startTime === dto.startTime);
     if (!selectedSlot?.available) throw new BadRequestException(selectedSlot?.reason || '该时段不可预约，请重新选择');
 
-    const appointment = this.combineDateAndTime(dto.date, dto.startTime);
     const endTime = dto.endTime || selectedSlot.endTime;
     const sourceLabel = dto.source === 'ami_glow_h5' || dto.channel?.includes('h5') ? 'Ami Glow H5' : 'Ami Glow';
     const remarkParts = [
@@ -530,52 +543,58 @@ export class CustomerAppService {
       dto.promotionId ? `活动ID：${dto.promotionId}` : undefined,
       dto.campaignId ? `Campaign：${dto.campaignId}` : undefined,
       dto.staffId ? `员工ID：${dto.staffId}` : undefined,
-      dto.idempotencyKey ? `幂等键：${dto.idempotencyKey}` : undefined,
     ].filter(Boolean);
 
-    const created = await this.prisma.reservation.create({
-      data: {
-        storeId: dto.storeId,
-        customerId: customer.id,
-        projectId: dto.projectId,
-        beauticianId: dto.beauticianId,
-        date: appointment,
-        startTime: dto.startTime,
-        endTime,
-        status: 'pending',
-        remark: remarkParts.join('；'),
-      },
-      include: { store: true, customer: true, project: true, beautician: true },
+    const created = await reservationService.createIdempotent({
+      storeId: dto.storeId,
+      customerId: customer.id,
+      projectId: dto.projectId,
+      beauticianId: dto.beauticianId,
+      appointmentTime: appointment,
+      startTime: dto.startTime,
+      endTime,
+      status: 'pending',
+      remark: remarkParts.join('；'),
+      bookingSource,
+      idempotencyKey: dto.idempotencyKey,
     });
+    const reservation = created.reservation as any;
 
-    await this.recordEvent(
-      { ...user, customerId: customer.id, storeId: dto.storeId },
-      {
-        eventType: 'miniapp_reservation_success',
-        storeId: dto.storeId,
-        channel: dto.channel,
-        source: dto.source,
-        targetType: 'project',
-        targetId: String(dto.projectId),
-        payload: { reservationId: created.id, promotionId: dto.promotionId },
-      },
-    );
-    if (dto.promotionId) {
+    if (!created.replayed) {
       await this.recordEvent(
         { ...user, customerId: customer.id, storeId: dto.storeId },
         {
-          eventType: 'promotion_reserved',
+          eventType: 'miniapp_reservation_success',
           storeId: dto.storeId,
           channel: dto.channel,
           source: dto.source,
-          targetType: 'promotion',
-          targetId: String(dto.promotionId),
-          payload: { reservationId: created.id, projectId: dto.projectId },
+          targetType: 'project',
+          targetId: String(dto.projectId),
+          payload: { reservationId: reservation.id, promotionId: dto.promotionId },
         },
       );
+      if (dto.promotionId) {
+        await this.recordEvent(
+          { ...user, customerId: customer.id, storeId: dto.storeId },
+          {
+            eventType: 'promotion_reserved',
+            storeId: dto.storeId,
+            channel: dto.channel,
+            source: dto.source,
+            targetType: 'promotion',
+            targetId: String(dto.promotionId),
+            payload: { reservationId: reservation.id, projectId: dto.projectId },
+          },
+        );
+      }
     }
 
-    return this.mapReservation(created);
+    return reservation;
+  }
+
+  private requireReservationsService() {
+    if (!this.reservationsService) throw new Error('reservations_service_unavailable');
+    return this.reservationsService;
   }
 
   async claimPromotion(user: CustomerAppTokenPayload, promotionId: number, dto: { storeId?: number; channel?: string; source?: string; sessionId?: string } = {}) {

@@ -586,8 +586,15 @@ export class TerminalReservationController {
 
   @Post()
   @ApiOperation({ summary: '创建预约' })
-  create(@CurrentDevice('storeId') storeId: number, @Body() dto: CreateReservationDto) {
-    return this.terminalService.createReservation(storeId, dto);
+  create(
+    @CurrentDevice('storeId') storeId: number,
+    @Body() dto: CreateReservationDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.terminalService.createReservation(storeId, {
+      ...dto,
+      idempotencyKey: idempotencyKey?.trim() || dto.idempotencyKey,
+    });
   }
 
   @Put(':id')

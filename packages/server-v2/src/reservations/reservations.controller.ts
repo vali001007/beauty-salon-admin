@@ -55,8 +55,12 @@ export class ReservationsController {
   @Post()
   @Permissions('core:store:reservations')
   @ApiOperation({ summary: '创建预约' })
-  create(@Body() dto: any) {
-    return this.reservationsService.create(dto);
+  create(@Body() dto: any, @Headers('idempotency-key') idempotencyKey?: string) {
+    return this.reservationsService.create({
+      ...dto,
+      bookingSource: 'admin',
+      idempotencyKey: idempotencyKey?.trim() || dto.idempotencyKey,
+    });
   }
 
   @Put(':id')

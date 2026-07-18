@@ -1,0 +1,738 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-18T09:32:11.308Z",
+  "policy": "synthetic_contract_only",
+  "productionReady": false,
+  "scanSummary": {
+    "total": 1,
+    "draft": 1,
+    "blocked": 0,
+    "explicit": 1
+  },
+  "result": {
+    "proposals": [
+      {
+        "status": "synthetic_contract_only",
+        "capabilityKey": "reservation_action_preview",
+        "sourceFingerprint": "bc33ff5e4cbbb82d7cecc7391ea5ece3ebb48bcb330953364ffd32e17f870dd0",
+        "proposalFingerprint": "31806173e23e4ee76e5e68d32f736b5d7fc82dd2e098712f328745ee4257ae77",
+        "businessDefinitions": [
+          {
+            "definitionId": 1,
+            "versionId": 10001,
+            "definitionKey": "entity.customer",
+            "version": 1,
+            "definitionFingerprint": "b96274fa310225a9772f68489eacdd992f608740c23b5c548ae91300c8e4d239",
+            "sourceFingerprint": "7060e378d59a17556679b49f8c425deac02681d3df8193a7138ddb4981c3167d"
+          },
+          {
+            "definitionId": 2,
+            "versionId": 10002,
+            "definitionKey": "entity.project",
+            "version": 1,
+            "definitionFingerprint": "8c17625b461a6e6b0c7efe4a38c6da545cb3a4d98701d2fb851fa040e17f5777",
+            "sourceFingerprint": "d3bc8be9f2090628a8adbf1ce93c66f13a6a29dd9c883faa4a7d7d1cacb0d67c"
+          },
+          {
+            "definitionId": 3,
+            "versionId": 10003,
+            "definitionKey": "entity.reservation",
+            "version": 1,
+            "definitionFingerprint": "093fb57c46a988682f2bb1f4c323cfc61b84c8fdbffcdeaa6b7ab771c6bac513",
+            "sourceFingerprint": "2a4e8e954e21a7dde2fb2a09b816cde0c4bd2567223619c41f61db4f0c50e6a9"
+          }
+        ],
+        "manifest": {
+          "key": "reservation_action_preview",
+          "version": 1,
+          "sourceFingerprint": "bc33ff5e4cbbb82d7cecc7391ea5ece3ebb48bcb330953364ffd32e17f870dd0",
+          "name": "预约创建改期取消预览",
+          "description": "解析当前门店内的客户、预约、项目与目标时间，生成预约创建、改期或取消的待确认预览。解析不到唯一目标时返回具体追问，确认前不写入业务数据。创建预约确认后使用业务表级幂等键，同键重放返回原预约回执，不创建重复预约。",
+          "domains": [
+            "fixture"
+          ],
+          "intents": [
+            "action"
+          ],
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "comparisonTarget": {
+                "type": "object"
+              },
+              "dimensions": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "entities": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "filters": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "limit": {
+                "type": "number"
+              },
+              "metrics": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "objective": {
+                "type": "string"
+              },
+              "orderBy": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "time": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "dimensions",
+              "entities",
+              "filters",
+              "metrics",
+              "objective",
+              "orderBy"
+            ],
+            "additionalProperties": false
+          },
+          "outputSchema": {
+            "type": "object"
+          },
+          "requiredPermissions": [
+            "core:brain:use",
+            "core:store:reservations"
+          ],
+          "allowedRoles": [
+            "receptionist",
+            "store_manager"
+          ],
+          "readOnly": false,
+          "sideEffect": true,
+          "riskLevel": "high",
+          "requiresConfirmation": true,
+          "idempotency": "required",
+          "timeoutMs": 10000,
+          "grounding": "preview_action",
+          "examples": [
+            "把一位客户的预约改到明天下午三点",
+            "为指定客户准备一个新预约方案",
+            "预览取消指定客户下一次预约"
+          ],
+          "negativeExamples": [
+            "操作其他门店预约",
+            "直接执行改约不要确认",
+            "只查询明天预约清单"
+          ],
+          "synonyms": [
+            "创建预约预览",
+            "取消预约预览",
+            "预约改期预览",
+            "预约改约方案"
+          ],
+          "successSchema": {
+            "type": "object"
+          },
+          "definitionRefs": [
+            {
+              "definitionId": 1,
+              "versionId": 10001,
+              "definitionKey": "entity.customer",
+              "version": 1,
+              "definitionFingerprint": "b96274fa310225a9772f68489eacdd992f608740c23b5c548ae91300c8e4d239",
+              "sourceFingerprint": "7060e378d59a17556679b49f8c425deac02681d3df8193a7138ddb4981c3167d"
+            },
+            {
+              "definitionId": 2,
+              "versionId": 10002,
+              "definitionKey": "entity.project",
+              "version": 1,
+              "definitionFingerprint": "8c17625b461a6e6b0c7efe4a38c6da545cb3a4d98701d2fb851fa040e17f5777",
+              "sourceFingerprint": "d3bc8be9f2090628a8adbf1ce93c66f13a6a29dd9c883faa4a7d7d1cacb0d67c"
+            },
+            {
+              "definitionId": 3,
+              "versionId": 10003,
+              "definitionKey": "entity.reservation",
+              "version": 1,
+              "definitionFingerprint": "093fb57c46a988682f2bb1f4c323cfc61b84c8fdbffcdeaa6b7ab771c6bac513",
+              "sourceFingerprint": "2a4e8e954e21a7dde2fb2a09b816cde0c4bd2567223619c41f61db4f0c50e6a9"
+            }
+          ]
+        },
+        "languageCandidates": {
+          "description": "解析当前门店内的客户、预约、项目与目标时间，生成预约创建、改期或取消的待确认预览。解析不到唯一目标时返回具体追问，确认前不写入业务数据。创建预约确认后使用业务表级幂等键，同键重放返回原预约回执，不创建重复预约。",
+          "positiveExamples": [
+            "把一位客户的预约改到明天下午三点",
+            "为指定客户准备一个新预约方案",
+            "预览取消指定客户下一次预约"
+          ],
+          "negativeExamples": [
+            "操作其他门店预约",
+            "直接执行改约不要确认",
+            "只查询明天预约清单"
+          ],
+          "synonyms": [
+            "创建预约预览",
+            "取消预约预览",
+            "预约改期预览",
+            "预约改约方案"
+          ],
+          "successSchema": {
+            "type": "object"
+          },
+          "riskExplanation": "Deterministic fixture: read-only proposal with fixed scanner evidence."
+        },
+        "executorBinding": {
+          "schemaVersion": 1,
+          "capabilityKey": "reservation_action_preview",
+          "sourceFingerprint": "bc33ff5e4cbbb82d7cecc7391ea5ece3ebb48bcb330953364ffd32e17f870dd0",
+          "target": {
+            "kind": "service",
+            "className": "BrainActionCapabilityExecutor",
+            "methodName": "reservationActionPreview",
+            "sourcePath": "packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts",
+            "exportedClass": true,
+            "methodAccess": "public",
+            "parameterCount": 2,
+            "parameterTypes": [
+              "BrainCapabilityToolArgs",
+              "BrainCapabilityExecutionInput"
+            ],
+            "returnType": "unknown"
+          },
+          "generatedSourcePath": "packages/server-v2/src/brain/capability/generated/reservation_action_preview/binding.ts",
+          "targetImportPath": "../../executors/brain-action-capability.executor.js",
+          "requiredPermissions": [
+            "core:brain:use",
+            "core:store:reservations"
+          ],
+          "storeScope": "required",
+          "requiresConfirmation": true,
+          "idempotency": "required",
+          "readOnly": false,
+          "sideEffect": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "comparisonTarget": {
+                "type": "object"
+              },
+              "dimensions": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "entities": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "filters": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "limit": {
+                "type": "number"
+              },
+              "metrics": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "objective": {
+                "type": "string"
+              },
+              "orderBy": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "time": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "dimensions",
+              "entities",
+              "filters",
+              "metrics",
+              "objective",
+              "orderBy"
+            ],
+            "additionalProperties": false
+          },
+          "outputSchema": {
+            "type": "object"
+          },
+          "bindingFingerprint": "72a205b8b52cf62d031b22cc4ad99a794c2ae724b2a3da9cc57a003c1a6f7797"
+        },
+        "bindingSource": "import type { BrainActionCapabilityExecutor } from \"../../executors/brain-action-capability.executor.js\";\nimport { assertGeneratedCapabilityArgs } from '../../brain-generated-capability-binding.js';\n\nexport interface GeneratedCapabilityArgs {\n  readonly [key: string]: unknown;\n  readonly \"comparisonTarget\"?: Record<string, unknown>;\n  readonly \"dimensions\": Array<Record<string, unknown>>;\n  readonly \"entities\": Array<Record<string, unknown>>;\n  readonly \"filters\": Array<Record<string, unknown>>;\n  readonly \"limit\"?: number;\n  readonly \"metrics\": Array<Record<string, unknown>>;\n  readonly \"objective\": string;\n  readonly \"orderBy\": Array<Record<string, unknown>>;\n  readonly \"time\"?: Record<string, unknown>;\n}\n\ntype TargetMethod = Pick<BrainActionCapabilityExecutor, 'reservationActionPreview'>['reservationActionPreview'];\n\nexport interface GeneratedCapabilityExecutionContextProvider {\n  current(): Parameters<TargetMethod>[1];\n}\n\nexport const GENERATED_CAPABILITY_BINDING = Object.freeze({\n  \"schemaVersion\": 1,\n  \"capabilityKey\": \"reservation_action_preview\",\n  \"sourceFingerprint\": \"bc33ff5e4cbbb82d7cecc7391ea5ece3ebb48bcb330953364ffd32e17f870dd0\",\n  \"target\": {\n    \"kind\": \"service\",\n    \"className\": \"BrainActionCapabilityExecutor\",\n    \"methodName\": \"reservationActionPreview\",\n    \"sourcePath\": \"packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts\",\n    \"exportedClass\": true,\n    \"methodAccess\": \"public\",\n    \"parameterCount\": 2,\n    \"parameterTypes\": [\n      \"BrainCapabilityToolArgs\",\n      \"BrainCapabilityExecutionInput\"\n    ],\n    \"returnType\": \"unknown\"\n  },\n  \"generatedSourcePath\": \"packages/server-v2/src/brain/capability/generated/reservation_action_preview/binding.ts\",\n  \"targetImportPath\": \"../../executors/brain-action-capability.executor.js\",\n  \"requiredPermissions\": [\n    \"core:brain:use\",\n    \"core:store:reservations\"\n  ],\n  \"storeScope\": \"required\",\n  \"requiresConfirmation\": true,\n  \"idempotency\": \"required\",\n  \"readOnly\": false,\n  \"sideEffect\": true,\n  \"inputSchema\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"comparisonTarget\": {\n        \"type\": \"object\"\n      },\n      \"dimensions\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"entities\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"filters\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"limit\": {\n        \"type\": \"number\"\n      },\n      \"metrics\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"objective\": {\n        \"type\": \"string\"\n      },\n      \"orderBy\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"time\": {\n        \"type\": \"object\"\n      }\n    },\n    \"required\": [\n      \"dimensions\",\n      \"entities\",\n      \"filters\",\n      \"metrics\",\n      \"objective\",\n      \"orderBy\"\n    ],\n    \"additionalProperties\": false\n  },\n  \"outputSchema\": {\n    \"type\": \"object\"\n  },\n  \"bindingFingerprint\": \"72a205b8b52cf62d031b22cc4ad99a794c2ae724b2a3da9cc57a003c1a6f7797\"\n} as const);\n\nexport class ReservationActionPreviewGeneratedCapabilityBinding {\n  constructor(private readonly target: Pick<BrainActionCapabilityExecutor, 'reservationActionPreview'>, private readonly contextProvider: GeneratedCapabilityExecutionContextProvider) {}\n\n  execute(args: GeneratedCapabilityArgs): ReturnType<TargetMethod> {\n    assertGeneratedCapabilityArgs(GENERATED_CAPABILITY_BINDING.inputSchema, args);\n    return this.target.reservationActionPreview(args, this.contextProvider.current());\n  }\n}\n",
+        "contractArtifact": {
+          "manifest": {
+            "key": "reservation_action_preview",
+            "version": 1,
+            "sourceFingerprint": "bc33ff5e4cbbb82d7cecc7391ea5ece3ebb48bcb330953364ffd32e17f870dd0",
+            "name": "预约创建改期取消预览",
+            "description": "解析当前门店内的客户、预约、项目与目标时间，生成预约创建、改期或取消的待确认预览。解析不到唯一目标时返回具体追问，确认前不写入业务数据。创建预约确认后使用业务表级幂等键，同键重放返回原预约回执，不创建重复预约。",
+            "domains": [
+              "fixture"
+            ],
+            "intents": [
+              "action"
+            ],
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "comparisonTarget": {
+                  "type": "object"
+                },
+                "dimensions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "entities": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "filters": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "limit": {
+                  "type": "number"
+                },
+                "metrics": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "objective": {
+                  "type": "string"
+                },
+                "orderBy": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "time": {
+                  "type": "object"
+                }
+              },
+              "required": [
+                "dimensions",
+                "entities",
+                "filters",
+                "metrics",
+                "objective",
+                "orderBy"
+              ],
+              "additionalProperties": false
+            },
+            "outputSchema": {
+              "type": "object"
+            },
+            "requiredPermissions": [
+              "core:brain:use",
+              "core:store:reservations"
+            ],
+            "allowedRoles": [
+              "receptionist",
+              "store_manager"
+            ],
+            "readOnly": false,
+            "sideEffect": true,
+            "riskLevel": "high",
+            "requiresConfirmation": true,
+            "idempotency": "required",
+            "timeoutMs": 10000,
+            "grounding": "preview_action",
+            "examples": [
+              "把一位客户的预约改到明天下午三点",
+              "为指定客户准备一个新预约方案",
+              "预览取消指定客户下一次预约"
+            ],
+            "negativeExamples": [
+              "操作其他门店预约",
+              "直接执行改约不要确认",
+              "只查询明天预约清单"
+            ],
+            "synonyms": [
+              "创建预约预览",
+              "取消预约预览",
+              "预约改期预览",
+              "预约改约方案"
+            ],
+            "successSchema": {
+              "type": "object"
+            },
+            "definitionRefs": [
+              {
+                "definitionId": 1,
+                "versionId": 10001,
+                "definitionKey": "entity.customer",
+                "version": 1,
+                "definitionFingerprint": "b96274fa310225a9772f68489eacdd992f608740c23b5c548ae91300c8e4d239",
+                "sourceFingerprint": "7060e378d59a17556679b49f8c425deac02681d3df8193a7138ddb4981c3167d"
+              },
+              {
+                "definitionId": 2,
+                "versionId": 10002,
+                "definitionKey": "entity.project",
+                "version": 1,
+                "definitionFingerprint": "8c17625b461a6e6b0c7efe4a38c6da545cb3a4d98701d2fb851fa040e17f5777",
+                "sourceFingerprint": "d3bc8be9f2090628a8adbf1ce93c66f13a6a29dd9c883faa4a7d7d1cacb0d67c"
+              },
+              {
+                "definitionId": 3,
+                "versionId": 10003,
+                "definitionKey": "entity.reservation",
+                "version": 1,
+                "definitionFingerprint": "093fb57c46a988682f2bb1f4c323cfc61b84c8fdbffcdeaa6b7ab771c6bac513",
+                "sourceFingerprint": "2a4e8e954e21a7dde2fb2a09b816cde0c4bd2567223619c41f61db4f0c50e6a9"
+              }
+            ]
+          },
+          "scanEvidence": {
+            "capabilityKey": "reservation_action_preview",
+            "sourceFingerprint": "bc33ff5e4cbbb82d7cecc7391ea5ece3ebb48bcb330953364ffd32e17f870dd0",
+            "requiredPermissions": [
+              "core:brain:use",
+              "core:store:reservations"
+            ],
+            "storeScope": "required",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "comparisonTarget": {
+                  "type": "object"
+                },
+                "dimensions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "entities": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "filters": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "limit": {
+                  "type": "number"
+                },
+                "metrics": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "objective": {
+                  "type": "string"
+                },
+                "orderBy": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "time": {
+                  "type": "object"
+                }
+              },
+              "required": [
+                "dimensions",
+                "entities",
+                "filters",
+                "metrics",
+                "objective",
+                "orderBy"
+              ],
+              "additionalProperties": false
+            },
+            "outputSchema": {
+              "type": "object"
+            },
+            "executorBinding": {
+              "schemaVersion": 1,
+              "capabilityKey": "reservation_action_preview",
+              "sourceFingerprint": "bc33ff5e4cbbb82d7cecc7391ea5ece3ebb48bcb330953364ffd32e17f870dd0",
+              "target": {
+                "kind": "service",
+                "className": "BrainActionCapabilityExecutor",
+                "methodName": "reservationActionPreview",
+                "sourcePath": "packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts",
+                "exportedClass": true,
+                "methodAccess": "public",
+                "parameterCount": 2,
+                "parameterTypes": [
+                  "BrainCapabilityToolArgs",
+                  "BrainCapabilityExecutionInput"
+                ],
+                "returnType": "unknown"
+              },
+              "generatedSourcePath": "packages/server-v2/src/brain/capability/generated/reservation_action_preview/binding.ts",
+              "targetImportPath": "../../executors/brain-action-capability.executor.js",
+              "requiredPermissions": [
+                "core:brain:use",
+                "core:store:reservations"
+              ],
+              "storeScope": "required",
+              "requiresConfirmation": true,
+              "idempotency": "required",
+              "readOnly": false,
+              "sideEffect": true,
+              "inputSchema": {
+                "type": "object",
+                "properties": {
+                  "comparisonTarget": {
+                    "type": "object"
+                  },
+                  "dimensions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "entities": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "filters": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "limit": {
+                    "type": "number"
+                  },
+                  "metrics": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "objective": {
+                    "type": "string"
+                  },
+                  "orderBy": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "time": {
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "dimensions",
+                  "entities",
+                  "filters",
+                  "metrics",
+                  "objective",
+                  "orderBy"
+                ],
+                "additionalProperties": false
+              },
+              "outputSchema": {
+                "type": "object"
+              },
+              "bindingFingerprint": "72a205b8b52cf62d031b22cc4ad99a794c2ae724b2a3da9cc57a003c1a6f7797"
+            }
+          },
+          "proposal": {
+            "capabilityKey": "reservation_action_preview",
+            "sourceFingerprint": "bc33ff5e4cbbb82d7cecc7391ea5ece3ebb48bcb330953364ffd32e17f870dd0",
+            "businessDefinitions": [
+              {
+                "definitionId": 1,
+                "versionId": 10001,
+                "definitionKey": "entity.customer",
+                "version": 1,
+                "definitionFingerprint": "b96274fa310225a9772f68489eacdd992f608740c23b5c548ae91300c8e4d239",
+                "sourceFingerprint": "7060e378d59a17556679b49f8c425deac02681d3df8193a7138ddb4981c3167d"
+              },
+              {
+                "definitionId": 2,
+                "versionId": 10002,
+                "definitionKey": "entity.project",
+                "version": 1,
+                "definitionFingerprint": "8c17625b461a6e6b0c7efe4a38c6da545cb3a4d98701d2fb851fa040e17f5777",
+                "sourceFingerprint": "d3bc8be9f2090628a8adbf1ce93c66f13a6a29dd9c883faa4a7d7d1cacb0d67c"
+              },
+              {
+                "definitionId": 3,
+                "versionId": 10003,
+                "definitionKey": "entity.reservation",
+                "version": 1,
+                "definitionFingerprint": "093fb57c46a988682f2bb1f4c323cfc61b84c8fdbffcdeaa6b7ab771c6bac513",
+                "sourceFingerprint": "2a4e8e954e21a7dde2fb2a09b816cde0c4bd2567223619c41f61db4f0c50e6a9"
+              }
+            ],
+            "storeScope": "required",
+            "executorBinding": {
+              "schemaVersion": 1,
+              "capabilityKey": "reservation_action_preview",
+              "sourceFingerprint": "bc33ff5e4cbbb82d7cecc7391ea5ece3ebb48bcb330953364ffd32e17f870dd0",
+              "target": {
+                "kind": "service",
+                "className": "BrainActionCapabilityExecutor",
+                "methodName": "reservationActionPreview",
+                "sourcePath": "packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts",
+                "exportedClass": true,
+                "methodAccess": "public",
+                "parameterCount": 2,
+                "parameterTypes": [
+                  "BrainCapabilityToolArgs",
+                  "BrainCapabilityExecutionInput"
+                ],
+                "returnType": "unknown"
+              },
+              "generatedSourcePath": "packages/server-v2/src/brain/capability/generated/reservation_action_preview/binding.ts",
+              "targetImportPath": "../../executors/brain-action-capability.executor.js",
+              "requiredPermissions": [
+                "core:brain:use",
+                "core:store:reservations"
+              ],
+              "storeScope": "required",
+              "requiresConfirmation": true,
+              "idempotency": "required",
+              "readOnly": false,
+              "sideEffect": true,
+              "inputSchema": {
+                "type": "object",
+                "properties": {
+                  "comparisonTarget": {
+                    "type": "object"
+                  },
+                  "dimensions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "entities": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "filters": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "limit": {
+                    "type": "number"
+                  },
+                  "metrics": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "objective": {
+                    "type": "string"
+                  },
+                  "orderBy": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "time": {
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "dimensions",
+                  "entities",
+                  "filters",
+                  "metrics",
+                  "objective",
+                  "orderBy"
+                ],
+                "additionalProperties": false
+              },
+              "outputSchema": {
+                "type": "object"
+              },
+              "bindingFingerprint": "72a205b8b52cf62d031b22cc4ad99a794c2ae724b2a3da9cc57a003c1a6f7797"
+            }
+          }
+        },
+        "contractTestSource": "import { GENERATED_CAPABILITY_BINDING } from './binding.js';\n\nexport function assertGeneratedBindingContract(): void {\n  if (GENERATED_CAPABILITY_BINDING.capabilityKey !== \"reservation_action_preview\") {\n    throw new Error('generated_binding_capability_key_mismatch');\n  }\n  if (GENERATED_CAPABILITY_BINDING.sourceFingerprint !== \"bc33ff5e4cbbb82d7cecc7391ea5ece3ebb48bcb330953364ffd32e17f870dd0\") {\n    throw new Error('generated_binding_source_fingerprint_mismatch');\n  }\n  if (GENERATED_CAPABILITY_BINDING.bindingFingerprint !== \"72a205b8b52cf62d031b22cc4ad99a794c2ae724b2a3da9cc57a003c1a6f7797\") {\n    throw new Error('generated_binding_fingerprint_mismatch');\n  }\n  if (GENERATED_CAPABILITY_BINDING.target.kind !== \"service\" ||\n      GENERATED_CAPABILITY_BINDING.target.className !== \"BrainActionCapabilityExecutor\" ||\n      GENERATED_CAPABILITY_BINDING.target.methodName !== \"reservationActionPreview\" ||\n      GENERATED_CAPABILITY_BINDING.target.sourcePath !== \"packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts\") {\n    throw new Error('generated_binding_target_mismatch');\n  }\n}\n\nassertGeneratedBindingContract();\n",
+        "gateReport": {
+          "passed": true,
+          "gates": [
+            {
+              "gate": "compile",
+              "passed": true,
+              "reasons": [],
+              "remediation": []
+            },
+            {
+              "gate": "contract",
+              "passed": true,
+              "reasons": [],
+              "remediation": []
+            },
+            {
+              "gate": "security",
+              "passed": true,
+              "reasons": [],
+              "remediation": []
+            },
+            {
+              "gate": "test",
+              "passed": true,
+              "reasons": [],
+              "remediation": []
+            }
+          ]
+        }
+      }
+    ],
+    "blocked": []
+  }
+}

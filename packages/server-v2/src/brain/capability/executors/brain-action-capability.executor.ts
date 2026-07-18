@@ -41,7 +41,7 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
   @BrainCapability({
     key: 'reservation_action_preview',
     name: '预约创建改期取消预览',
-    description: '解析当前门店内的客户、预约、项目与目标时间，生成预约创建、改期或取消的待确认预览。解析不到唯一目标时返回具体追问，确认前不写入业务数据。',
+    description: '解析当前门店内的客户、预约、项目与目标时间，生成预约创建、改期或取消的待确认预览。解析不到唯一目标时返回具体追问，确认前不写入业务数据。创建预约确认后使用业务表级幂等键，同键重放返回原预约回执，不创建重复预约。',
     intents: ['action'],
     examples: ['把一位客户的预约改到明天下午三点', '预览取消指定客户下一次预约', '为指定客户准备一个新预约方案'],
     negativeExamples: ['直接执行改约不要确认', '操作其他门店预约', '只查询明天预约清单'],

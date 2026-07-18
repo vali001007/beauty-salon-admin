@@ -123,6 +123,37 @@ describe('TerminalService automation', () => {
     jest.useRealTimers();
   });
 
+  it('delegates reservation creation to the shared idempotent reservation service', async () => {
+    const reservations = {
+      createIdempotent: jest.fn().mockResolvedValue({
+        replayed: false,
+        reservation: { id: 81, storeId: 1, status: 'pending', bookingSource: 'ami_aura_lite' },
+      }),
+    };
+    (service as any).reservationsService = reservations;
+
+    await expect(service.createReservation(1, {
+      customerId: 10,
+      customerName: '张女士',
+      customerPhone: '13800000001',
+      projectId: 7,
+      projectName: '补水护理',
+      beauticianId: 3,
+      beauticianName: '王美容师',
+      appointmentTime: '2026-07-20T15:00:00+08:00',
+      duration: 60,
+      idempotencyKey: 'aura-reservation-81',
+    })).resolves.toMatchObject({ id: 81, bookingSource: 'ami_aura_lite' });
+
+    expect(reservations.createIdempotent).toHaveBeenCalledWith(expect.objectContaining({
+      storeId: 1,
+      bookingSource: 'ami_aura_lite',
+      idempotencyKey: 'aura-reservation-81',
+      allowCreateCustomer: false,
+    }));
+    expect(terminalDashboardCache.invalidate).toHaveBeenCalled();
+  });
+
   it('progresses the source automation touch when a terminal follow-up produces a conversion', async () => {
     const completedAt = new Date('2026-07-14T10:00:00.000Z');
     const effectFacts = { recordFact: jest.fn().mockResolvedValue({ id: 501 }) };

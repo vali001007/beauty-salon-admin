@@ -386,7 +386,13 @@ export async function realQuickCreateTerminalCustomer(data: TerminalQuickCreateC
 }
 
 export async function realCreateTerminalReservation(data: TerminalReservationCreateRequest): Promise<TerminalReservation> {
-  return apiClient.post('/terminal/reservations', data);
+  const idempotencyKey =
+    data.idempotencyKey ?? globalThis.crypto?.randomUUID?.() ?? `aura-reservation-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return apiClient.post(
+    '/terminal/reservations',
+    { ...data, idempotencyKey },
+    { headers: { 'Idempotency-Key': idempotencyKey } },
+  );
 }
 
 export async function realGetTerminalReservations(params?: {

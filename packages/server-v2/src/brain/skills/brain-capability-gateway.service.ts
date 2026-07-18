@@ -48,7 +48,7 @@ const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
     allowedFields: ['customerId', 'projectId', 'appointmentTime', 'duration', 'beauticianId', 'remark'],
     transactionBoundary: 'ReservationsService.create',
     receiptType: 'reservation',
-    failureRecovery: 'manual_reconcile',
+    failureRecovery: 'safe_replay',
   },
   reschedule_reservation: {
     key: 'reschedule_reservation',
@@ -203,7 +203,13 @@ export class BrainCapabilityGatewayService {
 
   private async createReservation(payload: Record<string, unknown>, context: BrainCapabilityContext) {
     const service = this.requireService(this.reservationsService, 'ReservationsService');
-    const result = await service.create({ ...payload, storeId: context.storeId, status: 'pending' });
+    const result = await service.create({
+      ...payload,
+      storeId: context.storeId,
+      status: 'pending',
+      bookingSource: 'ami_brain',
+      idempotencyKey: context.idempotencyKey,
+    });
     return this.receipt('create_reservation', 'reservation', result.id, result);
   }
 

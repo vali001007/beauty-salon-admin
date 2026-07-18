@@ -101,8 +101,12 @@ export class CustomerAppController {
   createReservation(
     @CurrentCustomerAppUser() user: CustomerAppTokenPayload,
     @Body() dto: CustomerAppCreateReservationDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
-    return this.customerAppService.createReservation(user, dto);
+    return this.customerAppService.createReservation(user, {
+      ...dto,
+      idempotencyKey: idempotencyKey?.trim() || dto.idempotencyKey,
+    });
   }
 
   @Get('me/reservations')

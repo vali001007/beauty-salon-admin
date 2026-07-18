@@ -674,6 +674,7 @@ export interface TerminalCardUsageRecord {
 }
 
 export interface TerminalReservationCreateRequest {
+  idempotencyKey?: string;
   customerId?: number;
   customerName: string;
   customerPhone: string;

@@ -11,12 +11,12 @@ describe('BrainCapabilityGatewayService', () => {
     });
   });
 
-  it('declares safe replay only for idempotent update and card usage actions', () => {
+  it('declares safe replay for idempotent reservation and card usage actions', () => {
     const service = new BrainCapabilityGatewayService();
 
     expect(service.failureRecovery('reschedule_reservation')).toBe('safe_replay');
     expect(service.failureRecovery('cancel_reservation')).toBe('safe_replay');
-    expect(service.failureRecovery('create_reservation')).toBe('manual_reconcile');
+    expect(service.failureRecovery('create_reservation')).toBe('safe_replay');
     expect(service.failureRecovery('create_purchase_order')).toBe('manual_reconcile');
     expect(service.failureRecovery('create_marketing_touch_draft')).toBe('manual_reconcile');
     expect(service.failureRecovery('verify_card_usage')).toBe('safe_replay');
@@ -51,11 +51,17 @@ describe('BrainCapabilityGatewayService', () => {
     const receipt = await service.execute({
       skillKey: 'create_reservation',
       payload: { storeId: 99, customerId: 11, projectId: 22, appointmentTime: '2026-07-12T10:00:00+08:00' },
-      context: { userId: 9, storeId: 6, permissions: ['core:store:reservations'] },
+      context: { userId: 9, storeId: 6, permissions: ['core:store:reservations'], idempotencyKey: 'brain-reservation-101' },
     });
 
     expect(reservations.create).toHaveBeenCalledWith(
-      expect.objectContaining({ storeId: 6, customerId: 11, projectId: 22 }),
+      expect.objectContaining({
+        storeId: 6,
+        customerId: 11,
+        projectId: 22,
+        bookingSource: 'ami_brain',
+        idempotencyKey: 'brain-reservation-101',
+      }),
     );
     expect(receipt).toMatchObject({ capabilityKey: 'create_reservation', businessObjectType: 'reservation', businessObjectId: 101 });
   });
