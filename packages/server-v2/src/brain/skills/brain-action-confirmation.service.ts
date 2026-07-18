@@ -123,8 +123,9 @@ export class BrainActionConfirmationService {
       },
       orderBy: { createdAt: 'desc' },
     });
-    const executionByActionId = new Map<string, (typeof executions)[number]>();
-    for (const execution of executions) {
+    const reconciledExecutions = await this.reconcileBusinessExecutionStatuses(executions, input.storeId);
+    const executionByActionId = new Map<string, (typeof reconciledExecutions)[number]>();
+    for (const execution of reconciledExecutions) {
       if (!executionByActionId.has(execution.actionId)) {
         executionByActionId.set(execution.actionId, execution);
       }
@@ -300,7 +301,10 @@ export class BrainActionConfirmationService {
     if (action.status !== 'failed' || existing.status !== 'failed') {
       return this.existingExecutionResult(action, existing);
     }
-    if (this.failureRecovery(action.skillKey) !== 'safe_replay') {
+    if (
+      this.failureRecovery(action.skillKey) !== 'safe_replay' ||
+      existing.errorCode === 'marketing_automation_execution_failed'
+    ) {
       return this.existingExecutionResult(action, existing);
     }
 
@@ -451,7 +455,9 @@ export class BrainActionConfirmationService {
           idempotencyKey: input.idempotencyKey,
         },
       });
-      const executionStatus = receipt.status === 'partially_succeeded' ? 'partially_succeeded' : 'succeeded';
+      const executionStatus = receipt.status ?? 'succeeded';
+      const terminal = executionStatus !== 'executing';
+      const failed = executionStatus === 'failed';
       await this.prisma.brainActionExecution.update({
         where: { id: input.executionId },
         data: {
@@ -459,9 +465,9 @@ export class BrainActionConfirmationService {
           receiptPayload: receipt as unknown as Prisma.InputJsonValue,
           businessObjectType: receipt.businessObjectType,
           businessObjectId: String(receipt.businessObjectId),
-          errorCode: null,
-          errorMessage: null,
-          completedAt: new Date(),
+          errorCode: failed ? 'business_execution_failed' : null,
+          errorMessage: failed ? receipt.message ?? '业务执行失败。' : null,
+          completedAt: terminal ? new Date() : null,
         },
       });
       await this.prisma.brainActionConfirmation.update({
@@ -531,6 +537,8 @@ export class BrainActionConfirmationService {
     duplicated = true,
   ) {
     const recovery = this.failureRecovery(action.skillKey);
+    const retryable = recovery === 'safe_replay' && execution.errorCode !== 'marketing_automation_execution_failed';
+    const effectiveRecovery = retryable ? recovery : 'manual_reconcile';
     return {
       actionId: action.actionId,
       executionId: execution.id,
@@ -539,14 +547,118 @@ export class BrainActionConfirmationService {
       ...(duplicated ? { duplicated: true } : {}),
       ...(execution.status === 'failed'
         ? {
-            retryable: recovery === 'safe_replay',
-            recovery,
+            retryable,
+            recovery: effectiveRecovery,
             error: {
               code: execution.errorCode ?? 'capability_execution_failed',
               message: execution.errorMessage ?? '动作执行失败，请按恢复策略处理。',
             },
           }
         : {}),
+    };
+  }
+
+  private async reconcileBusinessExecutionStatuses<
+    T extends {
+      id: number;
+      actionId: string;
+      status: string;
+      businessObjectType?: string | null;
+      businessObjectId?: string | null;
+      receiptPayload?: Prisma.JsonValue | null;
+      errorCode?: string | null;
+      errorMessage?: string | null;
+    },
+  >(executions: T[], storeId: number): Promise<T[]> {
+    const candidates = executions.filter(
+      (execution) =>
+        execution.businessObjectType === 'marketing_automation_execution' &&
+        Number.isInteger(Number(execution.businessObjectId)),
+    );
+    const delegate = (this.prisma as unknown as {
+      marketingAutomationExecution?: {
+        findMany: (input: unknown) => Promise<Array<Record<string, unknown>>>;
+      };
+    }).marketingAutomationExecution;
+    if (!delegate || candidates.length === 0) return executions;
+
+    const ids = [...new Set(candidates.map((execution) => Number(execution.businessObjectId)))];
+    const rows = await delegate.findMany({ where: { id: { in: ids }, storeId } });
+    const rowById = new Map(rows.map((row) => [Number(row.id), row]));
+    return Promise.all(
+      executions.map(async (execution) => {
+        if (execution.businessObjectType !== 'marketing_automation_execution') return execution;
+        const row = rowById.get(Number(execution.businessObjectId));
+        if (!row) return execution;
+        const businessStatus = String(row.status ?? 'pending');
+        const status = this.marketingExecutionStatus(businessStatus);
+        const receipt = {
+          ...this.asRecord(execution.receiptPayload),
+          message: this.marketingExecutionMessage(row),
+          result: this.marketingExecutionReceipt(row),
+        } as unknown as Prisma.InputJsonValue;
+        const terminal = status !== 'executing';
+        const failed = status === 'failed';
+        if (execution.status !== status || this.asRecord(execution.receiptPayload).result === undefined) {
+          await Promise.all([
+            this.prisma.brainActionExecution.update({
+              where: { id: execution.id },
+              data: {
+                status,
+                receiptPayload: receipt,
+                errorCode: failed ? 'marketing_automation_execution_failed' : null,
+                errorMessage: failed ? '自动触达发送失败，请在营销执行记录中核对失败任务。' : null,
+                completedAt: terminal ? new Date() : null,
+              },
+            }),
+            this.prisma.brainActionConfirmation.update({
+              where: { actionId: execution.actionId },
+              data: { status, result: receipt, ...(terminal ? { executedAt: new Date() } : {}) },
+            }),
+          ]);
+        }
+        return {
+          ...execution,
+          status,
+          receiptPayload: receipt,
+          errorCode: failed ? 'marketing_automation_execution_failed' : null,
+          errorMessage: failed ? '自动触达发送失败，请在营销执行记录中核对失败任务。' : null,
+        };
+      }),
+    );
+  }
+
+  private marketingExecutionStatus(status: string) {
+    if (status === 'success') return 'succeeded';
+    if (status === 'partial_failed') return 'partially_succeeded';
+    if (status === 'failed') return 'failed';
+    return 'executing';
+  }
+
+  private marketingExecutionMessage(row: Record<string, unknown>) {
+    const queued = Number(row.queuedCount ?? 0);
+    const reached = Number(row.reachedCount ?? 0);
+    const failed = Number(row.failedCount ?? 0);
+    const status = String(row.status ?? 'pending');
+    if (status === 'pending' || status === 'running') return `自动触达正在执行：排队 ${queued} 人，已触达 ${reached} 人。`;
+    if (status === 'partial_failed') return `自动触达部分完成：已触达 ${reached} 人，失败 ${failed} 人。`;
+    if (status === 'failed') return `自动触达执行失败：失败 ${failed} 人。`;
+    return `自动触达执行完成：已触达 ${reached} 人，失败 ${failed} 人。`;
+  }
+
+  private marketingExecutionReceipt(row: Record<string, unknown>) {
+    const date = (value: unknown) => (value instanceof Date ? value.toISOString() : value ?? null);
+    return {
+      id: Number(row.id),
+      status: String(row.status ?? 'pending'),
+      triggeredCount: Number(row.triggeredCount ?? 0),
+      queuedCount: Number(row.queuedCount ?? 0),
+      reachedCount: Number(row.reachedCount ?? 0),
+      failedCount: Number(row.failedCount ?? 0),
+      channel: row.channel == null ? null : String(row.channel),
+      executedAt: date(row.executedAt),
+      startedAt: date(row.startedAt),
+      completedAt: date(row.completedAt),
     };
   }
 

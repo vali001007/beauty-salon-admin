@@ -137,7 +137,10 @@ export class BrainActionTargetResolverService {
     targetCount: number;
     lastExecutedAt: string | null;
   }>> {
-    const explicitId = Number(input.message.match(/(?:自动触达|营销)?策略[#号\s]*(\d+)/)?.[1]);
+    const explicitIdText =
+      input.message.match(/(?:自动触达|营销)?策略(?:编号|ID|id|#|号)\s*(\d{1,9})(?!\d)/)?.[1] ??
+      input.message.trim().match(/^(?:执行|运行|启动|开始|立即)?\s*(?:自动触达|营销)?策略\s+(\d{1,9})$/)?.[1];
+    const explicitId = Number(explicitIdText);
     if (explicitId > 0) {
       const strategy = await this.prisma.marketingAutomationStrategy.findFirst({
         where: { id: explicitId, storeId: input.storeId },

@@ -132,6 +132,127 @@ describe('BrainActionConfirmationService', () => {
     ]);
   });
 
+  it('reconciles queued marketing execution receipts with the current business status', async () => {
+    const confirmation = {
+      actionId: 'act_marketing',
+      skillKey: 'execute_marketing_strategy',
+      status: 'executing',
+      result: null,
+    };
+    const execution = {
+      id: 41,
+      actionId: 'act_marketing',
+      status: 'executing',
+      businessObjectType: 'marketing_automation_execution',
+      businessObjectId: '91',
+      receiptPayload: {
+        capabilityKey: 'execute_marketing_strategy',
+        businessObjectType: 'marketing_automation_execution',
+        businessObjectId: 91,
+        result: { id: 91, status: 'pending', queuedCount: 3, reachedCount: 0, failedCount: 0 },
+      },
+      createdAt: new Date('2026-07-18T10:00:00.000Z'),
+    };
+    const prisma = {
+      brainActionConfirmation: {
+        findMany: jest.fn().mockResolvedValue([confirmation]),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      brainActionExecution: {
+        findMany: jest.fn().mockResolvedValue([execution]),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      marketingAutomationExecution: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 91,
+            storeId: 6,
+            status: 'success',
+            triggeredCount: 3,
+            queuedCount: 3,
+            reachedCount: 3,
+            failedCount: 0,
+            channel: 'in_app',
+            executedAt: new Date('2026-07-18T10:00:00.000Z'),
+            startedAt: new Date('2026-07-18T10:00:01.000Z'),
+            completedAt: new Date('2026-07-18T10:00:02.000Z'),
+          },
+        ]),
+      },
+    };
+    const gateway = {
+      resolve: jest.fn().mockReturnValue({ key: 'execute_marketing_strategy', failureRecovery: 'safe_replay' }),
+    };
+    const service = new BrainActionConfirmationService(prisma as never, gateway as never);
+
+    const result = await service.listExecutionStatuses({ runId: 5, userId: 9, storeId: 6 });
+
+    expect(prisma.marketingAutomationExecution.findMany).toHaveBeenCalledWith({
+      where: { id: { in: [91] }, storeId: 6 },
+    });
+    expect(prisma.brainActionExecution.update).toHaveBeenCalledWith({
+      where: { id: 41 },
+      data: expect.objectContaining({ status: 'succeeded', errorCode: null, completedAt: expect.any(Date) }),
+    });
+    expect(prisma.brainActionConfirmation.update).toHaveBeenCalledWith({
+      where: { actionId: 'act_marketing' },
+      data: expect.objectContaining({ status: 'succeeded', executedAt: expect.any(Date) }),
+    });
+    expect(result).toEqual([
+      expect.objectContaining({
+        actionId: 'act_marketing',
+        status: 'succeeded',
+        receipt: expect.objectContaining({
+          message: '自动触达执行完成：已触达 3 人，失败 0 人。',
+          result: expect.objectContaining({ status: 'success', reachedCount: 3 }),
+        }),
+      }),
+    ]);
+  });
+
+  it('does not offer safe replay after a marketing delivery batch reaches terminal failure', async () => {
+    const prisma = {
+      brainActionConfirmation: {
+        findMany: jest.fn().mockResolvedValue([
+          { actionId: 'act_marketing_failed', skillKey: 'execute_marketing_strategy', status: 'executing', result: null },
+        ]),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      brainActionExecution: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 42,
+            actionId: 'act_marketing_failed',
+            status: 'executing',
+            businessObjectType: 'marketing_automation_execution',
+            businessObjectId: '92',
+            receiptPayload: { result: { id: 92, status: 'pending' } },
+            createdAt: new Date(),
+          },
+        ]),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      marketingAutomationExecution: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 92, storeId: 6, status: 'failed', queuedCount: 2, reachedCount: 0, failedCount: 2, channel: 'sms' },
+        ]),
+      },
+    };
+    const gateway = {
+      resolve: jest.fn().mockReturnValue({ key: 'execute_marketing_strategy', failureRecovery: 'safe_replay' }),
+    };
+    const service = new BrainActionConfirmationService(prisma as never, gateway as never);
+
+    const result = await service.listExecutionStatuses({ runId: 5, userId: 9, storeId: 6 });
+
+    expect(result[0]).toMatchObject({
+      status: 'failed',
+      retryable: false,
+      recovery: 'manual_reconcile',
+      error: { code: 'marketing_automation_execution_failed' },
+    });
+  });
+
   it('confirms only a pending action owned by current run, store and user', async () => {
     const prisma = {
       brainActionConfirmation: {
@@ -256,6 +377,71 @@ describe('BrainActionConfirmationService', () => {
       status: 'succeeded',
     }));
     expect(result).toMatchObject({ status: 'succeeded', receipt: { businessObjectId: 101 } });
+  });
+
+  it('keeps an asynchronous marketing execution in executing state until business reconciliation', async () => {
+    const action = {
+      id: 1,
+      actionId: 'act_marketing_pending',
+      runId: 9,
+      userId: 9,
+      storeId: 6,
+      skillKey: 'execute_marketing_strategy',
+      riskLevel: 'high',
+      status: 'pending',
+      payload: { strategyId: 12, approvedAudienceCount: 3 },
+      preview: { summary: '执行营销策略' },
+      createdAt: new Date(),
+    };
+    const tx = {
+      brainActionConfirmation: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      brainActionExecution: { create: jest.fn().mockResolvedValue({ id: 73, status: 'executing' }) },
+    };
+    const prisma = {
+      brainActionConfirmation: {
+        findFirst: jest.fn().mockResolvedValue(action),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      brainActionExecution: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      $transaction: jest.fn((callback: (client: typeof tx) => unknown) => callback(tx)),
+    };
+    const gateway = {
+      resolve: jest.fn().mockReturnValue({ permission: 'core:marketing:update', version: 1, riskLevel: 'high' }),
+      validateForExecution: jest.fn().mockImplementation((_key, _version, payload) => ({
+        descriptor: { permission: 'core:marketing:update', version: 1, riskLevel: 'high' },
+        payload,
+      })),
+      execute: jest.fn().mockResolvedValue({
+        capabilityKey: 'execute_marketing_strategy',
+        businessObjectType: 'marketing_automation_execution',
+        businessObjectId: 91,
+        status: 'executing',
+        message: '自动触达执行已进入队列，待发送 3 人。',
+        result: { id: 91, status: 'pending', queuedCount: 3 },
+      }),
+    };
+    const service = new BrainActionConfirmationService(prisma as never, gateway as never);
+
+    const result = await service.confirmAndExecute({
+      actionId: action.actionId,
+      runId: action.runId,
+      userId: action.userId,
+      storeId: action.storeId,
+      permissions: ['core:marketing:update'],
+    });
+
+    expect(result).toMatchObject({ status: 'executing', receipt: { businessObjectId: 91 } });
+    expect(prisma.brainActionExecution.update).toHaveBeenCalledWith({
+      where: { id: 73 },
+      data: expect.objectContaining({ status: 'executing', completedAt: null }),
+    });
+    expect(prisma.brainActionConfirmation.update).toHaveBeenCalledWith({
+      where: { actionId: action.actionId },
+      data: expect.objectContaining({ status: 'executing' }),
+    });
   });
 
   it('revalidates the approval envelope and action target before claiming execution', async () => {

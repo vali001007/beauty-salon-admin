@@ -202,6 +202,80 @@ describe('BrainWorkspace', () => {
     expect(screen.getByText('业务单据：reservation #88')).toBeInTheDocument();
   });
 
+  it('polls an executing marketing action until the delivery receipt is final', async () => {
+    apiMocks.listBrainConversations.mockResolvedValue({ items: [conversation], total: 1, storeId: 6 });
+    apiMocks.listBrainMessages.mockResolvedValue({
+      conversationId: 42,
+      total: 1,
+      storeId: 6,
+      items: [
+        {
+          id: 15,
+          conversationId: 42,
+          role: 'assistant',
+          content: '已生成自动触达执行预览。',
+          metadata: {
+            runId: 104,
+            status: 'needs_confirmation',
+            suggestedActions: [
+              {
+                actionId: 'act_marketing_1',
+                skillKey: 'execute_marketing_strategy',
+                riskLevel: 'high',
+                summary: '执行沉睡客户唤醒策略',
+                requiresConfirmation: true,
+              },
+            ],
+          },
+          createdAt: '2026-07-11T01:00:01.000Z',
+        },
+      ],
+    });
+    apiMocks.listBrainActionStatuses
+      .mockResolvedValueOnce({ runId: 104, storeId: 6, items: [] })
+      .mockResolvedValue({
+        runId: 104,
+        storeId: 6,
+        items: [
+          {
+            actionId: 'act_marketing_1',
+            runId: 104,
+            storeId: 6,
+            executionId: 34,
+            status: 'succeeded',
+            receipt: {
+              businessObjectType: 'marketing_automation_execution',
+              businessObjectId: 91,
+              message: '自动触达执行完成：已触达 3 人，失败 0 人。',
+              result: { status: 'success', queuedCount: 3, reachedCount: 3, failedCount: 0 },
+            },
+          },
+        ],
+      });
+    apiMocks.confirmBrainAction.mockResolvedValue({
+      actionId: 'act_marketing_1',
+      runId: 104,
+      storeId: 6,
+      executionId: 34,
+      status: 'executing',
+      receipt: {
+        businessObjectType: 'marketing_automation_execution',
+        businessObjectId: 91,
+        message: '自动触达执行已进入队列，待发送 3 人。',
+        result: { status: 'pending', queuedCount: 3, reachedCount: 0, failedCount: 0 },
+      },
+    });
+
+    render(<BrainWorkspace />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '确认执行' }));
+    expect(await screen.findByText('正在执行')).toBeInTheDocument();
+    expect(screen.getByText('业务进度：排队 3，已触达 0，失败 0')).toBeInTheDocument();
+    await waitFor(() => expect(apiMocks.listBrainActionStatuses).toHaveBeenCalledTimes(2), { timeout: 3_000 });
+    expect(await screen.findByText('自动触达执行完成：已触达 3 人，失败 0 人。')).toBeInTheDocument();
+    expect(screen.getByText('业务进度：排队 3，已触达 3，失败 0')).toBeInTheDocument();
+  });
+
   it('restores a persisted action receipt when reopening a conversation', async () => {
     apiMocks.listBrainConversations.mockResolvedValue({ items: [conversation], total: 1, storeId: 6 });
     apiMocks.listBrainMessages.mockResolvedValue({

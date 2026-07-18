@@ -19,7 +19,7 @@ export interface BrainCapabilityReceipt {
   businessObjectType: string;
   businessObjectId: number | string;
   result: unknown;
-  status?: 'succeeded' | 'partially_succeeded';
+  status?: 'executing' | 'succeeded' | 'partially_succeeded' | 'failed';
   message?: string;
 }
 
@@ -323,6 +323,14 @@ export class BrainCapabilityGatewayService {
     const queuedCount = Number((result as Record<string, unknown>).queuedCount ?? 0);
     const reachedCount = Number((result as Record<string, unknown>).reachedCount ?? 0);
     const status = String((result as Record<string, unknown>).status ?? 'pending');
+    const receiptStatus: BrainCapabilityReceipt['status'] =
+      status === 'pending' || status === 'running'
+        ? 'executing'
+        : status === 'partial_failed'
+          ? 'partially_succeeded'
+          : status === 'failed'
+            ? 'failed'
+            : 'succeeded';
     return this.receipt(
       'execute_marketing_strategy',
       'marketing_automation_execution',
@@ -331,7 +339,7 @@ export class BrainCapabilityGatewayService {
       status === 'pending'
         ? `自动触达执行已进入队列，待发送 ${queuedCount} 人。`
         : `自动触达执行完成，已触达 ${reachedCount} 人，失败 ${failedCount} 人。`,
-      failedCount > 0 && reachedCount > 0 ? 'partially_succeeded' : 'succeeded',
+      receiptStatus,
     );
   }
 

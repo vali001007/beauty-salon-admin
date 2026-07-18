@@ -93,6 +93,27 @@ describe('BrainActionTargetResolverService', () => {
     }));
   });
 
+  it('does not interpret digits inside a strategy name as a database id', async () => {
+    prisma.marketingAutomationStrategy.findMany.mockResolvedValue([{
+      id: 13,
+      name: '暑期召回策略 2026 第2期',
+      status: 'enabled',
+      executionType: 'manual',
+      ruleRelation: 'AND',
+      actions: [{ channel: 'in_app' }],
+      targetCount: 8,
+      lastExecutedAt: null,
+    }]);
+
+    const result = await service.resolveMarketingStrategy({
+      storeId: 6,
+      message: '执行自动触达策略 暑期召回策略 2026 第2期',
+    });
+
+    expect(prisma.marketingAutomationStrategy.findFirst).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ ok: true, value: { id: 13, name: '暑期召回策略 2026 第2期' } });
+  });
+
   it('rejects a disabled marketing strategy before creating an action preview', async () => {
     prisma.marketingAutomationStrategy.findFirst.mockResolvedValue({
       id: 12,

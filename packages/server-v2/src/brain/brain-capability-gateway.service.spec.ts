@@ -208,7 +208,7 @@ describe('BrainCapabilityGatewayService', () => {
       capabilityKey: 'execute_marketing_strategy',
       businessObjectType: 'marketing_automation_execution',
       businessObjectId: 91,
-      status: 'succeeded',
+      status: 'executing',
       message: '自动触达执行已进入队列，待发送 18 人。',
     });
   });

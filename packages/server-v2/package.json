@@ -123,6 +123,7 @@
     "brain:action:reservation:acceptance": "cross-env TS_NODE_PROJECT=tsconfig.agent-eval-scripts.json TS_NODE_TRANSPILE_ONLY=true node --loader ts-node/esm --experimental-specifier-resolution=node prisma/ami-brain-reservation-action-acceptance.ts",
     "brain:action:purchase-order:acceptance": "cross-env TS_NODE_PROJECT=tsconfig.agent-eval-scripts.json TS_NODE_TRANSPILE_ONLY=true node --loader ts-node/esm --experimental-specifier-resolution=node prisma/ami-brain-purchase-order-action-acceptance.ts",
     "brain:action:follow-up:acceptance": "cross-env TS_NODE_PROJECT=tsconfig.agent-eval-scripts.json TS_NODE_TRANSPILE_ONLY=true node --loader ts-node/esm --experimental-specifier-resolution=node prisma/ami-brain-follow-up-action-acceptance.ts",
+    "brain:action:marketing-strategy:acceptance": "cross-env TS_NODE_PROJECT=tsconfig.agent-eval-scripts.json TS_NODE_TRANSPILE_ONLY=true node --loader ts-node/esm --experimental-specifier-resolution=node prisma/ami-brain-marketing-strategy-action-acceptance.ts",
     "brain:action:supply-platform:acceptance": "cross-env TS_NODE_PROJECT=tsconfig.agent-eval-scripts.json TS_NODE_TRANSPILE_ONLY=true node --loader ts-node/esm --experimental-specifier-resolution=node prisma/ami-brain-supply-platform-idempotency-acceptance.ts",
     "prebrain:release:pilot": "tsc -p tsconfig.release-pilot.json",
     "brain:release:pilot": "node dist-release-pilot/prisma/ami-brain-release-pilot.js",

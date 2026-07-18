@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/authStore';
 import { useStoreStore } from '@/stores/storeStore';
@@ -49,6 +49,42 @@ export function BrainWorkspace() {
   const [actionResults, setActionResults] = useState<Record<string, BrainActionDecisionResponse>>({});
   const [feedbackByRun, setFeedbackByRun] = useState<Record<number, string>>({});
   const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const selectedRunId = selectedAssistant?.metadata?.runId;
+  const hasExecutingAction = useMemo(
+    () => Object.values(actionResults).some((result) => result.status === 'queued' || result.status === 'executing'),
+    [actionResults],
+  );
+
+  useEffect(() => {
+    if (!selectedRunId || !hasExecutingAction) return;
+    let cancelled = false;
+    let timer: number | undefined;
+    const poll = async () => {
+      if (cancelled) return;
+      if (document.visibilityState === 'hidden') {
+        timer = window.setTimeout(() => void poll(), 2_000);
+        return;
+      }
+      try {
+        const response = await listBrainActionStatuses(selectedRunId);
+        if (cancelled) return;
+        setActionResults((current) => ({
+          ...current,
+          ...Object.fromEntries(response.items.map((item) => [item.actionId, item])),
+        }));
+        if (response.items.some((item) => item.status === 'queued' || item.status === 'executing')) {
+          timer = window.setTimeout(() => void poll(), 2_000);
+        }
+      } catch {
+        if (!cancelled) timer = window.setTimeout(() => void poll(), 4_000);
+      }
+    };
+    timer = window.setTimeout(() => void poll(), 1_500);
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [hasExecutingAction, selectedRunId]);
 
   const loadRunEvents = useCallback(async (message: BrainMessage | null) => {
     setSelectedAssistant(message);
@@ -244,6 +280,7 @@ export function BrainWorkspace() {
           : await rejectBrainAction(actionId, runId);
       setActionResults((current) => ({ ...current, [actionId]: response }));
       if (response.status === 'succeeded') toast.success(response.receipt?.message ?? '动作执行成功');
+      else if (response.status === 'queued' || response.status === 'executing') toast.success(response.receipt?.message ?? '动作已进入执行队列');
       else if (response.status === 'rejected') toast.success('已拒绝动作');
       else if (response.status === 'failed') toast.error(response.error?.message ?? '动作执行失败');
       else if (response.status === 'expired') toast.error('动作确认已过期，请重新生成预览');
@@ -266,8 +303,6 @@ export function BrainWorkspace() {
       setFeedbackLoading(false);
     }
   }
-
-  const selectedRunId = selectedAssistant?.metadata?.runId;
 
   return (
     <div className="flex h-full min-h-0 bg-background">

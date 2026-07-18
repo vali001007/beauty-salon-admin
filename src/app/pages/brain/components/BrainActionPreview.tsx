@@ -30,6 +30,9 @@ const statusLabels: Record<BrainActionDecisionResponse['status'], string> = {
 
 export function BrainActionPreview({ action, result, loading, onConfirm, onReject, onRetry }: BrainActionPreviewProps) {
   const receipt = result?.receipt;
+  const businessResult = receipt?.result && typeof receipt.result === 'object' && !Array.isArray(receipt.result)
+    ? receipt.result as Record<string, unknown>
+    : null;
   const awaitingDecision = !result || result.status === 'pending';
   return (
     <div className="rounded-md border border-border bg-background p-3">
@@ -49,6 +52,11 @@ export function BrainActionPreview({ action, result, loading, onConfirm, onRejec
           {receipt?.message ? <div className="text-foreground">{receipt.message}</div> : null}
           {receipt?.businessObjectType && receipt.businessObjectId != null ? (
             <div>业务单据：{receipt.businessObjectType} #{String(receipt.businessObjectId)}</div>
+          ) : null}
+          {businessResult && ['pending', 'running', 'success', 'partial_failed', 'failed'].includes(String(businessResult.status ?? '')) ? (
+            <div>
+              业务进度：排队 {Number(businessResult.queuedCount ?? 0)}，已触达 {Number(businessResult.reachedCount ?? 0)}，失败 {Number(businessResult.failedCount ?? 0)}
+            </div>
           ) : null}
           {result.error?.message ? <div className="text-destructive">{result.error.message}</div> : null}
           {result.status === 'failed' && result.retryable ? (
