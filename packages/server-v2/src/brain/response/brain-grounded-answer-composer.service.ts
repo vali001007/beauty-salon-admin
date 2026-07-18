@@ -260,6 +260,7 @@ const COLUMN_LABELS: Readonly<Record<string, string>> = {
   matchReason: '匹配依据',
   customerSource: '客户来源',
   newCustomerCount: '新客数',
+  timePeriod: '时间段',
   share: '占比',
   amount: '金额',
   startTime: '开始时间',

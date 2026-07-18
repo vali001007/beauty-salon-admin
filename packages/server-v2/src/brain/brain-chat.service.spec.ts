@@ -2665,6 +2665,52 @@ describe('BrainChatService', () => {
     );
   });
 
+  it('preserves an ordered new-customer time ranking for an exact governed example', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const question = '最近哪个时间段新客最多，从哪些渠道来';
+    const normalized = (service as any).normalizeGovernedCapabilityExampleIntent({
+      question,
+      snapshot: { entities: [], metrics: [{ domain: 'customer' }], dimensions: [{ domain: 'customer' }] },
+      cards: [{
+        key: 'customer_facts', domains: ['customer'], intents: ['query', 'ranking', 'diagnosis'],
+        examples: [question], definitionRefs: [
+          { ...definitionRef('metric.new_customer_count'), version: 1 },
+          { ...definitionRef('dimension.customerSource'), version: 1 },
+        ],
+      }],
+      intent: {
+        schemaVersion: '1.0', objective: question, domains: ['customer'], intent: 'ranking', entities: [], metrics: [],
+        dimensions: [], filters: [], orderBy: [], answerShape: 'ranking', successCriteria: ['返回新客时间与渠道排行'],
+        ambiguities: [], missingSlots: [], assumptions: [], confidence: 0.9, decisionSummary: '新客分布排行',
+      },
+    });
+
+    expect(normalized).toMatchObject({ intent: 'ranking', answerShape: 'ranking' });
+    expect(normalized.dimensions).toEqual([
+      expect.objectContaining({ definitionKey: 'dimension.customerSource' }),
+    ]);
+  });
+
+  it('does not treat a generic English ontology entity as a specific customer identity', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const question = '最近哪个时间段新客最多，从哪些渠道来';
+    const intent = {
+      schemaVersion: '1.0', objective: question, domains: ['customer'], intent: 'ranking',
+      entities: [{
+        entityType: 'customer', mention: 'Customer', source: 'system', confidence: 1,
+        definitionRef: definitionRef('entity.customer'),
+      }],
+      metrics: [], dimensions: [definitionRef('dimension.customerSource')], filters: [], orderBy: [],
+      answerShape: 'ranking', successCriteria: ['返回新客时间与渠道排行'], ambiguities: [], missingSlots: [],
+      assumptions: [], confidence: 1, decisionSummary: '新客分布排行',
+    };
+
+    const normalized = (service as any).normalizeExactCustomerFactIntent({ intent, question });
+
+    expect(normalized).toEqual(intent);
+    expect(normalized).toMatchObject({ intent: 'ranking', answerShape: 'ranking' });
+  });
+
   it('uses the governed unique-customer metric for an exact staff customer ranking example', () => {
     const { service } = createService({ modelPipeline: {} });
     const serviceMetric = definitionRef('metric.staff_service_count');

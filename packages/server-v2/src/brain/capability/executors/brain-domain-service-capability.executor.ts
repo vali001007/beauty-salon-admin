@@ -3082,14 +3082,20 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             startDate: range.startDate,
             endDate: range.endDate,
           });
-          const rows = distribution.sourceRanking.slice(0, this.resolveLimit(input.args.limit, 10));
-          const summary = rows.length
+          const limit = this.resolveLimit(input.args.limit, 10);
+          const rows = distribution.sourceRanking.slice(0, limit);
+          const weeklyRows = distribution.weeklyRanking.slice(0, limit);
+          const includeTimeRanking = /(?:时间段|哪(?:一)?周|哪个星期|哪周|周.*新客|新客.*周)/.test(input.question);
+          const sourceSummary = rows.length
             ? rows.map((item) => `${item.source} ${item.count} 人（${(item.share * 100).toFixed(1)}%）`).join('、')
             : '暂无新客来源数据';
+          const timeSummary = weeklyRows.length
+            ? weeklyRows.map((item) => `${item.week} ${item.count} 人`).join('、')
+            : '暂无新客时间段数据';
           return this.answer({
-            answer: `${range.label}新客共 ${distribution.total} 人。渠道分布：${summary}。${distribution.missingSourceCount > 0 ? `其中 ${distribution.missingSourceCount} 人未记录渠道。` : ''}`,
+            answer: `${range.label}新客共 ${distribution.total} 人。${includeTimeRanking ? `时间段排行：${timeSummary}。` : ''}渠道分布：${sourceSummary}。${distribution.missingSourceCount > 0 ? `其中 ${distribution.missingSourceCount} 人未记录渠道。` : ''}`,
             citationId: 'capability_customer_source_distribution',
-            citationLabel: '客户档案新客来源分布',
+            citationLabel: '客户档案新客时间与来源分布',
             blocks: [
               {
                 kind: 'kpi',
@@ -3099,6 +3105,15 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                 ],
                 citationIds: ['capability_customer_source_distribution'],
               },
+              ...(includeTimeRanking ? [{
+                kind: 'ranking' as const,
+                rows: weeklyRows.map((item) => ({
+                  timePeriod: item.week,
+                  newCustomerCount: item.count,
+                })),
+                columns: ['timePeriod', 'newCustomerCount'],
+                citationIds: ['capability_customer_source_distribution'],
+              }] : []),
               {
                 kind: 'ranking',
                 rows: rows.map((item) => ({
@@ -3116,6 +3131,10 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
               missingSourceCount: distribution.missingSourceCount,
               newCustomerDefinition: 'Customer.createdAt within requested time range',
               sourceField: 'Customer.source',
+              ...(includeTimeRanking ? {
+                timeBucket: 'calendar_week',
+                topTimePeriod: weeklyRows[0]?.week ?? null,
+              } : {}),
             },
           });
         }

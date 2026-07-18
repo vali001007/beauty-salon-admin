@@ -480,6 +480,66 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     });
   });
 
+  it('returns both time-period and source rankings when the question asks for both', async () => {
+    const customerFacts = {
+      getNewCustomerSourceDistribution: jest.fn().mockResolvedValue({
+        total: 5,
+        missingSourceCount: 0,
+        sourceRanking: [
+          { source: '小红书', count: 3, share: 0.6 },
+          { source: '美团', count: 2, share: 0.4 },
+        ],
+        weeklyRanking: [
+          { week: '2026-07-06 ~ 2026-07-12', count: 4 },
+          { week: '2026-07-13 ~ 2026-07-19', count: 1 },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      customerFacts as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'customer_facts' },
+      context: {
+        userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['marketing'], permissions: ['*'],
+        deniedPermissions: [], requestId: 'customer-source-time-test', timezone: 'Asia/Shanghai',
+      },
+      runId: 4,
+      question: '最近哪个时间段新客最多，从哪些渠道来',
+      answerShape: 'ranking',
+      args: {
+        objective: '查看新客时间和来源排行',
+        time: { label: '最近30天', timezone: 'Asia/Shanghai', startDate: '2026-06-19', endDate: '2026-07-18' },
+        entities: [{ entityType: 'customer', mention: '新客' }], metrics: [],
+        dimensions: [{ definitionKey: 'dimension.customerSource', mention: '渠道' }], filters: [], orderBy: [],
+      },
+    });
+
+    expect(result.answer).toContain('时间段排行：2026-07-06 ~ 2026-07-12 4 人');
+    expect(result.answer).toContain('渠道分布：小红书 3 人（60.0%）');
+    expect(result.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'ranking',
+        columns: ['timePeriod', 'newCustomerCount'],
+        rows: [
+          { timePeriod: '2026-07-06 ~ 2026-07-12', newCustomerCount: 4 },
+          { timePeriod: '2026-07-13 ~ 2026-07-19', newCustomerCount: 1 },
+        ],
+      }),
+      expect.objectContaining({
+        kind: 'ranking',
+        columns: ['customerSource', 'newCustomerCount', 'share'],
+      }),
+    ]));
+    expect(result.metadata).toMatchObject({
+      timeBucket: 'calendar_week',
+      topTimePeriod: '2026-07-06 ~ 2026-07-12',
+    });
+  });
+
   it('returns the governed new-customer cohort conversion funnel for the requested period', async () => {
     const customerFacts = {
       getNewCustomerConversionSummary: jest.fn().mockResolvedValue({

@@ -1547,14 +1547,16 @@ export class BrainChatService {
     ]);
     const modelDomains = input.intent.domains.filter((domain) => activeDomains.has(domain));
     const cardDomains = matched.domains.filter((domain) => activeDomains.has(domain));
+    const hasOrderedRankingCue = /(?:最多|最少|最高|最低|最快|最慢|排行|排名|top\s*\d*)/i.test(input.question);
     const unorderedListIntent =
       input.intent.intent === 'ranking' &&
       input.intent.metrics.length === 0 &&
       input.intent.orderBy.length === 0 &&
+      !hasOrderedRankingCue &&
       matched.intents.includes('query');
     const orderedRankingIntent =
-      ['query', 'trend'].includes(input.intent.intent) &&
-      /(?:最多|最少|最高|最低|最快|最慢|排行|排名|top\s*\d*)/i.test(input.question) &&
+      ['query', 'trend', 'ranking'].includes(input.intent.intent) &&
+      hasOrderedRankingCue &&
       matched.intents.includes('ranking');
     const diagnosisIntent =
       input.intent.intent === 'query' &&
@@ -1964,6 +1966,10 @@ export class BrainChatService {
     const mention = entity.mention.trim();
     if (!entity.definitionRef || !mention) return false;
     if (entity.entityKey && entity.entityKey !== entity.entityType) return true;
+    const normalizedMention = mention.toLocaleLowerCase('en-US').replace(/[\s_-]+/g, '');
+    if (/^(?:customer|customers|member|members|staff|employee|employees|beautician|beauticians|product|products|project|projects|reservation|reservations|appointment|appointments|order|orders|payment|payments)$/.test(normalizedMention)) {
+      return false;
+    }
     return !/(客户|顾客|老客|新客|会员|客群|人群|员工|美容师|商品|产品|项目|预约|她|他|这个|那个)/.test(mention);
   }
 
