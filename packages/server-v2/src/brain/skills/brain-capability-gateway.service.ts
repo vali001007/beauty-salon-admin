@@ -98,9 +98,9 @@ const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
     riskLevel: 'high',
     requiredFields: ['supplier', 'items'],
     allowedFields: ['supplier', 'items', 'submitForApproval'],
-    transactionBoundary: 'InventoryService.createPurchaseOrder',
+    transactionBoundary: 'InventoryService.createPurchaseOrderIdempotent',
     receiptType: 'purchase_order',
-    failureRecovery: 'manual_reconcile',
+    failureRecovery: 'safe_replay',
   },
   create_marketing_touch_draft: {
     key: 'create_marketing_touch_draft',
@@ -274,17 +274,15 @@ export class BrainCapabilityGatewayService {
       });
       if (matched !== productIds.length) throw new ForbiddenException('cross_store_purchase_product');
     }
-    const draft = await service.createPurchaseOrder({
+    const result = await service.createPurchaseOrder({
       ...payload,
       supplier: this.nonEmptyString(payload.supplier, 'supplier'),
       storeId: context.storeId,
-      status: '草稿',
-      source: 'ami_brain_confirmed_action',
+      status: payload.submitForApproval === true ? '待审核' : '草稿',
+      source: 'ami_brain',
+      idempotencyKey: context.idempotencyKey,
       items,
     });
-    const result = payload.submitForApproval === true
-      ? await service.updatePurchaseOrderStatus(draft.id, { status: '待审核' })
-      : draft;
     return this.receipt('create_purchase_order', 'purchase_order', result.id, result);
   }
 

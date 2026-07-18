@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/com
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { buildCardUsageIdempotencyKey } from '../../cards/card-usage-idempotency.js';
 import { buildReservationIdempotencyKey } from '../../reservations/reservation-idempotency.js';
+import { buildPurchaseOrderIdempotencyKey } from '../../inventory/purchase-order-idempotency.js';
 import { extractCustomerPhoneTail } from './brain-customer-identity.js';
 
 export type BrainTargetResolution<T> =
@@ -45,6 +46,11 @@ export class BrainActionTargetResolverService {
         await this.revalidateCardUsageTarget(input.storeId, input.args, input.idempotencyKey);
         return;
       case 'create_purchase_order': {
+        if (input.idempotencyKey) {
+          const idempotencyKey = buildPurchaseOrderIdempotencyKey(input.storeId, 'ami_brain', input.idempotencyKey);
+          const committed = await this.prisma.purchaseOrder.findUnique({ where: { idempotencyKey }, select: { id: true } });
+          if (committed) return;
+        }
         if (!Array.isArray(input.args.items) || input.args.items.length === 0) {
           throw new BadRequestException('purchase_items_required');
         }

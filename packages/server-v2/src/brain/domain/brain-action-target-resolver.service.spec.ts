@@ -8,12 +8,38 @@ describe('BrainActionTargetResolverService', () => {
     serviceTask: { findMany: jest.fn(), findFirst: jest.fn() },
     customerCard: { findMany: jest.fn(), findFirst: jest.fn() },
     cardUsageRecord: { aggregate: jest.fn(), findUnique: jest.fn() },
+    purchaseOrder: { findUnique: jest.fn() },
     beautician: { findMany: jest.fn(), findFirst: jest.fn() },
     product: { count: jest.fn() },
   };
   const service = new BrainActionTargetResolverService(prisma as never);
 
   beforeEach(() => jest.clearAllMocks());
+
+  it('recovers a committed purchase order before mutable product checks', async () => {
+    prisma.purchaseOrder.findUnique.mockResolvedValue({ id: 88 });
+
+    await expect(service.revalidateCapabilityTarget({
+      capabilityKey: 'create_purchase_order',
+      storeId: 6,
+      args: { items: [{ productId: 11 }] },
+      idempotencyKey: 'purchase-action-88',
+    })).resolves.toBeUndefined();
+
+    expect(prisma.product.count).not.toHaveBeenCalled();
+  });
+
+  it('rejects cross-store purchase products when no committed order exists', async () => {
+    prisma.purchaseOrder.findUnique.mockResolvedValue(null);
+    prisma.product.count.mockResolvedValue(0);
+
+    await expect(service.revalidateCapabilityTarget({
+      capabilityKey: 'create_purchase_order',
+      storeId: 6,
+      args: { items: [{ productId: 11 }] },
+      idempotencyKey: 'purchase-action-new',
+    })).rejects.toThrow('cross_store_action_target');
+  });
 
   it('resolves an exact customer only inside the current store', async () => {
     prisma.customer.findMany.mockResolvedValue([{ id: 7, name: '张女士', phone: '13800001234' }]);

@@ -101,7 +101,7 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
   @BrainCapability({
     key: 'purchase_order_draft',
     name: '采购单预览',
-    description: '基于当前门店库存与商品目标生成待确认采购单预览，缺少唯一商品或采购数量时返回具体追问，不直接创建采购单。',
+    description: '基于当前门店库存与商品目标生成待确认采购单预览，缺少唯一商品或采购数量时返回具体追问；确认后通过采购业务表级强幂等合同创建并支持安全重放。',
     intents: ['action'],
     examples: ['根据补货建议准备采购单预览', '为指定商品生成采购草稿'],
     negativeExamples: ['直接提交采购单', '使用查看权限创建采购单', '查询低库存商品名单'],

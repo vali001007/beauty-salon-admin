@@ -214,6 +214,19 @@ async function seedIncrementalBaseline(connectionString) {
         900001, 900001, 'Baseline Customer', 'Baseline Card', 'Baseline Project', 1, 9, NOW()
       );
 
+      INSERT INTO "PurchaseOrder" (
+        "id", "orderNo", "supplier", "totalAmount", "status", "items", "createdAt", "updatedAt"
+      ) VALUES (
+        900001,
+        'PUR-BASELINE-900001',
+        'Baseline Supplier',
+        200,
+        '草稿',
+        '{"storeId":900001,"storeName":"Migration Acceptance Store","source":"manual","items":[{"id":1,"productId":900001,"productName":"Baseline Project","sku":"BASELINE-SKU","quantity":10,"receivedQty":0,"unitPrice":20,"subtotal":200}]}'::jsonb,
+        NOW(),
+        NOW()
+      );
+
       INSERT INTO "brain_store_operating_target" (
         "id", "storeId", "periodType", "periodStart", "periodEnd", "revenueTarget", "status", "createdAt", "updatedAt"
       ) VALUES (
@@ -265,6 +278,7 @@ async function structuralEvidence(connectionString) {
       'customer_service_feedback',
       'customer_waiting_episode',
       'CardUsageRecord',
+      'PurchaseOrder',
       'Reservation',
     ];
     const tables = await client.query(
@@ -274,6 +288,8 @@ async function structuralEvidence(connectionString) {
     const foundTables = new Set(tables.rows.map((row) => row.table_name));
     const requiredColumns = [
       ['CardUsageRecord', 'idempotencyKey'],
+      ['PurchaseOrder', 'idempotencyKey'],
+      ['PurchaseOrder', 'creationFingerprint'],
       ['Reservation', 'idempotencyKey'],
       ['Reservation', 'creationFingerprint'],
       ['Reservation', 'bookingSource'],
@@ -290,13 +306,13 @@ async function structuralEvidence(connectionString) {
     const indexes = await client.query(`
       SELECT indexname FROM pg_indexes
       WHERE schemaname = 'public'
-        AND indexname IN ('CardUsageRecord_idempotencyKey_key', 'Reservation_idempotencyKey_key')
+        AND indexname IN ('CardUsageRecord_idempotencyKey_key', 'PurchaseOrder_idempotencyKey_key', 'Reservation_idempotencyKey_key')
     `);
     const indexSet = new Set(indexes.rows.map((row) => row.indexname));
     return {
       missingTables: requiredTables.filter((name) => !foundTables.has(name)),
       missingColumns: requiredColumns.map(([table, column]) => `${table}.${column}`).filter((name) => !columnSet.has(name)),
-      missingIndexes: ['CardUsageRecord_idempotencyKey_key', 'Reservation_idempotencyKey_key'].filter(
+      missingIndexes: ['CardUsageRecord_idempotencyKey_key', 'PurchaseOrder_idempotencyKey_key', 'Reservation_idempotencyKey_key'].filter(
         (name) => !indexSet.has(name),
       ),
     };
@@ -332,6 +348,14 @@ async function incrementalDataEvidence(connectionString) {
     const cardUsage = await client.query(`
       SELECT COUNT(*)::int AS count, COUNT("idempotencyKey")::int AS "idempotencyPopulated"
       FROM "CardUsageRecord"
+      WHERE "id" = 900001
+    `);
+    const purchaseOrder = await client.query(`
+      SELECT COUNT(*)::int AS count,
+             COUNT("idempotencyKey")::int AS "idempotencyPopulated",
+             COUNT("creationFingerprint")::int AS "fingerprintPopulated",
+             MIN("status") AS status
+      FROM "PurchaseOrder"
       WHERE "id" = 900001
     `);
 
@@ -388,17 +412,36 @@ async function incrementalDataEvidence(connectionString) {
       await client.query('ROLLBACK');
     }
 
+    await client.query('BEGIN');
+    let purchaseOrderUniqueRejected = false;
+    try {
+      await client.query(`UPDATE "PurchaseOrder" SET "idempotencyKey" = 'purchase-r232-key' WHERE "id" = 900001`);
+      await client.query(`
+        INSERT INTO "PurchaseOrder" (
+          "orderNo", "supplier", "totalAmount", "status", "items", "idempotencyKey", "creationFingerprint", "createdAt", "updatedAt"
+        ) VALUES (
+          'PUR-DUPLICATE-R232', 'Baseline Supplier', 200, '草稿', '{}'::jsonb, 'purchase-r232-key', repeat('a', 64), NOW(), NOW()
+        )
+      `);
+    } catch (error) {
+      purchaseOrderUniqueRejected = error?.constraint === 'PurchaseOrder_idempotencyKey_key';
+    } finally {
+      await client.query('ROLLBACK');
+    }
+
     return {
       roles: roles.rows,
       metric: metric.rows,
       reservation: reservation.rows[0],
       cardUsage: cardUsage.rows[0],
+      purchaseOrder: purchaseOrder.rows[0],
       feedbackCount: feedbackCount.rows[0].count,
       waitingCount: waitingCount.rows[0].count,
       feedbackConstraintRejected,
       waitingConstraintRejected,
       reservationUniqueRejected,
       cardUsageUniqueRejected,
+      purchaseOrderUniqueRejected,
     };
   });
 }
@@ -431,7 +474,11 @@ function assertAcceptance(summary) {
       summary.incrementalData.reservation.fingerprintPopulated === 0 &&
       summary.incrementalData.reservation.bookingSource === 'manual' &&
       summary.incrementalData.cardUsage.count === 1 &&
-      summary.incrementalData.cardUsage.idempotencyPopulated === 0,
+      summary.incrementalData.cardUsage.idempotencyPopulated === 0 &&
+      summary.incrementalData.purchaseOrder.count === 1 &&
+      summary.incrementalData.purchaseOrder.idempotencyPopulated === 0 &&
+      summary.incrementalData.purchaseOrder.fingerprintPopulated === 0 &&
+      summary.incrementalData.purchaseOrder.status === '草稿',
     metricBackfilled:
       summary.incrementalData.metric.length === 1 &&
       summary.incrementalData.metric[0].metricKey === 'store.operating_revenue.month' &&
@@ -449,7 +496,8 @@ function assertAcceptance(summary) {
       summary.incrementalData.feedbackConstraintRejected &&
       summary.incrementalData.waitingConstraintRejected &&
       summary.incrementalData.reservationUniqueRejected &&
-      summary.incrementalData.cardUsageUniqueRejected,
+      summary.incrementalData.cardUsageUniqueRejected &&
+      summary.incrementalData.purchaseOrderUniqueRejected,
   };
   const failedChecks = Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name);
   return { checks, failedChecks, passed: failedChecks.length === 0 };
@@ -460,8 +508,8 @@ async function main() {
   const options = validateOptions();
   const outputDir = resolve(process.cwd(), argValue('output-dir') ?? 'migration-acceptance-output');
   const inventory = inspectMigrations();
-  if (inventory.count !== 102) {
-    throw new Error(`Expected the current frozen chain to contain 102 migrations, found ${inventory.count}. Update the gate deliberately.`);
+  if (inventory.count !== 103) {
+    throw new Error(`Expected the current frozen chain to contain 103 migrations, found ${inventory.count}. Update the gate deliberately.`);
   }
   const baseline = createBaselinePrismaDirectory(inventory, options.baselineCount);
   let containerStarted = false;

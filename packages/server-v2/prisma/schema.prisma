@@ -486,14 +486,16 @@ model StockBatch {
 }
 
 model PurchaseOrder {
-  id          Int      @id @default(autoincrement())
-  orderNo     String   @unique
-  supplier    String?
-  totalAmount Decimal  @default(0)
-  status      String   @default("pending")
-  items       Json
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                  Int      @id @default(autoincrement())
+  idempotencyKey      String?  @unique
+  creationFingerprint String?  @db.VarChar(64)
+  orderNo             String   @unique
+  supplier            String?
+  totalAmount         Decimal  @default(0)
+  status              String   @default("pending")
+  items               Json
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   @@index([status])
 }

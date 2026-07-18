@@ -17,7 +17,7 @@ describe('BrainCapabilityGatewayService', () => {
     expect(service.failureRecovery('reschedule_reservation')).toBe('safe_replay');
     expect(service.failureRecovery('cancel_reservation')).toBe('safe_replay');
     expect(service.failureRecovery('create_reservation')).toBe('safe_replay');
-    expect(service.failureRecovery('create_purchase_order')).toBe('manual_reconcile');
+    expect(service.failureRecovery('create_purchase_order')).toBe('safe_replay');
     expect(service.failureRecovery('create_marketing_touch_draft')).toBe('manual_reconcile');
     expect(service.failureRecovery('verify_card_usage')).toBe('safe_replay');
   });
@@ -103,7 +103,7 @@ describe('BrainCapabilityGatewayService', () => {
   it('creates a purchase draft and submits it for approval through InventoryService', async () => {
     const inventory = {
       createPurchaseOrder: jest.fn().mockResolvedValue({ id: 88, orderNo: 'PUR88', status: '草稿' }),
-      updatePurchaseOrderStatus: jest.fn().mockResolvedValue({ id: 88, orderNo: 'PUR88', status: '待审核' }),
+      updatePurchaseOrderStatus: jest.fn(),
     };
     const prisma = {
       product: { count: jest.fn().mockResolvedValue(1) },
@@ -117,11 +117,16 @@ describe('BrainCapabilityGatewayService', () => {
         submitForApproval: true,
         items: [{ productId: 1, productName: '精华液', sku: 'SKU1', quantity: 10, unitPrice: 20 }],
       },
-      context: { userId: 9, storeId: 6, permissions: ['core:supply:manage'] },
+      context: { userId: 9, storeId: 6, permissions: ['core:supply:manage'], idempotencyKey: 'purchase-action-88' },
     });
 
-    expect(inventory.createPurchaseOrder).toHaveBeenCalledWith(expect.objectContaining({ storeId: 6, status: '草稿' }));
-    expect(inventory.updatePurchaseOrderStatus).toHaveBeenCalledWith(88, { status: '待审核' });
+    expect(inventory.createPurchaseOrder).toHaveBeenCalledWith(expect.objectContaining({
+      storeId: 6,
+      status: '待审核',
+      source: 'ami_brain',
+      idempotencyKey: 'purchase-action-88',
+    }));
+    expect(inventory.updatePurchaseOrderStatus).not.toHaveBeenCalled();
     expect(receipt).toMatchObject({ businessObjectType: 'purchase_order', businessObjectId: 88 });
   });
 
