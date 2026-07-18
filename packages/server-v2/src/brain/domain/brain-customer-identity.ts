@@ -6,6 +6,7 @@ export function extractSpecificCustomerNameFromMention(mention: string): string 
   const nameOnly = mention
     .trim()
     .replace(/[（(][^）)]*(?:手机|号码|尾号|后四位)[^）)]*[）)]/g, '')
+    .replace(/[，,\s]*(?:手机|手机号)?(?:尾号|后四位)(?:是|为)?[^0-9]*\d{4}.*$/g, '')
     .trim();
   if (
     !nameOnly ||

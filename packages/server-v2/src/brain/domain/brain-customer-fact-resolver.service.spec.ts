@@ -89,6 +89,57 @@ describe('BrainCustomerFactResolverService', () => {
     expect(segment).toHaveBeenCalledTimes(2);
   });
 
+  it('uses the latest completed service task and returns the shared customer source', async () => {
+    const findMany = jest.fn().mockResolvedValue([{
+      name: '马美琳',
+      phone: '15838146325',
+      memberLevel: '钻石会员',
+      totalSpent: 196626,
+      visitCount: 119,
+      lastVisitDate: new Date('2026-07-15T00:00:00.000Z'),
+      source: '小红书',
+      tags: ['沉睡客户'],
+      remark: '偏好下午到店',
+      healthProfile: null,
+      customerCards: [],
+      balanceAccounts: [],
+      consumptionRecords: [],
+      reservations: [{
+        date: new Date('2026-07-18T00:00:00.000Z'),
+        startTime: '14:00',
+        status: 'confirmed',
+        remark: '未来预约，不是已完成服务',
+        project: { name: '未来预约项目' },
+        beautician: { name: '预约美容师' },
+      }],
+      serviceTasks: [{
+        appointmentTime: new Date('2026-07-10T06:00:00.000Z'),
+        completedAt: new Date('2026-07-10T07:00:00.000Z'),
+        remark: '重点补水',
+        project: { name: '水光护理' },
+        beautician: { name: '王美容师' },
+      }],
+    }]);
+    const service = new BrainCustomerFactResolverService({ customer: { findMany } } as never);
+
+    const answer = await service.answerExactCustomerQuestion({
+      storeId: 6,
+      message: '马美琳上次做的什么项目，她从哪个渠道来的，标签和备注是什么',
+      customerName: '马美琳，手机尾号6325',
+      permissions: ['core:customer:view'],
+    });
+
+    expect(answer).toContain('最近完成服务：水光护理');
+    expect(answer).not.toContain('最近服务：未来预约项目');
+    expect(answer).toContain('客户来源：小红书');
+    expect(answer).toContain('标签：沉睡客户；备注：偏好下午到店');
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      include: expect.objectContaining({
+        serviceTasks: expect.objectContaining({ where: { storeId: 6, status: 'completed' } }),
+      }),
+    }));
+  });
+
   it('fails closed when a customer question has no registered business fact', async () => {
     const service = new BrainCustomerFactResolverService({} as never);
 

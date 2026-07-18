@@ -1,0 +1,85 @@
+{
+  "cases": [
+    {
+      "id": "front-desk-customer-context-followup",
+      "persona": "reception",
+      "turns": [
+        {
+          "id": "resolve-customer",
+          "intent": "query",
+          "input": "帮我查一下马美琳，手机尾号6325，她上次来是什么时候",
+          "expected": {
+            "domains": ["customer"],
+            "entities": ["customer"],
+            "capabilityKeys": ["customer_facts"],
+            "brainStatus": "completed"
+          }
+        },
+        {
+          "id": "card-progress",
+          "intent": "query",
+          "input": "她有没有办过卡，还有多少次",
+          "expected": {
+            "domains": ["customer"],
+            "entities": ["customer"],
+            "capabilityKeys": ["customer_facts"],
+            "brainStatus": "completed",
+            "forbiddenMissingSlots": ["entity", "customerIdentity"]
+          }
+        },
+        {
+          "id": "last-service",
+          "intent": "query",
+          "input": "她上次做的什么项目，有没有特别备注",
+          "expected": {
+            "domains": ["customer"],
+            "entities": ["customer", "project"],
+            "capabilityKeys": ["customer_facts"],
+            "brainStatus": "completed",
+            "forbiddenMissingSlots": ["entity", "customerIdentity"]
+          }
+        },
+        {
+          "id": "source-tags",
+          "intent": "query",
+          "input": "她是从哪个渠道来的，标签和备注是什么",
+          "expected": {
+            "domains": ["customer"],
+            "entities": ["customer"],
+            "capabilityKeys": ["customer_facts"],
+            "brainStatus": "completed",
+            "forbiddenMissingSlots": ["entity", "customerIdentity"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "front-desk-customer-pronoun-clarification",
+      "persona": "reception",
+      "turns": [
+        {
+          "id": "missing-customer",
+          "intent": "clarify",
+          "input": "她有没有在我们店消费过",
+          "expected": {
+            "answerShape": "clarification",
+            "brainStatus": "clarify",
+            "missingSlots": ["entity"]
+          }
+        },
+        {
+          "id": "fill-customer",
+          "intent": "query",
+          "input": "马美琳，手机尾号6325",
+          "expected": {
+            "domains": ["customer"],
+            "entities": ["customer"],
+            "capabilityKeys": ["customer_facts"],
+            "brainStatus": "completed",
+            "forbiddenMissingSlots": ["entity", "customerIdentity"]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { BrainTimeRangeParserService, type BrainDateRange } from '../../cognition/brain-time-range-parser.service.js';
 import { BrainCustomerFactResolverService } from '../../domain/brain-customer-fact-resolver.service.js';
-import { extractSpecificCustomerNameFromMention } from '../../domain/brain-customer-identity.js';
+import { extractCustomerPhoneTail, extractSpecificCustomerNameFromMention } from '../../domain/brain-customer-identity.js';
 import { defaultBrainDateRange } from '../../domain/brain-domain-formatters.js';
 import { MarketingService } from '../../../marketing/marketing.service.js';
 import { CustomerLifecycleOntologyService } from '../../../marketing/customer-lifecycle-ontology.service.js';
@@ -29,7 +29,9 @@ function specificCustomerMention(
   entity: ReturnType<typeof structuredEntityMentions>[number] | undefined,
 ): string | undefined {
   if (!entity || entity.source === 'system') return undefined;
-  return extractSpecificCustomerNameFromMention(entity.mention);
+  return extractSpecificCustomerNameFromMention(entity.mention) || extractCustomerPhoneTail(entity.mention)
+    ? entity.mention
+    : undefined;
 }
 
 const CAPABILITY_KEYS = [
@@ -493,10 +495,15 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     synonyms: ['客户事实', '客户名单', '沉睡客户', '沉睡客户唤醒迹象', '客户回流信号', '触达后预约客户', '触达后到店客户', '触达后消费客户', '未到店客户', '长期未消费客户', 'VIP 客户', '生日关怀客户', '重要到店客户', '活动响应客户', '办卡未预约客户', '低余次卡客户', '次卡临期高余量客户', '次卡低使用客户', '开卡未核销客户', '老客回头率', '平均回访间隔', '高价值低活跃客户', '消费频率下降客户', '消费金额下降客户', '新客来源渠道', '新客转化', '到店年龄画像'],
     businessDefinitionKeys: [
       'entity.customer',
+      'entity.reservation',
+      'entity.project',
+      'entity.beautician',
       'dimension.customerId',
       'dimension.customerName',
       'dimension.customerSource',
       'dimension.customerAgeGroup',
+      'dimension.projectName',
+      'dimension.beauticianName',
       'metric.new_customer_count',
       'metric.new_customer_conversion_count',
       'metric.new_customer_conversion_rate',

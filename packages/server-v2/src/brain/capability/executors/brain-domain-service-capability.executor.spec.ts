@@ -399,7 +399,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     });
 
     expect(customerFacts.answerCustomerQuestion).toHaveBeenCalledWith(expect.objectContaining({
-      specificCustomerMention: '胡静怡',
+      specificCustomerMention: '胡静怡（手机号后四位7636）',
     }));
   });
 

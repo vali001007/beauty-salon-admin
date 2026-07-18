@@ -1185,6 +1185,147 @@ describe('BrainChatService', () => {
     });
   });
 
+  it('inherits a previously confirmed customer for a pronoun follow-up without guessing a new identity', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const customerRef = {
+      definitionType: 'entity',
+      definitionKey: 'entity.customer',
+      definitionVersion: 1,
+      definitionFingerprint: 'a'.repeat(64),
+      sourceFingerprint: 'b'.repeat(64),
+    } as const;
+    const intent = {
+      schemaVersion: '1.0',
+      objective: '查看她的卡项进度',
+      domains: ['customer'],
+      intent: 'query',
+      entities: [{ entityType: 'customer', mention: '她', source: 'user', confidence: 0.7 }],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'list',
+      successCriteria: ['返回卡项'],
+      ambiguities: [{ slot: 'entity', reason: '客户未绑定', candidates: [] }],
+      missingSlots: ['entity'],
+      assumptions: [],
+      confidence: 0.7,
+      decisionSummary: '查看客户卡项',
+    };
+
+    const normalized = (service as any).normalizeConversationEntityInheritance({
+      intent,
+      question: '她有没有办过卡，还有多少次',
+      conversationSlots: {
+        modelContext: {
+          entities: [{ entityType: 'customer', mention: '马美琳，手机尾号6325', source: 'user', definitionRef: customerRef, confidence: 1 }],
+        },
+        turnDirectives: { inherit: ['entities'], doNotInherit: [] },
+      },
+    });
+
+    expect(normalized.entities).toEqual([
+      expect.objectContaining({ mention: '马美琳，手机尾号6325', source: 'conversation' }),
+    ]);
+    expect(normalized.missingSlots).toEqual([]);
+    expect(normalized.ambiguities).toEqual([]);
+  });
+
+  it('restores a pending customer query when the next turn only supplies name and phone tail', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const customerRef = {
+      definitionType: 'entity',
+      definitionKey: 'entity.customer',
+      definitionVersion: 1,
+      definitionFingerprint: 'a'.repeat(64),
+      sourceFingerprint: 'b'.repeat(64),
+    } as const;
+    const intent = {
+      schemaVersion: '1.0',
+      objective: '补充客户身份',
+      domains: [],
+      intent: 'clarify',
+      entities: [{ entityType: 'customer', mention: '马美琳，手机尾号6325', source: 'user', definitionRef: customerRef, confidence: 1 }],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'clarification',
+      successCriteria: [],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 1,
+      decisionSummary: '客户身份补槽',
+    };
+
+    const normalized = (service as any).normalizePendingClarificationResolution({
+      intent,
+      question: '马美琳，手机尾号6325',
+      conversationSlots: {
+        modelContext: {
+          objective: '确认该客户是否在本店消费过',
+          intent: 'query',
+          answerShape: 'list',
+        },
+        turnDirectives: { mode: 'resolve_pending_or_new', pendingSlots: ['entity'] },
+      },
+    });
+
+    expect(normalized).toMatchObject({
+      objective: '确认该客户是否在本店消费过',
+      domains: ['customer'],
+      intent: 'query',
+      answerShape: 'list',
+      missingSlots: [],
+      ambiguities: [],
+    });
+  });
+
+  it('normalizes a specific customer history question to the customer fact fast path but keeps appointment-time queries separate', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const customerRef = {
+      definitionType: 'entity',
+      definitionKey: 'entity.customer',
+      definitionVersion: 1,
+      definitionFingerprint: 'a'.repeat(64),
+      sourceFingerprint: 'b'.repeat(64),
+    } as const;
+    const baseIntent = {
+      schemaVersion: '1.0',
+      objective: '查看客户历史',
+      domains: ['customer', 'reservation'],
+      intent: 'diagnosis',
+      entities: [{ entityType: 'customer', mention: '马美琳（手机号后四位6325）', source: 'user', definitionRef: customerRef, confidence: 1 }],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'diagnosis',
+      successCriteria: ['返回最近到店'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 1,
+      decisionSummary: '客户历史',
+    };
+
+    expect((service as any).normalizeExactCustomerFactIntent({
+      intent: baseIntent,
+      question: '帮我查一下马美琳，手机尾号6325，她上次来是什么时候',
+    })).toMatchObject({
+      domains: ['customer'],
+      intent: 'query',
+      answerShape: 'list',
+      entities: [expect.objectContaining({ mention: '马美琳（手机号后四位6325）' })],
+    });
+
+    expect((service as any).normalizeExactCustomerFactIntent({
+      intent: baseIntent,
+      question: '马美琳手机尾号6325的预约是几点',
+    })).toBe(baseIntent);
+  });
+
   it('reuses the snapshot-bound capability while resolving a pending clarification', () => {
     const { service } = createService({ modelPipeline: {} });
     const card = {

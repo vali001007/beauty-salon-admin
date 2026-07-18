@@ -33,6 +33,7 @@ import { BrainRuntimeConfigService } from './config/brain-runtime-config.service
 import { BrainSemanticIntentCompilerService } from './cognition/brain-semantic-intent-compiler.service.js';
 import { BrainSemanticIntentValidatorService } from './cognition/brain-semantic-intent-validator.service.js';
 import { BrainOntologyRuntimeService } from './cognition/brain-ontology-runtime.service.js';
+import { BRAIN_SEMANTIC_ANSWER_SHAPES } from './cognition/brain-semantic-intent.types.js';
 import type { BrainDefinitionRef, BrainSemanticIntent } from './cognition/brain-semantic-intent.types.js';
 import type { BusinessDefinitionBase, ProductionReadyBusinessDefinitionSnapshot } from './cognition/business-definition-snapshot.types.js';
 import { BrainCapabilityCatalogService } from './capability/brain-capability-catalog.service.js';
@@ -1042,19 +1043,26 @@ export class BrainChatService {
     });
 
     let enrichedIntent = this.normalizePendingClarificationResolution({
-      intent: this.normalizeUnboundReferenceIntent({
-        intent: this.normalizeGovernedCapabilityContractIntent({
-          intent: this.normalizeGovernedCapabilityExampleIntent({
-            intent: this.normalizeModelClarificationIntent(this.enrichModelEntityRefs(compilation.intent)),
+      intent: this.normalizeExactCustomerFactIntent({
+        intent: this.normalizeConversationEntityInheritance({
+          intent: this.normalizeUnboundReferenceIntent({
+            intent: this.normalizeGovernedCapabilityContractIntent({
+              intent: this.normalizeGovernedCapabilityExampleIntent({
+                intent: this.normalizeModelClarificationIntent(this.enrichModelEntityRefs(compilation.intent)),
+                question: input.dto.message,
+                cards,
+                snapshot,
+              }),
+              question: input.dto.message,
+              cards,
+            }),
             question: input.dto.message,
-            cards,
-            snapshot,
+            conversationSlots: compilerInput.conversationSlots,
           }),
           question: input.dto.message,
-          cards,
+          conversationSlots: compilerInput.conversationSlots,
         }),
         question: input.dto.message,
-        conversationSlots: compilerInput.conversationSlots,
       }),
       conversationSlots: compilerInput.conversationSlots,
       question: input.dto.message,
@@ -1102,19 +1110,26 @@ export class BrainChatService {
       });
       if (repairCompilation.status === 'completed') {
         const repairedIntent = this.normalizePendingClarificationResolution({
-          intent: this.normalizeUnboundReferenceIntent({
-            intent: this.normalizeGovernedCapabilityContractIntent({
-              intent: this.normalizeGovernedCapabilityExampleIntent({
-                intent: this.normalizeModelClarificationIntent(this.enrichModelEntityRefs(repairCompilation.intent)),
+          intent: this.normalizeExactCustomerFactIntent({
+            intent: this.normalizeConversationEntityInheritance({
+              intent: this.normalizeUnboundReferenceIntent({
+                intent: this.normalizeGovernedCapabilityContractIntent({
+                  intent: this.normalizeGovernedCapabilityExampleIntent({
+                    intent: this.normalizeModelClarificationIntent(this.enrichModelEntityRefs(repairCompilation.intent)),
+                    question: input.dto.message,
+                    cards,
+                    snapshot,
+                  }),
+                  question: input.dto.message,
+                  cards,
+                }),
                 question: input.dto.message,
-                cards,
-                snapshot,
+                conversationSlots: compilerInput.conversationSlots,
               }),
               question: input.dto.message,
-              cards,
+              conversationSlots: compilerInput.conversationSlots,
             }),
             question: input.dto.message,
-            conversationSlots: compilerInput.conversationSlots,
           }),
           conversationSlots: compilerInput.conversationSlots,
           question: input.dto.message,
@@ -1223,7 +1238,8 @@ export class BrainChatService {
       validation.intent,
       cards,
     );
-    const deterministicCapabilityCard = governedExampleCard ?? pendingCapabilityCard;
+    const customerFactsCard = this.findDeterministicCustomerFactsCard(input.dto.message, validation.intent, cards);
+    const deterministicCapabilityCard = governedExampleCard ?? pendingCapabilityCard ?? customerFactsCard;
     if (validation.intent.intent === 'workflow' && !deterministicCapabilityCard) {
       return this.buildModelSupervisorAnswer({
         context: input.context,
@@ -1244,11 +1260,15 @@ export class BrainChatService {
           topK: [{
             card: deterministicCapabilityCard,
             score: 1,
-            matchedFields: [governedExampleCard ? 'examples' : 'pending_clarification'],
+            matchedFields: [governedExampleCard ? 'examples' : pendingCapabilityCard ? 'pending_clarification' : 'customer_identity'],
           }],
           confidence: 1,
           margin: 1,
-          reason: governedExampleCard ? 'governed_example_selected' : 'pending_clarification_capability_reused',
+          reason: governedExampleCard
+            ? 'governed_example_selected'
+            : pendingCapabilityCard
+              ? 'pending_clarification_capability_reused'
+              : 'specific_customer_fact_selected',
         }
       : this.capabilityRetriever!.retrieve({
           intent: validation.intent,
@@ -1314,7 +1334,9 @@ export class BrainChatService {
       retrieval.selected,
       input.dto.message,
       {
-        exactGovernedExample: governedExampleCard?.key === retrieval.selected.key,
+        exactGovernedExample:
+          governedExampleCard?.key === retrieval.selected.key ||
+          customerFactsCard?.key === retrieval.selected.key,
       },
     );
     if (contractMismatches.length > 0) {
@@ -1779,6 +1801,86 @@ export class BrainChatService {
     return false;
   }
 
+  private normalizeConversationEntityInheritance(input: {
+    intent: BrainSemanticIntent;
+    question: string;
+    conversationSlots: Record<string, unknown>;
+  }): BrainSemanticIntent {
+    if (!/(?:她|他|这个客人|这个客户|这位客人|这位客户)/.test(input.question)) return input.intent;
+    const directives = this.modelContextRecord(input.conversationSlots.turnDirectives);
+    const inherit = Array.isArray(directives.inherit) ? directives.inherit : [];
+    const doNotInherit = Array.isArray(directives.doNotInherit) ? directives.doNotInherit : [];
+    if (!inherit.includes('entities') || doNotInherit.includes('entities')) return input.intent;
+    if (input.intent.entities.some((entity) => entity.entityType === 'customer' && this.isSpecificModelEntity(entity))) {
+      return input.intent;
+    }
+
+    const modelContext = this.modelContextRecord(input.conversationSlots.modelContext);
+    const previousEntities = Array.isArray(modelContext.entities)
+      ? modelContext.entities.filter(
+          (entity): entity is BrainSemanticIntent['entities'][number] =>
+            Boolean(entity && typeof entity === 'object' && !Array.isArray(entity)),
+        )
+      : [];
+    const customer = previousEntities.find(
+      (entity) =>
+        entity.entityType === 'customer' &&
+        entity.definitionRef?.definitionKey === 'entity.customer' &&
+        this.isSpecificModelEntity(entity),
+    );
+    if (!customer) return input.intent;
+
+    return {
+      ...input.intent,
+      entities: [
+        ...input.intent.entities.filter(
+          (entity) => entity.entityType !== 'customer' || this.isSpecificModelEntity(entity),
+        ),
+        {
+          ...customer,
+          source: 'conversation',
+          confidence: Math.max(0.95, customer.confidence),
+          ...(customer.definitionRef ? { definitionRef: { ...customer.definitionRef } } : {}),
+        },
+      ],
+      missingSlots: input.intent.missingSlots.filter((slot) => slot !== 'entity'),
+      ambiguities: input.intent.ambiguities.filter((ambiguity) => ambiguity.slot !== 'entity'),
+      assumptions: [
+        ...input.intent.assumptions,
+        `客户身份沿用上一轮已确认对象：${customer.mention}。`,
+      ],
+    };
+  }
+
+  private normalizeExactCustomerFactIntent(input: {
+    intent: BrainSemanticIntent;
+    question: string;
+  }): BrainSemanticIntent {
+    if (!this.isSpecificCustomerFactQuestion(input.question, input.intent)) return input.intent;
+    const phoneTail = input.question.match(/(?:尾号|手机尾号|手机号后四位|手机后四位)[^0-9]*(\d{4})/)?.[1];
+    return {
+      ...input.intent,
+      domains: ['customer'],
+      intent: 'query',
+      answerShape: 'list',
+      entities: input.intent.entities.map((entity) =>
+        phoneTail &&
+        entity.entityType === 'customer' &&
+        this.isSpecificModelEntity(entity) &&
+        !/(?:尾号|后四位)[^0-9]*\d{4}/.test(entity.mention)
+          ? { ...entity, mention: `${entity.mention}（手机号后四位${phoneTail}）` }
+          : entity,
+      ),
+      metrics: [],
+      dimensions: [],
+      orderBy: [],
+      missingSlots: input.intent.missingSlots.filter((slot) => slot !== 'entity' && slot !== 'customerIdentity'),
+      ambiguities: input.intent.ambiguities.filter(
+        (ambiguity) => ambiguity.slot !== 'entity' && ambiguity.slot !== 'customerIdentity',
+      ),
+    };
+  }
+
   private normalizePendingClarificationResolution(input: {
     intent: BrainSemanticIntent;
     conversationSlots: Record<string, unknown>;
@@ -1790,6 +1892,35 @@ export class BrainChatService {
       ? directives.pendingSlots.filter((slot): slot is string => typeof slot === 'string')
       : [];
     const modelContext = this.modelContextRecord(input.conversationSlots.modelContext);
+    const suppliesCustomerIdentity =
+      pendingSlots.includes('entity') &&
+      (
+        input.intent.entities.some(
+          (entity) => entity.entityType === 'customer' && this.isSpecificModelEntity(entity),
+        ) ||
+        /(?:尾号|手机尾号|手机号后四位|手机后四位)[^0-9]*\d{4}/.test(input.question)
+      );
+    if (
+      suppliesCustomerIdentity &&
+      ['query', 'diagnosis', 'recommendation'].includes(String(modelContext.intent)) &&
+      this.isCustomerIdentityOnlyReply(input.question) &&
+      !this.isExplicitPendingObjectiveAbandonment(input.question)
+    ) {
+      return {
+        ...input.intent,
+        objective: typeof modelContext.objective === 'string' ? modelContext.objective : input.intent.objective,
+        domains: input.intent.domains.length ? input.intent.domains : ['customer'],
+        intent: modelContext.intent as BrainSemanticIntent['intent'],
+        answerShape: BRAIN_SEMANTIC_ANSWER_SHAPES.includes(modelContext.answerShape as never)
+          ? modelContext.answerShape as BrainSemanticIntent['answerShape']
+          : 'list',
+        missingSlots: input.intent.missingSlots.filter((slot) => slot !== 'entity'),
+        ambiguities: input.intent.ambiguities.filter((ambiguity) => ambiguity.slot !== 'entity'),
+        successCriteria: input.intent.successCriteria.length
+          ? input.intent.successCriteria
+          : ['返回当前门店内唯一客户的可审计事实'],
+      };
+    }
     if (
       pendingSlots.some((slot) => slot === 'actionTarget' || slot === 'entity') &&
       ['action', 'workflow'].includes(String(modelContext.intent)) &&
@@ -1838,6 +1969,16 @@ export class BrainChatService {
 
   private isExplicitPendingObjectiveAbandonment(question: string) {
     return /^(算了|不用了|取消|换个|另外)|(?:改看|改成|不要|不用).*(?:跟进|任务|预览)/.test(question.trim());
+  }
+
+  private isCustomerIdentityOnlyReply(question: string) {
+    const normalized = question
+      .trim()
+      .replace(/^(?:客户|顾客|目标客户)(?:是|叫|为)?/u, '')
+      .replace(/(?:手机|手机号)?(?:尾号|后四位)(?:是|为)?[^0-9]*\d{4}/gu, '')
+      .replace(/[\s，,。.!！、；;：:]/gu, '');
+    return /^[\u4e00-\u9fa5·]{2,10}$/u.test(normalized) &&
+      !/(?:查|看|消费|预约|卡|余额|来源|渠道|标签|备注|服务|项目|过敏|皮肤|推荐|提醒|跟进)/u.test(normalized);
   }
 
   private modelContextRecord(value: unknown): Record<string, unknown> {
@@ -2011,6 +2152,34 @@ export class BrainChatService {
         this.normalizeGovernedExampleText(example) === normalizedQuestion,
       ),
     );
+  }
+
+  private findDeterministicCustomerFactsCard(
+    question: string,
+    intent: BrainSemanticIntent,
+    cards: readonly BrainCapabilityCard[],
+  ): BrainCapabilityCard | undefined {
+    if (!this.isSpecificCustomerFactQuestion(question, intent)) return undefined;
+    return cards.find(
+      (card) =>
+        card.key === 'customer_facts' &&
+        card.readOnly &&
+        !card.sideEffect &&
+        card.intents.includes('query'),
+    );
+  }
+
+  private isSpecificCustomerFactQuestion(question: string, intent: BrainSemanticIntent) {
+    if (/(?:预约).*(?:几点|时间|安排|改期|取消|确认)|(?:几点|时间|安排).*(?:预约)/.test(question)) {
+      return false;
+    }
+    const hasIdentity =
+      intent.entities.some(
+        (entity) => entity.entityType === 'customer' && this.isSpecificModelEntity(entity),
+      ) ||
+      /(?:尾号|手机尾号|手机号后四位|手机后四位)[^0-9]*\d{4}/.test(question);
+    if (!hasIdentity) return false;
+    return /(?:上次来|最近来|到店|消费|会员等级|办过卡|卡项|还有多少次|余额|来源|渠道|标签|备注|上次做|最近服务|服务记录|做的什么项目|过敏|皮肤|注意事项)/.test(question);
   }
 
   private shouldUseModelSupervisor(intent: BrainSemanticIntent) {

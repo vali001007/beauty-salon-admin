@@ -2,7 +2,7 @@ import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { CustomerLifecycleOntologyService } from '../../marketing/customer-lifecycle-ontology.service.js';
 import { formatBrainMoney, toBrainNumber } from './brain-domain-formatters.js';
-import { extractCustomerPhoneTail } from './brain-customer-identity.js';
+import { extractCustomerPhoneTail, extractSpecificCustomerNameFromMention } from './brain-customer-identity.js';
 import { CUSTOMER_MONETARY_TIERS, customerMonetaryTier } from '../../customers/customer-value-segmentation.js';
 
 export interface BrainNewCustomerSourceDistribution {
@@ -95,8 +95,9 @@ export class BrainCustomerFactResolverService {
   }
 
   async answerExactCustomerQuestion(input: { storeId: number; message: string; customerName?: string; permissions: string[] }) {
-    const name = input.customerName?.trim() || this.extractCustomerName(input.message);
-    const phoneTail = extractCustomerPhoneTail(input.message);
+    const customerMention = input.customerName?.trim();
+    const name = (customerMention ? extractSpecificCustomerNameFromMention(customerMention) : undefined) || this.extractCustomerName(input.message);
+    const phoneTail = extractCustomerPhoneTail(`${customerMention ?? ''} ${input.message}`);
     if (!name && !phoneTail) {
       return '请提供客户姓名或手机号后四位，我才能在当前门店范围内精确查询；不会根据“这个客人”猜测身份。';
     }
@@ -118,6 +119,12 @@ export class BrainCustomerFactResolverService {
         consumptionRecords: { orderBy: { consumeTime: 'desc' }, take: 5 },
         reservations: {
           orderBy: [{ date: 'desc' }, { startTime: 'desc' }],
+          take: 5,
+          include: { project: { select: { name: true } }, beautician: { select: { name: true } } },
+        },
+        serviceTasks: {
+          where: { storeId: input.storeId, status: 'completed' },
+          orderBy: [{ completedAt: 'desc' }, { appointmentTime: 'desc' }],
           take: 5,
           include: { project: { select: { name: true } }, beautician: { select: { name: true } } },
         },
@@ -147,11 +154,11 @@ export class BrainCustomerFactResolverService {
       );
     }
     if (/消费|上次|项目|美容师|备注|不满|兴趣/.test(input.message)) {
-      const latestReservation = customer.reservations[0];
+      const latestServiceTask = customer.serviceTasks?.[0];
       lines.push(
-        latestReservation
-          ? `最近服务：${latestReservation.project.name}，美容师 ${latestReservation.beautician?.name ?? '未指定'}，备注 ${latestReservation.remark || '无'}。`
-          : '当前没有查到最近服务记录。',
+        latestServiceTask
+          ? `最近完成服务：${latestServiceTask.project.name}，美容师 ${latestServiceTask.beautician?.name ?? '未指定'}，完成时间 ${latestServiceTask.completedAt?.toISOString().slice(0, 10) ?? latestServiceTask.appointmentTime.toISOString().slice(0, 10)}，服务备注 ${latestServiceTask.remark || '无'}。`
+          : '当前没有查到已完成服务任务。',
       );
       if (customer.consumptionRecords.length) {
         lines.push(
@@ -185,6 +192,9 @@ export class BrainCustomerFactResolverService {
     }
     if (/标签|备注|习惯|喜欢.*时间/.test(input.message)) {
       lines.push(`标签：${customer.tags.length ? customer.tags.join('、') : '无'}；备注：${customer.remark || '无'}。`);
+    }
+    if (/渠道|来源/.test(input.message)) {
+      lines.push(`客户来源：${customer.source || '未记录'}。`);
     }
     return lines.join('\n');
   }

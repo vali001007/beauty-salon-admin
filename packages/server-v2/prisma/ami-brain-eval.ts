@@ -540,6 +540,8 @@ async function runOneTurn(input: {
       roleKey: input.evaluationRole,
     });
     const expected = resolved.expectation;
+    const adapterMetadata = record(runOutput?.adapterMetadata);
+    const brainStatus = effectiveBrainEvalStatus(response.status, blocks, adapterMetadata.completion);
     const grade = input.grader.grade({
       question: input.question.input,
       answer: response.answer,
@@ -547,9 +549,8 @@ async function runOneTurn(input: {
       blocks,
       expectedIntent: answerIntentForExpectation(expected),
       expectedMetric: expected.metrics?.length === 1 ? expected.metrics[0] : undefined,
-      brainStatus: response.status,
+      brainStatus,
     });
-    const adapterMetadata = record(runOutput?.adapterMetadata);
     const actualPlan = adapterMetadata.supervisorPlan ?? adapterMetadata.executionPlan;
     const actualCapabilities = actualCapabilityKeys(runOutput, actualPlan);
     const layers = {
@@ -563,7 +564,7 @@ async function runOneTurn(input: {
       ),
       completion: input.completionGrader.grade({
         expected,
-        brainStatus: response.status,
+        brainStatus,
         completion: adapterMetadata.completion,
         citations: response.citations ?? [],
         blocks,
@@ -586,7 +587,7 @@ async function runOneTurn(input: {
       persona: input.question.persona,
       question: input.question.input,
       status,
-      brainStatus: response.status,
+      brainStatus,
       latencyMs: Math.round(performance.now() - startedAt),
       conversationId: input.conversationId,
       runId: response.runId,
@@ -640,6 +641,12 @@ async function runOneTurn(input: {
       failureReason: errorMessage(error),
     };
   }
+}
+
+function effectiveBrainEvalStatus(responseStatus: string, blocks: unknown[], completionValue: unknown) {
+  const completion = record(completionValue);
+  const hasClarificationBlock = blocks.some((block) => record(block).kind === 'clarification');
+  return completion.status === 'partial' && hasClarificationBlock ? 'clarify' : responseStatus;
 }
 
 function aggregateConversationRecord(
