@@ -1216,6 +1216,42 @@ describe('BrainSemanticIntentCompilerService', () => {
     });
     const compiler = createCompiler(aiService);
     const input = compilerInput('今天退款有几笔，金额多少');
+    input.ontologySnapshot = {
+      ...ontologySnapshot,
+      metrics: [
+        ...ontologySnapshot.metrics,
+        {
+          definitionKey: refundAmountMetricRef.definitionKey,
+          version: refundAmountMetricRef.definitionVersion,
+          definitionFingerprint: refundAmountMetricRef.definitionFingerprint,
+          sourceFingerprint: refundAmountMetricRef.sourceFingerprint,
+          metricKey: 'refund_amount',
+          name: '退款金额',
+          aliases: ['退回金额'],
+          domain: 'refund',
+          formula: {},
+          source: {},
+          defaultFilters: {},
+          permissions: [],
+          description: '退款金额',
+        },
+        {
+          definitionKey: refundCountMetricRef.definitionKey,
+          version: refundCountMetricRef.definitionVersion,
+          definitionFingerprint: refundCountMetricRef.definitionFingerprint,
+          sourceFingerprint: refundCountMetricRef.sourceFingerprint,
+          metricKey: 'refund_count',
+          name: '退款笔数',
+          aliases: ['退款次数'],
+          domain: 'refund',
+          formula: {},
+          source: {},
+          defaultFilters: {},
+          permissions: [],
+          description: '退款记录笔数',
+        },
+      ],
+    };
     input.capabilitySummaries = [{
       key: 'finance_risk_overview',
       name: '财务风控概览',
@@ -1311,6 +1347,24 @@ describe('BrainSemanticIntentCompilerService', () => {
     });
     const compiler = createCompiler(aiService);
     const input = compilerInput('帮我看一下今天到店客人的画像，主要是什么年龄段');
+    input.ontologySnapshot = {
+      ...ontologySnapshot,
+      dimensions: [
+        ...ontologySnapshot.dimensions,
+        {
+          definitionKey: customerAgeGroupDimensionRef.definitionKey,
+          version: customerAgeGroupDimensionRef.definitionVersion,
+          definitionFingerprint: customerAgeGroupDimensionRef.definitionFingerprint,
+          sourceFingerprint: customerAgeGroupDimensionRef.sourceFingerprint,
+          dimensionKey: 'customerAgeGroup',
+          name: '到店客户年龄段',
+          aliases: ['年龄画像'],
+          domain: 'customer',
+          source: { model: 'Customer' },
+          permissions: ['core:customer:view'],
+        },
+      ],
+    };
     input.capabilitySummaries = [{
       key: 'customer_facts',
       name: '客户事实与客群查询',
@@ -1341,6 +1395,27 @@ describe('BrainSemanticIntentCompilerService', () => {
     });
     const compiler = createCompiler(aiService);
     const input = compilerInput('哪些沉睡客户最近有点被唤醒的迹象');
+    input.ontologySnapshot = {
+      ...ontologySnapshot,
+      metrics: [
+        ...ontologySnapshot.metrics,
+        {
+          definitionKey: dormantReactivationMetricRef.definitionKey,
+          version: dormantReactivationMetricRef.definitionVersion,
+          definitionFingerprint: dormantReactivationMetricRef.definitionFingerprint,
+          sourceFingerprint: dormantReactivationMetricRef.sourceFingerprint,
+          metricKey: 'dormant_reactivation_customer_count',
+          name: '沉睡客户唤醒迹象',
+          aliases: ['沉睡客户回流信号'],
+          domain: 'customer',
+          formula: {},
+          source: {},
+          defaultFilters: {},
+          permissions: [],
+          description: '沉睡客户触达后出现有效回流信号的人数',
+        },
+      ],
+    };
     input.capabilitySummaries = [{
       key: 'customer_facts',
       name: '客户事实与客群查询',

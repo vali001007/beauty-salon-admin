@@ -288,21 +288,23 @@ export class BusinessDefinitionRegistryService {
               ...(version as unknown as BusinessDefinitionVersionRecord),
               lifecycleStatus: 'published',
             });
-            await tx.businessDefinitionProjection.createMany({
-              data: projections.map((projection) => ({
-                definitionVersionId: projection.definitionVersionId,
-                targetType: projection.targetType,
-                targetKey: projection.targetKey,
-                definitionKey: projection.definitionKey,
-                definitionVersion: projection.definitionVersion,
-                definitionFingerprint: projection.definitionFingerprint,
-                sourceFingerprint: projection.sourceFingerprint,
-                payload: projection.payload as Prisma.InputJsonValue,
-                projectionFingerprint: projection.projectionFingerprint,
-                generatedAt: projection.generatedAt,
-                readOnly: true,
-              })),
-            });
+            if (!assertReusablePublishedProjections(version.projections, projections)) {
+              await tx.businessDefinitionProjection.createMany({
+                data: projections.map((projection) => ({
+                  definitionVersionId: projection.definitionVersionId,
+                  targetType: projection.targetType,
+                  targetKey: projection.targetKey,
+                  definitionKey: projection.definitionKey,
+                  definitionVersion: projection.definitionVersion,
+                  definitionFingerprint: projection.definitionFingerprint,
+                  sourceFingerprint: projection.sourceFingerprint,
+                  payload: projection.payload as Prisma.InputJsonValue,
+                  projectionFingerprint: projection.projectionFingerprint,
+                  generatedAt: projection.generatedAt,
+                  readOnly: true,
+                })),
+              });
+            }
             const published = await tx.businessDefinitionVersion.update({
               where: { id: versionId },
               data: {
@@ -592,6 +594,43 @@ export class BusinessDefinitionRegistryService {
     }
     return version;
   }
+}
+
+function assertReusablePublishedProjections(
+  existing: readonly any[] | undefined,
+  compiled: readonly {
+    targetType: string;
+    targetKey: string;
+    definitionKey: string;
+    definitionVersion: number;
+    definitionFingerprint: string;
+    sourceFingerprint: string;
+    payload: unknown;
+    projectionFingerprint: string;
+    readOnly: true;
+  }[],
+): boolean {
+  if (!existing?.length) return false;
+  if (existing.length !== compiled.length) {
+    throw new ConflictException('business_definition_projection_drift');
+  }
+  const expected = new Map(compiled.map((item) => [`${item.targetType}:${item.targetKey}`, item]));
+  for (const item of existing) {
+    const match = expected.get(`${item.targetType}:${item.targetKey}`);
+    if (
+      !match ||
+      item.definitionKey !== match.definitionKey ||
+      item.definitionVersion !== match.definitionVersion ||
+      item.definitionFingerprint !== match.definitionFingerprint ||
+      item.sourceFingerprint !== match.sourceFingerprint ||
+      item.projectionFingerprint !== match.projectionFingerprint ||
+      item.readOnly !== true ||
+      canonicalizeBusinessDefinition(item.payload) !== canonicalizeBusinessDefinition(match.payload)
+    ) {
+      throw new ConflictException('business_definition_projection_drift');
+    }
+  }
+  return true;
 }
 
 export function createBusinessDefinitionFingerprint(value: unknown): string {

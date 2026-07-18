@@ -379,6 +379,56 @@ describe('BusinessDefinitionRegistryService', () => {
     expect(refresher.refresh).toHaveBeenCalledTimes(1);
   });
 
+  it('reuses matching evaluation projections when publishing a validated candidate', async () => {
+    const candidate = makeVersion({
+      id: 22,
+      version: 2,
+      lifecycleStatus: 'validated',
+      validationStatus: 'passed',
+      definition: baseDefinitionRecord(),
+    });
+    const projections = new BusinessDefinitionProjectionCompilerService().compilePublishedVersion({
+      ...candidate,
+      lifecycleStatus: 'published',
+    });
+    const version = { ...candidate, projections };
+    const published = { ...version, lifecycleStatus: 'published' };
+    const tx = publishTransactionMock(version, published);
+    const service = createService(createPrismaMock(tx), passingVerifier());
+
+    await expect(service.publishVersion(version.id, { publishedBy: 9 })).resolves.toEqual(published);
+
+    expect(tx.businessDefinitionProjection.createMany).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when validated candidate projections differ from the publish projection', async () => {
+    const version = makeVersion({
+      id: 22,
+      version: 2,
+      lifecycleStatus: 'validated',
+      validationStatus: 'passed',
+      projections: [{
+        targetType: 'metric_query_view',
+        targetKey: 'metric.net_revenue@2',
+        definitionKey: 'metric.net_revenue',
+        definitionVersion: 2,
+        definitionFingerprint: 'a'.repeat(64),
+        sourceFingerprint: 'b'.repeat(64),
+        payload: {},
+        projectionFingerprint: 'c'.repeat(64),
+        readOnly: true,
+      }],
+      definition: baseDefinitionRecord(),
+    });
+    const tx = publishTransactionMock(version, { ...version, lifecycleStatus: 'published' });
+    const service = createService(createPrismaMock(tx), passingVerifier());
+
+    await expect(service.publishVersion(version.id, { publishedBy: 9 })).rejects.toMatchObject({
+      message: 'business_definition_projection_drift',
+    });
+    expect(tx.businessDefinitionVersion.update).not.toHaveBeenCalled();
+  });
+
   it('maps an exhausted third publish P2034 conflict to ConflictException', async () => {
     const prisma = createPrismaMock({});
     prisma.$transaction.mockRejectedValue({ code: 'P2034' });
@@ -732,7 +782,9 @@ function publishTransactionMock(version: any, published: any) {
       findUnique: jest.fn().mockResolvedValue(version),
       update: jest.fn().mockResolvedValue(published),
     },
-    businessDefinitionProjection: { createMany: jest.fn().mockResolvedValue({ count: 5 }) },
+    businessDefinitionProjection: {
+      createMany: jest.fn().mockResolvedValue({ count: 5 }),
+    },
     businessDefinition: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
   };
 }
@@ -805,7 +857,9 @@ function createConcurrentPublishPrismaMock() {
           }),
           update: jest.fn(async ({ where }: any) => makeVersion({ id: where.id, lifecycleStatus: 'published' })),
         },
-        businessDefinitionProjection: { createMany: jest.fn().mockResolvedValue({ count: 5 }) },
+        businessDefinitionProjection: {
+          createMany: jest.fn().mockResolvedValue({ count: 5 }),
+        },
         businessDefinition: {
           updateMany: jest.fn(async ({ where, data }: any) => {
             if (currentVersionId !== where.currentPublishedVersionId) return { count: 0 };

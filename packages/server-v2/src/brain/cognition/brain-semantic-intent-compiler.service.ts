@@ -280,7 +280,8 @@ export class BrainSemanticIntentCompilerService {
     const matchedMetrics = availableMetrics.filter((ref) => {
       const definition = input.ontologySnapshot?.metrics.find((item) => item.definitionKey === ref.definitionKey);
       return definition
-        ? definitionMatchesQuestion(input.question, definition.name, definition.aliases)
+        ? definitionMatchesQuestion(input.question, definition.name, definition.aliases) ||
+            governedMetricKeyMatchesQuestion(input.question, ref.definitionKey)
         : governedMetricKeyMatchesQuestion(input.question, ref.definitionKey);
     });
     const metrics = matchedMetrics.length > 0
@@ -303,7 +304,12 @@ export class BrainSemanticIntentCompilerService {
               .filter((item) => item.definitionKey === ref.definitionKey) ?? [];
             if (definitions.length > 0) {
               return definitions
-                .filter((item) => intent === 'ranking' || definitionMatchesQuestion(input.question, item.name, item.aliases))
+                .filter(
+                  (item) =>
+                    intent === 'ranking' ||
+                    definitionMatchesQuestion(input.question, item.name, item.aliases) ||
+                    governedDimensionKeyMatchesQuestion(input.question, ref.definitionKey),
+                )
                 .map((item) => definitionRef('dimension', item));
             }
             return governedDimensionKeyMatchesQuestion(input.question, ref.definitionKey)
