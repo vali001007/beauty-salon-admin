@@ -1,0 +1,29 @@
+{
+  "passed": true,
+  "gates": [
+    {
+      "gate": "compile",
+      "passed": true,
+      "reasons": [],
+      "remediation": []
+    },
+    {
+      "gate": "contract",
+      "passed": true,
+      "reasons": [],
+      "remediation": []
+    },
+    {
+      "gate": "security",
+      "passed": true,
+      "reasons": [],
+      "remediation": []
+    },
+    {
+      "gate": "test",
+      "passed": true,
+      "reasons": [],
+      "remediation": []
+    }
+  ]
+}

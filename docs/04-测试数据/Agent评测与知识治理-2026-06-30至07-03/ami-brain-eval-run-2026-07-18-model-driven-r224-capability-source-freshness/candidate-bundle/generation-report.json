@@ -1,0 +1,602 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-18T06:13:13.645Z",
+  "policy": "published_registry_gate",
+  "productionReady": true,
+  "ready": 19,
+  "syntheticContracts": 0,
+  "blocked": 0,
+  "gateReports": [
+    {
+      "capabilityKey": "beautician_customer_card_progress",
+      "proposalFingerprint": "c7e037635de3c0be52b1d0ec838b665fe89b6196f247fbc69658c9b5601ef928",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    },
+    {
+      "capabilityKey": "beautician_material_preparation",
+      "proposalFingerprint": "de5f4ddbbd56bcc841c6b2dab830251c0853878d4b130d3895fd4603d59afc6b",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    },
+    {
+      "capabilityKey": "beautician_service_overview",
+      "proposalFingerprint": "f85ca7aeb058a4eca37bbb3533295651a7207164de6c42ff859a67c970d68550",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    },
+    {
+      "capabilityKey": "customer_facts",
+      "proposalFingerprint": "ccbd9e030536b0a294c6a05b4cc51358720529e2ab3620afed426d96209f6471",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    },
+    {
+      "capabilityKey": "customer_follow_up_draft",
+      "proposalFingerprint": "282a71a8eea86c8ae86f84fc5de5cff84305f8551d05e138249160736062c41e",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    },
+    {
+      "capabilityKey": "finance_payment_breakdown",
+      "proposalFingerprint": "94c9a50dd016aa4c761874e6cb25da6cc7c370d77a0a4dd867b9a60f16667dde",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    },
+    {
+      "capabilityKey": "finance_risk_overview",
+      "proposalFingerprint": "6f2c4047e3a2c0e05626b0d6e001ffbf370e0ef26cdca0050e8600d070b93a93",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    },
+    {
+      "capabilityKey": "front_desk_operations_overview",
+      "proposalFingerprint": "0101fc5f01070c3042d1570221ed7ed5094ead399b2e4c7b26de9e8b2b7b3c74",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    },
+    {
+      "capabilityKey": "gap_fill_touch_preview",
+      "proposalFingerprint": "170b2065637f3f5ca8b9a8cfd6439acdfa202e9b117eb41c8de767780d07ee0a",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    },
+    {
+      "capabilityKey": "inventory_operations_overview",
+      "proposalFingerprint": "4b397bfd6b703f3d519f41e39e70248f145db15b94de0da07055fbc93f1ec2f2",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    },
+    {
+      "capabilityKey": "inventory_procurement_advice",
+      "proposalFingerprint": "8a094577bd999e4cb43fdb2eec3209d95fdb67ef672263bfe3c04faf51c9ec9f",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    },
+    {
+      "capabilityKey": "manager_staff_overview",
+      "proposalFingerprint": "8a914b213cca50a08eeb61edd5a66b2e9998e818c34c536ecc10fec34bb0c22e",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    },
+    {
+      "capabilityKey": "marketing_customer_segment",
+      "proposalFingerprint": "3cce0742f9de636cc824fd69a5480042f8822f12e997a11cd312793bf2ed225b",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    },
+    {
+      "capabilityKey": "marketing_growth_overview",
+      "proposalFingerprint": "7a60d66b95637fc48611a491a365dc00467f3515c6efb989029adef1b69bf3d1",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    },
+    {
+      "capabilityKey": "marketing_message_draft",
+      "proposalFingerprint": "194c2793c308ecd4d99eae49dc47bf4d9cf963829d79d10a3857955d5368ed23",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    },
+    {
+      "capabilityKey": "marketing_touch_draft",
+      "proposalFingerprint": "a34529102bd50cd43d5672f99dc04a031782f27b9cd8b9dcc3471dca2b399464",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    },
+    {
+      "capabilityKey": "reservation_action_preview",
+      "proposalFingerprint": "df7c5042bb4b6f5a4055d1a7c7df03a123d13c6c1f18c61fc4e14d33adc11ab8",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    },
+    {
+      "capabilityKey": "reservation_list",
+      "proposalFingerprint": "93048bd13072b5f20a366be58f2b3369909668f64bcf4453b4c5a1035da4b58d",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    },
+    {
+      "capabilityKey": "store_operations_overview",
+      "proposalFingerprint": "cc3f63bb2c5ec941ba64b88c9f27196fd2cc6245e1506349819a0dc90ea71727",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    }
+  ],
+  "blockedItems": [],
+  "branchProposals": []
+}

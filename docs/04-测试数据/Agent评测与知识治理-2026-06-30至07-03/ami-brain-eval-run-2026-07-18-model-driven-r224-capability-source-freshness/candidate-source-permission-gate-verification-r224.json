@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-07-18T06:14:20.1410437Z",
+  "candidateCount": 19,
+  "valid": true,
+  "invalidCount": 0,
+  "rows": [
+    {
+      "capabilityKey": "beautician_customer_card_progress",
+      "fingerprintMatches": true,
+      "permissionsMatch": true,
+      "gatesPassed": true
+    },
+    {
+      "capabilityKey": "beautician_material_preparation",
+      "fingerprintMatches": true,
+      "permissionsMatch": true,
+      "gatesPassed": true
+    },
+    {
+      "capabilityKey": "beautician_service_overview",
+      "fingerprintMatches": true,
+      "permissionsMatch": true,
+      "gatesPassed": true
+    },
+    {
+      "capabilityKey": "customer_facts",
+      "fingerprintMatches": true,
+      "permissionsMatch": true,
+      "gatesPassed": true
+    },
+    {
+      "capabilityKey": "customer_follow_up_draft",
+      "fingerprintMatches": true,
+      "permissionsMatch": true,
+      "gatesPassed": true
+    },
+    {
+      "capabilityKey": "finance_payment_breakdown",
+      "fingerprintMatches": true,
+      "permissionsMatch": true,
+      "gatesPassed": true
+    },
+    {
+      "capabilityKey": "finance_risk_overview",
+      "fingerprintMatches": true,
+      "permissionsMatch": true,
+      "gatesPassed": true
+    },
+    {
+      "capabilityKey": "front_desk_operations_overview",
+      "fingerprintMatches": true,
+      "permissionsMatch": true,
+      "gatesPassed": true
+    },
+    {
+      "capabilityKey": "gap_fill_touch_preview",
+      "fingerprintMatches": true,
+      "permissionsMatch": true,
+      "gatesPassed": true
+    },
+    {
+      "capabilityKey": "inventory_operations_overview",
+      "fingerprintMatches": true,
+      "permissionsMatch": true,
+      "gatesPassed": true
+    },
+    {
+      "capabilityKey": "inventory_procurement_advice",
+      "fingerprintMatches": true,
+      "permissionsMatch": true,
+      "gatesPassed": true
+    },
+    {
+      "capabilityKey": "manager_staff_overview",
+      "fingerprintMatches": true,
+      "permissionsMatch": true,
+      "gatesPassed": true
+    },
+    {
+      "capabilityKey": "marketing_customer_segment",
+      "fingerprintMatches": true,
+      "permissionsMatch": true,
+      "gatesPassed": true
+    },
+    {
+      "capabilityKey": "marketing_growth_overview",
+      "fingerprintMatches": true,
+      "permissionsMatch": true,
+      "gatesPassed": true
+    },
+    {
+      "capabilityKey": "marketing_message_draft",
+      "fingerprintMatches": true,
+      "permissionsMatch": true,
+      "gatesPassed": true
+    },
+    {
+      "capabilityKey": "marketing_touch_draft",
+      "fingerprintMatches": true,
+      "permissionsMatch": true,
+      "gatesPassed": true
+    },
+    {
+      "capabilityKey": "reservation_action_preview",
+      "fingerprintMatches": true,
+      "permissionsMatch": true,
+      "gatesPassed": true
+    },
+    {
+      "capabilityKey": "reservation_list",
+      "fingerprintMatches": true,
+      "permissionsMatch": true,
+      "gatesPassed": true
+    },
+    {
+      "capabilityKey": "store_operations_overview",
+      "fingerprintMatches": true,
+      "permissionsMatch": true,
+      "gatesPassed": true
+    }
+  ]
+}

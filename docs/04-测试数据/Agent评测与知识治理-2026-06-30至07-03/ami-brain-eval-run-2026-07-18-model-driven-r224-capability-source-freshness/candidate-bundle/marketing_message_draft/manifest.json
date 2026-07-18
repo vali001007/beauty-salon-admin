@@ -1,0 +1,127 @@
+{
+  "key": "marketing_message_draft",
+  "version": 1,
+  "sourceFingerprint": "4fbdc45d53300589fd86cd11fab1ac6b759fad6986fed95a48cb710070f9393e",
+  "name": "营销邀约与召回文案草稿",
+  "description": "根据用户明确表达的预约提醒、空档邀约、老客召回或到店邀请目标生成可编辑文案草稿。该能力不查询客户名单、不自动发送，也不要求用户先指定具体收件人。",
+  "domains": [
+    "customer",
+    "reservation"
+  ],
+  "intents": [
+    "draft"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "comparisonTarget": {
+        "type": "object"
+      },
+      "dimensions": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "entities": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "filters": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "limit": {
+        "type": "number"
+      },
+      "metrics": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "objective": {
+        "type": "string"
+      },
+      "orderBy": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "time": {
+        "type": "object"
+      }
+    },
+    "required": [
+      "dimensions",
+      "entities",
+      "filters",
+      "metrics",
+      "objective",
+      "orderBy"
+    ],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object"
+  },
+  "requiredPermissions": [
+    "core:brain:use",
+    "core:marketing:create"
+  ],
+  "allowedRoles": [
+    "marketing",
+    "store_manager"
+  ],
+  "readOnly": true,
+  "sideEffect": false,
+  "riskLevel": "low",
+  "requiresConfirmation": false,
+  "idempotency": "not_applicable",
+  "timeoutMs": 10000,
+  "grounding": "domain_service",
+  "examples": [
+    "拟一段老客召回话术",
+    "生成一条温和的预约提醒",
+    "写一条空档邀约短信",
+    "准备一段不过度推销的到店邀请"
+  ],
+  "negativeExamples": [
+    "查询沉睡客户名单",
+    "替我创建并执行营销触达任务",
+    "直接给全部客户群发消息"
+  ],
+  "synonyms": [
+    "到店邀请短信",
+    "空档邀约话术",
+    "老客召回文案",
+    "营销消息草稿",
+    "预约提醒文案"
+  ],
+  "successSchema": {
+    "type": "object"
+  },
+  "definitionRefs": [
+    {
+      "definitionId": 43,
+      "versionId": 43,
+      "definitionKey": "entity.customer",
+      "version": 1,
+      "definitionFingerprint": "e2a455e1bb6fca496a965db988e5547f4bee98a5e43f4c0daf9a04777a0e908e",
+      "sourceFingerprint": "528c308346ae2b37db26eae2c35397fd02d981182ceb30d2378fb588e294ce04"
+    },
+    {
+      "definitionId": 49,
+      "versionId": 49,
+      "definitionKey": "entity.reservation",
+      "version": 1,
+      "definitionFingerprint": "b32f57f9bbc3f74914569e6045d91828ddac361b929b01dce233dfa1f2b3638e",
+      "sourceFingerprint": "546ca6346cdfee365eda191956a34fb67310885e0e540dfe34200965b95c2991"
+    }
+  ]
+}

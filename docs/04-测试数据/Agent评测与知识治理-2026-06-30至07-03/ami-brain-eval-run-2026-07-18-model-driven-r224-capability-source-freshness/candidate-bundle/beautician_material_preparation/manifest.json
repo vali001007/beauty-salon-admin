@@ -1,0 +1,117 @@
+{
+  "key": "beautician_material_preparation",
+  "version": 1,
+  "sourceFingerprint": "25e7001fdb588e1fc577d0587e59c0fe696404531d2e7bdbafaafb843b112901",
+  "name": "美容师预约标准用料准备",
+  "description": "仅基于当前登录美容师的有效预约和项目 BOM，汇总计划使用的产品、耗材、标准数量及对应项目。没有 BOM 时明确列出缺口，不用商品销量或库存排行替代。",
+  "domains": [
+    "product"
+  ],
+  "intents": [
+    "query"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "comparisonTarget": {
+        "type": "object"
+      },
+      "dimensions": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "entities": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "filters": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "limit": {
+        "type": "number"
+      },
+      "metrics": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "objective": {
+        "type": "string"
+      },
+      "orderBy": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "time": {
+        "type": "object"
+      }
+    },
+    "required": [
+      "dimensions",
+      "entities",
+      "filters",
+      "metrics",
+      "objective",
+      "orderBy"
+    ],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object"
+  },
+  "requiredPermissions": [
+    "core:brain:beautician-view",
+    "core:brain:use",
+    "core:store:reservations"
+  ],
+  "allowedRoles": [
+    "beautician"
+  ],
+  "readOnly": true,
+  "sideEffect": false,
+  "riskLevel": "low",
+  "requiresConfirmation": false,
+  "idempotency": "not_applicable",
+  "timeoutMs": 10000,
+  "grounding": "domain_service",
+  "examples": [
+    "按我的预约汇总标准用料",
+    "今天的预约需要准备哪些产品",
+    "我今天要用到什么产品和耗材"
+  ],
+  "negativeExamples": [
+    "查询商品销售排行",
+    "哪些商品卖得最多",
+    "替我确认实际耗材用量",
+    "直接扣减库存"
+  ],
+  "synonyms": [
+    "护理产品准备",
+    "今日用料准备",
+    "项目标准用料",
+    "预约耗材清单"
+  ],
+  "successSchema": {
+    "type": "object"
+  },
+  "definitionRefs": [
+    {
+      "definitionId": 46,
+      "versionId": 46,
+      "definitionKey": "entity.product",
+      "version": 1,
+      "definitionFingerprint": "f14dde84b29d3b4e424eb485096f9d50837922a5730ce65c34882838234187ef",
+      "sourceFingerprint": "b45a6f8262a31cc1d94620ea1a1f34ba8baf1b472ec8b6d11cec11d75abe2e8f"
+    }
+  ]
+}

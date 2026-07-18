@@ -1,0 +1,172 @@
+{
+  "schemaVersion": 1,
+  "policy": "published_registry_gate",
+  "productionReady": true,
+  "proposalStatus": "ready",
+  "capabilityKey": "inventory_operations_overview",
+  "sourceFingerprint": "7e4a4b6216e393ac01b1f51c717569c9a47364710a9e0eb0e72828635811bfd0",
+  "proposalFingerprint": "4b397bfd6b703f3d519f41e39e70248f145db15b94de0da07055fbc93f1ec2f2",
+  "bindingFingerprint": "56ce4df2d324aada6be2c95255927af6b698d2aeeee45889f25fe54f6f708308",
+  "executorBinding": {
+    "schemaVersion": 1,
+    "capabilityKey": "inventory_operations_overview",
+    "sourceFingerprint": "7e4a4b6216e393ac01b1f51c717569c9a47364710a9e0eb0e72828635811bfd0",
+    "target": {
+      "kind": "service",
+      "className": "BrainDomainServiceCapabilityExecutor",
+      "methodName": "inventoryOperationsOverview",
+      "sourcePath": "packages/server-v2/src/brain/capability/executors/brain-domain-service-capability.executor.ts",
+      "exportedClass": true,
+      "methodAccess": "public",
+      "parameterCount": 2,
+      "parameterTypes": [
+        "BrainCapabilityToolArgs",
+        "BrainCapabilityExecutionInput"
+      ],
+      "returnType": "unknown"
+    },
+    "generatedSourcePath": "packages/server-v2/src/brain/capability/generated/inventory_operations_overview/binding.ts",
+    "targetImportPath": "../../executors/brain-domain-service-capability.executor.js",
+    "requiredPermissions": [
+      "core:brain:use",
+      "core:inventory:stock"
+    ],
+    "storeScope": "required",
+    "requiresConfirmation": false,
+    "idempotency": "not_applicable",
+    "readOnly": true,
+    "sideEffect": false,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "comparisonTarget": {
+          "type": "object"
+        },
+        "dimensions": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "entities": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "filters": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "limit": {
+          "type": "number"
+        },
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "objective": {
+          "type": "string"
+        },
+        "orderBy": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "time": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "dimensions",
+        "entities",
+        "filters",
+        "metrics",
+        "objective",
+        "orderBy"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "bindingFingerprint": "56ce4df2d324aada6be2c95255927af6b698d2aeeee45889f25fe54f6f708308"
+  },
+  "businessDefinitions": [
+    {
+      "definitionId": 62,
+      "versionId": 86,
+      "definitionKey": "dimension.productId",
+      "version": 4,
+      "definitionFingerprint": "4d9a3fad9016266ce2d53b7918451fc7d59561ca9709c00aa7651fb0c94e1c44",
+      "sourceFingerprint": "c0600c2fc5b00ef24998ff9bfe43f592b7abc2ee6639eecf87e7ce0bbdd11a09"
+    },
+    {
+      "definitionId": 63,
+      "versionId": 87,
+      "definitionKey": "dimension.productName",
+      "version": 4,
+      "definitionFingerprint": "3763314bbf11490f648063e6aff9484e67e909244e7490998a2dee53f9b91ce8",
+      "sourceFingerprint": "eaaead760358988ed3c2300f05bb52ca00d9b86aada695854723296a416ba24e"
+    },
+    {
+      "definitionId": 65,
+      "versionId": 76,
+      "definitionKey": "dimension.projectName",
+      "version": 2,
+      "definitionFingerprint": "9fbfe8e74a8be704e8f8783e20469d6f32ff0403029a860fe2de5fc4c65941e8",
+      "sourceFingerprint": "f7a39099ba14aa097993505768b46e17684731b66d5a13779eecdef7899aecfd"
+    },
+    {
+      "definitionId": 46,
+      "versionId": 46,
+      "definitionKey": "entity.product",
+      "version": 1,
+      "definitionFingerprint": "f14dde84b29d3b4e424eb485096f9d50837922a5730ce65c34882838234187ef",
+      "sourceFingerprint": "b45a6f8262a31cc1d94620ea1a1f34ba8baf1b472ec8b6d11cec11d75abe2e8f"
+    },
+    {
+      "definitionId": 48,
+      "versionId": 48,
+      "definitionKey": "entity.project",
+      "version": 1,
+      "definitionFingerprint": "172e39f445a03511fe7d3505d45373b62726a3136265c01800f415a4cdd53e95",
+      "sourceFingerprint": "85490c6c5cc1803b078f7d264cccd7f021ed7759412f83025c771f8c5240bf4f"
+    },
+    {
+      "definitionId": 91,
+      "versionId": 140,
+      "definitionKey": "metric.inventory_consumption_quantity",
+      "version": 2,
+      "definitionFingerprint": "005a866af071fa8974b0ecf89295d11e93fcd17a8f40579981ac4d0281c5d006",
+      "sourceFingerprint": "0dc2cd5cfbc6c4eeb8e9bae001a028f09abdac9f675e81f0b29eb926659f7ed3"
+    },
+    {
+      "definitionId": 90,
+      "versionId": 138,
+      "definitionKey": "metric.product_sales_amount",
+      "version": 1,
+      "definitionFingerprint": "5cdd2150929e04e51d9e553133987c9b2db2d5f30970ba0af2f7a95d00f6f33e",
+      "sourceFingerprint": "43b4546d7225b386d586d81c09820da5b313f88aeab4d104418a0bf488addfe9"
+    },
+    {
+      "definitionId": 61,
+      "versionId": 113,
+      "definitionKey": "metric.stock_risk_score",
+      "version": 6,
+      "definitionFingerprint": "231941250ed10711cfdbfc0db6bf60a26173c5dac8b1aac563c2c1cbf4451cdb",
+      "sourceFingerprint": "c54cf5652561af614bbd8b745377d9d71913f863ac8f6eb978c597addeebe413"
+    }
+  ],
+  "artifacts": {
+    "manifest": "manifest.json",
+    "binding": "binding.ts",
+    "contractTest": "contract.spec.ts",
+    "gateReport": "gate-report.json"
+  }
+}

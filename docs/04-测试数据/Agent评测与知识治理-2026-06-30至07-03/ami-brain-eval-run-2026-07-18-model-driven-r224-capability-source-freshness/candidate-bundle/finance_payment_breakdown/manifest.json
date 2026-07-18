@@ -1,0 +1,139 @@
+{
+  "key": "finance_payment_breakdown",
+  "version": 1,
+  "sourceFingerprint": "17c0d4a5966212fc379219be6bdc6f81e5d837c1d6c1ade5dc5878c7125bc000",
+  "name": "实收与储值流水拆分",
+  "description": "按当前门店和时间范围汇总实收金额并按支付方式拆分；对明确的储值卡问题，分别统计储值充值和储值消耗流水，不用支付方式或会员卡负债代替。",
+  "domains": [
+    "finance",
+    "payment"
+  ],
+  "intents": [
+    "comparison",
+    "query",
+    "ranking",
+    "trend"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "comparisonTarget": {
+        "type": "object"
+      },
+      "dimensions": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "entities": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "filters": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "limit": {
+        "type": "number"
+      },
+      "metrics": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "objective": {
+        "type": "string"
+      },
+      "orderBy": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "time": {
+        "type": "object"
+      }
+    },
+    "required": [
+      "dimensions",
+      "entities",
+      "filters",
+      "metrics",
+      "objective",
+      "orderBy"
+    ],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object"
+  },
+  "requiredPermissions": [
+    "core:brain:use",
+    "core:finance:view"
+  ],
+  "allowedRoles": [
+    "finance",
+    "store_manager"
+  ],
+  "readOnly": true,
+  "sideEffect": false,
+  "riskLevel": "low",
+  "requiresConfirmation": false,
+  "idempotency": "not_applicable",
+  "timeoutMs": 10000,
+  "grounding": "domain_service",
+  "examples": [
+    "本月实收按支付方式怎么分",
+    "今天储值卡消耗了多少，新充值了多少",
+    "今天实收按支付方式怎么分",
+    "今天现金收了多少，微信支付宝各多少",
+    "收入环比是涨了还是跌了，差额多少",
+    "这个月比上个月少收了多少",
+    "最近三十天每天收入走势"
+  ],
+  "negativeExamples": [
+    "查询其他门店的支付明细",
+    "直接修改支付记录"
+  ],
+  "synonyms": [
+    "储值卡充值",
+    "储值卡消耗",
+    "储值流水",
+    "实收对比",
+    "实收构成",
+    "实收走势",
+    "收款渠道",
+    "收款增减",
+    "收入环比",
+    "收入趋势",
+    "微信现金占比",
+    "支付方式拆分"
+  ],
+  "successSchema": {
+    "type": "object"
+  },
+  "definitionRefs": [
+    {
+      "definitionId": 73,
+      "versionId": 114,
+      "definitionKey": "dimension.paymentMethod",
+      "version": 2,
+      "definitionFingerprint": "c28a34c04d2629c810504cb3c6e3969bed28f5d185854a60d3cc21c8159c715e",
+      "sourceFingerprint": "17f296156b901e2545b0d719dbf49ed7af612cd34afb9bf8c64d6b7aeba1f101"
+    },
+    {
+      "definitionId": 57,
+      "versionId": 110,
+      "definitionKey": "metric.paid_amount",
+      "version": 8,
+      "definitionFingerprint": "fd3674d2d4c9e5b175394941b9e19f15ccdc331adc427cf9b2f5ab3807c2bcbc",
+      "sourceFingerprint": "58c6c78653d44a655a2f5a74d0ef77e02979a77076f789e69a54a3d3c3b58d1e"
+    }
+  ]
+}

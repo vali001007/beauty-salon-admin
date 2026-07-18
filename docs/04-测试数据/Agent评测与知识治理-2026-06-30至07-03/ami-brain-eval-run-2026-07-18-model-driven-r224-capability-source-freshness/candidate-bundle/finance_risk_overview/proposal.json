@@ -1,0 +1,228 @@
+{
+  "schemaVersion": 1,
+  "policy": "published_registry_gate",
+  "productionReady": true,
+  "proposalStatus": "ready",
+  "capabilityKey": "finance_risk_overview",
+  "sourceFingerprint": "b283f8678d4b2db8aaaba7dc71af2660d4f1dab2713f5be981c4dcde9bad8e5a",
+  "proposalFingerprint": "6f2c4047e3a2c0e05626b0d6e001ffbf370e0ef26cdca0050e8600d070b93a93",
+  "bindingFingerprint": "c39c3079abe302755776457abced3fca2653d5ffa0a711a16541f8ba92a3063d",
+  "executorBinding": {
+    "schemaVersion": 1,
+    "capabilityKey": "finance_risk_overview",
+    "sourceFingerprint": "b283f8678d4b2db8aaaba7dc71af2660d4f1dab2713f5be981c4dcde9bad8e5a",
+    "target": {
+      "kind": "service",
+      "className": "BrainDomainServiceCapabilityExecutor",
+      "methodName": "financeRiskOverview",
+      "sourcePath": "packages/server-v2/src/brain/capability/executors/brain-domain-service-capability.executor.ts",
+      "exportedClass": true,
+      "methodAccess": "public",
+      "parameterCount": 2,
+      "parameterTypes": [
+        "BrainCapabilityToolArgs",
+        "BrainCapabilityExecutionInput"
+      ],
+      "returnType": "unknown"
+    },
+    "generatedSourcePath": "packages/server-v2/src/brain/capability/generated/finance_risk_overview/binding.ts",
+    "targetImportPath": "../../executors/brain-domain-service-capability.executor.js",
+    "requiredPermissions": [
+      "core:brain:use",
+      "core:finance:view"
+    ],
+    "storeScope": "required",
+    "requiresConfirmation": false,
+    "idempotency": "not_applicable",
+    "readOnly": true,
+    "sideEffect": false,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "comparisonTarget": {
+          "type": "object"
+        },
+        "dimensions": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "entities": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "filters": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "limit": {
+          "type": "number"
+        },
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "objective": {
+          "type": "string"
+        },
+        "orderBy": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "time": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "dimensions",
+        "entities",
+        "filters",
+        "metrics",
+        "objective",
+        "orderBy"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "bindingFingerprint": "c39c3079abe302755776457abced3fca2653d5ffa0a711a16541f8ba92a3063d"
+  },
+  "businessDefinitions": [
+    {
+      "definitionId": 73,
+      "versionId": 114,
+      "definitionKey": "dimension.paymentMethod",
+      "version": 2,
+      "definitionFingerprint": "c28a34c04d2629c810504cb3c6e3969bed28f5d185854a60d3cc21c8159c715e",
+      "sourceFingerprint": "17f296156b901e2545b0d719dbf49ed7af612cd34afb9bf8c64d6b7aeba1f101"
+    },
+    {
+      "definitionId": 62,
+      "versionId": 86,
+      "definitionKey": "dimension.productId",
+      "version": 4,
+      "definitionFingerprint": "4d9a3fad9016266ce2d53b7918451fc7d59561ca9709c00aa7651fb0c94e1c44",
+      "sourceFingerprint": "c0600c2fc5b00ef24998ff9bfe43f592b7abc2ee6639eecf87e7ce0bbdd11a09"
+    },
+    {
+      "definitionId": 63,
+      "versionId": 87,
+      "definitionKey": "dimension.productName",
+      "version": 4,
+      "definitionFingerprint": "3763314bbf11490f648063e6aff9484e67e909244e7490998a2dee53f9b91ce8",
+      "sourceFingerprint": "eaaead760358988ed3c2300f05bb52ca00d9b86aada695854723296a416ba24e"
+    },
+    {
+      "definitionId": 65,
+      "versionId": 76,
+      "definitionKey": "dimension.projectName",
+      "version": 2,
+      "definitionFingerprint": "9fbfe8e74a8be704e8f8783e20469d6f32ff0403029a860fe2de5fc4c65941e8",
+      "sourceFingerprint": "f7a39099ba14aa097993505768b46e17684731b66d5a13779eecdef7899aecfd"
+    },
+    {
+      "definitionId": 45,
+      "versionId": 45,
+      "definitionKey": "entity.payment_record",
+      "version": 1,
+      "definitionFingerprint": "b7cf937e0e0e8a28f9512853cf47cf69e943866f9cd822b923a5d93e890bbe4b",
+      "sourceFingerprint": "b17862f45ba1b06b2b0f703ceb1efe80eae331e6f519e0d2eaffc6634875ff16"
+    },
+    {
+      "definitionId": 46,
+      "versionId": 46,
+      "definitionKey": "entity.product",
+      "version": 1,
+      "definitionFingerprint": "f14dde84b29d3b4e424eb485096f9d50837922a5730ce65c34882838234187ef",
+      "sourceFingerprint": "b45a6f8262a31cc1d94620ea1a1f34ba8baf1b472ec8b6d11cec11d75abe2e8f"
+    },
+    {
+      "definitionId": 47,
+      "versionId": 47,
+      "definitionKey": "entity.product_order",
+      "version": 1,
+      "definitionFingerprint": "fd3d3fa93a4d336f3b5b235165d7f6f93abe992138a7f29c7f51291aa18b020f",
+      "sourceFingerprint": "81fc7906442a0c7fa22c5f213fc42dd8a515406fd10155b443798df532a6df3d"
+    },
+    {
+      "definitionId": 48,
+      "versionId": 48,
+      "definitionKey": "entity.project",
+      "version": 1,
+      "definitionFingerprint": "172e39f445a03511fe7d3505d45373b62726a3136265c01800f415a4cdd53e95",
+      "sourceFingerprint": "85490c6c5cc1803b078f7d264cccd7f021ed7759412f83025c771f8c5240bf4f"
+    },
+    {
+      "definitionId": 80,
+      "versionId": 129,
+      "definitionKey": "metric.discount_amount",
+      "version": 2,
+      "definitionFingerprint": "1b565cab9bcafc27ce13a8b8bf3e67dd2fd1b402097134c34ba8c5f5d1c2565c",
+      "sourceFingerprint": "f62722fb938ccdac5c10908a4c787f748870d0b1e00c6abe29a4dd643669be68"
+    },
+    {
+      "definitionId": 71,
+      "versionId": 102,
+      "definitionKey": "metric.operating_cost_amount",
+      "version": 1,
+      "definitionFingerprint": "e3efdbacacda080c40032021076910a1cbf313e3272b898f160bcf64bcd5b6a0",
+      "sourceFingerprint": "cb91282f9c575356c151bd573bc21d068cbeff0041d4b6386d0feec389ace120"
+    },
+    {
+      "definitionId": 57,
+      "versionId": 110,
+      "definitionKey": "metric.paid_amount",
+      "version": 8,
+      "definitionFingerprint": "fd3674d2d4c9e5b175394941b9e19f15ccdc331adc427cf9b2f5ab3807c2bcbc",
+      "sourceFingerprint": "58c6c78653d44a655a2f5a74d0ef77e02979a77076f789e69a54a3d3c3b58d1e"
+    },
+    {
+      "definitionId": 92,
+      "versionId": 141,
+      "definitionKey": "metric.product_below_cost_sale_count",
+      "version": 1,
+      "definitionFingerprint": "36ea1e1a39783d579dc6ce1728a386ee7ea192dd2d9fe747339ebbfb7000f618",
+      "sourceFingerprint": "b52c4496c908db75c058c4128d5fc73819747e534c7c3a74b50bd64af47c360d"
+    },
+    {
+      "definitionId": 93,
+      "versionId": 142,
+      "definitionKey": "metric.product_gross_margin_rate",
+      "version": 1,
+      "definitionFingerprint": "cba7a021fb8ae97da998c7f6504014da380c3b03bf524b715e6ac3b7abf5e6cf",
+      "sourceFingerprint": "284ebd01f6baa4951ba6fba0d9deedd6f2f2c4a6b1c7ed00f4f912b803143eae"
+    },
+    {
+      "definitionId": 72,
+      "versionId": 104,
+      "definitionKey": "metric.refund_amount",
+      "version": 1,
+      "definitionFingerprint": "adbbe34ce75f0459565144bfd88f3b6be73a7923764fe144cfa449703d15d68f",
+      "sourceFingerprint": "1e8dce2d24ddf490a203e671cd5695bc0fb90de77effe608ad3d06b6ea189020"
+    },
+    {
+      "definitionId": 81,
+      "versionId": 130,
+      "definitionKey": "metric.refund_count",
+      "version": 2,
+      "definitionFingerprint": "7735f9b5735db7befce43bebae984a6b982545fcbcc2016812c2fc733189986e",
+      "sourceFingerprint": "4bdb18a7e419fd793a383ee549fd1a8187cf17d68bdfa0d0e76056d7ba4e13d8"
+    }
+  ],
+  "artifacts": {
+    "manifest": "manifest.json",
+    "binding": "binding.ts",
+    "contractTest": "contract.spec.ts",
+    "gateReport": "gate-report.json"
+  }
+}

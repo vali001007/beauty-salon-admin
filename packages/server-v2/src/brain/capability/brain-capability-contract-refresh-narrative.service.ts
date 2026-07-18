@@ -8,6 +8,7 @@ import type { BrainCapabilityCandidate } from './brain-capability-scan.types.js'
 
 type ContractSemanticSource = {
   kind: 'snapshot' | 'source';
+  permissionContractChanged?: boolean;
   name: unknown;
   description: unknown;
   intents: unknown;
@@ -36,7 +37,9 @@ export class BrainCapabilityContractRefreshNarrativeService
       synonyms: strings(source.synonyms),
       successSchema: structuredClone(input.canonicalSemantics.successSchema),
       riskExplanation: source.kind === 'snapshot'
-        ? '仅刷新已发布业务定义与实现依赖指纹，不改变权限、写入边界或确认策略。'
+        ? source.permissionContractChanged
+          ? '权限合同已按当前 Scanner 结果更新，旧权限未复用；读写边界、确认策略与幂等要求保持不变，候选需治理审批。'
+          : '仅刷新已发布业务定义与实现依赖指纹，不改变权限、写入边界或确认策略。'
         : input.capability.readOnly
           ? '候选来自显式只读后端能力合同；权限、门店范围和无写入边界均由 Scanner 验证。'
           : '候选来自显式受控动作合同；权限、门店范围、用户确认和幂等要求均由 Scanner 验证。',
@@ -80,8 +83,7 @@ export class BrainCapabilityContractRefreshNarrativeService
       snapshot.readOnly !== capability.readOnly ||
       snapshot.sideEffect !== capability.sideEffect ||
       snapshot.requiresConfirmation !== capability.requiresConfirmation ||
-      snapshot.idempotency !== (capability.idempotency === 'required' ? 'required' : 'not_applicable') ||
-      !sameStrings(strings(snapshot.requiredPermissions), capability.requiredPermissions)
+      snapshot.idempotency !== (capability.idempotency === 'required' ? 'required' : 'not_applicable')
     ) {
       throw new Error(`capability_contract_refresh_safety_drift:${capability.key}`);
     }
@@ -94,6 +96,10 @@ export class BrainCapabilityContractRefreshNarrativeService
       const verified = this.requireSnapshot(capability);
       return {
         kind: 'snapshot',
+        permissionContractChanged: !sameStrings(
+          strings(verified.requiredPermissions),
+          capability.requiredPermissions,
+        ),
         name: verified.name,
         description: verified.description,
         intents: verified.intents,

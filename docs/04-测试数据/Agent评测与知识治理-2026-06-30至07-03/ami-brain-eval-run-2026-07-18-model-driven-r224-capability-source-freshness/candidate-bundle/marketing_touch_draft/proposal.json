@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "policy": "published_registry_gate",
+  "productionReady": true,
+  "proposalStatus": "ready",
+  "capabilityKey": "marketing_touch_draft",
+  "sourceFingerprint": "d59e2b7a12d5c888de54f0ffea37749f399895b5b4f589e70849d40bfcf44cfb",
+  "proposalFingerprint": "a34529102bd50cd43d5672f99dc04a031782f27b9cd8b9dcc3471dca2b399464",
+  "bindingFingerprint": "4a00511ef27e34dbc16389e12370d3f24fd6ccb5ac55c6ce4f0aaf737c9b08a5",
+  "executorBinding": {
+    "schemaVersion": 1,
+    "capabilityKey": "marketing_touch_draft",
+    "sourceFingerprint": "d59e2b7a12d5c888de54f0ffea37749f399895b5b4f589e70849d40bfcf44cfb",
+    "target": {
+      "kind": "service",
+      "className": "BrainActionCapabilityExecutor",
+      "methodName": "marketingTouchDraft",
+      "sourcePath": "packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts",
+      "exportedClass": true,
+      "methodAccess": "public",
+      "parameterCount": 2,
+      "parameterTypes": [
+        "BrainCapabilityToolArgs",
+        "BrainCapabilityExecutionInput"
+      ],
+      "returnType": "unknown"
+    },
+    "generatedSourcePath": "packages/server-v2/src/brain/capability/generated/marketing_touch_draft/binding.ts",
+    "targetImportPath": "../../executors/brain-action-capability.executor.js",
+    "requiredPermissions": [
+      "core:brain:use",
+      "core:marketing:create"
+    ],
+    "storeScope": "required",
+    "requiresConfirmation": true,
+    "idempotency": "required",
+    "readOnly": false,
+    "sideEffect": true,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "comparisonTarget": {
+          "type": "object"
+        },
+        "dimensions": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "entities": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "filters": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "limit": {
+          "type": "number"
+        },
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "objective": {
+          "type": "string"
+        },
+        "orderBy": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "time": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "dimensions",
+        "entities",
+        "filters",
+        "metrics",
+        "objective",
+        "orderBy"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "bindingFingerprint": "4a00511ef27e34dbc16389e12370d3f24fd6ccb5ac55c6ce4f0aaf737c9b08a5"
+  },
+  "businessDefinitions": [
+    {
+      "definitionId": 43,
+      "versionId": 43,
+      "definitionKey": "entity.customer",
+      "version": 1,
+      "definitionFingerprint": "e2a455e1bb6fca496a965db988e5547f4bee98a5e43f4c0daf9a04777a0e908e",
+      "sourceFingerprint": "528c308346ae2b37db26eae2c35397fd02d981182ceb30d2378fb588e294ce04"
+    }
+  ],
+  "artifacts": {
+    "manifest": "manifest.json",
+    "binding": "binding.ts",
+    "contractTest": "contract.spec.ts",
+    "gateReport": "gate-report.json"
+  }
+}

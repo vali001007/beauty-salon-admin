@@ -53,6 +53,29 @@ describe('BrainCapabilityContractRefreshNarrativeService', () => {
     });
   });
 
+  it('accepts a permission-only contract refresh while using only current Scanner permissions', async () => {
+    const narrowedCapability = {
+      ...(capability as Record<string, unknown>),
+      requiredPermissions: ['core:brain:beautician-view', 'core:brain:use'],
+    } as never;
+    const service = new BrainCapabilityContractRefreshNarrativeService(
+      new Map([['order_revenue_analysis', snapshot()]]),
+    );
+
+    await expect(service.generate({
+      capability: narrowedCapability,
+      businessDefinitions: [],
+      canonicalSemantics,
+    })).resolves.toMatchObject({
+      riskExplanation: '权限合同已按当前 Scanner 结果更新，旧权限未复用；读写边界、确认策略与幂等要求保持不变，候选需治理审批。',
+    });
+    expect(service.resolve({
+      capability: narrowedCapability,
+      definitions: [{ domain: 'staff' }] as never,
+      successSchema,
+    }).requiredPermissions).toEqual(['core:brain:beautician-view', 'core:brain:use']);
+  });
+
   it('fails closed when no governed snapshot exists or the safety contract changed', async () => {
     const missing = new BrainCapabilityContractRefreshNarrativeService(new Map());
     await expect(missing.generate({ capability, businessDefinitions: [], canonicalSemantics })).rejects.toThrow(
@@ -62,6 +85,21 @@ describe('BrainCapabilityContractRefreshNarrativeService', () => {
       new Map([['order_revenue_analysis', { ...snapshot(), readOnly: false }]]),
     );
     await expect(drifted.generate({ capability, businessDefinitions: [], canonicalSemantics })).rejects.toThrow(
+      'safety_drift',
+    );
+  });
+
+  it.each([
+    ['readOnly', false],
+    ['sideEffect', true],
+    ['requiresConfirmation', true],
+    ['idempotency', 'required'],
+  ])('fails closed when the %s safety invariant changed', async (field, value) => {
+    const service = new BrainCapabilityContractRefreshNarrativeService(
+      new Map([['order_revenue_analysis', { ...snapshot(), [field]: value }]]),
+    );
+
+    await expect(service.generate({ capability, businessDefinitions: [], canonicalSemantics })).rejects.toThrow(
       'safety_drift',
     );
   });
