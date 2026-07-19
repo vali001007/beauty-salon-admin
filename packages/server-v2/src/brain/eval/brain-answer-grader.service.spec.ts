@@ -1,6 +1,20 @@
 import { BrainAnswerGraderService } from './brain-answer-grader.service.js';
 
 describe('BrainAnswerGraderService', () => {
+  it('treats stored-value consumption as a payment metric rather than card liability', () => {
+    const result = new BrainAnswerGraderService().grade({
+      question: '今天有几笔是用储值卡消费的',
+      answer: '储值余额：0.00 元（0 笔）。',
+      citations: [
+        { sourceType: 'business_definition', sourceId: 'metric.paid_amount@8' },
+        { sourceType: 'db_skill', sourceId: 'capability_finance_payment_breakdown' },
+      ],
+      blocks: [{ kind: 'kpi', items: [{ label: '储值余额', value: '0.00 元' }] }],
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({ status: 'usable_exact', expectedMetric: 'paid_revenue', actualMetric: 'paid_amount' });
+  });
   const grader = new BrainAnswerGraderService();
 
   it('marks ranking questions answered by scalar metric as false positive', () => {
@@ -53,6 +67,21 @@ describe('BrainAnswerGraderService', () => {
     expect(result.status).toBe('false_positive_intent_mismatch');
     expect(result.expectedIntent).toBe('draft');
     expect(result.actualIntent).toBe('metric_query');
+  });
+
+  it('accepts a governed policy citation as template grounding for advice', () => {
+    const result = grader.grade({
+      question: '这个客人皮肤比较敏感，用什么护理方案最安全',
+      answer: '先复核过敏史和屏障状态，避开强刺激项目，并做局部耐受测试。',
+      citations: [
+        { sourceType: 'governed_policy', sourceId: 'beautician_sensitive_care_safety', label: '敏感肤质服务安全边界' },
+      ],
+      blocks: [{ kind: 'limitations', items: ['具体方案仍需结合客户档案和现场面诊确认。'] }],
+      expectedIntent: 'recommendation',
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({ status: 'usable_exact', groundingType: 'template_skill' });
   });
 
   it('never counts an explicit capability boundary answer as usable', () => {
@@ -237,6 +266,59 @@ describe('BrainAnswerGraderService', () => {
 
     expect(result.status).toBe('usable_exact');
     expect(result.expectedMetric).toBe('gross_margin_rate');
+  });
+
+  it('does not reduce project margin analysis to a whole-store gross-margin metric', () => {
+    const result = grader.grade({
+      question: '帮我看一下各项目的毛利情况',
+      answer: '已返回各项目收入、耗材成本、提成成本和贡献毛利。',
+      citations: [{ sourceType: 'db_skill', sourceId: 'operation_profit_project_margins', label: '项目毛利分析' }],
+      blocks: [{ kind: 'ranking', rows: [{ projectName: '补水护理', contributionProfit: 500 }] }],
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({
+      status: 'usable_exact',
+      expectedIntent: 'ranking',
+      expectedMetric: undefined,
+      actualShape: 'ranking',
+    });
+  });
+
+  it('distinguishes material cost from operating cost', () => {
+    const result = grader.grade({
+      question: '这个月耗材成本占了多少',
+      answer: '经营费用为 5600.00 元。',
+      citations: [{ sourceType: 'metric', sourceId: 'operating_cost_amount', label: '经营费用' }],
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({
+      status: 'false_positive_metric_mismatch',
+      expectedMetric: 'material_cost',
+      actualMetric: 'operating_cost_amount',
+    });
+  });
+
+  it('grades a grounded no-data ranking boundary as usable partial', () => {
+    const result = grader.grade({
+      question: '这个月哪个项目消耗耗材最多',
+      answer: '本月完成服务 3 单，但实际耗材数量采集覆盖为 0，无法生成排行。',
+      citations: [{ sourceType: 'db_skill', sourceId: 'service_task_actual_consumption_items', label: '实际耗材记录' }],
+      blocks: [
+        { kind: 'ranking', rows: [] },
+        { kind: 'limitations', items: ['no_data: project_actual_material_quantity_not_recorded'] },
+      ],
+      expectedIntent: 'ranking',
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({
+      status: 'usable_partial',
+      actualIntent: 'ranking',
+      actualShape: 'ranking',
+      groundingType: 'db_skill',
+    });
   });
 
   it('keeps draft skill answers usable without metric citations', () => {
@@ -786,6 +868,27 @@ describe('BrainAnswerGraderService', () => {
 
     expect(result.expectedIntent).toBe('comparison');
     expect(result.expectedMetric).toBeUndefined();
+    expect(result.status).toBe('usable_exact');
+  });
+
+  it('distinguishes card-package sales from card liability', () => {
+    const result = grader.grade({
+      question: '这个月次卡销售了多少金额',
+      answer: '本月次卡销售 8600.00 元，共 12 张。',
+      citations: [
+        {
+          sourceType: 'business_definition',
+          sourceId: 'metric.card_package_sales_amount',
+          label: '共享后台业务定义：次卡销售金额',
+        },
+        { sourceType: 'db_skill', sourceId: 'finance.card-package-sales.metric', label: '后台次卡销售指标服务' },
+      ],
+      blocks: [{ kind: 'kpi', items: [{ label: '次卡销售金额', value: '8600.00 元' }] }],
+      brainStatus: 'completed',
+    });
+
+    expect(result.expectedMetric).toBe('card_package_sales_amount');
+    expect(result.actualMetric).toBe('card_package_sales_amount');
     expect(result.status).toBe('usable_exact');
   });
 

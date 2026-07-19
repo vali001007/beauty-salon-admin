@@ -321,7 +321,7 @@ describe('BrainCapabilityScannerService', () => {
 
     const workspaceRoot = join(process.cwd(), '..', '..');
     const real = await new BrainCapabilityScannerService().scan({ workspaceRoot, explicitOnly: true });
-    expect(real.capabilities).toHaveLength(31);
+    expect(real.capabilities).toHaveLength(40);
     expect(real.capabilities.every((item) => item.explicit)).toBe(true);
   }, 30_000);
 
@@ -634,12 +634,9 @@ describe('BrainCapabilityScannerService', () => {
     const afterCapability = after.capabilities[0]!;
 
     expect(afterCapability.sourceFingerprint).not.toBe(beforeCapability.sourceFingerprint);
-    expect(afterCapability.implementationDependencies).toEqual(expect.arrayContaining([
-      'AdapterRegistryService',
-      'MarketingAdapter',
-      'GapService',
-      'provider:ADAPTERS',
-    ]));
+    expect(afterCapability.implementationDependencies).toEqual(
+      expect.arrayContaining(['AdapterRegistryService', 'MarketingAdapter', 'GapService', 'provider:ADAPTERS']),
+    );
     expect(afterCapability.evidence.some((item) => item.symbol === 'GapService.preview')).toBe(false);
     expect(new BrainCapabilityDriftService().compare(after, before).items).toEqual([
       expect.objectContaining({ key: 'gap_fill_touch_preview', type: 'changed' }),
@@ -717,14 +714,16 @@ describe('BrainCapabilityScannerService', () => {
     expect(byKey.get('customer_facts')?.requiredPermissions).toContain('core:customer:view');
   }, 30_000);
 
-  it('discovers thirty-one explicit production executors without legacy anchor contamination', async () => {
+  it('discovers forty explicit production executors without legacy anchor contamination', async () => {
     const workspaceRoot = join(process.cwd(), '..', '..');
     const report = await new BrainCapabilityScannerService().scan({ workspaceRoot, explicitOnly: true });
 
-    expect(report.summary).toEqual({ total: 31, draft: 31, blocked: 0, explicit: 31 });
+    expect(report.summary).toEqual({ total: 40, draft: 40, blocked: 0, explicit: 40 });
     expect(report.capabilities.map((item) => item.key)).toEqual([
+      'appointment_gap_list',
       'beautician_customer_card_progress',
       'beautician_material_preparation',
+      'beautician_personal_performance',
       'beautician_service_overview',
       'card_usage_action_preview',
       'customer_facts',
@@ -732,14 +731,19 @@ describe('BrainCapabilityScannerService', () => {
       'customer_follow_up_draft',
       'customer_priority_recommendation',
       'customer_waiting_loss_overview',
+      'finance_material_cost_summary',
       'finance_payment_breakdown',
       'finance_risk_overview',
+      'finance_staff_refund_rate_boundary',
+      'finance_transaction_anomaly_review',
       'front_desk_operations_overview',
       'gap_fill_touch_preview',
       'inventory_operations_overview',
       'inventory_procurement_advice',
+      'inventory_receipt_discrepancy_guidance',
       'inventory_risk_ranking',
       'manager_staff_overview',
+      'marketing_campaign_cost_attribution_review',
       'marketing_campaign_plan',
       'marketing_customer_segment',
       'marketing_growth_overview',
@@ -748,6 +752,8 @@ describe('BrainCapabilityScannerService', () => {
       'marketing_touch_draft',
       'order_revenue_analysis',
       'product_sales_ranking',
+      'project_margin_analysis',
+      'project_material_consumption_analysis',
       'project_service_ranking',
       'purchase_order_draft',
       'reservation_action_preview',
@@ -759,11 +765,28 @@ describe('BrainCapabilityScannerService', () => {
       report.capabilities.every((item) => item.evidence.some((evidence) => evidence.sourceType === 'service')),
     ).toBe(true);
     expect(report.capabilities.every((item) => item.issues.length === 0)).toBe(true);
-    expect(new Map(report.capabilities.map((item) => [item.key, item.implementationDependencies])).get('gap_fill_touch_preview')).toEqual(
-      expect.arrayContaining(['BrainMarketingDomainAdapter', 'GapOpportunityService', 'provider:BRAIN_DOMAIN_ADAPTERS']),
+    expect(
+      new Map(report.capabilities.map((item) => [item.key, item.implementationDependencies])).get(
+        'gap_fill_touch_preview',
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        'BrainMarketingDomainAdapter',
+        'GapOpportunityService',
+        'provider:BRAIN_DOMAIN_ADAPTERS',
+      ]),
     );
-    expect(new Map(report.capabilities.map((item) => [item.key, item.allowedRoles])).get('beautician_service_overview')).toEqual(['beautician']);
-    expect(new Map(report.capabilities.map((item) => [item.key, item.allowedRoles])).get('finance_payment_breakdown')).toEqual(['finance', 'store_manager']);
-    expect(new Map(report.capabilities.map((item) => [item.key, item.allowedRoles])).get('store_operations_overview')).toEqual(['store_manager']);
+    expect(
+      new Map(report.capabilities.map((item) => [item.key, item.allowedRoles])).get('beautician_service_overview'),
+    ).toEqual(['beautician']);
+    expect(
+      new Map(report.capabilities.map((item) => [item.key, item.allowedRoles])).get('finance_payment_breakdown'),
+    ).toEqual(['finance', 'receptionist', 'store_manager']);
+    expect(
+      new Map(report.capabilities.map((item) => [item.key, item.allowedRoles])).get('appointment_gap_list'),
+    ).toEqual(['receptionist', 'store_manager']);
+    expect(
+      new Map(report.capabilities.map((item) => [item.key, item.allowedRoles])).get('store_operations_overview'),
+    ).toEqual(['store_manager']);
   }, 30_000);
 });

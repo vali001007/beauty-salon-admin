@@ -15,6 +15,7 @@ import type { ProductionReadyBusinessDefinitionSnapshot } from '../cognition/bus
 import type { BrainRoleIntentPlan } from '../domain/brain-domain-adapter.types.js';
 import type { SendBrainMessageDto } from '../dto/brain-chat.dto.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { isBrainModelResultSet, type BrainModelResultSet } from './brain-result-reference.service.js';
 
 export interface BrainConversationContextSnapshot {
   roleHint?: string;
@@ -83,6 +84,7 @@ export interface BrainModelConversationContextSnapshot {
   answerShape: BrainSemanticIntent['answerShape'];
   timeRange?: BrainSemanticTimeRange;
   capability?: { key: string; version: number };
+  resultSets: BrainModelResultSet[];
   pendingClarification?: BrainModelPendingClarification;
   lastCorrections: BrainModelConversationCorrection[];
   updatedFromRunId: number;
@@ -109,7 +111,9 @@ export class BrainConversationContextService {
     if (!previous) {
       return {
         dto: input.dto,
-        ...(this.hasModelSnapshot(conversation?.contextSnapshot) ? { rejectionCode: 'MODEL_CONTEXT_INVALID' as const } : {}),
+        ...(this.hasModelSnapshot(conversation?.contextSnapshot)
+          ? { rejectionCode: 'MODEL_CONTEXT_INVALID' as const }
+          : {}),
       };
     }
     if (input.snapshot === null) {
@@ -155,11 +159,19 @@ export class BrainConversationContextService {
       cognition.metrics = [...previous.metrics];
       inheritedSlots.push('metrics');
     }
-    if (!cognition.dimensions.length && previous.dimensions.length && /(继续|还是|同样|那些|这些|呢)/.test(input.dto.message)) {
+    if (
+      !cognition.dimensions.length &&
+      previous.dimensions.length &&
+      /(继续|还是|同样|那些|这些|呢)/.test(input.dto.message)
+    ) {
       cognition.dimensions = [...previous.dimensions];
       inheritedSlots.push('dimensions');
     }
-    if (!cognition.entities.length && previous.entities.length && /(这个|那个|该|她|他|这位|上一个|刚才|继续|呢)/.test(input.dto.message)) {
+    if (
+      !cognition.entities.length &&
+      previous.entities.length &&
+      /(这个|那个|该|她|他|这位|上一个|刚才|继续|呢)/.test(input.dto.message)
+    ) {
       const ambiguous = this.findAmbiguousEntities(previous.entities);
       if (ambiguous.length) {
         cognition.needsClarification = true;
@@ -190,7 +202,8 @@ export class BrainConversationContextService {
       contextHints.push(previous.timeRange.label);
       inheritedSlots.push('timeRange');
     }
-    if (inheritedSlots.includes('entities')) contextHints.push(previous.entities.map((entity) => entity.label).join('、'));
+    if (inheritedSlots.includes('entities'))
+      contextHints.push(previous.entities.map((entity) => entity.label).join('、'));
 
     const inheritedRole = input.dto.roleHint ?? (previous.roleHint as SendBrainMessageDto['roleHint'] | undefined);
     if (!input.dto.roleHint && inheritedRole) inheritedSlots.push('roleHint');
@@ -199,7 +212,9 @@ export class BrainConversationContextService {
       dto: {
         ...input.dto,
         roleHint: inheritedRole,
-        message: contextHints.length ? `${input.dto.message}（延续上下文：${contextHints.join('；')}）` : input.dto.message,
+        message: contextHints.length
+          ? `${input.dto.message}（延续上下文：${contextHints.join('；')}）`
+          : input.dto.message,
       },
       cognition,
       runtimeIntent,
@@ -229,9 +244,9 @@ export class BrainConversationContextService {
     const parsedTime = this.timeRangeParser.parse(input.dto.message);
     const next: BrainConversationContextSnapshot = {
       roleHint: input.dto.roleHint ?? input.routePlan?.role ?? previous?.roleHint,
-      metrics: input.cognition?.metrics.length ? input.cognition.metrics : previous?.metrics ?? [],
-      dimensions: input.cognition?.dimensions.length ? input.cognition.dimensions : previous?.dimensions ?? [],
-      entities: input.cognition?.entities.length ? input.cognition.entities : previous?.entities ?? [],
+      metrics: input.cognition?.metrics.length ? input.cognition.metrics : (previous?.metrics ?? []),
+      dimensions: input.cognition?.dimensions.length ? input.cognition.dimensions : (previous?.dimensions ?? []),
+      entities: input.cognition?.entities.length ? input.cognition.entities : (previous?.entities ?? []),
       intent: input.routePlan?.intent ?? input.cognition?.intent.key ?? previous?.intent,
       answerShape: input.routePlan?.answerShape ?? previous?.answerShape,
       timeRange: parsedTime.range
@@ -262,6 +277,7 @@ export class BrainConversationContextService {
     storeId: number;
     intent: BrainSemanticIntent;
     capability?: { key: string; version: number };
+    resultSets?: BrainModelResultSet[];
     corrections?: BrainModelConversationCorrection[];
     pendingClarification?: BrainModelPendingClarification;
   }) {
@@ -289,6 +305,13 @@ export class BrainConversationContextService {
       answerShape: input.intent.answerShape,
       ...(input.intent.timeRange ? { timeRange: this.normalizeModelTimeRange(input.intent.timeRange) } : {}),
       ...(input.capability ? { capability: { ...input.capability } } : {}),
+      resultSets: (input.resultSets ?? []).map((set) => ({
+        ...set,
+        items: set.items.map((item) => ({
+          ...item,
+          ...(item.definitionRef ? { definitionRef: { ...item.definitionRef } } : {}),
+        })),
+      })),
       ...(input.pendingClarification
         ? {
             pendingClarification: {
@@ -316,7 +339,9 @@ export class BrainConversationContextService {
   }
 
   private isContinuation(message: string) {
-    return /^(再|继续|接着|那|这个|那个|该|她|她们|他|他们|其中|具体|换成|改成|上一个|刚才|不对|我不要|不要|太复杂|简单说|给她|给他们|给她们|比上|为什么比|适合搭配|能不能再)|[呢吗]$/.test(message.trim());
+    return /^(再|继续|接着|那|这个|那个|该|她|她们|他|他们|其中|具体|换成|改成|上一个|刚才|不对|我不要|不要|太复杂|简单说|给她|给他们|给她们|比上|为什么比|适合搭配|能不能再)|[呢吗]$/.test(
+      message.trim(),
+    );
   }
 
   private parseSnapshot(value: Prisma.JsonValue | null | undefined): BrainConversationContextSnapshot | undefined {
@@ -324,14 +349,15 @@ export class BrainConversationContextService {
     const snapshot = value as Record<string, unknown>;
     return {
       roleHint: typeof snapshot.roleHint === 'string' ? snapshot.roleHint : undefined,
-      metrics: Array.isArray(snapshot.metrics) ? snapshot.metrics.filter((item): item is string => typeof item === 'string') : [],
+      metrics: Array.isArray(snapshot.metrics)
+        ? snapshot.metrics.filter((item): item is string => typeof item === 'string')
+        : [],
       dimensions: Array.isArray(snapshot.dimensions)
         ? snapshot.dimensions.filter((item): item is string => typeof item === 'string')
         : [],
       entities: Array.isArray(snapshot.entities)
-        ? snapshot.entities.filter(
-            (item): item is BrainConversationContextSnapshot['entities'][number] =>
-              Boolean(item && typeof item === 'object' && 'slot' in item && 'entityKey' in item && 'label' in item),
+        ? snapshot.entities.filter((item): item is BrainConversationContextSnapshot['entities'][number] =>
+            Boolean(item && typeof item === 'object' && 'slot' in item && 'entityKey' in item && 'label' in item),
           )
         : [],
       intent: typeof snapshot.intent === 'string' ? snapshot.intent : undefined,
@@ -345,7 +371,9 @@ export class BrainConversationContextService {
     };
   }
 
-  private parseModelSnapshot(value: Prisma.JsonValue | null | undefined): BrainModelConversationContextSnapshot | undefined {
+  private parseModelSnapshot(
+    value: Prisma.JsonValue | null | undefined,
+  ): BrainModelConversationContextSnapshot | undefined {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
     const root = value as Record<string, unknown>;
     const modelDescriptor = Object.getOwnPropertyDescriptor(root, 'model');
@@ -369,6 +397,7 @@ export class BrainConversationContextService {
         'answerShape',
         'timeRange',
         'capability',
+        'resultSets',
         'pendingClarification',
         'lastCorrections',
         'updatedFromRunId',
@@ -397,6 +426,10 @@ export class BrainConversationContextService {
     if (
       (snapshot.timeRange !== undefined && !this.isModelTimeRange(snapshot.timeRange)) ||
       (snapshot.capability !== undefined && !this.isModelCapability(snapshot.capability)) ||
+      (snapshot.resultSets !== undefined &&
+        (!Array.isArray(snapshot.resultSets) ||
+          snapshot.resultSets.length > 12 ||
+          !snapshot.resultSets.every((set) => isBrainModelResultSet(set)))) ||
       (snapshot.pendingClarification !== undefined &&
         !this.isModelPendingClarification(snapshot.pendingClarification)) ||
       (snapshot.lastCorrections !== undefined &&
@@ -412,12 +445,12 @@ export class BrainConversationContextService {
       definitionRefs: snapshot.definitionRefs.map((ref) => ({ ...ref })),
       metrics: (Array.isArray(snapshot.metrics)
         ? snapshot.metrics
-        : snapshot.definitionRefs.filter((ref) => ref.definitionType === 'metric'))
-        .map((ref) => ({ ...ref })) as Array<BrainDefinitionRef<'metric'>>,
+        : snapshot.definitionRefs.filter((ref) => ref.definitionType === 'metric')
+      ).map((ref) => ({ ...ref })) as Array<BrainDefinitionRef<'metric'>>,
       dimensions: (Array.isArray(snapshot.dimensions)
         ? snapshot.dimensions
-        : snapshot.definitionRefs.filter((ref) => ref.definitionType === 'dimension'))
-        .map((ref) => ({ ...ref })) as Array<BrainDefinitionRef<'dimension'>>,
+        : snapshot.definitionRefs.filter((ref) => ref.definitionType === 'dimension')
+      ).map((ref) => ({ ...ref })) as Array<BrainDefinitionRef<'dimension'>>,
       entities: snapshot.entities.map((entity) => ({
         ...entity,
         ...(entity.definitionRef ? { definitionRef: { ...entity.definitionRef } } : {}),
@@ -426,6 +459,15 @@ export class BrainConversationContextService {
       answerShape: snapshot.answerShape as BrainSemanticIntent['answerShape'],
       timeRange: snapshot.timeRange ? { ...snapshot.timeRange } : undefined,
       capability: snapshot.capability ? { ...snapshot.capability } : undefined,
+      resultSets: Array.isArray(snapshot.resultSets)
+        ? snapshot.resultSets.map((set) => ({
+            ...set,
+            items: set.items.map((item) => ({
+              ...item,
+              ...(item.definitionRef ? { definitionRef: { ...item.definitionRef } } : {}),
+            })),
+          }))
+        : [],
       pendingClarification: snapshot.pendingClarification
         ? {
             missingSlots: [...snapshot.pendingClarification.missingSlots],
@@ -437,7 +479,7 @@ export class BrainConversationContextService {
           }
         : undefined,
       lastCorrections: Array.isArray(snapshot.lastCorrections)
-        ? snapshot.lastCorrections.map((correction) => ({ ...correction })) as BrainModelConversationCorrection[]
+        ? (snapshot.lastCorrections.map((correction) => ({ ...correction })) as BrainModelConversationCorrection[])
         : [],
       updatedFromRunId: snapshot.updatedFromRunId as number,
       updatedAt: snapshot.updatedAt,
@@ -469,27 +511,27 @@ export class BrainConversationContextService {
     const entity = value as Record<string, unknown>;
     return Boolean(
       this.hasOnlyKeys(entity, ['entityType', 'entityKey', 'mention', 'source', 'definitionRef', 'confidence']) &&
-        this.isNonEmptyString(entity.entityType) &&
-        (entity.entityKey === undefined || this.isNonEmptyString(entity.entityKey)) &&
-        this.isNonEmptyString(entity.mention) &&
-        ['user', 'conversation', 'memory', 'system'].includes(String(entity.source)) &&
-        typeof entity.confidence === 'number' &&
-        Number.isFinite(entity.confidence) &&
-        entity.confidence >= 0 &&
-        entity.confidence <= 1 &&
-        (entity.definitionRef === undefined ||
-          (this.isDefinitionRef(entity.definitionRef) && entity.definitionRef.definitionType === 'entity')),
+      this.isNonEmptyString(entity.entityType) &&
+      (entity.entityKey === undefined || this.isNonEmptyString(entity.entityKey)) &&
+      this.isNonEmptyString(entity.mention) &&
+      ['user', 'conversation', 'memory', 'system'].includes(String(entity.source)) &&
+      typeof entity.confidence === 'number' &&
+      Number.isFinite(entity.confidence) &&
+      entity.confidence >= 0 &&
+      entity.confidence <= 1 &&
+      (entity.definitionRef === undefined ||
+        (this.isDefinitionRef(entity.definitionRef) && entity.definitionRef.definitionType === 'entity')),
     );
   }
 
   private isSnapshotTimeRange(value: unknown): value is NonNullable<BrainConversationContextSnapshot['timeRange']> {
     return Boolean(
       value &&
-        typeof value === 'object' &&
-        typeof (value as Record<string, unknown>).label === 'string' &&
-        typeof (value as Record<string, unknown>).startDate === 'string' &&
-        typeof (value as Record<string, unknown>).endDate === 'string' &&
-        typeof (value as Record<string, unknown>).granularity === 'string',
+      typeof value === 'object' &&
+      typeof (value as Record<string, unknown>).label === 'string' &&
+      typeof (value as Record<string, unknown>).startDate === 'string' &&
+      typeof (value as Record<string, unknown>).endDate === 'string' &&
+      typeof (value as Record<string, unknown>).granularity === 'string',
     );
   }
 
@@ -506,7 +548,11 @@ export class BrainConversationContextService {
     ) {
       return false;
     }
-    return !(typeof range.startDate === 'string' && typeof range.endDate === 'string' && range.startDate > range.endDate);
+    return !(
+      typeof range.startDate === 'string' &&
+      typeof range.endDate === 'string' &&
+      range.startDate > range.endDate
+    );
   }
 
   private isModelCapability(value: unknown): value is { key: string; version: number } {
@@ -514,9 +560,9 @@ export class BrainConversationContextService {
     const capability = value as Record<string, unknown>;
     return Boolean(
       this.hasOnlyKeys(capability, ['key', 'version']) &&
-        this.isNonEmptyString(capability.key) &&
-        Number.isInteger(capability.version) &&
-        (capability.version as number) > 0,
+      this.isNonEmptyString(capability.key) &&
+      Number.isInteger(capability.version) &&
+      (capability.version as number) > 0,
     );
   }
 
@@ -525,11 +571,11 @@ export class BrainConversationContextService {
     const correction = value as Record<string, unknown>;
     return Boolean(
       this.hasOnlyKeys(correction, ['slot', 'previous', 'next']) &&
-        ['entities', 'metrics', 'dimensions', 'objective', 'capability'].includes(String(correction.slot)) &&
-        this.isNonEmptyString(correction.previous) &&
-        this.isNonEmptyString(correction.next) &&
-        (correction.previous as string).length <= 80 &&
-        (correction.next as string).length <= 80,
+      ['entities', 'metrics', 'dimensions', 'objective', 'capability'].includes(String(correction.slot)) &&
+      this.isNonEmptyString(correction.previous) &&
+      this.isNonEmptyString(correction.next) &&
+      (correction.previous as string).length <= 80 &&
+      (correction.next as string).length <= 80,
     );
   }
 
@@ -541,7 +587,13 @@ export class BrainConversationContextService {
     context: BrainModelConversationContextSnapshot,
     snapshot: ProductionReadyBusinessDefinitionSnapshot,
   ) {
-    const refs = [...context.definitionRefs, ...context.entities.flatMap((entity) => (entity.definitionRef ? [entity.definitionRef] : []))];
+    const refs = [
+      ...context.definitionRefs,
+      ...context.entities.flatMap((entity) => (entity.definitionRef ? [entity.definitionRef] : [])),
+      ...context.resultSets.flatMap((set) =>
+        set.items.flatMap((item) => (item.definitionRef ? [item.definitionRef] : [])),
+      ),
+    ];
     return refs.every((ref) => this.hasCurrentDefinition(snapshot, ref));
   }
 
@@ -570,12 +622,7 @@ export class BrainConversationContextService {
     return Reflect.ownKeys(value).every((key) => typeof key === 'string' && allowed.has(key));
   }
 
-  private isStrictJsonValue(
-    value: unknown,
-    seen = new WeakSet<object>(),
-    state = { nodes: 0 },
-    depth = 0,
-  ): boolean {
+  private isStrictJsonValue(value: unknown, seen = new WeakSet<object>(), state = { nodes: 0 }, depth = 0): boolean {
     if (value === null || typeof value === 'string' || typeof value === 'boolean') return true;
     if (typeof value === 'number') return Number.isFinite(value);
     if (typeof value !== 'object' || depth > 16 || state.nodes >= 512) return false;
@@ -713,9 +760,13 @@ export class BrainConversationContextService {
   }
 
   private correctedTimeExpression(message: string): string | undefined {
-    const preferred = message.match(/(?:问的是|改成|要看|只看)\s*(今天|昨天|明天|本周|上周|本月|这个月|上个月|本季度|上季度|今年|去年)/)?.[1];
+    const preferred = message.match(
+      /(?:问的是|改成|要看|只看)\s*(今天|昨天|明天|本周|上周|本月|这个月|上个月|本季度|上季度|今年|去年)/,
+    )?.[1];
     if (preferred) return preferred;
-    const replacement = message.match(/不是\s*(今天|昨天|明天|本周|上周|本月|这个月|上个月|本季度|上季度|今年|去年)[^，,。；;]{0,20}(?:是|改成)\s*(今天|昨天|明天|本周|上周|本月|这个月|上个月|本季度|上季度|今年|去年)/)?.[2];
+    const replacement = message.match(
+      /不是\s*(今天|昨天|明天|本周|上周|本月|这个月|上个月|本季度|上季度|今年|去年)[^，,。；;]{0,20}(?:是|改成)\s*(今天|昨天|明天|本周|上周|本月|这个月|上个月|本季度|上季度|今年|去年)/,
+    )?.[2];
     return replacement;
   }
 
@@ -802,7 +853,11 @@ export class BrainConversationContextService {
     if (cognition.metrics.length && previous.metrics.length && cognition.metrics[0] !== previous.metrics[0]) {
       corrections.push({ slot: 'metrics', previous: previous.metrics, next: cognition.metrics });
     }
-    if (cognition.entities.length && previous.entities.length && cognition.entities[0].entityKey !== previous.entities[0].entityKey) {
+    if (
+      cognition.entities.length &&
+      previous.entities.length &&
+      cognition.entities[0].entityKey !== previous.entities[0].entityKey
+    ) {
       corrections.push({ slot: 'entities', previous: previous.entities, next: cognition.entities });
     }
     if (roleHint && previous.roleHint && roleHint !== previous.roleHint) {

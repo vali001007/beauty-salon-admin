@@ -159,6 +159,12 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
 
   @BrainCapability({
     key: 'inventory_risk_ranking',
+    name: '库存缺货风险排行',
+    description: '按当前门店已发布库存风险评分返回最紧急的缺货或低库存商品，不用普通库存数量排行替代风险优先级。',
+    intents: ['ranking', 'query'],
+    examples: ['现在缺货最紧急的是什么', '哪些商品缺货风险最高', '库存风险排行'],
+    negativeExamples: ['查询商品销量排行', '查询项目耗材成本', '自动创建采购单'],
+    synonyms: ['缺货优先级', '库存风险排行', '紧急补货商品'],
     businessDefinitionKeys: ['metric.stock_risk_score', 'entity.product'],
     readOnly: true,
     storeScope: 'required',

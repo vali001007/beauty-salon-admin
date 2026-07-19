@@ -87,7 +87,14 @@ export class BrainObservationService {
   private mappingOutputs(metadata: Record<string, unknown>): Record<string, unknown> {
     const value = metadata.mappingOutputs;
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-    return value as Record<string, unknown>;
+    const outputs = { ...(value as Record<string, unknown>) };
+    for (const [key, mappedValue] of Object.entries(value as Record<string, unknown>)) {
+      const snakeCase = key.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+      if (snakeCase !== key && outputs[snakeCase] === undefined) outputs[snakeCase] = mappedValue;
+      const camelCase = key.replace(/_([a-z0-9])/g, (_, character: string) => character.toUpperCase());
+      if (camelCase !== key && outputs[camelCase] === undefined) outputs[camelCase] = mappedValue;
+    }
+    return outputs;
   }
 }
 

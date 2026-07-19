@@ -55,6 +55,15 @@ describe('BrainTimeRangeParserService', () => {
     });
   });
 
+  it('parses a rolling past year instead of defaulting to today', () => {
+    expect(range('把所有员工过去一年的业绩全部列出来')).toMatchObject({
+      label: '过去1年',
+      startDate: new Date(2025, 6, 10, 0, 0, 0, 0),
+      endDate: new Date(2026, 6, 10, 23, 59, 59, 999),
+      granularity: 'year',
+    });
+  });
+
   it('marks year-over-year same period as comparison instead of scalar all-history', () => {
     const result = parser.parse('去年同期收入多少', { now });
 

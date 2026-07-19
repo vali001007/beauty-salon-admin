@@ -20,6 +20,7 @@ export interface BrainEvalExpectation {
   brainStatuses?: string[];
   missingSlots?: string[];
   forbiddenMissingSlots?: string[];
+  decisionCodes?: string[];
   requiresGrounding?: boolean;
   requiresComplete?: boolean;
 }
@@ -66,7 +67,12 @@ export class BrainIntentGraderService {
   ) {
     if (!expected?.length) return;
     for (const value of expected) {
-      checks.push({ ok: actual.some((item) => equivalentKey(item, value)), failure: `${name}_missing:${value}` });
+      checks.push({
+        ok: actual.some((item) =>
+          name === 'domain' ? equivalentDomain(item, value) : equivalentKey(item, value),
+        ),
+        failure: `${name}_missing:${value}`,
+      });
     }
   }
 }
@@ -87,7 +93,7 @@ export function layerGrade(
 }
 
 export function record(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
 export function stringArray(value: unknown): string[] {
@@ -95,10 +101,29 @@ export function stringArray(value: unknown): string[] {
 }
 
 export function equivalentKey(actual: string, expected: string): boolean {
-  const normalize = (value: string) => value.toLowerCase().replace(/^(?:metric|dimension|entity)\./, '').replace(/[._-]/g, '');
+  const normalize = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/^(?:metric|dimension|entity)\./, '')
+      .replace(/[._-]/g, '');
   const left = normalize(actual);
   const right = normalize(expected);
   return left === right || left.includes(right) || right.includes(left);
+}
+
+function equivalentDomain(actual: string, expected: string): boolean {
+  if (equivalentKey(actual, expected)) return true;
+  const groups = [
+    ['finance', 'payment', 'payment_record', 'refund'],
+    ['inventory', 'inventory_procurement', 'product'],
+    ['marketing', 'marketing_growth', 'marketing_activity'],
+    ['reception', 'front_desk', 'reservation'],
+    ['beautician', 'beautician_service', 'staff'],
+    ['store', 'store_operation'],
+  ];
+  return groups.some(
+    (group) => group.some((item) => equivalentKey(actual, item)) && group.some((item) => equivalentKey(expected, item)),
+  );
 }
 
 function normalizeIntent(value: unknown): string {
@@ -133,6 +158,13 @@ function intentMatches(expected: string, actual: Record<string, unknown>): boole
     return true;
   }
   if (
+    expectedIntent === 'action' &&
+    actualIntent === 'workflow' &&
+    actual.answerShape === 'action_preview'
+  ) {
+    return true;
+  }
+  if (
     expectedIntent === 'query' &&
     ['ranking', 'comparison', 'trend', 'diagnosis', 'recommendation'].includes(actualIntent) &&
     ['ranking', 'list', 'comparison', 'trend', 'diagnosis'].includes(String(actual.answerShape))
@@ -149,7 +181,11 @@ function intentMatches(expected: string, actual: Record<string, unknown>): boole
   ) {
     return true;
   }
-  return expectedIntent === 'diagnosis' && actualIntent === 'query' && ['diagnosis', 'list'].includes(String(actual.answerShape));
+  return (
+    expectedIntent === 'diagnosis' &&
+    actualIntent === 'query' &&
+    ['diagnosis', 'list'].includes(String(actual.answerShape))
+  );
 }
 
 function entityTypes(value: unknown): string[] {

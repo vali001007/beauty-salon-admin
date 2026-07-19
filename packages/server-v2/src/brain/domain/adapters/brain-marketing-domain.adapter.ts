@@ -61,15 +61,7 @@ export class BrainMarketingDomainAdapter implements BrainDomainAdapter {
     }
     if (this.isDirectTouchAction(input)) return this.previewDirectTouch(input);
     if (this.isAutomationRulePreview(message)) {
-      const rule = this.buildAutomationRulePreview(message);
-      return {
-        status: 'completed',
-        answer: `营销自动化规则预览：${rule.name}。触发条件：${rule.trigger}；执行动作：${rule.action}；保护条件：${rule.guardrails}。自动化规则发布能力尚未开放，因此当前不会生成不可执行的确认按钮。`,
-        citations: [{ sourceType: 'skill', sourceId: 'marketing_automation_rule_preview', label: '营销自动化规则预览' }],
-        suggestedActions: [],
-        grounding: 'preview_action',
-        metadata: { adapterKey: this.key, ruleType: rule.type, unsupportedReason: 'automation_rule_publish_not_open' },
-      };
+      return this.previewAutomationRule(input);
     }
     if (/(活动.*收入|归因收入|投产|roi|转化率|渠道质量|渠道.*效果|活动复盘|自动化规则|自动跟进|自动提醒|触达规则)/i.test(message)) {
       const parsed = this.timeRangeParser.parse(message);
@@ -192,6 +184,18 @@ export class BrainMarketingDomainAdapter implements BrainDomainAdapter {
 
   private isStrategyExecutionAction(message: string) {
     return /(?:执行|运行|启动|开始|立即).*(?:自动触达|营销).*(?:策略|发送)|(?:自动触达|营销)策略.*(?:执行|运行|启动|发送)/.test(message);
+  }
+
+  private previewAutomationRule(input: BrainDomainAdapterExecution): BrainDomainAnswer {
+    const rule = this.buildAutomationRulePreview(input.dto.message);
+    return {
+      status: 'completed',
+      answer: `营销自动化规则预览：${rule.name}。触发条件：${rule.trigger}；执行动作：${rule.action}；保护条件：${rule.guardrails}。自动化规则发布能力尚未开放，因此当前不会生成不可执行的确认按钮。`,
+      citations: [{ sourceType: 'skill', sourceId: 'marketing_automation_rule_preview', label: '营销自动化规则预览' }],
+      suggestedActions: [],
+      grounding: 'preview_action',
+      metadata: { adapterKey: this.key, ruleType: rule.type, unsupportedReason: 'automation_rule_publish_not_open' },
+    };
   }
 
   private async previewStrategyExecution(input: BrainDomainAdapterExecution): Promise<BrainDomainAnswer> {
@@ -487,6 +491,12 @@ export class BrainMarketingDomainAdapter implements BrainDomainAdapter {
   }
 
   private buildAutomationRulePreview(message: string) {
+    if (/45天.*没来|没来.*45天/.test(message)) {
+      return { type: 'dormant_customer_follow_up', name: '客户 45 天未到店提醒', trigger: '客户连续 45 天没有完成到店或消费', action: '创建召回提醒任务和可编辑话术草稿', guardrails: '同一客户 30 天内最多触发 1 次，遵守退订和触达冷却，不自动发送' };
+    }
+    if (/(?:快过期|即将过期).*(?:次卡|卡项)|(?:次卡|卡项).*(?:快过期|即将过期)/.test(message)) {
+      return { type: 'card_expiry', name: '卡项临期客户提醒', trigger: '有效卡项进入 30 天到期窗口且仍有剩余次数', action: '创建到期提醒任务和可编辑消息草稿', guardrails: '先校验卡状态、余次、客户授权和触达冷却，不自动发送或修改卡项' };
+    }
     if (/新客.*三天|三天后.*跟进/.test(message)) {
       return { type: 'new_customer_follow_up', name: '新客到店 3 天后跟进', trigger: '客户首次到店完成后第 3 天', action: '创建前台/客服跟进任务草稿', guardrails: '同一客户 30 天内最多触发 1 次，不直接发送消息' };
     }

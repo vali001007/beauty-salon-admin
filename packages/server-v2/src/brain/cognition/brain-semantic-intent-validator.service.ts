@@ -35,6 +35,7 @@ export interface BrainSemanticIntentGovernedScope {
     definitionFingerprint: string;
     sourceFingerprint: string;
   }[];
+  rankingContracts?: readonly { capabilityKey: string; domains: readonly string[] }[];
 }
 
 export type BrainSemanticIntentValidationResult =
@@ -106,7 +107,7 @@ export class BrainSemanticIntentValidatorService {
       candidates: [...ambiguity.candidates],
     }));
 
-    this.collectIntentShapeGaps(intent, missingSlots);
+    this.collectIntentShapeGaps(intent, missingSlots, hasGovernedImplicitRankingContract(intent, governedScope));
     clarificationIssues.push(...this.findEntityConflicts(intent));
     const stableClarificationIssues = dedupeIssues(clarificationIssues);
     const ambiguitySlots = new Set(actionableAmbiguities.map((ambiguity) => ambiguity.slot));
@@ -288,10 +289,14 @@ export class BrainSemanticIntentValidatorService {
     ];
   }
 
-  private collectIntentShapeGaps(intent: BrainSemanticIntent, missingSlots: Set<string>): void {
+  private collectIntentShapeGaps(
+    intent: BrainSemanticIntent,
+    missingSlots: Set<string>,
+    hasImplicitRankingContract = false,
+  ): void {
     if (intent.entities.some((entity) => !entity.definitionRef)) missingSlots.add('entity');
 
-    if (intent.intent === 'ranking') {
+    if (intent.intent === 'ranking' && !hasImplicitRankingContract) {
       if (intent.metrics.length === 0) missingSlots.add('metric');
       if (intent.dimensions.length === 0) missingSlots.add('dimension');
       if (intent.orderBy.length === 0) missingSlots.add('orderBy');
@@ -341,6 +346,16 @@ export class BrainSemanticIntentValidatorService {
   ): BrainSemanticIntentValidationResult {
     return { status: 'invalid', intent, ...(snapshotFingerprint ? { snapshotFingerprint } : {}), issues };
   }
+}
+
+function hasGovernedImplicitRankingContract(
+  intent: BrainSemanticIntent,
+  governedScope?: BrainSemanticIntentGovernedScope,
+) {
+  if (intent.intent !== 'ranking' || !governedScope?.rankingContracts?.length || !intent.domains.length) return false;
+  return governedScope.rankingContracts.some((contract) =>
+    intent.domains.every((domain) => contract.domains.includes(domain)),
+  );
 }
 
 function isSpecificActionTarget(entity: BrainSemanticIntent['entities'][number]): boolean {

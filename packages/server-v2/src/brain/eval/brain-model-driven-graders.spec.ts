@@ -85,6 +85,24 @@ describe('Ami Brain model-driven deterministic graders', () => {
     })).toMatchObject({ passed: false });
   });
 
+  it('accepts a supervisor workflow as an action when it preserves the action-preview contract', () => {
+    expect(new BrainIntentGraderService().grade({
+      expected: { intent: 'action', answerShape: 'action_preview' },
+      actual: { intent: 'workflow', answerShape: 'action_preview' },
+    })).toMatchObject({ passed: true, failures: [] });
+  });
+
+  it('accepts a complete grounded no-data action boundary without requiring a fake confirmation button', () => {
+    expect(new BrainCompletionGraderService().grade({
+      expected: { planShape: { requiresPreview: true }, requiresComplete: true, requiresGrounding: true },
+      brainStatus: 'completed',
+      completion: { status: 'complete' },
+      citations: [{ sourceType: 'db_skill', sourceId: 'gap_opportunity_readonly_preview' }],
+      suggestedActions: [],
+      blocks: [{ kind: 'limitations', items: ['no_data:table'] }],
+    })).toMatchObject({ passed: true, failures: [] });
+  });
+
   it('accepts ranking as a grouped cross-entity comparison but not as a time comparison substitute', () => {
     const grader = new BrainIntentGraderService();
     expect(grader.grade({
@@ -206,5 +224,16 @@ describe('BrainIntentGraderService implicit list dimensions', () => {
     });
 
     expect(result.failures).toEqual(expect.arrayContaining(['domain_missing:project', 'dimension_missing:projectName']));
+  });
+});
+
+describe('BrainIntentGraderService domain aliases', () => {
+  it('treats governed payment domains as part of the finance bounded context', () => {
+    const result = new BrainIntentGraderService().grade({
+      expected: { intent: 'query', domains: ['finance'] },
+      actual: { intent: 'query', answerShape: 'scalar', domains: ['payment'] },
+    });
+
+    expect(result).toMatchObject({ passed: true, failures: [] });
   });
 });

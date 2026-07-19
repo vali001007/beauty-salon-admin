@@ -53,6 +53,22 @@ describe('BrainCompletionVerifierService', () => {
     })).resolves.toEqual({ status: 'complete', missingCriteria: [], recoverable: false });
   });
 
+  it('accepts a grounded no-data action as a safe completed outcome without fabricating a preview', async () => {
+    await expect(verifier.verify({
+      plan: plan(),
+      cards: [card({ sideEffect: true, readOnly: false, requiresConfirmation: true, intents: ['action', 'workflow'] })],
+      observations: [observation({
+        status: 'no_data',
+        data: {
+          blocks: [{ kind: 'limitations', items: ['没有真实空档时不生成确认按钮。'] }],
+          metadata: { noActionReason: 'appointment_gap_missing' },
+          suggestedActions: [],
+        },
+      })],
+      intent: 'workflow',
+    })).resolves.toEqual({ status: 'complete', missingCriteria: [], recoverable: false });
+  });
+
   it('uses the governed domain capability contract as the diagnosis completion boundary', async () => {
     const aiService = { generateStructured: jest.fn().mockResolvedValue({ data: { complete: false, missingCriteria: ['invented_scope'] } }) };
     const configured = new BrainCompletionVerifierService(aiService as never, { runtime: { modelTimeoutMs: 1000 } } as never);

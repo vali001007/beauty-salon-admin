@@ -5,6 +5,7 @@ import {
   findUnresolvedBusinessDefinitionRequirements,
 } from './brain-chat.service.js';
 import type { BrainRequestContext } from './context/brain-request-context.js';
+import { BrainResultReferenceService } from './context/brain-result-reference.service.js';
 import { BrainAnswerComposerService } from './semantic/brain-answer-composer.service.js';
 
 describe('BrainChatService', () => {
@@ -185,6 +186,7 @@ describe('BrainChatService', () => {
         status: 'pending',
       }),
     };
+    const resultReferenceService = new BrainResultReferenceService();
     const roleIntentRouter = {
       route: jest.fn(() => ({
         role: 'store_manager',
@@ -366,6 +368,7 @@ describe('BrainChatService', () => {
         skillRuntime as never,
         roleSkillPolicy as never,
         actionConfirmation as never,
+        resultReferenceService as never,
         roleIntentRouter as never,
         domainAdapterRegistry as never,
         options.conversationContext as never,
@@ -392,6 +395,176 @@ describe('BrainChatService', () => {
       ),
     };
   };
+
+  it('returns a deterministic no-campaign decision when the previous expiring product result is empty', () => {
+    const { service } = createService();
+    const resultSets = new BrainResultReferenceService().buildResultSets({
+      runId: 88,
+      adapterMetadata: { mappingOutputs: { expiringBatches: [] } },
+    });
+    const answer = (service as any).answerFromConversationResultReference({
+      intent: {
+        intent: 'recommendation',
+        entities: [],
+      },
+      question: '适合搭配什么活动消化掉？',
+      conversationSlots: { modelContext: { resultSets } },
+      cards: [],
+      modelMetadata: { cognitionMode: 'model', modelStage: 'validate', failureCode: null },
+    });
+
+    expect(answer).toMatchObject({
+      status: 'completed',
+      grounding: 'db_skill',
+      adapterMetadata: {
+        decisionCode: 'expiring_inventory_empty_no_campaign_needed',
+        completion: { status: 'complete' },
+      },
+    });
+    expect(answer.answer).toContain('没有临期产品');
+  });
+
+  it('returns zero when counting VIP customers inside an empty prior reservation result', () => {
+    const { service } = createService();
+    const resultSets = new BrainResultReferenceService().buildResultSets({
+      runId: 87,
+      adapterMetadata: { mappingOutputs: { customerIds: [] } },
+    });
+    const answer = (service as any).answerFromConversationResultReference({
+      intent: { intent: 'query', entities: [] },
+      question: '其中有几个VIP？',
+      conversationSlots: { modelContext: { resultSets } },
+      cards: [],
+      modelMetadata: { cognitionMode: 'model', modelStage: 'validate', failureCode: null },
+    });
+
+    expect(answer).toMatchObject({
+      status: 'completed',
+      adapterMetadata: { decisionCode: 'empty_customer_set_vip_count_zero' },
+      modelContextResultSets: resultSets,
+    });
+    expect(answer.answer).toContain('数量确定为 0');
+  });
+
+  it('resolves the top employee result reference before disclosing the missing notification capability', () => {
+    const { service } = createService();
+    const resultSets = new BrainResultReferenceService().buildResultSets({
+      runId: 89,
+      intent: {
+        schemaVersion: '1.0',
+        objective: '员工业绩排行',
+        domains: ['beautician'],
+        intent: 'ranking',
+        entities: [
+          {
+            entityType: 'beautician',
+            mention: '员工',
+            source: 'system',
+            confidence: 1,
+            definitionRef: {
+              definitionType: 'entity',
+              definitionKey: 'entity.beautician',
+              definitionVersion: 1,
+              definitionFingerprint: 'a'.repeat(64),
+              sourceFingerprint: 'b'.repeat(64),
+            },
+          },
+        ],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'ranking',
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 1,
+        decisionSummary: '排行',
+        successCriteria: ['返回排行'],
+      },
+      adapterMetadata: {
+        mappingOutputs: {
+          staffRanking: [{ entityType: 'beautician', entityKey: '12', mention: '宋乔' }],
+        },
+      },
+    });
+    const normalized = (service as any).normalizeConversationResultReferenceIntent({
+      intent: {
+        intent: 'action',
+        entities: [],
+        missingSlots: ['entity', 'actionTarget'],
+        ambiguities: [{ slot: 'entity', reason: '代词未绑定', candidates: [] }],
+        assumptions: [],
+      },
+      question: '给她发个鼓励通知',
+      conversationSlots: { modelContext: { resultSets } },
+    });
+    const answer = (service as any).answerFromConversationResultReference({
+      intent: normalized,
+      question: '给她发个鼓励通知',
+      conversationSlots: { modelContext: { resultSets } },
+      cards: [
+        {
+          key: 'gap_fill_touch_preview',
+          readOnly: false,
+          sideEffect: true,
+          intents: ['action'],
+          definitionRefs: [
+            {
+              definitionType: 'entity',
+              definitionKey: 'entity.beautician',
+              definitionVersion: 1,
+              definitionFingerprint: 'a'.repeat(64),
+              sourceFingerprint: 'b'.repeat(64),
+            },
+          ],
+        },
+      ],
+      modelMetadata: { cognitionMode: 'model', modelStage: 'validate', failureCode: null },
+    });
+
+    expect(normalized.entities).toEqual([
+      expect.objectContaining({ entityKey: '12', mention: '宋乔', source: 'conversation' }),
+    ]);
+    expect(normalized.missingSlots).toEqual([]);
+    expect(answer).toMatchObject({
+      status: 'completed',
+      adapterMetadata: {
+        unsupportedReason: 'employee_notification_action_not_available',
+        resolvedResultRef: { entityKey: '12', mention: '宋乔' },
+      },
+    });
+    expect(answer.answer).toContain('没有员工内部通知');
+  });
+
+  it('clarifies a gap insertion action when customer, project and target time are not bound', () => {
+    const { service } = createService();
+    const answer = (service as any).answerFromUnsafeActionAmbiguity({
+      intent: {
+        intent: 'action',
+        answerShape: 'action_preview',
+        entities: [],
+        missingSlots: [],
+        ambiguities: [],
+      },
+      question: '能不能再加一个客人进去？',
+      modelMetadata: { cognitionMode: 'model', modelStage: 'validate', failureCode: null },
+    });
+
+    expect(answer).toMatchObject({
+      status: 'completed',
+      grounding: 'none',
+      adapterMetadata: {
+        decisionCode: 'reservation_gap_add_customer_clarification_required',
+        completion: { status: 'partial', recoverable: true },
+      },
+      modelContextIntent: {
+        answerShape: 'clarification',
+        missingSlots: ['customer', 'project', 'targetTime'],
+      },
+    });
+    expect(answer.blocks).toEqual([expect.objectContaining({ kind: 'clarification' })]);
+  });
 
   it('uses the published model single-tool path after context preparation and persists governed metadata', async () => {
     const { prisma, cognition, roleIntentRouter, trace, modelPipeline, service } = createService({ modelPipeline: {} });
@@ -516,8 +689,22 @@ describe('BrainChatService', () => {
       replanCount: 0,
       budgetMs: 10_000,
       nodes: [
-        { id: 'schedule', capabilityKey: 'reservation_list', capabilityVersion: 1, dependsOn: [], previewOnly: false, args: {} },
-        { id: 'candidates', capabilityKey: 'customer_facts', capabilityVersion: 1, dependsOn: [], previewOnly: false, args: {} },
+        {
+          id: 'schedule',
+          capabilityKey: 'reservation_list',
+          capabilityVersion: 1,
+          dependsOn: [],
+          previewOnly: false,
+          args: {},
+        },
+        {
+          id: 'candidates',
+          capabilityKey: 'customer_facts',
+          capabilityVersion: 1,
+          dependsOn: [],
+          previewOnly: false,
+          args: {},
+        },
       ],
     };
     const orchestrator = {
@@ -536,28 +723,82 @@ describe('BrainChatService', () => {
     prisma.brainRun.update.mockResolvedValue({ id: 77 });
     prisma.brainConversation.update.mockResolvedValue({ id: 12 });
     modelPipeline!.compiler.compile.mockResolvedValue({
-      status: 'completed', provider: 'openai', model: 'gpt-test', usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+      status: 'completed',
+      provider: 'openai',
+      model: 'gpt-test',
+      usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
       intent: {
-        schemaVersion: '1.0', objective: '明天下午空档补齐', domains: ['front_desk', 'customer_service'], intent: 'workflow',
-        entities: [], metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'diagnosis', successCriteria: ['找到空档', '找到客户'],
-        ambiguities: [], missingSlots: [], assumptions: [], confidence: 0.95, decisionSummary: '空档补齐',
+        schemaVersion: '1.0',
+        objective: '明天下午空档补齐',
+        domains: ['front_desk', 'customer_service'],
+        intent: 'workflow',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'diagnosis',
+        successCriteria: ['找到空档', '找到客户'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.95,
+        decisionSummary: '空档补齐',
       },
     });
     const baseCard = { description: 'test', readOnly: true, sideEffect: false, requiredPermissions: [] };
     const cards = [
-      { ...baseCard, key: 'reservation_list', version: 1, name: '预约清单', domains: ['front_desk'], intents: ['workflow'] },
-      { ...baseCard, key: 'customer_facts', version: 1, name: '客户事实', domains: ['customer_service'], intents: ['workflow'] },
+      {
+        ...baseCard,
+        key: 'reservation_list',
+        version: 1,
+        name: '预约清单',
+        domains: ['front_desk'],
+        intents: ['workflow'],
+      },
+      {
+        ...baseCard,
+        key: 'customer_facts',
+        version: 1,
+        name: '客户事实',
+        domains: ['customer_service'],
+        intents: ['workflow'],
+      },
     ];
     modelPipeline!.catalog.listEnabledCapabilities.mockResolvedValue(cards);
-    modelPipeline!.retriever.retrieveTopKForSupervisor.mockReturnValue(cards.map((card) => ({ card, score: 0.9, matchedFields: ['name'] })));
+    modelPipeline!.retriever.retrieveTopKForSupervisor.mockReturnValue(
+      cards.map((card) => ({ card, score: 0.9, matchedFields: ['name'] })),
+    );
     modelPipeline!.bounded.execute.mockResolvedValue({
       status: 'completed',
       plan: workflowPlan,
       replanCount: 0,
       completion: { status: 'complete', missingCriteria: [], recoverable: false },
       observations: [
-        { nodeId: 'schedule', capabilityKey: 'reservation_list', capabilityVersion: 1, status: 'completed', grounding: 'db_skill', summary: '明天下午有 2 个空档。', data: { blocks: [], metadata: {}, suggestedActions: [] }, citations: [{ sourceType: 'db', sourceId: 'schedule' }], startedAt: new Date(0).toISOString(), completedAt: new Date(1).toISOString() },
-        { nodeId: 'candidates', capabilityKey: 'customer_facts', capabilityVersion: 1, status: 'completed', grounding: 'db_skill', summary: '找到 3 位候选客户。', data: { blocks: [], metadata: {}, suggestedActions: [] }, citations: [{ sourceType: 'db', sourceId: 'customers' }], startedAt: new Date(0).toISOString(), completedAt: new Date(1).toISOString() },
+        {
+          nodeId: 'schedule',
+          capabilityKey: 'reservation_list',
+          capabilityVersion: 1,
+          status: 'completed',
+          grounding: 'db_skill',
+          summary: '明天下午有 2 个空档。',
+          data: { blocks: [], metadata: {}, suggestedActions: [] },
+          citations: [{ sourceType: 'db', sourceId: 'schedule' }],
+          startedAt: new Date(0).toISOString(),
+          completedAt: new Date(1).toISOString(),
+        },
+        {
+          nodeId: 'candidates',
+          capabilityKey: 'customer_facts',
+          capabilityVersion: 1,
+          status: 'completed',
+          grounding: 'db_skill',
+          summary: '找到 3 位候选客户。',
+          data: { blocks: [], metadata: {}, suggestedActions: [] },
+          citations: [{ sourceType: 'db', sourceId: 'customers' }],
+          startedAt: new Date(0).toISOString(),
+          completedAt: new Date(1).toISOString(),
+        },
       ],
     });
 
@@ -565,7 +806,9 @@ describe('BrainChatService', () => {
 
     expect(response.answer).toContain('明天下午有 2 个空档');
     expect(orchestrator.createModelExecutionPlan).toHaveBeenCalledTimes(1);
-    expect(modelPipeline!.bounded.execute).toHaveBeenCalledWith(expect.objectContaining({ question: '明天下午空档补齐' }));
+    expect(modelPipeline!.bounded.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ question: '明天下午空档补齐' }),
+    );
     expect(modelPipeline!.planner.plan).not.toHaveBeenCalled();
     expect(response).toMatchObject({ planId: 'workflow:gap-fill', cognitionMode: 'model' });
     expect(modelPipeline!.retriever.retrieveTopKForSupervisor).toHaveBeenCalledTimes(1);
@@ -609,14 +852,23 @@ describe('BrainChatService', () => {
               isSingleStep: true,
               replanCount: 0,
               budgetMs: 1000,
-              nodes: [{
-                id: 'capability_1',
-                capabilityKey: card.key,
-                capabilityVersion: card.version,
-                dependsOn: [],
-                previewOnly: false,
-                args: { objective: intent.objective, entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
-              }],
+              nodes: [
+                {
+                  id: 'capability_1',
+                  capabilityKey: card.key,
+                  capabilityVersion: card.version,
+                  dependsOn: [],
+                  previewOnly: false,
+                  args: {
+                    objective: intent.objective,
+                    entities: [],
+                    metrics: [],
+                    dimensions: [],
+                    filters: [],
+                    orderBy: [],
+                  },
+                },
+              ],
             },
           })),
         },
@@ -672,17 +924,54 @@ describe('BrainChatService', () => {
 
   it('uses Supervisor to resolve internal topK ambiguity instead of asking the user to choose a tool', async () => {
     const cards = [
-      { key: 'customer_facts', version: 12, name: '客户事实查询', description: '客户名单和事实', domains: ['customer'], intents: ['query'], readOnly: true, sideEffect: false, requiredPermissions: [] },
-      { key: 'marketing_customer_segment', version: 5, name: '客户分群摘要', description: '客户分群汇总', domains: ['customer'], intents: ['query'], readOnly: true, sideEffect: false, requiredPermissions: [] },
+      {
+        key: 'customer_facts',
+        version: 12,
+        name: '客户事实查询',
+        description: '客户名单和事实',
+        domains: ['customer'],
+        intents: ['query'],
+        readOnly: true,
+        sideEffect: false,
+        requiredPermissions: [],
+      },
+      {
+        key: 'marketing_customer_segment',
+        version: 5,
+        name: '客户分群摘要',
+        description: '客户分群汇总',
+        domains: ['customer'],
+        intents: ['query'],
+        readOnly: true,
+        sideEffect: false,
+        requiredPermissions: [],
+      },
     ];
     const topK = cards.map((card, index) => ({ card, score: 0.7 - index * 0.02, matchedFields: ['description'] }));
     const plan = {
-      schemaVersion: '1.0', planId: 'supervisor:customer-facts', objective: '统计45天未到店客户', replanCount: 0,
-      budgetMs: 10_000, nodes: [{ id: 'customers', capabilityKey: 'customer_facts', capabilityVersion: 12, dependsOn: [], previewOnly: false, args: {} }],
+      schemaVersion: '1.0',
+      planId: 'supervisor:customer-facts',
+      objective: '统计45天未到店客户',
+      replanCount: 0,
+      budgetMs: 10_000,
+      nodes: [
+        {
+          id: 'customers',
+          capabilityKey: 'customer_facts',
+          capabilityVersion: 12,
+          dependsOn: [],
+          previewOnly: false,
+          args: {},
+        },
+      ],
     };
     const orchestrator = {
       createModelExecutionPlan: jest.fn().mockResolvedValue({
-        status: 'planned', provider: 'openai', model: 'gpt-test', usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }, plan,
+        status: 'planned',
+        provider: 'openai',
+        model: 'gpt-test',
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+        plan,
       }),
     };
     const { prisma, modelPipeline, service } = createService({ modelPipeline: {}, orchestrator });
@@ -692,26 +981,56 @@ describe('BrainChatService', () => {
     prisma.brainRun.update.mockResolvedValue({ id: 77 });
     prisma.brainConversation.update.mockResolvedValue({ id: 12 });
     modelPipeline!.compiler.compile.mockResolvedValue({
-      status: 'completed', provider: 'openai', model: 'gpt-test', usage: {},
+      status: 'completed',
+      provider: 'openai',
+      model: 'gpt-test',
+      usage: {},
       intent: {
-        schemaVersion: '1.0', objective: '统计45天未到店客户', domains: ['customer'], intent: 'query', entities: [],
-        metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'list', successCriteria: ['返回客户数量和名单'],
-        ambiguities: [], missingSlots: [], assumptions: [], confidence: 0.9, decisionSummary: '客户名单查询',
+        schemaVersion: '1.0',
+        objective: '统计45天未到店客户',
+        domains: ['customer'],
+        intent: 'query',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'list',
+        successCriteria: ['返回客户数量和名单'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.9,
+        decisionSummary: '客户名单查询',
       },
     } as never);
     modelPipeline!.catalog.listEnabledCapabilities.mockResolvedValue(cards);
     modelPipeline!.retriever.retrieve.mockReturnValue({
-      status: 'clarify', topK, confidence: 0.7, margin: 0.02, reason: 'top1_margin_insufficient',
+      status: 'clarify',
+      topK,
+      confidence: 0.7,
+      margin: 0.02,
+      reason: 'top1_margin_insufficient',
     } as never);
     modelPipeline!.bounded.execute.mockResolvedValue({
-      status: 'completed', plan, replanCount: 0,
+      status: 'completed',
+      plan,
+      replanCount: 0,
       completion: { status: 'complete', missingCriteria: [], recoverable: false },
-      observations: [{
-        nodeId: 'customers', capabilityKey: 'customer_facts', capabilityVersion: 12, status: 'completed', grounding: 'db_skill',
-        summary: '45天未到店客户共1178人。', data: { blocks: [], metadata: {}, suggestedActions: [] },
-        citations: [{ sourceType: 'db_skill', sourceId: 'customer_facts', label: '客户事实' }],
-        startedAt: new Date(0).toISOString(), completedAt: new Date(1).toISOString(),
-      }],
+      observations: [
+        {
+          nodeId: 'customers',
+          capabilityKey: 'customer_facts',
+          capabilityVersion: 12,
+          status: 'completed',
+          grounding: 'db_skill',
+          summary: '45天未到店客户共1178人。',
+          data: { blocks: [], metadata: {}, suggestedActions: [] },
+          citations: [{ sourceType: 'db_skill', sourceId: 'customer_facts', label: '客户事实' }],
+          startedAt: new Date(0).toISOString(),
+          completedAt: new Date(1).toISOString(),
+        },
+      ],
     });
 
     const response = await service.sendMessage(context, 12, { message: '帮我找一下45天没来的客户，大概有多少人' });
@@ -724,17 +1043,40 @@ describe('BrainChatService', () => {
 
   it('falls back to Supervisor when a multi-domain diagnosis has no single hard-filter match', async () => {
     const card = {
-      key: 'finance_risk_overview', version: 20, name: '财务经营风险概览', description: '现金流、退款、折扣、成本与毛利风险',
-      domains: ['finance', 'payment', 'refund', 'operating_cost'], intents: ['query', 'diagnosis'], readOnly: true,
-      sideEffect: false, requiredPermissions: [], allowedRoles: ['store_manager'], examples: [],
+      key: 'finance_risk_overview',
+      version: 20,
+      name: '财务经营风险概览',
+      description: '现金流、退款、折扣、成本与毛利风险',
+      domains: ['finance', 'payment', 'refund', 'operating_cost'],
+      intents: ['query', 'diagnosis'],
+      readOnly: true,
+      sideEffect: false,
+      requiredPermissions: [],
+      allowedRoles: ['store_manager'],
+      examples: [],
     };
     const topK = [{ card, score: 0.86, matchedFields: ['description'] }];
     const plan = {
-      schemaVersion: '1.0', planId: 'supervisor:finance-risk', objective: '检查现金流异常', replanCount: 0,
-      budgetMs: 10_000, nodes: [{ id: 'finance', capabilityKey: card.key, capabilityVersion: card.version, dependsOn: [], previewOnly: false, args: {} }],
+      schemaVersion: '1.0',
+      planId: 'supervisor:finance-risk',
+      objective: '检查现金流异常',
+      replanCount: 0,
+      budgetMs: 10_000,
+      nodes: [
+        {
+          id: 'finance',
+          capabilityKey: card.key,
+          capabilityVersion: card.version,
+          dependsOn: [],
+          previewOnly: false,
+          args: {},
+        },
+      ],
     };
     const orchestrator = {
-      createModelExecutionPlan: jest.fn().mockResolvedValue({ status: 'planned', provider: 'openai', model: 'gpt-test', usage: {}, plan }),
+      createModelExecutionPlan: jest
+        .fn()
+        .mockResolvedValue({ status: 'planned', provider: 'openai', model: 'gpt-test', usage: {}, plan }),
     };
     const { prisma, modelPipeline, service } = createService({ modelPipeline: {}, orchestrator });
     prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
@@ -743,26 +1085,57 @@ describe('BrainChatService', () => {
     prisma.brainRun.update.mockResolvedValue({ id: 77 });
     prisma.brainConversation.update.mockResolvedValue({ id: 12 });
     modelPipeline!.compiler.compile.mockResolvedValue({
-      status: 'completed', provider: 'openai', model: 'gpt-test', usage: {},
+      status: 'completed',
+      provider: 'openai',
+      model: 'gpt-test',
+      usage: {},
       intent: {
-        schemaVersion: '1.0', objective: '检查最近现金流异常', domains: ['finance', 'payment', 'refund'], intent: 'diagnosis',
-        entities: [], metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'diagnosis',
-        successCriteria: ['读取现金流事实', '识别异常并披露限制'], ambiguities: [], missingSlots: [], assumptions: [],
-        confidence: 0.92, decisionSummary: '财务风险诊断',
+        schemaVersion: '1.0',
+        objective: '检查最近现金流异常',
+        domains: ['finance', 'payment', 'refund'],
+        intent: 'diagnosis',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'diagnosis',
+        successCriteria: ['读取现金流事实', '识别异常并披露限制'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.92,
+        decisionSummary: '财务风险诊断',
       },
     } as never);
     modelPipeline!.catalog.listEnabledCapabilities.mockResolvedValue([card]);
-    modelPipeline!.retriever.retrieve.mockReturnValue({ status: 'none', topK: [], confidence: 0, margin: 0, reason: 'no_capability_after_hard_filters' } as never);
+    modelPipeline!.retriever.retrieve.mockReturnValue({
+      status: 'none',
+      topK: [],
+      confidence: 0,
+      margin: 0,
+      reason: 'no_capability_after_hard_filters',
+    } as never);
     modelPipeline!.retriever.retrieveTopKForSupervisor.mockReturnValue(topK as never);
     modelPipeline!.bounded.execute.mockResolvedValue({
-      status: 'completed', plan, replanCount: 0,
+      status: 'completed',
+      plan,
+      replanCount: 0,
       completion: { status: 'complete', missingCriteria: [], recoverable: false },
-      observations: [{
-        nodeId: 'finance', capabilityKey: card.key, capabilityVersion: card.version, status: 'completed', grounding: 'db_skill',
-        summary: '当前未发现现金流异常。', data: { blocks: [], metadata: {}, suggestedActions: [] },
-        citations: [{ sourceType: 'db_skill', sourceId: 'finance_risk_summary', label: '财务风险摘要' }],
-        startedAt: new Date(0).toISOString(), completedAt: new Date(1).toISOString(),
-      }],
+      observations: [
+        {
+          nodeId: 'finance',
+          capabilityKey: card.key,
+          capabilityVersion: card.version,
+          status: 'completed',
+          grounding: 'db_skill',
+          summary: '当前未发现现金流异常。',
+          data: { blocks: [], metadata: {}, suggestedActions: [] },
+          citations: [{ sourceType: 'db_skill', sourceId: 'finance_risk_summary', label: '财务风险摘要' }],
+          startedAt: new Date(0).toISOString(),
+          completedAt: new Date(1).toISOString(),
+        },
+      ],
     });
 
     const response = await service.sendMessage(context, 12, { message: '最近有没有现金流异常的情况' });
@@ -787,27 +1160,48 @@ describe('BrainChatService', () => {
     prisma.brainRun.update.mockResolvedValue({ id: 77 });
     prisma.brainConversation.update.mockResolvedValue({ id: 12 });
     modelPipeline!.compiler.compile.mockResolvedValue({
-      status: 'completed', provider: 'openai', model: 'gpt-test', usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+      status: 'completed',
+      provider: 'openai',
+      model: 'gpt-test',
+      usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
       intent: {
-        schemaVersion: '1.0', objective: '识别召回客户并给出方案', domains: ['marketing', 'customer'], intent: 'workflow',
-        entities: [], metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'diagnosis',
-        successCriteria: ['找到客户', '给出召回方案'], ambiguities: [], missingSlots: [], assumptions: [], confidence: 0.95,
+        schemaVersion: '1.0',
+        objective: '识别召回客户并给出方案',
+        domains: ['marketing', 'customer'],
+        intent: 'workflow',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'diagnosis',
+        successCriteria: ['找到客户', '给出召回方案'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.95,
         decisionSummary: '召回客户规划',
       },
     });
     const card = {
-      key: 'marketing_growth_overview', version: 1, name: '营销增长概览', description: '营销增长',
-      domains: ['marketing', 'customer'], intents: ['recommendation'], readOnly: true, sideEffect: false,
-      requiredPermissions: [], allowedRoles: ['marketing'], examples: [],
+      key: 'marketing_growth_overview',
+      version: 1,
+      name: '营销增长概览',
+      description: '营销增长',
+      domains: ['marketing', 'customer'],
+      intents: ['recommendation'],
+      readOnly: true,
+      sideEffect: false,
+      requiredPermissions: [],
+      allowedRoles: ['marketing'],
+      examples: [],
     };
     modelPipeline!.catalog.listEnabledCapabilities.mockResolvedValue([card]);
     modelPipeline!.retriever.retrieveTopKForSupervisor.mockReturnValue([{ card, score: 0.9, matchedFields: ['name'] }]);
 
-    const response = await service.sendMessage(
-      { ...context, roles: ['marketing'] },
-      12,
-      { message: '我想做个召回活动，哪些客户最值得联系' },
-    );
+    const response = await service.sendMessage({ ...context, roles: ['marketing'] }, 12, {
+      message: '我想做个召回活动，哪些客户最值得联系',
+    });
 
     expect(response).toMatchObject({
       status: 'failed',
@@ -915,11 +1309,10 @@ describe('BrainChatService', () => {
     prisma.brainRun.update.mockResolvedValue({ id: 77 });
     prisma.brainConversation.update.mockResolvedValue({ id: 12 });
 
-    await service.sendMessage(
-      { ...context, roles: ['receptionist'] },
-      12,
-      { message: '本月商品销售排行', roleHint: 'finance' },
-    );
+    await service.sendMessage({ ...context, roles: ['receptionist'] }, 12, {
+      message: '本月商品销售排行',
+      roleHint: 'finance',
+    });
 
     expect(modelPipeline!.compiler.compile).toHaveBeenCalledWith(expect.objectContaining({ role: 'receptionist' }));
   });
@@ -1033,7 +1426,7 @@ describe('BrainChatService', () => {
       assumptions: [],
       confidence: 0.9,
       decisionSummary: '需要澄清',
-    });
+    }, '帮我看看');
 
     expect(normalized).toMatchObject({
       intent: 'clarify',
@@ -1041,6 +1434,38 @@ describe('BrainChatService', () => {
       domains: [],
       entities: [],
       missingSlots: ['objective'],
+    });
+  });
+
+  it('requires a transaction identifier before querying a complete payment trail', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const normalized = (service as any).normalizeModelClarificationIntent(
+      {
+        schemaVersion: '1.0',
+        objective: '查询完整交易流水',
+        domains: ['payment'],
+        intent: 'query',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'list',
+        successCriteria: ['返回交易流水'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.9,
+        decisionSummary: '查询交易',
+      },
+      '帮我查一下某笔交易的完整流水',
+    );
+
+    expect(normalized).toMatchObject({
+      intent: 'clarify',
+      answerShape: 'clarification',
+      missingSlots: ['entity'],
+      ambiguities: [expect.objectContaining({ slot: 'entity' })],
     });
   });
 
@@ -1064,16 +1489,18 @@ describe('BrainChatService', () => {
       confidence: 0.8,
       decisionSummary: '错误识别为完成服务动作',
     };
-    const cards = [{
-      key: 'beautician_service_overview',
-      name: '美容师个人服务概览',
-      description: '查询当前登录美容师的下一个预约、客户和时间。',
-      examples: ['我现在服务完这个客人，下一个几点来'],
-      synonyms: ['我的下一个预约'],
-      readOnly: true,
-      sideEffect: false,
-      intents: ['query', 'recommendation'],
-    }];
+    const cards = [
+      {
+        key: 'beautician_service_overview',
+        name: '美容师个人服务概览',
+        description: '查询当前登录美容师的下一个预约、客户和时间。',
+        examples: ['我现在服务完这个客人，下一个几点来'],
+        synonyms: ['我的下一个预约'],
+        readOnly: true,
+        sideEffect: false,
+        intents: ['query', 'recommendation'],
+      },
+    ];
 
     const normalized = (service as any).normalizeReadOnlyQuestionIntent({
       intent: actionIntent,
@@ -1113,16 +1540,18 @@ describe('BrainChatService', () => {
     const normalized = (service as any).normalizeReadOnlyQuestionIntent({
       intent: actionIntent,
       question: '帮我取消预约',
-      cards: [{
-        key: 'front_desk_operations_overview',
-        name: '前台预约查询',
-        description: '查询预约',
-        examples: [],
-        synonyms: [],
-        readOnly: true,
-        sideEffect: false,
-        intents: ['query'],
-      }],
+      cards: [
+        {
+          key: 'front_desk_operations_overview',
+          name: '前台预约查询',
+          description: '查询预约',
+          examples: [],
+          synonyms: [],
+          readOnly: true,
+          sideEffect: false,
+          intents: ['query'],
+        },
+      ],
     });
 
     expect(normalized).toBe(actionIntent);
@@ -1162,6 +1591,34 @@ describe('BrainChatService', () => {
     expect(normalized.assumptions).toContain('用户明确要求发送或执行，按受控动作处理，不把动作请求降级为普通文案。');
   });
 
+  it('upgrades an explicit add-customer command even when the model labels it as a query', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const normalized = (service as any).normalizeReadOnlyQuestionIntent({
+      intent: {
+        schemaVersion: '1.0',
+        objective: '再加一个客人进去',
+        domains: ['reservation'],
+        intent: 'query',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'list',
+        successCriteria: ['返回结果'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.8,
+        decisionSummary: '错误识别为查询',
+      },
+      question: '能不能再加一个客人进去？',
+      cards: [],
+    });
+
+    expect(normalized).toMatchObject({ intent: 'action', answerShape: 'action_preview' });
+  });
+
   it('narrows model-added domains to the selected governed capability contract', () => {
     const { service } = createService({ modelPipeline: {} });
     const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
@@ -1184,18 +1641,20 @@ describe('BrainChatService', () => {
         decisionSummary: '活动建议',
       },
       question: '最近销售下滑，有什么活动可以拉动一下',
-      cards: [{
-        key: 'marketing_campaign_plan',
-        name: '营销活动方案草稿',
-        description: '根据经营目标生成门店营销活动建议。',
-        examples: ['最近销售下滑，有什么活动可以拉动一下'],
-        synonyms: ['活动方案'],
-        domains: ['customer', 'project'],
-        intents: ['draft', 'recommendation'],
-        definitionRefs: [],
-        readOnly: true,
-        sideEffect: false,
-      }],
+      cards: [
+        {
+          key: 'marketing_campaign_plan',
+          name: '营销活动方案草稿',
+          description: '根据经营目标生成门店营销活动建议。',
+          examples: ['最近销售下滑，有什么活动可以拉动一下'],
+          synonyms: ['活动方案'],
+          domains: ['customer', 'project'],
+          intents: ['draft', 'recommendation'],
+          definitionRefs: [],
+          readOnly: true,
+          sideEffect: false,
+        },
+      ],
     });
 
     expect(normalized.domains).toEqual(['customer', 'project']);
@@ -1284,18 +1743,20 @@ describe('BrainChatService', () => {
         decisionSummary: '实收查询',
       },
       question: '今天收了多少钱',
-      cards: [{
-        key: 'finance_payment_breakdown',
-        name: '实收与储值流水拆分',
-        description: '查询实收金额和支付方式。',
-        examples: ['今天收了多少钱'],
-        synonyms: ['实收金额'],
-        domains: ['finance', 'payment'],
-        intents: ['query', 'comparison', 'ranking', 'trend'],
-        definitionRefs: [paidAmount],
-        readOnly: true,
-        sideEffect: false,
-      }],
+      cards: [
+        {
+          key: 'finance_payment_breakdown',
+          name: '实收与储值流水拆分',
+          description: '查询实收金额和支付方式。',
+          examples: ['今天收了多少钱'],
+          synonyms: ['实收金额'],
+          domains: ['finance', 'payment'],
+          intents: ['query', 'comparison', 'ranking', 'trend'],
+          definitionRefs: [paidAmount],
+          readOnly: true,
+          sideEffect: false,
+        },
+      ],
     });
 
     expect(normalized.domains).toEqual(['finance', 'payment']);
@@ -1305,9 +1766,21 @@ describe('BrainChatService', () => {
   it('inherits the previous time range for a requery and applies an explicit time replacement', () => {
     const { service } = createService({ modelPipeline: {} });
     const intent = {
-      schemaVersion: '1.0', objective: '重新查询营业额', domains: ['payment'], intent: 'query', entities: [],
-      metrics: [definitionRef('metric.paid_amount')], dimensions: [], filters: [], orderBy: [], answerShape: 'scalar',
-      successCriteria: ['返回实收'], ambiguities: [], missingSlots: [], assumptions: [], confidence: 0.9,
+      schemaVersion: '1.0',
+      objective: '重新查询营业额',
+      domains: ['payment'],
+      intent: 'query',
+      entities: [],
+      metrics: [definitionRef('metric.paid_amount')],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'scalar',
+      successCriteria: ['返回实收'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 0.9,
       decisionSummary: '重新查询营业额',
     };
     const modelContext = { timeRange: { preset: 'this_month', label: '本月', timezone: 'Asia/Shanghai' } };
@@ -1333,10 +1806,22 @@ describe('BrainChatService', () => {
     const paidAmount = definitionRef('metric.paid_amount');
     const normalized = (service as any).normalizeConversationPresentationIntent({
       intent: {
-        schemaVersion: '1.0', objective: '只用文字', domains: [], intent: 'clarify', entities: [], metrics: [],
-        dimensions: [], filters: [], orderBy: [], answerShape: 'clarification', successCriteria: [],
-        ambiguities: [{ slot: 'objective', reason: '缺少目标', candidates: [] }], missingSlots: ['objective'],
-        assumptions: [], confidence: 0.5, decisionSummary: '格式要求',
+        schemaVersion: '1.0',
+        objective: '只用文字',
+        domains: [],
+        intent: 'clarify',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'clarification',
+        successCriteria: [],
+        ambiguities: [{ slot: 'objective', reason: '缺少目标', candidates: [] }],
+        missingSlots: ['objective'],
+        assumptions: [],
+        confidence: 0.5,
+        decisionSummary: '格式要求',
       },
       question: '我不要表格，给我用文字说',
       conversationSlots: {
@@ -1403,7 +1888,9 @@ describe('BrainChatService', () => {
     const bound = (service as any).normalizeUnboundReferenceIntent({
       intent: diagnosisIntent,
       question: '这个数据有问题吗',
-      conversationSlots: { modelContext: { objective: '检查本月实收', metrics: [{ definitionKey: 'metric.paid_amount' }] } },
+      conversationSlots: {
+        modelContext: { objective: '检查本月实收', metrics: [{ definitionKey: 'metric.paid_amount' }] },
+      },
     });
     expect(bound).toBe(diagnosisIntent);
   });
@@ -1459,10 +1946,23 @@ describe('BrainChatService', () => {
     const previous = { preset: 'last_month', label: '上月', timezone: 'Asia/Shanghai' };
     const normalized = (service as any).normalizePendingClarificationResolution({
       intent: {
-        schemaVersion: '1.0', objective: '比较本月与上月实收', domains: ['finance'], intent: 'comparison',
-        entities: [], metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'comparison',
-        successCriteria: ['返回差额'], ambiguities: [], missingSlots: ['comparisonTarget'], assumptions: [],
-        confidence: 1, decisionSummary: '对比实收', timeRange: current,
+        schemaVersion: '1.0',
+        objective: '比较本月与上月实收',
+        domains: ['finance'],
+        intent: 'comparison',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'comparison',
+        successCriteria: ['返回差额'],
+        ambiguities: [],
+        missingSlots: ['comparisonTarget'],
+        assumptions: [],
+        confidence: 1,
+        decisionSummary: '对比实收',
+        timeRange: current,
       },
       question: '比上个月高了多少',
       conversationSlots: {
@@ -1492,7 +1992,9 @@ describe('BrainChatService', () => {
       objective: '为胡静怡起草回店护理提醒',
       domains: ['customer'],
       intent: 'draft',
-      entities: [{ entityType: 'customer', mention: '胡静怡', source: 'user', definitionRef: customerRef, confidence: 1 }],
+      entities: [
+        { entityType: 'customer', mention: '胡静怡', source: 'user', definitionRef: customerRef, confidence: 1 },
+      ],
       metrics: [],
       dimensions: [],
       filters: [],
@@ -1563,7 +2065,15 @@ describe('BrainChatService', () => {
       question: '她有没有办过卡，还有多少次',
       conversationSlots: {
         modelContext: {
-          entities: [{ entityType: 'customer', mention: '马美琳，手机尾号6325', source: 'user', definitionRef: customerRef, confidence: 1 }],
+          entities: [
+            {
+              entityType: 'customer',
+              mention: '马美琳，手机尾号6325',
+              source: 'user',
+              definitionRef: customerRef,
+              confidence: 1,
+            },
+          ],
         },
         turnDirectives: { inherit: ['entities'], doNotInherit: [] },
       },
@@ -1590,7 +2100,15 @@ describe('BrainChatService', () => {
       objective: '补充客户身份',
       domains: [],
       intent: 'clarify',
-      entities: [{ entityType: 'customer', mention: '马美琳，手机尾号6325', source: 'user', definitionRef: customerRef, confidence: 1 }],
+      entities: [
+        {
+          entityType: 'customer',
+          mention: '马美琳，手机尾号6325',
+          source: 'user',
+          definitionRef: customerRef,
+          confidence: 1,
+        },
+      ],
       metrics: [],
       dimensions: [],
       filters: [],
@@ -1641,7 +2159,15 @@ describe('BrainChatService', () => {
       objective: '查看客户历史',
       domains: ['customer', 'reservation'],
       intent: 'diagnosis',
-      entities: [{ entityType: 'customer', mention: '马美琳（手机号后四位6325）', source: 'user', definitionRef: customerRef, confidence: 1 }],
+      entities: [
+        {
+          entityType: 'customer',
+          mention: '马美琳（手机号后四位6325）',
+          source: 'user',
+          definitionRef: customerRef,
+          confidence: 1,
+        },
+      ],
       metrics: [],
       dimensions: [],
       filters: [],
@@ -1655,20 +2181,24 @@ describe('BrainChatService', () => {
       decisionSummary: '客户历史',
     };
 
-    expect((service as any).normalizeExactCustomerFactIntent({
-      intent: baseIntent,
-      question: '帮我查一下马美琳，手机尾号6325，她上次来是什么时候',
-    })).toMatchObject({
+    expect(
+      (service as any).normalizeExactCustomerFactIntent({
+        intent: baseIntent,
+        question: '帮我查一下马美琳，手机尾号6325，她上次来是什么时候',
+      }),
+    ).toMatchObject({
       domains: ['customer'],
       intent: 'query',
       answerShape: 'list',
       entities: [expect.objectContaining({ mention: '马美琳（手机号后四位6325）' })],
     });
 
-    expect((service as any).normalizeExactCustomerFactIntent({
-      intent: baseIntent,
-      question: '马美琳手机尾号6325的预约是几点',
-    })).toBe(baseIntent);
+    expect(
+      (service as any).normalizeExactCustomerFactIntent({
+        intent: baseIntent,
+        question: '马美琳手机尾号6325的预约是几点',
+      }),
+    ).toBe(baseIntent);
   });
 
   it('reuses the snapshot-bound capability while resolving a pending clarification', () => {
@@ -1694,14 +2224,16 @@ describe('BrainChatService', () => {
     );
 
     expect(selected).toBe(card);
-    expect((service as any).resolvePendingClarificationCapability(
-      {
-        modelContext: { capability: { key: 'customer_facts', version: 18 } },
-        turnDirectives: { mode: 'resolve_pending_or_new', pendingSlots: ['entity'] },
-      },
-      intent,
-      [card as any],
-    )).toBeUndefined();
+    expect(
+      (service as any).resolvePendingClarificationCapability(
+        {
+          modelContext: { capability: { key: 'customer_facts', version: 18 } },
+          turnDirectives: { mode: 'resolve_pending_or_new', pendingSlots: ['entity'] },
+        },
+        intent,
+        [card as any],
+      ),
+    ).toBeUndefined();
   });
 
   it('returns model blocks through the ready event, run output, assistant metadata, and final response', async () => {
@@ -1728,12 +2260,7 @@ describe('BrainChatService', () => {
     prisma.brainRun.update.mockResolvedValue({ id: 77 });
     prisma.brainConversation.update.mockResolvedValue({ id: 12 });
 
-    const response = await service.sendMessage(
-      context,
-      12,
-      { message: '本月商品销售排行' },
-      { onAnswerReady },
-    );
+    const response = await service.sendMessage(context, 12, { message: '本月商品销售排行' }, { onAnswerReady });
 
     const event = onAnswerReady.mock.calls[0][0];
     expect(response.blocks).toEqual(event.blocks);
@@ -1745,10 +2272,17 @@ describe('BrainChatService', () => {
       },
     ]);
     expect(prisma.brainRun.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ output: expect.objectContaining({ blocks: event.blocks }) }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({ output: expect.objectContaining({ blocks: event.blocks }) }),
+      }),
     );
     expect(prisma.brainMessage.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ role: 'assistant', metadata: expect.objectContaining({ blocks: event.blocks }) }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({
+          role: 'assistant',
+          metadata: expect.objectContaining({ blocks: event.blocks }),
+        }),
+      }),
     );
   });
 
@@ -1761,12 +2295,7 @@ describe('BrainChatService', () => {
     prisma.brainRun.update.mockResolvedValue({ id: 77 });
     prisma.brainConversation.update.mockResolvedValue({ id: 12 });
 
-    const response = await service.sendMessage(
-      context,
-      12,
-      { message: '本月商品销售排行' },
-      { onAnswerReady },
-    );
+    const response = await service.sendMessage(context, 12, { message: '本月商品销售排行' }, { onAnswerReady });
 
     const output = prisma.brainRun.update.mock.calls[0][0].data.output;
     const assistantMetadata = prisma.brainMessage.create.mock.calls.at(-1)[0].data.metadata;
@@ -1784,9 +2313,15 @@ describe('BrainChatService', () => {
     expect(output).toEqual(response);
     expect(assistantMetadata).toEqual(response);
     expect(onAnswerReady).toHaveBeenCalledWith(response);
-    expect(onAnswerReady.mock.invocationCallOrder[0]).toBeGreaterThan(prisma.brainRun.update.mock.invocationCallOrder[0]);
-    expect(onAnswerReady.mock.invocationCallOrder[0]).toBeGreaterThan(prisma.brainMessage.create.mock.invocationCallOrder.at(-1)!);
-    expect(onAnswerReady.mock.invocationCallOrder[0]).toBeGreaterThan(prisma.brainConversation.update.mock.invocationCallOrder[0]);
+    expect(onAnswerReady.mock.invocationCallOrder[0]).toBeGreaterThan(
+      prisma.brainRun.update.mock.invocationCallOrder[0],
+    );
+    expect(onAnswerReady.mock.invocationCallOrder[0]).toBeGreaterThan(
+      prisma.brainMessage.create.mock.invocationCallOrder.at(-1)!,
+    );
+    expect(onAnswerReady.mock.invocationCallOrder[0]).toBeGreaterThan(
+      prisma.brainConversation.update.mock.invocationCallOrder[0],
+    );
   });
 
   it('does not publish a ready event when core response persistence fails', async () => {
@@ -1797,9 +2332,9 @@ describe('BrainChatService', () => {
     prisma.brainRun.create.mockResolvedValue({ id: 77 });
     prisma.brainRun.update.mockRejectedValue(new Error('database write failed'));
 
-    await expect(
-      service.sendMessage(context, 12, { message: '本月商品销售排行' }, { onAnswerReady }),
-    ).rejects.toThrow('database write failed');
+    await expect(service.sendMessage(context, 12, { message: '本月商品销售排行' }, { onAnswerReady })).rejects.toThrow(
+      'database write failed',
+    );
 
     expect(onAnswerReady).not.toHaveBeenCalled();
   });
@@ -1819,12 +2354,7 @@ describe('BrainChatService', () => {
     prisma.brainRun.update.mockResolvedValue({ id: 77 });
     prisma.brainConversation.update.mockResolvedValue({ id: 12 });
 
-    const response = await service.sendMessage(
-      context,
-      12,
-      { message: '本月商品销售排行' },
-      { onAnswerReady },
-    );
+    const response = await service.sendMessage(context, 12, { message: '本月商品销售排行' }, { onAnswerReady });
 
     expect(response).toMatchObject({ status: 'completed', answer: '商品销售排行：补水面膜第一。' });
     expect(onAnswerReady).toHaveBeenCalledWith(response);
@@ -1877,7 +2407,8 @@ describe('BrainChatService', () => {
       if (kind === 'plan') {
         modelPipeline!.planner.plan.mockReturnValue({ status: 'unavailable', reason: 'planner raw failure' } as any);
       }
-      if (kind === 'execute') modelPipeline!.executor.execute.mockRejectedValue(new Error('database provider raw error'));
+      if (kind === 'execute')
+        modelPipeline!.executor.execute.mockRejectedValue(new Error('database provider raw error'));
 
       const response = await service.sendMessage(context, 12, { message: '本月商品销售排行' });
 
@@ -1887,15 +2418,26 @@ describe('BrainChatService', () => {
         modelStage: expectedStage,
         failureCode,
       });
-      for (const field of ['provider', 'model', 'intentSchemaVersion', 'capabilityKey', 'capabilityVersion', 'planId']) {
+      for (const field of [
+        'provider',
+        'model',
+        'intentSchemaVersion',
+        'capabilityKey',
+        'capabilityVersion',
+        'planId',
+      ]) {
         expect(response).toHaveProperty(field);
       }
       expect(response.answer).not.toContain('raw');
       expect(prisma.brainRun.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ output: expect.objectContaining({ failureCode }) }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({ output: expect.objectContaining({ failureCode }) }),
+        }),
       );
       expect(prisma.brainMessage.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ metadata: expect.objectContaining({ failureCode }) }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({ metadata: expect.objectContaining({ failureCode }) }),
+        }),
       );
       expect(JSON.stringify(trace.recordStep.mock.calls)).not.toContain('raw');
       if (kind === 'unavailable') {
@@ -2036,7 +2578,9 @@ describe('BrainChatService', () => {
   });
 
   it('marks the run failed when an internal candidate release cannot be resolved', async () => {
-    const releaseService = { resolveRuntimeMode: jest.fn().mockRejectedValue(new Error('evaluation_release_not_found')) };
+    const releaseService = {
+      resolveRuntimeMode: jest.fn().mockRejectedValue(new Error('evaluation_release_not_found')),
+    };
     const { prisma, service } = createService({ modelPipeline: {}, releaseService });
     prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
     prisma.brainMessage.create.mockResolvedValue({ id: 101 });
@@ -2174,7 +2718,11 @@ describe('BrainChatService', () => {
     prisma.brainConversation.update.mockResolvedValue({ id: 12 });
     cognition.understand.mockReturnValue({
       normalizedText: '本月商品销售排行',
-      terms: [], metrics: [], dimensions: [], entities: [], unsupportedTerms: [],
+      terms: [],
+      metrics: [],
+      dimensions: [],
+      entities: [],
+      unsupportedTerms: [],
       intent: { key: 'metric_query', confidence: 0.9, reason: 'test' },
       needsClarification: false,
     });
@@ -2182,11 +2730,13 @@ describe('BrainChatService', () => {
     const response = await service.sendMessage(context, 12, { message: '本月商品销售排行' });
 
     expect(modelPipeline!.compiler.compile).toHaveBeenCalledTimes(2);
-    expect(modelPipeline!.compiler.compile).toHaveBeenLastCalledWith(expect.objectContaining({
-      repairFeedback: expect.objectContaining({
-        issues: [expect.objectContaining({ code: 'UNKNOWN_DOMAIN', slot: 'domain' })],
+    expect(modelPipeline!.compiler.compile).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        repairFeedback: expect.objectContaining({
+          issues: [expect.objectContaining({ code: 'UNKNOWN_DOMAIN', slot: 'domain' })],
+        }),
       }),
-    }));
+    );
     expect(response.failureCode).not.toBe('MODEL_INTENT_INVALID');
   });
 
@@ -2194,29 +2744,70 @@ describe('BrainChatService', () => {
     const { prisma, cognition, modelPipeline, service } = createService({ modelPipeline: {} });
     const question = '本月经营情况有哪些风险需要马上处理';
     modelPipeline!.compiler.compile.mockResolvedValue({
-      status: 'completed', provider: 'fake-provider', model: 'fake-model', usage: {},
+      status: 'completed',
+      provider: 'fake-provider',
+      model: 'fake-model',
+      usage: {},
       intent: {
-        schemaVersion: '1.0', objective: question, domains: [], intent: 'diagnosis',
-        entities: [], metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'diagnosis',
-        successCriteria: ['返回经营风险'], ambiguities: [], missingSlots: [], assumptions: [],
-        confidence: 0.95, decisionSummary: '经营风险诊断',
+        schemaVersion: '1.0',
+        objective: question,
+        domains: [],
+        intent: 'diagnosis',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'diagnosis',
+        successCriteria: ['返回经营风险'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.95,
+        decisionSummary: '经营风险诊断',
       },
     } as never);
-    modelPipeline!.catalog.listEnabledCapabilities.mockResolvedValue([{
-      key: 'store_operations_overview', version: 8, name: '店长经营概览', description: '经营风险诊断',
-      domains: [], intents: ['query', 'diagnosis'], examples: [question], readOnly: true, sideEffect: false,
-      requiredPermissions: [], allowedRoles: [], inputSchema: {}, outputSchema: {}, riskLevel: 'low',
-      requiresConfirmation: false, idempotency: 'not_applicable', timeoutMs: 1000, grounding: 'domain_service',
-      sourceFingerprint: 'a'.repeat(64), definitionRefs: [], synonyms: [], negativeExamples: [], successSchema: {},
-    }]);
+    modelPipeline!.catalog.listEnabledCapabilities.mockResolvedValue([
+      {
+        key: 'store_operations_overview',
+        version: 8,
+        name: '店长经营概览',
+        description: '经营风险诊断',
+        domains: [],
+        intents: ['query', 'diagnosis'],
+        examples: [question],
+        readOnly: true,
+        sideEffect: false,
+        requiredPermissions: [],
+        allowedRoles: [],
+        inputSchema: {},
+        outputSchema: {},
+        riskLevel: 'low',
+        requiresConfirmation: false,
+        idempotency: 'not_applicable',
+        timeoutMs: 1000,
+        grounding: 'domain_service',
+        sourceFingerprint: 'a'.repeat(64),
+        definitionRefs: [],
+        synonyms: [],
+        negativeExamples: [],
+        successSchema: {},
+      },
+    ]);
     prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
     prisma.brainMessage.create.mockResolvedValue({ id: 101 });
     prisma.brainRun.create.mockResolvedValue({ id: 77 });
     prisma.brainRun.update.mockResolvedValue({ id: 77 });
     prisma.brainConversation.update.mockResolvedValue({ id: 12 });
     cognition.understand.mockReturnValue({
-      normalizedText: question, terms: [], metrics: [], dimensions: [], entities: [], unsupportedTerms: [],
-      intent: { key: 'diagnosis', confidence: 0.9, reason: 'test' }, needsClarification: false,
+      normalizedText: question,
+      terms: [],
+      metrics: [],
+      dimensions: [],
+      entities: [],
+      unsupportedTerms: [],
+      intent: { key: 'diagnosis', confidence: 0.9, reason: 'test' },
+      needsClarification: false,
     });
 
     const response = await service.sendMessage(context, 12, { message: question });
@@ -2229,14 +2820,33 @@ describe('BrainChatService', () => {
 
   it('uses an exact governed capability example to remove model-only fields and internal ambiguities', async () => {
     const { prisma, cognition, modelPipeline, service } = createService({ modelPipeline: {} });
-    modelPipeline!.catalog.listEnabledCapabilities.mockResolvedValue([{
-      key: 'product_sales_ranking', version: 2, name: '商品销售排行', description: '商品销售排行',
-      domains: ['sales'], intents: ['ranking'], examples: ['本月商品销售排行'], readOnly: true,
-      sideEffect: false, requiredPermissions: [], allowedRoles: [], inputSchema: {}, outputSchema: {},
-      riskLevel: 'low', requiresConfirmation: false, idempotency: 'not_applicable', timeoutMs: 1000,
-      grounding: 'domain_service', sourceFingerprint: 'a'.repeat(64), definitionRefs: [], synonyms: [],
-      negativeExamples: [], successSchema: {},
-    }]);
+    modelPipeline!.catalog.listEnabledCapabilities.mockResolvedValue([
+      {
+        key: 'product_sales_ranking',
+        version: 2,
+        name: '商品销售排行',
+        description: '商品销售排行',
+        domains: ['sales'],
+        intents: ['ranking'],
+        examples: ['本月商品销售排行'],
+        readOnly: true,
+        sideEffect: false,
+        requiredPermissions: [],
+        allowedRoles: [],
+        inputSchema: {},
+        outputSchema: {},
+        riskLevel: 'low',
+        requiresConfirmation: false,
+        idempotency: 'not_applicable',
+        timeoutMs: 1000,
+        grounding: 'domain_service',
+        sourceFingerprint: 'a'.repeat(64),
+        definitionRefs: [],
+        synonyms: [],
+        negativeExamples: [],
+        successSchema: {},
+      },
+    ]);
     modelPipeline!.compiler.compile.mockResolvedValue({
       status: 'completed',
       provider: 'fake-provider',
@@ -2250,7 +2860,19 @@ describe('BrainChatService', () => {
         entities: [],
         metrics: [],
         dimensions: [],
-        filters: [{ fieldRef: { definitionType: 'field', definitionKey: 'field.fake', definitionVersion: 1, definitionFingerprint: 'a'.repeat(64), sourceFingerprint: 'b'.repeat(64) }, operator: 'eq', value: 'x' }],
+        filters: [
+          {
+            fieldRef: {
+              definitionType: 'field',
+              definitionKey: 'field.fake',
+              definitionVersion: 1,
+              definitionFingerprint: 'a'.repeat(64),
+              sourceFingerprint: 'b'.repeat(64),
+            },
+            operator: 'eq',
+            value: 'x',
+          },
+        ],
         orderBy: [],
         answerShape: 'ranking',
         successCriteria: ['返回排行'],
@@ -2268,7 +2890,11 @@ describe('BrainChatService', () => {
     prisma.brainConversation.update.mockResolvedValue({ id: 12 });
     cognition.understand.mockReturnValue({
       normalizedText: '本月商品销售排行',
-      terms: [], metrics: [], dimensions: [], entities: [], unsupportedTerms: [],
+      terms: [],
+      metrics: [],
+      dimensions: [],
+      entities: [],
+      unsupportedTerms: [],
       intent: { key: 'metric_query', confidence: 0.9, reason: 'test' },
       needsClarification: false,
     });
@@ -2289,26 +2915,49 @@ describe('BrainChatService', () => {
   it('uses a governed domain capability contract to resolve internal qualitative thresholds', () => {
     const { service } = createService({ modelPipeline: {} });
     const followUpMetric = {
-      definitionType: 'metric', definitionKey: 'metric.follow_up_priority_score', definitionVersion: 3,
-      definitionFingerprint: 'a'.repeat(64), sourceFingerprint: 'b'.repeat(64),
+      definitionType: 'metric',
+      definitionKey: 'metric.follow_up_priority_score',
+      definitionVersion: 3,
+      definitionFingerprint: 'a'.repeat(64),
+      sourceFingerprint: 'b'.repeat(64),
     };
     const intent = {
-      schemaVersion: '1.0', objective: '找出高价值但最近不太活跃的客户', domains: ['customer'], intent: 'ranking',
-      entities: [], metrics: [followUpMetric], dimensions: [], filters: [],
-      orderBy: [{ definitionRef: followUpMetric, direction: 'desc' }], answerShape: 'ranking',
+      schemaVersion: '1.0',
+      objective: '找出高价值但最近不太活跃的客户',
+      domains: ['customer'],
+      intent: 'ranking',
+      entities: [],
+      metrics: [followUpMetric],
+      dimensions: [],
+      filters: [],
+      orderBy: [{ definitionRef: followUpMetric, direction: 'desc' }],
+      answerShape: 'ranking',
       successCriteria: ['返回客户名单'],
       ambiguities: [{ slot: 'inactivityThreshold', reason: '未说明不活跃天数', candidates: ['30天', '60天'] }],
-      missingSlots: ['inactivityThreshold'], assumptions: [], confidence: 0.9, decisionSummary: '高价值低活跃客户',
+      missingSlots: ['inactivityThreshold'],
+      assumptions: [],
+      confidence: 0.9,
+      decisionSummary: '高价值低活跃客户',
     };
     const card = {
-      key: 'customer_facts', version: 13, name: '客户事实与客群查询',
-      description: '查询高价值低活跃客户，并采用已治理默认口径。', domains: ['customer'],
-      intents: ['query', 'ranking'], examples: [], synonyms: ['高价值低活跃客户'], readOnly: true,
-      sideEffect: false, grounding: 'domain_service', definitionRefs: [
+      key: 'customer_facts',
+      version: 13,
+      name: '客户事实与客群查询',
+      description: '查询高价值低活跃客户，并采用已治理默认口径。',
+      domains: ['customer'],
+      intents: ['query', 'ranking'],
+      examples: [],
+      synonyms: ['高价值低活跃客户'],
+      readOnly: true,
+      sideEffect: false,
+      grounding: 'domain_service',
+      definitionRefs: [
         { definitionKey: 'entity.customer' },
         {
-          definitionKey: 'dimension.customerName', version: 1,
-          definitionFingerprint: 'c'.repeat(64), sourceFingerprint: 'd'.repeat(64),
+          definitionKey: 'dimension.customerName',
+          version: 1,
+          definitionFingerprint: 'c'.repeat(64),
+          sourceFingerprint: 'd'.repeat(64),
         },
       ],
     };
@@ -2334,16 +2983,36 @@ describe('BrainChatService', () => {
   it('lets a high-confidence read-only capability resolve optional business definitions but keeps identity slots protected', () => {
     const { service } = createService({ modelPipeline: {} });
     const card = {
-      key: 'customer_facts', version: 13, name: '客户事实与客群查询',
-      description: '查询生日关怀客户和营销活动响应客户。', domains: ['customer'], intents: ['query'],
-      examples: ['有没有哪些客户快到生日了可以做关怀'], synonyms: ['生日关怀客户'], readOnly: true,
-      sideEffect: false, grounding: 'domain_service', definitionRefs: [],
+      key: 'customer_facts',
+      version: 13,
+      name: '客户事实与客群查询',
+      description: '查询生日关怀客户和营销活动响应客户。',
+      domains: ['customer'],
+      intents: ['query'],
+      examples: ['有没有哪些客户快到生日了可以做关怀'],
+      synonyms: ['生日关怀客户'],
+      readOnly: true,
+      sideEffect: false,
+      grounding: 'domain_service',
+      definitionRefs: [],
     };
     const baseIntent = {
-      schemaVersion: '1.0', objective: '找出快到生日的客户', domains: ['customer'], intent: 'query', entities: [],
-      metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'list', successCriteria: ['返回客户名单'],
+      schemaVersion: '1.0',
+      objective: '找出快到生日的客户',
+      domains: ['customer'],
+      intent: 'query',
+      entities: [],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'list',
+      successCriteria: ['返回客户名单'],
       ambiguities: [{ slot: 'timeRange', reason: '未来7天或本月', candidates: ['未来7天', '本月'] }],
-      missingSlots: ['timeRange'], assumptions: [], confidence: 0.9, decisionSummary: '生日关怀客户',
+      missingSlots: ['timeRange'],
+      assumptions: [],
+      confidence: 0.9,
+      decisionSummary: '生日关怀客户',
     };
 
     const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
@@ -2369,19 +3038,40 @@ describe('BrainChatService', () => {
   it('lets a governed action capability defer customer and reservation uniqueness to the scoped target resolver', () => {
     const { service } = createService({ modelPipeline: {} });
     const intent = {
-      schemaVersion: '1.0', objective: '修改客户预约', domains: ['front_desk'], intent: 'action', entities: [],
-      metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'action_preview', successCriteria: ['生成待确认预览'],
+      schemaVersion: '1.0',
+      objective: '修改客户预约',
+      domains: ['front_desk'],
+      intent: 'action',
+      entities: [],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'action_preview',
+      successCriteria: ['生成待确认预览'],
       ambiguities: [
         { slot: 'customerIdentity', reason: '模型无法确认门店内是否唯一', candidates: [] },
         { slot: 'targetReservation', reason: '模型无法访问预约数据', candidates: [] },
       ],
-      missingSlots: ['customerIdentity', 'targetReservation'], assumptions: [], confidence: 0.92, decisionSummary: '预约改期预览',
+      missingSlots: ['customerIdentity', 'targetReservation'],
+      assumptions: [],
+      confidence: 0.92,
+      decisionSummary: '预约改期预览',
     };
     const card = {
-      key: 'reservation_action_preview', version: 1, name: '预约创建改期取消预览',
-      description: '解析当前门店客户与预约并生成待确认预览。', domains: ['front_desk'], intents: ['action'],
-      examples: [], synonyms: ['预约改期预览'], readOnly: false, sideEffect: true, requiresConfirmation: true,
-      grounding: 'preview_action', definitionRefs: [],
+      key: 'reservation_action_preview',
+      version: 1,
+      name: '预约创建改期取消预览',
+      description: '解析当前门店客户与预约并生成待确认预览。',
+      domains: ['front_desk'],
+      intents: ['action'],
+      examples: [],
+      synonyms: ['预约改期预览'],
+      readOnly: false,
+      sideEffect: true,
+      requiresConfirmation: true,
+      grounding: 'preview_action',
+      definitionRefs: [],
     };
 
     const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
@@ -2397,21 +3087,53 @@ describe('BrainChatService', () => {
   it('selects the action contract that covers every resolved domain before clearing model ambiguities', () => {
     const { service } = createService({ modelPipeline: {} });
     const intent = {
-      schemaVersion: '1.0', objective: '预约改期', domains: ['customer', 'reservation'], intent: 'action', entities: [],
-      metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'action_preview', successCriteria: ['生成预览'],
-      ambiguities: [{ slot: 'reservation', reason: '模型无法确认预约唯一性', candidates: [] }], missingSlots: ['reservation'],
-      assumptions: [], confidence: 0.9, decisionSummary: '预约改期',
+      schemaVersion: '1.0',
+      objective: '预约改期',
+      domains: ['customer', 'reservation'],
+      intent: 'action',
+      entities: [],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'action_preview',
+      successCriteria: ['生成预览'],
+      ambiguities: [{ slot: 'reservation', reason: '模型无法确认预约唯一性', candidates: [] }],
+      missingSlots: ['reservation'],
+      assumptions: [],
+      confidence: 0.9,
+      decisionSummary: '预约改期',
     };
     const cards = [
       {
-        key: 'customer_follow_up_draft', version: 1, name: '客户跟进预览', description: '客户跟进', domains: ['customer'],
-        intents: ['action'], examples: [], synonyms: [], readOnly: false, sideEffect: true, requiresConfirmation: true,
-        grounding: 'preview_action', definitionRefs: [],
+        key: 'customer_follow_up_draft',
+        version: 1,
+        name: '客户跟进预览',
+        description: '客户跟进',
+        domains: ['customer'],
+        intents: ['action'],
+        examples: [],
+        synonyms: [],
+        readOnly: false,
+        sideEffect: true,
+        requiresConfirmation: true,
+        grounding: 'preview_action',
+        definitionRefs: [],
       },
       {
-        key: 'reservation_action_preview', version: 1, name: '预约改期预览', description: '预约改期', domains: ['customer', 'reservation'],
-        intents: ['action'], examples: [], synonyms: [], readOnly: false, sideEffect: true, requiresConfirmation: true,
-        grounding: 'preview_action', definitionRefs: [],
+        key: 'reservation_action_preview',
+        version: 1,
+        name: '预约改期预览',
+        description: '预约改期',
+        domains: ['customer', 'reservation'],
+        intents: ['action'],
+        examples: [],
+        synonyms: [],
+        readOnly: false,
+        sideEffect: true,
+        requiresConfirmation: true,
+        grounding: 'preview_action',
+        definitionRefs: [],
       },
     ];
 
@@ -2428,27 +3150,67 @@ describe('BrainChatService', () => {
   it('lets a governed workflow capability apply published customer selection defaults', () => {
     const { service } = createService({ modelPipeline: {} });
     const definitionRef = (definitionKey: string) => ({
-      definitionType: 'entity', definitionKey, definitionVersion: 1,
-      definitionFingerprint: 'a'.repeat(64), sourceFingerprint: 'b'.repeat(64),
+      definitionType: 'entity',
+      definitionKey,
+      definitionVersion: 1,
+      definitionFingerprint: 'a'.repeat(64),
+      sourceFingerprint: 'b'.repeat(64),
     });
     const intent = {
-      schemaVersion: '1.0', objective: '识别空档并匹配客户生成触达预览', domains: ['reservation', 'customer'],
-      intent: 'workflow', metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'draft',
+      schemaVersion: '1.0',
+      objective: '识别空档并匹配客户生成触达预览',
+      domains: ['reservation', 'customer'],
+      intent: 'workflow',
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'draft',
       entities: [
-        { entityType: 'reservation', mention: '明天下午空档', confidence: 0.9, source: 'user', definitionRef: definitionRef('entity.reservation') },
-        { entityType: 'customer', mention: '合适客户', confidence: 0.9, source: 'user', definitionRef: definitionRef('entity.customer') },
+        {
+          entityType: 'reservation',
+          mention: '明天下午空档',
+          confidence: 0.9,
+          source: 'user',
+          definitionRef: definitionRef('entity.reservation'),
+        },
+        {
+          entityType: 'customer',
+          mention: '合适客户',
+          confidence: 0.9,
+          source: 'user',
+          definitionRef: definitionRef('entity.customer'),
+        },
       ],
       successCriteria: ['识别空档', '匹配候选客户', '生成待确认触达预览'],
-      ambiguities: [{ slot: 'customerSelectionCriteria', reason: '未说明客户筛选规则', candidates: ['高价值低活跃客户'] }],
-      missingSlots: ['客户筛选规则'], assumptions: [], confidence: 0.88, decisionSummary: '空档补位工作流',
+      ambiguities: [
+        { slot: 'customerSelectionCriteria', reason: '未说明客户筛选规则', candidates: ['高价值低活跃客户'] },
+      ],
+      missingSlots: ['客户筛选规则'],
+      assumptions: [],
+      confidence: 0.88,
+      decisionSummary: '空档补位工作流',
     };
     const card = {
-      key: 'gap_fill_touch_preview', version: 1, name: '空档补位客户匹配与触达预览',
-      description: '自动识别空档并按已发布规则匹配客户。', domains: ['reservation', 'customer'],
-      intents: ['workflow', 'action'], examples: ['找出明天下午空档、筛合适客户、写提醒并生成触达预览'],
-      synonyms: ['空档补位方案'], readOnly: false, sideEffect: true, requiresConfirmation: true,
-      idempotency: 'required', grounding: 'preview_action',
-      definitionRefs: [definitionRef('entity.customer'), definitionRef('entity.reservation'), definitionRef('entity.project'), definitionRef('entity.beautician')],
+      key: 'gap_fill_touch_preview',
+      version: 1,
+      name: '空档补位客户匹配与触达预览',
+      description: '自动识别空档并按已发布规则匹配客户。',
+      domains: ['reservation', 'customer'],
+      intents: ['workflow', 'action'],
+      examples: ['找出明天下午空档、筛合适客户、写提醒并生成触达预览'],
+      synonyms: ['空档补位方案'],
+      readOnly: false,
+      sideEffect: true,
+      requiresConfirmation: true,
+      idempotency: 'required',
+      grounding: 'preview_action',
+      definitionRefs: [
+        definitionRef('entity.customer'),
+        definitionRef('entity.reservation'),
+        definitionRef('entity.project'),
+        definitionRef('entity.beautician'),
+      ],
     };
 
     const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
@@ -2458,25 +3220,48 @@ describe('BrainChatService', () => {
     });
 
     expect(normalized).toMatchObject({ answerShape: 'action_preview', ambiguities: [], missingSlots: [] });
-    expect(normalized.assumptions).toEqual(expect.arrayContaining([
-      expect.stringContaining('管理端已发布的空档、候选评分和冷却期规则'),
-      expect.stringContaining('用户确认前不创建任务'),
-    ]));
+    expect(normalized.assumptions).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('管理端已发布的空档、候选评分和冷却期规则'),
+        expect.stringContaining('用户确认前不创建任务'),
+      ]),
+    );
   });
 
   it('keeps customer identity and security ambiguities in a workflow', () => {
     const { service } = createService({ modelPipeline: {} });
     const intent = {
-      schemaVersion: '1.0', objective: '给指定客户生成补位触达预览', domains: ['reservation', 'customer'],
-      intent: 'workflow', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'action_preview',
+      schemaVersion: '1.0',
+      objective: '给指定客户生成补位触达预览',
+      domains: ['reservation', 'customer'],
+      intent: 'workflow',
+      entities: [],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'action_preview',
       successCriteria: ['生成待确认触达预览'],
       ambiguities: [{ slot: 'customerIdentity', reason: '指定客户身份不明确', candidates: [] }],
-      missingSlots: ['customerIdentity'], assumptions: [], confidence: 0.8, decisionSummary: '指定客户补位工作流',
+      missingSlots: ['customerIdentity'],
+      assumptions: [],
+      confidence: 0.8,
+      decisionSummary: '指定客户补位工作流',
     };
     const card = {
-      key: 'gap_fill_touch_preview', version: 1, name: '空档补位客户匹配与触达预览', description: '空档补位',
-      domains: ['reservation', 'customer'], intents: ['workflow'], examples: ['空档补位'], synonyms: [],
-      readOnly: false, sideEffect: true, requiresConfirmation: true, idempotency: 'required', grounding: 'preview_action',
+      key: 'gap_fill_touch_preview',
+      version: 1,
+      name: '空档补位客户匹配与触达预览',
+      description: '空档补位',
+      domains: ['reservation', 'customer'],
+      intents: ['workflow'],
+      examples: ['空档补位'],
+      synonyms: [],
+      readOnly: false,
+      sideEffect: true,
+      requiresConfirmation: true,
+      idempotency: 'required',
+      grounding: 'preview_action',
       definitionRefs: [],
     };
 
@@ -2492,28 +3277,79 @@ describe('BrainChatService', () => {
   it('collapses model over-expansion of one workflow mention to the strongest governed entity', () => {
     const { service } = createService({ modelPipeline: {} });
     const ref = (definitionKey: string) => ({
-      definitionType: 'entity', definitionKey, definitionVersion: 1,
-      definitionFingerprint: 'a'.repeat(64), sourceFingerprint: 'b'.repeat(64),
+      definitionType: 'entity',
+      definitionKey,
+      definitionVersion: 1,
+      definitionFingerprint: 'a'.repeat(64),
+      sourceFingerprint: 'b'.repeat(64),
     });
     const intent = {
-      schemaVersion: '1.0', objective: '查看预约资源后匹配客户并生成触达草稿',
-      domains: ['reservation', 'customer', 'beautician', 'project'], intent: 'workflow',
+      schemaVersion: '1.0',
+      objective: '查看预约资源后匹配客户并生成触达草稿',
+      domains: ['reservation', 'customer', 'beautician', 'project'],
+      intent: 'workflow',
       entities: [
-        { entityType: 'reservation', mention: '预约资源', confidence: 0.98, source: 'user', definitionRef: ref('entity.reservation') },
-        { entityType: 'beautician', mention: '预约资源', confidence: 0.82, source: 'inferred', definitionRef: ref('entity.beautician') },
-        { entityType: 'project', mention: '预约资源', confidence: 0.72, source: 'inferred', definitionRef: ref('entity.project') },
-        { entityType: 'customer', mention: '客户', confidence: 0.98, source: 'user', definitionRef: ref('entity.customer') },
+        {
+          entityType: 'reservation',
+          mention: '预约资源',
+          confidence: 0.98,
+          source: 'user',
+          definitionRef: ref('entity.reservation'),
+        },
+        {
+          entityType: 'beautician',
+          mention: '预约资源',
+          confidence: 0.82,
+          source: 'inferred',
+          definitionRef: ref('entity.beautician'),
+        },
+        {
+          entityType: 'project',
+          mention: '预约资源',
+          confidence: 0.72,
+          source: 'inferred',
+          definitionRef: ref('entity.project'),
+        },
+        {
+          entityType: 'customer',
+          mention: '客户',
+          confidence: 0.98,
+          source: 'user',
+          definitionRef: ref('entity.customer'),
+        },
       ],
-      metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'draft',
-      successCriteria: ['识别空档', '匹配客户', '生成触达草稿'], ambiguities: [], missingSlots: [], assumptions: [],
-      confidence: 0.99, decisionSummary: '空档补位工作流',
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'draft',
+      successCriteria: ['识别空档', '匹配客户', '生成触达草稿'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 0.99,
+      decisionSummary: '空档补位工作流',
     };
     const card = {
-      key: 'gap_fill_touch_preview', version: 2, name: '空档补位客户匹配与触达预览', description: '预约资源和客户匹配',
-      domains: ['reservation', 'customer', 'beautician', 'project'], intents: ['workflow'],
-      examples: ['先看预约资源，再选客户，最后给我触达草稿'], synonyms: [], readOnly: false, sideEffect: true,
-      requiresConfirmation: true, idempotency: 'required', grounding: 'preview_action',
-      definitionRefs: [ref('entity.reservation'), ref('entity.customer'), ref('entity.beautician'), ref('entity.project')],
+      key: 'gap_fill_touch_preview',
+      version: 2,
+      name: '空档补位客户匹配与触达预览',
+      description: '预约资源和客户匹配',
+      domains: ['reservation', 'customer', 'beautician', 'project'],
+      intents: ['workflow'],
+      examples: ['先看预约资源，再选客户，最后给我触达草稿'],
+      synonyms: [],
+      readOnly: false,
+      sideEffect: true,
+      requiresConfirmation: true,
+      idempotency: 'required',
+      grounding: 'preview_action',
+      definitionRefs: [
+        ref('entity.reservation'),
+        ref('entity.customer'),
+        ref('entity.beautician'),
+        ref('entity.project'),
+      ],
     };
 
     const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
@@ -2523,10 +3359,12 @@ describe('BrainChatService', () => {
     });
 
     expect(normalized.entities).toHaveLength(2);
-    expect(normalized.entities).toEqual(expect.arrayContaining([
-      expect.objectContaining({ entityType: 'reservation', mention: '预约资源' }),
-      expect.objectContaining({ entityType: 'customer', mention: '客户' }),
-    ]));
+    expect(normalized.entities).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ entityType: 'reservation', mention: '预约资源' }),
+        expect.objectContaining({ entityType: 'customer', mention: '客户' }),
+      ]),
+    );
     expect(normalized.answerShape).toBe('action_preview');
   });
 
@@ -2535,31 +3373,78 @@ describe('BrainChatService', () => {
     const salesMetric = definitionRef('metric.product_sales_quantity');
     const productDimension = definitionRef('dimension.productName');
     const intent = {
-      schemaVersion: '1.0', objective: '按销售件数把产品从高到低列出来', domains: ['product', 'order'], intent: 'ranking',
-      entities: [], metrics: [salesMetric], dimensions: [productDimension], filters: [],
-      orderBy: [{ definitionRef: salesMetric, direction: 'desc' }], answerShape: 'ranking', successCriteria: ['返回商品排行'],
+      schemaVersion: '1.0',
+      objective: '按销售件数把产品从高到低列出来',
+      domains: ['product', 'order'],
+      intent: 'ranking',
+      entities: [],
+      metrics: [salesMetric],
+      dimensions: [productDimension],
+      filters: [],
+      orderBy: [{ definitionRef: salesMetric, direction: 'desc' }],
+      answerShape: 'ranking',
+      successCriteria: ['返回商品排行'],
       ambiguities: [{ slot: 'timeRange', reason: '未指定统计时间', candidates: ['本月', '近30天'] }],
-      missingSlots: ['timeRange'], assumptions: [], confidence: 0.91, decisionSummary: '商品销量排行',
+      missingSlots: ['timeRange'],
+      assumptions: [],
+      confidence: 0.91,
+      decisionSummary: '商品销量排行',
     };
     const card = {
-      key: 'product_sales_ranking', version: 3, name: '商品销售排行', description: '按销售件数返回商品排行。',
-      domains: ['product', 'order'], intents: ['ranking'], examples: ['本月查询本店商品销量排行'], synonyms: ['商品销量排行'],
-      readOnly: true, sideEffect: false, grounding: 'semantic_query', definitionRefs: [
-        { definitionKey: salesMetric.definitionKey, version: 1, definitionFingerprint: 'a'.repeat(64), sourceFingerprint: 'b'.repeat(64) },
-        { definitionKey: productDimension.definitionKey, version: 1, definitionFingerprint: 'c'.repeat(64), sourceFingerprint: 'd'.repeat(64) },
+      key: 'product_sales_ranking',
+      version: 3,
+      name: '商品销售排行',
+      description: '按销售件数返回商品排行。',
+      domains: ['product', 'order'],
+      intents: ['ranking'],
+      examples: ['本月查询本店商品销量排行'],
+      synonyms: ['商品销量排行'],
+      readOnly: true,
+      sideEffect: false,
+      grounding: 'semantic_query',
+      definitionRefs: [
+        {
+          definitionKey: salesMetric.definitionKey,
+          version: 1,
+          definitionFingerprint: 'a'.repeat(64),
+          sourceFingerprint: 'b'.repeat(64),
+        },
+        {
+          definitionKey: productDimension.definitionKey,
+          version: 1,
+          definitionFingerprint: 'c'.repeat(64),
+          sourceFingerprint: 'd'.repeat(64),
+        },
       ],
     };
 
     const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
       intent,
       question: '按销售件数把产品从高到低列出来',
-      cards: [card, {
-        key: 'inventory_operations_overview', version: 11, name: '库存采购运营概览', description: '库存运营诊断。',
-        domains: ['product'], intents: ['query', 'ranking', 'diagnosis', 'recommendation'], examples: ['哪些产品该补货了'], synonyms: ['库存概览'],
-        readOnly: true, sideEffect: false, grounding: 'domain_service', definitionRefs: [
-          { definitionKey: 'metric.stock_risk_score', version: 1, definitionFingerprint: 'e'.repeat(64), sourceFingerprint: 'f'.repeat(64) },
-        ],
-      }],
+      cards: [
+        card,
+        {
+          key: 'inventory_operations_overview',
+          version: 11,
+          name: '库存采购运营概览',
+          description: '库存运营诊断。',
+          domains: ['product'],
+          intents: ['query', 'ranking', 'diagnosis', 'recommendation'],
+          examples: ['哪些产品该补货了'],
+          synonyms: ['库存概览'],
+          readOnly: true,
+          sideEffect: false,
+          grounding: 'domain_service',
+          definitionRefs: [
+            {
+              definitionKey: 'metric.stock_risk_score',
+              version: 1,
+              definitionFingerprint: 'e'.repeat(64),
+              sourceFingerprint: 'f'.repeat(64),
+            },
+          ],
+        },
+      ],
     });
 
     expect(normalized).toMatchObject({ ambiguities: [], missingSlots: [] });
@@ -2571,18 +3456,39 @@ describe('BrainChatService', () => {
   it('collapses duplicate diagnosis entities created from the same user mention', () => {
     const { service } = createService({ modelPipeline: {} });
     const intent = {
-      schemaVersion: '1.0', objective: '为什么最近做得不少却不赚钱', domains: ['finance'], intent: 'diagnosis',
+      schemaVersion: '1.0',
+      objective: '为什么最近做得不少却不赚钱',
+      domains: ['finance'],
+      intent: 'diagnosis',
       entities: [
         { entityType: 'product_order', mention: '做得不少', confidence: 0.96, source: 'user' },
         { entityType: 'order_item', mention: '做得不少', confidence: 0.78, source: 'inferred' },
       ],
-      metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'diagnosis', successCriteria: ['解释利润问题'],
-      ambiguities: [], missingSlots: [], assumptions: [], confidence: 0.9, decisionSummary: '利润诊断',
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'diagnosis',
+      successCriteria: ['解释利润问题'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 0.9,
+      decisionSummary: '利润诊断',
     };
     const card = {
-      key: 'finance_risk_overview', version: 4, name: '财务风险概览', description: '诊断收入、成本和利润风险。',
-      domains: ['finance'], intents: ['query', 'diagnosis'], examples: ['为什么最近做得不少却不赚钱'], synonyms: ['利润诊断'],
-      readOnly: true, sideEffect: false, grounding: 'domain_service', definitionRefs: [],
+      key: 'finance_risk_overview',
+      version: 4,
+      name: '财务风险概览',
+      description: '诊断收入、成本和利润风险。',
+      domains: ['finance'],
+      intents: ['query', 'diagnosis'],
+      examples: ['为什么最近做得不少却不赚钱'],
+      synonyms: ['利润诊断'],
+      readOnly: true,
+      sideEffect: false,
+      grounding: 'domain_service',
+      definitionRefs: [],
     };
 
     const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
@@ -2602,30 +3508,78 @@ describe('BrainChatService', () => {
     const stockRiskMetric = definitionRef('metric.stock_risk_score');
     const productDimension = definitionRef('dimension.productName');
     const intent = {
-      schemaVersion: '1.0', objective: '根据安全库存和近期销量推荐采购清单', domains: ['product'], intent: 'recommendation',
-      entities: [], metrics: [salesMetric, stockRiskMetric], dimensions: [productDimension], filters: [],
-      orderBy: [{ definitionRef: salesMetric, direction: 'desc' }], answerShape: 'list', successCriteria: ['返回采购建议'],
-      ambiguities: [], missingSlots: [], assumptions: [], confidence: 0.93, decisionSummary: '采购建议',
+      schemaVersion: '1.0',
+      objective: '根据安全库存和近期销量推荐采购清单',
+      domains: ['product'],
+      intent: 'recommendation',
+      entities: [],
+      metrics: [salesMetric, stockRiskMetric],
+      dimensions: [productDimension],
+      filters: [],
+      orderBy: [{ definitionRef: salesMetric, direction: 'desc' }],
+      answerShape: 'list',
+      successCriteria: ['返回采购建议'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 0.93,
+      decisionSummary: '采购建议',
     };
     const card = {
-      key: 'inventory_procurement_advice', version: 5, name: '库存采购建议', description: '基于已治理安全库存和消耗口径生成采购建议。',
-      domains: ['product'], intents: ['query', 'recommendation'], examples: ['哪些商品需要补货，建议采购多少'], synonyms: ['采购清单'],
-      readOnly: true, sideEffect: false, grounding: 'domain_service', definitionRefs: [
-        { definitionKey: stockRiskMetric.definitionKey, version: 1, definitionFingerprint: 'a'.repeat(64), sourceFingerprint: 'b'.repeat(64) },
-        { definitionKey: productDimension.definitionKey, version: 1, definitionFingerprint: 'c'.repeat(64), sourceFingerprint: 'd'.repeat(64) },
+      key: 'inventory_procurement_advice',
+      version: 5,
+      name: '库存采购建议',
+      description: '基于已治理安全库存和消耗口径生成采购建议。',
+      domains: ['product'],
+      intents: ['query', 'recommendation'],
+      examples: ['哪些商品需要补货，建议采购多少'],
+      synonyms: ['采购清单'],
+      readOnly: true,
+      sideEffect: false,
+      grounding: 'domain_service',
+      definitionRefs: [
+        {
+          definitionKey: stockRiskMetric.definitionKey,
+          version: 1,
+          definitionFingerprint: 'a'.repeat(64),
+          sourceFingerprint: 'b'.repeat(64),
+        },
+        {
+          definitionKey: productDimension.definitionKey,
+          version: 1,
+          definitionFingerprint: 'c'.repeat(64),
+          sourceFingerprint: 'd'.repeat(64),
+        },
       ],
     };
 
     const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
       intent,
       question: '根据安全库存和近期销量推荐采购清单',
-      cards: [card, {
-        key: 'inventory_operations_overview', version: 11, name: '库存采购运营概览', description: '组合库存与采购建议。',
-        domains: ['product'], intents: ['query', 'ranking', 'diagnosis', 'recommendation'], examples: ['哪些产品该补货了'], synonyms: ['采购建议'],
-        readOnly: true, sideEffect: false, grounding: 'domain_service', definitionRefs: [
-          { definitionKey: stockRiskMetric.definitionKey, version: 1, definitionFingerprint: 'e'.repeat(64), sourceFingerprint: 'f'.repeat(64) },
-        ],
-      }],
+      cards: [
+        card,
+        {
+          key: 'inventory_operations_overview',
+          version: 11,
+          name: '库存采购运营概览',
+          description: '组合库存与采购建议。',
+          domains: ['product'],
+          intents: ['query', 'ranking', 'diagnosis', 'recommendation'],
+          examples: ['哪些产品该补货了'],
+          synonyms: ['采购建议'],
+          readOnly: true,
+          sideEffect: false,
+          grounding: 'domain_service',
+          definitionRefs: [
+            {
+              definitionKey: stockRiskMetric.definitionKey,
+              version: 1,
+              definitionFingerprint: 'e'.repeat(64),
+              sourceFingerprint: 'f'.repeat(64),
+            },
+          ],
+        },
+      ],
     });
 
     expect(normalized.metrics).toEqual([expect.objectContaining({ definitionKey: 'metric.stock_risk_score' })]);
@@ -2638,26 +3592,57 @@ describe('BrainChatService', () => {
     const { service } = createService({ modelPipeline: {} });
     const productDimension = definitionRef('dimension.productName');
     const intent = {
-      schemaVersion: '1.0', objective: '兼顾断货和积压安排采购', domains: ['product'], intent: 'recommendation',
+      schemaVersion: '1.0',
+      objective: '兼顾断货和积压安排采购',
+      domains: ['product'],
+      intent: 'recommendation',
       entities: [{ entityType: 'product', mention: '采购、断货、积压', confidence: 0.98, source: 'user' }],
-      metrics: [], dimensions: [productDimension], filters: [], orderBy: [], answerShape: 'diagnosis',
-      successCriteria: ['识别补货与积压风险', '给出采购安排'], ambiguities: [], missingSlots: [], assumptions: [],
-      confidence: 0.97, decisionSummary: '采购安排建议',
+      metrics: [],
+      dimensions: [productDimension],
+      filters: [],
+      orderBy: [],
+      answerShape: 'diagnosis',
+      successCriteria: ['识别补货与积压风险', '给出采购安排'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 0.97,
+      decisionSummary: '采购安排建议',
     };
     const commonDefinition = {
-      definitionKey: 'metric.stock_risk_score', version: 1,
-      definitionFingerprint: 'a'.repeat(64), sourceFingerprint: 'b'.repeat(64),
+      definitionKey: 'metric.stock_risk_score',
+      version: 1,
+      definitionFingerprint: 'a'.repeat(64),
+      sourceFingerprint: 'b'.repeat(64),
     };
     const cards = [
       {
-        key: 'inventory_operations_overview', version: 11, name: '库存采购运营概览', description: '组合库存与采购建议。',
-        domains: ['product'], intents: ['query', 'ranking', 'diagnosis', 'recommendation'], examples: ['哪些产品该补货了'], synonyms: ['采购建议'],
-        readOnly: true, sideEffect: false, grounding: 'domain_service', definitionRefs: [commonDefinition],
+        key: 'inventory_operations_overview',
+        version: 11,
+        name: '库存采购运营概览',
+        description: '组合库存与采购建议。',
+        domains: ['product'],
+        intents: ['query', 'ranking', 'diagnosis', 'recommendation'],
+        examples: ['哪些产品该补货了'],
+        synonyms: ['采购建议'],
+        readOnly: true,
+        sideEffect: false,
+        grounding: 'domain_service',
+        definitionRefs: [commonDefinition],
       },
       {
-        key: 'inventory_procurement_advice', version: 5, name: '库存采购建议', description: '生成只读采购安排。',
-        domains: ['product'], intents: ['query', 'recommendation'], examples: ['哪些商品需要补货，建议采购多少'], synonyms: ['采购清单'],
-        readOnly: true, sideEffect: false, grounding: 'domain_service', definitionRefs: [commonDefinition],
+        key: 'inventory_procurement_advice',
+        version: 5,
+        name: '库存采购建议',
+        description: '生成只读采购安排。',
+        domains: ['product'],
+        intents: ['query', 'recommendation'],
+        examples: ['哪些商品需要补货，建议采购多少'],
+        synonyms: ['采购清单'],
+        readOnly: true,
+        sideEffect: false,
+        grounding: 'domain_service',
+        definitionRefs: [commonDefinition],
       },
     ];
 
@@ -2674,8 +3659,14 @@ describe('BrainChatService', () => {
   it('uses the single-capability path for a governed confirmation-gated action preview', () => {
     const { service } = createService({ modelPipeline: {} });
     const card = {
-      key: 'reservation_action_preview', readOnly: false, sideEffect: true, requiresConfirmation: true,
-      idempotency: 'required', grounding: 'preview_action', intents: ['action'], domains: ['customer', 'reservation'],
+      key: 'reservation_action_preview',
+      readOnly: false,
+      sideEffect: true,
+      requiresConfirmation: true,
+      idempotency: 'required',
+      grounding: 'preview_action',
+      intents: ['action'],
+      domains: ['customer', 'reservation'],
     };
     const intent = { intent: 'action', domains: ['customer', 'reservation'] };
 
@@ -2686,39 +3677,91 @@ describe('BrainChatService', () => {
     const { prisma, modelPipeline, service } = createService({ modelPipeline: {} });
     const question = '把张女士的预约改到明天下午三点';
     const actionCard = {
-      key: 'reservation_action_preview', version: 1, name: '预约改期预览', description: '预约改期预览',
-      domains: ['customer', 'reservation'], intents: ['action'], examples: [], synonyms: [], negativeExamples: [],
-      readOnly: false, sideEffect: true, riskLevel: 'high', requiresConfirmation: true, idempotency: 'required',
-      grounding: 'preview_action', definitionRefs: [], requiredPermissions: [], allowedRoles: ['receptionist'],
-      inputSchema: {}, outputSchema: {}, successSchema: {}, timeoutMs: 10_000, sourceFingerprint: 'a'.repeat(64),
+      key: 'reservation_action_preview',
+      version: 1,
+      name: '预约改期预览',
+      description: '预约改期预览',
+      domains: ['customer', 'reservation'],
+      intents: ['action'],
+      examples: [],
+      synonyms: [],
+      negativeExamples: [],
+      readOnly: false,
+      sideEffect: true,
+      riskLevel: 'high',
+      requiresConfirmation: true,
+      idempotency: 'required',
+      grounding: 'preview_action',
+      definitionRefs: [],
+      requiredPermissions: [],
+      allowedRoles: ['receptionist'],
+      inputSchema: {},
+      outputSchema: {},
+      successSchema: {},
+      timeoutMs: 10_000,
+      sourceFingerprint: 'a'.repeat(64),
     };
     modelPipeline!.catalog.listEnabledCapabilities.mockResolvedValue([actionCard]);
     modelPipeline!.compiler.compile.mockResolvedValue({
-      status: 'completed', provider: 'fake-provider', model: 'fake-model', usage: {},
+      status: 'completed',
+      provider: 'fake-provider',
+      model: 'fake-model',
+      usage: {},
       intent: {
-        schemaVersion: '1.0', objective: '预约改期预览', domains: ['customer', 'reservation'], intent: 'action',
-        entities: [], metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'action_preview',
-        successCriteria: ['生成待确认预览'], ambiguities: [], missingSlots: [], assumptions: [], confidence: 0.95,
+        schemaVersion: '1.0',
+        objective: '预约改期预览',
+        domains: ['customer', 'reservation'],
+        intent: 'action',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'action_preview',
+        successCriteria: ['生成待确认预览'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.95,
         decisionSummary: '预约改期预览',
       },
     } as never);
     modelPipeline!.retriever.retrieve.mockReturnValue({
-      status: 'selected', selected: actionCard, topK: [{ card: actionCard, score: 1, matchedFields: ['name'] }],
-      confidence: 1, margin: 1, reason: 'test',
+      status: 'selected',
+      selected: actionCard,
+      topK: [{ card: actionCard, score: 1, matchedFields: ['name'] }],
+      confidence: 1,
+      margin: 1,
+      reason: 'test',
     } as never);
     modelPipeline!.planner.plan.mockReturnValue({
       status: 'planned',
       plan: {
-        schemaVersion: '1.0', planId: 'action-clarification', objective: '预约改期', isSingleStep: true,
-        replanCount: 0, budgetMs: 11_000,
-        nodes: [{ id: 'capability_1', capabilityKey: actionCard.key, capabilityVersion: 1, dependsOn: [], previewOnly: true,
-          args: { objective: '预约改期', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] } }],
+        schemaVersion: '1.0',
+        planId: 'action-clarification',
+        objective: '预约改期',
+        isSingleStep: true,
+        replanCount: 0,
+        budgetMs: 11_000,
+        nodes: [
+          {
+            id: 'capability_1',
+            capabilityKey: actionCard.key,
+            capabilityVersion: 1,
+            dependsOn: [],
+            previewOnly: true,
+            args: { objective: '预约改期', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+          },
+        ],
       },
     } as never);
     modelPipeline!.planValidator.validate.mockImplementation(({ plan }) => plan as never);
     modelPipeline!.executor.execute.mockResolvedValue({
-      status: 'completed', answer: '当前门店没有找到匹配客户，请核对姓名或手机号后四位。', citations: [],
-      grounding: 'none', metadata: { unsupportedReason: 'customer_not_found' },
+      status: 'completed',
+      answer: '当前门店没有找到匹配客户，请核对姓名或手机号后四位。',
+      citations: [],
+      grounding: 'none',
+      metadata: { unsupportedReason: 'customer_not_found' },
     });
     prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
     prisma.brainMessage.create.mockResolvedValue({ id: 101 });
@@ -2735,15 +3778,37 @@ describe('BrainChatService', () => {
   it('does not clear cross-store or permission ambiguities for an action capability', () => {
     const { service } = createService({ modelPipeline: {} });
     const intent = {
-      schemaVersion: '1.0', objective: '修改其他门店预约', domains: ['front_desk'], intent: 'action', entities: [],
-      metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'action_preview', successCriteria: ['生成待确认预览'],
+      schemaVersion: '1.0',
+      objective: '修改其他门店预约',
+      domains: ['front_desk'],
+      intent: 'action',
+      entities: [],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'action_preview',
+      successCriteria: ['生成待确认预览'],
       ambiguities: [{ slot: 'storeScope', reason: '请求涉及跨门店目标，存在越权冲突', candidates: [] }],
-      missingSlots: ['storeScope'], assumptions: [], confidence: 0.92, decisionSummary: '跨门店预约改期',
+      missingSlots: ['storeScope'],
+      assumptions: [],
+      confidence: 0.92,
+      decisionSummary: '跨门店预约改期',
     };
     const card = {
-      key: 'reservation_action_preview', version: 1, name: '预约创建改期取消预览', description: '预约改期预览',
-      domains: ['front_desk'], intents: ['action'], examples: [], synonyms: [], readOnly: false, sideEffect: true,
-      requiresConfirmation: true, grounding: 'preview_action', definitionRefs: [],
+      key: 'reservation_action_preview',
+      version: 1,
+      name: '预约创建改期取消预览',
+      description: '预约改期预览',
+      domains: ['front_desk'],
+      intents: ['action'],
+      examples: [],
+      synonyms: [],
+      readOnly: false,
+      sideEffect: true,
+      requiresConfirmation: true,
+      grounding: 'preview_action',
+      definitionRefs: [],
     };
 
     const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
@@ -2758,18 +3823,43 @@ describe('BrainChatService', () => {
   it('always removes unsupported model dimensions from a governed draft contract', () => {
     const { service } = createService({ modelPipeline: {} });
     const projectDimension = {
-      definitionType: 'dimension', definitionKey: 'dimension.projectName', definitionVersion: 1,
-      definitionFingerprint: 'a'.repeat(64), sourceFingerprint: 'b'.repeat(64),
+      definitionType: 'dimension',
+      definitionKey: 'dimension.projectName',
+      definitionVersion: 1,
+      definitionFingerprint: 'a'.repeat(64),
+      sourceFingerprint: 'b'.repeat(64),
     };
     const intent = {
-      schemaVersion: '1.0', objective: '生成老客预约提醒', domains: ['customer', 'reservation'], intent: 'draft', entities: [],
-      metrics: [], dimensions: [projectDimension], filters: [], orderBy: [], answerShape: 'draft', successCriteria: ['返回文案'],
-      ambiguities: [], missingSlots: [], assumptions: [], confidence: 0.9, decisionSummary: '预约提醒文案',
+      schemaVersion: '1.0',
+      objective: '生成老客预约提醒',
+      domains: ['customer', 'reservation'],
+      intent: 'draft',
+      entities: [],
+      metrics: [],
+      dimensions: [projectDimension],
+      filters: [],
+      orderBy: [],
+      answerShape: 'draft',
+      successCriteria: ['返回文案'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 0.9,
+      decisionSummary: '预约提醒文案',
     };
     const card = {
-      key: 'marketing_message_draft', version: 1, name: '营销文案草稿', description: '生成预约提醒和召回文案',
-      domains: ['customer', 'reservation'], intents: ['draft'], examples: [], synonyms: [], readOnly: true, sideEffect: false,
-      grounding: 'domain_service', definitionRefs: [{ definitionKey: 'entity.customer' }, { definitionKey: 'entity.reservation' }],
+      key: 'marketing_message_draft',
+      version: 1,
+      name: '营销文案草稿',
+      description: '生成预约提醒和召回文案',
+      domains: ['customer', 'reservation'],
+      intents: ['draft'],
+      examples: [],
+      synonyms: [],
+      readOnly: true,
+      sideEffect: false,
+      grounding: 'domain_service',
+      definitionRefs: [{ definitionKey: 'entity.customer' }, { definitionKey: 'entity.reservation' }],
     };
 
     const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
@@ -2826,13 +3916,34 @@ describe('BrainChatService', () => {
     const conversionCount = definitionRef('metric.new_customer_conversion_count');
     const conversionRate = definitionRef('metric.new_customer_conversion_rate');
     const intent = {
-      schemaVersion: '1.0', objective: '分析最近新客转化效果和问题', domains: ['customer'], intent: 'diagnosis', entities: [],
-      metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'diagnosis', successCriteria: ['返回转化结果并说明诊断边界'],
-      ambiguities: [], missingSlots: [], assumptions: [], confidence: 0.9, decisionSummary: '新客转化诊断',
+      schemaVersion: '1.0',
+      objective: '分析最近新客转化效果和问题',
+      domains: ['customer'],
+      intent: 'diagnosis',
+      entities: [],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'diagnosis',
+      successCriteria: ['返回转化结果并说明诊断边界'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 0.9,
+      decisionSummary: '新客转化诊断',
     };
     const card = {
-      key: 'customer_facts', version: 22, name: '客户事实与客群查询', description: '查询周期新客转化和客户事实',
-      domains: ['customer'], intents: ['query', 'diagnosis'], examples: [], synonyms: ['新客转化'], readOnly: true, sideEffect: false,
+      key: 'customer_facts',
+      version: 22,
+      name: '客户事实与客群查询',
+      description: '查询周期新客转化和客户事实',
+      domains: ['customer'],
+      intents: ['query', 'diagnosis'],
+      examples: [],
+      synonyms: ['新客转化'],
+      readOnly: true,
+      sideEffect: false,
       definitionRefs: [newCustomerCount, conversionCount, conversionRate],
     };
 
@@ -2851,21 +3962,53 @@ describe('BrainChatService', () => {
 
   it('merges governed project dimensions into an exact promotion example', () => {
     const { service } = createService({ modelPipeline: {} });
-    const customerName = { ...definitionRef('dimension.customerName'), version: 1, definitionFingerprint: 'a'.repeat(64), sourceFingerprint: 'b'.repeat(64) };
-    const customerId = { ...definitionRef('dimension.customerId'), version: 1, definitionFingerprint: 'c'.repeat(64), sourceFingerprint: 'd'.repeat(64) };
-    const projectName = { ...definitionRef('dimension.projectName'), version: 1, definitionFingerprint: 'e'.repeat(64), sourceFingerprint: 'f'.repeat(64) };
+    const customerName = {
+      ...definitionRef('dimension.customerName'),
+      version: 1,
+      definitionFingerprint: 'a'.repeat(64),
+      sourceFingerprint: 'b'.repeat(64),
+    };
+    const customerId = {
+      ...definitionRef('dimension.customerId'),
+      version: 1,
+      definitionFingerprint: 'c'.repeat(64),
+      sourceFingerprint: 'd'.repeat(64),
+    };
+    const projectName = {
+      ...definitionRef('dimension.projectName'),
+      version: 1,
+      definitionFingerprint: 'e'.repeat(64),
+      sourceFingerprint: 'f'.repeat(64),
+    };
     const question = '我想做个高端护理套餐推广，找哪些客户合适';
     const normalized = (service as any).normalizeGovernedCapabilityExampleIntent({
       question,
       snapshot: { entities: [], metrics: [], dimensions: [{ domain: 'customer' }, { domain: 'project' }] },
-      cards: [{
-        key: 'marketing_growth_overview', domains: ['customer', 'project'], intents: ['query', 'ranking', 'recommendation'],
-        examples: [question], definitionRefs: [customerName, customerId, projectName],
-      }],
+      cards: [
+        {
+          key: 'marketing_growth_overview',
+          domains: ['customer', 'project'],
+          intents: ['query', 'ranking', 'recommendation'],
+          examples: [question],
+          definitionRefs: [customerName, customerId, projectName],
+        },
+      ],
       intent: {
-        schemaVersion: '1.0', objective: question, domains: ['customer', 'project'], intent: 'query', entities: [], metrics: [],
-        dimensions: [definitionRef('dimension.customerName'), definitionRef('dimension.customerId')], filters: [], orderBy: [],
-        answerShape: 'list', successCriteria: ['返回客户名单'], ambiguities: [], missingSlots: [], assumptions: [], confidence: 0.9,
+        schemaVersion: '1.0',
+        objective: question,
+        domains: ['customer', 'project'],
+        intent: 'query',
+        entities: [],
+        metrics: [],
+        dimensions: [definitionRef('dimension.customerName'), definitionRef('dimension.customerId')],
+        filters: [],
+        orderBy: [],
+        answerShape: 'list',
+        successCriteria: ['返回客户名单'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.9,
         decisionSummary: '项目推广客群',
       },
     });
@@ -2883,17 +4026,35 @@ describe('BrainChatService', () => {
     const normalized = (service as any).normalizeGovernedCapabilityExampleIntent({
       question,
       snapshot: { entities: [], metrics: [], dimensions: [{ domain: 'product' }] },
-      cards: [{
-        key: 'inventory_operations_overview', domains: ['product'], intents: ['query', 'ranking', 'diagnosis'],
-        examples: [question], definitionRefs: [
-          { ...definitionRef('metric.inventory_consumption_quantity'), version: 1 },
-          { ...definitionRef('dimension.productName'), version: 1 },
-        ],
-      }],
+      cards: [
+        {
+          key: 'inventory_operations_overview',
+          domains: ['product'],
+          intents: ['query', 'ranking', 'diagnosis'],
+          examples: [question],
+          definitionRefs: [
+            { ...definitionRef('metric.inventory_consumption_quantity'), version: 1 },
+            { ...definitionRef('dimension.productName'), version: 1 },
+          ],
+        },
+      ],
       intent: {
-        schemaVersion: '1.0', objective: question, domains: ['product'], intent: 'query', entities: [], metrics: [], dimensions: [],
-        filters: [], orderBy: [], answerShape: 'list', successCriteria: ['返回耗材排行'], ambiguities: [], missingSlots: [],
-        assumptions: [], confidence: 0.9, decisionSummary: '耗材消耗排行',
+        schemaVersion: '1.0',
+        objective: question,
+        domains: ['product'],
+        intent: 'query',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'list',
+        successCriteria: ['返回耗材排行'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.9,
+        decisionSummary: '耗材消耗排行',
       },
     });
 
@@ -2908,14 +4069,32 @@ describe('BrainChatService', () => {
     const normalized = (service as any).normalizeGovernedCapabilityExampleIntent({
       question,
       snapshot: { entities: [], metrics: [{ domain: 'customer' }], dimensions: [] },
-      cards: [{
-        key: 'customer_facts', domains: ['customer'], intents: ['query', 'diagnosis'],
-        examples: [question], definitionRefs: [],
-      }],
+      cards: [
+        {
+          key: 'customer_facts',
+          domains: ['customer'],
+          intents: ['query', 'diagnosis'],
+          examples: [question],
+          definitionRefs: [],
+        },
+      ],
       intent: {
-        schemaVersion: '1.0', objective: question, domains: ['customer'], intent: 'query', entities: [], metrics: [], dimensions: [],
-        filters: [], orderBy: [], answerShape: 'scalar', successCriteria: ['返回新客转化诊断'], ambiguities: [], missingSlots: [],
-        assumptions: [], confidence: 0.9, decisionSummary: '新客转化查询',
+        schemaVersion: '1.0',
+        objective: question,
+        domains: ['customer'],
+        intent: 'query',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'scalar',
+        successCriteria: ['返回新客转化诊断'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.9,
+        decisionSummary: '新客转化查询',
       },
     });
 
@@ -2928,17 +4107,35 @@ describe('BrainChatService', () => {
     const normalized = (service as any).normalizeGovernedCapabilityExampleIntent({
       question,
       snapshot: { entities: [], metrics: [{ domain: 'finance' }], dimensions: [{ domain: 'finance' }] },
-      cards: [{
-        key: 'finance_payment_breakdown', domains: ['finance'], intents: ['query', 'ranking', 'comparison', 'trend'],
-        examples: [question], definitionRefs: [
-          { ...definitionRef('metric.paid_amount'), version: 1 },
-          { ...definitionRef('dimension.paymentMethod'), version: 1 },
-        ],
-      }],
+      cards: [
+        {
+          key: 'finance_payment_breakdown',
+          domains: ['finance'],
+          intents: ['query', 'ranking', 'comparison', 'trend'],
+          examples: [question],
+          definitionRefs: [
+            { ...definitionRef('metric.paid_amount'), version: 1 },
+            { ...definitionRef('dimension.paymentMethod'), version: 1 },
+          ],
+        },
+      ],
       intent: {
-        schemaVersion: '1.0', objective: question, domains: [], intent: 'comparison', entities: [], metrics: [], dimensions: [],
-        filters: [], orderBy: [], answerShape: 'comparison', successCriteria: ['返回支付方式拆分'], ambiguities: [], missingSlots: [],
-        assumptions: [], confidence: 0.9, decisionSummary: '支付方式对比',
+        schemaVersion: '1.0',
+        objective: question,
+        domains: [],
+        intent: 'comparison',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'comparison',
+        successCriteria: ['返回支付方式拆分'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.9,
+        decisionSummary: '支付方式对比',
       },
     });
 
@@ -2953,22 +4150,42 @@ describe('BrainChatService', () => {
     const normalized = (service as any).normalizeGovernedCapabilityExampleIntent({
       question,
       snapshot: { entities: [], metrics: [{ domain: 'product' }], dimensions: [{ domain: 'product' }] },
-      cards: [{
-        key: 'finance_risk_overview', domains: ['finance', 'product'], intents: ['query', 'diagnosis'],
-        examples: [question], definitionRefs: [
-          { ...definitionRef('metric.product_gross_margin_rate'), version: 1 },
-          { ...definitionRef('dimension.productName'), version: 1 },
-        ],
-      }],
+      cards: [
+        {
+          key: 'finance_risk_overview',
+          domains: ['finance', 'product'],
+          intents: ['query', 'diagnosis'],
+          examples: [question],
+          definitionRefs: [
+            { ...definitionRef('metric.product_gross_margin_rate'), version: 1 },
+            { ...definitionRef('dimension.productName'), version: 1 },
+          ],
+        },
+      ],
       intent: {
-        schemaVersion: '1.0', objective: question, domains: ['product'], intent: 'query', entities: [], metrics: [], dimensions: [],
-        filters: [], orderBy: [], answerShape: 'list', successCriteria: ['返回商品毛利排行'], ambiguities: [], missingSlots: [],
-        assumptions: [], confidence: 0.9, decisionSummary: '商品毛利查询',
+        schemaVersion: '1.0',
+        objective: question,
+        domains: ['product'],
+        intent: 'query',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'list',
+        successCriteria: ['返回商品毛利排行'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.9,
+        decisionSummary: '商品毛利查询',
       },
     });
 
     expect(normalized).toMatchObject({ intent: 'ranking', answerShape: 'ranking' });
-    expect(normalized.metrics).toEqual([expect.objectContaining({ definitionKey: 'metric.product_gross_margin_rate' })]);
+    expect(normalized.metrics).toEqual([
+      expect.objectContaining({ definitionKey: 'metric.product_gross_margin_rate' }),
+    ]);
     expect(normalized.dimensions).toEqual([expect.objectContaining({ definitionKey: 'dimension.productName' })]);
     expect(normalized.orderBy).toEqual([expect.objectContaining({ direction: 'desc' })]);
   });
@@ -2976,23 +4193,61 @@ describe('BrainChatService', () => {
   it('normalizes an unordered governed customer list from ranking to query plus list', async () => {
     const { prisma, modelPipeline, service } = createService({ modelPipeline: {} });
     const question = '哪些客户卡里的次数快用完了还没约';
-    modelPipeline!.catalog.listEnabledCapabilities.mockResolvedValue([{
-      key: 'customer_facts', version: 11, name: '客户事实与客群查询', description: '客户事实与客群名单',
-      domains: ['customer'], intents: ['query', 'ranking', 'diagnosis'], examples: [question], readOnly: true,
-      sideEffect: false, requiredPermissions: [], allowedRoles: ['customer_service'], inputSchema: {}, outputSchema: {},
-      riskLevel: 'low', requiresConfirmation: false, idempotency: 'not_applicable', timeoutMs: 1000,
-      grounding: 'domain_service', sourceFingerprint: 'a'.repeat(64), definitionRefs: [{
-        definitionKey: 'dimension.customerName', version: 1,
-        definitionFingerprint: 'c'.repeat(64), sourceFingerprint: 'd'.repeat(64),
-      }], synonyms: [],
-      negativeExamples: [], successSchema: {},
-    }]);
+    modelPipeline!.catalog.listEnabledCapabilities.mockResolvedValue([
+      {
+        key: 'customer_facts',
+        version: 11,
+        name: '客户事实与客群查询',
+        description: '客户事实与客群名单',
+        domains: ['customer'],
+        intents: ['query', 'ranking', 'diagnosis'],
+        examples: [question],
+        readOnly: true,
+        sideEffect: false,
+        requiredPermissions: [],
+        allowedRoles: ['customer_service'],
+        inputSchema: {},
+        outputSchema: {},
+        riskLevel: 'low',
+        requiresConfirmation: false,
+        idempotency: 'not_applicable',
+        timeoutMs: 1000,
+        grounding: 'domain_service',
+        sourceFingerprint: 'a'.repeat(64),
+        definitionRefs: [
+          {
+            definitionKey: 'dimension.customerName',
+            version: 1,
+            definitionFingerprint: 'c'.repeat(64),
+            sourceFingerprint: 'd'.repeat(64),
+          },
+        ],
+        synonyms: [],
+        negativeExamples: [],
+        successSchema: {},
+      },
+    ]);
     modelPipeline!.compiler.compile.mockResolvedValue({
-      status: 'completed', provider: 'fake-provider', model: 'fake-model', usage: {},
+      status: 'completed',
+      provider: 'fake-provider',
+      model: 'fake-model',
+      usage: {},
       intent: {
-        schemaVersion: '1.0', objective: '找出低余次且未预约的客户', domains: ['customer'], intent: 'ranking',
-        entities: [], metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'ranking',
-        successCriteria: ['返回客户名单'], ambiguities: [], missingSlots: [], assumptions: [], confidence: 0.9,
+        schemaVersion: '1.0',
+        objective: '找出低余次且未预约的客户',
+        domains: ['customer'],
+        intent: 'ranking',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'ranking',
+        successCriteria: ['返回客户名单'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.9,
         decisionSummary: '客户名单查询',
       },
     } as never);
@@ -3018,15 +4273,37 @@ describe('BrainChatService', () => {
 
   it('returns failed when Supervisor produces no successful observation', async () => {
     const plan = {
-      schemaVersion: '1.0', planId: 'supervisor:failed', objective: '查询库存', replanCount: 0, budgetMs: 10_000,
-      nodes: [{ id: 'inventory', capabilityKey: 'inventory_operations_overview', capabilityVersion: 1, dependsOn: [], previewOnly: false, args: {} }],
+      schemaVersion: '1.0',
+      planId: 'supervisor:failed',
+      objective: '查询库存',
+      replanCount: 0,
+      budgetMs: 10_000,
+      nodes: [
+        {
+          id: 'inventory',
+          capabilityKey: 'inventory_operations_overview',
+          capabilityVersion: 1,
+          dependsOn: [],
+          previewOnly: false,
+          args: {},
+        },
+      ],
     };
     const card = {
-      key: 'inventory_operations_overview', version: 1, name: '库存概览', description: '库存事实',
-      domains: ['product'], intents: ['workflow'], readOnly: true, sideEffect: false, requiredPermissions: [],
+      key: 'inventory_operations_overview',
+      version: 1,
+      name: '库存概览',
+      description: '库存事实',
+      domains: ['product'],
+      intents: ['workflow'],
+      readOnly: true,
+      sideEffect: false,
+      requiredPermissions: [],
     };
     const orchestrator = {
-      createModelExecutionPlan: jest.fn().mockResolvedValue({ status: 'planned', provider: 'openai', model: 'gpt-test', usage: {}, plan }),
+      createModelExecutionPlan: jest
+        .fn()
+        .mockResolvedValue({ status: 'planned', provider: 'openai', model: 'gpt-test', usage: {}, plan }),
     };
     const { prisma, modelPipeline, trace, service } = createService({ modelPipeline: {}, orchestrator });
     prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
@@ -3035,35 +4312,67 @@ describe('BrainChatService', () => {
     prisma.brainRun.update.mockResolvedValue({ id: 77 });
     prisma.brainConversation.update.mockResolvedValue({ id: 12 });
     modelPipeline!.compiler.compile.mockResolvedValue({
-      status: 'completed', provider: 'openai', model: 'gpt-test', usage: {},
+      status: 'completed',
+      provider: 'openai',
+      model: 'gpt-test',
+      usage: {},
       intent: {
-        schemaVersion: '1.0', objective: '查询库存', domains: ['product'], intent: 'workflow', entities: [], metrics: [],
-        dimensions: [], filters: [], orderBy: [], answerShape: 'diagnosis', successCriteria: ['返回库存事实'], ambiguities: [],
-        missingSlots: [], assumptions: [], confidence: 0.95, decisionSummary: '库存查询',
+        schemaVersion: '1.0',
+        objective: '查询库存',
+        domains: ['product'],
+        intent: 'workflow',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'diagnosis',
+        successCriteria: ['返回库存事实'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.95,
+        decisionSummary: '库存查询',
       },
     } as never);
     modelPipeline!.catalog.listEnabledCapabilities.mockResolvedValue([card]);
-    modelPipeline!.retriever.retrieveTopKForSupervisor.mockReturnValue([{ card, score: 0.9, matchedFields: ['name'] }] as never);
+    modelPipeline!.retriever.retrieveTopKForSupervisor.mockReturnValue([
+      { card, score: 0.9, matchedFields: ['name'] },
+    ] as never);
     modelPipeline!.bounded.execute.mockResolvedValue({
-      status: 'partial', plan, replanCount: 0,
+      status: 'partial',
+      plan,
+      replanCount: 0,
       completion: { status: 'incomplete', missingCriteria: ['failed:inventory'], recoverable: true },
-      observations: [{
-        nodeId: 'inventory', capabilityKey: card.key, capabilityVersion: 1, status: 'failed', grounding: 'none',
-        summary: '执行失败。', data: {}, citations: [], errorCode: 'brain_capability_execution_timeout',
-        startedAt: new Date(0).toISOString(), completedAt: new Date(1).toISOString(),
-      }],
+      observations: [
+        {
+          nodeId: 'inventory',
+          capabilityKey: card.key,
+          capabilityVersion: 1,
+          status: 'failed',
+          grounding: 'none',
+          summary: '执行失败。',
+          data: {},
+          citations: [],
+          errorCode: 'brain_capability_execution_timeout',
+          startedAt: new Date(0).toISOString(),
+          completedAt: new Date(1).toISOString(),
+        },
+      ],
     });
 
     const response = await service.sendMessage(context, 12, { message: '查询库存' });
 
     expect(response).toMatchObject({ status: 'failed', grounding: 'none', failureCode: 'MODEL_EXECUTION_FAILED' });
-    expect(trace.recordStep).toHaveBeenCalledWith(expect.objectContaining({
-      stepKey: 'bounded_dag_execution',
-      status: 'failed',
-      output: expect.objectContaining({
-        observations: [expect.objectContaining({ errorCode: 'brain_capability_execution_timeout' })],
+    expect(trace.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stepKey: 'bounded_dag_execution',
+        status: 'failed',
+        output: expect.objectContaining({
+          observations: [expect.objectContaining({ errorCode: 'brain_capability_execution_timeout' })],
+        }),
       }),
-    }));
+    );
   });
 
   it('preserves an ordered new-customer time ranking for an exact governed example', () => {
@@ -3072,38 +4381,70 @@ describe('BrainChatService', () => {
     const normalized = (service as any).normalizeGovernedCapabilityExampleIntent({
       question,
       snapshot: { entities: [], metrics: [{ domain: 'customer' }], dimensions: [{ domain: 'customer' }] },
-      cards: [{
-        key: 'customer_facts', domains: ['customer'], intents: ['query', 'ranking', 'diagnosis'],
-        examples: [question], definitionRefs: [
-          { ...definitionRef('metric.new_customer_count'), version: 1 },
-          { ...definitionRef('dimension.customerSource'), version: 1 },
-        ],
-      }],
+      cards: [
+        {
+          key: 'customer_facts',
+          domains: ['customer'],
+          intents: ['query', 'ranking', 'diagnosis'],
+          examples: [question],
+          definitionRefs: [
+            { ...definitionRef('metric.new_customer_count'), version: 1 },
+            { ...definitionRef('dimension.customerSource'), version: 1 },
+          ],
+        },
+      ],
       intent: {
-        schemaVersion: '1.0', objective: question, domains: ['customer'], intent: 'ranking', entities: [], metrics: [],
-        dimensions: [], filters: [], orderBy: [], answerShape: 'ranking', successCriteria: ['返回新客时间与渠道排行'],
-        ambiguities: [], missingSlots: [], assumptions: [], confidence: 0.9, decisionSummary: '新客分布排行',
+        schemaVersion: '1.0',
+        objective: question,
+        domains: ['customer'],
+        intent: 'ranking',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'ranking',
+        successCriteria: ['返回新客时间与渠道排行'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.9,
+        decisionSummary: '新客分布排行',
       },
     });
 
     expect(normalized).toMatchObject({ intent: 'ranking', answerShape: 'ranking' });
-    expect(normalized.dimensions).toEqual([
-      expect.objectContaining({ definitionKey: 'dimension.customerSource' }),
-    ]);
+    expect(normalized.dimensions).toEqual([expect.objectContaining({ definitionKey: 'dimension.customerSource' })]);
   });
 
   it('does not treat a generic English ontology entity as a specific customer identity', () => {
     const { service } = createService({ modelPipeline: {} });
     const question = '最近哪个时间段新客最多，从哪些渠道来';
     const intent = {
-      schemaVersion: '1.0', objective: question, domains: ['customer'], intent: 'ranking',
-      entities: [{
-        entityType: 'customer', mention: 'Customer', source: 'system', confidence: 1,
-        definitionRef: definitionRef('entity.customer'),
-      }],
-      metrics: [], dimensions: [definitionRef('dimension.customerSource')], filters: [], orderBy: [],
-      answerShape: 'ranking', successCriteria: ['返回新客时间与渠道排行'], ambiguities: [], missingSlots: [],
-      assumptions: [], confidence: 1, decisionSummary: '新客分布排行',
+      schemaVersion: '1.0',
+      objective: question,
+      domains: ['customer'],
+      intent: 'ranking',
+      entities: [
+        {
+          entityType: 'customer',
+          mention: 'Customer',
+          source: 'system',
+          confidence: 1,
+          definitionRef: definitionRef('entity.customer'),
+        },
+      ],
+      metrics: [],
+      dimensions: [definitionRef('dimension.customerSource')],
+      filters: [],
+      orderBy: [],
+      answerShape: 'ranking',
+      successCriteria: ['返回新客时间与渠道排行'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 1,
+      decisionSummary: '新客分布排行',
     };
 
     const normalized = (service as any).normalizeExactCustomerFactIntent({ intent, question });
@@ -3117,24 +4458,28 @@ describe('BrainChatService', () => {
     const customerRef = definitionRef('entity.customer');
 
     for (const mention of ['下一个客人', '今天的客人', '下午那个客人', '这位客户', '她']) {
-      expect((service as any).isSpecificModelEntity({
+      expect(
+        (service as any).isSpecificModelEntity({
+          entityType: 'customer',
+          entityKey: `model_generated_${mention}`,
+          mention,
+          source: 'user',
+          definitionRef: customerRef,
+          confidence: 1,
+        }),
+      ).toBe(false);
+    }
+
+    expect(
+      (service as any).isSpecificModelEntity({
         entityType: 'customer',
-        entityKey: `model_generated_${mention}`,
-        mention,
+        entityKey: 'customer:马美琳',
+        mention: '马美琳',
         source: 'user',
         definitionRef: customerRef,
         confidence: 1,
-      })).toBe(false);
-    }
-
-    expect((service as any).isSpecificModelEntity({
-      entityType: 'customer',
-      entityKey: 'customer:马美琳',
-      mention: '马美琳',
-      source: 'user',
-      definitionRef: customerRef,
-      confidence: 1,
-    })).toBe(true);
+      }),
+    ).toBe(true);
   });
 
   it('uses the governed unique-customer metric for an exact staff customer ranking example', () => {
@@ -3142,35 +4487,60 @@ describe('BrainChatService', () => {
     const serviceMetric = definitionRef('metric.staff_service_count');
     const uniqueMetric = definitionRef('metric.staff_unique_customer_count');
     const intent = {
-      schemaVersion: '1.0', objective: '找出接客最多的美容师', domains: ['staff'], intent: 'ranking',
-      entities: [], metrics: [serviceMetric], dimensions: [], filters: [],
-      orderBy: [{ definitionRef: serviceMetric, direction: 'desc' }], answerShape: 'ranking',
-      successCriteria: ['返回排行'], ambiguities: [], missingSlots: [], assumptions: [], confidence: 0.9,
+      schemaVersion: '1.0',
+      objective: '找出接客最多的美容师',
+      domains: ['staff'],
+      intent: 'ranking',
+      entities: [],
+      metrics: [serviceMetric],
+      dimensions: [],
+      filters: [],
+      orderBy: [{ definitionRef: serviceMetric, direction: 'desc' }],
+      answerShape: 'ranking',
+      successCriteria: ['返回排行'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 0.9,
       decisionSummary: '员工排行',
     };
     const normalized = (service as any).normalizeGovernedCapabilityExampleIntent({
       intent,
       question: '哪个美容师接的客人最多',
-      cards: [{
-        key: 'manager_staff_overview', domains: ['staff', 'beautician'], intents: ['ranking'],
-        examples: ['哪个美容师接的客人最多'], definitionRefs: [
-          {
-            definitionKey: uniqueMetric.definitionKey,
-            version: 1,
-            definitionFingerprint: 'c'.repeat(64),
-            sourceFingerprint: 'd'.repeat(64),
-          },
-          { definitionKey: 'dimension.beauticianName', version: 3, definitionFingerprint: 'a'.repeat(64), sourceFingerprint: 'b'.repeat(64) },
-        ],
-      }],
+      cards: [
+        {
+          key: 'manager_staff_overview',
+          domains: ['staff', 'beautician'],
+          intents: ['ranking'],
+          examples: ['哪个美容师接的客人最多'],
+          definitionRefs: [
+            {
+              definitionKey: uniqueMetric.definitionKey,
+              version: 1,
+              definitionFingerprint: 'c'.repeat(64),
+              sourceFingerprint: 'd'.repeat(64),
+            },
+            {
+              definitionKey: 'dimension.beauticianName',
+              version: 3,
+              definitionFingerprint: 'a'.repeat(64),
+              sourceFingerprint: 'b'.repeat(64),
+            },
+          ],
+        },
+      ],
       snapshot: { entities: [], metrics: [{ domain: 'staff' }], dimensions: [{ domain: 'staff' }] },
     });
 
-    expect(normalized.metrics).toEqual([expect.objectContaining({ definitionKey: 'metric.staff_unique_customer_count' })]);
-    expect(normalized.orderBy).toEqual([expect.objectContaining({
-      definitionRef: expect.objectContaining({ definitionKey: 'metric.staff_unique_customer_count' }),
-      direction: 'desc',
-    })]);
+    expect(normalized.metrics).toEqual([
+      expect.objectContaining({ definitionKey: 'metric.staff_unique_customer_count' }),
+    ]);
+    expect(normalized.orderBy).toEqual([
+      expect.objectContaining({
+        definitionRef: expect.objectContaining({ definitionKey: 'metric.staff_unique_customer_count' }),
+        direction: 'desc',
+      }),
+    ]);
     expect(normalized.dimensions).toEqual([expect.objectContaining({ definitionKey: 'dimension.beauticianName' })]);
   });
 
@@ -3378,6 +4748,47 @@ describe('BrainChatService', () => {
     expect(trace.recordStep).toHaveBeenCalledWith(
       expect.objectContaining({ runId: 77, stepKey: 'semantic_query', status: 'completed' }),
     );
+  });
+
+  it('retries assistant message persistence after an expired transaction rollback', async () => {
+    const { prisma, cognition, semanticEngine, service } = createService();
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create
+      .mockResolvedValueOnce({ id: 100, role: 'user', content: '今天预约多少？' })
+      .mockRejectedValueOnce(
+        new Error(
+          'Transaction API error: A rollback cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms.',
+        ),
+      )
+      .mockResolvedValueOnce({ id: 101, role: 'assistant', content: '预约数为 3。' });
+    prisma.brainRun.create.mockResolvedValue({ id: 77 });
+    prisma.brainRun.update.mockResolvedValue({ id: 77, status: 'completed' });
+    cognition.understand.mockReturnValue({
+      normalizedText: '今天[metric:appointment_count]多少？',
+      terms: [],
+      metrics: ['appointment_count'],
+      dimensions: ['date'],
+      entities: [],
+      unsupportedTerms: [],
+      intent: { key: 'metric_query', confidence: 0.86, reason: 'contains_known_semantic_metric' },
+      needsClarification: false,
+    });
+    semanticEngine.getRequiredPermission.mockReturnValue('core:store:reservations');
+    semanticEngine.run.mockResolvedValue({
+      rows: [{ appointment_count: 3 }],
+      citations: [{ sourceType: 'metric', sourceId: 'appointment_count', label: '预约数' }],
+      compiled: {
+        metric: 'appointment_count',
+        label: '预约数',
+        valueField: 'appointment_count',
+        filters: { storeId: 2 },
+      },
+    });
+
+    await expect(
+      service.sendMessage(context, 12, { message: '今天预约多少？', timezone: 'Asia/Shanghai' }),
+    ).resolves.toMatchObject({ status: 'completed', answer: expect.stringContaining('3') });
+    expect(prisma.brainMessage.create).toHaveBeenCalledTimes(3);
   });
 
   it('uses parsed date filters for tomorrow instead of falling back to all history', async () => {
@@ -4480,14 +5891,16 @@ describe('BrainChatService', () => {
 
 describe('findCapabilityContractMissingDefinitions', () => {
   it('does not treat nouns inside draft copy as required query dimensions', () => {
-    expect(findCapabilityContractMissingDefinitions(
-      {
-        intent: 'draft',
-        dimensions: [],
-      } as never,
-      { key: 'marketing_message_draft', domains: ['customer', 'reservation'], definitionRefs: [] },
-      '写一条提醒老客户预约护理的消息',
-    )).toEqual([]);
+    expect(
+      findCapabilityContractMissingDefinitions(
+        {
+          intent: 'draft',
+          dimensions: [],
+        } as never,
+        { key: 'marketing_message_draft', domains: ['customer', 'reservation'], definitionRefs: [] },
+        '写一条提醒老客户预约护理的消息',
+      ),
+    ).toEqual([]);
   });
 
   it('rejects a capability that lacks the project dimension required by the model intent', () => {
@@ -4503,88 +5916,103 @@ describe('findCapabilityContractMissingDefinitions', () => {
   });
 
   it('allows a governed domain diagnosis to execute supported evidence and disclose unsupported dimensions', () => {
-    expect(findCapabilityContractMissingDefinitions(
-      {
-        intent: 'diagnosis',
-        metrics: [],
-        dimensions: [definitionRef('dimension.projectName'), definitionRef('dimension.productName')],
-      } as any,
-      {
-        definitionRefs: [{ definitionKey: 'metric.paid_amount' }],
-        domains: ['finance'],
-        grounding: 'domain_service',
-        key: 'finance_risk_overview',
-      } as any,
-    )).toEqual([]);
+    expect(
+      findCapabilityContractMissingDefinitions(
+        {
+          intent: 'diagnosis',
+          metrics: [],
+          dimensions: [definitionRef('dimension.projectName'), definitionRef('dimension.productName')],
+        } as any,
+        {
+          definitionRefs: [{ definitionKey: 'metric.paid_amount' }],
+          domains: ['finance'],
+          grounding: 'domain_service',
+          key: 'finance_risk_overview',
+        } as any,
+      ),
+    ).toEqual([]);
   });
 
   it('accepts equivalent prefixed definition keys', () => {
-    expect(findCapabilityContractMissingDefinitions(
-      {
-        metrics: [definitionRef('metric.paid_amount')],
-        dimensions: [definitionRef('dimension.paymentMethod')],
-      } as any,
-      {
-        definitionRefs: [
-          { definitionKey: 'paid_amount' },
-          { definitionKey: 'dimension.payment_method' },
-        ],
-      } as any,
-    )).toEqual([]);
+    expect(
+      findCapabilityContractMissingDefinitions(
+        {
+          metrics: [definitionRef('metric.paid_amount')],
+          dimensions: [definitionRef('dimension.paymentMethod')],
+        } as any,
+        {
+          definitionRefs: [{ definitionKey: 'paid_amount' }, { definitionKey: 'dimension.payment_method' }],
+        } as any,
+      ),
+    ).toEqual([]);
   });
 
   it('accepts a composite capability dimension covered by its declared business domain', () => {
-    expect(findCapabilityContractMissingDefinitions(
-      { metrics: [], dimensions: [definitionRef('dimension.productName')] } as any,
-      { definitionRefs: [], domains: ['inventory'] } as any,
-    )).toEqual([]);
+    expect(
+      findCapabilityContractMissingDefinitions(
+        { metrics: [], dimensions: [definitionRef('dimension.productName')] } as any,
+        { definitionRefs: [], domains: ['inventory'] } as any,
+      ),
+    ).toEqual([]);
   });
 
   it('uses explicit business objects in the question when the model omitted a required dimension', () => {
-    expect(findCapabilityContractMissingDefinitions(
-      { metrics: [], dimensions: [definitionRef('dimension.customerName')] } as any,
-      { definitionRefs: [{ definitionKey: 'dimension.customerName' }], domains: ['customer', 'marketing'] } as any,
-      '我想做个高端护理套餐推广，找哪些客户合适',
-    )).toEqual(['dimension.projectName']);
+    expect(
+      findCapabilityContractMissingDefinitions(
+        { metrics: [], dimensions: [definitionRef('dimension.customerName')] } as any,
+        { definitionRefs: [{ definitionKey: 'dimension.customerName' }], domains: ['customer', 'marketing'] } as any,
+        '我想做个高端护理套餐推广，找哪些客户合适',
+      ),
+    ).toEqual(['dimension.projectName']);
   });
 
   it('trusts an exact governed positive example while the capability discloses unsupported recommendation rules', () => {
-    expect(findCapabilityContractMissingDefinitions(
-      { intent: 'query', metrics: [], dimensions: [definitionRef('dimension.customerName')] } as any,
-      {
-        key: 'beautician_customer_card_progress',
-        definitionRefs: [{ definitionKey: 'entity.customer' }],
-        domains: ['customer', 'beautician'],
-      } as any,
-      '今天有没有需要我帮客人续卡或者推荐项目的',
-      { exactGovernedExample: true },
-    )).toEqual([]);
+    expect(
+      findCapabilityContractMissingDefinitions(
+        { intent: 'query', metrics: [], dimensions: [definitionRef('dimension.customerName')] } as any,
+        {
+          key: 'beautician_customer_card_progress',
+          definitionRefs: [{ definitionKey: 'entity.customer' }],
+          domains: ['customer', 'beautician'],
+        } as any,
+        '今天有没有需要我帮客人续卡或者推荐项目的',
+        { exactGovernedExample: true },
+      ),
+    ).toEqual([]);
   });
 
   it('accepts customer and staff objects covered by dedicated service-operation capability keys', () => {
-    expect(findCapabilityContractMissingDefinitions(
-      { metrics: [], dimensions: [] } as any,
-      { key: 'beautician_service_overview', definitionRefs: [], domains: ['beautician'] } as any,
-      '我今天有哪些客户要服务',
-    )).toEqual([]);
-    expect(findCapabilityContractMissingDefinitions(
-      { metrics: [], dimensions: [] } as any,
-      { key: 'front_desk_operations_overview', definitionRefs: [], domains: ['reservation'] } as any,
-      '明天下午有哪些预约，员工忙不忙',
-    )).toEqual([]);
+    expect(
+      findCapabilityContractMissingDefinitions(
+        { metrics: [], dimensions: [] } as any,
+        { key: 'beautician_service_overview', definitionRefs: [], domains: ['beautician'] } as any,
+        '我今天有哪些客户要服务',
+      ),
+    ).toEqual([]);
+    expect(
+      findCapabilityContractMissingDefinitions(
+        { metrics: [], dimensions: [] } as any,
+        { key: 'front_desk_operations_overview', definitionRefs: [], domains: ['reservation'] } as any,
+        '明天下午有哪些预约，员工忙不忙',
+      ),
+    ).toEqual([]);
   });
 });
 
 describe('findUnresolvedBusinessDefinitionRequirements', () => {
   it('rejects product margin questions until a product-level margin definition is present', () => {
-    expect(findUnresolvedBusinessDefinitionRequirements(
-      { metrics: [], dimensions: [] } as any,
-      '有没有产品卖出去的价格低于成本的',
-    )).toEqual(['metric.product_margin']);
-    expect(findUnresolvedBusinessDefinitionRequirements(
-      { metrics: [definitionRef('metric.product_margin_amount')], dimensions: [] } as any,
-      '哪些产品毛利最高',
-    )).toEqual([]);
+    expect(
+      findUnresolvedBusinessDefinitionRequirements(
+        { metrics: [], dimensions: [] } as any,
+        '有没有产品卖出去的价格低于成本的',
+      ),
+    ).toEqual(['metric.product_margin']);
+    expect(
+      findUnresolvedBusinessDefinitionRequirements(
+        { metrics: [definitionRef('metric.product_margin_amount')], dimensions: [] } as any,
+        '哪些产品毛利最高',
+      ),
+    ).toEqual([]);
   });
 });
 

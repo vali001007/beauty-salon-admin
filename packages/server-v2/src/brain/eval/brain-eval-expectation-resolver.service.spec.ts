@@ -5,12 +5,28 @@ describe('BrainEvalExpectationResolverService', () => {
   const definitions = {
     entities: [
       {
-        definitionKey: 'entity.customer', entityKey: 'customer', name: '客户', aliases: ['顾客'], domain: 'customer',
-        source: {}, permissions: [], version: 1, definitionFingerprint: '3'.repeat(64), sourceFingerprint: '4'.repeat(64),
+        definitionKey: 'entity.customer',
+        entityKey: 'customer',
+        name: '客户',
+        aliases: ['顾客'],
+        domain: 'customer',
+        source: {},
+        permissions: [],
+        version: 1,
+        definitionFingerprint: '3'.repeat(64),
+        sourceFingerprint: '4'.repeat(64),
       },
       {
-        definitionKey: 'entity.product', entityKey: 'product', name: '商品', aliases: ['产品'], domain: 'product',
-        source: {}, permissions: [], version: 1, definitionFingerprint: '5'.repeat(64), sourceFingerprint: '6'.repeat(64),
+        definitionKey: 'entity.product',
+        entityKey: 'product',
+        name: '商品',
+        aliases: ['产品'],
+        domain: 'product',
+        source: {},
+        permissions: [],
+        version: 1,
+        definitionFingerprint: '5'.repeat(64),
+        sourceFingerprint: '6'.repeat(64),
       },
     ],
     relations: [],
@@ -148,11 +164,7 @@ describe('BrainEvalExpectationResolverService', () => {
     const result = service.resolve({
       base: {
         intent: 'query',
-        metrics: [
-          'new_customer_count',
-          'new_customer_conversion_count',
-          'new_customer_conversion_rate',
-        ],
+        metrics: ['new_customer_count', 'new_customer_conversion_count', 'new_customer_conversion_rate'],
         dimensions: ['customerAgeGroup'],
       },
       definitions,
@@ -177,11 +189,7 @@ describe('BrainEvalExpectationResolverService', () => {
     });
 
     expect(result.expectation).toMatchObject({
-      metrics: [
-        'new_customer_count',
-        'new_customer_conversion_count',
-        'new_customer_conversion_rate',
-      ],
+      metrics: ['new_customer_count', 'new_customer_conversion_count', 'new_customer_conversion_rate'],
       dimensions: ['customerAgeGroup'],
       capabilityAnyOf: ['customer_facts'],
     });
@@ -208,6 +216,23 @@ describe('BrainEvalExpectationResolverService', () => {
     });
   });
 
+  it('maps evaluation role aliases to governed runtime roles', () => {
+    const result = service.resolve({
+      base: { intent: 'diagnosis' },
+      definitions,
+      roleKey: 'manager',
+      releaseSnapshot: {
+        capabilityKeys: ['finance_risk_overview', 'beautician_service_overview'],
+        capabilityCandidates: [
+          { key: 'finance_risk_overview', allowedRoles: ['finance', 'store_manager'], intents: ['diagnosis'] },
+          { key: 'beautician_service_overview', allowedRoles: ['beautician'], intents: ['diagnosis'] },
+        ],
+      } as never,
+    });
+
+    expect(result.expectation.capabilityAnyOf).toEqual(['finance_risk_overview']);
+  });
+
   it('does not require capability selection while the turn is waiting for clarification', () => {
     const result = service.resolve({
       base: { intent: 'comparison', answerShape: 'clarification', metrics: ['paid_amount'] },
@@ -230,11 +255,45 @@ describe('BrainEvalExpectationResolverService', () => {
       roleKey: 'receptionist',
       releaseSnapshot: {
         capabilityKeys: ['reservation_list'],
-        capabilityCandidates: [{ key: 'reservation_list', allowedRoles: ['receptionist'], definitionRefs: [{ definitionKey: 'entity.reservation' }] }],
+        capabilityCandidates: [
+          {
+            key: 'reservation_list',
+            allowedRoles: ['receptionist'],
+            definitionRefs: [{ definitionKey: 'entity.reservation' }],
+          },
+        ],
       } as never,
     });
 
     expect(result.expectation.capabilityAnyOf).toBeUndefined();
+    expect(result.evidence.capabilityKeys).toEqual([]);
+  });
+
+  it('does not infer a tool requirement for a governed deterministic decision', () => {
+    const result = service.resolve({
+      base: {
+        intent: 'recommendation',
+        entities: ['product'],
+        decisionCodes: ['expiring_inventory_empty_no_campaign_needed'],
+      },
+      definitions,
+      roleKey: 'store_manager',
+      releaseSnapshot: {
+        capabilityKeys: ['inventory_operations_overview'],
+        capabilityCandidates: [
+          {
+            key: 'inventory_operations_overview',
+            allowedRoles: ['store_manager'],
+            intents: ['query', 'recommendation'],
+            domains: ['product'],
+            definitionRefs: [{ definitionKey: 'entity.product' }],
+          },
+        ],
+      } as never,
+    });
+
+    expect(result.expectation.capabilityAnyOf).toBeUndefined();
+    expect(result.expectation.decisionCodes).toEqual(['expiring_inventory_empty_no_campaign_needed']);
     expect(result.evidence.capabilityKeys).toEqual([]);
   });
 
@@ -255,10 +314,7 @@ describe('BrainEvalExpectationResolverService', () => {
       } as never,
     });
 
-    expect(result.expectation.capabilityAnyOf).toEqual([
-      'order_revenue_analysis',
-      'store_operations_overview',
-    ]);
+    expect(result.expectation.capabilityAnyOf).toEqual(['order_revenue_analysis', 'store_operations_overview']);
   });
 
   it('uses entity, domain, intent and role evidence instead of falling back to an unrelated role capability', () => {
@@ -270,15 +326,24 @@ describe('BrainEvalExpectationResolverService', () => {
         capabilityKeys: ['store_operations_overview', 'inventory_operations_overview', 'customer_facts'],
         capabilityCandidates: [
           {
-            key: 'store_operations_overview', allowedRoles: ['store_manager'], intents: ['query'], domains: ['customer'],
+            key: 'store_operations_overview',
+            allowedRoles: ['store_manager'],
+            intents: ['query'],
+            domains: ['customer'],
             definitionRefs: [{ definitionKey: 'entity.customer' }],
           },
           {
-            key: 'inventory_operations_overview', allowedRoles: ['inventory', 'store_manager'], intents: ['query'], domains: ['product'],
+            key: 'inventory_operations_overview',
+            allowedRoles: ['inventory', 'store_manager'],
+            intents: ['query'],
+            domains: ['product'],
             definitionRefs: [{ definitionKey: 'entity.product' }],
           },
           {
-            key: 'customer_facts', allowedRoles: ['store_manager'], intents: ['query'], domains: ['customer'],
+            key: 'customer_facts',
+            allowedRoles: ['store_manager'],
+            intents: ['query'],
+            domains: ['customer'],
             definitionRefs: [{ definitionKey: 'entity.customer' }],
           },
         ],
@@ -301,10 +366,15 @@ describe('BrainEvalExpectationResolverService', () => {
       roleKey: 'store_manager',
       releaseSnapshot: {
         capabilityKeys: ['finance_risk_overview'],
-        capabilityCandidates: [{
-          key: 'finance_risk_overview', allowedRoles: ['store_manager'], intents: ['query', 'diagnosis'], domains: ['product', 'finance'],
-          definitionRefs: [{ definitionKey: 'entity.product' }, { definitionKey: 'dimension.productName' }],
-        }],
+        capabilityCandidates: [
+          {
+            key: 'finance_risk_overview',
+            allowedRoles: ['store_manager'],
+            intents: ['query', 'diagnosis'],
+            domains: ['product', 'finance'],
+            definitionRefs: [{ definitionKey: 'entity.product' }, { definitionKey: 'dimension.productName' }],
+          },
+        ],
       } as never,
     });
 

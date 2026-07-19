@@ -62,6 +62,7 @@ export interface BrainExpiringCardBalanceRow {
 export interface BrainVipCustomerSummary {
   total: number;
   rows: Array<{
+    customerId: number;
     customerName: string;
     memberLevel: string;
     totalSpent: number;
@@ -73,6 +74,7 @@ export interface BrainInactiveCustomerSummary {
   total: number;
   thresholdDays: number;
   rows: Array<{
+    customerId: number;
     customerName: string;
     totalSpent: number;
     visitCount: number;
@@ -110,10 +112,7 @@ export class BrainCustomerFactResolverService {
     startDate?: Date;
     endDate?: Date;
   }) {
-    const hasExactLookup = Boolean(
-      input.specificCustomerMention?.trim() ||
-      extractCustomerPhoneTail(input.message),
-    );
+    const hasExactLookup = Boolean(input.specificCustomerMention?.trim() || extractCustomerPhoneTail(input.message));
     if (hasExactLookup) {
       return this.answerExactCustomerQuestion({
         storeId: input.storeId,
@@ -137,13 +136,14 @@ export class BrainCustomerFactResolverService {
       this.prisma.customer.findMany({
         where,
         orderBy: [{ totalSpent: 'desc' }],
-        select: { name: true, memberLevel: true, totalSpent: true, lastVisitDate: true },
+        select: { id: true, name: true, memberLevel: true, totalSpent: true, lastVisitDate: true },
         take: limit,
       }),
     ]);
     return {
       total,
       rows: customers.map((customer) => ({
+        customerId: customer.id,
         customerName: customer.name,
         memberLevel: customer.memberLevel,
         totalSpent: toBrainNumber(customer.totalSpent),
@@ -169,7 +169,7 @@ export class BrainCustomerFactResolverService {
       this.prisma.customer.findMany({
         where,
         orderBy: [{ totalSpent: 'desc' }],
-        select: { name: true, totalSpent: true, visitCount: true, lastVisitDate: true },
+        select: { id: true, name: true, totalSpent: true, visitCount: true, lastVisitDate: true },
         take: limit,
       }),
     ]);
@@ -177,6 +177,7 @@ export class BrainCustomerFactResolverService {
       total,
       thresholdDays,
       rows: customers.map((customer) => ({
+        customerId: customer.id,
         customerName: customer.name,
         totalSpent: toBrainNumber(customer.totalSpent),
         visitCount: customer.visitCount,
@@ -191,7 +192,8 @@ export class BrainCustomerFactResolverService {
     customerName?: string;
   }): Promise<BrainExactCustomerBasicSummary> {
     const customerMention = input.customerName?.trim();
-    const name = (customerMention ? extractSpecificCustomerNameFromMention(customerMention) : undefined) ||
+    const name =
+      (customerMention ? extractSpecificCustomerNameFromMention(customerMention) : undefined) ||
       this.extractCustomerName(input.message);
     const phoneTail = extractCustomerPhoneTail(`${customerMention ?? ''} ${input.message}`);
     if (!name && !phoneTail) return { status: 'missing_identity', rows: [] };
@@ -239,7 +241,8 @@ export class BrainCustomerFactResolverService {
         lastVisitDate: customer.lastVisitDate?.toISOString().slice(0, 10) ?? null,
         lastProjectName: latestService?.project.name ?? null,
         lastBeauticianName: latestService?.beautician?.name ?? null,
-        lastServiceDate: (latestService?.completedAt ?? latestService?.appointmentTime)?.toISOString().slice(0, 10) ?? null,
+        lastServiceDate:
+          (latestService?.completedAt ?? latestService?.appointmentTime)?.toISOString().slice(0, 10) ?? null,
       };
     });
     return {
@@ -248,9 +251,16 @@ export class BrainCustomerFactResolverService {
     };
   }
 
-  async answerExactCustomerQuestion(input: { storeId: number; message: string; customerName?: string; permissions: string[] }) {
+  async answerExactCustomerQuestion(input: {
+    storeId: number;
+    message: string;
+    customerName?: string;
+    permissions: string[];
+  }) {
     const customerMention = input.customerName?.trim();
-    const name = (customerMention ? extractSpecificCustomerNameFromMention(customerMention) : undefined) || this.extractCustomerName(input.message);
+    const name =
+      (customerMention ? extractSpecificCustomerNameFromMention(customerMention) : undefined) ||
+      this.extractCustomerName(input.message);
     const phoneTail = extractCustomerPhoneTail(`${customerMention ?? ''} ${input.message}`);
     if (!name && !phoneTail) {
       return '请提供客户姓名或手机号后四位，我才能在当前门店范围内精确查询；不会根据“这个客人”猜测身份。';
@@ -289,7 +299,10 @@ export class BrainCustomerFactResolverService {
     if (!customers.length) return '当前门店没有找到匹配客户，请核对姓名或手机号后四位。';
     if (customers.length > 1) {
       return `找到 ${customers.length} 位同名或尾号匹配客户：\n${customers
-        .map((customer, index) => `${index + 1}. ${customer.name}，手机 ${this.maskPhone(customer.phone)}，${customer.memberLevel}`)
+        .map(
+          (customer, index) =>
+            `${index + 1}. ${customer.name}，手机 ${this.maskPhone(customer.phone)}，${customer.memberLevel}`,
+        )
         .join('\n')}\n请补充完整姓名或手机号后四位后继续。`;
     }
 
@@ -302,7 +315,10 @@ export class BrainCustomerFactResolverService {
       lines.push(
         customer.reservations.length
           ? `最近预约：${customer.reservations
-              .map((reservation) => `${reservation.date.toISOString().slice(0, 10)} ${reservation.startTime} ${reservation.project.name}（${reservation.status}）`)
+              .map(
+                (reservation) =>
+                  `${reservation.date.toISOString().slice(0, 10)} ${reservation.startTime} ${reservation.project.name}（${reservation.status}）`,
+              )
               .join('；')}。`
           : '当前没有查到预约记录。',
       );
@@ -317,7 +333,10 @@ export class BrainCustomerFactResolverService {
       if (customer.consumptionRecords.length) {
         lines.push(
           `最近消费：${customer.consumptionRecords
-            .map((record) => `${record.consumeTime.toISOString().slice(0, 10)} ${record.consumeContent} ${formatBrainMoney(toBrainNumber(record.amount))}`)
+            .map(
+              (record) =>
+                `${record.consumeTime.toISOString().slice(0, 10)} ${record.consumeContent} ${formatBrainMoney(toBrainNumber(record.amount))}`,
+            )
             .join('；')}。`,
         );
       }
@@ -370,7 +389,9 @@ export class BrainCustomerFactResolverService {
     if (/(?:按|根据)?消费金额.*(?:分层|分一下层|分组)|客户.*消费金额.*层/.test(message)) {
       return this.customerSpendingTiers(input.storeId);
     }
-    if (/(?:只做过|做过).*(?:基础项目|基础护理).*(?:没有|没).*(?:升单|升级)|基础项目.*(?:未升单|没升单)/.test(message)) {
+    if (
+      /(?:只做过|做过).*(?:基础项目|基础护理).*(?:没有|没).*(?:升单|升级)|基础项目.*(?:未升单|没升单)/.test(message)
+    ) {
       return this.basicProjectWithoutUpgradeCustomers(input.storeId);
     }
     if (/(?:疗程|次卡).*(?:快结束|临近结束|续购)|(?:续购).*(?:疗程|次卡|客户)/.test(message)) {
@@ -404,7 +425,11 @@ export class BrainCustomerFactResolverService {
     if (/(?:新客).*(?:潜力).*(?:长期客户|长期)|(?:潜力转成长期).*(?:新客|客户)/.test(message)) {
       return this.newCustomerLongTermPotential(input.storeId);
     }
-    if (/(?:客户).*(?:项目).*(?:特别感兴趣|感兴趣).*(?:还没办卡|未办卡|没有办卡)|(?:项目).*(?:特别感兴趣|感兴趣).*(?:还没办卡|未办卡|没有办卡)/.test(message)) {
+    if (
+      /(?:客户).*(?:项目).*(?:特别感兴趣|感兴趣).*(?:还没办卡|未办卡|没有办卡)|(?:项目).*(?:特别感兴趣|感兴趣).*(?:还没办卡|未办卡|没有办卡)/.test(
+        message,
+      )
+    ) {
       return this.projectInterestWithoutActiveCard(input.storeId);
     }
     if (/高价值|消费很多|消费金额|分层/.test(message)) {
@@ -426,8 +451,12 @@ export class BrainCustomerFactResolverService {
         return `${summary.rangeLabel}分析了 ${summary.touchCountAnalyzed}/${summary.touchCountTotal} 条有效触达，其中 ${summary.dormantCandidateCount} 位客户在触达前满足沉睡证据，但触达后没有发现预约、实际到店、有效消费、点击或回复信号。发送成功本身不算唤醒。${summary.touchesTruncated ? '当前结果为受控部分扫描，不代表全量没有信号。' : ''}`;
       }
       return `${summary.rangeLabel}发现 ${summary.reactivatedCustomerCount} 位沉睡客户出现唤醒迹象，其中强信号 ${summary.strongSignalCustomerCount} 位、中信号 ${summary.mediumSignalCustomerCount} 位、弱信号 ${summary.weakSignalCustomerCount} 位。\n${summary.rows
-        .map((row, index) => `${index + 1}. ${row.customerName}：${row.signalSummary}；沉睡证据：${row.dormantEvidence}`)
-        .join('\n')}\n说明：预约、到店或消费发生在触达后窗口内属于时间关联证据；只有显式营销归因记录才视为系统归因，不直接宣称因果。${summary.touchesTruncated ? `本次扫描 ${summary.touchCountAnalyzed}/${summary.touchCountTotal} 条有效触达，结果为部分覆盖。` : ''}`;
+        .map(
+          (row, index) => `${index + 1}. ${row.customerName}：${row.signalSummary}；沉睡证据：${row.dormantEvidence}`,
+        )
+        .join(
+          '\n',
+        )}\n说明：预约、到店或消费发生在触达后窗口内属于时间关联证据；只有显式营销归因记录才视为系统归因，不直接宣称因果。${summary.touchesTruncated ? `本次扫描 ${summary.touchCountAnalyzed}/${summary.touchCountTotal} 条有效触达，结果为部分覆盖。` : ''}`;
     }
     if (/好久没来|不活跃|沉睡|流失|消费频率.*下降|续购|疗程快结束|\d+天没来|三个月没来/.test(message)) {
       const days = message.includes('三个月') ? 90 : Number(message.match(/(\d+)天没来/)?.[1] ?? 60);
@@ -474,7 +503,9 @@ export class BrainCustomerFactResolverService {
     }
     const activeCustomerCount = byCustomer.size;
     return {
-      rangeLabel: input.startDate ? `${startDate.toISOString().slice(0, 10)} 至 ${endDate.toISOString().slice(0, 10)}` : '最近 180 天',
+      rangeLabel: input.startDate
+        ? `${startDate.toISOString().slice(0, 10)} 至 ${endDate.toISOString().slice(0, 10)}`
+        : '最近 180 天',
       activeCustomerCount,
       repeatCustomerCount,
       repurchaseRate: activeCustomerCount > 0 ? repeatCustomerCount / activeCustomerCount : 0,
@@ -540,7 +571,16 @@ export class BrainCustomerFactResolverService {
     startDate: Date;
     endDate: Date;
   }): Promise<BrainArrivedCustomerAgeDistribution> {
-    const arrivedStatuses = ['checked_in', 'in_service', 'arrived', 'completed', 'served', '已到店', '服务中', '已完成'];
+    const arrivedStatuses = [
+      'checked_in',
+      'in_service',
+      'arrived',
+      'completed',
+      'served',
+      '已到店',
+      '服务中',
+      '已完成',
+    ];
     const reservations = await this.prisma.reservation.findMany({
       where: {
         storeId: input.storeId,
@@ -593,7 +633,10 @@ export class BrainCustomerFactResolverService {
     };
   }
 
-  async getLowCardUsageCustomers(storeId: number, limit = 10): Promise<{ total: number; rows: BrainCustomerCardUsageRow[] }> {
+  async getLowCardUsageCustomers(
+    storeId: number,
+    limit = 10,
+  ): Promise<{ total: number; rows: BrainCustomerCardUsageRow[] }> {
     const cards = await this.prisma.customerCard.findMany({
       where: {
         status: 'active',
@@ -629,7 +672,10 @@ export class BrainCustomerFactResolverService {
     return { total: matches.length, rows: matches.slice(0, limit) };
   }
 
-  async getNeverUsedCardCustomers(storeId: number, limit = 10): Promise<{ total: number; rows: BrainCustomerCardUsageRow[] }> {
+  async getNeverUsedCardCustomers(
+    storeId: number,
+    limit = 10,
+  ): Promise<{ total: number; rows: BrainCustomerCardUsageRow[] }> {
     const cards = await this.prisma.customerCard.findMany({
       where: {
         status: 'active',
@@ -719,10 +765,7 @@ export class BrainCustomerFactResolverService {
         status: { notIn: ['cancelled', 'canceled', '已取消'] },
         customer: {
           deletedAt: null,
-          OR: [
-            { memberLevel: { notIn: ['无', '普通', '普通会员', ''] } },
-            { totalSpent: { gte: 5000 } },
-          ],
+          OR: [{ memberLevel: { notIn: ['无', '普通', '普通会员', ''] } }, { totalSpent: { gte: 5000 } }],
         },
       },
       include: {
@@ -733,10 +776,13 @@ export class BrainCustomerFactResolverService {
       take: 10,
     });
 
-    return this.formatCustomerRows('今日需关注的重要到店客户', reservations, (reservation) =>
-      `${reservation.startTime} ${reservation.customer.name}：${reservation.customer.memberLevel}，累计消费 ${formatBrainMoney(
-        toBrainNumber(reservation.customer.totalSpent),
-      )}，预约项目 ${reservation.project.name}${this.lastVisitText(reservation.customer.lastVisitDate)}`,
+    return this.formatCustomerRows(
+      '今日需关注的重要到店客户',
+      reservations,
+      (reservation) =>
+        `${reservation.startTime} ${reservation.customer.name}：${reservation.customer.memberLevel}，累计消费 ${formatBrainMoney(
+          toBrainNumber(reservation.customer.totalSpent),
+        )}，预约项目 ${reservation.project.name}${this.lastVisitText(reservation.customer.lastVisitDate)}`,
     );
   }
 
@@ -777,18 +823,16 @@ export class BrainCustomerFactResolverService {
     >();
     for (const order of orders) {
       if (!order.customerId || !order.customer) continue;
-      const current =
-        grouped.get(order.customerId) ??
-        {
-          name: order.customer.name,
-          orderCount: 0,
-          discountOrderCount: 0,
-          totalAmount: 0,
-          discountAmount: 0,
-          totalSpent: toBrainNumber(order.customer.totalSpent),
-          visitCount: order.customer.visitCount,
-          lastVisitDate: order.customer.lastVisitDate,
-        };
+      const current = grouped.get(order.customerId) ?? {
+        name: order.customer.name,
+        orderCount: 0,
+        discountOrderCount: 0,
+        totalAmount: 0,
+        discountAmount: 0,
+        totalSpent: toBrainNumber(order.customer.totalSpent),
+        visitCount: order.customer.visitCount,
+        lastVisitDate: order.customer.lastVisitDate,
+      };
       const discountAmount = toBrainNumber(order.totalDiscountAmount);
       current.orderCount += 1;
       current.discountOrderCount += discountAmount > 0 ? 1 : 0;
@@ -802,16 +846,23 @@ export class BrainCustomerFactResolverService {
         ...customer,
         discountOrderRate: customer.orderCount > 0 ? customer.discountOrderCount / customer.orderCount : 0,
       }))
-      .filter((customer) => customer.orderCount >= 2 && customer.discountOrderCount >= 2 && customer.discountOrderRate >= 0.5)
-      .sort((left, right) => right.discountOrderRate - left.discountOrderRate || right.discountAmount - left.discountAmount)
+      .filter(
+        (customer) => customer.orderCount >= 2 && customer.discountOrderCount >= 2 && customer.discountOrderRate >= 0.5,
+      )
+      .sort(
+        (left, right) => right.discountOrderRate - left.discountOrderRate || right.discountAmount - left.discountAmount,
+      )
       .slice(0, 10);
 
-    return this.formatCustomerRows('优惠敏感客户候选名单（近 180 天至少 2 单、至少 2 笔优惠单且优惠订单占比不低于 50%）', rows, (customer) =>
-      `${customer.name}：近 180 天 ${customer.orderCount} 单中 ${customer.discountOrderCount} 单使用优惠，优惠订单占比 ${Math.round(
-        customer.discountOrderRate * 100,
-      )}%，累计优惠 ${formatBrainMoney(customer.discountAmount)}，累计消费 ${formatBrainMoney(customer.totalSpent)}${this.lastVisitText(
-        customer.lastVisitDate,
-      )}`,
+    return this.formatCustomerRows(
+      '优惠敏感客户候选名单（近 180 天至少 2 单、至少 2 笔优惠单且优惠订单占比不低于 50%）',
+      rows,
+      (customer) =>
+        `${customer.name}：近 180 天 ${customer.orderCount} 单中 ${customer.discountOrderCount} 单使用优惠，优惠订单占比 ${Math.round(
+          customer.discountOrderRate * 100,
+        )}%，累计优惠 ${formatBrainMoney(customer.discountAmount)}，累计消费 ${formatBrainMoney(customer.totalSpent)}${this.lastVisitText(
+          customer.lastVisitDate,
+        )}`,
     );
   }
 
@@ -834,15 +885,22 @@ export class BrainCustomerFactResolverService {
     }
     const lines = CUSTOMER_MONETARY_TIERS.map((tier, index) => {
       const rows = grouped.get(tier.score) ?? [];
-      const range = tier.max === null
-        ? `${formatBrainMoney(tier.min)} 以上`
-        : tier.score === 0
-          ? '累计消费为 0'
-          : `${formatBrainMoney(tier.min)} 至 ${formatBrainMoney(tier.max)} 以下`;
-      const examples = rows.slice(0, 3).map((customer) => `${customer.name} ${formatBrainMoney(toBrainNumber(customer.totalSpent))}`).join('、');
+      const range =
+        tier.max === null
+          ? `${formatBrainMoney(tier.min)} 以上`
+          : tier.score === 0
+            ? '累计消费为 0'
+            : `${formatBrainMoney(tier.min)} 至 ${formatBrainMoney(tier.max)} 以下`;
+      const examples = rows
+        .slice(0, 3)
+        .map((customer) => `${customer.name} ${formatBrainMoney(toBrainNumber(customer.totalSpent))}`)
+        .join('、');
       return `${index + 1}. ${tier.label}（${range}）：${rows.length} 人${examples ? `；示例 ${examples}` : ''}`;
     });
-    const coverage = total > customers.length ? `本次分析前 ${customers.length}/${total} 位客户，结果为受控样本` : `覆盖当前门店 ${total} 位客户`;
+    const coverage =
+      total > customers.length
+        ? `本次分析前 ${customers.length}/${total} 位客户，结果为受控样本`
+        : `覆盖当前门店 ${total} 位客户`;
     return `客户累计消费金额分层（复用管理端客户画像 M 值阈值，${coverage}）：\n${lines.join('\n')}`;
   }
 
@@ -852,7 +910,9 @@ export class BrainCustomerFactResolverService {
       select: { id: true, name: true, type: { select: { name: true } } },
     });
     const projectById = new Map(projects.map((project) => [project.id, project]));
-    const basicProjectIds = new Set(projects.filter((project) => /基础/.test(project.type?.name ?? '')).map((project) => project.id));
+    const basicProjectIds = new Set(
+      projects.filter((project) => /基础/.test(project.type?.name ?? '')).map((project) => project.id),
+    );
     if (!basicProjectIds.size) {
       return '当前门店项目类型没有标记“基础”的项目，无法识别基础项目未升单客户；Ami Brain 不会按价格猜测项目层级。';
     }
@@ -871,12 +931,17 @@ export class BrainCustomerFactResolverService {
         itemId: true,
         name: true,
         createdAt: true,
-        order: { select: { customerId: true, customer: { select: { name: true, totalSpent: true, lastVisitDate: true } } } },
+        order: {
+          select: { customerId: true, customer: { select: { name: true, totalSpent: true, lastVisitDate: true } } },
+        },
       },
       orderBy: [{ createdAt: 'desc' }],
       take: 20_000,
     });
-    const grouped = new Map<number, { name: string; totalSpent: number; lastVisitDate: Date | null; basicProjects: Set<string>; hasNonBasic: boolean }>();
+    const grouped = new Map<
+      number,
+      { name: string; totalSpent: number; lastVisitDate: Date | null; basicProjects: Set<string>; hasNonBasic: boolean }
+    >();
     for (const item of items) {
       const customerId = item.order.customerId;
       const customer = item.order.customer;
@@ -898,7 +963,8 @@ export class BrainCustomerFactResolverService {
     return this.formatCustomerRows(
       '只购买过基础项目、尚无非基础项目消费的客户（基础项目按管理端 ProjectType 名称含“基础”识别）',
       rows.slice(0, 10),
-      (customer) => `${customer.name}：基础项目 ${Array.from(customer.basicProjects).join('、')}，累计消费 ${formatBrainMoney(customer.totalSpent)}${this.lastVisitText(customer.lastVisitDate)}`,
+      (customer) =>
+        `${customer.name}：基础项目 ${Array.from(customer.basicProjects).join('、')}，累计消费 ${formatBrainMoney(customer.totalSpent)}${this.lastVisitText(customer.lastVisitDate)}`,
       rows.length,
     );
   }
@@ -929,7 +995,8 @@ export class BrainCustomerFactResolverService {
     return this.formatCustomerRows(
       '疗程续购候选客户（活跃卡剩余 1-2 次，或 30 天内到期；仅生成候选，不自动触达）',
       unique.slice(0, 10),
-      (card) => `${card.customer.name}：${card.cardName} 剩余 ${card.remainingTimes}/${card.totalTimes} 次，有效期至 ${card.expiryDate.toISOString().slice(0, 10)}，累计消费 ${formatBrainMoney(toBrainNumber(card.customer.totalSpent))}${this.lastVisitText(card.customer.lastVisitDate)}`,
+      (card) =>
+        `${card.customer.name}：${card.cardName} 剩余 ${card.remainingTimes}/${card.totalTimes} 次，有效期至 ${card.expiryDate.toISOString().slice(0, 10)}，累计消费 ${formatBrainMoney(toBrainNumber(card.customer.totalSpent))}${this.lastVisitText(card.customer.lastVisitDate)}`,
       unique.length,
     );
   }
@@ -985,11 +1052,7 @@ export class BrainCustomerFactResolverService {
     };
   }
 
-  private async newCustomerSourceTrend(input: {
-    storeId: number;
-    startDate?: Date;
-    endDate?: Date;
-  }) {
+  private async newCustomerSourceTrend(input: { storeId: number; startDate?: Date; endDate?: Date }) {
     const distribution = await this.getNewCustomerSourceDistribution(input);
     const byWeek = new Map(distribution.weeklyRanking.map((item) => [item.week, item.count]));
     const bySource = new Map(distribution.sourceRanking.map((item) => [item.source, item.count]));
@@ -1091,8 +1154,11 @@ ${cardLines}`;
       take: 50,
     });
     const unique = [...new Map(touches.map((touch) => [touch.customerId, touch])).values()].slice(0, 10);
-    return this.formatCustomerRows('营销活动响应客户', unique, (touch) =>
-      `${touch.customer.name}：触达状态 ${touch.status}，渠道 ${touch.channel ?? '未记录'}，累计消费 ${formatBrainMoney(toBrainNumber(touch.customer.totalSpent))}${this.lastVisitText(touch.customer.lastVisitDate)}`,
+    return this.formatCustomerRows(
+      '营销活动响应客户',
+      unique,
+      (touch) =>
+        `${touch.customer.name}：触达状态 ${touch.status}，渠道 ${touch.channel ?? '未记录'}，累计消费 ${formatBrainMoney(toBrainNumber(touch.customer.totalSpent))}${this.lastVisitText(touch.customer.lastVisitDate)}`,
     );
   }
 
@@ -1108,8 +1174,11 @@ ${cardLines}`;
       orderBy: { totalSpent: 'desc' },
       take: 10,
     });
-    return this.formatCustomerRows('有卡但暂无预约客户', customers, (customer) =>
-      `${customer.name}：${customer.customerCards.map((card) => `${card.cardName} 剩余 ${card.remainingTimes} 次`).join('；')}${this.lastVisitText(customer.lastVisitDate)}`,
+    return this.formatCustomerRows(
+      '有卡但暂无预约客户',
+      customers,
+      (customer) =>
+        `${customer.name}：${customer.customerCards.map((card) => `${card.cardName} 剩余 ${card.remainingTimes} 次`).join('；')}${this.lastVisitText(customer.lastVisitDate)}`,
     );
   }
 
@@ -1126,8 +1195,11 @@ ${cardLines}`;
       ...customer,
       inactive: !customer.lastVisitDate || customer.lastVisitDate < inactiveBefore,
     }));
-    return this.formatCustomerRows('高价值客户分层', rows, (customer) =>
-      `${customer.name}：${customer.memberLevel}，累计消费 ${formatBrainMoney(toBrainNumber(customer.totalSpent))}，到店 ${customer.visitCount} 次${customer.inactive ? '，近 30 天未到店' : ''}`,
+    return this.formatCustomerRows(
+      '高价值客户分层',
+      rows,
+      (customer) =>
+        `${customer.name}：${customer.memberLevel}，累计消费 ${formatBrainMoney(toBrainNumber(customer.totalSpent))}，到店 ${customer.visitCount} 次${customer.inactive ? '，近 30 天未到店' : ''}`,
     );
   }
 
@@ -1180,16 +1252,19 @@ ${cardLines}`;
       },
       take: 5000,
     });
-    const grouped = new Map<number, {
-      name: string;
-      memberLevel: string;
-      totalSpent: number;
-      lastVisitDate: Date | null;
-      currentCount: number;
-      previousCount: number;
-      currentAmount: number;
-      previousAmount: number;
-    }>();
+    const grouped = new Map<
+      number,
+      {
+        name: string;
+        memberLevel: string;
+        totalSpent: number;
+        lastVisitDate: Date | null;
+        currentCount: number;
+        previousCount: number;
+        currentAmount: number;
+        previousAmount: number;
+      }
+    >();
     for (const order of orders) {
       if (!order.customerId || !order.customer) continue;
       const row = grouped.get(order.customerId) ?? {
@@ -1225,15 +1300,17 @@ ${cardLines}`;
       )
       .sort((left, right) => right.declineRate - left.declineRate || right.previousAmount - left.previousAmount);
     const visible = rows.slice(0, 10);
-    const title = mode === 'frequency'
-      ? '消费频率下降客户（统一口径：近 30 天对比前 30 天，订单次数下降 30% 以上，且前期至少 2 单）'
-      : '消费金额下降客户（统一口径：近 30 天对比前 30 天，实付金额下降 30% 以上）';
+    const title =
+      mode === 'frequency'
+        ? '消费频率下降客户（统一口径：近 30 天对比前 30 天，订单次数下降 30% 以上，且前期至少 2 单）'
+        : '消费金额下降客户（统一口径：近 30 天对比前 30 天，实付金额下降 30% 以上）';
     return this.formatCustomerRows(
       title,
       visible,
-      (customer) => mode === 'frequency'
-        ? `${customer.name}：前期 ${customer.previousCount} 单，近期 ${customer.currentCount} 单，下降 ${(customer.declineRate * 100).toFixed(1)}%${this.lastVisitText(customer.lastVisitDate)}`
-        : `${customer.name}：前期 ${formatBrainMoney(customer.previousAmount)}，近期 ${formatBrainMoney(customer.currentAmount)}，下降 ${(customer.declineRate * 100).toFixed(1)}%${this.lastVisitText(customer.lastVisitDate)}`,
+      (customer) =>
+        mode === 'frequency'
+          ? `${customer.name}：前期 ${customer.previousCount} 单，近期 ${customer.currentCount} 单，下降 ${(customer.declineRate * 100).toFixed(1)}%${this.lastVisitText(customer.lastVisitDate)}`
+          : `${customer.name}：前期 ${formatBrainMoney(customer.previousAmount)}，近期 ${formatBrainMoney(customer.currentAmount)}，下降 ${(customer.declineRate * 100).toFixed(1)}%${this.lastVisitText(customer.lastVisitDate)}`,
       rows.length,
     );
   }
@@ -1249,8 +1326,11 @@ ${cardLines}`;
       orderBy: [{ remainingTimes: 'asc' }],
       take: 10,
     });
-    return this.formatCustomerRows('卡次数快用完客户名单', cards, (card) =>
-      `${card.customer?.name ?? '客户'}：${card.cardName} 剩余 ${card.remainingTimes} 次，估算未履约 ${formatBrainMoney(toBrainNumber(card.remainingTimes) * toBrainNumber(card.recognizedUnitValue))}`,
+    return this.formatCustomerRows(
+      '卡次数快用完客户名单',
+      cards,
+      (card) =>
+        `${card.customer?.name ?? '客户'}：${card.cardName} 剩余 ${card.remainingTimes} 次，估算未履约 ${formatBrainMoney(toBrainNumber(card.remainingTimes) * toBrainNumber(card.recognizedUnitValue))}`,
     );
   }
 
@@ -1261,8 +1341,11 @@ ${cardLines}`;
       select: { name: true, source: true, totalSpent: true, lastVisitDate: true },
       take: 10,
     });
-    return this.formatCustomerRows('一次到店客户名单', customers, (customer) =>
-      `${customer.name}：来源 ${customer.source ?? '未记录'}，累计消费 ${formatBrainMoney(toBrainNumber(customer.totalSpent))}${this.lastVisitText(customer.lastVisitDate)}`,
+    return this.formatCustomerRows(
+      '一次到店客户名单',
+      customers,
+      (customer) =>
+        `${customer.name}：来源 ${customer.source ?? '未记录'}，累计消费 ${formatBrainMoney(toBrainNumber(customer.totalSpent))}${this.lastVisitText(customer.lastVisitDate)}`,
     );
   }
 
@@ -1308,9 +1391,12 @@ ${cardLines}`;
     });
     const visible = snapshots.slice(0, 10);
     const lines = visible.length
-      ? visible.map((snapshot, index) =>
-          `${index + 1}. ${snapshot.customer.name}：近 90 天建档、到店 ${snapshot.customer.visitCount} 次，30 天复购评分 ${snapshot.repurchase30dScore}，6 个月预期价值 ${formatBrainMoney(toBrainNumber(snapshot.ltv6m))}（${snapshot.ltvTier}），营销响应评分 ${snapshot.marketingResponseScore}${this.lastVisitText(snapshot.customer.lastVisitDate)}`,
-        ).join('\n')
+      ? visible
+          .map(
+            (snapshot, index) =>
+              `${index + 1}. ${snapshot.customer.name}：近 90 天建档、到店 ${snapshot.customer.visitCount} 次，30 天复购评分 ${snapshot.repurchase30dScore}，6 个月预期价值 ${formatBrainMoney(toBrainNumber(snapshot.ltv6m))}（${snapshot.ltvTier}），营销响应评分 ${snapshot.marketingResponseScore}${this.lastVisitText(snapshot.customer.lastVisitDate)}`,
+          )
+          .join('\n')
       : '1. 当前没有命中新客潜力候选。';
     return `新客长期转化潜力候选：共 ${snapshots.length} 人，展示前 ${visible.length} 人。口径为最新预测批次中近 90 天建档、当前到店不超过 2 次且 30 天复购评分不低于 70 分。\n${lines}\n说明：这是 ${run.modelVersion} 在 ${asOf.toISOString().slice(0, 10)} 生成的预测候选，不是客户一定会转为长期客户；需要结合实时沟通结果复核。`;
   }
@@ -1358,15 +1444,18 @@ ${cardLines}`;
       miniapp_reservation_success: '预约成功',
       promotion_reserved: '活动预约',
     };
-    const grouped = new Map<string, {
-      customerName: string;
-      customerId: number;
-      projectId: number;
-      score: number;
-      latestAt: Date;
-      signals: Set<string>;
-      totalSpent: number;
-    }>();
+    const grouped = new Map<
+      string,
+      {
+        customerName: string;
+        customerId: number;
+        projectId: number;
+        score: number;
+        latestAt: Date;
+        signals: Set<string>;
+        totalSpent: number;
+      }
+    >();
     for (const event of events) {
       if (!event.customerId || !event.customer || event.customer.customerCards.length > 0) continue;
       const projectId = Number(event.targetId);
@@ -1400,7 +1489,12 @@ ${cardLines}`;
       .sort((left, right) => right.score - left.score || right.latestAt.getTime() - left.latestAt.getTime())
       .slice(0, 10);
     const lines = rows.length
-      ? rows.map((row, index) => `${index + 1}. ${row.customerName}：${projectNameById.get(row.projectId)}，信号 ${[...row.signals].join('、')}，兴趣分 ${row.score}，最近信号 ${row.latestAt.toISOString().slice(0, 10)}，当前无活跃卡`).join('\n')
+      ? rows
+          .map(
+            (row, index) =>
+              `${index + 1}. ${row.customerName}：${projectNameById.get(row.projectId)}，信号 ${[...row.signals].join('、')}，兴趣分 ${row.score}，最近信号 ${row.latestAt.toISOString().slice(0, 10)}，当前无活跃卡`,
+          )
+          .join('\n')
       : '1. 当前没有命中客户。';
     return `项目兴趣但未办卡候选：共 ${candidates.filter((item) => projectNameById.has(item.projectId)).length} 人次，展示前 ${rows.length} 人次。\n${lines}\n说明：只使用最近 90 天已绑定客户的 Ami Glow 项目浏览、点击预约、预约成功和活动预约行为；严格排除已有任何活跃卡的客户。行为信号表示运营候选，不等同于客户已明确承诺购买。`;
   }
@@ -1417,13 +1511,19 @@ ${cardLines}`;
       .filter((customer) => customer.birthday && customer.birthday.getMonth() === currentMonth)
       .sort((left, right) => (left.birthday?.getDate() ?? 0) - (right.birthday?.getDate() ?? 0))
       .slice(0, 10);
-    return this.formatCustomerRows('本月生日客户名单', rows, (customer) =>
-      `${customer.name}：生日 ${customer.birthday?.toISOString().slice(5, 10)}，${customer.memberLevel}，累计消费 ${formatBrainMoney(toBrainNumber(customer.totalSpent))}`,
+    return this.formatCustomerRows(
+      '本月生日客户名单',
+      rows,
+      (customer) =>
+        `${customer.name}：生日 ${customer.birthday?.toISOString().slice(5, 10)}，${customer.memberLevel}，累计消费 ${formatBrainMoney(toBrainNumber(customer.totalSpent))}`,
     );
   }
 
   private formatCustomerRows<T>(title: string, rows: T[], formatter: (row: T) => string, total = rows.length) {
-    const lines = rows.length > 0 ? rows.map((row, index) => `${index + 1}. ${formatter(row)}`).join('\n') : '1. 当前没有命中客户。';
+    const lines =
+      rows.length > 0
+        ? rows.map((row, index) => `${index + 1}. ${formatter(row)}`).join('\n')
+        : '1. 当前没有命中客户。';
     const coverage = total > rows.length ? `共 ${total} 人，展示前 ${rows.length} 人` : `共 ${total} 人`;
     return `${title}：${coverage}。\n${lines}`;
   }
@@ -1444,7 +1544,9 @@ ${cardLines}`;
     const rows = Array.from(counts.entries())
       .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], 'zh-CN'))
       .slice(0, 5);
-    return rows.length ? rows.map(([label, count], index) => `${index + 1}. ${label}：${count} 人`).join('\n') : `1. ${emptyText}`;
+    return rows.length
+      ? rows.map(([label, count], index) => `${index + 1}. ${label}：${count} 人`).join('\n')
+      : `1. ${emptyText}`;
   }
 
   private customerSourceLabel(value?: string | null) {

@@ -261,6 +261,23 @@ describe('BrainSemanticIntentValidatorService', () => {
     }
   });
 
+  it('allows a governed domain capability to own its internal ranking contract', () => {
+    const result = createValidator().validate(
+      rankingIntent({ metrics: [], dimensions: [], orderBy: [] }),
+      {
+        domains: ['product_sales'],
+        definitionRefs: [],
+        rankingContracts: [{ capabilityKey: 'project_margin_analysis', domains: ['product_sales'] }],
+      },
+    );
+
+    expect(result).toEqual({
+      status: 'valid',
+      intent: rankingIntent({ metrics: [], dimensions: [], orderBy: [] }),
+      snapshotFingerprint: snapshot.fingerprint,
+    });
+  });
+
   it('accepts an explicit time comparison target and rejects a scalar comparison without a target', () => {
     const valid = createValidator().validate(
       rankingIntent({

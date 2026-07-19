@@ -208,6 +208,34 @@ export class BrainTimeRangeParserService {
         };
       }
     }
+    const recentMonths = text.match(/(?:最近|过去|近)\s*([一二三四五六七八九十\d]{1,3})\s*个月/);
+    if (recentMonths) {
+      const months = chineseOrArabicNumber(recentMonths[1]);
+      if (months >= 1 && months <= 36) {
+        const startDate = this.startOfDay(now);
+        startDate.setMonth(startDate.getMonth() - months);
+        return {
+          label: `过去${months}个月`,
+          startDate,
+          endDate: this.endOfDay(now),
+          granularity: months % 12 === 0 ? 'year' : 'month',
+        };
+      }
+    }
+    const recentYears = text.match(/(?:最近|过去|近)\s*([一二三四五六七八九十\d]{1,2})\s*年/);
+    if (recentYears) {
+      const years = chineseOrArabicNumber(recentYears[1]);
+      if (years >= 1 && years <= 10) {
+        const startDate = this.startOfDay(now);
+        startDate.setFullYear(startDate.getFullYear() - years);
+        return {
+          label: `过去${years}年`,
+          startDate,
+          endDate: this.endOfDay(now),
+          granularity: 'year',
+        };
+      }
+    }
     if (text.includes('最近')) {
       const startDate = this.startOfDay(now);
       startDate.setDate(startDate.getDate() - 29);

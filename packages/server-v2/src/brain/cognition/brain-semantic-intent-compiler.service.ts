@@ -248,8 +248,8 @@ export class BrainSemanticIntentCompilerService {
       orderBy: exactDefinitions.orderBy,
       answerShape:
         intent === 'query' &&
-        exactDefinitions.metrics.length > 0 &&
         exactDefinitions.dimensions.length === 0 &&
+        (exactDefinitions.metrics.length > 0 || isExplicitScalarQuestion(input.question)) &&
         !isExplicitListQuestion(input.question)
           ? 'scalar'
           : exactCapabilityAnswerShape(intent),
@@ -884,12 +884,12 @@ function exactCapabilityIntent(
 ): BrainSemanticIntent['intent'] | undefined {
   const allowed = new Set(intents);
   const candidates: BrainSemanticIntent['intent'][] = [
-    ...(/排行|排名|(?:谁|哪个).*(?:最高|最多|最好)|(?:最高|最多|最好)(?:的)?(?:前\s*\d+)?|前\s*\d+/.test(question)
+    ...(/排行|排名|(?:谁|哪个).*(?:最高|最多|最好)|(?:最高|最多|最好)(?:的)?(?:前\s*\d+)?|前\s*\d+|(?:各|每个).*(?:项目|员工|美容师|产品|商品).*(?:毛利|利润|成本|业绩|销售|消耗)/.test(question)
       ? ['ranking' as const]
       : []),
     ...(hasTimeComparison || /对比|相比|跟.*比|和.*比|差多少/.test(question) ? ['comparison' as const] : []),
     ...(/趋势|走势|每天|近三天|最近三天/.test(question) ? ['trend' as const] : []),
-    ...(/怎么样|情况|风险|分析|概览|总结|异常|原因|为什么|下降|变差|不赚钱|根因/.test(question) ? ['diagnosis' as const] : []),
+    ...(/怎么样|情况|风险|分析|概览|总结|异常|不正常|原因|为什么|下降|变差|不赚钱|根因|活动.*花了多少钱.*(?:收入|营收)/.test(question) ? ['diagnosis' as const] : []),
     ...(/建议|推荐|适合/.test(question) ? ['recommendation' as const] : []),
     'query',
   ];
@@ -906,6 +906,10 @@ function exactCapabilityAnswerShape(intent: BrainSemanticIntent['intent']): Brai
 
 function isExplicitListQuestion(question: string) {
   return /(哪些|哪几|名单|列表|列出|找出|分别是谁|都有谁)/.test(question);
+}
+
+function isExplicitScalarQuestion(question: string) {
+  return /(?:多少|多少钱|几笔|几个|占比|比例|分别多少|到多少|是多少)/.test(question);
 }
 
 function localIsoDate(value: Date): string {

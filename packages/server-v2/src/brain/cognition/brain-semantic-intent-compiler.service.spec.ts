@@ -1266,6 +1266,31 @@ describe('BrainSemanticIntentCompilerService', () => {
     expect(aiService.generateStructured).not.toHaveBeenCalled();
   });
 
+  it('infers scalar shape for an exact governed numeric question without inventing a metric definition', async () => {
+    const aiService = fakeAiService(async () => {
+      throw new Error('model must not be called for an exact frozen contract');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput('本月耗材成本是多少');
+    input.capabilitySummaries = [{
+      key: 'finance_material_cost_summary',
+      name: '耗材成本摘要',
+      description: '按业务服务返回耗材成本',
+      domains: ['product_sales'],
+      intents: ['query'],
+      examples: [input.question],
+      readOnly: true,
+      definitionRefs: [productEntityRef],
+    }];
+
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      model: 'exact_example_fast_path',
+      intent: { intent: 'query', answerShape: 'scalar', metrics: [] },
+    });
+    expect(aiService.generateStructured).not.toHaveBeenCalled();
+  });
+
   it('hydrates candidate refund metrics from an exact governed contract before they enter the published ontology', async () => {
     const aiService = fakeAiService(async () => {
       throw new Error('model must not be called for an exact frozen contract');

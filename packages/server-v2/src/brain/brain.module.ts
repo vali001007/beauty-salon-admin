@@ -3,6 +3,7 @@ import { AiModule } from '../ai/ai.module.js';
 import { CardsModule } from '../cards/cards.module.js';
 import { InventoryModule } from '../inventory/inventory.module.js';
 import { MarketingModule } from '../marketing/marketing.module.js';
+import { OperationProfitModule } from '../operation-profit/operation-profit.module.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ReservationsModule } from '../reservations/reservations.module.js';
@@ -39,6 +40,7 @@ import {
 } from './capability/brain-capability-executor.registry.js';
 import { BrainActionCapabilityExecutor } from './capability/executors/brain-action-capability.executor.js';
 import { BrainDomainServiceCapabilityExecutor } from './capability/executors/brain-domain-service-capability.executor.js';
+import { BrainFocusedBusinessCapabilityExecutor } from './capability/executors/brain-focused-business-capability.executor.js';
 import { BrainMarketingCampaignCapabilityExecutor } from './capability/executors/brain-marketing-campaign-capability.executor.js';
 import { BrainSemanticQueryCapabilityExecutor } from './capability/executors/brain-semantic-query-capability.executor.js';
 import { BrainCognitionService } from './cognition/brain-cognition.service.js';
@@ -54,6 +56,7 @@ import { IntentClassifierService } from './cognition/intent-classifier.service.j
 import { TermNormalizerService } from './cognition/term-normalizer.service.js';
 import { BrainContextService } from './context/brain-context.service.js';
 import { BrainConversationContextService } from './context/brain-conversation-context.service.js';
+import { BrainResultReferenceService } from './context/brain-result-reference.service.js';
 import { BrainCustomerFactResolverService } from './domain/brain-customer-fact-resolver.service.js';
 import { BrainActionTargetResolverService } from './domain/brain-action-target-resolver.service.js';
 import {
@@ -132,6 +135,7 @@ import { BrainSkillRegistryService } from './skills/brain-skill-registry.service
 import { BrainSkillRuntimeService } from './skills/brain-skill-runtime.service.js';
 import { SchedulingModule } from '../scheduling/scheduling.module.js';
 import { CustomerFeedbackModule } from '../customer-feedback/customer-feedback.module.js';
+import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-business-metric-query.service.js';
 
 @Module({
   imports: [
@@ -141,6 +145,7 @@ import { CustomerFeedbackModule } from '../customer-feedback/customer-feedback.m
     ReservationsModule,
     InventoryModule,
     MarketingModule,
+    OperationProfitModule,
     SchedulingModule,
     TerminalModule,
     SemanticDataModule,
@@ -149,8 +154,10 @@ import { CustomerFeedbackModule } from '../customer-feedback/customer-feedback.m
   ],
   controllers: [BrainController],
   providers: [
+    AgentV2BusinessMetricQueryService,
     BrainContextService,
     BrainConversationContextService,
+    BrainResultReferenceService,
     BrainChatService,
     BrainRoleIntentRouterService,
     BrainDomainAdapterRegistryService,
@@ -258,6 +265,7 @@ import { CustomerFeedbackModule } from '../customer-feedback/customer-feedback.m
     BrainCapabilityScannerService,
     BrainSemanticQueryCapabilityExecutor,
     BrainDomainServiceCapabilityExecutor,
+    BrainFocusedBusinessCapabilityExecutor,
     BrainMarketingCampaignCapabilityExecutor,
     BrainActionCapabilityExecutor,
     {
@@ -265,15 +273,17 @@ import { CustomerFeedbackModule } from '../customer-feedback/customer-feedback.m
       inject: [
         BrainSemanticQueryCapabilityExecutor,
         BrainDomainServiceCapabilityExecutor,
+        BrainFocusedBusinessCapabilityExecutor,
         BrainMarketingCampaignCapabilityExecutor,
         BrainActionCapabilityExecutor,
       ],
       useFactory: (
         semantic: BrainSemanticQueryCapabilityExecutor,
         domain: BrainDomainServiceCapabilityExecutor,
+        focusedBusiness: BrainFocusedBusinessCapabilityExecutor,
         marketingCampaign: BrainMarketingCampaignCapabilityExecutor,
         action: BrainActionCapabilityExecutor,
-      ) => [semantic, domain, marketingCampaign, action],
+      ) => [semantic, domain, focusedBusiness, marketingCampaign, action],
     },
     BrainCapabilityExecutorRegistryService,
     BrainCapabilityDefinitionSnapshotSourceService,
@@ -312,6 +322,7 @@ import { CustomerFeedbackModule } from '../customer-feedback/customer-feedback.m
     BusinessDefinitionModule,
     BrainContextService,
     BrainConversationContextService,
+    BrainResultReferenceService,
     BrainChatService,
     BrainRoleIntentRouterService,
     BrainDomainAdapterRegistryService,

@@ -122,7 +122,17 @@ export class BrainCompletionVerifierService {
         const hasClarification = Array.isArray(observation.data.blocks) && observation.data.blocks.some(
           (block: any) => block?.kind === 'clarification',
         );
-        if (!hasClarification && (observation.grounding !== 'preview_action' || actions.length === 0)) {
+        const metadata =
+          observation.data.metadata && typeof observation.data.metadata === 'object'
+            ? (observation.data.metadata as Record<string, unknown>)
+            : {};
+        const safeNoAction =
+          observation.status === 'no_data' &&
+          observation.grounding === 'db_skill' &&
+          actions.length === 0 &&
+          typeof metadata.noActionReason === 'string' &&
+          metadata.noActionReason.length > 0;
+        if (!hasClarification && !safeNoAction && (observation.grounding !== 'preview_action' || actions.length === 0)) {
           missing.push(`action_preview_required:${node.id}`);
         }
       }

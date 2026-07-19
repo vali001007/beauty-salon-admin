@@ -1,5 +1,6 @@
 import type { AgentRole } from './agent.types.js';
 import type { AgentEvalCaseDefinition } from './agent-eval.cases.js';
+import { matchBrainCapabilityBoundary } from '../brain/capability/brain-capability-boundary.registry.js';
 
 export type AgentQuestionBankPersona =
   | 'manager'
@@ -44,6 +45,10 @@ export type AgentEvalQuestionCase = {
   expectedMetrics?: string[];
   expectedDimensions?: string[];
   expectedCapabilityKeys?: string[];
+  expectedAnswerShape?: string;
+  expectedMissingSlots?: string[];
+  expectedForbiddenMissingSlots?: string[];
+  expectedDecisionCodes?: string[];
   expectedPlanShape?: {
     minNodes?: number;
     maxNodes?: number;
@@ -201,20 +206,16 @@ const SYSTEM_UNSUPPORTED_RULES: Array<{ pattern: RegExp; reason: string }> = [
     reason: '当前系统没有员工离职交接或客户流失归因到离职带走的业务闭环。',
   },
   {
-    pattern: /投诉|客诉|差评|负面反馈|表达不满|满意度/,
-    reason: '当前系统没有客户投诉、差评、满意度或评价反馈数据闭环。',
-  },
-  {
     pattern: /服务事故|皮肤.*(?:出现|发生).*(?:过敏|红肿|不良)|护理后.*(?:过敏|红肿|不适)|过敏(?:事故|事件|反应)|事故/,
     reason: '当前系统没有服务事故、皮肤过敏或不良反应记录业务闭环。',
   },
   {
-    pattern: /等待时间长|等太久|离开/,
-    reason: '当前系统没有客户等待离店或现场排队流失记录业务闭环。',
-  },
-  {
     pattern: /店里设备|美容仪器|仪器.*故障|设备最近/,
     reason: '当前系统支持终端运行诊断，但没有美容设备维保或故障业务闭环。',
+  },
+  {
+    pattern: /(?:这次护理|服务中|护理中).*(?:皮肤问题|皮肤状态|明显变化).*(?:记录|处理)/,
+    reason: '当前服务任务没有结构化皮肤状态变化记录闭环。',
   },
 ];
 
@@ -223,6 +224,8 @@ const AGENT_GAP_RULES: RegExp[] = [
   /老带新|拼团|朋友圈|线上引流|三周年|国庆|母亲节|情人节|季节性/,
   /渠道|转介绍|免费体验|ROI|投入回报|核销周期|客户质量/,
   /采购链接|供应链.*协调|跨店|多店|小程序|终端设备|打印机|扫码器/,
+  /(?:疗程|次卡|卡项).*(?:快结束|即将结束|快过期|即将过期).*(?:自动).*(?:提醒|续购|续卡|发消息)|(?:客人|客户).*(?:改变|调整|更换).*(?:护理方案).*(?:沟通|怎么说)/,
+  /(?:客户|会员).*(?:生日).*(?:自动).*(?:送|赠送|发放).*(?:礼物|礼品|权益)|客户.*45天.*自动|新客.*三天后.*自动/,
 ];
 
 const KIOSK_CORE_QUESTION_PATTERNS = [
@@ -243,7 +246,10 @@ function resolvePersona(section: string) {
 }
 
 function normalizeTitle(line: string) {
-  return line.replace(/^#+\s*/, '').replace(/（\d+条）/g, '').trim();
+  return line
+    .replace(/^#+\s*/, '')
+    .replace(/（\d+条）/g, '')
+    .trim();
 }
 
 function slugCategory(category: string) {
@@ -251,19 +257,33 @@ function slugCategory(category: string) {
 }
 
 function isHighRiskInput(input: string) {
-  return /自动(?:发|发送|触达|提醒|扣|核销|退款|收款)|群发|直接(?:退款|核销|收款|扣款|发送)|设置.*规则|执行退卡|发起退款|立即退款|执行扣款|发券|发放优惠券|(?:给|向).{0,20}发(?:个|一条)?.{0,12}(?:通知|消息|短信)|(?:再加|新增|安排).{0,12}(?:客人|客户).{0,8}(?:预约|进去)/.test(input);
+  return /自动(?:发|发送|触达|提醒|推送|送|赠送|发放|扣|核销|退款|收款)|群发|直接(?:退款|核销|收款|扣款|发送)|设置.*规则|执行退卡|发起退款|立即退款|执行扣款|发券|发放优惠券|(?:给|向).{0,20}发(?:个|一条)?.{0,12}(?:通知|消息|短信)|(?:再加|新增|安排).{0,12}(?:客人|客户).{0,8}(?:预约|进去)/.test(
+    input,
+  );
 }
 
 function inferIntentType(input: string, category: string): AgentQuestionIntentType {
+  if (/不要给我建议了.*(?:只|就).*告诉我数据|只要数据.*不要建议/.test(input)) return 'clarify';
+  if (/(?:某笔|这笔|一笔).*(?:交易|支付|收款).*(?:完整流水|流水|明细)|(?:完整流水|交易流水).*(?:某笔|这笔|一笔)/.test(input))
+    return 'clarify';
+  if (/(?:预测|预估|预计).*(?:营业额|营收|收入)/.test(input)) return 'analysis_and_recommendation';
+  if (/(?:生成|做).*(?:完整)?.*(?:年度|月度|季度).*(?:运营|经营).*(?:报告|复盘)|(?:完整).*(?:年度|月度|季度).*(?:运营|经营).*(?:报告|分析)/.test(input))
+    return 'clarify';
+  if (/(?:皮肤|肤质).*(?:敏感|易敏).*(?:护理方案|项目|护理).*(?:安全|合适)|(?:敏感|易敏).*(?:用什么|什么).*(?:护理方案|项目)/.test(input))
+    return 'analysis_and_recommendation';
   if (/意图模糊/.test(category)) return /活动/.test(input) ? 'draft' : 'clarify';
   if (category === '活动策划') {
-    return /适合|应该|有哪些|有什么|多少合适|有没有.*方法/.test(input)
-      ? 'analysis_and_recommendation'
-      : 'draft';
+    return /适合|应该|有哪些|有什么|多少合适|有没有.*方法/.test(input) ? 'analysis_and_recommendation' : 'draft';
   }
-  if (/(?:看|查|查询).*(?:流程安排|预约安排|服务安排|排班)|(?:流程安排|预约安排|服务安排|排班).*(?:怎样|如何|情况)/.test(input)) return 'query';
+  if (
+    /(?:看|查|查询).*(?:流程安排|预约安排|服务安排|排班)|(?:流程安排|预约安排|服务安排|排班).*(?:怎样|如何|情况)/.test(
+      input,
+    )
+  )
+    return 'query';
   if (/设置|生成.*报告|制定|策划|设计|写|话术|文案|脚本|流程|规则|方案/.test(input)) return 'draft';
-  if (/为什么|原因|分析|怎么处理|怎么办|建议|适合|是否合理|风险|异常|问题|总结|概览|情况怎么样|情况如何/.test(input)) return 'analysis_and_recommendation';
+  if (/为什么|原因|分析|怎么处理|怎么办|怎么平衡|建议|应该|从哪里入手|适合|是否合理|风险|异常|问题|总结|概览|情况怎么样|情况如何|效果怎么样|能撑住吗/.test(input))
+    return 'analysis_and_recommendation';
   return 'query';
 }
 
@@ -283,14 +303,21 @@ function inferOutputKinds(input: string, intentType: AgentQuestionIntentType): A
   if (/汇总/.test(input)) kinds.add('table');
   if (/趋势|近三|最近三|这周每天|最近三个月|季度|对比/.test(input)) kinds.add('chart');
   if (
-    /设置|创建|新建|执行|提交|发起|自动(?:提醒|触达|发送)|群发|发券|改约|取消预约|打开收银|打开核销|生成.*(?:任务|预览|采购单)/.test(input)
+    /设置|创建|新建|执行|提交|发起|自动(?:提醒|触达|发送|推送)|群发|发券|改约|取消预约|打开收银|打开核销|生成.*(?:任务|预览|采购单)/.test(
+      input,
+    )
   ) {
     kinds.add('action_card');
   }
   return [...kinds];
 }
 
-function inferPriority(input: string, persona: AgentQuestionBankPersona, category: string, indexInCategory: number): AgentQuestionPriority {
+function inferPriority(
+  input: string,
+  persona: AgentQuestionBankPersona,
+  category: string,
+  indexInCategory: number,
+): AgentQuestionPriority {
   if (persona === 'edge') {
     if (/意图模糊|代词和上下文/.test(category)) return 'P0';
     if (/否定与纠正|极限与压力/.test(category) && indexInCategory <= 5) return 'P0';
@@ -309,6 +336,7 @@ function inferQuestion(input: string, persona: AgentQuestionBankPersona, categor
   const systemSupport = classifySystemSupport(input, persona);
   const semanticIntent = inferSemanticIntent(input, intentType, requiresApproval);
   const expectedSkill = businessPersona ? SKILL_BY_PERSONA[businessPersona] : undefined;
+  const clarificationExpected = semanticIntent === 'clarify';
   return {
     priority: inferPriority(input, persona, category, indexInCategory),
     expectedRoute: businessPersona,
@@ -317,19 +345,26 @@ function inferQuestion(input: string, persona: AgentQuestionBankPersona, categor
     expectedOutputKinds: inferOutputKinds(input, intentType),
     expectedDataSources: businessPersona ? DATA_SOURCE_BY_PERSONA[businessPersona] : undefined,
     expectedSemanticIntent: semanticIntent,
-    expectedDomains: businessPersona ? [DOMAIN_BY_PERSONA[businessPersona]] : [],
-    expectedEntities: inferExpectedEntities(input, category),
-    expectedMetrics: category === '活动策划' ? [] : inferExpectedMetrics(input),
-    expectedDimensions: category === '活动策划' ? [] : inferExpectedDimensions(input, semanticIntent),
+    expectedDomains: clarificationExpected ? [] : inferExpectedDomains(input, businessPersona),
+    expectedEntities: clarificationExpected ? [] : inferExpectedEntities(input, category),
+    expectedMetrics:
+      clarificationExpected || category === '活动策划' || semanticIntent === 'recommendation'
+        ? []
+        : inferExpectedMetrics(input),
+    expectedDimensions:
+      clarificationExpected || category === '活动策划' ? [] : inferExpectedDimensions(input, semanticIntent),
     expectedCapabilityKeys: expectedSkill ? [expectedSkill] : [],
-    expectedPlanShape: intentType === 'clarify' || systemSupport.status === 'system_unsupported'
-      ? undefined
-      : {
-          minNodes: /跨场景融合/.test(category) ? 2 : 1,
-          maxNodes: 8,
-          requiresPreview: requiresApproval,
-          requiredCapabilityKeys: [],
-        },
+    expectedAnswerShape: inferExpectedAnswerShape(input, semanticIntent),
+    expectedPlanShape:
+      intentType === 'clarify' || systemSupport.status === 'system_unsupported'
+        ? undefined
+        : {
+            minNodes:
+              semanticIntent !== 'recommendation' && /同时|并且|分别从|多个维度|三个维度/.test(input) ? 2 : 1,
+            maxNodes: 8,
+            requiresPreview: requiresApproval,
+            requiredCapabilityKeys: [],
+          },
     expectedBrainStatus: intentType === 'clarify' ? ('clarify' as const) : undefined,
     riskLevel: requiresApproval ? ('high' as const) : ('low' as const),
     requiresApproval,
@@ -339,29 +374,42 @@ function inferQuestion(input: string, persona: AgentQuestionBankPersona, categor
   };
 }
 
-function inferSemanticIntent(
-  input: string,
-  intentType: AgentQuestionIntentType,
-  requiresApproval: boolean,
-) {
+function inferSemanticIntent(input: string, intentType: AgentQuestionIntentType, requiresApproval: boolean) {
   if (intentType === 'clarify') return 'clarify';
   if (requiresApproval) return 'action';
   if (intentType === 'draft') return 'draft';
+  if (/(各|每个).*(项目).*(毛利|利润|成本|耗材|收入|营收)|(项目).*(毛利|利润|成本|耗材|收入|营收).*(最高|最低|排行|排名|各是多少|占比|比例)/.test(input)) {
+    return 'ranking';
+  }
   if (intentType === 'analysis_and_recommendation') {
-    return /建议|怎么办|怎么处理|推荐|适合|应该|什么活动|哪些营销节点|方法|合适/.test(input)
+    return /建议|怎么办|怎么处理|怎么平衡|推荐|适合|应该|什么活动|哪些营销节点|方法|合适|用什么.*护理方案|护理方案.*安全/.test(input)
       ? 'recommendation'
       : 'diagnosis';
   }
+  if (/活动.*花了多少钱.*(?:收入|营收)|(?:收入|营收).*(?:活动成本|活动花费)/.test(input)) return 'diagnosis';
+  if (/(各|每个).*(项目).*(毛利|利润|成本)|(项目).*(毛利|利润|成本).*(情况|排行|排名)/.test(input)) {
+    return 'ranking';
+  }
+  if (/(不正常|异常).*(流水|交易|收款)|(流水|交易|收款).*(不正常|异常)/.test(input)) return 'diagnosis';
   if (/趋势|走势|每天|近三天|最近三天|最近三个月/.test(input)) return 'trend';
   if (/相比|对比|跟.*比|和.*比|比.*差|差多少|比.*(?:高|低|多|少).*多少/.test(input)) return 'comparison';
-  if (/排行|排名|谁.*(?:最好|最高|最多|最少)|(?:最好|最高|最多|最少).*(?:谁|哪个)|哪个.*(?:最好|最高|最多|最少)|哪些.*(?:最高|最多|最快|最慢)/.test(input)) return 'ranking';
+  if (
+    /排行|排名|谁.*(?:最好|最高|最多|最少)|(?:最好|最高|最多|最少).*(?:谁|哪个)|哪个.*(?:最好|最高|最多|最少)|哪些.*(?:最高|最多|最快|最慢)/.test(
+      input,
+    )
+  )
+    return 'ranking';
   return 'query';
 }
 
 function inferExpectedEntities(input: string, category: string) {
+  if (/(?:储值卡|储值余额).*(?:余额总计|总余额|总计多少).*(?:客户都来消费|集中消费|撑住)/.test(input)) {
+    return [];
+  }
   const values = new Set<string>();
   if (/客户|客人|会员|新客|老客|VIP|沉睡|流失|复购/.test(input + category)) values.add('customer');
   if (/员工|美容师|排班|提成|人效|业绩/.test(input + category)) values.add('beautician');
+  if (/(?:美容师|员工|技师).*(?:在忙|忙吗|还要多久|什么时候空|可接待)/.test(input)) values.add('reservation');
   if (/产品|商品|耗材|库存|采购|供应商|SKU/.test(input + category)) values.add('product');
   if (/项目|护理|疗程/.test(input + category)) values.add('project');
   if (/预约|到店|爽约|空档/.test(input + category)) values.add('reservation');
@@ -371,34 +419,65 @@ function inferExpectedEntities(input: string, category: string) {
   return [...values];
 }
 
+function inferExpectedDomains(
+  input: string,
+  businessPersona: Exclude<AgentQuestionBankPersona, 'edge'> | undefined,
+) {
+  if (/项目/.test(input) && /(?:收入|营收|毛利|利润|成本|耗材)/.test(input)) return ['project'];
+  if (/(?:现金|微信|支付宝|银行卡|刷卡|支付方式|储值收款)/.test(input)) return ['payment'];
+  return businessPersona ? [DOMAIN_BY_PERSONA[businessPersona]] : [];
+}
+
 function inferExpectedMetrics(input: string) {
   const values = new Set<string>();
-  if (/营业额|流水|实收|收入|营收/.test(input)) values.add('paid_revenue');
-  if (/(?:产品|商品|货品).*(?:毛利率|利润率)|(?:毛利率|利润率).*(?:产品|商品|货品)/.test(input)) values.add('product_gross_margin_rate');
-  else if (/毛利率|毛利/.test(input)) values.add('gross_margin_rate');
-  if (/(?:产品|商品|货品).*(?:低于成本|亏本)|(?:低于成本|亏本).*(?:产品|商品|货品)/.test(input)) values.add('product_below_cost_sale_count');
+  const personalPerformanceQuestion = /^(?:我|我的)/.test(input) && /(?:客人|客户|业绩|提成)/.test(input);
+  const marketingCostAttributionQuestion = /活动.*花了多少钱.*(?:收入|营收)|(?:收入|营收).*(?:活动成本|活动花费)/.test(input);
+  if (
+    /营业额|流水|实收|收入|营收/.test(input) &&
+    !personalPerformanceQuestion &&
+    !marketingCostAttributionQuestion &&
+    !/(?:各|每个).*(?:项目).*(?:收入|营收).*(?:占比|比例)/.test(input) &&
+    !/(?:折扣|优惠|让利).*(?:减少|损失).*(?:收入|营收)|(?:退款).*(?:损失|减少).*(?:收入|营收)/.test(input) &&
+    !/(不正常|异常).*(流水|交易|收款)|(流水|交易|收款).*(不正常|异常)/.test(input)
+  ) {
+    values.add('paid_revenue');
+  }
+  if (/(耗材|物料|材料)成本/.test(input)) values.add('material_cost');
+  if (/(?:产品|商品|货品).*(?:毛利率|利润率)|(?:毛利率|利润率).*(?:产品|商品|货品)/.test(input))
+    values.add('product_gross_margin_rate');
+  else if (!/项目/.test(input) && /毛利率|毛利/.test(input)) values.add('gross_margin_rate');
+  if (/(?:产品|商品|货品).*(?:低于成本|亏本)|(?:低于成本|亏本).*(?:产品|商品|货品)/.test(input))
+    values.add('product_below_cost_sale_count');
   if (/预约.*(?:多少|几个|数量)|几个预约/.test(input)) values.add('appointment_count');
   if (/谁|员工|美容师/.test(input) && /客户复购率/.test(input)) values.add('staff_customer_repurchase_rate');
   else if (/复购率/.test(input)) values.add('repurchase_rate');
   if (/退款.*(?:金额|多少)/.test(input)) values.add('refund_amount');
   if (/退款有几笔|退款.*(?:笔数|几笔|次数)/.test(input)) values.add('refund_count');
+  if (/(?:次卡|套餐卡).*(?:销售|开卡).*(?:金额|多少)|(?:次卡|套餐卡).*(?:卖了多少)/.test(input))
+    values.add('card_package_sales_amount');
   if (/(折扣|优惠|让利).*(?:多少钱|多少|金额|送出去)/.test(input)) values.add('discount_amount');
-  if (/商品|产品/.test(input) && /销售排行|销售排名/.test(input) && !/销量|数量|卖得最多/.test(input)) values.add('product_sales_amount');
+  if (/商品|产品/.test(input) && /销售排行|销售排名/.test(input) && !/销量|数量|卖得最多/.test(input))
+    values.add('product_sales_amount');
   else if (/商品|产品/.test(input) && /销售额|销售金额/.test(input)) values.add('product_sales_amount');
   else if (/商品|产品/.test(input) && /销售|卖得|销量/.test(input)) values.add('product_sales_quantity');
-  if (/(耗材|物料|产品|商品).*(消耗|用量|出库).*(最快|最多|排行|排名)/.test(input)) values.add('inventory_consumption_quantity');
+  if (/(耗材|物料|产品|商品).*(消耗|用量|出库).*(最快|最多|排行|排名)/.test(input))
+    values.add('inventory_consumption_quantity');
   if (/员工|美容师|谁/.test(input) && /业绩|表现/.test(input) && !/(下滑|下降|环比|趋势|变化)/.test(input)) {
     values.add('staff_performance_score');
   }
   if (/员工|美容师|谁/.test(input) && /(?:接的客人|接待客户|接客|服务了几个客人|服务客户)/.test(input)) {
     values.add('staff_unique_customer_count');
   }
-  if (/提成/.test(input)) values.add('staff_commission_amount');
-  if (/负债|未消耗|剩余次数/.test(input)) values.add('card_liability');
+  if (/提成/.test(input) && !personalPerformanceQuestion) values.add('staff_commission_amount');
+  if (
+    /负债|未消耗|剩余次数|(?:储值卡|会员卡|卡项).*余额总计/.test(input) &&
+    !/(?:能撑住|客户都来消费|集中消费|偿付)/.test(input)
+  )
+    values.add('card_liability');
   if (/新客/.test(input) && /新来|新增|来了多少|多少新客/.test(input)) values.add('new_customer_count');
   if (/新客/.test(input) && /转化|成交|首单/.test(input)) {
     values.add('new_customer_conversion_count');
-    values.add('new_customer_conversion_rate');
+    if (!/(?:几个|多少个|几人|多少人)/.test(input)) values.add('new_customer_conversion_rate');
   }
   if (/(投诉|客诉|差评|不满|负面反馈)/.test(input)) {
     if (/(员工|美容师|谁|哪个|哪位)/.test(input)) values.add('staff_customer_complaint_count');
@@ -422,9 +501,29 @@ function inferExpectedMetrics(input: string) {
   return [...values];
 }
 
+function inferExpectedAnswerShape(input: string, semanticIntent: string) {
+  if (semanticIntent === 'action') return 'action_preview';
+  if (semanticIntent === 'ranking') return 'ranking';
+  if (semanticIntent === 'diagnosis') return 'diagnosis';
+  if (
+    /我(?:这个月|本月|今天)?.*(?:业绩|提成)|(?:耗材|物料|材料)成本.*(?:多少|占)|新客.*转化.*(?:几个|多少个|几人|多少人)/.test(
+      input,
+    )
+  )
+    return 'scalar';
+  return undefined;
+}
+
 function inferExpectedDimensions(input: string, semanticIntent: string) {
   const values = new Set<string>();
-  const grouped = /谁|哪个|哪些|各|分别|排行|排名|对比|最多|最高|最低|最好/.test(input);
+  if (/(?:哪个|哪些|有没有).*(?:客人|客户).*(?:难服务|需要注意|注意事项)|(?:客人|客户).*(?:难服务|需要注意|注意事项)/.test(input)) {
+    return [];
+  }
+  if (/项目.*消耗.*(?:耗材|物料|材料).*(?:最多|排行|排名)/.test(input)) {
+    values.add('projectName');
+    return [...values];
+  }
+  const grouped = /谁|哪个|哪些|各|每个|分别|排行|排名|对比|最多|最高|最低|最好/.test(input);
   const groupedByStaff = grouped && /员工|美容师|谁/.test(input);
   if (groupedByStaff) values.add('beautician');
   if (grouped && /商品|产品|耗材/.test(input)) values.add('product');
@@ -434,17 +533,23 @@ function inferExpectedDimensions(input: string, semanticIntent: string) {
     !groupedByStaff &&
     /客户|客人|会员/.test(input) &&
     !/(?:新客.*老客|老客.*新客).*(?:各|分别)|(?:各|分别).*(?:新客.*老客|老客.*新客)/.test(input)
-  ) values.add('customer');
+  )
+    values.add('customer');
   if (/现金(?!流)|微信|支付宝|支付方式/.test(input)) values.add('payment_method');
   if (/(年龄段|年龄画像|年龄分布)/.test(input)) values.add('customerAgeGroup');
   if (['trend', 'comparison'].includes(semanticIntent)) values.add('date');
   return [...values];
 }
 
-export function classifySystemSupport(input: string, persona: AgentQuestionBankPersona): {
+export function classifySystemSupport(
+  input: string,
+  persona: AgentQuestionBankPersona,
+): {
   status: AgentQuestionSystemSupportStatus;
   reason: string;
 } {
+  const capabilityBoundary = matchBrainCapabilityBoundary(input);
+  if (capabilityBoundary) return { status: capabilityBoundary.status, reason: capabilityBoundary.reason };
   const unsupported = SYSTEM_UNSUPPORTED_RULES.find((rule) => rule.pattern.test(input));
   if (unsupported) return { status: 'system_unsupported', reason: unsupported.reason };
 
@@ -472,9 +577,18 @@ export function classifySystemSupport(input: string, persona: AgentQuestionBankP
 export function parseAgentEvalQuestionMarkdown(markdown: string): AgentEvalQuestionBank {
   const lines = markdown.split(/\r?\n/);
   const title = normalizeTitle(lines.find((line) => line.startsWith('# ')) ?? 'Agent 评测问题库');
-  const version = lines.find((line) => line.startsWith('版本：'))?.replace('版本：', '').trim();
-  const date = lines.find((line) => line.startsWith('日期：'))?.replace('日期：', '').trim();
-  const description = lines.find((line) => line.startsWith('说明：'))?.replace('说明：', '').trim();
+  const version = lines
+    .find((line) => line.startsWith('版本：'))
+    ?.replace('版本：', '')
+    .trim();
+  const date = lines
+    .find((line) => line.startsWith('日期：'))
+    ?.replace('日期：', '')
+    .trim();
+  const description = lines
+    .find((line) => line.startsWith('说明：'))
+    ?.replace('说明：', '')
+    .trim();
   const questions: AgentEvalQuestionCase[] = [];
 
   let currentPersona: AgentQuestionBankPersona | null = null;
@@ -529,9 +643,21 @@ export function parseAgentEvalQuestionMarkdown(markdown: string): AgentEvalQuest
 
 export function selectP0QuestionBankCases(questions: AgentEvalQuestionCase[]): AgentEvalP0QuestionCase[] {
   const result: AgentEvalQuestionCase[] = [];
-  const businessPersonas: AgentQuestionBankPersona[] = ['manager', 'marketing', 'reception', 'beautician', 'inventory', 'finance'];
+  const businessPersonas: AgentQuestionBankPersona[] = [
+    'manager',
+    'marketing',
+    'reception',
+    'beautician',
+    'inventory',
+    'finance',
+  ];
   for (const persona of businessPersonas) {
-    result.push(...takeRoundRobinByCategory(questions.filter((item) => item.persona === persona), 15));
+    result.push(
+      ...takeRoundRobinByCategory(
+        questions.filter((item) => item.persona === persona),
+        15,
+      ),
+    );
   }
 
   const edgeQuestions = questions.filter((item) => item.persona === 'edge');
@@ -542,11 +668,13 @@ export function selectP0QuestionBankCases(questions: AgentEvalQuestionCase[]): A
     ...edgeQuestions.filter((item) => item.sourceCategory === '极限与压力测试').slice(0, 5),
   );
 
-  return result.map((item) => withP0ConversationTurns({
-    ...item,
-    priority: 'P0' as const,
-    coverageStage: 'p0_daily' as const,
-  }));
+  return result.map((item) =>
+    withP0ConversationTurns({
+      ...item,
+      priority: 'P0' as const,
+      coverageStage: 'p0_daily' as const,
+    }),
+  );
 }
 
 const P0_CORRECTION_CONTEXT: Readonly<Record<number, string>> = {
@@ -558,20 +686,20 @@ const P0_CORRECTION_CONTEXT: Readonly<Record<number, string>> = {
 };
 
 function withP0ConversationTurns(item: AgentEvalQuestionCase): AgentEvalP0QuestionCase {
-  const embeddedTurns = item.sourceCategory === '代词和上下文继承测试'
-    ? item.input.split('（然后）').map((value) => value.trim()).filter(Boolean)
-    : [];
+  const embeddedTurns =
+    item.sourceCategory === '代词和上下文继承测试'
+      ? item.input
+          .split('（然后）')
+          .map((value) => value.trim())
+          .filter(Boolean)
+      : [];
   if (item.sourceCategory === '代词和上下文继承测试' && item.sourceIndex === 11 && embeddedTurns[0]) {
     embeddedTurns[0] = embeddedTurns[0].replace('张雯的信息', '客户马美琳，手机号后四位6325的信息');
   }
-  const correctionContext = item.sourceCategory === '否定与纠正测试'
-    ? P0_CORRECTION_CONTEXT[item.sourceIndex]
-    : undefined;
-  const turnInputs = embeddedTurns.length > 1
-    ? embeddedTurns
-    : correctionContext
-      ? [correctionContext, item.input]
-      : [];
+  const correctionContext =
+    item.sourceCategory === '否定与纠正测试' ? P0_CORRECTION_CONTEXT[item.sourceIndex] : undefined;
+  const turnInputs =
+    embeddedTurns.length > 1 ? embeddedTurns : correctionContext ? [correctionContext, item.input] : [];
   if (turnInputs.length < 2) return item;
 
   let conversationTurns: AgentEvalP0QuestionCase[] = turnInputs.map((input, index) => ({
@@ -590,23 +718,29 @@ function withP0ConversationTurns(item: AgentEvalQuestionCase): AgentEvalP0Questi
     turnIndex: index,
     turnCount: turnInputs.length,
   }));
+  conversationTurns = applyP0ConversationExpectationOverrides(item, conversationTurns);
   if (item.sourceCategory === '否定与纠正测试' && conversationTurns.length === 2) {
     const previous = conversationTurns[0]!;
     const correction = conversationTurns[1]!;
-    conversationTurns = [previous, {
-      ...correction,
-      expectedIntentType: previous.expectedIntentType,
-      expectedSemanticIntent: previous.expectedSemanticIntent,
-      expectedDomains: previous.expectedDomains ? [...previous.expectedDomains] : [],
-      expectedEntities: previous.expectedEntities ? [...previous.expectedEntities] : [],
-      expectedMetrics: previous.expectedMetrics ? [...previous.expectedMetrics] : [],
-      expectedDimensions: previous.expectedDimensions ? [...previous.expectedDimensions] : [],
-      expectedCapabilityKeys: previous.expectedCapabilityKeys ? [...previous.expectedCapabilityKeys] : [],
-      expectedPlanShape: previous.expectedPlanShape ? { ...previous.expectedPlanShape } : undefined,
-      expectedOutputKinds: /不要表格|简单说|说重点|太复杂/.test(correction.input)
-        ? ['text', 'evidence']
-        : previous.expectedOutputKinds ? [...previous.expectedOutputKinds] : ['text', 'evidence'],
-    }];
+    conversationTurns = [
+      previous,
+      {
+        ...correction,
+        expectedIntentType: previous.expectedIntentType,
+        expectedSemanticIntent: previous.expectedSemanticIntent,
+        expectedDomains: previous.expectedDomains ? [...previous.expectedDomains] : [],
+        expectedEntities: previous.expectedEntities ? [...previous.expectedEntities] : [],
+        expectedMetrics: previous.expectedMetrics ? [...previous.expectedMetrics] : [],
+        expectedDimensions: previous.expectedDimensions ? [...previous.expectedDimensions] : [],
+        expectedCapabilityKeys: previous.expectedCapabilityKeys ? [...previous.expectedCapabilityKeys] : [],
+        expectedPlanShape: previous.expectedPlanShape ? { ...previous.expectedPlanShape } : undefined,
+        expectedOutputKinds: /不要表格|简单说|说重点|太复杂/.test(correction.input)
+          ? ['text', 'evidence']
+          : previous.expectedOutputKinds
+            ? [...previous.expectedOutputKinds]
+            : ['text', 'evidence'],
+      },
+    ];
   }
   return {
     ...item,
@@ -614,6 +748,64 @@ function withP0ConversationTurns(item: AgentEvalQuestionCase): AgentEvalP0Questi
     scenarioId: item.id,
     turnCount: conversationTurns.length,
   };
+}
+
+function applyP0ConversationExpectationOverrides(
+  scenario: AgentEvalQuestionCase,
+  turns: AgentEvalP0QuestionCase[],
+): AgentEvalP0QuestionCase[] {
+  if (scenario.sourceCategory !== '代词和上下文继承测试') return turns;
+  return turns.map((turn, index) => {
+    if (index === 0) return turn;
+    if (scenario.sourceIndex === 12) {
+      return {
+        ...turn,
+        expectedPlanShape: undefined,
+        expectedCapabilityKeys: [],
+        expectedDecisionCodes: ['empty_customer_set_vip_count_zero'],
+        notes: '上轮预约客户集合为空时，VIP 数量确定为 0；非空集合才受统一 VIP 等级映射约束。',
+      };
+    }
+    if (scenario.sourceIndex === 15) {
+      return {
+        ...turn,
+        expectedPlanShape: undefined,
+        expectedCapabilityKeys: [],
+        systemSupportStatus: 'system_unsupported',
+        systemSupportReason: '当前营销执行平台不支持对任意查询客群直接批量发送，必须先形成受治理客群或策略。',
+      };
+    }
+    if (scenario.sourceIndex === 16) {
+      return {
+        ...turn,
+        expectedPlanShape: undefined,
+        expectedCapabilityKeys: [],
+        systemSupportStatus: 'system_unsupported',
+        systemSupportReason: '当前管理端和后端没有员工内部通知、消息发送和送达回执业务能力。',
+      };
+    }
+    if (scenario.sourceIndex === 17) {
+      return {
+        ...turn,
+        expectedPlanShape: undefined,
+        expectedCapabilityKeys: [],
+        expectedDecisionCodes: ['expiring_inventory_empty_no_campaign_needed'],
+        notes: '若上轮临期商品集合为空，应直接返回无需活动的确定性决策，不得调用普通库存冒充临期商品。',
+      };
+    }
+    if (scenario.sourceIndex === 19) {
+      return {
+        ...turn,
+        expectedAnswerShape: 'clarification',
+        expectedBrainStatus: 'clarify',
+        expectedOutputKinds: ['clarify'],
+        expectedPlanShape: undefined,
+        expectedCapabilityKeys: [],
+        notes: '缺少客户、项目和目标时段时，安全澄清即为正确结果，不得生成假预约预览。',
+      };
+    }
+    return turn;
+  });
 }
 
 export function annotateQuestionBankCoverage(questions: AgentEvalQuestionCase[]) {
@@ -633,7 +825,10 @@ export function annotateQuestionBankCoverage(questions: AgentEvalQuestionCase[])
   });
 }
 
-export function selectRemainingSupportedQuestionBankCases(questions: AgentEvalQuestionCase[], persona?: AgentQuestionBankPersona) {
+export function selectRemainingSupportedQuestionBankCases(
+  questions: AgentEvalQuestionCase[],
+  persona?: AgentQuestionBankPersona,
+) {
   return annotateQuestionBankCoverage(questions).filter((item) => {
     if (persona && item.persona !== persona) return false;
     if (item.systemSupportStatus === 'system_unsupported') return false;
@@ -791,7 +986,9 @@ export const QUESTION_BANK_CONVERSATION_CASES: AgentEvalConversationCase[] = [
 
 function takeRoundRobinByCategory(items: AgentEvalQuestionCase[], limit: number) {
   const categories = [...new Set(items.map((item) => item.sourceCategory))];
-  const grouped = new Map(categories.map((category) => [category, items.filter((item) => item.sourceCategory === category)]));
+  const grouped = new Map(
+    categories.map((category) => [category, items.filter((item) => item.sourceCategory === category)]),
+  );
   const selected: AgentEvalQuestionCase[] = [];
   let cursor = 0;
   while (selected.length < limit && categories.length) {
