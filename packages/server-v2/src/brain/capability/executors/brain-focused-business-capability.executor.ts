@@ -64,6 +64,7 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
 
   @BrainCapability({
     key: 'project_margin_analysis',
+    mappingOutputs: ['projectRanking'],
     name: '项目毛利与成本排行',
     description:
       '复用管理端项目毛利分析服务，按当前门店和时间范围返回项目服务收入及占比、实际或标准耗材成本、提成成本、贡献毛利、毛利率和成本缺口。支持项目收入占比、项目毛利情况、项目成本最高和项目毛利排行。',

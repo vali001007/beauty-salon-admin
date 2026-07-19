@@ -165,6 +165,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
 
   @BrainCapability({
     key: 'manager_staff_overview',
+    mappingOutputs: ['staffRanking'],
     name: '店长员工运营分析',
     description:
       '按当前门店和时间范围分析美容师服务次数、独立客户数、客户复购率、业绩、提成、请假时长、排班忙闲和可用空档，支持按用户明确指定的员工指标排行、对比和工作饱和度诊断。试用期、转正待办和客户归属变更没有后台事实闭环时必须明确拒答，不得用通用员工排行替代。客户投诉与满意度由专用客户反馈能力处理。',
@@ -282,6 +283,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
 
   @BrainCapability({
     key: 'appointment_gap_list',
+    mappingOutputs: ['appointmentGaps'],
     name: '门店可预约空档清单',
     description:
       '基于当前门店排班、预约占用和可用容量，计算指定日期范围内可预约的具体空档时段。只返回日期、开始时间、结束时间、可用容量和预计收入，不自动匹配客户、不创建触达任务、不修改预约。',
@@ -475,6 +477,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
 
   @BrainCapability({
     key: 'inventory_operations_overview',
+    mappingOutputs: ['expiringBatches'],
     name: '库存采购运营概览',
     description: '组合库存金额、低库存、临期批次、库存消耗、采购建议、供应商和最近采购单，返回只读库存运营诊断。',
     intents: ['query', 'ranking', 'diagnosis', 'recommendation'],
@@ -599,6 +602,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
 
   @BrainCapability({
     key: 'marketing_growth_overview',
+    mappingOutputs: ['priorityCustomers'],
     name: '营销增长运营概览',
     description:
       '组合客户分层、跟进优先级、渠道触达、转化、归因收入和自动化策略；对高端护理、套餐或项目推广问题，复用营销推荐事实与门店真实项目生成客户适配名单。',
@@ -633,6 +637,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
 
   @BrainCapability({
     key: 'reservation_list',
+    mappingOutputs: ['customerIds'],
     name: '门店预约清单',
     description:
       '按服务端解析的时间范围查询当前门店预约，支持指定客户、指定美容师、上午/下午、指定时点、待确认、首个/下一个/最后一个预约、项目分类和预约日期排行，返回客户、项目、美容师、状态、开始与结束时间，不执行创建、改期或取消。',
@@ -683,6 +688,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
 
   @BrainCapability({
     key: 'customer_facts',
+    mappingOutputs: ['inactiveCustomers', 'vipCustomers'],
     name: '客户事实与客群查询',
     description:
       '查询当前门店的精确客户事实、VIP、新老客、周期新客转化、到店年龄画像、沉睡客户、沉睡客户触达后的预约/到店/消费唤醒迹象、生日关怀、重要客户到店、营销活动响应、办卡未预约、低余次卡、开卡未核销、高价值低活跃客户、客户复购率、平均回访间隔，以及消费频率或消费金额明显下降的客户名单。定性客群使用已治理默认口径执行并在答案中披露，不要求用户选择内部阈值。',
@@ -3789,6 +3795,15 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           ],
           metadata: {
             capabilityKey: 'marketing_growth_overview',
+            mappingOutputs: {
+              priorityCustomers: priorityRows.slice(0, this.resolveLimit(input.args.limit, 20)).map((item) => ({
+                entityType: 'customer',
+                entityKey: String(item.customerId),
+                mention: item.customerName,
+                source: 'system',
+                confidence: 1,
+              })),
+            },
             rangeLabel: range.label,
             componentCapabilities: [
               'marketing_attribution_analytics',

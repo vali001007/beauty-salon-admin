@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rename, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { BrainCapabilityDriftService } from './brain-capability-drift.service.js';
@@ -543,6 +543,26 @@ describe('BrainCapabilityScannerService', () => {
     expect(drift.items).toEqual(
       expect.arrayContaining([expect.objectContaining({ key: 'customer_facts', type: 'changed' })]),
     );
+  });
+
+  it('keeps declared mapping outputs as part of the generated capability contract', async () => {
+    const root = await createFixture();
+    const path = join(root, 'packages/server-v2/src/customers/customers.controller.ts');
+    const source = await readFile(path, 'utf8');
+    await writeFile(
+      path,
+      source.replace(
+        "businessDefinitionKeys: ['customer.entity'],",
+        "businessDefinitionKeys: ['customer.entity'], mappingOutputs: ['customerIds'],",
+      ),
+      'utf8',
+    );
+
+    const report = await new BrainCapabilityScannerService().scan({ workspaceRoot: root, explicitOnly: true });
+
+    expect(report.capabilities.find((item) => item.key === 'customer_facts')?.mappingOutputs).toEqual([
+      'customerIds',
+    ]);
   });
 
   it('changes the source fingerprint when a bound Prisma store predicate is removed', async () => {

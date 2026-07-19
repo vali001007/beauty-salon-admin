@@ -21,6 +21,7 @@ import type {
   BrainCapabilityScanReport,
   BrainCapabilityScanRiskLevel,
 } from './brain-capability-scan.types.js';
+import { withBrainCapabilityMappingOutputs } from './brain-capability-mapping-output-contract.js';
 import {
   BrainCapabilitySemanticCompilationError,
   BrainCapabilitySemanticCompilerService,
@@ -266,7 +267,10 @@ export class BrainCapabilityCodegenService {
       for (const definitionKey of capability.businessDefinitionKeys) {
         if (!definitions.has(definitionKey)) reasons.push(`missing_published_business_definition:${definitionKey}`);
       }
-      const technicalOutputSchema = outputSchema(capability.outputContract.return);
+      const technicalOutputSchema = withBrainCapabilityMappingOutputs(
+        outputSchema(capability.outputContract.return),
+        capability.mappingOutputs,
+      );
       let canonicalSemantics: BrainCanonicalCapabilitySemantics | undefined;
       let narrative: BrainCapabilityNarrative | undefined;
       let grounding: 'semantic_query' | 'domain_service' | 'preview_action' | undefined;

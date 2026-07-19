@@ -17,6 +17,7 @@ import {
 } from './brain-execution-plan.schema.js';
 import { buildBrainSupervisorPlannerMessages } from './brain-supervisor-planner.prompt.js';
 import type { BrainRoleRuntimeContext } from '../role/brain-role-context-builder.service.js';
+import { brainCapabilityMappingOutputPaths } from '../capability/brain-capability-mapping-output-contract.js';
 
 export type BrainSupervisorPlannerErrorCode = AiStructuredOutputErrorCode | 'MODEL_UNAVAILABLE' | 'PLAN_POLICY_INVALID';
 
@@ -49,32 +50,45 @@ export class BrainSupervisorPlannerService {
   }): Promise<BrainSupervisorPlanningResult> {
     try {
       this.assertInput(input);
-      const remainingMs = input.deadlineAt === undefined
-        ? this.config.runtime.modelTimeoutMs
-        : Math.floor(input.deadlineAt - Date.now());
-      if (remainingMs <= 0) {
-        throw new AiStructuredOutputError('BUDGET_EXCEEDED', 'Brain Supervisor deadline is exhausted.');
-      }
       const candidates = input.topK.map((item) => item.card);
-      const result = await this.aiService.generateStructured<BrainExecutionPlan>({
-        scenario: input.previousPlan ? 'brain.supervisor_replan.v1' : 'brain.supervisor_plan.v1',
-        messages: buildBrainSupervisorPlannerMessages({
-          question: input.question,
-          intent: input.intent,
-          candidates,
-          previousPlan: input.previousPlan,
-          observations: input.observations,
-          roleContext: input.roleContext,
-        }),
-        schema: BRAIN_EXECUTION_PLAN_JSON_SCHEMA,
-        timeoutMs: Math.min(this.config.runtime.modelTimeoutMs, remainingMs),
-        temperature: 0,
-        userId: input.audit.userId,
-        storeId: input.audit.storeId,
-      });
-      const plan = this.normalizeBudget(this.normalizeStructuredArgs(result.data, candidates, input.intent), candidates);
-      this.assertPlanPolicy(plan, candidates, input.intent, input.previousPlan);
-      return { status: 'planned', plan, provider: result.provider, model: result.model, usage: result.usage };
+      let contractRepair: { rejectedPlan: BrainExecutionPlan; reason: string } | undefined;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const remainingMs = input.deadlineAt === undefined
+          ? this.config.runtime.modelTimeoutMs
+          : Math.floor(input.deadlineAt - Date.now());
+        if (remainingMs <= 0) {
+          throw new AiStructuredOutputError('BUDGET_EXCEEDED', 'Brain Supervisor deadline is exhausted.');
+        }
+        const result = await this.aiService.generateStructured<BrainExecutionPlan>({
+          scenario: input.previousPlan ? 'brain.supervisor_replan.v1' : 'brain.supervisor_plan.v1',
+          messages: buildBrainSupervisorPlannerMessages({
+            question: input.question,
+            intent: input.intent,
+            candidates,
+            previousPlan: input.previousPlan,
+            observations: input.observations,
+            roleContext: input.roleContext,
+            contractRepair,
+          }),
+          schema: BRAIN_EXECUTION_PLAN_JSON_SCHEMA,
+          timeoutMs: Math.min(this.config.runtime.modelTimeoutMs, remainingMs),
+          temperature: 0,
+          userId: input.audit.userId,
+          storeId: input.audit.storeId,
+        });
+        const plan = this.normalizeBudget(this.normalizeStructuredArgs(result.data, candidates, input.intent), candidates);
+        try {
+          this.assertPlanPolicy(plan, candidates, input.intent, input.previousPlan);
+          return { status: 'planned', plan, provider: result.provider, model: result.model, usage: result.usage };
+        } catch (error) {
+          if (attempt === 0 && error instanceof BrainSupervisorPlanPolicyError && error.repairableMappingContract) {
+            contractRepair = { rejectedPlan: plan, reason: error.message };
+            continue;
+          }
+          throw error;
+        }
+      }
+      throw new BrainSupervisorPlanPolicyError('supervisor_contract_repair_exhausted');
     } catch (error) {
       if (error instanceof AiStructuredOutputError) {
         return { status: 'unavailable', errorCode: error.code, reason: error.message };
@@ -108,6 +122,7 @@ export class BrainSupervisorPlannerService {
     previousPlan?: BrainExecutionPlan,
   ) {
     const allowed = new Map(candidates.map((card) => [capabilityIdentity(card.key, card.version), card]));
+    const nodes = new Map(plan.nodes.map((node) => [node.id, node]));
     if (previousPlan && plan.replanCount !== previousPlan.replanCount + 1) {
       throw new BrainSupervisorPlanPolicyError('supervisor_replan_count_invalid');
     }
@@ -124,6 +139,17 @@ export class BrainSupervisorPlannerService {
         }
         if (!node.dependsOn.includes(mapping.fromNodeId)) {
           throw new BrainSupervisorPlanPolicyError(`supervisor_mapping_dependency_missing:${node.id}:${mapping.fromNodeId}`);
+        }
+        const sourceNode = nodes.get(mapping.fromNodeId);
+        const sourceCard = sourceNode
+          ? allowed.get(capabilityIdentity(sourceNode.capabilityKey, sourceNode.capabilityVersion))
+          : undefined;
+        const declaredOutputs = sourceCard ? brainCapabilityMappingOutputPaths(sourceCard) : [];
+        if (!declaredOutputs.includes(mapping.sourcePath)) {
+          throw new BrainSupervisorPlanPolicyError(
+            `supervisor_mapping_output_undeclared:${node.id}:${mapping.fromNodeId}`,
+            true,
+          );
         }
       }
     }
@@ -235,7 +261,11 @@ function requireDependency(
   }
 }
 
-class BrainSupervisorPlanPolicyError extends Error {}
+class BrainSupervisorPlanPolicyError extends Error {
+  constructor(message: string, readonly repairableMappingContract = false) {
+    super(message);
+  }
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);

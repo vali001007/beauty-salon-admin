@@ -58,6 +58,7 @@ export interface BrainCapabilityCandidate {
   idempotency: 'required' | 'not_applicable' | 'unknown';
   inputContract: Record<string, string>;
   outputContract: Record<string, string>;
+  mappingOutputs?: string[];
   sourceFingerprint: string;
   implementationDependencies?: string[];
   evidence: BrainCapabilitySourceEvidence[];
@@ -116,4 +117,5 @@ export interface BrainCapabilityDecoratorMetadata {
   examples?: string[];
   negativeExamples?: string[];
   synonyms?: string[];
+  mappingOutputs?: string[];
 }

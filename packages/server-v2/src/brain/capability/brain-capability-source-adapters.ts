@@ -587,6 +587,7 @@ function decoratorObject(node: ts.Node, name: string): BrainCapabilityDecoratorM
   const storeScope = objectString(argument, 'storeScope');
   const requiresConfirmation = objectBoolean(argument, 'requiresConfirmation');
   const idempotency = objectString(argument, 'idempotency');
+  const mappingOutputs = objectStringArray(argument, 'mappingOutputs');
   if (
     !key ||
     businessDefinitionKeys.length === 0 ||
@@ -613,6 +614,7 @@ function decoratorObject(node: ts.Node, name: string): BrainCapabilityDecoratorM
     examples: objectStringArray(argument, 'examples'),
     negativeExamples: objectStringArray(argument, 'negativeExamples'),
     synonyms: objectStringArray(argument, 'synonyms'),
+    ...(mappingOutputs.length ? { mappingOutputs } : {}),
   };
 }
 

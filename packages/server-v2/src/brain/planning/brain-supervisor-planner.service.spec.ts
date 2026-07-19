@@ -3,6 +3,7 @@ import type { BrainCapabilityRankedCandidate } from '../capability/brain-capabil
 import type { BrainCapabilityCard } from '../capability/brain-capability.types.js';
 import type { BrainSemanticIntent } from '../cognition/brain-semantic-intent.types.js';
 import { BrainSupervisorPlannerService } from './brain-supervisor-planner.service.js';
+import { withBrainCapabilityMappingOutputs } from '../capability/brain-capability-mapping-output-contract.js';
 
 const contextConfig = { runtime: { modelTimeoutMs: 8000, capabilityTopK: 8 } };
 const usage = { inputTokens: 1, outputTokens: 1, totalTokens: 2 };
@@ -108,6 +109,63 @@ describe('BrainSupervisorPlannerService', () => {
       ],
     };
     await expect(planner(missingDependency).plan({ question: 'test', intent: intent(['inventory', 'finance']), topK: ranked(cards), audit: { userId: 9, storeId: 6 } })).resolves.toMatchObject({ status: 'unavailable', errorCode: 'PLAN_POLICY_INVALID' });
+  });
+
+  it('repairs a model plan that references an undeclared mapping output', async () => {
+    const source = {
+      ...card('customer_priority_recommendation', ['customer']),
+      outputSchema: withBrainCapabilityMappingOutputs({ type: 'object' }, ['resultRows']),
+    };
+    const target = card('marketing_campaign_plan', ['customer']);
+    const invalidPlan = {
+      schemaVersion: '1.0', planId: 'invalid-mapping', objective: '提升复购', replanCount: 0, budgetMs: 10_000,
+      nodes: [
+        node('priority', source),
+        {
+          ...node('campaign', target, ['priority']),
+          inputMappings: [{ fromNodeId: 'priority', sourcePath: '$.data.customerSegments', targetPath: '$.entities' }],
+        },
+      ],
+    };
+    const repairedPlan = {
+      ...invalidPlan,
+      planId: 'repaired-mapping',
+      nodes: [
+        node('priority', source),
+        {
+          ...node('campaign', target, ['priority']),
+          inputMappings: [{ fromNodeId: 'priority', sourcePath: '$.data.resultRows', targetPath: '$.entities' }],
+        },
+      ],
+    };
+    const generateStructured = jest
+      .fn()
+      .mockResolvedValueOnce({ data: invalidPlan, provider: 'test', model: 'test-model', usage })
+      .mockResolvedValueOnce({ data: repairedPlan, provider: 'test', model: 'test-model', usage });
+    const service = new BrainSupervisorPlannerService(
+      { generateStructured } as unknown as AiService,
+      contextConfig as never,
+    );
+
+    await expect(service.plan({
+      question: '我想提升复购率',
+      intent: intent(['customer']),
+      topK: ranked([source, target]),
+      audit: { userId: 9, storeId: 6 },
+    })).resolves.toMatchObject({
+      status: 'planned',
+      plan: {
+        planId: 'repaired-mapping',
+        nodes: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'campaign',
+            inputMappings: [expect.objectContaining({ sourcePath: '$.data.resultRows' })],
+          }),
+        ]),
+      },
+    });
+    expect(generateStructured).toHaveBeenCalledTimes(2);
+    expect(generateStructured.mock.calls[1]?.[0].messages[1].content).toContain('contractRepair');
   });
 
   it('requires a replan to increment replanCount exactly once', async () => {

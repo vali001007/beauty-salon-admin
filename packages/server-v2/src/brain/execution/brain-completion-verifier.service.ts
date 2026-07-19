@@ -94,7 +94,13 @@ export class BrainCompletionVerifierService {
       if (observation.status === 'rejected') {
         return { status: 'rejected', missingCriteria: [`rejected:${node.id}:${observation.errorCode ?? 'policy'}`], recoverable: false };
       }
-      if (observation.status === 'failed') missing.push(`failed:${node.id}`);
+      if (observation.status === 'failed') {
+        missing.push(
+          observation.errorCode === 'brain_planner_mapping_contract_unresolved'
+            ? `planner_mapping_contract_unresolved:${node.id}`
+            : `failed:${node.id}`,
+        );
+      }
       const groundedNoData =
         observation.status === 'no_data' &&
         observation.grounding !== 'none' &&

@@ -178,6 +178,7 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
 
   @BrainCapability({
     key: 'customer_priority_recommendation',
+    mappingOutputs: ['resultRows'],
     businessDefinitionKeys: ['entity.customer', 'metric.follow_up_priority_score'],
     readOnly: true,
     storeScope: 'required',
@@ -258,6 +259,7 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
             { kind: 'kpi', items: kpis },
           ],
       metadata: {
+        mappingOutputs: { resultRows: displayRows },
         queryCount: metrics.length,
         resultCount: allRows.length,
         rangeLabel: timeRange.rangeLabel,

@@ -206,11 +206,11 @@ export class BrainBoundedExecutorService {
   private applyMappings(node: BrainExecutionPlanNode, observations: ReadonlyMap<string, BrainObservation>) {
     const args = structuredClone(node.args);
     for (const mapping of node.inputMappings ?? []) {
-      if (!mapping.sourcePath.startsWith('$.data.')) throw new BadRequestException('brain_observation_mapping_source_invalid');
+      if (!mapping.sourcePath.startsWith('$.data.')) throw new BrainObservationMappingError();
       const observation = observations.get(mapping.fromNodeId);
-      if (!observation) throw new BadRequestException(`brain_observation_mapping_source_missing:${mapping.fromNodeId}`);
+      if (!observation) throw new BrainObservationMappingError();
       const value = readPath(observation, mapping.sourcePath);
-      if (value === undefined) throw new BadRequestException(`brain_observation_mapping_value_missing:${mapping.sourcePath}`);
+      if (value === undefined) throw new BrainObservationMappingError();
       writePath(args, mapping.targetPath, structuredClone(value));
     }
     return args;
@@ -233,12 +233,18 @@ function writePath(target: Record<string, unknown>, path: string, value: unknown
   for (const segment of segments.slice(0, -1)) {
     const existing = current[segment];
     if (existing !== undefined && (!existing || typeof existing !== 'object' || Array.isArray(existing))) {
-      throw new BadRequestException(`brain_observation_mapping_target_conflict:${path}`);
+      throw new BrainObservationMappingError();
     }
     current[segment] = existing ?? {};
     current = current[segment] as Record<string, unknown>;
   }
   current[segments.at(-1)!] = value;
+}
+
+class BrainObservationMappingError extends Error {
+  constructor() {
+    super('brain_planner_mapping_contract_unresolved');
+  }
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {

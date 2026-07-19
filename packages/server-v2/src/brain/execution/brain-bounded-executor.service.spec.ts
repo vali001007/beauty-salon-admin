@@ -69,6 +69,89 @@ describe('BrainBoundedExecutorService', () => {
     expect(replanner.replan).toHaveBeenCalledWith(expect.objectContaining({ deadlineAt: expect.any(Number) }));
   });
 
+  it('replans a missing declared mapping value instead of rejecting the workflow', async () => {
+    const source = card('source');
+    const target = card('target', {
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: { entities: { type: 'array' } },
+      },
+    });
+    const firstPlan: BrainExecutionPlan = {
+      schemaVersion: '1.0', planId: 'mapping-missing', objective: 'workflow', replanCount: 0, budgetMs: 10_000,
+      nodes: [
+        node('source', source),
+        {
+          ...node('target', target, ['source']),
+          inputMappings: [{ fromNodeId: 'source', sourcePath: '$.data.customerIds', targetPath: '$.entities' }],
+        },
+      ],
+    };
+    const repairedPlan: BrainExecutionPlan = {
+      ...firstPlan,
+      planId: 'mapping-repaired',
+      replanCount: 1,
+      nodes: [node('source', source), node('target', target, ['source'])],
+    };
+    const execute = jest.fn().mockResolvedValue(answer());
+    const replanner = { replan: jest.fn().mockResolvedValue({ status: 'planned', plan: repairedPlan }) };
+
+    const result = await executor(execute, replanner).execute({
+      plan: firstPlan,
+      topK: ranked([source, target]),
+      context: context as any,
+      runId: 1,
+      question: 'workflow',
+      intent,
+    });
+
+    expect(result.status).toBe('completed');
+    expect(result.replanCount).toBe(1);
+    expect(replanner.replan).toHaveBeenCalledWith(expect.objectContaining({
+      reasons: ['planner_mapping_contract_unresolved:target'],
+    }));
+    expect(execute).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns safe partial observations when mapping recovery is unavailable', async () => {
+    const source = card('source');
+    const target = card('target');
+    const plan: BrainExecutionPlan = {
+      schemaVersion: '1.0', planId: 'mapping-partial', objective: 'workflow', replanCount: 0, budgetMs: 10_000,
+      nodes: [
+        node('source', source),
+        {
+          ...node('target', target, ['source']),
+          inputMappings: [{ fromNodeId: 'source', sourcePath: '$.data.customerIds', targetPath: '$.entities' }],
+        },
+      ],
+    };
+
+    const result = await executor(jest.fn().mockResolvedValue(answer())).execute({
+      plan,
+      topK: ranked([source, target]),
+      context: context as any,
+      runId: 1,
+      question: 'workflow',
+      intent,
+    });
+
+    expect(result.status).toBe('partial');
+    expect(result.completion).toMatchObject({
+      status: 'incomplete',
+      missingCriteria: ['planner_mapping_contract_unresolved:target'],
+    });
+    expect(result.observations).toEqual([
+      expect.objectContaining({ nodeId: 'source', status: 'completed' }),
+      expect.objectContaining({
+        nodeId: 'target',
+        status: 'failed',
+        errorCode: 'brain_planner_mapping_contract_unresolved',
+      }),
+    ]);
+  });
+
   it('does not replan after a capability timeout exhausts the execution budget', async () => {
     jest.useFakeTimers();
     try {

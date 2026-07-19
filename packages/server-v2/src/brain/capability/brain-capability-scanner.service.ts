@@ -286,6 +286,7 @@ export class BrainCapabilityScannerService {
     );
     const inputContract = this.resolveInputContract(inputTypes, input.dtoContracts);
     const outputContract = { return: returnTypes.join(' | ') || 'unknown' };
+    const mappingOutputs = uniqueSorted(metadata?.mappingOutputs ?? []);
     const issues = this.validateCandidate({
       readOnly,
       sideEffect,
@@ -337,6 +338,7 @@ export class BrainCapabilityScannerService {
       idempotency,
       inputContract,
       outputContract,
+      mappingOutputs,
       implementationDependencies,
       evidence: normalizedEvidence,
     });
@@ -358,6 +360,7 @@ export class BrainCapabilityScannerService {
       idempotency,
       inputContract,
       outputContract,
+      mappingOutputs,
       sourceFingerprint,
       implementationDependencies,
       evidence: dedupeEvidence(primaryEvidence),
