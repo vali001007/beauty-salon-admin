@@ -1993,6 +1993,9 @@ export class BrainChatService {
     const requestedDefinitionKeys = new Set([
       ...input.intent.metrics.map((metric) => metric.definitionKey),
       ...input.intent.dimensions.map((dimension) => dimension.definitionKey),
+      ...input.intent.entities.flatMap((entity) =>
+        entity.definitionRef ? [entity.definitionRef.definitionKey] : [],
+      ),
     ]);
     const contractMayResolveModelExpansion =
       ['action', 'draft', 'recommendation', 'diagnosis'].includes(input.intent.intent) ||
@@ -2868,6 +2871,13 @@ export class BrainChatService {
     ) {
       return false;
     }
+    if (
+      /^(?:(?:今天|明天|下午|上午|当前|刚才)的?)?(?:预约|到店|待到店)(?:客户|顾客|客人|会员)(?:名单|人群|客群)?$/.test(
+        mention,
+      )
+    ) {
+      return false;
+    }
     if (entity.entityKey && entity.entityKey !== entity.entityType) return true;
     return true;
   }
@@ -3023,7 +3033,10 @@ export class BrainChatService {
 
   private hasProtectedCapabilityClarification(intent: BrainSemanticIntent): boolean {
     if (intent.ambiguities.some((ambiguity) => /越权|跨门店|权限|安全|冲突/.test(ambiguity.reason))) return true;
-    return [...intent.missingSlots, ...intent.ambiguities.map((ambiguity) => ambiguity.slot)].some((slot) => {
+    const protectedAmbiguitySlots = intent.ambiguities
+      .filter((ambiguity) => !this.isGovernedBusinessDefinitionAmbiguity(ambiguity.reason))
+      .map((ambiguity) => ambiguity.slot);
+    return [...intent.missingSlots, ...protectedAmbiguitySlots].some((slot) => {
       const normalized = slot.toLocaleLowerCase('zh-CN').replace(/[\s._-]+/g, '');
       if (/(?:permission|store|securityscope|confirmation|门店|权限|安全范围|确认授权)/.test(normalized)) return true;
       return (
@@ -3033,6 +3046,10 @@ export class BrainChatService {
         )
       );
     });
+  }
+
+  private isGovernedBusinessDefinitionAmbiguity(reason: string) {
+    return /(?:业务定义|统一口径|口径|阈值|映射|分类规则|等级规则)/.test(reason);
   }
 
   private governedCapabilitySemanticScore(question: string, card: BrainCapabilityCard): number {

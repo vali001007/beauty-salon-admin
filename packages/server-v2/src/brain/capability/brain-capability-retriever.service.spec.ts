@@ -311,6 +311,41 @@ describe('BrainCapabilityRetrieverService', () => {
     expect(result).toMatchObject({ status: 'selected', selected: { key: 'finance_payment_breakdown' } });
   });
 
+  it('ranks the reservation member-level capability above a generic VIP customer capability', () => {
+    const reservationCard = card('reservation_list', {
+      name: '门店预约清单',
+      description: '查询预约客户原始会员等级和特别接待准备，未发布统一 VIP 映射时披露口径缺口',
+      domain: 'reservation',
+      intent: 'query',
+      refs: ['entity.reservation', 'entity.customer', 'dimension.customerLevel'],
+      synonyms: ['预约客户会员等级', '预约 VIP 接待准备', '高等级会员预约'],
+      examples: ['今天有预约的客人里有没有 VIP 需要特别准备', '明天预约客户的会员等级分别是什么'],
+    });
+    const customerCard = card('customer_facts', {
+      name: '客户事实与客群查询',
+      description: '查询门店 VIP、新老客和客户分层事实',
+      domain: 'customer',
+      intent: 'query',
+      refs: ['entity.customer', 'dimension.customerLevel'],
+      synonyms: ['VIP 客户', '高等级客户'],
+      examples: ['我们店里的 VIP 客户有多少个'],
+    });
+    const ranked = service.retrieveTopKForSupervisor({
+      intent: {
+        ...intent({ domain: 'reservation', intent: 'query' }),
+        domains: ['reservation', 'customer'],
+        answerShape: 'list',
+      },
+      question: '今天预约的顾客中哪些会员等级需要特别接待',
+      context,
+      cards: [customerCard, reservationCard],
+      maxRisk: 'low',
+    });
+
+    expect(ranked.map((item) => item.card.key)).toEqual(['reservation_list', 'customer_facts']);
+    expect(ranked[0]!.score - ranked[1]!.score).toBeGreaterThanOrEqual(0.08);
+  });
+
   it('keeps concrete entity constraints and requested dimensions as hard contract filters', () => {
     const financeCard = cards().find((item) => item.key === 'order_revenue_analysis')!;
     const concreteEntity = service.retrieve({

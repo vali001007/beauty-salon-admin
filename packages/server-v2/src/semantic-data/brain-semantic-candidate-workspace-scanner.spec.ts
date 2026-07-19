@@ -2,6 +2,7 @@ import {
   selectCurrentSemanticCandidates,
   semanticCandidateKey,
 } from './brain-semantic-candidate-workspace-scanner.js';
+import { AMI_CORE_BUSINESS_DIMENSION_CONTRACTS } from './ami-core-business-semantic-contracts.js';
 
 describe('semantic candidate workspace reconciliation', () => {
   const current = {
@@ -43,5 +44,18 @@ describe('semantic candidate workspace reconciliation', () => {
       ),
     ).toThrow('semantic_candidate_sync_duplicate:entity.product');
     expect(() => semanticCandidateKey({ status: 'draft' })).toThrow('semantic_candidate_sync_identity_invalid');
+  });
+
+  it('uses one Ami Core member-level definition for customer facts and reservation discovery', () => {
+    const contract = AMI_CORE_BUSINESS_DIMENSION_CONTRACTS.find((item) => item.dimensionKey === 'customerLevel');
+
+    expect(contract).toMatchObject({
+      name: '会员等级',
+      domain: 'customer',
+      source: { model: 'Customer', field: 'memberLevel' },
+      permissions: ['core:brain:use'],
+    });
+    expect(contract?.capabilityKeys).toEqual(['customer_facts', 'reservation_list']);
+    expect(AMI_CORE_BUSINESS_DIMENSION_CONTRACTS.filter((item) => item.source.model === 'Customer' && item.source.field === 'memberLevel')).toHaveLength(1);
   });
 });

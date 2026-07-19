@@ -640,7 +640,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     mappingOutputs: ['customerIds'],
     name: '门店预约清单',
     description:
-      '按服务端解析的时间范围查询当前门店预约，支持指定客户、指定美容师、上午/下午、指定时点、待确认、首个/下一个/最后一个预约、项目分类和预约日期排行，返回客户、项目、美容师、状态、开始与结束时间，不执行创建、改期或取消。',
+      '按服务端解析的时间范围查询当前门店预约，支持指定客户、指定美容师、上午/下午、指定时点、待确认、首个/下一个/最后一个预约、项目分类、预约日期排行，以及预约客户原始会员等级和特别接待准备查询；未发布统一 VIP 等级映射时只展示原始会员等级并披露口径缺口，不执行创建、改期或取消。',
     intents: ['query'],
     examples: [
       '今天有哪些预约',
@@ -653,6 +653,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '今天下午最后一个预约是几点，是谁',
       '今天有几个预约是做面部的，几个是身体的',
       '这个月预约最多的是哪几天',
+      '今天有预约的客人里有没有 VIP 需要特别准备',
+      '明天预约客户的会员等级分别是什么',
+      '把今天预约客人的会员等级列出来',
     ],
     negativeExamples: ['直接帮我改期', '取消这个预约', '查询其他门店预约', '确认通知是否送达', '预测客户一定会爽约'],
     synonyms: [
@@ -666,6 +669,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '待确认预约',
       '预约分类',
       '预约日期排行',
+      '预约客户会员等级',
+      '预约 VIP 接待准备',
+      '高等级会员预约',
     ],
     businessDefinitionKeys: [
       'entity.reservation',
@@ -674,6 +680,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       'entity.beautician',
       'dimension.customerName',
       'dimension.projectName',
+      'dimension.customerLevel',
     ],
     readOnly: true,
     storeScope: 'required',
@@ -5097,7 +5104,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       };
     }
 
-    if (/VIP|高等级会员/.test(question)) {
+    if (/VIP|高等级会员|会员等级/.test(question)) {
       const rows = filterRows(active);
       const limitation =
         '系统当前只有预约客户的原始会员等级，尚未发布统一的 VIP 等级映射规则，因此只展示会员等级，不自动把某个等级判定为 VIP。';

@@ -1,0 +1,31 @@
+{
+  "cases": [
+    {
+      "id": "reservation-member-level-preparation",
+      "intent": "query",
+      "input": "今天预约的顾客中哪些会员等级需要特别接待",
+      "expected": {
+        "capabilityKeys": ["reservation_list"],
+        "answerShape": "list"
+      }
+    },
+    {
+      "id": "reservation-high-level-member-preparation",
+      "intent": "query",
+      "input": "今天预约名单里有高等级会员吗，需要准备什么",
+      "expected": {
+        "capabilityKeys": ["reservation_list"],
+        "answerShape": "list"
+      }
+    },
+    {
+      "id": "reservation-raw-member-level",
+      "intent": "query",
+      "input": "查看今天预约客户的原始会员等级和接待准备",
+      "expected": {
+        "capabilityKeys": ["reservation_list"],
+        "answerShape": "list"
+      }
+    }
+  ]
+}

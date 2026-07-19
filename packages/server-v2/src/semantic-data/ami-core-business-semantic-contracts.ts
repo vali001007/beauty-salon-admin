@@ -1068,6 +1068,17 @@ export const AMI_CORE_BUSINESS_DIMENSION_CONTRACTS: readonly AmiCoreBusinessDime
   dimension('customerName', '客户姓名', 'customer', ['客户', '顾客姓名'], 'Customer', 'name', 'customer_priority_recommendation', [
     'core:brain:use',
   ]),
+  dimension(
+    'customerLevel',
+    '会员等级',
+    'customer',
+    ['客户等级', '会员级别', '原始会员等级'],
+    'Customer',
+    'memberLevel',
+    'customer_facts',
+    ['core:brain:use'],
+    ['reservation_list'],
+  ),
   dimension('customerSource', '客户来源', 'customer', ['新客来源', '获客渠道', '来源渠道'], 'Customer', 'source', 'customer_facts', [
     'core:customer:view',
   ]),

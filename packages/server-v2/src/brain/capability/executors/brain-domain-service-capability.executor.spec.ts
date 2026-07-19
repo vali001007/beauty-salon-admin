@@ -3295,6 +3295,62 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     );
   });
 
+  it('returns appointment member levels and discloses that VIP mapping is not published', async () => {
+    const skillRuntime = {
+      listReceptionReservations: jest.fn().mockResolvedValue({
+        count: 2,
+        reservations: [
+          reservationFact({ customerName: '王女士', memberLevel: '钻石会员' }),
+          reservationFact({ reservationId: 2, customerId: 12, customerName: '李女士', memberLevel: '普通会员' }),
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'reservation_list', name: '门店预约清单' },
+      context: {
+        userId: 31,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['receptionist'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'reservation-member-level-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 75,
+      question: '今天预约的顾客中哪些会员等级需要特别接待',
+      answerShape: 'list',
+      args: { objective: '查询预约客户会员等级', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('预约客户的会员等级如下');
+    expect(result.answer).toContain('不自动把某个等级判定为 VIP');
+    expect(result.metadata).toMatchObject({
+      answerScope: 'reservation_member_level_list',
+      unsupportedReason: 'vip_level_mapping_not_published',
+      count: 2,
+    });
+    expect(result.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'table',
+          rows: expect.arrayContaining([
+            expect.objectContaining({ customerName: '王女士', memberLevel: '钻石会员' }),
+            expect.objectContaining({ customerName: '李女士', memberLevel: '普通会员' }),
+          ]),
+          columns: expect.arrayContaining(['customerName', 'memberLevel']),
+        }),
+        expect.objectContaining({ kind: 'limitations' }),
+      ]),
+    );
+  });
+
   it('filters a specific afternoon appointment and returns customer attention facts', async () => {
     const skillRuntime = {
       listReceptionReservations: jest.fn().mockResolvedValue({

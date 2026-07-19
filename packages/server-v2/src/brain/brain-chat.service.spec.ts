@@ -2199,6 +2199,25 @@ describe('BrainChatService', () => {
         question: '马美琳手机尾号6325的预约是几点',
       }),
     ).toBe(baseIntent);
+
+    const reservationGroupIntent = {
+      ...baseIntent,
+      entities: [
+        {
+          entityType: 'customer',
+          mention: '今天预约客户',
+          source: 'user',
+          definitionRef: customerRef,
+          confidence: 0.98,
+        },
+      ],
+    };
+    expect(
+      (service as any).normalizeExactCustomerFactIntent({
+        intent: reservationGroupIntent,
+        question: '查看今天预约客户的原始会员等级和接待准备',
+      }),
+    ).toBe(reservationGroupIntent);
   });
 
   it('reuses the snapshot-bound capability while resolving a pending clarification', () => {
@@ -3033,6 +3052,84 @@ describe('BrainChatService', () => {
       cards: [{ ...card, examples: ['帮我查这个客户的资料'] }],
     });
     expect(protectedResult).toMatchObject({ missingSlots: ['customerIdentity'] });
+  });
+
+  it('lets the reservation capability disclose an unpublished member-level mapping without asking for customer identity', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const intent = {
+      schemaVersion: '1.0',
+      objective: '查询今天预约名单中的高等级会员和接待准备',
+      domains: ['customer', 'project', 'reservation'],
+      intent: 'query',
+      entities: [
+        {
+          entityType: 'reservation',
+          mention: '今天预约名单',
+          source: 'user',
+          definitionRef: definitionRef('entity.reservation'),
+          confidence: 0.99,
+        },
+        {
+          entityType: 'customer',
+          mention: '高等级会员',
+          source: 'user',
+          definitionRef: definitionRef('entity.customer'),
+          confidence: 0.95,
+        },
+      ],
+      metrics: [],
+      dimensions: [definitionRef('dimension.customerName'), definitionRef('dimension.projectName')],
+      filters: [],
+      orderBy: [],
+      answerShape: 'list',
+      successCriteria: ['返回预约客户原始会员等级', '披露统一高等级会员映射缺口'],
+      ambiguities: [
+        {
+          slot: 'entity',
+          reason: '“高等级会员”未指定会员等级阈值，且未发布统一 VIP 或高等级会员映射。',
+          candidates: ['展示原始会员等级'],
+        },
+      ],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 0.93,
+      decisionSummary: '预约客户会员等级',
+    };
+    const card = {
+      key: 'reservation_list',
+      version: 49,
+      name: '门店预约清单',
+      description: '查询预约客户原始会员等级和特别接待准备，未发布统一 VIP 映射时披露口径缺口。',
+      domains: ['customer', 'project', 'reservation'],
+      intents: ['query'],
+      examples: ['明天预约客户的会员等级分别是什么'],
+      synonyms: ['预约客户会员等级', '高等级会员预约'],
+      readOnly: true,
+      sideEffect: false,
+      grounding: 'domain_service',
+      definitionRefs: [
+        { ...definitionRef('entity.reservation'), version: 1 },
+        { ...definitionRef('entity.customer'), version: 1 },
+        { ...definitionRef('dimension.customerName'), version: 1 },
+        { ...definitionRef('dimension.projectName'), version: 1 },
+        { ...definitionRef('dimension.customerLevel'), version: 1 },
+      ],
+    };
+
+    const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
+      intent,
+      question: '今天预约名单里有高等级会员吗，需要准备什么',
+      cards: [card],
+    });
+
+    expect(normalized).toMatchObject({
+      intent: 'query',
+      answerShape: 'list',
+      ambiguities: [],
+      missingSlots: [],
+      domains: ['customer', 'project', 'reservation'],
+    });
+    expect(normalized.assumptions).toContain('能力 reservation_list 将采用并披露已治理的默认分析口径。');
   });
 
   it('lets a governed action capability defer customer and reservation uniqueness to the scoped target resolver', () => {
