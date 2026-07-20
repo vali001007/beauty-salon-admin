@@ -1,0 +1,50 @@
+{
+  "cases": [
+    {
+      "id": "staff-revenue-ranking-who-leads",
+      "intent": "ranking",
+      "input": "本月美容师业绩实收谁排第一",
+      "expected": {
+        "domains": ["staff"],
+        "metrics": ["staff_service_revenue"],
+        "dimensions": ["beauticianName"],
+        "capabilityKeys": ["manager_staff_overview"],
+        "answerShape": "ranking"
+      }
+    },
+    {
+      "id": "staff-revenue-ranking-top",
+      "intent": "ranking",
+      "input": "按这个月关联实收给美容师排个名",
+      "expected": {
+        "domains": ["staff"],
+        "metrics": ["staff_service_revenue"],
+        "dimensions": ["beauticianName"],
+        "capabilityKeys": ["manager_staff_overview"],
+        "answerShape": "ranking"
+      }
+    },
+    {
+      "id": "marketing-post-purchase-project-rule",
+      "intent": "recommendation",
+      "input": "设计一个消费完成后推荐下一护理项目的自动规则预览",
+      "expected": {
+        "domains": ["customer", "project"],
+        "entities": ["customer", "project"],
+        "capabilityKeys": ["marketing_automation_rule_preview"],
+        "answerShape": "diagnosis"
+      }
+    },
+    {
+      "id": "marketing-next-project-automation-preview",
+      "intent": "recommendation",
+      "input": "客户做完项目后，系统怎么自动推荐下次适合做的项目",
+      "expected": {
+        "domains": ["customer", "project"],
+        "entities": ["customer", "project"],
+        "capabilityKeys": ["marketing_automation_rule_preview"],
+        "answerShape": "diagnosis"
+      }
+    }
+  ]
+}
