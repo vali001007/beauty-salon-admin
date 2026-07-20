@@ -102,6 +102,42 @@ describe('BrainWorkspace', () => {
     expect(await screen.findByText('实收流水')).toBeInTheDocument();
   });
 
+  it('does not render clarification choices as confirmable actions', async () => {
+    apiMocks.listBrainConversations.mockResolvedValue({ items: [conversation], total: 1, storeId: 6 });
+    apiMocks.listBrainMessages.mockResolvedValue({
+      conversationId: 42,
+      total: 1,
+      storeId: 6,
+      items: [
+        {
+          id: 3,
+          conversationId: 42,
+          role: 'assistant',
+          content: '请选择要查看的业务主题。',
+          metadata: {
+            runId: 101,
+            status: 'completed',
+            blocks: [
+              {
+                kind: 'clarification',
+                question: '请选择要查看的业务主题。',
+                options: [{ id: 'finance', label: '财务异常风险', value: 'finance' }],
+              },
+            ],
+            suggestedActions: [{ id: 'finance', label: '财务异常风险', value: 'finance' }],
+          },
+          createdAt: '2026-07-11T01:00:01.000Z',
+        },
+      ],
+    });
+
+    render(<BrainWorkspace />);
+
+    expect(await screen.findByText('财务异常风险')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '确认执行' })).not.toBeInTheDocument();
+    expect(screen.queryByText('动作预览')).not.toBeInTheDocument();
+  });
+
   it('creates a persisted conversation before sending the first message', async () => {
     apiMocks.listBrainConversations
       .mockResolvedValueOnce({ items: [], total: 0, storeId: 6 })

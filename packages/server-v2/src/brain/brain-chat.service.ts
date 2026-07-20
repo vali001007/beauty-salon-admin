@@ -59,6 +59,7 @@ import { BrainBoundedExecutorService } from './execution/brain-bounded-executor.
 import { BrainGroundedAnswerComposerService } from './response/brain-grounded-answer-composer.service.js';
 import {
   BrainRoleContextBuilderService,
+  resolveBrainDomainRole,
   type BrainRoleRuntimeContext,
 } from './role/brain-role-context-builder.service.js';
 import type {
@@ -413,7 +414,7 @@ export class BrainChatService {
       }
     }
     if (this.conversationContext) {
-      if (chatAnswer.modelContextIntent) {
+      if (chatAnswer.status === 'completed' && chatAnswer.modelContextIntent) {
         try {
           await this.conversationContext.updateAfterModelRun({
             conversationId,
@@ -558,13 +559,14 @@ export class BrainChatService {
     const releaseMode = releaseRuntime.mode;
     if (this.isModelSingleToolPathEnabled(releaseMode)) {
       const deadlineAt = Date.now() + this.runtimeConfig!.runtime.totalTimeoutMs;
+      const releaseSnapshot = await this.loadReleaseOntologySnapshot(releaseRuntime.capabilityCandidates);
       let prepared: Awaited<ReturnType<BrainConversationContextService['prepareModelTurn']>> | undefined;
       if (this.conversationContext) {
         try {
           prepared = await this.conversationContext.prepareModelTurn({
             conversationId,
             dto: inputDto,
-            snapshot: this.ontologyRuntime?.getSnapshot() ?? null,
+            snapshot: releaseSnapshot,
           });
           if (prepared.rejectionCode) {
             await this.traceService.recordStep({
@@ -595,6 +597,7 @@ export class BrainChatService {
           ...(prepared?.directives ? { turnDirectives: prepared.directives } : {}),
         },
         capabilityCandidates: releaseRuntime.capabilityCandidates,
+        snapshot: releaseSnapshot,
       });
       return {
         ...answer,
@@ -688,7 +691,18 @@ export class BrainChatService {
         status: 'completed',
         answer: cognition.clarification.question,
         citations: [],
-        suggestedActions: cognition.clarification.options,
+        suggestedActions: [],
+        blocks: [
+          {
+            kind: 'clarification',
+            question: cognition.clarification.question,
+            options: cognition.clarification.options.map((option) => ({
+              id: option.id,
+              label: option.label,
+              value: option.value,
+            })),
+          },
+        ],
         cognition,
       };
     }
@@ -902,6 +916,34 @@ export class BrainChatService {
     }
   }
 
+  private async loadReleaseOntologySnapshot(
+    capabilityCandidates?: readonly BrainCapabilityCandidate[],
+  ): Promise<ProductionReadyBusinessDefinitionSnapshot | null> {
+    const productionSnapshot = this.ontologyRuntime?.getSnapshot() ?? null;
+    if (capabilityCandidates === undefined || !this.ontologyRuntime) {
+      return productionSnapshot;
+    }
+
+    const definitionVersionIds = [
+      ...new Set(
+        capabilityCandidates.flatMap((candidate) => {
+          if (!Array.isArray(candidate.definitionRefs)) return [];
+          return candidate.definitionRefs.flatMap((ref) => {
+            if (!ref || typeof ref !== 'object' || Array.isArray(ref)) return [];
+            const versionId = Number((ref as Record<string, unknown>).versionId);
+            return Number.isInteger(versionId) && versionId > 0 ? [versionId] : [];
+          });
+        }),
+      ),
+    ];
+
+    try {
+      return await this.ontologyRuntime.loadEvaluationSnapshot(definitionVersionIds);
+    } catch {
+      return null;
+    }
+  }
+
   private async buildModelSingleToolAnswer(input: {
     context: BrainRequestContext;
     dto: SendBrainMessageDto;
@@ -909,6 +951,7 @@ export class BrainChatService {
     deadlineAt: number;
     conversationSlots: object;
     capabilityCandidates?: readonly BrainCapabilityCandidate[];
+    snapshot?: ProductionReadyBusinessDefinitionSnapshot | null;
   }): Promise<BrainChatAnswer> {
     let modelMetadata = this.modelMetadata('prepare');
     const currentBackendGap = this.resolveCurrentBackendFactGap(input.dto.message);
@@ -959,7 +1002,7 @@ export class BrainChatService {
       });
       return this.modelFailure('MODEL_PIPELINE_UNAVAILABLE', modelMetadata);
     }
-    let snapshot = this.ontologyRuntime!.getSnapshot();
+    let snapshot = input.snapshot ?? this.ontologyRuntime!.getSnapshot();
     if (!snapshot && input.capabilityCandidates === undefined) {
       await this.recordModelFailure({
         runId: input.runId,
@@ -987,6 +1030,7 @@ export class BrainChatService {
         return this.modelFailure('MODEL_ROLE_PROFILE_UNAVAILABLE', modelMetadata);
       }
     }
+    const modelRequestContext = this.withBrainRole(input.context, roleContext?.role);
 
     let cards: readonly BrainCapabilityCard[];
     try {
@@ -995,7 +1039,7 @@ export class BrainChatService {
           ? await this.capabilityCatalog!.listEnabledCapabilities()
           : await this.capabilityCatalog!.listEnabledCapabilities(input.capabilityCandidates);
       if (roleContext) cards = this.roleContextBuilder!.filterCapabilities(roleContext, input.context, cards);
-      if (input.capabilityCandidates !== undefined) {
+      if (input.capabilityCandidates !== undefined && !input.snapshot) {
         const definitionVersionIds = [
           ...new Set(cards.flatMap((card) => (card.definitionRefs ?? []).map((ref) => ref.versionId))),
         ];
@@ -1358,7 +1402,7 @@ export class BrainChatService {
         status: 'completed',
         answer: question,
         citations: [],
-        suggestedActions: options,
+        suggestedActions: [],
         blocks: [{ kind: 'clarification', question, options }],
         grounding: 'none',
         adapterMetadata: {
@@ -1475,7 +1519,7 @@ export class BrainChatService {
     const deterministicCapabilityCard = governedExampleCard ?? pendingCapabilityCard ?? customerFactsCard;
     if (validation.intent.intent === 'workflow' && !deterministicCapabilityCard) {
       return this.buildModelSupervisorAnswer({
-        context: input.context,
+        context: modelRequestContext,
         dto: input.dto,
         runId: input.runId,
         intent: validation.intent,
@@ -1514,7 +1558,7 @@ export class BrainChatService {
       : this.capabilityRetriever!.retrieve({
           intent: validation.intent,
           question: input.dto.message,
-          context: input.context,
+          context: modelRequestContext,
           cards,
           readOnlyOnly: validation.intent.intent !== 'action',
           maxRisk: validation.intent.intent === 'action' ? 'high' : 'low',
@@ -1539,7 +1583,7 @@ export class BrainChatService {
     });
     if (retrieval.status === 'clarify' && retrieval.topK.length > 0) {
       return this.buildModelSupervisorAnswer({
-        context: input.context,
+        context: modelRequestContext,
         dto: input.dto,
         runId: input.runId,
         intent: validation.intent,
@@ -1552,7 +1596,7 @@ export class BrainChatService {
     }
     if (retrieval.status === 'none' && ['diagnosis', 'recommendation'].includes(validation.intent.intent)) {
       return this.buildModelSupervisorAnswer({
-        context: input.context,
+        context: modelRequestContext,
         dto: input.dto,
         runId: input.runId,
         intent: validation.intent,
@@ -1607,7 +1651,7 @@ export class BrainChatService {
       !this.canUseSingleCapabilityFastPath(retrieval.selected, validation.intent)
     ) {
       return this.buildModelSupervisorAnswer({
-        context: input.context,
+        context: modelRequestContext,
         dto: input.dto,
         runId: input.runId,
         intent: validation.intent,
@@ -1656,7 +1700,7 @@ export class BrainChatService {
 
     let plan: ReturnType<BrainExecutionPlanValidatorService['validate']>;
     try {
-      plan = this.executionPlanValidator!.validate({ plan: planning.plan, cards, context: input.context });
+      plan = this.executionPlanValidator!.validate({ plan: planning.plan, cards, context: modelRequestContext });
     } catch (error) {
       await this.recordModelFailure({
         runId: input.runId,
@@ -1678,11 +1722,11 @@ export class BrainChatService {
 
     try {
       const budgetState = this.executionBudget!.start(plan);
-      this.executionPlanValidator!.revalidateNodeExecution({ node, card, context: input.context });
+      this.executionPlanValidator!.revalidateNodeExecution({ node, card, context: modelRequestContext });
       this.executionBudget!.assertCanStartNode(budgetState, card);
       const execution = await this.capabilityExecutorRegistry!.execute({
         card,
-        context: input.context,
+        context: modelRequestContext,
         runId: input.runId,
         planId: plan.planId,
         question: input.dto.message,
@@ -2836,11 +2880,7 @@ export class BrainChatService {
       status: 'completed',
       answer: question,
       citations: [],
-      suggestedActions: [
-        { label: '指定客户', value: 'provide_customer' },
-        { label: '指定项目', value: 'provide_project' },
-        { label: '指定空档时段', value: 'provide_target_time' },
-      ],
+      suggestedActions: [],
       blocks: [
         {
           kind: 'clarification',
@@ -2887,7 +2927,7 @@ export class BrainChatService {
       status: 'completed',
       answer: question,
       citations: [],
-      suggestedActions: options,
+      suggestedActions: [],
       blocks: [{ kind: 'clarification', question, options }],
       grounding: 'none',
       adapterMetadata: {
@@ -2942,7 +2982,7 @@ export class BrainChatService {
       status: 'completed',
       answer: question,
       citations: [],
-      suggestedActions: options,
+      suggestedActions: [],
       blocks: [{ kind: 'clarification', question, options }],
       grounding: 'none',
       adapterMetadata: {
@@ -3892,16 +3932,13 @@ export class BrainChatService {
   }
 
   private modelRoleFromContext(context: BrainRequestContext): BrainDomainRole {
-    const roles: BrainDomainRole[] = [
-      'store_manager',
-      'receptionist',
-      'marketing',
-      'beautician',
-      'inventory',
-      'finance',
-      'customer_service',
-    ];
-    return roles.find((role) => context.roles?.includes(role)) ?? 'store_manager';
+    return context.roles?.map((role) => resolveBrainDomainRole(role)).find((role): role is BrainDomainRole => Boolean(role))
+      ?? 'store_manager';
+  }
+
+  private withBrainRole(context: BrainRequestContext, role?: BrainDomainRole): BrainRequestContext {
+    if (!role || context.roles?.includes(role)) return context;
+    return { ...context, roles: [...(context.roles ?? []), role] };
   }
 
   private async answerPaidRevenueComparison(

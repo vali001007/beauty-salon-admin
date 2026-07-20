@@ -1,5 +1,6 @@
 import { CheckCircle2, Database, GitBranch, Loader2, ThumbsDown, ThumbsUp } from 'lucide-react';
 import type {
+  BrainActionPreview as BrainActionPreviewType,
   BrainActionDecisionResponse,
   BrainMessage,
   BrainRunEvent,
@@ -24,6 +25,19 @@ function eventLabel(event: BrainRunEvent) {
   return event.stepKey.replace(/^skill_/, '').replaceAll('_', ' ');
 }
 
+function isConfirmableAction(value: unknown): value is BrainActionPreviewType {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const action = value as Record<string, unknown>;
+  return (
+    typeof action.actionId === 'string' &&
+    action.actionId.trim().length > 0 &&
+    typeof action.summary === 'string' &&
+    action.summary.trim().length > 0 &&
+    ['low', 'medium', 'high', 'critical'].includes(String(action.riskLevel)) &&
+    action.requiresConfirmation === true
+  );
+}
+
 export function BrainEvidencePanel({
   message,
   events,
@@ -40,7 +54,7 @@ export function BrainEvidencePanel({
   const metadata = message?.metadata;
   const runId = metadata?.runId;
   const citations = metadata?.citations ?? [];
-  const actions = metadata?.suggestedActions ?? [];
+  const actions = (metadata?.suggestedActions ?? []).filter(isConfirmableAction);
 
   return (
     <aside className="hidden w-80 min-w-80 flex-col border-l border-border bg-muted/10 xl:flex">

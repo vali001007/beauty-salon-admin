@@ -68,8 +68,7 @@ describe('BrainRoleContextBuilderService', () => {
   });
 
   it('filters candidates by the active profile and real request permissions without granting hinted permissions', async () => {
-    const service = new BrainRoleContextBuilderService({
-      getRuntimeProfile: jest.fn().mockResolvedValue({
+    const getRuntimeProfile = jest.fn().mockResolvedValue({
         roleKey: 'finance',
         name: '财务',
         version: 1,
@@ -77,8 +76,8 @@ describe('BrainRoleContextBuilderService', () => {
         allowedSkills: ['finance_summary', 'refund_ranking'],
         dataScopeRules: {},
         knowledgePack: {},
-      }),
-    } as never);
+      });
+    const service = new BrainRoleContextBuilderService({ getRuntimeProfile } as never);
     const roleContext = await service.build({
       context: context({ roles: [], permissions: ['core:brain:use'] }),
       roleHint: 'finance',
@@ -90,7 +89,31 @@ describe('BrainRoleContextBuilderService', () => {
       [capability('finance_summary'), capability('refund_ranking', ['core:finance:view']), capability('inventory_summary')],
     );
 
+    expect(getRuntimeProfile).toHaveBeenCalledWith('store_manager');
+    expect(roleContext).toMatchObject({ role: 'store_manager', expressionRole: 'finance', source: 'default' });
     expect(filtered.map((item) => item.key)).toEqual(['finance_summary']);
+  });
+
+  it('maps management role aliases to the authenticated store manager role', async () => {
+    const profiles = {
+      getRuntimeProfile: jest.fn().mockResolvedValue({
+        roleKey: 'store_manager',
+        name: '店长',
+        version: 1,
+        systemPrompt: '店长视角',
+        allowedSkills: [],
+        dataScopeRules: {},
+        knowledgePack: {},
+      }),
+    };
+    const service = new BrainRoleContextBuilderService(profiles as never);
+
+    const result = await service.build({
+      context: context({ roles: ['ami_demo_full_manager'] }),
+    });
+
+    expect(profiles.getRuntimeProfile).toHaveBeenCalledWith('store_manager');
+    expect(result).toMatchObject({ role: 'store_manager', source: 'authenticated_role' });
   });
 
   it('admits a verified generated capability by allowed role and real permissions without a manual skill whitelist', async () => {

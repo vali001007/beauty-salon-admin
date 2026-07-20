@@ -61,6 +61,7 @@ describe('BrainChatService', () => {
       modelPipeline?: Record<string, unknown>;
       semanticEvidence?: unknown;
       releaseService?: unknown;
+      roleContextBuilder?: unknown;
       untrustedActionClaimGuard?: unknown;
     } = {},
   ) => {
@@ -395,7 +396,7 @@ describe('BrainChatService', () => {
         modelPipeline?.executor as never,
         modelPipeline?.bounded as never,
         undefined,
-        undefined,
+        options.roleContextBuilder as never,
         options.releaseService as never,
         options.semanticEvidence,
         options.untrustedActionClaimGuard,
@@ -1480,6 +1481,53 @@ describe('BrainChatService', () => {
     expect(modelPipeline!.compiler.compile).toHaveBeenCalledWith(expect.objectContaining({ role: 'receptionist' }));
   });
 
+  it('uses the authenticated Brain role alias for plan validation and execution', async () => {
+    const releaseService = {
+      resolveRuntimeMode: jest.fn().mockResolvedValue({ mode: 'model', capabilityCandidates: undefined }),
+    };
+    const roleContextBuilder = {
+      build: jest.fn().mockResolvedValue({
+        role: 'store_manager',
+        expressionRole: 'store_manager',
+        source: 'authenticated_role',
+        profileName: '店长',
+        profileVersion: 1,
+        systemPrompt: '店长视角',
+        allowedSkills: [],
+        dataScopeRules: {},
+        knowledgePack: {},
+      }),
+      filterCapabilities: jest.fn((_roleContext, _context, cards) => cards),
+    };
+    const { prisma, modelPipeline, service } = createService({ modelPipeline: {}, roleContextBuilder, releaseService });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create.mockResolvedValue({ id: 101 });
+    prisma.brainRun.create.mockResolvedValue({ id: 77 });
+    prisma.brainRun.update.mockResolvedValue({ id: 77 });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+
+    await service.sendMessage({ ...context, roles: ['ami_demo_full_manager'] }, 12, {
+      message: '本月商品销售排行',
+    });
+
+    expect(releaseService.resolveRuntimeMode).toHaveBeenCalledWith({
+      storeId: 2,
+      userId: 9,
+      roleKey: 'store_manager',
+      evaluationReleaseId: undefined,
+    });
+    expect(modelPipeline!.planValidator.validate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: expect.objectContaining({ roles: ['ami_demo_full_manager', 'store_manager'] }),
+      }),
+    );
+    expect(modelPipeline!.executor.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: expect.objectContaining({ roles: ['ami_demo_full_manager', 'store_manager'] }),
+      }),
+    );
+  });
+
   it('writes model-specific context after a validated model success without calling the legacy updater', async () => {
     const conversationContext = {
       prepareModelTurn: jest.fn().mockResolvedValue({ dto: { message: '本月商品销售排行' }, previous: undefined }),
@@ -1502,6 +1550,38 @@ describe('BrainChatService', () => {
         intent: expect.objectContaining({ schemaVersion: '1.0', answerShape: 'ranking' }),
       }),
     );
+    expect(conversationContext.updateAfterRun).not.toHaveBeenCalled();
+  });
+
+  it('preserves the last successful model context when capability retrieval fails', async () => {
+    const conversationContext = {
+      prepareModelTurn: jest.fn().mockResolvedValue({
+        dto: { message: '其中哪种支付方式最多？' },
+        previous: { version: 1, objective: '查询本月实收', definitionRefs: [], resultSets: [] },
+      }),
+      prepareTurn: jest.fn(),
+      updateAfterRun: jest.fn(),
+      updateAfterModelRun: jest.fn(),
+    };
+    const { prisma, modelPipeline, service } = createService({ modelPipeline: {}, conversationContext });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create.mockResolvedValue({ id: 101 });
+    prisma.brainRun.create.mockResolvedValue({ id: 77 });
+    prisma.brainRun.update.mockResolvedValue({ id: 77 });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+    modelPipeline!.retriever.retrieve.mockReturnValue({
+      status: 'none',
+      selected: undefined,
+      topK: [],
+      confidence: 0,
+      margin: 0,
+      reason: 'no_matching_capability',
+    });
+
+    const response = await service.sendMessage(context, 12, { message: '其中哪种支付方式最多？' });
+
+    expect(response).toMatchObject({ status: 'failed', failureCode: 'CAPABILITY_RETRIEVAL_NONE' });
+    expect(conversationContext.updateAfterModelRun).not.toHaveBeenCalled();
     expect(conversationContext.updateAfterRun).not.toHaveBeenCalled();
   });
 
@@ -2710,9 +2790,23 @@ describe('BrainChatService', () => {
   });
 
   it('loads the frozen evaluation ontology when the production model snapshot is not initialized', async () => {
-    const candidate = { key: 'customer_facts', version: 1 };
+    const candidate = {
+      key: 'customer_facts',
+      version: 1,
+      definitionRefs: [{ versionId: 114 }],
+    };
     const releaseService = { resolveRuntimeMode: jest.fn() };
-    const { prisma, modelPipeline, service } = createService({ modelPipeline: {}, releaseService });
+    const conversationContext = {
+      prepareModelTurn: jest.fn().mockResolvedValue({ dto: { message: '查询客户档案' }, previous: undefined }),
+      prepareTurn: jest.fn(),
+      updateAfterRun: jest.fn(),
+      updateAfterModelRun: jest.fn(),
+    };
+    const { prisma, modelPipeline, service } = createService({
+      modelPipeline: {},
+      releaseService,
+      conversationContext,
+    });
     modelPipeline!.ontology.getSnapshot.mockReturnValue(null as never);
     prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
     prisma.brainMessage.create.mockResolvedValue({ id: 101 });
@@ -2739,7 +2833,12 @@ describe('BrainChatService', () => {
     });
 
     expect(result.failureCode).not.toBe('MODEL_SNAPSHOT_UNAVAILABLE');
-    expect(modelPipeline!.ontology.loadEvaluationSnapshot).toHaveBeenCalledWith([]);
+    expect(modelPipeline!.ontology.loadEvaluationSnapshot).toHaveBeenCalledWith([114]);
+    expect(conversationContext.prepareModelTurn).toHaveBeenCalledWith({
+      conversationId: 12,
+      dto: { message: '查询客户档案', timezone: 'Asia/Shanghai' },
+      snapshot: expect.objectContaining({ fingerprint: 'evaluation-snapshot-1' }),
+    });
     expect(modelPipeline!.catalog.listEnabledCapabilities).toHaveBeenCalledWith([candidate]);
   });
 

@@ -55,7 +55,23 @@ export function BrainResponseRenderer({ blocks = [], fallback }: BrainResponseRe
           );
         }
         if (block.kind === 'clarification') {
-          return <div key={index} className="flex gap-2 text-amber-800"><HelpCircle className="mt-0.5 h-4 w-4 shrink-0" /><span>{block.question}</span></div>;
+          return (
+            <div key={index} className="flex gap-2 text-amber-800">
+              <HelpCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div className="min-w-0">
+                <div>{block.question}</div>
+                {block.options.length ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {block.options.map((option) => (
+                      <span key={option.id} className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900">
+                        {option.label}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          );
         }
         if (block.kind === 'action_preview') {
           return <div key={index} className="flex gap-2 text-emerald-800"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /><span>已生成 {block.actions.length} 个待确认动作预览</span></div>;
