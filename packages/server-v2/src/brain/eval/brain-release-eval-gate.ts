@@ -66,6 +66,7 @@ export function buildBrainReleaseEvalGate(snapshot: BrainEvaluationReleaseSnapsh
     const examples = strings(candidate.examples).slice(0, 2);
     const roles = strings(candidate.allowedRoles);
     const requiredPermissions = strings(candidate.requiredPermissions);
+    const sideEffect = candidate.sideEffect === true;
     const targetRoles = roles.length ? roles : ['store_manager'];
     if (!key || examples.length < 2) coverageComplete = false;
     for (const role of targetRoles) requiredRoleKeys.add(role);
@@ -78,8 +79,14 @@ export function buildBrainReleaseEvalGate(snapshot: BrainEvaluationReleaseSnapsh
         expected: {
           capabilityKeys: key ? [key] : [],
           domains: [],
-          requiresGrounding: true,
-          requiresComplete: true,
+          requiresGrounding: !sideEffect,
+          requiresComplete: !sideEffect,
+          ...(sideEffect
+            ? {
+                allowSafeClarification: true,
+                planShape: { requiresPreview: true },
+              }
+            : {}),
         },
         expectedCapabilityKeys: key ? [key] : [],
         assertionType: 'release_capability',

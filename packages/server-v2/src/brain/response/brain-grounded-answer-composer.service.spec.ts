@@ -299,6 +299,70 @@ describe('BrainGroundedAnswerComposerService', () => {
     )).not.toThrow();
   });
 
+  it('accepts governed guidance when a recommendation is modeled with an action-preview shape', () => {
+    const guard = new BrainAnswerCompletionGuardService();
+    expect(() => guard.assertMatchesIntent(
+      { intent: 'recommendation', answerShape: 'action_preview' },
+      {
+        answer: '先核对采购明细，再逐行确认一致部分。',
+        citations: [{ sourceType: 'template_skill', sourceId: 'inventory_receipt_discrepancy_advice' }],
+        suggestedActions: [],
+        completion: { status: 'complete', missingCriteria: [] },
+        blocks: [{
+          kind: 'text',
+          text: '先核对采购明细，再逐行确认一致部分。',
+          citationIds: ['inventory_receipt_discrepancy_advice'],
+        }],
+      },
+    )).not.toThrow();
+  });
+
+  it('accepts a ranking for cross-entity comparison but keeps time comparison strict', () => {
+    const guard = new BrainAnswerCompletionGuardService();
+    const envelope = {
+      answer: '美容师服务次数排行。',
+      citations: [{ sourceType: 'db_skill', sourceId: 'manager_staff_analysis' }],
+      suggestedActions: [],
+      completion: { status: 'complete' as const, missingCriteria: [] },
+      blocks: [{
+        kind: 'ranking' as const,
+        rows: [{ staff: '王美容师', serviceCount: 8 }],
+        columns: ['staff', 'serviceCount'],
+        citationIds: ['manager_staff_analysis'],
+      }],
+    };
+
+    expect(() => guard.assertMatchesIntent(
+      { intent: 'comparison', answerShape: 'comparison' },
+      envelope,
+    )).not.toThrow();
+    expect(() => guard.assertMatchesIntent(
+      {
+        intent: 'comparison',
+        answerShape: 'comparison',
+        comparisonTarget: { type: 'time', timeRange: { label: '上月', timezone: 'Asia/Shanghai' } },
+      },
+      envelope,
+    )).toThrow('brain_response_answer_contract_mismatch:comparison:comparison');
+  });
+
+  it('accepts an explicit no-data action result without inventing a confirmation action', () => {
+    const guard = new BrainAnswerCompletionGuardService();
+    expect(() => guard.assertMatchesIntent(
+      { intent: 'workflow', answerShape: 'action_preview' },
+      {
+        answer: '明天下午没有可补位空档，本轮不生成触达任务。',
+        citations: [{ sourceType: 'db_skill', sourceId: 'gap_opportunity_readonly_preview' }],
+        suggestedActions: [],
+        completion: { status: 'complete', missingCriteria: [] },
+        blocks: [
+          { kind: 'table', rows: [], columns: ['appointmentWindow'], citationIds: ['gap_opportunity_readonly_preview'] },
+          { kind: 'limitations', items: ['no_data:table'] },
+        ],
+      },
+    )).not.toThrow();
+  });
+
   it('accepts cited KPIs as supporting evidence for a recommendation with ranked candidates', () => {
     const guard = new BrainAnswerCompletionGuardService();
     expect(() => guard.assertMatchesIntent(

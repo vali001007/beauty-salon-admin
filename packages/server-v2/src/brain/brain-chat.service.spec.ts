@@ -2434,7 +2434,15 @@ describe('BrainChatService', () => {
           rows: [{ productName: '补水面膜', salesQuantity: 12 }],
         },
       ],
-      metadata: { resultCount: 1 },
+      metadata: {
+        resultCount: 1,
+        timeRange: {
+          startDate: '2026-06-30T16:00:00.000Z',
+          endExclusive: '2026-07-20T16:00:00.000Z',
+          boundary: '[start,end)',
+          timezone: 'Asia/Shanghai',
+        },
+      },
     });
     prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
     prisma.brainMessage.create.mockResolvedValue({ id: 101 });
@@ -2446,6 +2454,14 @@ describe('BrainChatService', () => {
 
     const event = onAnswerReady.mock.calls[0][0];
     expect(response.blocks).toEqual(event.blocks);
+    expect(response.adapterMetadata).toMatchObject({
+      timeRange: {
+        startDate: '2026-06-30T16:00:00.000Z',
+        endExclusive: '2026-07-20T16:00:00.000Z',
+        boundary: '[start,end)',
+        timezone: 'Asia/Shanghai',
+      },
+    });
     expect(event.blocks).toEqual([
       {
         kind: 'ranking',
@@ -2690,6 +2706,40 @@ describe('BrainChatService', () => {
     await service.sendMessage(evalContext, 12, { message: '查询客户档案', timezone: 'Asia/Shanghai' });
 
     expect(releaseService.resolveRuntimeMode).not.toHaveBeenCalled();
+    expect(modelPipeline!.catalog.listEnabledCapabilities).toHaveBeenCalledWith([candidate]);
+  });
+
+  it('loads the frozen evaluation ontology when the production model snapshot is not initialized', async () => {
+    const candidate = { key: 'customer_facts', version: 1 };
+    const releaseService = { resolveRuntimeMode: jest.fn() };
+    const { prisma, modelPipeline, service } = createService({ modelPipeline: {}, releaseService });
+    modelPipeline!.ontology.getSnapshot.mockReturnValue(null as never);
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create.mockResolvedValue({ id: 101 });
+    prisma.brainRun.create.mockResolvedValue({ id: 77 });
+    prisma.brainRun.update.mockResolvedValue({ id: 77 });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+    const evalContext = {
+      ...context,
+      governanceEvalReleaseSnapshot: {
+        releaseId: 21,
+        releaseStatus: 'draft',
+        releaseFingerprint: 'a'.repeat(64),
+        declaredMode: 'model',
+        mode: 'model',
+        resourceVersionIds: [3],
+        capabilityKeys: ['customer_facts'],
+        capabilityCandidates: [candidate],
+      },
+    } as unknown as BrainRequestContext;
+
+    const result = await service.sendMessage(evalContext, 12, {
+      message: '查询客户档案',
+      timezone: 'Asia/Shanghai',
+    });
+
+    expect(result.failureCode).not.toBe('MODEL_SNAPSHOT_UNAVAILABLE');
+    expect(modelPipeline!.ontology.loadEvaluationSnapshot).toHaveBeenCalledWith([]);
     expect(modelPipeline!.catalog.listEnabledCapabilities).toHaveBeenCalledWith([candidate]);
   });
 

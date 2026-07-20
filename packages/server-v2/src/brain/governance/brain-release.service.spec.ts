@@ -24,6 +24,24 @@ function passingEvalSummary(items: any[]) {
 }
 
 describe('BrainReleaseService', () => {
+  it('never activates an evaluation-only release into production', async () => {
+    const release = {
+      id: 21,
+      status: 'draft',
+      scope: 'percentage',
+      rollout: { mode: 'shadow', evaluationOnly: true, userPercentage: 100 },
+      items: [],
+    };
+    const prisma = {
+      brainRelease: { findUnique: jest.fn().mockResolvedValue(release) },
+    };
+    const service = new BrainReleaseService(prisma as never);
+
+    await expect(service.activateRelease({ releaseId: 21, activatedBy: 9 })).rejects.toMatchObject({
+      message: 'release_evaluation_only',
+    });
+  });
+
   it('serializes activation against a business-definition blocker sharing the five-stage release fingerprint', async () => {
     const resourceVersion = { id: 11, checksum: 'a', resourceType: 'skill', resourceKey: 'customer_query', sourceResourceId: 31, snapshot: {} };
     const release = { id: 21, status: 'draft', scope: 'percentage', items: [{ resourceVersionId: 11, resourceType: 'skill', resourceKey: 'customer_query', resourceVersion }] };
@@ -304,6 +322,38 @@ describe('BrainReleaseService', () => {
     });
   });
 
+  it('uses the selected active release snapshots as the production model capability catalog', async () => {
+    const candidate = { key: 'customer_facts', version: 9 };
+    const prisma = {
+      brainRelease: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 23,
+            status: 'active',
+            scope: 'user',
+            rollout: { mode: 'model', userIds: [28], storeIds: [6], roleKeys: ['store_manager'] },
+            items: [
+              { resourceType: 'skill', resourceKey: 'customer_facts', snapshot: candidate },
+              { resourceType: 'agent_profile', resourceKey: 'store_manager', snapshot: { roleKey: 'store_manager' } },
+            ],
+          },
+        ]),
+      },
+    };
+    const service = new BrainReleaseService(prisma as never);
+
+    const resolved = await service.resolveRuntimeMode({ storeId: 6, userId: 28, roleKey: 'store_manager' });
+
+    expect(resolved).toMatchObject({
+      mode: 'model',
+      declaredMode: 'model',
+      release: { id: 23, status: 'active' },
+      capabilityCandidates: [candidate],
+    });
+    expect(Object.isFrozen(resolved.capabilityCandidates)).toBe(true);
+    expect(Object.isFrozen(resolved.capabilityCandidates?.[0])).toBe(true);
+  });
+
   it('rejects an explicitly supplied invalid evaluation release id without selecting the active release', async () => {
     const prisma = {
       brainRelease: {
@@ -459,7 +509,11 @@ describe('BrainReleaseService', () => {
     });
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(3);
-    expect(prisma.$transaction).toHaveBeenLastCalledWith(expect.any(Function), { isolationLevel: 'Serializable' });
+    expect(prisma.$transaction).toHaveBeenLastCalledWith(expect.any(Function), {
+      isolationLevel: 'Serializable',
+      maxWait: 10_000,
+      timeout: 30_000,
+    });
     expect(tx.brainRelease.updateMany).toHaveBeenCalledWith({
       where: { id: 21, status: 'draft' },
       data: { status: 'active', activatedAt: expect.any(Date), failureReason: null },
@@ -1001,6 +1055,38 @@ describe('BrainReleaseService', () => {
     });
   });
 
+  it('selects a user-scoped canary only for the approved user, store and normalized role', async () => {
+    const prisma = {
+      brainRelease: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 2,
+            releaseKey: 'manager-pilot',
+            scope: 'user',
+            rollout: { userIds: [28], storeIds: [6], roleKeys: ['store_manager'] },
+            activatedAt: new Date('2026-07-11'),
+            items: [],
+          },
+          { id: 1, releaseKey: 'stable', scope: 'global', rollout: {}, activatedAt: new Date('2026-07-10'), items: [] },
+        ]),
+      },
+    };
+    const service = new BrainReleaseService(prisma as never);
+
+    await expect(service.selectRelease({ storeId: 6, userId: 28, roleKey: 'store_manager' })).resolves.toMatchObject({
+      releaseKey: 'manager-pilot',
+    });
+    await expect(service.selectRelease({ storeId: 6, userId: 29, roleKey: 'store_manager' })).resolves.toMatchObject({
+      releaseKey: 'stable',
+    });
+    await expect(service.selectRelease({ storeId: 7, userId: 28, roleKey: 'store_manager' })).resolves.toMatchObject({
+      releaseKey: 'stable',
+    });
+    await expect(service.selectRelease({ storeId: 6, userId: 28, roleKey: 'finance' })).resolves.toMatchObject({
+      releaseKey: 'stable',
+    });
+  });
+
   it('claims an active release atomically during rollback and retries P2034', async () => {
     const current = { id: 22, status: 'active', previousReleaseId: 21 };
     const previousVersion = {
@@ -1044,7 +1130,11 @@ describe('BrainReleaseService', () => {
     await service.rollbackRelease({ releaseId: 22, reason: 'test' });
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(2);
-    expect(prisma.$transaction).toHaveBeenLastCalledWith(expect.any(Function), { isolationLevel: 'Serializable' });
+    expect(prisma.$transaction).toHaveBeenLastCalledWith(expect.any(Function), {
+      isolationLevel: 'Serializable',
+      maxWait: 10_000,
+      timeout: 30_000,
+    });
     expect(tx.brainRelease.updateMany).toHaveBeenCalledWith({
       where: { id: 22, status: 'active' },
       data: { status: 'rolled_back', rolledBackAt: expect.any(Date), failureReason: 'test' },

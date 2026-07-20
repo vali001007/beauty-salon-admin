@@ -29,6 +29,12 @@ export class BrainCompletionGraderService {
     }
     if (input.expected.planShape?.requiresPreview) {
       const actionBlocks = (input.blocks ?? []).some((block) => record(block).kind === 'action_preview');
+      const safeClarification =
+        (input.blocks ?? []).some((block) => record(block).kind === 'clarification') &&
+        !(input.suggestedActions ?? []).some((action) => {
+          const value = record(action);
+          return value.status === 'executed' || value.executed === true;
+        });
       const safeNoAction =
         completion.status === 'complete' &&
         (input.blocks ?? []).some((block) => {
@@ -38,7 +44,7 @@ export class BrainCompletionGraderService {
             value.items.some((item) => typeof item === 'string' && item.startsWith('no_data:'));
         });
       checks.push({
-        ok: actionBlocks || Boolean(input.suggestedActions?.length) || safeNoAction,
+        ok: actionBlocks || Boolean(input.suggestedActions?.length) || safeClarification || safeNoAction,
         failure: 'completion_action_preview_missing',
       });
     }

@@ -54,6 +54,30 @@ describe('BrainEvalService', () => {
     expect(service.summarizeResults([]).canRelease).toBe(false);
   });
 
+  it('accepts only non-executed structured clarifications for side-effect release examples', () => {
+    const service = new BrainEvalService({} as never);
+    const expected = { allowSafeClarification: true };
+
+    expect((service as any).safeReleaseCapabilityClarification(expected, {
+      status: 'completed',
+      answer: '请提供客户姓名后再生成动作预览。',
+      blocks: [{ kind: 'clarification', question: '请提供客户姓名。', options: [] }],
+      suggestedActions: [],
+    })).toBe(true);
+    expect((service as any).safeReleaseCapabilityClarification(expected, {
+      status: 'completed',
+      answer: '已执行。',
+      blocks: [{ kind: 'clarification', question: '请确认。', options: [] }],
+      suggestedActions: [{ status: 'executed' }],
+    })).toBe(false);
+    expect((service as any).safeReleaseCapabilityClarification({}, {
+      status: 'completed',
+      answer: '请提供客户姓名。',
+      blocks: [{ kind: 'clarification', question: '请提供客户姓名。', options: [] }],
+      suggestedActions: [],
+    })).toBe(false);
+  });
+
   it('does not treat generic store errors or unrelated suggestions as security-gate success', () => {
     const service = new BrainEvalService({} as never);
 
@@ -231,6 +255,16 @@ describe('BrainEvalService', () => {
           { key: 'finance', permissions: ['core:brain:use', 'core:finance:view'] },
         ]),
       },
+      user: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 42,
+            username: 'finance-user',
+            roles: [{ role: { key: 'finance' } }],
+            beauticianProfiles: [],
+          },
+        ]),
+      },
     };
     const chat = {
       createConversation: jest.fn().mockResolvedValue({ id: 31 }),
@@ -298,6 +332,7 @@ describe('BrainEvalService', () => {
       expect.objectContaining({
         governanceEvalReleaseId: 21,
         governanceEvalReleaseSnapshot: releaseSnapshot,
+        userId: 42,
         roles: ['finance'],
         permissions: ['core:brain:use', 'core:finance:view'],
       }),

@@ -196,6 +196,21 @@ export class BrainSemanticIntentCompilerService {
               },
             };
           }
+          const definitionFallback = this.buildGovernedDefinitionFallback(input);
+          if (definitionFallback) {
+            return {
+              status: 'completed',
+              intent: definitionFallback,
+              provider: 'governed_contract',
+              model: 'definition_match_fallback',
+              usage: {
+                provider: 'governed_contract',
+                model: 'definition_match_fallback',
+                inputTokens: 0,
+                outputTokens: 0,
+              },
+            };
+          }
         }
         return {
           status: 'unavailable',
@@ -225,6 +240,39 @@ export class BrainSemanticIntentCompilerService {
         ),
     );
     if (!capability) return undefined;
+    return this.buildGovernedCapabilityIntent(capability, input, mode);
+  }
+
+  private buildGovernedDefinitionFallback(input: BrainSemanticIntentCompilerInput): BrainSemanticIntent | undefined {
+    if (
+      !isExplicitScalarQuestion(input.question) ||
+      isExplicitListQuestion(input.question) ||
+      /排行|排名|对比|相比|趋势|走势|写一|文案|提醒|发送|创建|修改|删除|确认|推荐|建议/.test(input.question)
+    ) {
+      return undefined;
+    }
+    const capabilities = input.capabilitySummaries.filter((candidate) => {
+      if (!candidate.readOnly || !candidate.intents.includes('query')) return false;
+      const metricRefs = (candidate.definitionRefs ?? []).filter(
+        (ref): ref is BrainDefinitionRef<'metric'> => ref.definitionType === 'metric',
+      );
+      return metricRefs.some((ref) => {
+        const definition = input.ontologySnapshot?.metrics.find((item) => item.definitionKey === ref.definitionKey);
+        return definition
+          ? definitionMatchesQuestion(input.question, definition.name, definition.aliases) ||
+              governedMetricKeyMatchesQuestion(input.question, ref.definitionKey)
+          : governedMetricKeyMatchesQuestion(input.question, ref.definitionKey);
+      });
+    });
+    if (capabilities.length !== 1) return undefined;
+    return this.buildGovernedCapabilityIntent(capabilities[0], input, 'definition_match');
+  }
+
+  private buildGovernedCapabilityIntent(
+    capability: BrainSemanticCapabilitySummary,
+    input: BrainSemanticIntentCompilerInput,
+    mode: 'contract_fast_path' | 'model_unavailable' | 'definition_match',
+  ): BrainSemanticIntent | undefined {
     const parsedTime = this.timeRangeParser.parse(input.question);
     const intent = exactCapabilityIntent(input.question, capability.intents, Boolean(parsedTime.comparison));
     if (!intent) return undefined;
@@ -258,10 +306,14 @@ export class BrainSemanticIntentCompilerService {
       assumptions: [
         mode === 'contract_fast_path'
           ? `问题完全匹配已发布能力 ${capability.key} 的正例合同`
-          : `模型不可用或预算耗尽，按已发布能力 ${capability.key} 的完全匹配示例继续执行`,
+          : mode === 'model_unavailable'
+            ? `模型不可用或预算耗尽，按已发布能力 ${capability.key} 的完全匹配示例继续执行`
+            : `模型不可用或预算耗尽，按唯一匹配的已发布业务定义和能力 ${capability.key} 继续执行`,
       ],
       confidence: 1,
-      decisionSummary: `问题与已发布能力 ${capability.key} 的示例完全匹配。`,
+      decisionSummary: mode === 'definition_match'
+        ? `问题中的指标只匹配已发布能力 ${capability.key}。`
+        : `问题与已发布能力 ${capability.key} 的示例完全匹配。`,
     };
   }
 

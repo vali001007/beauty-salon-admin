@@ -85,7 +85,13 @@ export class BrainReleaseService {
     const release = await this.selectRelease(input);
     const rollout = release ? this.record(release.rollout) : {};
     const declaredMode = rollout.mode;
-    const capabilityCandidates = undefined;
+    const capabilityCandidates = release && (declaredMode === 'model' || declaredMode === 'shadow')
+      ? deepCloneFreeze(
+          release.items
+            .filter((item) => item.resourceType === 'skill')
+            .map((item) => this.record(item.snapshot) as unknown as BrainCapabilityCandidate),
+        )
+      : undefined;
     const mode = declaredMode;
     return mode === 'rules' || mode === 'shadow' || mode === 'model'
       ? { mode, declaredMode, release, capabilityCandidates }
@@ -176,6 +182,9 @@ export class BrainReleaseService {
       include: { items: { include: { resourceVersion: true } } },
     });
     if (!release || release.status !== 'draft') throw new BadRequestException('release_not_draft');
+    if (this.record(release.rollout).evaluationOnly === true) {
+      throw new BadRequestException('release_evaluation_only');
+    }
     const releaseFingerprint = createReleaseFingerprint(release.items);
     const regenerationDelegate = (prisma as unknown as {
       brainCapabilityRegenerationJob?: {
@@ -208,6 +217,9 @@ export class BrainReleaseService {
         include: { items: { include: { resourceVersion: true } } },
       });
       if (!lockedRelease || lockedRelease.status !== 'draft') throw new BadRequestException('release_not_draft');
+      if (this.record(lockedRelease.rollout).evaluationOnly === true) {
+        throw new BadRequestException('release_evaluation_only');
+      }
       const lockedFingerprint = createReleaseFingerprint(lockedRelease.items);
       const lockedEvalRun = await tx.brainEvalRun.findFirst({
         where: { releaseId: lockedRelease.id, status: 'completed' },
@@ -481,7 +493,11 @@ export class BrainReleaseService {
     const prisma = this.requirePrisma();
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
-        return await prisma.$transaction(operation, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+        return await prisma.$transaction(operation, {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          maxWait: 10_000,
+          timeout: 30_000,
+        });
       } catch (error) {
         if (isPrismaCode(error, 'P2034') && attempt < 3) continue;
         if (isPrismaCode(error, 'P2034')) throw new ConflictException(conflictCode);
@@ -632,8 +648,14 @@ export class BrainReleaseService {
   ) {
     if (scope === 'global') return true;
     const storeIds = Array.isArray(rollout.storeIds) ? rollout.storeIds.map(Number) : [];
+    const userIds = Array.isArray(rollout.userIds) ? rollout.userIds.map(Number) : [];
     const roleKeys = Array.isArray(rollout.roleKeys) ? rollout.roleKeys.map(String) : [];
     if (scope === 'store') return storeIds.includes(input.storeId);
+    if (scope === 'user') {
+      return userIds.includes(input.userId) &&
+        (!storeIds.length || storeIds.includes(input.storeId)) &&
+        (!roleKeys.length || roleKeys.includes(input.roleKey));
+    }
     if (scope === 'role')
       return roleKeys.includes(input.roleKey) && (!storeIds.length || storeIds.includes(input.storeId));
     if (scope === 'percentage') {

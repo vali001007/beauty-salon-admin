@@ -960,7 +960,7 @@ export class BrainChatService {
       return this.modelFailure('MODEL_PIPELINE_UNAVAILABLE', modelMetadata);
     }
     let snapshot = this.ontologyRuntime!.getSnapshot();
-    if (!snapshot) {
+    if (!snapshot && input.capabilityCandidates === undefined) {
       await this.recordModelFailure({
         runId: input.runId,
         stepKey: 'model_intent_compile',
@@ -1012,6 +1012,16 @@ export class BrainChatService {
         error,
       });
       return this.modelFailure('MODEL_CATALOG_UNAVAILABLE', this.modelMetadata('retrieve'));
+    }
+    if (!snapshot) {
+      await this.recordModelFailure({
+        runId: input.runId,
+        stepKey: 'model_intent_compile',
+        layer: 'cognition',
+        stage: 'prepare',
+        code: 'MODEL_SNAPSHOT_UNAVAILABLE',
+      });
+      return this.modelFailure('MODEL_SNAPSHOT_UNAVAILABLE', modelMetadata);
     }
     if (!cards.length) {
       return this.modelFailure('MODEL_ROLE_CAPABILITY_NONE', this.modelMetadata('retrieve'));
@@ -1707,6 +1717,7 @@ export class BrainChatService {
         return this.modelFailure('CAPABILITY_EXECUTION_FAILED', executionMetadata);
       }
       const executionClarification = this.modelPendingClarification(execution.metadata?.clarification);
+      const executionTimeRange = this.modelExecutionTimeRange(execution.metadata);
       const executionIntent = executionClarification
         ? {
             ...validation.intent,
@@ -1747,6 +1758,7 @@ export class BrainChatService {
           completion: executionClarification
             ? { status: 'partial', missingCriteria: [...executionClarification.missingSlots], recoverable: true }
             : { status: 'complete', missingCriteria: [], recoverable: false },
+          ...(executionTimeRange ? { timeRange: executionTimeRange } : {}),
         },
         modelMetadata: executionMetadata,
         modelContextIntent: executionIntent,
@@ -3515,6 +3527,9 @@ export class BrainChatService {
       provider: planning.provider,
       model: planning.model,
     });
+    const executionTimeRange = this.modelExecutionTimeRange(
+      ...execution.observations.map((observation) => observation.data?.metadata),
+    );
     return {
       status: execution.status === 'rejected' || noSuccessfulExecution ? 'failed' : 'completed',
       answer: grounded?.answer ?? fallbackAnswer,
@@ -3530,6 +3545,7 @@ export class BrainChatService {
         supervisorPlan: execution.plan,
         observations: execution.observations,
         completion: execution.completion,
+        ...(executionTimeRange ? { timeRange: executionTimeRange } : {}),
       },
       modelMetadata:
         execution.status === 'rejected'
@@ -3559,6 +3575,24 @@ export class BrainChatService {
       cognitionMode: 'model',
       modelStage: stage,
     };
+  }
+
+  private modelExecutionTimeRange(...sources: unknown[]): Record<string, unknown> | undefined {
+    for (const source of sources) {
+      if (!source || typeof source !== 'object' || Array.isArray(source)) continue;
+      const timeRange = (source as Record<string, unknown>).timeRange;
+      if (!timeRange || typeof timeRange !== 'object' || Array.isArray(timeRange)) continue;
+      const value = timeRange as Record<string, unknown>;
+      if (
+        typeof value.startDate === 'string' &&
+        typeof value.endExclusive === 'string' &&
+        value.boundary === '[start,end)' &&
+        typeof value.timezone === 'string'
+      ) {
+        return { ...value };
+      }
+    }
+    return undefined;
   }
 
   private modelFailure(

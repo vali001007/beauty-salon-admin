@@ -13,7 +13,7 @@ export class BrainGroundedAnswerComposerService {
   compose(input: {
     observations: readonly BrainObservation[];
     completion: Pick<BrainCompletionResult, 'status' | 'missingCriteria'>;
-    intent?: Pick<BrainSemanticIntent, 'intent' | 'answerShape'>;
+    intent?: Pick<BrainSemanticIntent, 'intent' | 'answerShape' | 'comparisonTarget'>;
   }): BrainResponseEnvelope {
     const completed = input.observations.filter(
       (item) => item.status === 'completed' || (item.status === 'no_data' && item.grounding !== 'none'),
@@ -63,7 +63,7 @@ export class BrainGroundedAnswerComposerService {
 
   composeDomainAnswer(
     answer: BrainDomainAnswer,
-    intent?: Pick<BrainSemanticIntent, 'intent' | 'answerShape'>,
+    intent?: Pick<BrainSemanticIntent, 'intent' | 'answerShape' | 'comparisonTarget'>,
   ): BrainResponseEnvelope {
     const observation: BrainObservation = {
       nodeId: 'single_capability',
@@ -268,6 +268,12 @@ const COLUMN_LABELS: Readonly<Record<string, string>> = {
   nextAvailableAt: '下次可用时间',
   customer: '客户',
   customerName: '客户',
+  tier: '消费层级',
+  range: '消费范围',
+  customerCount: '客户数',
+  examples: '客户示例',
+  basicProjects: '基础项目',
+  lastVisitDate: '最近到店',
   memberLevel: '会员等级',
   totalSpent: '累计消费',
   matchReason: '匹配依据',

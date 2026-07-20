@@ -31,7 +31,7 @@ export class BrainAnswerCompletionGuardService {
   }
 
   assertMatchesIntent(
-    intent: Pick<BrainSemanticIntent, 'intent' | 'answerShape'>,
+    intent: Pick<BrainSemanticIntent, 'intent' | 'answerShape' | 'comparisonTarget'>,
     envelope: BrainResponseEnvelope,
   ) {
     const kinds = new Set(envelope.blocks.map((block) => block.kind));
@@ -51,8 +51,17 @@ export class BrainAnswerCompletionGuardService {
       requireKind('clarification');
       return;
     }
-    if (intent.intent === 'action' || intent.answerShape === 'action_preview') {
+    if (intent.intent === 'recommendation') {
+      const hasRecommendationContent =
+        kinds.has('text') || kinds.has('diagnosis') || kinds.has('table') || kinds.has('ranking') || hasNoData;
+      if (!envelope.answer.trim() || !hasRecommendationContent) {
+        throw new BadRequestException('brain_response_answer_contract_mismatch:recommendation:content');
+      }
+      return;
+    }
+    if (intent.intent === 'action' || intent.intent === 'workflow' || intent.answerShape === 'action_preview') {
       if (kinds.has('clarification')) return;
+      if (hasNoData && envelope.suggestedActions.length === 0) return;
       requireKind('action_preview');
       if (!envelope.suggestedActions.length) {
         throw new BadRequestException('brain_response_answer_contract_mismatch:action_preview:actions');
@@ -65,17 +74,11 @@ export class BrainAnswerCompletionGuardService {
       }
       return;
     }
-    if (intent.intent === 'recommendation') {
-      const hasRecommendationContent =
-        kinds.has('text') || kinds.has('diagnosis') || kinds.has('table') || kinds.has('ranking') || hasNoData;
-      if (!envelope.answer.trim() || !hasRecommendationContent) {
-        throw new BadRequestException('brain_response_answer_contract_mismatch:recommendation:content');
-      }
-      return;
-    }
-
     if (intent.answerShape === 'scalar') requireKind('kpi');
-    if (intent.answerShape === 'comparison') requireKind('comparison');
+    if (intent.answerShape === 'comparison') {
+      const crossEntityComparison = intent.comparisonTarget?.type !== 'time' && (kinds.has('ranking') || kinds.has('table'));
+      if (!crossEntityComparison) requireKind('comparison');
+    }
     if (intent.answerShape === 'trend') requireKind('chart');
     if (intent.answerShape === 'ranking') requireKind('ranking');
     if (intent.answerShape === 'diagnosis') {

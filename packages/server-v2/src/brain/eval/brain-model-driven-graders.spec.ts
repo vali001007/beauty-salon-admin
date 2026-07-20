@@ -103,6 +103,17 @@ describe('Ami Brain model-driven deterministic graders', () => {
     })).toMatchObject({ passed: true, failures: [] });
   });
 
+  it('accepts a safe action clarification without grounding or a fake preview button', () => {
+    expect(new BrainCompletionGraderService().grade({
+      expected: { planShape: { requiresPreview: true }, requiresComplete: false, requiresGrounding: false },
+      brainStatus: 'completed',
+      completion: { status: 'partial' },
+      citations: [],
+      suggestedActions: [],
+      blocks: [{ kind: 'clarification', question: '请提供客户姓名。', options: [] }],
+    })).toMatchObject({ passed: true, failures: [] });
+  });
+
   it('accepts ranking as a grouped cross-entity comparison but not as a time comparison substitute', () => {
     const grader = new BrainIntentGraderService();
     expect(grader.grade({

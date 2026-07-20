@@ -323,7 +323,7 @@ describe('BrainCapabilityScannerService', () => {
 
     const workspaceRoot = join(process.cwd(), '..', '..');
     const real = await new BrainCapabilityScannerService().scan({ workspaceRoot, explicitOnly: true });
-    expect(real.capabilities).toHaveLength(40);
+    expect(real.capabilities).toHaveLength(41);
     expect(real.capabilities.every((item) => item.explicit)).toBe(true);
   }, 30_000);
 
@@ -736,11 +736,11 @@ describe('BrainCapabilityScannerService', () => {
     expect(byKey.get('customer_facts')?.requiredPermissions).toContain('core:customer:view');
   }, 30_000);
 
-  it('discovers forty explicit production executors without legacy anchor contamination', async () => {
+  it('discovers forty-one explicit production executors without legacy anchor contamination', async () => {
     const workspaceRoot = join(process.cwd(), '..', '..');
     const report = await new BrainCapabilityScannerService().scan({ workspaceRoot, explicitOnly: true });
 
-    expect(report.summary).toEqual({ total: 40, draft: 40, blocked: 0, explicit: 40 });
+    expect(report.summary).toEqual({ total: 41, draft: 41, blocked: 0, explicit: 41 });
     expect(report.capabilities.map((item) => item.key)).toEqual([
       'appointment_gap_list',
       'beautician_customer_card_progress',
@@ -765,6 +765,7 @@ describe('BrainCapabilityScannerService', () => {
       'inventory_receipt_discrepancy_guidance',
       'inventory_risk_ranking',
       'manager_staff_overview',
+      'marketing_automation_rule_preview',
       'marketing_campaign_cost_attribution_review',
       'marketing_campaign_plan',
       'marketing_customer_segment',

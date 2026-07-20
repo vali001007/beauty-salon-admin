@@ -987,6 +987,93 @@ describe('BrainSemanticIntentCompilerService', () => {
     });
   });
 
+  it('falls back to one uniquely matched published metric definition when the model is unavailable', async () => {
+    const aiService = fakeAiService(async () => {
+      throw new AiStructuredOutputError('BUDGET_EXCEEDED', 'structured budget exhausted');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput('本月实收多少');
+    input.metricRefs = [paidAmountMetricRef];
+    input.ontologySnapshot = {
+      ...ontologySnapshot,
+      metrics: [
+        ...ontologySnapshot.metrics,
+        {
+          definitionKey: paidAmountMetricRef.definitionKey,
+          version: paidAmountMetricRef.definitionVersion,
+          definitionFingerprint: paidAmountMetricRef.definitionFingerprint,
+          sourceFingerprint: paidAmountMetricRef.sourceFingerprint,
+          metricKey: 'paid_amount',
+          name: '实收金额',
+          aliases: ['实收', '流水'],
+          domain: 'payment',
+          formula: { sql: 'SUM(paid_amount)' },
+          source: { model: 'PaymentRecord' },
+          defaultFilters: {},
+          permissions: ['core:finance:view'],
+          description: '支付成功记录的实收金额',
+        },
+      ],
+    };
+    input.capabilitySummaries = [{
+      key: 'order_revenue_analysis',
+      name: '订单收入与客单价分析',
+      description: '查询当前门店指定周期的实收金额和平均客单价',
+      domains: ['product_order', 'payment'],
+      intents: ['diagnosis', 'query'],
+      examples: ['查询本月订单实收金额'],
+      readOnly: true,
+      definitionRefs: [paidAmountMetricRef],
+    }];
+
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      provider: 'governed_contract',
+      model: 'definition_match_fallback',
+      intent: {
+        intent: 'query',
+        answerShape: 'scalar',
+        metrics: [paidAmountMetricRef],
+        timeRange: { preset: 'this_month', label: '本月', timezone: 'Asia/Shanghai' },
+        missingSlots: [],
+      },
+    });
+  });
+
+  it('does not use definition fallback when more than one capability matches the same metric', async () => {
+    const aiService = fakeAiService(async () => {
+      throw new AiStructuredOutputError('BUDGET_EXCEEDED', 'structured budget exhausted');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput('本月退款多少');
+    input.metricRefs = [refundAmountMetricRef];
+    input.capabilitySummaries = [
+      {
+        key: 'finance_refund_overview',
+        name: '退款概览',
+        description: '退款金额',
+        domains: ['finance'],
+        intents: ['query'],
+        readOnly: true,
+        definitionRefs: [refundAmountMetricRef],
+      },
+      {
+        key: 'finance_risk_overview',
+        name: '财务风险概览',
+        description: '退款风险',
+        domains: ['finance'],
+        intents: ['query', 'diagnosis'],
+        readOnly: true,
+        definitionRefs: [refundAmountMetricRef],
+      },
+    ];
+
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'unavailable',
+      errorCode: 'BUDGET_EXCEEDED',
+    });
+  });
+
   it('keeps an exact governed month-over-month example as comparison instead of query', async () => {
     const aiService = fakeAiService(async () => {
       throw new AiStructuredOutputError('BUDGET_EXCEEDED', 'structured budget exhausted');

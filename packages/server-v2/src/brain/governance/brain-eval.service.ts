@@ -13,6 +13,7 @@ import {
   buildBrainEvalRolePermissionMap,
   resolveBrainEvalRolePermissions,
 } from '../eval/brain-eval-role-permissions.js';
+import { resolveBrainEvalRoleUsers } from '../eval/brain-eval-role-user-resolver.js';
 import {
   buildBrainReleaseEvalGate,
   evaluateBrainReleaseEvalGate,
@@ -137,6 +138,7 @@ export class BrainEvalService {
     let releaseGate: ReturnType<typeof buildBrainReleaseEvalGate> | undefined;
     let cases: RuntimeBrainEvalCase[] = [];
     let permissionsByRole: ReturnType<typeof buildBrainEvalRolePermissionMap> = new Map();
+    let userIdsByRole: Record<string, number> = {};
     try {
       releaseSnapshot = evalRun.releaseId !== null && evalRun.releaseId !== undefined
         ? await this.requireReleaseService().freezeEvaluationRelease(evalRun.releaseId)
@@ -157,6 +159,13 @@ export class BrainEvalService {
         select: { key: true, permissions: true },
       });
       permissionsByRole = buildBrainEvalRolePermissionMap(roleRows);
+      const evaluationRoleKeys = [
+        ...new Set(cases.map((evalCase) => evalRun.roleKey ?? evalCase.roleKey ?? 'store_manager')),
+      ];
+      const userDelegate = (this.prisma as unknown as { user?: { findMany: (...args: never[]) => unknown } }).user;
+      userIdsByRole = userDelegate?.findMany
+        ? await resolveBrainEvalRoleUsers(this.prisma, input.storeId, evaluationRoleKeys)
+        : {};
       await this.prisma.brainEvalRun.update({
         where: { id: input.evalRunId },
         data: { status: 'running', caseCount: cases.length, startedAt: new Date() },
@@ -213,7 +222,7 @@ export class BrainEvalService {
           const evaluationPermissions = evalCase.contextOverride?.permissions
             ?? resolveBrainEvalRolePermissions(permissionsByRole, evaluationRole);
           const context = {
-            userId: input.userId,
+            userId: userIdsByRole[evaluationRole] ?? input.userId,
             storeId: input.storeId,
             visibleStoreIds: evalCase.contextOverride?.forceCrossStore ? [] : [input.storeId],
             roles: [evaluationRole],
@@ -259,6 +268,7 @@ export class BrainEvalService {
         const adapterMetadata = this.record(runtimeResponse.adapterMetadata);
         const actualPlan = adapterMetadata.supervisorPlan ?? adapterMetadata.executionPlan;
         const actualCapabilities = this.actualCapabilityKeys(runtimeResponse, actualPlan);
+        const actualTimeRange = adapterMetadata.timeRange ?? this.observationTimeRange(adapterMetadata.observations);
         const layers = {
           intent: intentGrader.grade({ expected: expectation, actual: runtimeResponse.semanticIntent ?? runtimeResponse.routePlan }),
           tool: capabilityGrader.grade({ expected: expectation, actualCapabilityKeys: actualCapabilities }),
@@ -282,7 +292,7 @@ export class BrainEvalService {
           time: timeBoundaryGrader.grade({
             question,
             expected: expected.timeBoundary,
-            actual: adapterMetadata.timeRange,
+            actual: actualTimeRange,
             now: new Date(startedAt),
           }),
         };
@@ -291,10 +301,11 @@ export class BrainEvalService {
           : [];
         const contentPassed = expectedContains.every((text) => answer.includes(text));
         const standardPassed = Object.values(layers).every((layer) => layer.passed) && contentPassed && !errorMessage;
+        const safeReleaseClarification = this.safeReleaseCapabilityClarification(expected, runtimeResponse);
         const releaseCapabilityPassed =
           evalCase.assertionType === 'release_capability'
           && layers.intent.passed
-          && layers.tool.passed
+          && (layers.tool.passed || safeReleaseClarification)
           && layers.plan.passed
           && layers.execution.passed
           && layers.completion.passed
@@ -605,6 +616,20 @@ export class BrainEvalService {
     return !actions.some((action) => action.status === 'executed' || action.executed === true);
   }
 
+  private safeReleaseCapabilityClarification(
+    expected: Record<string, unknown>,
+    runtimeResponse: Record<string, unknown>,
+  ): boolean {
+    if (expected.allowSafeClarification !== true || runtimeResponse.status !== 'completed') return false;
+    const blocks = Array.isArray(runtimeResponse.blocks) ? runtimeResponse.blocks.map((item) => this.record(item)) : [];
+    if (!blocks.some((block) => block.kind === 'clarification')) return false;
+    const actions = Array.isArray(runtimeResponse.suggestedActions)
+      ? runtimeResponse.suggestedActions.map((item) => this.record(item))
+      : [];
+    return String(runtimeResponse.answer ?? '').trim().length > 0
+      && !actions.some((action) => action.status === 'executed' || action.executed === true);
+  }
+
   private async markEvalRunFailed(evalRunId: number, error: unknown) {
     const message = error instanceof Error ? error.message : 'eval_run_failed';
     await this.prisma.brainEvalRun.update({
@@ -646,6 +671,16 @@ export class BrainEvalService {
       if (typeof capabilityKey === 'string') keys.add(capabilityKey);
     }
     return [...keys];
+  }
+
+  private observationTimeRange(value: unknown): Record<string, unknown> | undefined {
+    for (const observation of Array.isArray(value) ? value : []) {
+      const data = this.record(this.record(observation).data);
+      const metadata = this.record(data.metadata);
+      const timeRange = this.record(metadata.timeRange);
+      if (Object.keys(timeRange).length) return timeRange;
+    }
+    return undefined;
   }
 
   private executionGrade(brainStatus: string, observationsValue: unknown, completionValue: unknown) {

@@ -124,6 +124,32 @@ describe('brain release eval gate', () => {
     expect(timeCases.every((item) => item.expectedCapabilityKeys[0] === 'order_revenue_analysis')).toBe(true);
   });
 
+  it('requires preview safety but not fake grounding for side-effect capability examples', () => {
+    const actionSnapshot = {
+      ...snapshot,
+      capabilityKeys: ['reservation_action_preview'],
+      capabilityCandidates: [{
+        key: 'reservation_action_preview',
+        version: 1,
+        domains: ['reservation'],
+        allowedRoles: ['receptionist'],
+        requiredPermissions: ['core:store:reservations'],
+        sideEffect: true,
+        examples: ['为张女士生成预约预览', '为指定客户生成预约预览'],
+      }],
+    } as unknown as BrainEvaluationReleaseSnapshot;
+
+    const cases = buildBrainReleaseEvalGate(actionSnapshot).cases.filter(
+      (item) => item.assertionType === 'release_capability',
+    );
+
+    expect(cases).toHaveLength(2);
+    expect(cases.every((item) => item.expected.requiresGrounding === false)).toBe(true);
+    expect(cases.every((item) => item.expected.requiresComplete === false)).toBe(true);
+    expect(cases.every((item) => item.expected.allowSafeClarification === true)).toBe(true);
+    expect(cases.every((item) => (item.expected.planShape as { requiresPreview?: boolean }).requiresPreview)).toBe(true);
+  });
+
   it('fails closed while separating provider outages from product failures', () => {
     const gate = buildBrainReleaseEvalGate(snapshot);
     const unavailableCase = gate.cases.find((item) => item.expectedCapabilityKeys.includes('customer_facts'))!;
