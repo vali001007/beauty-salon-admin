@@ -4080,6 +4080,253 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     expect(customerFacts.summarizeCustomerSegments).not.toHaveBeenCalled();
     expect(customerFacts.answerCustomerQuestion).not.toHaveBeenCalled();
   });
+
+  it('answers average order value comparison with the governed metric definition', async () => {
+    const skillRuntime = {
+      buildManagerOperationsAnalysis: jest
+        .fn()
+        .mockResolvedValueOnce(operations({ avgTransaction: 230 }))
+        .mockResolvedValueOnce(operations({ avgTransaction: 200 })),
+      buildReceptionOperationsSnapshot: jest.fn().mockResolvedValue(reception(0)),
+      buildFinanceRiskSummary: jest.fn().mockResolvedValue(finance(0, 0)),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+    const result = await executor.execute({
+      card: {
+        ...storeCard(),
+        definitionRefs: [
+          {
+            definitionId: 21,
+            versionId: 146,
+            definitionKey: 'metric.average_order_value',
+            version: 2,
+            definitionFingerprint: 'd'.repeat(64),
+            sourceFingerprint: 'e'.repeat(64),
+          },
+        ],
+      },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'average-order-value-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 87,
+      question: '今天客单价多少，跟昨天比怎么样',
+      answerShape: 'comparison',
+      args: {
+        objective: '比较客单价',
+        time: { label: '今天', timezone: 'Asia/Shanghai', startDate: '2026-07-20', endDate: '2026-07-20' },
+        comparisonTarget: {
+          type: 'time',
+          timeRange: { label: '昨天', timezone: 'Asia/Shanghai', startDate: '2026-07-19', endDate: '2026-07-19' },
+        },
+        entities: [],
+        metrics: [{ definitionKey: 'metric.average_order_value', definitionVersion: 2 }],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(result.answer).toContain('今天客单价 230.00 元');
+    expect(result.answer).toContain('昨天客单价 200.00 元');
+    expect(result.answer).toContain('差额 +30.00 元');
+    expect(result.citations[0]).toMatchObject({
+      sourceType: 'business_definition',
+      sourceId: 'metric.average_order_value@2',
+    });
+    expect(result.metadata).toMatchObject({
+      answerScope: 'average_order_value',
+      metricDefinitionKey: 'metric.average_order_value',
+    });
+  });
+
+  it('ranks staff revenue by governed associated paid amount instead of performance score', async () => {
+    const skillRuntime = {
+      buildManagerStaffAnalysis: jest.fn().mockResolvedValue({
+        staff: [
+          {
+            beauticianId: 1,
+            name: '唐伊',
+            serviceCount: 10,
+            completedCount: 10,
+            uniqueCustomerCount: 9,
+            repeatCustomerCount: 4,
+            revenueAmount: 3200,
+            commissionAmount: 500,
+            timeOffHours: 0,
+          },
+          {
+            beauticianId: 2,
+            name: '沈晴',
+            serviceCount: 4,
+            completedCount: 4,
+            uniqueCustomerCount: 4,
+            repeatCustomerCount: 0,
+            revenueAmount: 6800,
+            commissionAmount: 300,
+            timeOffHours: 0,
+          },
+        ],
+      }),
+      buildReceptionOperationsSnapshot: jest.fn().mockResolvedValue(reception(0)),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+    const result = await executor.execute({
+      card: {
+        ...storeCard(),
+        key: 'manager_staff_overview',
+        definitionRefs: [
+          {
+            definitionId: 22,
+            versionId: 147,
+            definitionKey: 'metric.staff_service_revenue',
+            version: 1,
+            definitionFingerprint: 'f'.repeat(64),
+            sourceFingerprint: '1'.repeat(64),
+          },
+        ],
+      },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'staff-revenue-ranking-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 88,
+      question: '这个月谁的业绩最好',
+      answerShape: 'ranking',
+      args: {
+        objective: '按员工关联实收排行',
+        entities: [],
+        metrics: [{ definitionKey: 'metric.staff_service_revenue', definitionVersion: 1 }],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(result.answer).toBe('本月关联业绩实收最高的是 沈晴，实收 6800.00 元。');
+    expect(result.blocks?.[0]).toMatchObject({
+      kind: 'ranking',
+      columns: ['staff', 'revenueAmount'],
+      rows: expect.arrayContaining([expect.objectContaining({ staff: '沈晴', revenueAmount: 6800 })]),
+    });
+    const rankingBlock = result.blocks?.[0];
+    expect(rankingBlock?.kind).toBe('ranking');
+    if (rankingBlock?.kind !== 'ranking') throw new Error('staff_revenue_ranking_block_missing');
+    expect(rankingBlock.rows[0]?.staff).toBe('沈晴');
+    expect(result.metadata).toMatchObject({ focusMetric: 'metric.staff_service_revenue' });
+  });
+
+  it('returns a non-persisting automation rule preview for post-service project recommendation', async () => {
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'marketing_automation_rule_preview' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['marketing'],
+        permissions: ['core:brain:use', 'core:marketing:view', 'core:customer:view'],
+        deniedPermissions: [],
+        requestId: 'automation-rule-preview-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 89,
+      question: '能不能在客户消费后自动给她推荐下一个适合的项目',
+      answerShape: 'action_preview',
+      args: { objective: '预览消费后推荐规则', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('消费完成后下一项目推荐');
+    expect(result.answer).toContain('不发布自动化规则、不发送消息');
+    expect(result).toMatchObject({
+      grounding: 'preview_action',
+      metadata: {
+        capabilityKey: 'marketing_automation_rule_preview',
+        ruleType: 'post_service_next_project_recommendation',
+        businessDataPersisted: false,
+      },
+    });
+    expect(result.suggestedActions).toBeUndefined();
+  });
+
+  it('uses the logged-in beautician personal customer scope for dormant follow-up candidates', async () => {
+    const skillRuntime = {
+      buildBeauticianPersonalInactiveCustomers: jest.fn().mockResolvedValue({
+        beauticianName: '唐伊',
+        thresholdDays: 60,
+        total: 1,
+        truncated: false,
+        rows: [
+          {
+            customerId: 11,
+            customerName: '王女士',
+            memberLevel: '金卡',
+            visitCount: 6,
+            totalSpent: 8800,
+            lastServedByMeAt: new Date('2026-04-01T02:00:00.000Z'),
+            lastStoreVisitAt: new Date('2026-04-01T02:00:00.000Z'),
+            inactiveDays: 110,
+          },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'beautician_service_overview' },
+      context: {
+        userId: 27,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['beautician'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'beautician-personal-inactive-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 90,
+      question: '有没有哪个客户最近好久没来了，我应该联系一下',
+      answerShape: 'list',
+      args: { objective: '查询本人久未到店客户', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(skillRuntime.buildBeauticianPersonalInactiveCustomers).toHaveBeenCalledWith(
+      expect.objectContaining({ storeId: 6, userId: 27, thresholdDays: 60 }),
+    );
+    expect(result.answer).toContain('仅覆盖 唐伊 本人曾完成服务');
+    expect(result.answer).toContain('王女士（110 天未到店）');
+    expect(result.metadata).toMatchObject({
+      answerScope: 'beautician_personal_inactive_customers',
+      identitySource: 'server_context_user',
+    });
+  });
 });
 
 function feedbackAnalytics(): any {

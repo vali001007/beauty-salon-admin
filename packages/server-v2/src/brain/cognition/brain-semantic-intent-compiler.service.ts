@@ -220,7 +220,6 @@ export class BrainSemanticIntentCompilerService {
       (candidate) =>
         candidate.readOnly &&
         (mode !== 'contract_fast_path' || Boolean(candidate.definitionRefs?.length)) &&
-        !candidate.intents.some((intent) => ['action', 'workflow'].includes(intent)) &&
         (candidate.examples ?? []).some(
           (example) => normalizeSemanticText(example) === normalizeSemanticText(input.question),
         ),

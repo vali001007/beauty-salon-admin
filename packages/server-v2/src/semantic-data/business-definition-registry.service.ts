@@ -223,15 +223,21 @@ export class BusinessDefinitionRegistryService {
   }
 
   async validateVersionForEvaluation(versionId: number, input: ValidateBusinessDefinitionVersionInput) {
-    const validated = await this.validateVersion(versionId, input);
+    const existing = await this.db().businessDefinitionVersion.findUnique({
+      where: { id: versionId },
+      include: VERSION_INCLUDE,
+    });
+    const validated =
+      existing?.lifecycleStatus === 'validated' && existing.validationStatus === 'passed'
+        ? existing
+        : await this.validateVersion(versionId, input);
     if (validated.validationStatus !== 'passed') return validated;
     const projections = this.projectionCompiler.compilePublishedVersion({
       ...(validated as unknown as BusinessDefinitionVersionRecord),
       lifecycleStatus: 'published',
     });
-    await this.db().$transaction(async (tx: any) => {
-      await tx.businessDefinitionProjection.deleteMany({ where: { definitionVersionId: versionId } });
-      await tx.businessDefinitionProjection.createMany({
+    if (!assertReusablePublishedProjections(validated.projections, projections)) {
+      await this.db().businessDefinitionProjection.createMany({
         data: projections.map((projection) => ({
           definitionVersionId: projection.definitionVersionId,
           targetType: projection.targetType,
@@ -246,7 +252,7 @@ export class BusinessDefinitionRegistryService {
           readOnly: true,
         })),
       });
-    });
+    }
     return this.db().businessDefinitionVersion.findUnique({
       where: { id: versionId },
       include: VERSION_INCLUDE,

@@ -173,6 +173,7 @@ export class QueryTemplateRegistryService {
         'staff_service_count',
         'staff_unique_customer_count',
         'staff_customer_repurchase_rate',
+        'staff_service_revenue',
         'staff_commission_amount',
         'staff_performance_score',
       ],

@@ -126,6 +126,13 @@ describe('Agent eval question bank', () => {
       expectedSemanticIntent: 'query',
       expectedAnswerShape: 'scalar',
     });
+    expect(bank.questions.find((item) => item.input === '有没有哪个客户最近好久没来了，我应该联系一下')).toMatchObject({
+      expectedIntentType: 'query',
+      expectedSemanticIntent: 'query',
+    });
+    expect(bank.questions.find((item) => item.input === '能不能在客户消费后自动给她推荐下一个适合的项目')).toMatchObject({
+      expectedSemanticIntent: 'recommendation',
+    });
     expect(bank.questions.find((item) => item.input === '我今天已经做了几个客人，收入多少')).toMatchObject({
       expectedSemanticIntent: 'query',
       expectedMetrics: [],

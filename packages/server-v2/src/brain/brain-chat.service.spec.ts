@@ -254,6 +254,13 @@ describe('BrainChatService', () => {
           metrics: [],
           dimensions: [],
         })),
+        loadEvaluationSnapshot: jest.fn().mockResolvedValue({
+          fingerprint: 'evaluation-snapshot-1',
+          entities: [],
+          relations: [],
+          metrics: [],
+          dimensions: [],
+        }),
       },
       catalog: {
         listEnabledCapabilities: jest.fn().mockResolvedValue([
@@ -590,6 +597,80 @@ describe('BrainChatService', () => {
     });
   });
 
+  it('normalizes a non-executable read-only preview to recommendation semantics', () => {
+    const { service } = createService();
+    const intent = {
+      schemaVersion: '1.0',
+      objective: '客户做完项目后自动推荐下一项目',
+      domains: ['customer', 'project'],
+      intent: 'recommendation',
+      entities: [],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'draft',
+      successCriteria: [],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 0.95,
+      decisionSummary: '生成规则方案',
+    };
+
+    expect(
+      (service as any).normalizeReadOnlyPreviewCapabilityIntent(intent, {
+        key: 'marketing_automation_rule_preview',
+        grounding: 'preview_action',
+        readOnly: true,
+        sideEffect: false,
+        intents: ['workflow', 'recommendation'],
+      }),
+    ).toMatchObject({ intent: 'recommendation', answerShape: 'diagnosis' });
+  });
+
+  it('uses the governed preview card to normalize a paraphrased workflow without an exact example', () => {
+    const { service } = createService();
+    const intent = {
+      schemaVersion: '1.0',
+      objective: '为客户完成项目后设计下一项目推荐规则',
+      domains: ['customer', 'project'],
+      intent: 'workflow',
+      entities: [],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'action_preview',
+      successCriteria: [],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 0.95,
+      decisionSummary: '自动推荐规则预览',
+    };
+
+    expect(
+      (service as any).normalizeGovernedReadOnlyPreviewIntent({
+        intent,
+        question: '客户做完项目后，系统怎么自动推荐下次适合做的项目',
+        cards: [{
+          key: 'marketing_automation_rule_preview',
+          name: '营销自动化规则预览',
+          description: '客户消费或服务完成后生成下一项目推荐规则建议，不发布规则或发送消息',
+          domains: ['customer', 'project'],
+          examples: ['能不能在客户消费后自动给她推荐下一个适合的项目'],
+          synonyms: ['消费后项目推荐', '自动推荐规则'],
+          negativeExamples: [],
+          grounding: 'domain_service',
+          readOnly: true,
+          sideEffect: false,
+          intents: ['workflow', 'recommendation'],
+        }],
+      }),
+    ).toMatchObject({ intent: 'recommendation', answerShape: 'diagnosis' });
+  });
+
   it('turns a valid semantic clarify intent into a terminal structured clarification', () => {
     const { service } = createService();
     const answer = (service as any).answerFromSemanticClarificationIntent({
@@ -612,6 +693,40 @@ describe('BrainChatService', () => {
       },
     });
     expect(answer.answer).toContain('未说明要检查的业务领域');
+  });
+
+  it('clarifies a generic objective before capability retrieval even when the model over-plans', async () => {
+    const { prisma, cognition, modelPipeline, service } = createService({ modelPipeline: {} });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create.mockResolvedValue({ id: 101 });
+    prisma.brainRun.create.mockResolvedValue({ id: 77 });
+    prisma.brainRun.update.mockResolvedValue({ id: 77 });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+    cognition.understand.mockReturnValue({
+      normalizedText: '有什么问题吗',
+      terms: [],
+      metrics: [],
+      dimensions: [],
+      entities: [],
+      unsupportedTerms: [],
+      intent: { key: 'diagnosis', confidence: 0.8, reason: 'model_overplanned' },
+      needsClarification: false,
+    });
+
+    const response = await service.sendMessage(context, 12, { message: '有什么问题吗', timezone: 'Asia/Shanghai' });
+
+    expect(response).toMatchObject({
+      status: 'completed',
+      grounding: 'none',
+      adapterMetadata: {
+        decisionCode: 'generic_objective_clarification_required',
+        completion: { status: 'partial', missingCriteria: ['objective'], recoverable: true },
+      },
+    });
+    expect(response.answer).toContain('请补充要检查的业务范围');
+    expect(response.blocks).toEqual([expect.objectContaining({ kind: 'clarification' })]);
+    expect(modelPipeline!.retriever.retrieve).not.toHaveBeenCalled();
+    expect(modelPipeline!.planner.plan).not.toHaveBeenCalled();
   });
 
   it('uses the published model single-tool path after context preparation and persists governed metadata', async () => {
@@ -2541,6 +2656,12 @@ describe('BrainChatService', () => {
       evaluationReleaseId: 21,
     });
     expect(modelPipeline!.catalog.listEnabledCapabilities).toHaveBeenCalledWith([candidate]);
+    expect(modelPipeline!.ontology.loadEvaluationSnapshot).toHaveBeenCalledWith([]);
+    expect(modelPipeline!.validator.validate).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.any(Object),
+      expect.objectContaining({ fingerprint: 'evaluation-snapshot-1' }),
+    );
   });
 
   it('reuses a frozen candidate release snapshot without querying release governance per question', async () => {
@@ -2976,6 +3097,7 @@ describe('BrainChatService', () => {
         missingSlots: [],
       }),
       expect.objectContaining({ domains: ['sales'] }),
+      expect.objectContaining({ fingerprint: 'snapshot-1' }),
     );
   });
 
@@ -4599,6 +4721,7 @@ describe('BrainChatService', () => {
         orderBy: [],
       }),
       expect.objectContaining({ domains: ['customer'] }),
+      expect.objectContaining({ fingerprint: 'snapshot-1' }),
     );
   });
 

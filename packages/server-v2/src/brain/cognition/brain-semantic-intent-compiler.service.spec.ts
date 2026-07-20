@@ -61,6 +61,22 @@ const refundAmountMetricRef = {
   sourceFingerprint: 'a'.repeat(64),
 } as const;
 
+const customerEntityRef = {
+  definitionType: 'entity',
+  definitionKey: 'entity.customer',
+  definitionVersion: 1,
+  definitionFingerprint: 'b'.repeat(64),
+  sourceFingerprint: 'c'.repeat(64),
+} as const;
+
+const projectEntityRef = {
+  definitionType: 'entity',
+  definitionKey: 'entity.project',
+  definitionVersion: 1,
+  definitionFingerprint: 'd'.repeat(64),
+  sourceFingerprint: 'e'.repeat(64),
+} as const;
+
 const refundCountMetricRef = {
   definitionType: 'metric',
   definitionKey: 'metric.refund_count',
@@ -1261,6 +1277,35 @@ describe('BrainSemanticIntentCompilerService', () => {
       intent: {
         metrics: [productSalesMetricRef],
         orderBy: [{ definitionRef: productSalesMetricRef, direction: 'desc' }],
+      },
+    });
+    expect(aiService.generateStructured).not.toHaveBeenCalled();
+  });
+
+  it('uses a read-only recommendation preview contract even when the capability also declares workflow intents', async () => {
+    const aiService = fakeAiService(async () => {
+      throw new Error('model must not be called for an exact frozen preview contract');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput('能不能在客户消费后自动给她推荐下一个适合的项目');
+    input.capabilitySummaries = [{
+      key: 'marketing_automation_rule_preview',
+      name: '营销自动化规则预览',
+      description: '生成可审阅规则预览，不发布规则或发送消息',
+      domains: ['customer', 'project'],
+      intents: ['workflow', 'recommendation', 'draft', 'action'],
+      examples: [input.question],
+      readOnly: true,
+      definitionRefs: [customerEntityRef, projectEntityRef],
+    }];
+
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      provider: 'governed_contract',
+      model: 'exact_example_fast_path',
+      intent: {
+        intent: 'recommendation',
+        answerShape: 'diagnosis',
       },
     });
     expect(aiService.generateStructured).not.toHaveBeenCalled();

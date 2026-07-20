@@ -239,6 +239,61 @@ describe('BusinessDefinitionRegistryService', () => {
     });
   });
 
+  it('reuses immutable matching projections when a validated candidate is revalidated for evaluation', async () => {
+    const candidate = makeVersion({ lifecycleStatus: 'validated', validationStatus: 'passed' });
+    const projections = new BusinessDefinitionProjectionCompilerService().compilePublishedVersion({
+      ...candidate,
+      lifecycleStatus: 'published',
+    });
+    const version = { ...candidate, projections };
+    const businessDefinitionProjection = { createMany: jest.fn() };
+    const prisma = createPrismaMock({
+      businessDefinitionVersion: {
+        findUnique: jest.fn().mockResolvedValue(version),
+        update: jest.fn().mockImplementation(async ({ data }: any) => ({ ...version, ...data, projections })),
+      },
+      businessDefinitionProjection,
+    });
+    const service = createService(prisma);
+
+    await expect(service.validateVersionForEvaluation(version.id, { validatedBy: 8 } as any)).resolves.toEqual(version);
+
+    expect(businessDefinitionProjection.createMany).not.toHaveBeenCalled();
+  });
+
+  it('creates evaluation projections once without issuing an update or delete against immutable rows', async () => {
+    const version = makeVersion({ lifecycleStatus: 'draft', validationStatus: 'pending', projections: [] });
+    const validated = { ...version, lifecycleStatus: 'validated', validationStatus: 'passed', projections: [] };
+    const compiled = new BusinessDefinitionProjectionCompilerService().compilePublishedVersion({
+      ...validated,
+      lifecycleStatus: 'published',
+    });
+    const finalVersion = { ...validated, projections: compiled };
+    const businessDefinitionProjection = { createMany: jest.fn().mockResolvedValue({ count: compiled.length }) };
+    const findUnique = jest
+      .fn()
+      .mockResolvedValueOnce(version)
+      .mockResolvedValueOnce(version)
+      .mockResolvedValueOnce(finalVersion);
+    const prisma = createPrismaMock({
+      businessDefinitionVersion: {
+        findUnique,
+        update: jest.fn().mockImplementation(async ({ data }: any) => ({ ...validated, ...data, projections: [] })),
+      },
+      businessDefinitionProjection,
+    });
+    const service = createService(prisma);
+
+    await expect(service.validateVersionForEvaluation(version.id, { validatedBy: 8 } as any)).resolves.toEqual(
+      finalVersion,
+    );
+
+    expect(businessDefinitionProjection.createMany).toHaveBeenCalledTimes(1);
+    expect(businessDefinitionProjection.createMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([expect.objectContaining({ definitionVersionId: version.id, readOnly: true })]),
+    });
+  });
+
   it('rejects forged nonempty canonical query and fixture references', async () => {
     const version = makeVersion({ canonicalQueryRef: 'forged.query', fixtureSetKey: 'forged.fixture' });
     version.fingerprint = createBusinessDefinitionFingerprint(immutableRecordForTest(version));

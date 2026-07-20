@@ -54,11 +54,7 @@ export class BrainMetricCandidateGeneratorService {
     registeredPermissions: ReadonlySet<string>,
   ): BrainMetricCandidateResult {
     const reasons = new Set(observations.flatMap((observation) => observation.blockedReasons ?? []));
-    const aliases = unique(
-      observations
-        .filter(isTrustedAliasObservation)
-        .flatMap((observation) => observation.aliases ?? []),
-    );
+    const aliases = unique(authoritativeAliasObservations(observations).flatMap((observation) => observation.aliases ?? []));
     for (const alias of aliases) {
       if ((aliasConflicts.get(normalizeAlias(alias))?.size ?? 0) > 1) reasons.add(`metric_alias_collision:${alias}`);
     }
@@ -205,23 +201,30 @@ function groupByMetric(observations: BrainMetricSourceObservation[]) {
 
 function findAliasConflicts(observations: BrainMetricSourceObservation[]) {
   const aliases = new Map<string, Set<string>>();
-  for (const observation of observations) {
-    if (!isTrustedAliasObservation(observation)) continue;
-    for (const alias of observation.aliases ?? []) {
-      const key = normalizeAlias(alias);
-      const metrics = aliases.get(key) ?? new Set<string>();
-      metrics.add(observation.metricKey);
-      aliases.set(key, metrics);
+  for (const [metricKey, metricObservations] of groupByMetric(observations)) {
+    for (const observation of authoritativeAliasObservations(metricObservations)) {
+      for (const alias of observation.aliases ?? []) {
+        const key = normalizeAlias(alias);
+        const metrics = aliases.get(key) ?? new Set<string>();
+        metrics.add(metricKey);
+        aliases.set(key, metrics);
+      }
     }
   }
   return aliases;
 }
 
-function isTrustedAliasObservation(observation: BrainMetricSourceObservation) {
-  return (
-    observation.sourceKind === 'published_definition' ||
-    observation.sourceKind === 'verified_executable_binding' ||
-    observation.sourceKind === 'language_evidence'
+function authoritativeAliasObservations(observations: BrainMetricSourceObservation[]) {
+  const verified = observations.filter(
+    (observation) => observation.sourceKind === 'verified_executable_binding' && observation.aliases?.length,
+  );
+  if (verified.length) return verified;
+  const published = observations.filter(
+    (observation) => observation.sourceKind === 'published_definition' && observation.aliases?.length,
+  );
+  if (published.length) return published;
+  return observations.filter(
+    (observation) => observation.sourceKind === 'language_evidence' && observation.aliases?.length,
   );
 }
 

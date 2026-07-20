@@ -445,14 +445,17 @@ describe('BrainAnswerGraderService', () => {
     },
   );
 
-  it('classifies all persisted preview skills as preview actions', () => {
+  it('classifies a non-executable automation preview as a template recommendation', () => {
     const result = grader.grade({
       question: '帮我设置一个新客自动跟进规则',
       answer: '规则预览，确认前不会启用。',
-      citations: [{ sourceType: 'skill', sourceId: 'marketing_automation_rule_preview', label: '规则预览' }],
+      citations: [{ sourceType: 'template_skill', sourceId: 'marketing_automation_rule_preview', label: '规则预览' }],
+      expectedIntent: 'recommendation',
       brainStatus: 'completed',
     });
-    expect(result.groundingType).toBe('preview_action');
+    expect(result.groundingType).toBe('template_skill');
+    expect(result.actualIntent).toBe('recommendation');
+    expect(result.status).toBe('usable_exact');
   });
 
   it('keeps a multi-fact operations answer as list even when it contains ranking sections', () => {

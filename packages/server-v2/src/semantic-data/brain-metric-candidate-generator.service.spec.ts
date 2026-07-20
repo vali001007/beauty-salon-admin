@@ -636,6 +636,31 @@ describe('BrainMetricCandidateGeneratorService', () => {
     }
   });
 
+  it('lets the verified executable contract replace stale published aliases for the same metric', () => {
+    const performance = completeMetricObservations('staff_performance_score');
+    const performanceVerified = performance.find((item) => item.sourceKind === 'verified_executable_binding')!;
+    performanceVerified.aliases = ['员工表现评分', '员工综合表现'];
+    performance.push({
+      ...publishedObservation(performanceVerified.payload as CanonicalMetricPayload),
+      aliases: ['员工表现评分', '员工业绩'],
+    });
+    const revenue = completeMetricObservations('staff_service_revenue');
+    const revenueVerified = revenue.find((item) => item.sourceKind === 'verified_executable_binding')!;
+    revenueVerified.aliases = ['员工业绩', '员工服务收入'];
+
+    const result = generator.generate({
+      observations: [...performance, ...revenue],
+      datamodel: completeDatamodel(),
+      registeredPermissions: new Set(['core:order:view']),
+    });
+    const byKey = new Map(result.candidates.map((candidate) => [candidate.metricKey, candidate]));
+
+    expect(byKey.get('staff_performance_score')?.aliases).toEqual(['员工表现评分', '员工综合表现']);
+    expect(byKey.get('staff_service_revenue')?.aliases).toEqual(['员工业绩', '员工服务收入']);
+    expect(byKey.get('staff_performance_score')?.blockedReasons).not.toContain('metric_alias_collision:员工业绩');
+    expect(byKey.get('staff_service_revenue')?.blockedReasons).not.toContain('metric_alias_collision:员工业绩');
+  });
+
   it('scans the current repository and drafts only metrics backed by verified Ami Core contracts', async () => {
     const workspaceRoot = join(process.cwd(), '..', '..');
     const scan = await new BrainMetricSourceAdapters().scanWorkspace({

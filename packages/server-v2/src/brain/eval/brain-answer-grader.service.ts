@@ -401,6 +401,7 @@ export class BrainAnswerGraderService {
     if (blockKinds.has('table')) return 'list';
     if (this.hasMetricCitation(input.citations)) return 'metric_query';
     const skillId = this.detectActualSkill(input.citations);
+    if (skillId?.includes('automation_rule_preview')) return 'recommendation';
     if (skillId?.includes('draft')) return 'draft';
     if (skillId?.includes('action')) return 'action';
     if (skillId?.includes('recommend') || skillId?.includes('campaign') || skillId?.includes('advice') || skillId?.includes('plan')) {

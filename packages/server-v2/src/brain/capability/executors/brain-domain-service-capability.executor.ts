@@ -55,6 +55,7 @@ const CAPABILITY_KEYS = [
   'inventory_operations_overview',
   'finance_risk_overview',
   'marketing_growth_overview',
+  'marketing_automation_rule_preview',
   'reservation_list',
   'customer_facts',
   'marketing_customer_segment',
@@ -145,6 +146,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     ],
     businessDefinitionKeys: [
       'metric.paid_amount',
+      'metric.average_order_value',
       'metric.project_service_count',
       'metric.staff_performance_score',
       'entity.beautician',
@@ -171,6 +173,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '按当前门店和时间范围分析美容师服务次数、独立客户数、客户复购率、业绩、提成、请假时长、排班忙闲和可用空档，支持按用户明确指定的员工指标排行、对比和工作饱和度诊断。试用期、转正待办和客户归属变更没有后台事实闭环时必须明确拒答，不得用通用员工排行替代。客户投诉与满意度由专用客户反馈能力处理。',
     intents: ['query', 'ranking', 'comparison', 'diagnosis'],
     examples: [
+      '这个月谁的业绩最好',
       '哪个美容师接的客人最多',
       '各美容师今天的排班情况，有没有空档',
       '帮我看一下各美容师的服务次数对比',
@@ -203,6 +206,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       'metric.staff_unique_customer_count',
       'metric.staff_customer_repurchase_rate',
       'metric.staff_commission_amount',
+      'metric.staff_service_revenue',
       'metric.staff_performance_score',
       'entity.beautician',
       'entity.customer',
@@ -386,6 +390,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '我今天的客人里有没有 VIP 需要特别对待',
       '下一个客人最近情绪状态怎么样，需要特别关心吗',
       '这个客人皮肤比较敏感，用什么护理方案最安全',
+      '有没有哪个客户最近好久没来了，我应该联系一下',
     ],
     negativeExamples: [
       '查看其他美容师的客户过敏史',
@@ -405,6 +410,8 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '最后一位客户',
       '服务注意事项',
       '个人项目排行',
+      '我服务过的沉睡客户',
+      '我的久未到店客户',
     ],
     businessDefinitionKeys: [
       'entity.reservation',
@@ -636,6 +643,32 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
   }
 
   @BrainCapability({
+    key: 'marketing_automation_rule_preview',
+    name: '营销自动化规则预览',
+    description:
+      '根据客户生命周期、消费完成、卡项临期、新客到店、生日或疗程进度等受治理触发条件，生成可审阅的自动化规则预览。只说明触发条件、推荐动作和保护条件，不发布规则、不发送消息、不修改客户权益。',
+    intents: ['workflow', 'recommendation', 'draft', 'action'],
+    examples: [
+      '能不能在客户消费后自动给她推荐下一个适合的项目',
+      '设计一个客户45天没来时自动提醒的规则',
+      '做一个次卡快过期时自动提醒续购的流程',
+      '新客到店三天后自动创建跟进任务怎么设置',
+    ],
+    negativeExamples: ['查看自动化规则实际转化效果', '立即发布规则并发送消息', '查询其他门店的自动化策略'],
+    synonyms: ['自动推荐规则', '自动跟进规则预览', '客户生命周期自动化', '消费后项目推荐', '规则草稿'],
+    businessDefinitionKeys: ['entity.customer', 'entity.project'],
+    readOnly: true,
+    storeScope: 'required',
+    permissions: ['core:brain:use', 'core:marketing:view', 'core:customer:view'],
+    allowedRoles: ['marketing', 'store_manager'],
+    requiresConfirmation: false,
+    idempotency: 'not_applicable',
+  })
+  marketingAutomationRulePreview(args: BrainCapabilityToolArgs, input: BrainCapabilityExecutionInput) {
+    return this.executeDeclared('marketing_automation_rule_preview', args, input);
+  }
+
+  @BrainCapability({
     key: 'reservation_list',
     mappingOutputs: ['customerIds'],
     name: '门店预约清单',
@@ -775,7 +808,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     readOnly: true,
     storeScope: 'required',
     permissions: ['core:brain:use', 'core:customer:view'],
-    allowedRoles: ['store_manager', 'receptionist', 'marketing', 'beautician', 'finance', 'customer_service'],
+    allowedRoles: ['store_manager', 'receptionist', 'marketing', 'finance', 'customer_service'],
     requiresConfirmation: false,
     idempotency: 'not_applicable',
   })
@@ -1195,7 +1228,24 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
               ]
             : []),
         ];
+        const requestedMetricKeys = structuredDefinitionKeys(input.args.metrics);
+        const averageOrderValueRequested =
+          requestedMetricKeys.has('metric.average_order_value') || /客单价|平均每(?:笔|单)/.test(input.question);
+        const averageOrderValueRef = averageOrderValueRequested
+          ? structuredDefinitionRef(input.args.metrics, 'metric.average_order_value')
+          : undefined;
         const citations = [
+          ...(averageOrderValueRequested
+            ? [
+                {
+                  sourceType: 'business_definition',
+                  sourceId: averageOrderValueRef
+                    ? `${averageOrderValueRef.definitionKey}@${averageOrderValueRef.definitionVersion}`
+                    : 'metric.average_order_value',
+                  label: '业务定义：平均客单价',
+                },
+              ]
+            : []),
           {
             sourceType: 'db_skill',
             sourceId: 'store_manager_operations_analysis',
@@ -1261,6 +1311,58 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                 comparisonRange.previous,
               )
             : [];
+        if (averageOrderValueRequested) {
+          const previousAverage = comparisonOperations?.avgTransaction;
+          const delta = previousAverage === undefined ? undefined : operations.avgTransaction - previousAverage;
+          const answer = comparisonRange && previousAverage !== undefined
+            ? `${comparisonRange.label}，${comparisonRange.current.label}客单价 ${operations.avgTransaction.toFixed(2)} 元，${comparisonRange.previous.label}客单价 ${previousAverage.toFixed(2)} 元，差额 ${delta! >= 0 ? '+' : ''}${delta!.toFixed(2)} 元。`
+            : `${range.label}客单价 ${operations.avgTransaction.toFixed(2)} 元。`;
+          return this.applyDataQualityGuard(
+            {
+              status: 'completed',
+              answer,
+              citations: [citations[0]!, citations.find((item) => item.sourceId === 'store_manager_operations_analysis')!],
+              grounding: 'db_skill',
+              blocks: [
+                {
+                  kind: 'kpi',
+                  items: [{ label: `${range.label}客单价`, value: `${operations.avgTransaction.toFixed(2)} 元` }],
+                  citationIds: citations.map((item) => item.sourceId),
+                },
+                ...(comparisonRange && previousAverage !== undefined
+                  ? [
+                      {
+                        kind: 'comparison' as const,
+                        items: [
+                          {
+                            label: '客单价',
+                            current: `${operations.avgTransaction.toFixed(2)} 元`,
+                            previous: `${previousAverage.toFixed(2)} 元`,
+                            delta: `${delta! >= 0 ? '+' : ''}${delta!.toFixed(2)} 元`,
+                          },
+                        ],
+                        citationIds: citations.map((item) => item.sourceId),
+                      },
+                    ]
+                  : []),
+              ],
+              metadata: {
+                capabilityKey: 'store_operations_overview',
+                answerScope: 'average_order_value',
+                metricDefinitionKey: 'metric.average_order_value',
+                rangeLabel: range.label,
+                comparisonRange: comparisonRange
+                  ? { current: comparisonRange.current.label, previous: comparisonRange.previous.label }
+                  : undefined,
+                completionCriteria: [
+                  'average_order_value_loaded',
+                  ...(comparisonRange ? ['comparison_loaded'] : []),
+                ],
+              },
+            },
+            dataQuality,
+          );
+        }
         if (comparisonRange && /哪天.*差距最大|差距最大.*哪天/.test(input.question)) {
           const largestGap = dailyComparisonRows[0];
           return this.applyDataQualityGuard(
@@ -1798,6 +1900,8 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         const focusedColumns =
           focusMetric === 'metric.staff_customer_repurchase_rate'
             ? ['staff', 'customerRepurchaseRate', 'repeatCustomerCount', 'uniqueCustomerCount']
+            : focusMetric === 'metric.staff_service_revenue'
+              ? ['staff', 'revenueAmount']
             : focusMetric === 'metric.staff_commission_amount'
               ? ['staff', 'commissionAmount']
               : focusMetric === 'metric.staff_unique_customer_count'
@@ -2369,6 +2473,71 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         );
       }
       case 'beautician_service_overview': {
+        if (/(?:客户|客人).*(?:好久|很久|长期|多天).*(?:没来|未到店)|(?:沉睡|久未到店).*(?:客户|客人)/.test(input.question)) {
+          const explicitDays = Number(input.question.match(/(\d{2,3})\s*天/)?.[1] ?? 60);
+          const summary = await this.skillRuntime.buildBeauticianPersonalInactiveCustomers({
+            storeId: input.context.storeId,
+            userId: input.context.userId,
+            asOf: new Date(),
+            thresholdDays: explicitDays,
+            limit: this.resolveLimit(input.args.limit, 10),
+          });
+          const scope = `仅覆盖 ${summary.beauticianName} 本人曾完成服务、且全店最近 ${summary.thresholdDays} 天未到店的客户`;
+          const answer = summary.total
+            ? `${scope}，共 ${summary.truncated ? '至少 ' : ''}${summary.total} 人。优先联系：${summary.rows
+                .map((item) => `${item.customerName}（${item.inactiveDays} 天未到店）`)
+                .join('、')}。`
+            : `${scope}，当前没有符合条件的客户。`;
+          return this.applyDataQualityGuard(
+            {
+              status: 'completed',
+              answer,
+              citations: [
+                {
+                  sourceType: 'db_skill',
+                  sourceId: 'beautician_personal_inactive_customers',
+                  label: '当前登录美容师历史服务与客户最近到店事实',
+                },
+              ],
+              grounding: 'db_skill',
+              blocks: [
+                {
+                  kind: 'kpi',
+                  items: [
+                    {
+                      label: '本人可联系的久未到店客户',
+                      value: `${summary.truncated ? '至少 ' : ''}${summary.total} 人`,
+                      hint: `${summary.thresholdDays} 天阈值`,
+                    },
+                  ],
+                  citationIds: ['beautician_personal_inactive_customers'],
+                },
+                {
+                  kind: 'table',
+                  rows: summary.rows.map((item) => ({
+                    customer: item.customerName,
+                    memberLevel: item.memberLevel,
+                    inactiveDays: item.inactiveDays,
+                    lastStoreVisitAt: item.lastStoreVisitAt.toISOString(),
+                    totalSpent: item.totalSpent,
+                  })),
+                  columns: ['customer', 'memberLevel', 'inactiveDays', 'lastStoreVisitAt', 'totalSpent'],
+                  citationIds: ['beautician_personal_inactive_customers'],
+                },
+                { kind: 'limitations', items: ['不会返回其他美容师独占或本人从未服务过的全店客户名单。'] },
+              ],
+              metadata: {
+                capabilityKey: 'beautician_service_overview',
+                answerScope: 'beautician_personal_inactive_customers',
+                identitySource: 'server_context_user',
+                thresholdDays: summary.thresholdDays,
+                truncated: summary.truncated,
+                completionCriteria: ['beautician_identity_bound', 'personal_customer_scope_applied'],
+              },
+            },
+            dataQuality,
+          );
+        }
         const [services, performance] = await Promise.all([
           this.skillRuntime.buildBeauticianServiceSummary({
             storeId: input.context.storeId,
@@ -3825,6 +3994,31 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
               'attribution_loaded',
               'strategy_loaded',
             ],
+          },
+        };
+      }
+      case 'marketing_automation_rule_preview': {
+        const rule = this.buildMarketingAutomationRulePreview(input.question);
+        const limitation =
+          '当前只生成可审阅规则预览，不发布自动化规则、不发送消息、不修改会员等级或客户权益。';
+        const answer = `营销自动化规则预览：${rule.name}。触发条件：${rule.trigger}；建议动作：${rule.action}；保护条件：${rule.guardrails}。${limitation}`;
+        return {
+          status: 'completed',
+          answer,
+          citations: [
+            { sourceType: 'template_skill', sourceId: 'marketing_automation_rule_preview', label: '营销自动化规则预览' },
+          ],
+          grounding: 'preview_action',
+          blocks: [
+            { kind: 'text', text: answer, citationIds: ['marketing_automation_rule_preview'] },
+            { kind: 'limitations', items: [limitation] },
+          ],
+          metadata: {
+            capabilityKey: 'marketing_automation_rule_preview',
+            ruleType: rule.type,
+            deliveryStatus: 'preview_only',
+            businessDataPersisted: false,
+            completionCriteria: ['trigger_defined', 'recommended_action_defined', 'guardrails_disclosed'],
           },
         };
       }
@@ -6260,6 +6454,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       serviceCount: number;
       uniqueCustomerCount: number;
       customerRepurchaseRate: number;
+      revenueAmount: number;
       commissionAmount: number;
     },
   >(rows: T[], orderBy: unknown, question: string): T[] {
@@ -6299,6 +6494,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           left.staff.localeCompare(right.staff, 'zh-CN')
         );
       }
+      if (definitionKey === 'metric.staff_service_revenue') {
+        return direction * (left.revenueAmount - right.revenueAmount) || left.staff.localeCompare(right.staff, 'zh-CN');
+      }
       if (definitionKey === 'metric.staff_commission_amount') {
         return (
           direction * (left.commissionAmount - right.commissionAmount) || left.staff.localeCompare(right.staff, 'zh-CN')
@@ -6315,6 +6513,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
   private resolveManagerStaffFocusMetric(metricKeys: Set<string>, question: string): string | undefined {
     for (const key of [
       'metric.staff_customer_repurchase_rate',
+      'metric.staff_service_revenue',
       'metric.staff_commission_amount',
       'metric.staff_unique_customer_count',
       'metric.staff_service_count',
@@ -6323,16 +6522,20 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       if (metricKeys.has(key)) return key;
     }
     if (/复购率/.test(question)) return 'metric.staff_customer_repurchase_rate';
+    if (/(?:员工|美容师|技师|谁|哪位).*(?:业绩|服务收入|关联实收)|(?:业绩|服务收入|关联实收).*(?:员工|美容师|技师|谁|哪位)/.test(question)) {
+      return 'metric.staff_service_revenue';
+    }
     if (/提成/.test(question)) return 'metric.staff_commission_amount';
     if (/(接的客人|接客人数|服务客户)/.test(question)) return 'metric.staff_unique_customer_count';
     if (/服务次数|服务量/.test(question)) return 'metric.staff_service_count';
-    if (/业绩|表现/.test(question)) return 'metric.staff_performance_score';
+    if (/表现|综合评分|表现评分/.test(question)) return 'metric.staff_performance_score';
     return undefined;
   }
 
   private managerStaffMetricLabel(metricKey: string) {
     const labels: Record<string, string> = {
       'metric.staff_customer_repurchase_rate': '员工客户复购率',
+      'metric.staff_service_revenue': '员工关联业绩实收',
       'metric.staff_commission_amount': '员工提成金额',
       'metric.staff_unique_customer_count': '员工服务客户数',
       'metric.staff_service_count': '员工服务次数',
@@ -6348,6 +6551,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       customerRepurchaseRate: number;
       repeatCustomerCount: number;
       uniqueCustomerCount: number;
+      revenueAmount: number;
       commissionAmount: number;
       serviceCount: number;
       performanceScore: number;
@@ -6358,6 +6562,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     if (!top || !metricKey) return undefined;
     if (metricKey === 'metric.staff_customer_repurchase_rate') {
       return `${rangeLabel}客户复购率最高的是 ${top.staff}，复购率 ${(top.customerRepurchaseRate * 100).toFixed(1)}%（重复服务客户 ${top.repeatCustomerCount} 人 / 独立服务客户 ${top.uniqueCustomerCount} 人）。`;
+    }
+    if (metricKey === 'metric.staff_service_revenue') {
+      return `${rangeLabel}关联业绩实收最高的是 ${top.staff}，实收 ${top.revenueAmount.toFixed(2)} 元。`;
     }
     if (metricKey === 'metric.staff_commission_amount') {
       return `${rangeLabel}提成最高的是 ${top.staff}，提成 ${top.commissionAmount.toFixed(2)} 元。`;
@@ -6411,6 +6618,52 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       ?.trim();
     if (explicit) return explicit;
     return rangeLabel && !/全部|默认/.test(rangeLabel) ? rangeLabel : undefined;
+  }
+
+  private buildMarketingAutomationRulePreview(question: string) {
+    if (/(?:消费|服务|护理).*(?:完成|结束|后).*(?:推荐).*(?:下一个|下一次|适合).*(?:项目|护理)|(?:推荐).*(?:下一个|下一次).*(?:项目|护理)/.test(question)) {
+      return {
+        type: 'post_service_next_project_recommendation',
+        name: '消费完成后下一项目推荐',
+        trigger: '客户完成有效服务或消费结算后',
+        action: '结合已购项目、服务记录和当前可售项目创建下一项目推荐任务及可编辑话术草稿',
+        guardrails: '先校验客户身份、过敏与禁忌、当前护理方案、项目状态和触达冷却；不自动发送、不自动下单',
+      };
+    }
+    if (/45天.*没来|没来.*45天/.test(question)) {
+      return {
+        type: 'dormant_customer_follow_up',
+        name: '客户 45 天未到店提醒',
+        trigger: '客户连续 45 天没有完成到店或消费',
+        action: '创建召回提醒任务和可编辑话术草稿',
+        guardrails: '同一客户 30 天内最多触发 1 次，遵守退订和触达冷却，不自动发送',
+      };
+    }
+    if (/(?:快过期|即将过期).*(?:次卡|卡项)|(?:次卡|卡项).*(?:快过期|即将过期)/.test(question)) {
+      return {
+        type: 'card_expiry',
+        name: '卡项临期客户提醒',
+        trigger: '有效卡项进入 30 天到期窗口且仍有剩余次数',
+        action: '创建到期提醒任务和可编辑消息草稿',
+        guardrails: '先校验卡状态、余次、客户授权和触达冷却，不自动发送或修改卡项',
+      };
+    }
+    if (/新客.*(?:三天|3天)|(?:三天|3天)后.*跟进/.test(question)) {
+      return {
+        type: 'new_customer_follow_up',
+        name: '新客到店 3 天后跟进',
+        trigger: '客户首次到店完成后第 3 天',
+        action: '创建前台或客服跟进任务草稿',
+        guardrails: '同一客户 30 天内最多触发 1 次，不直接发送消息',
+      };
+    }
+    return {
+      type: 'customer_lifecycle',
+      name: '客户生命周期自动跟进',
+      trigger: '满足已配置且可审计的客户行为条件',
+      action: '创建跟进或推荐任务草稿',
+      guardrails: '不自动群发、不自动改权益、不跨门店触达',
+    };
   }
 
   private applyDataQualityGuard(answer: BrainDomainAnswer, assessment?: BrainDataQualityAssessment): BrainDomainAnswer {

@@ -5,6 +5,10 @@ export const AVERAGE_ORDER_VALUE_QUESTION_PATTERN =
   /(?:客单价|平均每单|订单平均金额|每(?:笔|单)(?:订单)?平均(?:收(?:款|了多少钱)?|金额)|平均每(?:笔|单)(?:订单)?(?:收(?:款|了多少钱)?|金额))/;
 export const MATERIAL_COST_RATE_QUESTION_PATTERN =
   /(?:耗材|物料|材料)成本.*(?:占|除以).*(?:服务)?(?:收入|营收).*(?:比例|占比|率)?|(?:耗材|物料|材料)成本率/;
+export const STAFF_REVENUE_QUESTION_PATTERN =
+  /(?:员工|美容师|技师|谁|哪位).*(?:业绩|服务收入|关联实收)|(?:业绩|服务收入|关联实收).*(?:员工|美容师|技师|谁|哪位)/;
+export const STAFF_COMPLAINT_QUESTION_PATTERN =
+  /(?:员工|美容师|技师|谁|哪个|哪位).*(?:投诉|客诉|差评|不满|负面反馈)|(?:投诉|客诉|差评|不满|负面反馈).*(?:员工|美容师|技师|谁|哪个|哪位)/;
 
 export interface AmiCoreBusinessMetricContract {
   readonly metricKey: string;
@@ -575,9 +579,42 @@ export const AMI_CORE_BUSINESS_METRIC_CONTRACTS: readonly AmiCoreBusinessMetricC
     sensitive: true,
   }),
   resolverMetricContract({
+    metricKey: 'staff_service_revenue',
+    name: '员工关联业绩实收',
+    aliases: ['员工业绩', '美容师业绩', '员工服务收入', '美容师服务收入', '谁的业绩最好', '业绩实收'],
+    domain: 'staff',
+    capabilityKey: 'manager_staff_overview',
+    executorSourcePath: DOMAIN_EXECUTOR_PATH,
+    executorSymbol: 'BrainDomainServiceCapabilityExecutor.managerStaffOverview',
+    description: '指定周期内当前门店按美容师汇总的已生成有效提成记录对应业务实收金额。',
+    sourceModels: ['Beautician', 'CommissionRecord'],
+    dimensions: ['beauticianId', 'beauticianName'],
+    permission: 'core:beautician-performance:view',
+    additionalPermissions: ['core:store:reservations'],
+    template: 'template:staff_performance',
+    outputField: 'staff_service_revenue',
+    valueType: 'money',
+    resolver: {
+      kind: 'domain_service',
+      key: 'manager_staff_analysis',
+      dimensionFields: { beauticianId: 'beauticianId', beauticianName: 'name' },
+      expression: { op: 'field', field: 'revenueAmount' },
+      overallAggregation: 'sum',
+    },
+    storeModel: 'Beautician',
+    exceptionPolicy: {
+      cancelled: '已取消或拒绝的提成记录不计入员工关联业绩。',
+      refunded: '退款调整以后端提成记录最终 sourceAmount 为准，不在查询时二次估算。',
+      gifts: '没有形成有效提成记录的赠送服务不产生员工关联业绩。',
+      fallback: '缺少美容师归属的有效记录不计入个人排行并返回数据缺口。',
+    },
+    allowedTaskTypes: ['query', 'ranking', 'diagnosis'],
+    sensitive: true,
+  }),
+  resolverMetricContract({
     metricKey: 'staff_performance_score',
     name: '员工表现评分',
-    aliases: ['员工表现评分', '员工表现', '员工业绩', '美容师业绩'],
+    aliases: ['员工表现评分', '员工综合表现', '美容师表现评分', '综合表现分'],
     domain: 'staff',
     capabilityKey: 'staff_performance_ranking',
     capabilityKeys: ['beautician_service_overview', 'store_operations_overview', 'manager_staff_overview'],

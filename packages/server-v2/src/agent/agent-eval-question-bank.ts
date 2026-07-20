@@ -4,6 +4,8 @@ import { matchBrainCapabilityBoundary } from '../brain/capability/brain-capabili
 import {
   AVERAGE_ORDER_VALUE_QUESTION_PATTERN,
   MATERIAL_COST_RATE_QUESTION_PATTERN,
+  STAFF_COMPLAINT_QUESTION_PATTERN,
+  STAFF_REVENUE_QUESTION_PATTERN,
 } from '../semantic-data/ami-core-business-semantic-contracts.js';
 
 export type AgentQuestionBankPersona =
@@ -285,6 +287,7 @@ function inferIntentType(input: string, category: string): AgentQuestionIntentTy
     )
   )
     return 'query';
+  if (/(?:有没有|哪些|哪几个).*(?:客户|客人).*(?:好久没来|很久没来|久未到店|没来了)/.test(input)) return 'query';
   if (/设置|生成.*报告|制定|策划|设计|写|话术|文案|脚本|流程|规则|方案/.test(input)) return 'draft';
   if (/为什么|原因|分析|怎么处理|怎么办|怎么平衡|建议|应该|从哪里入手|适合|是否合理|风险|异常|问题|总结|概览|情况怎么样|情况如何|效果怎么样|能撑住吗/.test(input))
     return 'analysis_and_recommendation';
@@ -470,7 +473,10 @@ function inferExpectedMetrics(input: string) {
   else if (/商品|产品/.test(input) && /销售|卖得|销量/.test(input)) values.add('product_sales_quantity');
   if (/(耗材|物料|产品|商品).*(消耗|用量|出库).*(最快|最多|排行|排名)/.test(input))
     values.add('inventory_consumption_quantity');
-  if (/员工|美容师|谁/.test(input) && /业绩|表现/.test(input) && !/(下滑|下降|环比|趋势|变化)/.test(input)) {
+  if (STAFF_REVENUE_QUESTION_PATTERN.test(input) && !/(下滑|下降|环比|趋势|变化)/.test(input)) {
+    values.add('staff_service_revenue');
+  }
+  if (/员工|美容师|谁/.test(input) && /表现|综合评分|表现评分/.test(input) && !/(下滑|下降|环比|趋势|变化)/.test(input)) {
     values.add('staff_performance_score');
   }
   if (/员工|美容师|谁/.test(input) && /(?:接的客人|接待客户|接客|服务了几个客人|服务客户)/.test(input)) {
@@ -488,7 +494,7 @@ function inferExpectedMetrics(input: string) {
     if (!/(?:几个|多少个|几人|多少人)/.test(input)) values.add('new_customer_conversion_rate');
   }
   if (/(投诉|客诉|差评|不满|负面反馈)/.test(input)) {
-    if (/(员工|美容师|谁|哪个|哪位)/.test(input)) values.add('staff_customer_complaint_count');
+    if (STAFF_COMPLAINT_QUESTION_PATTERN.test(input)) values.add('staff_customer_complaint_count');
     else values.add('customer_complaint_count');
     values.add('customer_feedback_collection_coverage_rate');
   }

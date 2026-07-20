@@ -64,6 +64,16 @@ export class BrainOntologyRuntimeService implements OnModuleInit {
     return snapshot;
   }
 
+  async loadEvaluationSnapshot(
+    definitionVersionIds: readonly number[],
+  ): Promise<ProductionReadyBusinessDefinitionSnapshot> {
+    if (!this.provider.loadEvaluationDefinitions) {
+      throw new Error('business_definition_evaluation_snapshot_unavailable');
+    }
+    const input = await this.provider.loadEvaluationDefinitions(definitionVersionIds);
+    return buildProductionReadyBusinessDefinitionSnapshot(input, this.provider.getRuntimeDataModel());
+  }
+
   resolveEntityAlias(query: string): EntityAliasResolution {
     const aliasIndex = this.requireAliasIndex();
     const normalizedQuery = normalizeAlias(query);

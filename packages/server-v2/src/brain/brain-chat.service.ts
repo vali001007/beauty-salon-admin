@@ -3,6 +3,8 @@ import { BrainRiskLevel, Prisma } from '@prisma/client';
 import {
   AVERAGE_ORDER_VALUE_QUESTION_PATTERN,
   MATERIAL_COST_RATE_QUESTION_PATTERN,
+  STAFF_COMPLAINT_QUESTION_PATTERN,
+  STAFF_REVENUE_QUESTION_PATTERN,
 } from '../semantic-data/ami-core-business-semantic-contracts.js';
 import { BrainCognitionService, type BrainCognitionResult } from './cognition/brain-cognition.service.js';
 import {
@@ -957,7 +959,7 @@ export class BrainChatService {
       });
       return this.modelFailure('MODEL_PIPELINE_UNAVAILABLE', modelMetadata);
     }
-    const snapshot = this.ontologyRuntime!.getSnapshot();
+    let snapshot = this.ontologyRuntime!.getSnapshot();
     if (!snapshot) {
       await this.recordModelFailure({
         runId: input.runId,
@@ -993,6 +995,12 @@ export class BrainChatService {
           ? await this.capabilityCatalog!.listEnabledCapabilities()
           : await this.capabilityCatalog!.listEnabledCapabilities(input.capabilityCandidates);
       if (roleContext) cards = this.roleContextBuilder!.filterCapabilities(roleContext, input.context, cards);
+      if (input.capabilityCandidates !== undefined) {
+        const definitionVersionIds = [
+          ...new Set(cards.flatMap((card) => (card.definitionRefs ?? []).map((ref) => ref.versionId))),
+        ];
+        snapshot = await this.ontologyRuntime!.loadEvaluationSnapshot(definitionVersionIds);
+      }
     } catch (error) {
       await this.recordModelFailure({
         runId: input.runId,
@@ -1098,13 +1106,17 @@ export class BrainChatService {
       intent: this.normalizeExactCustomerFactIntent({
         intent: this.normalizeConversationEntityInheritance({
           intent: this.normalizeUnboundReferenceIntent({
-            intent: this.normalizeGovernedCapabilityContractIntent({
-              intent: this.normalizeGovernedCapabilityExampleIntent({
-                intent: this.normalizeReadOnlyQuestionIntent({
-                  intent: this.normalizeModelClarificationIntent(
-                    this.enrichModelEntityRefs(compilation.intent),
-                    input.dto.message,
-                  ),
+              intent: this.normalizeGovernedCapabilityContractIntent({
+                intent: this.normalizeGovernedCapabilityExampleIntent({
+                intent: this.normalizeGovernedReadOnlyPreviewIntent({
+                  intent: this.normalizeReadOnlyQuestionIntent({
+                    intent: this.normalizeModelClarificationIntent(
+                      this.enrichModelEntityRefs(compilation.intent),
+                      input.dto.message,
+                    ),
+                    question: input.dto.message,
+                    cards,
+                  }),
                   question: input.dto.message,
                   cards,
                 }),
@@ -1161,7 +1173,7 @@ export class BrainChatService {
     };
     let validation: ReturnType<BrainSemanticIntentValidatorService['validate']>;
     try {
-      validation = this.semanticIntentValidator!.validate(enrichedIntent, governedValidationScope);
+      validation = this.semanticIntentValidator!.validate(enrichedIntent, governedValidationScope, snapshot);
     } catch (error) {
       await this.recordModelFailure({
         runId: input.runId,
@@ -1203,11 +1215,15 @@ export class BrainChatService {
               intent: this.normalizeUnboundReferenceIntent({
                 intent: this.normalizeGovernedCapabilityContractIntent({
                   intent: this.normalizeGovernedCapabilityExampleIntent({
-                    intent: this.normalizeReadOnlyQuestionIntent({
-                      intent: this.normalizeModelClarificationIntent(
-                        this.enrichModelEntityRefs(repairCompilation.intent),
-                        input.dto.message,
-                      ),
+                    intent: this.normalizeGovernedReadOnlyPreviewIntent({
+                      intent: this.normalizeReadOnlyQuestionIntent({
+                        intent: this.normalizeModelClarificationIntent(
+                          this.enrichModelEntityRefs(repairCompilation.intent),
+                          input.dto.message,
+                        ),
+                        question: input.dto.message,
+                        cards,
+                      }),
                       question: input.dto.message,
                       cards,
                     }),
@@ -1240,7 +1256,7 @@ export class BrainChatService {
           question: input.dto.message,
           conversationSlots: compilerInput.conversationSlots,
         });
-        const repairedValidation = this.semanticIntentValidator!.validate(repairedIntent, governedValidationScope);
+        const repairedValidation = this.semanticIntentValidator!.validate(repairedIntent, governedValidationScope, snapshot);
         compilation = repairCompilation;
         enrichedIntent = repairedIntent;
         validation = repairedValidation;
@@ -1264,6 +1280,22 @@ export class BrainChatService {
         });
       }
     }
+    const genericAmbiguity = this.answerFromGenericQuestionAmbiguity({
+      intent: validation.intent,
+      question: input.dto.message,
+      modelMetadata,
+    });
+    if (genericAmbiguity) {
+      await this.recordModelTrace({
+        runId: input.runId,
+        stepKey: 'generic_objective_clarification',
+        layer: 'cognition',
+        status: 'completed',
+        output: this.toJsonValue({ code: 'GENERIC_OBJECTIVE_CLARIFICATION_REQUIRED' }),
+      });
+      return genericAmbiguity;
+    }
+
     const capabilityBoundary = matchBrainCapabilityBoundary(input.dto.message);
     if (capabilityBoundary) {
       await this.recordModelTrace({
@@ -1530,6 +1562,10 @@ export class BrainChatService {
         code: failureCode,
       });
       return this.modelFailure(failureCode, this.modelMetadata('retrieve', modelMetadata), validation.intent);
+    }
+    const capabilityGovernedIntent = this.normalizeReadOnlyPreviewCapabilityIntent(validation.intent, retrieval.selected);
+    if (capabilityGovernedIntent !== validation.intent) {
+      validation = { ...validation, intent: capabilityGovernedIntent };
     }
     const contractMismatches = findCapabilityContractMissingDefinitions(
       validation.intent,
@@ -1955,7 +1991,7 @@ export class BrainChatService {
       .map((card) => ({ card, score: this.governedCapabilitySemanticScore(input.question, card) }))
       .sort((left, right) => right.score - left.score || left.card.key.localeCompare(right.card.key));
     const matched = candidates[0];
-    if (!matched || matched.score < 0.35) return input.intent;
+    if (!matched || matched.score < 0.25) return input.intent;
 
     const asksForRecommendation = /可以|能否|能不能|是否|应该|建议|合适|怎么办|怎么处理/.test(input.question);
     const nextIntent =
@@ -1977,6 +2013,27 @@ export class BrainChatService {
       ],
       assumptions: [...input.intent.assumptions, '当前问题未请求系统执行副作用，按只读查询或建议处理。'],
     };
+  }
+
+  private normalizeGovernedReadOnlyPreviewIntent(input: {
+    intent: BrainSemanticIntent;
+    question: string;
+    cards: readonly BrainCapabilityCard[];
+  }): BrainSemanticIntent {
+    if (!['action', 'draft', 'recommendation', 'workflow'].includes(input.intent.intent)) return input.intent;
+    const matched = input.cards
+      .filter(
+        (card) =>
+          card.readOnly &&
+          !card.sideEffect &&
+          card.intents.includes('workflow') &&
+          input.intent.domains.some((domain) => card.domains.includes(domain)) &&
+          (card.grounding === 'preview_action' || card.key.endsWith('_preview')),
+      )
+      .map((card) => ({ card, score: this.governedCapabilitySemanticScore(input.question, card) }))
+      .sort((left, right) => right.score - left.score || left.card.key.localeCompare(right.card.key))[0];
+    if (!matched || matched.score < 0.15) return input.intent;
+    return this.normalizeReadOnlyPreviewCapabilityIntent(input.intent, matched.card);
   }
 
   private hasExplicitSideEffectRequest(question: string) {
@@ -2832,6 +2889,60 @@ export class BrainChatService {
     };
   }
 
+  private answerFromGenericQuestionAmbiguity(input: {
+    intent: BrainSemanticIntent;
+    question: string;
+    modelMetadata: BrainModelMetadata;
+  }): BrainChatAnswer | undefined {
+    const normalized = input.question.trim().replace(/[\s？?。！!]+/g, '');
+    if (!['有什么问题吗', '有什么问题', '有问题吗'].includes(normalized)) return undefined;
+
+    const question =
+      '为了准确处理，请补充要检查的业务范围：门店经营、财务、库存、预约现场、客户经营或员工运营。';
+    const options = [
+      { id: 'objective:store_operations', label: '门店经营风险', value: { slot: 'objective', candidate: '门店经营风险' } },
+      { id: 'objective:finance_risk', label: '财务与退款风险', value: { slot: 'objective', candidate: '财务与退款风险' } },
+      { id: 'objective:inventory_risk', label: '库存风险', value: { slot: 'objective', candidate: '库存风险' } },
+    ];
+    const pendingClarification: BrainModelPendingClarification = {
+      missingSlots: ['objective'],
+      questions: [question],
+      ambiguities: [
+        {
+          slot: 'objective',
+          reason: '问题未指明业务域、对象或时间范围',
+          candidates: options.map((option) => option.label),
+        },
+      ],
+    };
+    const clarifiedIntent: BrainSemanticIntent = {
+      ...input.intent,
+      intent: 'clarify',
+      answerShape: 'clarification',
+      domains: [],
+      metrics: [],
+      dimensions: [],
+      orderBy: [],
+      missingSlots: ['objective'],
+      ambiguities: pendingClarification.ambiguities,
+    };
+    return {
+      status: 'completed',
+      answer: question,
+      citations: [],
+      suggestedActions: options,
+      blocks: [{ kind: 'clarification', question, options }],
+      grounding: 'none',
+      adapterMetadata: {
+        decisionCode: 'generic_objective_clarification_required',
+        completion: { status: 'partial', missingCriteria: ['objective'], recoverable: true },
+      },
+      modelContextIntent: clarifiedIntent,
+      modelContextPendingClarification: pendingClarification,
+      modelMetadata: input.modelMetadata,
+    };
+  }
+
   private modelContextResultSets(conversationSlots: Record<string, unknown>): BrainModelResultSet[] {
     const modelContext = this.modelContextRecord(conversationSlots.modelContext);
     if (!Array.isArray(modelContext.resultSets)) return [];
@@ -3255,6 +3366,27 @@ export class BrainChatService {
       card.intents.includes(intent.intent) ||
       (intent.intent === 'recommendation' && card.intents.includes('diagnosis'));
     return intentCompatible && intent.domains.every((domain) => card.domains.includes(domain));
+  }
+
+  private normalizeReadOnlyPreviewCapabilityIntent(intent: BrainSemanticIntent, card: BrainCapabilityCard): BrainSemanticIntent {
+    if (
+      (card.grounding !== 'preview_action' && !card.key.endsWith('_preview')) ||
+      !card.readOnly ||
+      card.sideEffect ||
+      !card.intents.includes('workflow') ||
+      !['action', 'recommendation', 'draft', 'workflow'].includes(intent.intent)
+    ) {
+      return intent;
+    }
+    return {
+      ...intent,
+      intent: 'recommendation',
+      answerShape: 'diagnosis',
+      assumptions: [
+        ...intent.assumptions,
+        `能力 ${card.key} 只有只读规则建议合同，不生成不可执行的确认动作。`,
+      ],
+    };
   }
 
   private async buildModelSupervisorAnswer(input: {
@@ -4719,8 +4851,19 @@ function inferGovernedQuestionMetricKeys(question: string): string[] {
     metrics.push('metric.staff_service_count');
   }
   if (/提成/.test(question)) metrics.push('metric.staff_commission_amount');
-  if (/(?:员工|美容师|所有员工|谁).*(?:业绩|表现)|(?:业绩|表现).*(?:员工|美容师|谁)/.test(question)) {
+  if (STAFF_REVENUE_QUESTION_PATTERN.test(question)) {
+    metrics.push('metric.staff_service_revenue');
+  }
+  if (/(?:员工|美容师|所有员工|谁).*(?:表现|综合评分)|(?:表现|综合评分).*(?:员工|美容师|谁)/.test(question)) {
     metrics.push('metric.staff_performance_score');
+  }
+  if (STAFF_COMPLAINT_QUESTION_PATTERN.test(question)) {
+    metrics.push('metric.staff_customer_complaint_count', 'metric.customer_feedback_collection_coverage_rate');
+  } else if (/(?:投诉|客诉|差评|不满|负面反馈)/.test(question)) {
+    metrics.push('metric.customer_complaint_count', 'metric.customer_feedback_collection_coverage_rate');
+  }
+  if (/(?:满意度|满意评价|服务评分|星级|评分)/.test(question)) {
+    metrics.push('metric.customer_average_satisfaction_rating', 'metric.customer_feedback_collection_coverage_rate');
   }
   if (/(?:新客.*(?:转化|成交|首单)|(?:转化|成交|首单).*新客)/.test(question)) {
     metrics.push(

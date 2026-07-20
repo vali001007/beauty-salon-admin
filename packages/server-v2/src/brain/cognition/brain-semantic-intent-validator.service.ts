@@ -69,8 +69,9 @@ export class BrainSemanticIntentValidatorService {
   validate(
     intent: BrainSemanticIntent,
     governedScope?: BrainSemanticIntentGovernedScope,
+    snapshotOverride?: ProductionReadyBusinessDefinitionSnapshot,
   ): BrainSemanticIntentValidationResult {
-    const snapshot = this.ontologyRuntime.getSnapshot();
+    const snapshot = snapshotOverride ?? this.ontologyRuntime.getSnapshot();
     if (!snapshot) {
       return this.invalid(intent, [
         {

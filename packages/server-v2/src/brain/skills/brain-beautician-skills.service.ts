@@ -46,6 +46,23 @@ export interface BeauticianPerformanceSummary {
   projectRanking: Array<{ name: string; count: number }>;
 }
 
+export interface BeauticianInactiveCustomerSummary {
+  beauticianName: string;
+  thresholdDays: number;
+  total: number;
+  truncated: boolean;
+  rows: Array<{
+    customerId: number;
+    customerName: string;
+    memberLevel: string;
+    visitCount: number;
+    totalSpent: number;
+    lastServedByMeAt: Date;
+    lastStoreVisitAt: Date;
+    inactiveDays: number;
+  }>;
+}
+
 @Injectable()
 export class BrainBeauticianSkillsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -287,6 +304,85 @@ export class BrainBeauticianSkillsService {
         .map(([name, count]) => ({ name, count }))
         .sort((left, right) => right.count - left.count)
         .slice(0, 10),
+    };
+  }
+
+  async buildPersonalInactiveCustomers(input: {
+    storeId: number;
+    userId: number;
+    asOf: Date;
+    thresholdDays?: number;
+    limit?: number;
+  }): Promise<BeauticianInactiveCustomerSummary> {
+    const beautician = await this.prisma.beautician.findFirst({
+      where: { storeId: input.storeId, userId: input.userId, status: 'active' },
+      select: { id: true, name: true },
+    });
+    if (!beautician) throw new ForbiddenException('beautician_identity_not_linked');
+
+    const thresholdDays = Math.max(30, Math.min(input.thresholdDays ?? 60, 365));
+    const limit = Math.max(1, Math.min(input.limit ?? 10, 50));
+    const scanLimit = 5000;
+    const tasks = await this.prisma.serviceTask.findMany({
+      where: {
+        storeId: input.storeId,
+        beauticianId: beautician.id,
+        status: 'completed',
+        appointmentTime: { lte: input.asOf },
+        customer: { deletedAt: null },
+      },
+      select: {
+        customerId: true,
+        appointmentTime: true,
+        customer: {
+          select: {
+            name: true,
+            memberLevel: true,
+            visitCount: true,
+            totalSpent: true,
+            lastVisitDate: true,
+          },
+        },
+      },
+      orderBy: { appointmentTime: 'desc' },
+      take: scanLimit,
+    });
+    const latestByCustomer = new Map<number, (typeof tasks)[number]>();
+    for (const task of tasks) {
+      if (!latestByCustomer.has(task.customerId)) latestByCustomer.set(task.customerId, task);
+    }
+    const cutoff = new Date(input.asOf.getTime() - thresholdDays * 86_400_000);
+    const rows = [...latestByCustomer.values()]
+      .map((task) => {
+        const lastStoreVisitAt =
+          task.customer.lastVisitDate && task.customer.lastVisitDate > task.appointmentTime
+            ? task.customer.lastVisitDate
+            : task.appointmentTime;
+        return {
+          customerId: task.customerId,
+          customerName: task.customer.name,
+          memberLevel: task.customer.memberLevel,
+          visitCount: task.customer.visitCount,
+          totalSpent: this.toNumber(task.customer.totalSpent),
+          lastServedByMeAt: task.appointmentTime,
+          lastStoreVisitAt,
+          inactiveDays: Math.max(0, Math.floor((input.asOf.getTime() - lastStoreVisitAt.getTime()) / 86_400_000)),
+        };
+      })
+      .filter((row) => row.lastStoreVisitAt < cutoff)
+      .sort(
+        (left, right) =>
+          right.inactiveDays - left.inactiveDays ||
+          right.totalSpent - left.totalSpent ||
+          left.customerName.localeCompare(right.customerName, 'zh-CN'),
+      );
+
+    return {
+      beauticianName: beautician.name,
+      thresholdDays,
+      total: rows.length,
+      truncated: tasks.length >= scanLimit,
+      rows: rows.slice(0, limit),
     };
   }
 

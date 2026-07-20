@@ -157,6 +157,12 @@ export class BrainSkillRuntimeService {
     return this.beauticianSkills.buildPersonalPerformance(input);
   }
 
+  buildBeauticianPersonalInactiveCustomers(
+    input: Parameters<BrainBeauticianSkillsService['buildPersonalInactiveCustomers']>[0],
+  ) {
+    return this.beauticianSkills.buildPersonalInactiveCustomers(input);
+  }
+
   composeBeauticianFollowUpAdvice(input: Parameters<BrainBeauticianSkillsService['composeFollowUpAdvice']>[0]) {
     return this.beauticianSkills.composeFollowUpAdvice(input);
   }
