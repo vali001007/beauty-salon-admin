@@ -235,6 +235,25 @@ describe('BrainFocusedBusinessCapabilityExecutor', () => {
     );
   });
 
+  it('returns a cited informational diagnosis when no aggregate finance risk is found', async () => {
+    const executor = createExecutor({
+      skillRuntime: {
+        buildFinanceRiskSummary: jest.fn().mockResolvedValue({ riskItems: [] }),
+      },
+    });
+
+    const result = await executor.execute(
+      input('finance_transaction_anomaly_review', '有没有需要复核的退款和优惠风险', 'diagnosis'),
+    );
+
+    expect(result.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'diagnosis',
+        findings: [expect.objectContaining({ severity: 'info', title: '当前未命中聚合风险' })],
+      }),
+    ]));
+  });
+
   it('returns receipt discrepancy guidance without performing inventory writes', async () => {
     const executor = createExecutor({});
 

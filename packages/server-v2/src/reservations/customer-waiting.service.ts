@@ -76,6 +76,7 @@ export class CustomerWaitingService {
         where: { storeId, checkedInAt: { gte: range.startDate, lte: range.endDate } },
       }),
     ]);
+    const activeWaiting = episodes.filter((item) => item.status === 'waiting');
     const ended = episodes.filter((item) => item.status === 'ended' && item.endedAt);
     const longWaitLeaves = ended.filter(
       (item) => item.outcome === 'left' && item.leaveReasonCode === 'wait_too_long',
@@ -88,7 +89,7 @@ export class CustomerWaitingService {
       range,
       summary: {
         waitingEpisodeCount: episodes.length,
-        activeWaitingCount: episodes.filter((item) => item.status === 'waiting').length,
+        activeWaitingCount: activeWaiting.length,
         endedWaitingCount: ended.length,
         servedCount: ended.filter((item) => item.outcome === 'served').length,
         leftCount: ended.filter((item) => item.outcome === 'left').length,
@@ -109,6 +110,16 @@ export class CustomerWaitingService {
         actualWaitMinutes: this.waitMinutes(item),
         expectedWaitMinutes: item.expectedWaitMinutes,
         reasonNote: item.leaveReasonNote,
+      })),
+      activeWaiting: activeWaiting.slice(0, 100).map((item) => ({
+        id: item.id,
+        customerId: item.customerId,
+        customerName: item.customer?.name ?? '未关联客户',
+        customerPhone: item.customer?.phone ?? null,
+        reservationId: item.reservationId,
+        startedAt: item.startedAt,
+        expectedWaitMinutes: item.expectedWaitMinutes,
+        actualWaitMinutes: this.waitMinutes(item),
       })),
     };
   }

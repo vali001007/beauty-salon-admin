@@ -562,11 +562,11 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 31,
-      question: '帮我查一下张雯，她上次来是什么时候',
+      question: '帮我查一下张雯的客户资料',
       answerShape: 'list',
       args: {
         objective: '查询客户最近到店',
-        entities: [{ entityType: 'customer', entityKey: '张雯', mention: '张雯' }],
+        entities: [],
         metrics: [],
         dimensions: [],
         filters: [],
@@ -576,8 +576,8 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
 
     expect(customerFacts.getExactCustomerBasicSummary).toHaveBeenCalledWith({
       storeId: 6,
-      message: '帮我查一下张雯，她上次来是什么时候',
-      customerName: '张雯',
+      message: '帮我查一下张雯的客户资料',
+      customerName: undefined,
     });
     expect(result.answer).toContain('最近到店日期为 2026-07-03');
     expect(result.blocks).toEqual([
@@ -3153,6 +3153,49 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     expect(customerFacts.summarizeCustomerSegments).not.toHaveBeenCalled();
     expect(result.answer).toContain('优惠敏感客户候选名单');
     expect(result.metadata).toMatchObject({ segmentDetail: true });
+  });
+
+  it('returns structured rows for governed spending-tier customer segmentation', async () => {
+    const customerFacts = {
+      getStructuredMarketingSegment: jest.fn().mockResolvedValue({
+        answer: '客户累计消费金额分层已完成。',
+        rows: [{ tier: 'M5 核心消费层', range: '50000.00 以上', customerCount: 2, examples: '甲、乙' }],
+        columns: ['tier', 'range', 'customerCount', 'examples'],
+      }),
+      answerCustomerFactQuestion: jest.fn(),
+      summarizeCustomerSegments: jest.fn(),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      customerFacts as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'marketing_customer_segment', name: '营销客户分群摘要' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['marketing'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'marketing-segment-structured-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 15,
+      question: '帮我把客户按消费金额分一下层',
+      args: { objective: '按消费金额分层', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.blocks).toEqual([
+      expect.objectContaining({
+        kind: 'table',
+        rows: [expect.objectContaining({ tier: 'M5 核心消费层', customerCount: 2 })],
+      }),
+    ]);
+    expect(customerFacts.answerCustomerFactQuestion).not.toHaveBeenCalled();
+    expect(result.metadata).toMatchObject({ structuredResult: true });
   });
 
   it('answers reception capacity from overruns, pending arrivals and available staff', async () => {

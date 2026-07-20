@@ -82,6 +82,20 @@ describe('CustomerWaitingService', () => {
         leaveReasonNote: null,
         customer: { id: 4, name: '周女士', phone: null },
       },
+      {
+        id: 3,
+        status: 'waiting',
+        outcome: null,
+        leaveReasonCode: null,
+        actualWaitMinutes: null,
+        expectedWaitMinutes: 15,
+        startedAt: new Date('2026-07-11T03:00:00Z'),
+        endedAt: null,
+        reservationId: 22,
+        customerId: 5,
+        leaveReasonNote: null,
+        customer: { id: 5, name: '张女士', phone: '13900000000' },
+      },
     ]);
     prisma.reservation.count.mockResolvedValue(4);
 
@@ -92,12 +106,14 @@ describe('CustomerWaitingService', () => {
 
     expect(result.summary).toMatchObject({
       longWaitDepartureCount: 1,
+      activeWaitingCount: 1,
       leftCount: 1,
-      linkedReservationCount: 2,
+      linkedReservationCount: 3,
       checkedInReservationCount: 4,
-      collectionCoverageRate: 0.5,
+      collectionCoverageRate: 0.75,
       averageWaitMinutes: 30,
     });
     expect(result.longWaitDepartures[0]).toMatchObject({ customerName: '林女士', actualWaitMinutes: 50 });
+    expect(result.activeWaiting[0]).toMatchObject({ customerName: '张女士', expectedWaitMinutes: 15 });
   });
 });

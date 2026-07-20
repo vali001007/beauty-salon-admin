@@ -585,6 +585,9 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
           detail: item,
           severity: 'warning' as const,
         }));
+        const displayedFindings = findings.length
+          ? findings
+          : [{ title: '当前未命中聚合风险', detail: `${range.label}未发现已接入规则命中的聚合财务风险。`, severity: 'info' as const }];
         const limitation = '当前后台未发布逐笔异常流水判定规则，本结果只能提示聚合风险，不能把某一笔普通流水直接标记为异常。';
         return {
           status: 'completed',
@@ -594,7 +597,7 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
           citations: [citation],
           grounding: 'db_skill',
           blocks: [
-            ...(findings.length ? [{ kind: 'diagnosis' as const, findings, citationIds: [citation.sourceId] }] : []),
+            { kind: 'diagnosis' as const, findings: displayedFindings, citationIds: [citation.sourceId] },
             { kind: 'limitations', items: [limitation] },
           ],
           metadata: {

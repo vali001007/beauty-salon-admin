@@ -35,8 +35,9 @@ import {
 
 function specificCustomerMention(
   entity: ReturnType<typeof structuredEntityMentions>[number] | undefined,
+  question?: string,
 ): string | undefined {
-  if (!entity || entity.source === 'system') return undefined;
+  if (!entity || (entity.source === 'system' && !question?.includes(entity.mention))) return undefined;
   return extractSpecificCustomerNameFromMention(entity.mention) || extractCustomerPhoneTail(entity.mention)
     ? entity.mention
     : undefined;
@@ -2130,6 +2131,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           summary.checkedInReservationCount > 0 && summary.collectionCoverageRate < 0.8
             ? `当前${coverageText}，未记录不代表客户没有等待或离店。`
             : undefined;
+        const asksActiveWaiting = /(?:还有多少|哪些|谁|名单|明细).*(?:等待|等候)|(?:等待|等候).*(?:还有多少|哪些|谁|名单|明细)/.test(
+          input.question,
+        );
         const answer =
           summary.longWaitDepartureCount > 0
             ? `${range.label}有 ${summary.longWaitDepartureCount} 位客户明确记录为因等待过久离店；全部原因离店 ${summary.leftCount} 位。${coverageText}。`
@@ -2161,7 +2165,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
               ],
               citationIds: ['customer_waiting_summary'],
             },
-            ...(result.longWaitDepartures.length
+            ...(/(?:离开|走了|流失|等太久|等待过久)/.test(input.question)
               ? [
                   {
                     kind: 'table' as const,
@@ -2175,6 +2179,21 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                       'reasonNote',
                     ],
                     citationIds: ['customer_long_wait_departures'],
+                  },
+                ]
+              : []),
+            ...(asksActiveWaiting
+              ? [
+                  {
+                    kind: 'table' as const,
+                    rows: result.activeWaiting.slice(0, this.resolveLimit(input.args.limit, 20)),
+                    columns: [
+                      'customerName',
+                      'actualWaitMinutes',
+                      'expectedWaitMinutes',
+                      'startedAt',
+                    ],
+                    citationIds: ['customer_waiting_summary'],
                   },
                 ]
               : []),
@@ -4752,17 +4771,30 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         }
         const customerMention = structuredEntityMentions(input.args as BrainCapabilityToolArgs)
           .filter((entity) => entity.entityType === 'customer')
-          .map((entity) => specificCustomerMention(entity))
+          .map((entity) => specificCustomerMention(entity, input.question))
           .find((mention): mention is string => Boolean(mention));
-        if (
-          customerMention &&
-          /(?:上次|最近).*(?:来|到店)|(?:客户)?.{0,10}(?:资料|信息|基本信息)|多久没来/.test(input.question)
-        ) {
+        if (/(?:上次|最近).*(?:来|到店)|(?:客户)?.{0,10}(?:资料|信息|基本信息)|多久没来/.test(input.question)) {
           const result = await this.customerFacts.getExactCustomerBasicSummary({
             storeId: input.context.storeId,
             message: input.question,
             customerName: customerMention,
           });
+          if (result.status === 'missing_identity') {
+            const question = '请提供客户姓名或手机号后四位后继续。';
+            return {
+              status: 'completed',
+              answer: question,
+              citations: [],
+              grounding: 'none',
+              blocks: [{ kind: 'clarification', question, options: [] }],
+              metadata: {
+                capabilityKey: 'customer_facts',
+                unsupportedReason: 'customer_identity_requires_clarification',
+                clarification: { questions: [question], missingSlots: ['entity'], ambiguities: [] },
+                completion: { status: 'partial', missingCriteria: ['entity'], recoverable: true },
+              },
+            };
+          }
           if (result.status === 'ambiguous') {
             const question = '找到多位匹配客户，请补充手机号后四位后继续。';
             return {
@@ -4868,6 +4900,31 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             input.question,
           )
         ) {
+          const structuredSegment = typeof this.customerFacts.getStructuredMarketingSegment === 'function'
+            ? await this.customerFacts.getStructuredMarketingSegment({
+                storeId: input.context.storeId,
+                message: input.question,
+              })
+            : undefined;
+          if (structuredSegment) {
+            return this.answer({
+              answer: structuredSegment.answer,
+              citationId: 'capability_marketing_customer_segment',
+              citationLabel: '营销客户分群事实',
+              blocks: [
+                {
+                  kind: 'table',
+                  rows: structuredSegment.rows,
+                  columns: structuredSegment.columns,
+                  citationIds: ['capability_marketing_customer_segment'],
+                },
+                ...(structuredSegment.limitation
+                  ? [{ kind: 'limitations' as const, items: [structuredSegment.limitation] }]
+                  : []),
+              ],
+              metadata: { rangeLabel: range.label, segmentDetail: true, structuredResult: true },
+            });
+          }
           const answer = await this.customerFacts.answerCustomerFactQuestion({
             storeId: input.context.storeId,
             message: input.question,

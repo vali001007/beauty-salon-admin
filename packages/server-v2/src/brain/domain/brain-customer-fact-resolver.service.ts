@@ -465,6 +465,25 @@ export class BrainCustomerFactResolverService {
     return '当前客户事实能力尚未注册该业务口径，不会编造回答。已接入精确客户、VIP、高价值、沉睡、生日、低余次卡、重要到店和营销响应客户查询。';
   }
 
+  async getStructuredMarketingSegment(input: { storeId: number; message: string }): Promise<{
+    answer: string;
+    rows: Array<Record<string, unknown>>;
+    columns: string[];
+    limitation?: string;
+  } | undefined> {
+    if (/(?:按|根据)?消费金额.*(?:分层|分一下层|分组)|客户.*消费金额.*层/.test(input.message)) {
+      return this.customerSpendingTierResult(input.storeId);
+    }
+    if (
+      /(?:只做过|做过).*(?:基础项目|基础护理).*(?:没有|没).*(?:升单|升级)|基础项目.*(?:未升单|没升单)/.test(
+        input.message,
+      )
+    ) {
+      return this.basicProjectWithoutUpgradeCustomerResult(input.storeId);
+    }
+    return undefined;
+  }
+
   async getCustomerRetentionSummary(input: {
     storeId: number;
     startDate?: Date;
@@ -867,6 +886,10 @@ export class BrainCustomerFactResolverService {
   }
 
   private async customerSpendingTiers(storeId: number) {
+    return (await this.customerSpendingTierResult(storeId)).answer;
+  }
+
+  private async customerSpendingTierResult(storeId: number) {
     const [total, customers] = await Promise.all([
       this.prisma.customer.count({ where: { storeId, deletedAt: null } }),
       this.prisma.customer.findMany({
@@ -883,7 +906,7 @@ export class BrainCustomerFactResolverService {
       rows.push(customer);
       grouped.set(tier.score, rows);
     }
-    const lines = CUSTOMER_MONETARY_TIERS.map((tier, index) => {
+    const rows = CUSTOMER_MONETARY_TIERS.map((tier) => {
       const rows = grouped.get(tier.score) ?? [];
       const range =
         tier.max === null
@@ -895,16 +918,23 @@ export class BrainCustomerFactResolverService {
         .slice(0, 3)
         .map((customer) => `${customer.name} ${formatBrainMoney(toBrainNumber(customer.totalSpent))}`)
         .join('、');
-      return `${index + 1}. ${tier.label}（${range}）：${rows.length} 人${examples ? `；示例 ${examples}` : ''}`;
+      return { tier: tier.label, range, customerCount: rows.length, examples };
     });
     const coverage =
       total > customers.length
         ? `本次分析前 ${customers.length}/${total} 位客户，结果为受控样本`
         : `覆盖当前门店 ${total} 位客户`;
-    return `客户累计消费金额分层（复用管理端客户画像 M 值阈值，${coverage}）：\n${lines.join('\n')}`;
+    const answer = `客户累计消费金额分层（复用管理端客户画像 M 值阈值，${coverage}）：\n${rows
+      .map((row, index) => `${index + 1}. ${row.tier}（${row.range}）：${row.customerCount} 人${row.examples ? `；示例 ${row.examples}` : ''}`)
+      .join('\n')}`;
+    return { answer, rows, columns: ['tier', 'range', 'customerCount', 'examples'] };
   }
 
   private async basicProjectWithoutUpgradeCustomers(storeId: number) {
+    return (await this.basicProjectWithoutUpgradeCustomerResult(storeId)).answer;
+  }
+
+  private async basicProjectWithoutUpgradeCustomerResult(storeId: number) {
     const projects = await this.prisma.project.findMany({
       where: { storeId, deletedAt: null, status: 'active' },
       select: { id: true, name: true, type: { select: { name: true } } },
@@ -914,7 +944,13 @@ export class BrainCustomerFactResolverService {
       projects.filter((project) => /基础/.test(project.type?.name ?? '')).map((project) => project.id),
     );
     if (!basicProjectIds.size) {
-      return '当前门店项目类型没有标记“基础”的项目，无法识别基础项目未升单客户；Ami Brain 不会按价格猜测项目层级。';
+      const answer = '当前门店项目类型没有标记“基础”的项目，无法识别基础项目未升单客户；Ami Brain 不会按价格猜测项目层级。';
+      return {
+        answer,
+        rows: [],
+        columns: ['customerName', 'basicProjects', 'totalSpent', 'lastVisitDate'],
+        limitation: 'no_data:basic_project_type_not_configured',
+      };
     }
     const items = await this.prisma.orderItem.findMany({
       where: {
@@ -960,13 +996,24 @@ export class BrainCustomerFactResolverService {
     const rows = Array.from(grouped.values())
       .filter((customer) => customer.basicProjects.size > 0 && !customer.hasNonBasic)
       .sort((left, right) => right.totalSpent - left.totalSpent);
-    return this.formatCustomerRows(
+    const visibleRows = rows.slice(0, 10);
+    const answer = this.formatCustomerRows(
       '只购买过基础项目、尚无非基础项目消费的客户（基础项目按管理端 ProjectType 名称含“基础”识别）',
-      rows.slice(0, 10),
+      visibleRows,
       (customer) =>
         `${customer.name}：基础项目 ${Array.from(customer.basicProjects).join('、')}，累计消费 ${formatBrainMoney(customer.totalSpent)}${this.lastVisitText(customer.lastVisitDate)}`,
       rows.length,
     );
+    return {
+      answer,
+      rows: visibleRows.map((customer) => ({
+        customerName: customer.name,
+        basicProjects: Array.from(customer.basicProjects).join('、'),
+        totalSpent: customer.totalSpent,
+        lastVisitDate: customer.lastVisitDate,
+      })),
+      columns: ['customerName', 'basicProjects', 'totalSpent', 'lastVisitDate'],
+    };
   }
 
   private async treatmentRenewalCustomers(storeId: number) {
@@ -1583,8 +1630,8 @@ ${cardLines}`;
 
   private extractCustomerName(message: string) {
     const patterns = [
-      /(?:查一下|看一下|找一下|搜一下)(?:客户|顾客|客人|会员)?([\u4e00-\u9fa5·]{2,4})(?=的|，|,|。|$)/u,
-      /(?:查一下|看一下|找一下|搜一下|叫)([\u4e00-\u9fa5]{2,4})/,
+      /(?:帮我)?(?:查一下|看一下|找一下|搜一下)(?:客户|顾客|客人|会员)?([\u4e00-\u9fa5·]{2,4})(?=的|，|,|。|$)/u,
+      /(?:帮我)?(?:查一下|看一下|找一下|搜一下|叫)([\u4e00-\u9fa5]{2,4})/,
       /^([\u4e00-\u9fa5]{2,4})(?:上次|有没有|之前|的)/,
     ];
     for (const pattern of patterns) {

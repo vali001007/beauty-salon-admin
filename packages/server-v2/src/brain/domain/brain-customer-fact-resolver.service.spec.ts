@@ -488,6 +488,11 @@ describe('BrainCustomerFactResolverService', () => {
     expect(answer).toContain('复用管理端客户画像 M 值阈值');
     expect(answer).toContain('M5 核心消费层');
     expect(answer).toContain('M0 未消费层');
+    await expect(service.getStructuredMarketingSegment({ storeId: 6, message: '帮我把客户按消费金额分一下层' }))
+      .resolves.toMatchObject({
+        columns: ['tier', 'range', 'customerCount', 'examples'],
+        rows: expect.arrayContaining([expect.objectContaining({ tier: 'M5 核心消费层', customerCount: 1 })]),
+      });
   });
 
   it('finds discount-sensitive customers from real order discount facts', async () => {
@@ -526,6 +531,11 @@ describe('BrainCustomerFactResolverService', () => {
     expect(answer).toContain('李女士');
     expect(answer).not.toContain('王女士');
     expect(answer).toContain('ProjectType 名称含“基础”');
+    await expect(service.getStructuredMarketingSegment({ storeId: 6, message: '帮我找一下只做过基础项目没有升单的客户' }))
+      .resolves.toMatchObject({
+        columns: ['customerName', 'basicProjects', 'totalSpent', 'lastVisitDate'],
+        rows: [expect.objectContaining({ customerName: '李女士', basicProjects: '深层补水护理' })],
+      });
   });
 
   it('deduplicates active low-balance cards into treatment-renewal customers', async () => {
