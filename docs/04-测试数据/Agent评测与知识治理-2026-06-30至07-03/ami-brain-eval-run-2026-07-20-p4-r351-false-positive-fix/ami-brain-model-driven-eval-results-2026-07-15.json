@@ -1,0 +1,1396 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-20T00:59:21.205Z",
+    "startedAt": "2026-07-20T00:58:10.761Z",
+    "finishedAt": "2026-07-20T00:59:21.205Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\agent-eval-questions.md",
+    "questionCount": 7,
+    "actualRunCount": 7,
+    "actualTurnCount": 7,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "releaseId": 351,
+    "gate": null,
+    "releaseSnapshot": {
+      "releaseFingerprint": "6312b46f23cf45aa03daffe56c9c32d58666061e97cc09280a656e58f6fca2d5",
+      "declaredMode": "shadow",
+      "resourceVersionIds": [
+        834,
+        835,
+        836,
+        837,
+        838,
+        839,
+        840,
+        841,
+        843,
+        844,
+        845,
+        846,
+        847,
+        848,
+        849,
+        850,
+        851,
+        852,
+        854,
+        855,
+        856,
+        857,
+        858,
+        859,
+        860,
+        861,
+        864,
+        865,
+        867,
+        868,
+        870,
+        871,
+        872,
+        874,
+        875,
+        876,
+        877
+      ],
+      "capabilityKeys": [
+        "appointment_gap_list",
+        "beautician_customer_card_progress",
+        "beautician_material_preparation",
+        "beautician_personal_performance",
+        "beautician_service_overview",
+        "card_usage_action_preview",
+        "customer_facts",
+        "customer_follow_up_draft",
+        "customer_priority_recommendation",
+        "finance_material_cost_summary",
+        "finance_payment_breakdown",
+        "finance_risk_overview",
+        "finance_staff_refund_rate_boundary",
+        "finance_transaction_anomaly_review",
+        "front_desk_operations_overview",
+        "gap_fill_touch_preview",
+        "inventory_operations_overview",
+        "inventory_procurement_advice",
+        "inventory_receipt_discrepancy_guidance",
+        "inventory_risk_ranking",
+        "manager_staff_overview",
+        "marketing_campaign_cost_attribution_review",
+        "marketing_campaign_plan",
+        "marketing_customer_segment",
+        "marketing_growth_overview",
+        "marketing_message_draft",
+        "marketing_strategy_execute_preview",
+        "marketing_touch_draft",
+        "order_revenue_analysis",
+        "product_sales_ranking",
+        "project_margin_analysis",
+        "project_material_consumption_analysis",
+        "project_service_ranking",
+        "reservation_action_preview",
+        "reservation_list",
+        "staff_performance_ranking",
+        "store_operations_overview"
+      ]
+    },
+    "candidateSkillsEnabledForEval": true,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "permissionSource": "active_backend_role_catalog_plus_candidate_minimum_permissions",
+    "evaluationRoleKeys": [
+      "finance",
+      "inventory",
+      "marketing",
+      "receptionist",
+      "store_manager"
+    ],
+    "evaluationUserIds": {
+      "finance": 29,
+      "inventory": 1,
+      "marketing": 1,
+      "receptionist": 29,
+      "store_manager": 28
+    },
+    "permissionCatalogRoleKeys": [
+      "ami_demo_full_beautician",
+      "ami_demo_full_cashier",
+      "ami_demo_full_manager",
+      "beautician",
+      "cashier",
+      "store_manager",
+      "super_admin"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。",
+      "provider_unavailable": "模型供应商不可用，单列为评测基础设施失败，不进入产品可用率分母。",
+      "sixLayerGate": "意图、工具、计划、执行、完成度、答案六层必须全部通过；确定性失败不可被 LLM Judge 覆盖。"
+    }
+  },
+  "summary": {
+    "total": 7,
+    "evaluableTotal": 7,
+    "providerUnavailableCount": 0,
+    "legacyUsableWithCitation": 1,
+    "legacyUsableRate": 0.14285714285714285,
+    "trueUsable": 6,
+    "trueUsableRate": 0.8571428571428571,
+    "observedTrueUsableRate": 0.8571428571428571,
+    "contractPassed": 6,
+    "contractPassRate": 0.8571428571428571,
+    "expectedBoundaryPassed": 3,
+    "conversationGate": {
+      "scenarioCount": 0,
+      "passedScenarioCount": 0,
+      "contractPassedScenarioCount": 0,
+      "turnCount": 7,
+      "passedTurnCount": 6,
+      "contractPassedTurnCount": 6
+    },
+    "byStatus": [
+      {
+        "key": "usable_partial",
+        "total": 4,
+        "evaluableTotal": 4,
+        "usable": 4,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "usable_exact",
+        "total": 2,
+        "evaluableTotal": 2,
+        "usable": 2,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "unsupported_intent",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 1,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "edge",
+        "total": 3,
+        "evaluableTotal": 3,
+        "usable": 2,
+        "usableRate": 0.6666666666666666,
+        "metricFailed": 0,
+        "unsupportedIntent": 1,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "finance",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "inventory",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "marketing",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "reception",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "代词和上下文继承测试",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 1,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "跨场景融合问题",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "收入与对账",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "消耗分析",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "意图模糊测试",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "预约管理",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "自动化与触达规则",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [
+      {
+        "reason": "intent:intent_mismatch",
+        "count": 1
+      }
+    ],
+    "securityGate": {
+      "permissionBypassCount": 0,
+      "crossStoreReadCount": 0,
+      "roleHintBypassCount": 0,
+      "fakeActionConfirmationCount": 0
+    },
+    "grounding": {
+      "metricQueryCount": 1,
+      "dbSkillCount": 1,
+      "templateSkillCount": 0,
+      "previewActionCount": 0,
+      "noneCount": 5
+    },
+    "adapterDistribution": [
+      {
+        "reason": "none",
+        "count": 7
+      }
+    ],
+    "domainDistribution": [
+      {
+        "reason": "customer",
+        "count": 4
+      },
+      {
+        "reason": "reservation",
+        "count": 2
+      },
+      {
+        "reason": "beautician",
+        "count": 1
+      },
+      {
+        "reason": "marketing",
+        "count": 1
+      },
+      {
+        "reason": "none",
+        "count": 1
+      },
+      {
+        "reason": "order",
+        "count": 1
+      },
+      {
+        "reason": "payment",
+        "count": 1
+      },
+      {
+        "reason": "product",
+        "count": 1
+      },
+      {
+        "reason": "product_order",
+        "count": 1
+      },
+      {
+        "reason": "project",
+        "count": 1
+      }
+    ],
+    "capabilityDistribution": [
+      {
+        "reason": "none",
+        "count": 5
+      },
+      {
+        "reason": "finance_material_cost_summary",
+        "count": 1
+      },
+      {
+        "reason": "order_revenue_analysis",
+        "count": 1
+      }
+    ],
+    "executionPathDistribution": [
+      {
+        "reason": "model_primary",
+        "count": 6
+      },
+      {
+        "reason": "exact_contract_fast_path",
+        "count": 1
+      }
+    ],
+    "sixLayer": {
+      "intent": {
+        "total": 7,
+        "passed": 6,
+        "passRate": 0.8571428571428571,
+        "averageScore": 0.8928571428571429
+      },
+      "tool": {
+        "total": 7,
+        "passed": 6,
+        "passRate": 0.8571428571428571,
+        "averageScore": 0.8571428571428571
+      },
+      "plan": {
+        "total": 7,
+        "passed": 6,
+        "passRate": 0.8571428571428571,
+        "averageScore": 0.9285714285714286
+      },
+      "execution": {
+        "total": 7,
+        "passed": 7,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "completion": {
+        "total": 7,
+        "passed": 6,
+        "passRate": 0.8571428571428571,
+        "averageScore": 0.8928571428571429
+      },
+      "answer": {
+        "total": 7,
+        "passed": 6,
+        "passRate": 0.8571428571428571,
+        "averageScore": 0.7142857142857143
+      }
+    },
+    "latency": {
+      "avgMs": 9997,
+      "p95Ms": 13375,
+      "maxMs": 13375
+    }
+  },
+  "records": [
+    {
+      "questionId": "qb-marketing-automation-touch-089",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "自动化与触达规则",
+      "sourceIndex": 89,
+      "persona": "marketing",
+      "question": "有没有办法让系统自动识别客户的节假日并发关怀",
+      "status": "usable_partial",
+      "brainStatus": "completed",
+      "latencyMs": 13375,
+      "conversationId": 33016,
+      "runId": 33241,
+      "answer": "后台已有客户和营销触达能力，但尚未发布客户节假日识别、触发日历、渠道冷却和送达回执的一体化自动化合同。 Ami Brain 不会用相近指标、概览数据或推测结果替代。",
+      "citations": [],
+      "domains": [
+        "customer"
+      ],
+      "capabilityKeys": [],
+      "grounding": "none",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "compile",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_partial",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "能力边界已明确披露：后台已有客户和营销触达能力，但尚未发布客户节假日识别、触发日历、渠道冷却和送达回执的一体化自动化合同。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": false,
+        "requiresComplete": false
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "marketing.growth.execution"
+        ],
+        "unresolved": [
+          "entity:marketing_activity"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 0.75,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "contractPassed": true,
+      "expectedBoundary": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-reception-reservation-management-032",
+      "sourceSection": "三、前台接待 Agent",
+      "sourceCategory": "预约管理",
+      "sourceIndex": 32,
+      "persona": "reception",
+      "question": "今天有没有可能爽约的预约需要提前联系",
+      "status": "usable_partial",
+      "brainStatus": "completed",
+      "latencyMs": 12292,
+      "conversationId": 33017,
+      "runId": 33242,
+      "answer": "后台已有预约状态和到店结果，但尚未发布预约爽约概率模型、风险阈值和可解释特征，不能用普通客户跟进优先级替代。 Ami Brain 不会用相近指标、概览数据或推测结果替代。",
+      "citations": [],
+      "domains": [
+        "reservation",
+        "customer"
+      ],
+      "capabilityKeys": [],
+      "grounding": "none",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "compile",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_partial",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "non_metric",
+        "expectedMetric": "appointment_count",
+        "reason": "能力边界已明确披露：后台已有预约状态和到店结果，但尚未发布预约爽约概率模型、风险阈值和可解释特征，不能用普通客户跟进优先级替代。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": false,
+        "requiresComplete": false
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "reservation"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "reception.service.workflow"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 0.75,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "contractPassed": true,
+      "expectedBoundary": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-consumption-analysis-076",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "消耗分析",
+      "sourceIndex": 76,
+      "persona": "inventory",
+      "question": "帮我看一下耗材成本占服务收入的比例",
+      "status": "usable_partial",
+      "brainStatus": "completed",
+      "latencyMs": 7555,
+      "conversationId": 33018,
+      "runId": 33243,
+      "answer": "耗材成本：0.00 元；耗材成本占收入：暂无。\n\n数据依据：财务收入与耗材成本分析。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "finance_cost_analysis",
+          "label": "财务收入与耗材成本分析"
+        }
+      ],
+      "domains": [
+        "product",
+        "order"
+      ],
+      "capabilityKeys": [
+        "finance_material_cost_summary"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_partial",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "scalar_metric",
+        "expectedMetric": "material_cost_rate",
+        "reason": "数据库技能返回了请求数值，并附带了扩展业务明细。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "answerShape": "scalar",
+        "domains": [],
+        "entities": [],
+        "metrics": [
+          "material_cost_rate"
+        ],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "finance_material_cost_summary",
+          "inventory_operations_overview",
+          "inventory_procurement_advice",
+          "inventory_risk_ranking",
+          "product_sales_ranking",
+          "project_material_consumption_analysis"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "material_cost_rate"
+        ],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "product"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "finance_material_cost_summary",
+          "inventory_operations_overview",
+          "inventory_procurement_advice",
+          "inventory_risk_ranking",
+          "product_sales_ranking",
+          "project_material_consumption_analysis"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 0.75,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "contractPassed": true,
+      "expectedBoundary": false,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-023",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 23,
+      "persona": "finance",
+      "question": "今天的日均客单价是多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2388,
+      "conversationId": 33019,
+      "runId": 33244,
+      "answer": "指标：客单价：0（口径版本 2）。\n\n数据依据：业务定义：客单价。",
+      "citations": [
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.average_order_value@2",
+          "label": "业务定义：客单价",
+          "definition": "指定周期内当前门店有效订单实收金额除以有效订单数得到的平均每单金额。"
+        }
+      ],
+      "domains": [
+        "product_order",
+        "payment"
+      ],
+      "capabilityKeys": [
+        "order_revenue_analysis"
+      ],
+      "grounding": "metric_query",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "metric_query",
+        "actualIntent": "metric_query",
+        "expectedShape": "scalar_metric",
+        "actualShape": "scalar_metric",
+        "expectedMetric": "average_order_value",
+        "actualMetric": "average_order_value",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "metric_query"
+      },
+      "expected": {
+        "intent": "query",
+        "answerShape": "scalar",
+        "domains": [],
+        "entities": [],
+        "metrics": [
+          "average_order_value"
+        ],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "order_revenue_analysis"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "average_order_value"
+        ],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "order_revenue_analysis"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "contractPassed": true,
+      "expectedBoundary": false,
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "qb-edge-ambiguous-intent-003",
+      "sourceSection": "附：Edge Case 与多轮对话测试问题",
+      "sourceCategory": "意图模糊测试",
+      "sourceIndex": 3,
+      "persona": "edge",
+      "question": "有什么问题吗",
+      "status": "usable_exact",
+      "brainStatus": "clarify",
+      "latencyMs": 12831,
+      "conversationId": 33020,
+      "runId": 33245,
+      "answer": "为了准确处理，请一次确认：请补充目标或要处理的问题；“有什么问题吗”未指明需检查的业务域、对象或范围，无法确定是经营、财务、库存、预约、客户还是员工问题。（门店整体经营风险、财务与退款优惠风险、库存风险、预约现场问题、客户经营问题、员工运营问题）？",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "grounding": "none",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "validate",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "clarify",
+        "actualIntent": "clarify",
+        "expectedShape": "clarification",
+        "actualShape": "clarification",
+        "reason": "返回了结构化合并式澄清。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "clarify",
+        "answerShape": "clarification",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "brainStatuses": [
+          "clarify"
+        ],
+        "requiresGrounding": false,
+        "requiresComplete": false
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "contractPassed": true,
+      "expectedBoundary": false,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-edge-context-inherit-019",
+      "sourceSection": "附：Edge Case 与多轮对话测试问题",
+      "sourceCategory": "代词和上下文继承测试",
+      "sourceIndex": 19,
+      "persona": "edge",
+      "question": "今天哪个时间段还有空档？（然后）能不能再加一个客人进去？",
+      "status": "unsupported_intent",
+      "brainStatus": "clarify",
+      "latencyMs": 11134,
+      "conversationId": 33021,
+      "runId": 33246,
+      "answer": "可以先生成加客预览，但需要你确认客户、服务项目和目标空档时段。请先补充这三项中的缺失信息。",
+      "citations": [],
+      "domains": [
+        "reservation",
+        "customer",
+        "beautician",
+        "project"
+      ],
+      "capabilityKeys": [],
+      "grounding": "none",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "validate",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "action",
+        "actualIntent": "clarify",
+        "expectedShape": "non_metric",
+        "actualShape": "clarification",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "action",
+        "answerShape": "action_preview",
+        "domains": [
+          "customer"
+        ],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [
+          "customerName"
+        ],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": true,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "card_usage_action_preview",
+          "customer_follow_up_draft",
+          "gap_fill_touch_preview",
+          "marketing_strategy_execute_preview",
+          "marketing_touch_draft",
+          "reservation_action_preview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [
+          "customerName"
+        ],
+        "entityKeys": [
+          "customer",
+          "reservation"
+        ],
+        "domainKeys": [
+          "customer"
+        ],
+        "capabilityKeys": [
+          "card_usage_action_preview",
+          "customer_follow_up_draft",
+          "gap_fill_touch_preview",
+          "marketing_strategy_execute_preview",
+          "marketing_touch_draft",
+          "reservation_action_preview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0.25,
+          "checked": 4,
+          "failures": [
+            "intent_mismatch",
+            "dimension_missing:customerName",
+            "answer_shape_mismatch"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_any_of_missing:card_usage_action_preview|customer_follow_up_draft|gap_fill_touch_preview|marketing_strategy_execute_preview|marketing_touch_draft|reservation_action_preview"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": false,
+          "score": 0.5,
+          "checked": 4,
+          "failures": [
+            "plan_nodes_below:1",
+            "plan_preview_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0.25,
+          "checked": 4,
+          "failures": [
+            "brain_status:clarify",
+            "completion_status:partial",
+            "completion_grounding_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "unsupported_intent"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "contractPassed": false,
+      "expectedBoundary": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "intent:intent_mismatch"
+    },
+    {
+      "questionId": "qb-edge-cross-domain-028",
+      "sourceSection": "附：Edge Case 与多轮对话测试问题",
+      "sourceCategory": "跨场景融合问题",
+      "sourceIndex": 28,
+      "persona": "edge",
+      "question": "新招了个美容师，怎么快速帮她建立客源",
+      "status": "usable_partial",
+      "brainStatus": "completed",
+      "latencyMs": 10402,
+      "conversationId": 33022,
+      "runId": 33247,
+      "answer": "后台已有员工表现和客户分群事实，但尚未发布新员工客户分配、服务承接、归属变更和效果归因的统一增长闭环。 Ami Brain 不会用相近指标、概览数据或推测结果替代。",
+      "citations": [],
+      "domains": [
+        "customer",
+        "marketing"
+      ],
+      "capabilityKeys": [],
+      "grounding": "none",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "compile",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_partial",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "能力边界已明确披露：后台已有员工表现和客户分群事实，但尚未发布新员工客户分配、服务承接、归属变更和效果归因的统一增长闭环。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": false,
+        "requiresComplete": false
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "beautician"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 0.75,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "contractPassed": true,
+      "expectedBoundary": true,
+      "legacyStatus": "not_usable"
+    }
+  ]
+}
