@@ -451,6 +451,7 @@ describe('BrainCapabilityCodegenService', () => {
             serviceClass: 'BrainSemanticQueryCapabilityExecutor',
             executorTarget: {
               kind: 'service',
+              executorKind: 'semantic',
               className: 'BrainSemanticQueryCapabilityExecutor',
               methodName: 'productSalesRanking',
               sourcePath:
@@ -482,6 +483,7 @@ describe('BrainCapabilityCodegenService', () => {
       },
       manifest: {
         name: '商品销售排行',
+        grounding: 'semantic_query',
         intents: ['ranking'],
         definitionRefs: expect.arrayContaining([
           expect.objectContaining({ definitionKey: 'metric.product_sales_quantity' }),
@@ -491,6 +493,81 @@ describe('BrainCapabilityCodegenService', () => {
     });
     expect(semanticCompiler.compile).toHaveBeenCalledTimes(1);
     expect(narrativeGenerator.generate).not.toHaveBeenCalled();
+  });
+
+  it('keeps a declared domain executor on domain_service even when it references a queryable metric', async () => {
+    const definition = v2DefinitionEntry();
+    snapshotSource.loadPublishedSnapshot.mockResolvedValue({
+      snapshotFingerprint: snapshotFingerprint([definition]),
+      definitions: [definition],
+    });
+    const semanticCompiler = {
+      compile: jest.fn().mockResolvedValue({
+        canonicalSemantics: {
+          key: 'finance_material_cost_summary',
+          name: '耗材成本分析',
+          description: '计算耗材成本占服务收入比例。',
+          domains: ['product'],
+          intents: ['query'],
+          riskLevel: 'low',
+          requiredPermissions: ['core:finance:view'],
+          storeScope: 'required',
+          examples: ['耗材成本占服务收入的比例'],
+          negativeExamples: ['修改耗材成本口径'],
+          synonyms: ['耗材成本率'],
+          successSchema: { type: 'object' },
+        },
+        narrative: {
+          description: '计算耗材成本占服务收入比例。',
+          positiveExamples: ['耗材成本占服务收入的比例'],
+          negativeExamples: ['修改耗材成本口径'],
+          synonyms: ['耗材成本率'],
+          successSchema: { type: 'object' },
+          riskExplanation: '只读取当前门店授权数据。',
+        },
+      }),
+    };
+    const capability = {
+      ...candidate(),
+      key: 'finance_material_cost_summary',
+      name: 'BrainFocusedBusinessCapabilityExecutor.financeMaterialCostSummary',
+      businessDefinitionKeys: ['metric.product_sales_quantity'],
+      requiredPermissions: ['core:finance:view'],
+      inputContract: { question: 'required:string' },
+      outputContract: { return: 'Promise<BrainDomainAnswer>' },
+      evidence: [
+        {
+          sourceType: 'service' as const,
+          path: 'packages/server-v2/src/brain/capability/executors/brain-focused-business-capability.executor.ts',
+          line: 1,
+          symbol: 'BrainFocusedBusinessCapabilityExecutor.financeMaterialCostSummary',
+          data: {
+            serviceClass: 'BrainFocusedBusinessCapabilityExecutor',
+            executorTarget: {
+              kind: 'service',
+              executorKind: 'domain',
+              className: 'BrainFocusedBusinessCapabilityExecutor',
+              methodName: 'financeMaterialCostSummary',
+              sourcePath:
+                'packages/server-v2/src/brain/capability/executors/brain-focused-business-capability.executor.ts',
+              exportedClass: true,
+              methodAccess: 'public',
+              parameterCount: 2,
+              parameterTypes: ['BrainCapabilityToolArgs', 'BrainCapabilityExecutionInput'],
+              returnType: 'Promise<BrainDomainAnswer>',
+            },
+          },
+        },
+      ],
+    };
+
+    const result = await createService(semanticCompiler).generate({ scan: scanReport([capability]) });
+
+    expect(result.blocked).toEqual([]);
+    expect(result.proposals[0]).toMatchObject({
+      manifest: { grounding: 'domain_service' },
+      executorBinding: { target: { executorKind: 'domain' } },
+    });
   });
 });
 

@@ -59,6 +59,22 @@ async function main() {
           });
           return result.staff as unknown as Record<string, unknown>[];
         }
+        if (input.resolverKey === 'manager_operations_analysis') {
+          const result = await managerSkills.buildOperationsAnalysis({
+            storeId: input.storeId,
+            startDate: input.startDate,
+            endDate: new Date(input.endExclusive.getTime() - 1),
+          });
+          return [result as unknown as Record<string, unknown>];
+        }
+        if (input.resolverKey === 'finance_cost_analysis') {
+          const result = await financeSkills.buildCostAnalysis({
+            storeId: input.storeId,
+            startDate: input.startDate,
+            endDate: new Date(input.endExclusive.getTime() - 1),
+          });
+          return [result as unknown as Record<string, unknown>];
+        }
         if (input.resolverKey === 'inventory_risk_summary') {
           const result = await inventorySkills.buildInventoryRiskSummary({
             storeId: input.storeId,

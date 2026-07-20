@@ -20,6 +20,9 @@ describe('matchBrainCapabilityBoundary', () => {
     ['帮我做一个疗程快结束时自动提醒续购的规则', 'marketing_automation_rule_publish_not_open'],
     ['这个客人想改变护理方向，我怎么给她分析', 'active_customer_care_plan_change_context_not_connected'],
     ['有没有长期未消耗的大额储值需要关注', 'stored_value_aging_risk_not_connected'],
+    ['有没有办法让系统自动识别客户的节假日并发关怀', 'customer_holiday_automation_trigger_not_connected'],
+    ['今天有没有可能爽约的预约需要提前联系', 'reservation_no_show_prediction_not_connected'],
+    ['新招了个美容师，怎么快速帮她建立客源', 'new_beautician_customer_growth_loop_not_connected'],
   ])('matches governed capability gap for %s', (question, code) => {
     expect(matchBrainCapabilityBoundary(question)).toMatchObject({ code });
   });

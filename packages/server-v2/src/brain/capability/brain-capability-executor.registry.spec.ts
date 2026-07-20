@@ -439,6 +439,59 @@ describe('BrainSemanticQueryCapabilityExecutor', () => {
     expect(answer.citations).toEqual([expect.objectContaining({ sourceId: 'metric.product_sales_amount@2' })]);
   });
 
+  it('loads frozen validated metric definitions only for a server-owned evaluation release', async () => {
+    const candidateMetric = publishedMetric(
+      'average_order_value',
+      { dimensions: [], capabilityKeys: ['order_revenue_analysis'], outputFields: ['averageOrderValue'] },
+      { formula: { type: 'sum', model: 'ProductOrder', field: 'netAmount' } },
+    );
+    const definitionProvider = provider([]) as ReturnType<typeof provider> & {
+      loadEvaluationDefinitions: jest.Mock;
+    };
+    definitionProvider.loadEvaluationDefinitions = jest.fn().mockResolvedValue({
+      entities: [],
+      relations: [],
+      dimensions: [],
+      metrics: [candidateMetric],
+    });
+    const findMany = jest.fn().mockResolvedValue([{ netAmount: 88 }]);
+    const executor = new BrainSemanticQueryCapabilityExecutor(
+      definitionProvider as never,
+      parser as never,
+      { productOrder: { findMany } } as never,
+    );
+    const capabilityCard = card('order_revenue_analysis', 'semantic', {
+      requiredPermissions: ['core:metric:view'],
+      intents: ['query'],
+      definitionRefs: [
+        {
+          definitionId: 10,
+          versionId: 144,
+          definitionKey: 'metric.average_order_value',
+          version: 1,
+          definitionFingerprint: 'd'.repeat(64),
+          sourceFingerprint: 'e'.repeat(64),
+        },
+      ],
+    });
+
+    const answer = await executor.execute(
+      input(capabilityCard, {
+        context: context({
+          governanceEvalReleaseId: 349,
+          governanceEvalReleaseSnapshot: {} as never,
+        }),
+        question: '今天的日均客单价是多少',
+        answerShape: 'scalar',
+        args: { metrics: [{ definitionKey: 'metric.average_order_value' }] },
+      }),
+    );
+
+    expect(definitionProvider.loadEvaluationDefinitions).toHaveBeenCalledWith([144]);
+    expect(definitionProvider.loadActiveDefinitions).not.toHaveBeenCalled();
+    expect(answer.answer).toContain('average_order_value 88');
+  });
+
   it('rejects a ranking capability bound only to diagnosis metrics', async () => {
     const semanticQuery = { productOrder: { findMany: jest.fn() } };
     const executor = new BrainSemanticQueryCapabilityExecutor(

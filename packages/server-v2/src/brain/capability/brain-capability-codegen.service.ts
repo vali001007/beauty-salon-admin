@@ -842,6 +842,19 @@ function deriveExecutableCapabilityGrounding(
   capability: BrainCapabilityCandidate,
   definitions: BrainBusinessDefinitionSnapshotEntry[],
 ): 'semantic_query' | 'domain_service' | 'preview_action' {
+  const declaredExecutorKinds = uniqueSorted(
+    capability.evidence.flatMap((item) => {
+      if (!['controller', 'service'].includes(item.sourceType)) return [];
+      const target = isRecord(item.data.executorTarget) ? item.data.executorTarget : undefined;
+      const executorKind = target?.executorKind;
+      return typeof executorKind === 'string' ? [executorKind] : [];
+    }),
+  );
+  if (declaredExecutorKinds.length === 1) {
+    if (declaredExecutorKinds[0] === 'domain') return 'domain_service';
+    if (declaredExecutorKinds[0] === 'semantic') return 'semantic_query';
+    if (declaredExecutorKinds[0] === 'action') return 'preview_action';
+  }
   const executorIdentity = capability.evidence
     .filter((item) => item.sourceType === 'decorator')
     .map((item) => `${item.path}#${item.symbol}`)

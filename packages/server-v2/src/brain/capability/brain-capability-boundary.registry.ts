@@ -8,6 +8,27 @@ export interface BrainCapabilityBoundaryMatch {
 
 const RULES: ReadonlyArray<BrainCapabilityBoundaryMatch & { pattern: RegExp }> = [
   {
+    code: 'customer_holiday_automation_trigger_not_connected',
+    status: 'system_supported_agent_gap',
+    pattern:
+      /(?:系统|自动化).*(?:自动识别|识别).*(?:客户|会员).*(?:节假日|节日).*(?:关怀|消息|触达)|(?:客户|会员).*(?:节假日|节日).*(?:自动).*(?:关怀|消息|触达)/,
+    reason: '后台已有客户和营销触达能力，但尚未发布客户节假日识别、触发日历、渠道冷却和送达回执的一体化自动化合同。',
+  },
+  {
+    code: 'reservation_no_show_prediction_not_connected',
+    status: 'system_supported_agent_gap',
+    pattern:
+      /(?:可能|预测|风险).*(?:爽约|不来).*(?:预约|客户|客人)|(?:预约|客户|客人).*(?:可能|预测|风险).*(?:爽约|不来)/,
+    reason: '后台已有预约状态和到店结果，但尚未发布预约爽约概率模型、风险阈值和可解释特征，不能用普通客户跟进优先级替代。',
+  },
+  {
+    code: 'new_beautician_customer_growth_loop_not_connected',
+    status: 'system_supported_agent_gap',
+    pattern:
+      /(?:新招|新来的|新入职).*(?:美容师|员工|技师).*(?:建立客源|拓客|分配客户)|(?:美容师|员工|技师).*(?:建立客源|拓客).*(?:怎么|如何|快速)/,
+    reason: '后台已有员工表现和客户分群事实，但尚未发布新员工客户分配、服务承接、归属变更和效果归因的统一增长闭环。',
+  },
+  {
     code: 'coupon_redemption_lifecycle_not_available',
     status: 'system_unsupported',
     pattern: /优惠券.*(?:平均)?核销周期|(?:平均)?核销周期.*优惠券/,

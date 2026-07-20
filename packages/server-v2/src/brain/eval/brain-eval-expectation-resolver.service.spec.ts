@@ -66,6 +66,38 @@ describe('BrainEvalExpectationResolverService', () => {
         definitionFingerprint: 'c'.repeat(64),
         sourceFingerprint: 'd'.repeat(64),
       },
+      {
+        definitionKey: 'metric.average_order_value',
+        metricKey: 'average_order_value',
+        name: '客单价',
+        aliases: ['平均客单价', '日均客单价', '订单平均金额'],
+        domain: 'finance',
+        formula: {},
+        source: [],
+        defaultFilters: [],
+        permissions: [],
+        description: '平均每单金额',
+        runtimeQuery: { capabilityKeys: ['order_revenue_analysis'], dimensions: [] },
+        version: 1,
+        definitionFingerprint: '9'.repeat(64),
+        sourceFingerprint: '0'.repeat(64),
+      },
+      {
+        definitionKey: 'metric.material_cost_rate',
+        metricKey: 'material_cost_rate',
+        name: '耗材成本率',
+        aliases: ['耗材成本占服务收入比例'],
+        domain: 'finance',
+        formula: {},
+        source: [],
+        defaultFilters: [],
+        permissions: [],
+        description: '耗材成本除以服务收入',
+        runtimeQuery: { capabilityKeys: ['finance_material_cost_summary'], dimensions: [] },
+        version: 1,
+        definitionFingerprint: '5'.repeat(64),
+        sourceFingerprint: '6'.repeat(64),
+      },
     ],
     dimensions: [
       {
@@ -126,6 +158,58 @@ describe('BrainEvalExpectationResolverService', () => {
       capabilityAnyOf: ['order_revenue_analysis'],
     });
     expect(result.evidence.unresolved).toEqual([]);
+  });
+
+  it('resolves the governed average order value instead of falling back to paid amount', () => {
+    const result = service.resolve({
+      base: { intent: 'query', metrics: ['日均客单价'] },
+      definitions,
+      roleKey: 'store_manager',
+      releaseSnapshot: {
+        capabilityKeys: ['order_revenue_analysis'],
+        capabilityCandidates: [
+          {
+            key: 'order_revenue_analysis',
+            allowedRoles: ['store_manager'],
+            intents: ['query'],
+            domains: ['finance'],
+            definitionRefs: [{ definitionKey: 'metric.average_order_value' }],
+          },
+        ],
+      } as never,
+    });
+
+    expect(result.expectation).toMatchObject({
+      metrics: ['average_order_value'],
+      domains: ['finance'],
+      capabilityAnyOf: ['order_revenue_analysis'],
+    });
+  });
+
+  it('resolves material cost rate to the focused finance capability', () => {
+    const result = service.resolve({
+      base: { intent: 'query', metrics: ['耗材成本占服务收入比例'] },
+      definitions,
+      roleKey: 'inventory',
+      releaseSnapshot: {
+        capabilityKeys: ['finance_material_cost_summary'],
+        capabilityCandidates: [
+          {
+            key: 'finance_material_cost_summary',
+            allowedRoles: ['inventory', 'store_manager'],
+            intents: ['query'],
+            domains: ['finance'],
+            definitionRefs: [{ definitionKey: 'metric.material_cost_rate' }],
+          },
+        ],
+      } as never,
+    });
+
+    expect(result.expectation).toMatchObject({
+      metrics: ['material_cost_rate'],
+      domains: ['finance'],
+      capabilityAnyOf: ['finance_material_cost_summary'],
+    });
   });
 
   it('uses the published metric dimension binding instead of a persona-level dimension label', () => {

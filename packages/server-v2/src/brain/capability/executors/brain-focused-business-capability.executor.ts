@@ -103,7 +103,13 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
       '这个月各项目的耗材成本各是多少',
       '帮我分析一下哪个项目的耗材成本最高',
     ],
-    negativeExamples: ['按标准 BOM 估算实际消耗', '查询商品出库排行', '直接扣减库存'],
+    negativeExamples: [
+      '按标准 BOM 估算实际消耗',
+      '查询商品出库排行',
+      '直接扣减库存',
+      '耗材成本占服务收入的比例',
+      '全店耗材成本率是多少',
+    ],
     synonyms: ['项目耗材消耗', '项目实际用料', '服务耗材排行'],
     businessDefinitionKeys: [
       'entity.project',
@@ -129,11 +135,11 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
     examples: ['这个月耗材成本占了多少', '本月物料成本是多少钱', '耗材成本占收入比例多少'],
     negativeExamples: ['经营费用是多少', '库存货值是多少', '创建采购单'],
     synonyms: ['耗材成本', '物料成本', '材料成本占比'],
-    businessDefinitionKeys: ['entity.product'],
+    businessDefinitionKeys: ['entity.product', 'metric.material_cost_rate'],
     readOnly: true,
     storeScope: 'required',
     permissions: ['core:brain:use', 'core:finance:view'],
-    allowedRoles: ['finance', 'store_manager'],
+    allowedRoles: ['finance', 'inventory', 'store_manager'],
     requiresConfirmation: false,
     idempotency: 'not_applicable',
   })

@@ -39,6 +39,8 @@ export interface BrainMetricDomainResolver {
   kind: 'domain_service';
   key:
     | 'manager_staff_analysis'
+    | 'manager_operations_analysis'
+    | 'finance_cost_analysis'
     | 'inventory_risk_summary'
     | 'inventory_consumption_rows'
     | 'product_margin_rows'

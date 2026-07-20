@@ -63,6 +63,63 @@ describe('business metric resolver runtime', () => {
     ).toThrow('semantic_resolver_numeric_field_not_allowed:manager_staff_analysis:passwordHash');
   });
 
+  it('evaluates customer unit price from the shared manager operations row', () => {
+    const result = evaluateBusinessMetricResolver({
+      metricKey: 'average_order_value',
+      resolver: {
+        kind: 'domain_service',
+        key: 'manager_operations_analysis',
+        dimensionFields: {},
+        expression: { op: 'field', field: 'avgTransaction' },
+        overallAggregation: 'avg',
+      },
+      dimensions: [],
+      outputField: 'average_order_value',
+      sourceModels: ['ProductOrder', 'PaymentRecord'],
+      storeScope: {
+        mode: 'current_store',
+        anchorModel: 'ProductOrder',
+        model: 'ProductOrder',
+        field: 'storeId',
+        joinPath: [],
+      },
+      rows: [{ revenue: 1200, orderCount: 4, customerCount: 4, avgTransaction: 300 }],
+    });
+
+    expect(result.overallValue).toBe(300);
+  });
+
+  it('evaluates material cost rate from the shared finance cost row', () => {
+    const result = evaluateBusinessMetricResolver({
+      metricKey: 'material_cost_rate',
+      resolver: {
+        kind: 'domain_service',
+        key: 'finance_cost_analysis',
+        dimensionFields: {},
+        expression: {
+          op: 'divide',
+          numerator: { op: 'field', field: 'materialCost' },
+          denominator: { op: 'field', field: 'revenue' },
+          zero: 'zero',
+        },
+        overallAggregation: 'avg',
+      },
+      dimensions: [],
+      outputField: 'material_cost_rate',
+      sourceModels: ['ProductOrder', 'OrderItem', 'ServiceTask'],
+      storeScope: {
+        mode: 'current_store',
+        anchorModel: 'ProductOrder',
+        model: 'ProductOrder',
+        field: 'storeId',
+        joinPath: [],
+      },
+      rows: [{ revenue: 1000, materialCost: 240 }],
+    });
+
+    expect(result.overallValue).toBe(0.24);
+  });
+
   it('evaluates the governed new-customer conversion rate from the shared customer fact row', () => {
     const result = evaluateBusinessMetricResolver({
       metricKey: 'new_customer_conversion_rate',

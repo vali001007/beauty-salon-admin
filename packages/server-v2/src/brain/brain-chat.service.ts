@@ -1,5 +1,9 @@
 import { ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { BrainRiskLevel, Prisma } from '@prisma/client';
+import {
+  AVERAGE_ORDER_VALUE_QUESTION_PATTERN,
+  MATERIAL_COST_RATE_QUESTION_PATTERN,
+} from '../semantic-data/ami-core-business-semantic-contracts.js';
 import { BrainCognitionService, type BrainCognitionResult } from './cognition/brain-cognition.service.js';
 import {
   BrainQuestionIntentService,
@@ -1341,6 +1345,24 @@ export class BrainChatService {
     }
     modelMetadata = this.modelMetadata('validate', modelMetadata);
 
+    const semanticClarification = this.answerFromSemanticClarificationIntent({
+      intent: validation.intent,
+      modelMetadata,
+    });
+    if (semanticClarification) {
+      await this.recordModelTrace({
+        runId: input.runId,
+        stepKey: 'model_semantic_clarification',
+        layer: 'cognition',
+        status: 'completed',
+        output: this.toJsonValue({
+          code: 'SEMANTIC_CLARIFICATION_REQUIRED',
+          missingSlots: semanticClarification.modelContextPendingClarification?.missingSlots ?? [],
+        }),
+      });
+      return semanticClarification;
+    }
+
     const resultReferenceDecision = this.answerFromConversationResultReference({
       intent: validation.intent,
       question: input.dto.message,
@@ -1985,6 +2007,10 @@ export class BrainChatService {
     question: string;
     cards: readonly BrainCapabilityCard[];
   }): BrainSemanticIntent {
+    input = {
+      ...input,
+      intent: this.enrichGovernedQuestionMetricIntent(input.intent, input.question, input.cards),
+    };
     if (input.intent.intent === 'workflow') return this.normalizeGovernedWorkflowIntent(input);
     const requestedSlots = new Set([
       ...input.intent.missingSlots.map((slot) => slot.trim().toLowerCase()),
@@ -2161,6 +2187,31 @@ export class BrainChatService {
       missingSlots: [],
       assumptions: [...input.intent.assumptions, `能力 ${matched.card.key} 将采用并披露已治理的默认分析口径。`],
     };
+  }
+
+  private enrichGovernedQuestionMetricIntent(
+    intent: BrainSemanticIntent,
+    question: string,
+    cards: readonly BrainCapabilityCard[],
+  ): BrainSemanticIntent {
+    const existing = new Map(intent.metrics.map((metric) => [metric.definitionKey, metric]));
+    for (const definitionKey of inferGovernedQuestionMetricKeys(question)) {
+      if (existing.has(definitionKey)) continue;
+      const candidates = [
+        ...new Map(
+          cards
+            .flatMap((card) => card.definitionRefs)
+            .filter((ref) => ref.definitionKey === definitionKey)
+            .map((ref) => [
+              `${ref.definitionKey}:${ref.version}:${ref.definitionFingerprint}:${ref.sourceFingerprint}`,
+              ref,
+            ]),
+        ).values(),
+      ];
+      if (candidates.length !== 1) continue;
+      existing.set(definitionKey, definitionRefFromCard(candidates[0]!, 'metric'));
+    }
+    return existing.size === intent.metrics.length ? intent : { ...intent, metrics: [...existing.values()] };
   }
 
   private normalizeModelClarificationIntent(intent: BrainSemanticIntent, question: string): BrainSemanticIntent {
@@ -2671,7 +2722,7 @@ export class BrainChatService {
     question: string;
     modelMetadata: BrainModelMetadata;
   }): BrainChatAnswer | undefined {
-    if (input.intent.intent !== 'action') return undefined;
+    if (!['action', 'workflow'].includes(input.intent.intent)) return undefined;
     const requestsGapInsertion = /(?:加|安排|塞|插入).*(?:客人|客户)|(?:客人|客户).*(?:加|安排|塞|插入)/.test(
       input.question,
     );
@@ -2740,6 +2791,44 @@ export class BrainChatService {
       modelMetadata: input.modelMetadata,
       modelContextIntent: clarifiedIntent,
       modelContextPendingClarification: pendingClarification,
+    };
+  }
+
+  private answerFromSemanticClarificationIntent(input: {
+    intent: BrainSemanticIntent;
+    modelMetadata: BrainModelMetadata;
+  }): BrainChatAnswer | undefined {
+    if (input.intent.intent !== 'clarify') return undefined;
+    const ambiguities = input.intent.ambiguities.map((ambiguity) => ({
+      ...ambiguity,
+      candidates: [...ambiguity.candidates],
+    }));
+    const missingSlots = [...new Set(input.intent.missingSlots.length ? input.intent.missingSlots : ['objective'])];
+    const reason = ambiguities[0]?.reason?.trim();
+    const question = reason
+      ? `需要先确认：${reason.replace(/[。！？!?]+$/u, '')}。请补充后我再继续。`
+      : '请补充你想检查的业务范围、对象或时间，我再继续。';
+    const options = this.modelClarificationOptions(ambiguities);
+    const pendingClarification: BrainModelPendingClarification = {
+      missingSlots,
+      questions: [question],
+      ambiguities,
+    };
+    return {
+      status: 'completed',
+      answer: question,
+      citations: [],
+      suggestedActions: options,
+      blocks: [{ kind: 'clarification', question, options }],
+      grounding: 'none',
+      adapterMetadata: {
+        decisionCode: 'semantic_clarification_required',
+        clarification: pendingClarification,
+        completion: { status: 'partial', missingCriteria: missingSlots, recoverable: true },
+      },
+      modelContextIntent: input.intent,
+      modelContextPendingClarification: pendingClarification,
+      modelMetadata: input.modelMetadata,
     };
   }
 
@@ -3054,7 +3143,15 @@ export class BrainChatService {
 
   private governedCapabilitySemanticScore(question: string, card: BrainCapabilityCard): number {
     const candidates = [card.name, card.description, ...(card.examples ?? []), ...(card.synonyms ?? [])];
-    return candidates.reduce((best, candidate) => Math.max(best, this.governedTextSimilarity(question, candidate)), 0);
+    const positive = candidates.reduce(
+      (best, candidate) => Math.max(best, this.governedTextSimilarity(question, candidate)),
+      0,
+    );
+    const negative = (card.negativeExamples ?? []).reduce(
+      (best, candidate) => Math.max(best, this.governedTextSimilarity(question, candidate)),
+      0,
+    );
+    return Math.max(0, positive - 0.65 * negative);
   }
 
   private governedTextSimilarity(leftValue: string, rightValue: string): number {
@@ -4605,6 +4702,12 @@ function definitionRefFromCard<T extends 'metric' | 'dimension'>(
 
 function inferGovernedQuestionMetricKeys(question: string): string[] {
   const metrics: string[] = [];
+  if (AVERAGE_ORDER_VALUE_QUESTION_PATTERN.test(question)) {
+    metrics.push('metric.average_order_value');
+  }
+  if (MATERIAL_COST_RATE_QUESTION_PATTERN.test(question)) {
+    metrics.push('metric.material_cost_rate');
+  }
   if (
     /(?:美容师|员工|谁).*(?:接|服务).*(?:客户|客人).*(?:最多|几个|排行)|(?:客户|客人).*(?:最多|几个).*(?:美容师|员工|谁)/.test(
       question,

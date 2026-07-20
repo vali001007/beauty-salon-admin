@@ -18,6 +18,7 @@ export type BrainCapabilitySourceType =
 export type BrainCapabilityCandidateStatus = 'draft' | 'blocked';
 export type BrainCapabilityStoreScope = 'required' | 'optional' | 'none' | 'unknown';
 export type BrainCapabilityScanRiskLevel = 'low' | 'medium' | 'high' | 'critical';
+export type BrainCapabilityExecutionKind = 'semantic' | 'domain' | 'action';
 
 export interface BrainCapabilitySourceEvidence {
   sourceType: BrainCapabilitySourceType;

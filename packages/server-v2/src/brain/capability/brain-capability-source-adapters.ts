@@ -4,6 +4,7 @@ import { extname, relative, resolve, sep } from 'node:path';
 import * as ts from 'typescript';
 import type {
   BrainCapabilityDecoratorMetadata,
+  BrainCapabilityExecutionKind,
   BrainCapabilitySourceEvidence,
   BrainCapabilitySourceType,
 } from './brain-capability-scan.types.js';
@@ -151,6 +152,7 @@ function scanClass(
 ) {
   const className = node.name!.text;
   const exportedClass = hasModifier(node, ts.SyntaxKind.ExportKeyword);
+  const executorKind = classStringProperty(node, sourceFile, 'kind');
   const controllerDecorator = decoratorCall(node, 'Controller');
   const classPermissions = decoratorStrings(node, 'Permissions');
   const constructorParameters = node.members
@@ -203,6 +205,7 @@ function scanClass(
       const symbol = `${className}.${method.name.getText(sourceFile)}`;
       const executorTarget = {
         kind: 'controller',
+        ...(executorKind ? { executorKind } : {}),
         className,
         methodName: method.name.getText(sourceFile),
         sourcePath: path,
@@ -248,6 +251,7 @@ function scanClass(
       const symbol = `${className}.${method.name.getText(sourceFile)}`;
       const executorTarget = {
         kind: 'service',
+        ...(executorKind ? { executorKind } : {}),
         className,
         methodName: method.name.getText(sourceFile),
         sourcePath: path,
@@ -657,6 +661,30 @@ function objectCall(
 function firstStringArgument(call: ts.CallExpression | undefined): string | undefined {
   const first = call?.arguments[0];
   return first && ts.isStringLiteralLike(first) ? first.text : undefined;
+}
+
+function classStringProperty(
+  node: ts.ClassDeclaration,
+  sourceFile: ts.SourceFile,
+  name: string,
+): BrainCapabilityExecutionKind | undefined {
+  const property = node.members.find(
+    (member): member is ts.PropertyDeclaration =>
+      ts.isPropertyDeclaration(member) && member.name?.getText(sourceFile).replace(/["']/g, '') === name,
+  );
+  const value = stringLiteralExpression(property?.initializer);
+  return value && ['semantic', 'domain', 'action'].includes(value)
+    ? (value as BrainCapabilityExecutionKind)
+    : undefined;
+}
+
+function stringLiteralExpression(value: ts.Expression | undefined): string | undefined {
+  if (!value) return undefined;
+  if (ts.isStringLiteralLike(value)) return value.text;
+  if (ts.isAsExpression(value) || ts.isTypeAssertionExpression(value) || ts.isParenthesizedExpression(value)) {
+    return stringLiteralExpression(value.expression);
+  }
+  return undefined;
 }
 
 function collectPropertyCalls(node: ts.Node, sourceFile: ts.SourceFile): string[] {

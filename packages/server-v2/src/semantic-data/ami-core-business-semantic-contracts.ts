@@ -1,6 +1,10 @@
 import type { CanonicalMetricPayload } from './brain-metric-candidate.types.js';
 
 export const AMI_CORE_RUNTIME_QUERY_EXECUTOR = 'BusinessDefinitionRuntimeQueryExecutor.execute';
+export const AVERAGE_ORDER_VALUE_QUESTION_PATTERN =
+  /(?:客单价|平均每单|订单平均金额|每(?:笔|单)(?:订单)?平均(?:收(?:款|了多少钱)?|金额)|平均每(?:笔|单)(?:订单)?(?:收(?:款|了多少钱)?|金额))/;
+export const MATERIAL_COST_RATE_QUESTION_PATTERN =
+  /(?:耗材|物料|材料)成本.*(?:占|除以).*(?:服务)?(?:收入|营收).*(?:比例|占比|率)?|(?:耗材|物料|材料)成本率/;
 
 export interface AmiCoreBusinessMetricContract {
   readonly metricKey: string;
@@ -29,6 +33,8 @@ const SEMANTIC_EXECUTOR_PATH =
   'packages/server-v2/src/brain/capability/executors/brain-semantic-query-capability.executor.ts';
 const DOMAIN_EXECUTOR_PATH =
   'packages/server-v2/src/brain/capability/executors/brain-domain-service-capability.executor.ts';
+const FOCUSED_EXECUTOR_PATH =
+  'packages/server-v2/src/brain/capability/executors/brain-focused-business-capability.executor.ts';
 
 export const AMI_CORE_BUSINESS_METRIC_CONTRACTS: readonly AmiCoreBusinessMetricContract[] = Object.freeze([
   metricContract({
@@ -229,6 +235,84 @@ export const AMI_CORE_BUSINESS_METRIC_CONTRACTS: readonly AmiCoreBusinessMetricC
       fallback: 'paidAt 为空的有效支付记录按 createdAt 口径另行治理，当前不纳入。',
     },
     allowedTaskTypes: ['query'],
+  }),
+  resolverMetricContract({
+    metricKey: 'average_order_value',
+    name: '客单价',
+    aliases: [
+      '客单价',
+      '平均客单价',
+      '日均客单价',
+      '订单平均金额',
+      '每笔订单平均收款',
+      '每单平均收款',
+      'customer_unit_price',
+      'average_order_value',
+    ],
+    domain: 'finance',
+    capabilityKey: 'order_revenue_analysis',
+    capabilityKeys: ['store_operations_overview'],
+    executorSymbol: 'BrainSemanticQueryCapabilityExecutor.orderRevenueAnalysis',
+    description: '指定周期内当前门店有效订单实收金额除以有效订单数得到的平均每单金额。',
+    sourceModels: ['ProductOrder', 'PaymentRecord'],
+    dimensions: [],
+    permission: 'core:finance:view',
+    template: 'template:order_revenue',
+    outputField: 'average_order_value',
+    valueType: 'money',
+    resolver: {
+      kind: 'domain_service',
+      key: 'manager_operations_analysis',
+      dimensionFields: {},
+      expression: { op: 'field', field: 'avgTransaction' },
+      overallAggregation: 'avg',
+    },
+    storeModel: 'ProductOrder',
+    timeField: 'ProductOrder.createdAt',
+    exceptionPolicy: {
+      cancelled: '取消和未完成订单不进入有效订单数。',
+      refunded: '整单退款订单不计入；部分退款仍按后台经营分析统一口径处理。',
+      gifts: '零金额赠送订单不进入客单价分母。',
+      fallback: '有效订单数为 0 时返回 0 并明确分母为 0，不用实收金额替代客单价。',
+    },
+    allowedTaskTypes: ['query', 'diagnosis'],
+  }),
+  resolverMetricContract({
+    metricKey: 'material_cost_rate',
+    name: '耗材成本率',
+    aliases: ['耗材成本率', '物料成本率', '材料成本率', '耗材成本占收入比例', '耗材成本占服务收入比例'],
+    domain: 'finance',
+    capabilityKey: 'finance_material_cost_summary',
+    executorSourcePath: FOCUSED_EXECUTOR_PATH,
+    executorSymbol: 'BrainFocusedBusinessCapabilityExecutor.financeMaterialCostSummary',
+    description: '指定周期内当前门店耗材成本除以已接入服务收入得到的比例。',
+    sourceModels: ['ProductOrder', 'OrderItem', 'ServiceTask'],
+    dimensions: [],
+    permission: 'core:finance:view',
+    template: 'template:finance_cost',
+    outputField: 'material_cost_rate',
+    valueType: 'percent',
+    resolver: {
+      kind: 'domain_service',
+      key: 'finance_cost_analysis',
+      dimensionFields: {},
+      expression: {
+        op: 'divide',
+        numerator: { op: 'field', field: 'materialCost' },
+        denominator: { op: 'field', field: 'revenue' },
+        zero: 'zero',
+      },
+      overallAggregation: 'avg',
+    },
+    storeModel: 'ProductOrder',
+    timeField: 'ProductOrder.createdAt',
+    exceptionPolicy: {
+      cancelled: '取消和未完成服务不进入收入与耗材成本。',
+      refunded: '退款与收入冲减按后台财务成本分析统一口径处理。',
+      gifts: '赠送服务有真实耗材记录时计入耗材成本，但零收入会明确影响分母。',
+      fallback: '收入为 0 时返回 0 并披露无法形成有效比例，不用项目耗材排行替代。',
+    },
+    allowedTaskTypes: ['query', 'diagnosis'],
   }),
   metricContract({
     metricKey: 'refund_amount',

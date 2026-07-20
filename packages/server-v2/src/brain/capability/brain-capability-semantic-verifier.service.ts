@@ -409,6 +409,10 @@ function executorGrounding(
   const target = binding.target;
   if (!target || typeof target !== 'object' || Array.isArray(target)) return undefined;
   const targetRecord = target as UnknownRecord;
+  const executorKind = targetRecord.executorKind;
+  if (executorKind === 'domain') return 'domain_service';
+  if (executorKind === 'semantic') return 'semantic_query';
+  if (executorKind === 'action') return 'preview_action';
   const className = targetRecord.className;
   const sourcePath = targetRecord.sourcePath;
   if (

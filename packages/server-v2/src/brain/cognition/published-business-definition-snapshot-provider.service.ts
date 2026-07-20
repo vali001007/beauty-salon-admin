@@ -197,6 +197,22 @@ export class PublishedBusinessDefinitionSnapshotProviderService implements Busin
     return mapPublishedDefinitions(definitions, projections).metrics;
   }
 
+  async loadEvaluationDefinitions(definitionVersionIds: readonly number[]): Promise<BusinessDefinitionSnapshotInput> {
+    const ids = [...new Set(definitionVersionIds.filter((id) => Number.isInteger(id) && id > 0))];
+    if (!ids.length) return this.loadActiveDefinitions();
+    const versions = await (this.prisma as any).businessDefinitionVersion.findMany({
+      where: { id: { in: ids } },
+      include: { definition: true, projections: true },
+      orderBy: [{ definition: { definitionKey: 'asc' } }, { version: 'asc' }],
+    });
+    if (versions.length !== ids.length) {
+      const found = new Set(versions.map((version: any) => version.id));
+      throw new Error(`business_definition_evaluation_runtime_missing:${ids.filter((id) => !found.has(id)).join(',')}`);
+    }
+    const active = await this.loadActiveDefinitions();
+    return mergeEvaluationDefinitions(active, versions.flatMap(mapEvaluationDefinitionVersion));
+  }
+
   private directSnapshotReadClient(): SnapshotReadClient | undefined {
     const candidate = this.prisma as unknown as Partial<SnapshotReadClient>;
     if (
@@ -269,6 +285,107 @@ function mapPublishedDefinitions(
     }
   }
   return snapshot;
+}
+
+function mapEvaluationDefinitionVersion(version: any): Array<{ kind: BusinessDefinitionKind; value: any }> {
+  const lifecycleStatus = String(version.lifecycleStatus);
+  if (!['published', 'candidate', 'validated'].includes(lifecycleStatus) || version.validationStatus !== 'passed') {
+    throw new Error(`business_definition_evaluation_runtime_not_validated:${version.id}`);
+  }
+  const definition = version.definition;
+  const kind = requiredRuntimeKind(definition?.kind);
+  const expectedTargetType = kind === 'metric' ? 'metric_query_view' : 'intent_semantic_index';
+  const matches = Array.isArray(version.projections)
+    ? version.projections.filter((projection: any) => projection.targetType === expectedTargetType)
+    : [];
+  if (matches.length !== 1) throw invalidProjection(definition?.definitionKey ?? String(version.id));
+  const parsed = parseEvaluationProjection(matches[0], version, definition);
+  if (kind === 'entity') return [{ kind, value: mapEntity(parsed) }];
+  if (kind === 'relation') return [{ kind, value: mapRelation(parsed) }];
+  if (kind === 'metric') return [{ kind, value: mapMetric(parsed) }];
+  return [{ kind, value: mapDimension(parsed) }];
+}
+
+function parseEvaluationProjection(
+  row: PublishedProjectionRow,
+  version: any,
+  registryDefinition: any,
+): ParsedProjection {
+  try {
+    const payload = asRecord(row.payload);
+    const definitionRef = asRecord(payload.definitionRef);
+    const v2 = isBusinessDefinitionProjectionV2Payload(payload);
+    const data = v2 ? asRecord(payload.data) : payload;
+    const kind = requiredRuntimeKind(v2 ? data.definitionKind : payload.kind);
+    const expectedTargetType = kind === 'metric' ? 'metric_query_view' : 'intent_semantic_index';
+
+    requireEqual(row.readOnly, true);
+    requireEqual(version.id, row.definitionVersionId);
+    requireEqual(version.version, row.definitionVersion);
+    requireEqual(version.fingerprint, row.definitionFingerprint);
+    requireEqual(version.sourceFingerprint, row.sourceFingerprint);
+    requireEqual(registryDefinition.definitionKey, row.definitionKey);
+    requireEqual(registryDefinition.kind, kind);
+    if (typeof payload.preview !== 'boolean') throw new Error('projection preview flag missing');
+    requireEqual(payload.projectionType, expectedTargetType);
+    if (v2) requireEqual(payload.projectionSchemaVersion, '2.0');
+    requireEqual(row.targetType, expectedTargetType);
+    requireEqual(row.targetKey, `${row.definitionKey}@${row.definitionVersion}`);
+    requireEqual(definitionRef.definitionKey, row.definitionKey);
+    requireEqual(definitionRef.definitionVersion, row.definitionVersion);
+    requireEqual(definitionRef.definitionFingerprint, row.definitionFingerprint);
+    requireEqual(definitionRef.sourceFingerprint, row.sourceFingerprint);
+    requireEqual(data.domain, registryDefinition.domain);
+    requireEqual(data.name, registryDefinition.name);
+    if (v2 && kind === 'metric') requireEqual(data.applicable, true);
+
+    const expectedFingerprint = createBusinessDefinitionProjectionFingerprint({
+      targetType: row.targetType,
+      targetKey: row.targetKey,
+      definitionVersionId: row.definitionVersionId,
+      definitionRef,
+      payload,
+      readOnly: true,
+    });
+    requireEqual(row.projectionFingerprint, expectedFingerprint);
+
+    return {
+      row,
+      kind,
+      domain: requiredString(data.domain),
+      name: requiredString(data.name),
+      definition: asRecord(v2 ? data.runtimeDefinition : payload.definition),
+    };
+  } catch (error) {
+    throw invalidProjection(registryDefinition?.definitionKey ?? String(version.id), error);
+  }
+}
+
+function mergeEvaluationDefinitions(
+  active: BusinessDefinitionSnapshotInput,
+  replacements: Array<{ kind: BusinessDefinitionKind; value: any }>,
+): BusinessDefinitionSnapshotInput {
+  const keys = new Set(replacements.map((item) => item.value.definitionKey));
+  const sort = <T extends { definitionKey: string }>(items: T[]) =>
+    items.sort((left, right) => left.definitionKey.localeCompare(right.definitionKey));
+  return {
+    entities: sort([
+      ...active.entities.filter((item) => !keys.has(item.definitionKey)),
+      ...replacements.filter((item) => item.kind === 'entity').map((item) => item.value),
+    ]),
+    relations: sort([
+      ...active.relations.filter((item) => !keys.has(item.definitionKey)),
+      ...replacements.filter((item) => item.kind === 'relation').map((item) => item.value),
+    ]),
+    metrics: sort([
+      ...active.metrics.filter((item) => !keys.has(item.definitionKey)),
+      ...replacements.filter((item) => item.kind === 'metric').map((item) => item.value),
+    ]),
+    dimensions: sort([
+      ...active.dimensions.filter((item) => !keys.has(item.definitionKey)),
+      ...replacements.filter((item) => item.kind === 'dimension').map((item) => item.value),
+    ]),
+  };
 }
 
 function parseProjection(

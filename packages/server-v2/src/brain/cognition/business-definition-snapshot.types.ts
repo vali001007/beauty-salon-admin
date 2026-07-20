@@ -84,6 +84,8 @@ export interface BusinessMetricRuntimeResolver {
   readonly kind: 'domain_service';
   readonly key:
     | 'manager_staff_analysis'
+    | 'manager_operations_analysis'
+    | 'finance_cost_analysis'
     | 'inventory_risk_summary'
     | 'inventory_consumption_rows'
     | 'product_margin_rows'
@@ -172,6 +174,7 @@ export interface PrismaRuntimeDataModel {
 
 export interface BusinessDefinitionSnapshotProvider {
   loadActiveDefinitions(): Promise<BusinessDefinitionSnapshotInput>;
+  loadEvaluationDefinitions?(definitionVersionIds: readonly number[]): Promise<BusinessDefinitionSnapshotInput>;
   loadActiveMetricDefinitions?(): Promise<BusinessMetricDefinitionSnapshot[]>;
   getRuntimeDataModel(): PrismaRuntimeDataModel;
 }

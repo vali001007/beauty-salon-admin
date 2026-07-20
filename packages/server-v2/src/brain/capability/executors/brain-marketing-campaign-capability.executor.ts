@@ -35,6 +35,8 @@ export class BrainMarketingCampaignCapabilityExecutor implements BrainCapability
       '查询活动带来的收入',
       '立即发布并执行营销活动',
       '查看当前自动化规则运行情况',
+      '系统自动识别客户节假日并发送关怀',
+      '新美容师自动分配客户建立客源',
     ],
     synonyms: ['活动策划草稿', '促销方案', '老带新方案', '套餐权益设计', '引流活动方案'],
     businessDefinitionKeys: ['entity.customer', 'entity.project', 'entity.product'],

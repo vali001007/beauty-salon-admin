@@ -232,6 +232,7 @@ describe('BrainCapabilityScannerService', () => {
       'packages/server-v2/src/brain/capability/product-ranking.service.ts',
       `@Injectable()
        export class ProductRankingService {
+         readonly kind = 'domain' as const;
          @BrainCapability({
            key: 'product_sales_ranking',
            businessDefinitionKeys: ['metric.product_sales_quantity'],
@@ -274,6 +275,7 @@ describe('BrainCapabilityScannerService', () => {
           data: expect.objectContaining({
             executorTarget: expect.objectContaining({
               kind: 'service',
+              executorKind: 'domain',
               className: 'ProductRankingService',
               methodName: 'execute',
               sourcePath: 'packages/server-v2/src/brain/capability/product-ranking.service.ts',

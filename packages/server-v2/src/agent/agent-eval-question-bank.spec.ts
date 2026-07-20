@@ -147,6 +147,16 @@ describe('Agent eval question bank', () => {
       expectedAnswerShape: 'scalar',
       expectedMetrics: ['material_cost'],
     });
+    expect(bank.questions.find((item) => item.input === '帮我看一下耗材成本占服务收入的比例')).toMatchObject({
+      expectedSemanticIntent: 'query',
+      expectedAnswerShape: 'scalar',
+      expectedDomains: ['inventory_procurement'],
+      expectedMetrics: ['material_cost_rate'],
+    });
+    expect(bank.questions.find((item) => item.input === '今天的日均客单价是多少')).toMatchObject({
+      expectedSemanticIntent: 'query',
+      expectedMetrics: ['average_order_value'],
+    });
     expect(bank.questions.find((item) => item.input === '有没有哪个项目因为缺耗材没法做')).toMatchObject({
       expectedSemanticIntent: 'query',
     });

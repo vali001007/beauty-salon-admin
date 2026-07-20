@@ -566,6 +566,54 @@ describe('BrainChatService', () => {
     expect(answer.blocks).toEqual([expect.objectContaining({ kind: 'clarification' })]);
   });
 
+  it('clarifies a multi-step gap insertion workflow when required business objects are missing', () => {
+    const { service } = createService();
+    const answer = (service as any).answerFromUnsafeActionAmbiguity({
+      intent: {
+        intent: 'workflow',
+        answerShape: 'action_preview',
+        entities: [],
+        missingSlots: [],
+        ambiguities: [],
+      },
+      question: '今天哪个时间段还有空档？然后能不能再加一个客人进去？',
+      modelMetadata: { cognitionMode: 'model', modelStage: 'validate', failureCode: null },
+    });
+
+    expect(answer).toMatchObject({
+      grounding: 'none',
+      adapterMetadata: {
+        decisionCode: 'reservation_gap_add_customer_clarification_required',
+        completion: { status: 'partial', recoverable: true },
+      },
+      modelContextIntent: { answerShape: 'clarification' },
+    });
+  });
+
+  it('turns a valid semantic clarify intent into a terminal structured clarification', () => {
+    const { service } = createService();
+    const answer = (service as any).answerFromSemanticClarificationIntent({
+      intent: {
+        intent: 'clarify',
+        answerShape: 'clarification',
+        missingSlots: ['objective'],
+        ambiguities: [{ slot: 'objective', reason: '未说明要检查的业务领域、对象或时间范围', candidates: [] }],
+      },
+      modelMetadata: { cognitionMode: 'model', modelStage: 'validate', failureCode: null },
+    });
+
+    expect(answer).toMatchObject({
+      status: 'completed',
+      grounding: 'none',
+      blocks: [expect.objectContaining({ kind: 'clarification' })],
+      adapterMetadata: {
+        decisionCode: 'semantic_clarification_required',
+        completion: { status: 'partial', missingCriteria: ['objective'], recoverable: true },
+      },
+    });
+    expect(answer.answer).toContain('未说明要检查的业务领域');
+  });
+
   it('uses the published model single-tool path after context preparation and persists governed metadata', async () => {
     const { prisma, cognition, roleIntentRouter, trace, modelPipeline, service } = createService({ modelPipeline: {} });
     prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
@@ -4239,6 +4287,192 @@ describe('BrainChatService', () => {
     expect(normalized).toMatchObject({ intent: 'query', answerShape: 'list', domains: ['finance'] });
     expect(normalized.metrics).toEqual([expect.objectContaining({ definitionKey: 'metric.paid_amount' })]);
     expect(normalized.dimensions).toEqual([expect.objectContaining({ definitionKey: 'dimension.paymentMethod' })]);
+  });
+
+  it('selects the governed average order value metric for an exact order revenue example', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const question = '今天的日均客单价是多少';
+    const normalized = (service as any).normalizeGovernedCapabilityExampleIntent({
+      question,
+      snapshot: { entities: [], metrics: [{ domain: 'finance' }], dimensions: [] },
+      cards: [
+        {
+          key: 'order_revenue_analysis',
+          domains: ['finance', 'payment', 'order'],
+          intents: ['query'],
+          examples: [question],
+          definitionRefs: [
+            { ...definitionRef('metric.paid_amount'), version: 1 },
+            { ...definitionRef('metric.average_order_value'), version: 1 },
+          ],
+        },
+      ],
+      intent: {
+        schemaVersion: '1.0',
+        objective: question,
+        domains: ['finance'],
+        intent: 'query',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'scalar',
+        successCriteria: ['返回日均客单价'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.9,
+        decisionSummary: '客单价查询',
+      },
+    });
+
+    expect(normalized.metrics).toEqual([
+      expect.objectContaining({ definitionKey: 'metric.average_order_value' }),
+    ]);
+  });
+
+  it('selects the governed material cost rate metric for a focused finance example', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const question = '帮我看一下耗材成本占服务收入的比例';
+    const normalized = (service as any).normalizeGovernedCapabilityExampleIntent({
+      question,
+      snapshot: { entities: [], metrics: [{ domain: 'finance' }], dimensions: [] },
+      cards: [
+        {
+          key: 'finance_material_cost_summary',
+          domains: ['finance', 'project', 'product'],
+          intents: ['query', 'diagnosis'],
+          examples: [question],
+          definitionRefs: [
+            { ...definitionRef('metric.material_cost'), version: 1 },
+            { ...definitionRef('metric.material_cost_rate'), version: 1 },
+          ],
+        },
+      ],
+      intent: {
+        schemaVersion: '1.0',
+        objective: question,
+        domains: ['finance'],
+        intent: 'query',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'scalar',
+        successCriteria: ['返回耗材成本率'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.9,
+        decisionSummary: '耗材成本率查询',
+      },
+    });
+
+    expect(normalized.metrics).toEqual([
+      expect.objectContaining({ definitionKey: 'metric.material_cost_rate' }),
+    ]);
+  });
+
+  it('enriches a model intent with the unique material cost rate before capability selection', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const question = '帮我看一下耗材成本占服务收入的比例';
+    const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
+      question,
+      cards: [
+        {
+          key: 'inventory_operations_overview',
+          name: '库存运营概览',
+          description: '查询库存数量、风险和采购建议。',
+          domains: ['product', 'project'],
+          intents: ['query', 'diagnosis'],
+          examples: ['查询库存风险'],
+          synonyms: ['库存概览'],
+          negativeExamples: ['耗材成本占服务收入的比例'],
+          readOnly: true,
+          definitionRefs: [{ ...definitionRef('entity.product'), version: 1 }],
+        },
+        {
+          key: 'finance_material_cost_summary',
+          name: '耗材成本分析',
+          description: '查询耗材成本金额和耗材成本占服务收入比例。',
+          domains: ['finance', 'product', 'project'],
+          intents: ['query', 'diagnosis'],
+          examples: [question],
+          synonyms: ['耗材成本率'],
+          negativeExamples: ['查询库存数量'],
+          readOnly: true,
+          definitionRefs: [{ ...definitionRef('metric.material_cost_rate'), version: 1 }],
+        },
+      ],
+      intent: {
+        schemaVersion: '1.0',
+        objective: question,
+        domains: ['product', 'project'],
+        intent: 'query',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'scalar',
+        successCriteria: ['返回耗材成本率'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.96,
+        decisionSummary: '耗材成本率查询',
+      },
+    });
+
+    expect(normalized.metrics).toEqual([
+      expect.objectContaining({ definitionKey: 'metric.material_cost_rate' }),
+    ]);
+  });
+
+  it('maps a natural per-order average wording to the governed average order value', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const question = '今天每笔订单平均收了多少钱';
+    const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
+      question,
+      cards: [
+        {
+          key: 'order_revenue_analysis',
+          name: '订单收入与客单价分析',
+          description: '查询实收和平均客单价。',
+          domains: ['payment', 'product_order'],
+          intents: ['query'],
+          examples: ['今天的日均客单价是多少'],
+          synonyms: ['订单平均金额', '每笔订单平均收款'],
+          negativeExamples: ['查询商品销量'],
+          readOnly: true,
+          definitionRefs: [{ ...definitionRef('metric.average_order_value'), version: 1 }],
+        },
+      ],
+      intent: {
+        schemaVersion: '1.0',
+        objective: question,
+        domains: ['payment', 'product_order'],
+        intent: 'query',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'scalar',
+        successCriteria: ['返回每笔订单平均金额'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.9,
+        decisionSummary: '订单平均收款查询',
+      },
+    });
+
+    expect(normalized.metrics).toEqual([
+      expect.objectContaining({ definitionKey: 'metric.average_order_value' }),
+    ]);
   });
 
   it('normalizes an exact product-margin maximum question to ranking', () => {

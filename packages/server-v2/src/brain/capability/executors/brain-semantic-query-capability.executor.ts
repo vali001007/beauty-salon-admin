@@ -146,7 +146,13 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
 
   @BrainCapability({
     key: 'order_revenue_analysis',
-    businessDefinitionKeys: ['metric.paid_amount', 'entity.product_order'],
+    name: '订单收入与客单价分析',
+    description: '查询当前门店指定周期的实收金额和平均客单价；客单价使用统一订单平均金额口径，不用实收总额替代。',
+    intents: ['query', 'diagnosis'],
+    examples: ['今天的日均客单价是多少', '本月平均客单价多少', '查询本月订单实收金额'],
+    negativeExamples: ['查询商品销量排行', '查询项目耗材成本', '自动创建采购单'],
+    synonyms: ['订单实收', '平均客单价', '日均客单价', '订单平均金额'],
+    businessDefinitionKeys: ['metric.paid_amount', 'metric.average_order_value', 'entity.product_order'],
     readOnly: true,
     storeScope: 'required',
     permissions: ['core:brain:use', 'core:finance:view'],
@@ -179,6 +185,12 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
   @BrainCapability({
     key: 'customer_priority_recommendation',
     mappingOutputs: ['resultRows'],
+    name: '客户跟进优先级排行',
+    description: '按后台已发布客户机会分数返回人工跟进优先级，不预测预约爽约概率，也不把待确认预约标记为高风险。',
+    intents: ['ranking', 'query', 'recommendation'],
+    examples: ['哪些客户最需要优先跟进', '客户跟进优先级排行'],
+    negativeExamples: ['预测哪些预约可能爽约', '今天有没有可能爽约的预约', '查询预约待到店名单'],
+    synonyms: ['客户跟进优先级', '客户机会排行', '召回优先级'],
     businessDefinitionKeys: ['entity.customer', 'metric.follow_up_priority_score'],
     readOnly: true,
     storeScope: 'required',
@@ -196,7 +208,13 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
     }
 
     this.assertStructuredArgsSupported(input);
-    const snapshot = await this.definitionProvider.loadActiveDefinitions();
+    const evaluationVersionIds = input.context.governanceEvalReleaseSnapshot
+      ? [...new Set(input.card.definitionRefs.map((ref) => ref.versionId))]
+      : [];
+    const snapshot =
+      evaluationVersionIds.length && this.definitionProvider.loadEvaluationDefinitions
+        ? await this.definitionProvider.loadEvaluationDefinitions(evaluationVersionIds)
+        : await this.definitionProvider.loadActiveDefinitions();
     const availableMetrics = snapshot.metrics.filter((metric): metric is RuntimeMetric =>
       Boolean(metric.runtimeQuery?.capabilityKeys.includes(input.card.key)),
     );
@@ -373,6 +391,22 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
         endDate: new Date(timeRange.endExclusive.getTime() - 1),
       });
       return result.staff as unknown as UnknownRecord[];
+    }
+    if (resolverKey === 'manager_operations_analysis') {
+      const result = await this.skillRuntime!.buildManagerOperationsAnalysis({
+        storeId,
+        startDate: timeRange.startDate,
+        endDate: new Date(timeRange.endExclusive.getTime() - 1),
+      });
+      return [result as unknown as UnknownRecord];
+    }
+    if (resolverKey === 'finance_cost_analysis') {
+      const result = await this.skillRuntime!.buildFinanceCostAnalysis({
+        storeId,
+        startDate: timeRange.startDate,
+        endDate: new Date(timeRange.endExclusive.getTime() - 1),
+      });
+      return [result as unknown as UnknownRecord];
     }
     if (resolverKey === 'inventory_risk_summary') {
       const result = await this.skillRuntime!.buildInventoryRiskSummary({

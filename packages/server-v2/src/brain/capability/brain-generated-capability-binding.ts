@@ -8,12 +8,14 @@ import {
 } from './brain-capability-identity-args.js';
 import type {
   BrainCapabilityCandidate,
+  BrainCapabilityExecutionKind,
   BrainCapabilitySourceEvidence,
   BrainCapabilityStoreScope,
 } from './brain-capability-scan.types.js';
 
 export interface BrainGeneratedCapabilityExecutorTarget {
   kind: 'controller' | 'service';
+  executorKind?: BrainCapabilityExecutionKind;
   className: string;
   methodName: string;
   sourcePath: string;
@@ -159,6 +161,9 @@ export function renderGeneratedCapabilityBindingSource(binding: BrainGeneratedCa
 export function renderGeneratedCapabilityContractTestSource(
   binding: BrainGeneratedCapabilityExecutorBinding,
 ): string {
+  const executorKindAssertion = binding.target.executorKind
+    ? [`      GENERATED_CAPABILITY_BINDING.target.executorKind !== ${JSON.stringify(binding.target.executorKind)} ||`]
+    : [];
   return [
     `import { GENERATED_CAPABILITY_BINDING } from './binding.js';`,
     ``,
@@ -173,6 +178,7 @@ export function renderGeneratedCapabilityContractTestSource(
     `    throw new Error('generated_binding_fingerprint_mismatch');`,
     `  }`,
     `  if (GENERATED_CAPABILITY_BINDING.target.kind !== ${JSON.stringify(binding.target.kind)} ||`,
+    ...executorKindAssertion,
     `      GENERATED_CAPABILITY_BINDING.target.className !== ${JSON.stringify(binding.target.className)} ||`,
     `      GENERATED_CAPABILITY_BINDING.target.methodName !== ${JSON.stringify(binding.target.methodName)} ||`,
     `      GENERATED_CAPABILITY_BINDING.target.sourcePath !== ${JSON.stringify(binding.target.sourcePath)}) {`,
@@ -223,6 +229,7 @@ function parseExecutorTarget(evidence: BrainCapabilitySourceEvidence): BrainGene
   if (!isRecord(value)) throw new Error('generated_capability_executor_target_missing');
   if (
     !['controller', 'service'].includes(String(value.kind)) ||
+    (value.executorKind !== undefined && !['semantic', 'domain', 'action'].includes(String(value.executorKind))) ||
     !nonEmpty(value.className) ||
     !nonEmpty(value.methodName) ||
     !nonEmpty(value.sourcePath) ||
@@ -239,6 +246,9 @@ function parseExecutorTarget(evidence: BrainCapabilitySourceEvidence): BrainGene
   }
   return {
     kind: value.kind as BrainGeneratedCapabilityExecutorTarget['kind'],
+    ...(value.executorKind
+      ? { executorKind: value.executorKind as BrainGeneratedCapabilityExecutorTarget['executorKind'] }
+      : {}),
     className: value.className,
     methodName: value.methodName,
     sourcePath: value.sourcePath,

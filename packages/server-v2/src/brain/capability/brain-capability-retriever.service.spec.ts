@@ -42,6 +42,7 @@ describe('BrainCapabilityRetrieverService', () => {
       synonyms: string[];
       examples: string[];
       description?: string;
+      negativeExamples?: string[];
       inputProperties?: string[];
       permissions?: string[];
       roles?: string[];
@@ -73,7 +74,7 @@ describe('BrainCapabilityRetrieverService', () => {
     sourceFingerprint,
     definitionRefs: options.refs.map((key, index) => ref(key, index + 1)),
     synonyms: options.synonyms,
-    negativeExamples: [],
+    negativeExamples: options.negativeExamples ?? [],
     successSchema: { type: 'object' },
   });
 
@@ -191,6 +192,42 @@ describe('BrainCapabilityRetrieverService', () => {
       examples: ['哪个仓位需要优先处理'],
     }),
   ];
+
+  it('penalizes a capability whose governed negative example matches the question', () => {
+    const result = service.retrieve({
+      intent: {
+        domains: ['finance'],
+        intent: 'query',
+        metrics: [],
+        dimensions: [],
+        entities: [],
+      } as unknown as BrainSemanticIntent,
+      question: '耗材成本占服务收入的比例',
+      context,
+      cards: [
+        card('project_material_consumption_analysis', {
+          name: '项目耗材消耗',
+          domain: 'finance',
+          intent: 'query',
+          refs: [],
+          synonyms: ['耗材成本'],
+          examples: ['各项目耗材成本'],
+          negativeExamples: ['耗材成本占服务收入的比例'],
+        }),
+        card('finance_material_cost_summary', {
+          name: '耗材成本率',
+          domain: 'finance',
+          intent: 'query',
+          refs: [],
+          synonyms: ['耗材成本占收入比例'],
+          examples: ['耗材成本占服务收入的比例'],
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({ status: 'selected', selected: { key: 'finance_material_cost_summary' } });
+    expect(result.topK[0]?.score).toBeGreaterThan(result.topK[1]?.score ?? 0);
+  });
 
   const intent = (input: {
     domain: string;

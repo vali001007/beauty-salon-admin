@@ -146,7 +146,9 @@ export class BrainCapabilityRetrieverService {
     ];
     const weighted = scores.reduce((total, item) => total + item.weight * item.score, 0);
     const bestSignal = Math.max(...scores.map((item) => item.score));
-    const score = bestSignal === 0 ? 0 : Math.min(1, 0.2 + 0.8 * (0.65 * bestSignal + 0.35 * weighted));
+    const negativeSignal = bestSimilarity(question, card.negativeExamples ?? []);
+    const positiveScore = bestSignal === 0 ? 0 : Math.min(1, 0.2 + 0.8 * (0.65 * bestSignal + 0.35 * weighted));
+    const score = Math.max(0, positiveScore - 0.65 * negativeSignal);
     return {
       card,
       score: round(score),

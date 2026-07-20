@@ -1,6 +1,10 @@
 import type { AgentRole } from './agent.types.js';
 import type { AgentEvalCaseDefinition } from './agent-eval.cases.js';
 import { matchBrainCapabilityBoundary } from '../brain/capability/brain-capability-boundary.registry.js';
+import {
+  AVERAGE_ORDER_VALUE_QUESTION_PATTERN,
+  MATERIAL_COST_RATE_QUESTION_PATTERN,
+} from '../semantic-data/ami-core-business-semantic-contracts.js';
 
 export type AgentQuestionBankPersona =
   | 'manager'
@@ -432,17 +436,21 @@ function inferExpectedMetrics(input: string) {
   const values = new Set<string>();
   const personalPerformanceQuestion = /^(?:我|我的)/.test(input) && /(?:客人|客户|业绩|提成)/.test(input);
   const marketingCostAttributionQuestion = /活动.*花了多少钱.*(?:收入|营收)|(?:收入|营收).*(?:活动成本|活动花费)/.test(input);
+  const materialCostRateQuestion = MATERIAL_COST_RATE_QUESTION_PATTERN.test(input);
+  if (AVERAGE_ORDER_VALUE_QUESTION_PATTERN.test(input)) values.add('average_order_value');
+  if (materialCostRateQuestion) values.add('material_cost_rate');
   if (
     /营业额|流水|实收|收入|营收/.test(input) &&
     !personalPerformanceQuestion &&
     !marketingCostAttributionQuestion &&
+    !materialCostRateQuestion &&
     !/(?:各|每个).*(?:项目).*(?:收入|营收).*(?:占比|比例)/.test(input) &&
     !/(?:折扣|优惠|让利).*(?:减少|损失).*(?:收入|营收)|(?:退款).*(?:损失|减少).*(?:收入|营收)/.test(input) &&
     !/(不正常|异常).*(流水|交易|收款)|(流水|交易|收款).*(不正常|异常)/.test(input)
   ) {
     values.add('paid_revenue');
   }
-  if (/(耗材|物料|材料)成本/.test(input)) values.add('material_cost');
+  if (!materialCostRateQuestion && /(耗材|物料|材料)成本/.test(input)) values.add('material_cost');
   if (/(?:产品|商品|货品).*(?:毛利率|利润率)|(?:毛利率|利润率).*(?:产品|商品|货品)/.test(input))
     values.add('product_gross_margin_rate');
   else if (!/项目/.test(input) && /毛利率|毛利/.test(input)) values.add('gross_margin_rate');

@@ -6,6 +6,8 @@ import type {
 export interface BusinessMetricResolverContract {
   readonly key:
     | 'manager_staff_analysis'
+    | 'manager_operations_analysis'
+    | 'finance_cost_analysis'
     | 'inventory_risk_summary'
     | 'inventory_consumption_rows'
     | 'product_margin_rows'
@@ -60,6 +62,26 @@ const CONTRACTS: Readonly<Record<BusinessMetricResolverContract['key'], Business
         'revenueAmount',
         'commissionAmount',
         'timeOffHours',
+      ]),
+    }),
+    manager_operations_analysis: Object.freeze({
+      key: 'manager_operations_analysis' as const,
+      storeModel: 'ProductOrder',
+      dimensionFields: Object.freeze([]),
+      numericExpressionFields: Object.freeze(['revenue', 'orderCount', 'customerCount', 'avgTransaction']),
+    }),
+    finance_cost_analysis: Object.freeze({
+      key: 'finance_cost_analysis' as const,
+      storeModel: 'ProductOrder',
+      dimensionFields: Object.freeze([]),
+      numericExpressionFields: Object.freeze([
+        'revenue',
+        'materialCost',
+        'commissionCost',
+        'operatingCost',
+        'grossProfit',
+        'grossMarginRate',
+        'cardLiability',
       ]),
     }),
     inventory_risk_summary: Object.freeze({
