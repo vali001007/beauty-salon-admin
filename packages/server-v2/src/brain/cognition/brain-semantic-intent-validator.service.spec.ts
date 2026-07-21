@@ -456,6 +456,30 @@ describe('BrainSemanticIntentValidatorService', () => {
     }
   });
 
+  it('accepts a store-scoped marketing strategy id as a governed action target', () => {
+    const result = createValidator().validate(
+      rankingIntent({
+        domains: ['marketing_growth'],
+        intent: 'action',
+        answerShape: 'action_preview',
+        entities: [{
+          entityType: 'marketing_strategy',
+          entityKey: '12',
+          mention: '营销策略 12',
+          source: 'user',
+          confidence: 0.99,
+        }],
+        metrics: [],
+        dimensions: [],
+        orderBy: [],
+        successCriteria: ['生成高风险待确认预览，确认前不发送'],
+      }),
+      { domains: ['marketing_growth'], definitionRefs: [] },
+    );
+
+    expect(result.status).toBe('valid');
+  });
+
   it('clarifies an unresolved entity instead of treating it as a hallucinated active reference', () => {
     const result = createValidator().validate(
       rankingIntent({

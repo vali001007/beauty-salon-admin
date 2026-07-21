@@ -158,6 +158,7 @@ describe('BrainGeneratedCapabilityDraftService', () => {
       snapshot: {
         sourceProposalFingerprint: generated.proposalFingerprint,
         sourceFingerprint: generated.sourceFingerprint,
+        definitionRefs: generated.manifest.definitionRefs,
       },
     };
     const verifier = { verify: jest.fn().mockResolvedValue({ manifest: generated.manifest }) };
@@ -174,6 +175,43 @@ describe('BrainGeneratedCapabilityDraftService', () => {
     await expect(service.createDraft({ proposal: generated, createdBy: 9 })).resolves.toBe(existing);
     expect(tx.brainSkillRegistry.create).not.toHaveBeenCalled();
     expect(tx.brainResourceVersion.create).not.toHaveBeenCalled();
+  });
+
+  it('creates N+1 when business definition lineage changes even if source fingerprints are unchanged', async () => {
+    const generated = proposal();
+    const previous = {
+      id: 51,
+      version: 4,
+      snapshot: {
+        sourceProposalFingerprint: generated.proposalFingerprint,
+        sourceFingerprint: generated.sourceFingerprint,
+        definitionRefs: generated.manifest.definitionRefs.map((ref) => ({
+          ...ref,
+          versionId: ref.versionId - 1,
+        })),
+      },
+    };
+    const verifier = { verify: jest.fn().mockResolvedValue({ manifest: generated.manifest }) };
+    const tx = {
+      brainSkillRegistry: { create: jest.fn().mockResolvedValue({ id: 32 }) },
+      brainResourceVersion: {
+        findFirst: jest.fn().mockResolvedValue(previous),
+        create: jest.fn().mockImplementation(({ data }) => ({ id: 52, ...data })),
+      },
+    };
+    const prisma = { $transaction: jest.fn((callback) => callback(tx)) };
+    const service = new BrainGeneratedCapabilityDraftService(prisma as never, verifier as never);
+
+    await expect(service.createDraft({ proposal: generated, createdBy: 9 })).resolves.toMatchObject({
+      id: 52,
+      version: 5,
+    });
+    expect(tx.brainSkillRegistry.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ version: 5, definitionRefs: generated.manifest.definitionRefs }),
+    });
+    expect(tx.brainResourceVersion.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ version: 5 }),
+    });
   });
 
   it.each(['P2034', 'P2002'])('maps exhausted %s version races to ConflictException', async (code) => {
@@ -196,7 +234,11 @@ describe('BrainGeneratedCapabilityDraftService', () => {
       $queryRaw: jest.fn().mockResolvedValue([{ id: 7 }]),
       brainResourceVersion: { findFirst: jest.fn().mockResolvedValue({
         ...existing,
-        snapshot: { sourceProposalFingerprint: generated.proposalFingerprint, sourceFingerprint: generated.sourceFingerprint },
+        snapshot: {
+          sourceProposalFingerprint: generated.proposalFingerprint,
+          sourceFingerprint: generated.sourceFingerprint,
+          definitionRefs: generated.manifest.definitionRefs,
+        },
       }) },
     };
     const prisma = { $transaction: jest.fn((callback) => callback(tx)) };

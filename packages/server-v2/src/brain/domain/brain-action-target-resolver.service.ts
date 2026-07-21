@@ -139,6 +139,9 @@ export class BrainActionTargetResolverService {
   }>> {
     const explicitIdText =
       input.message.match(/(?:自动触达|营销)?策略(?:编号|ID|id|#|号)\s*(\d{1,9})(?!\d)/)?.[1] ??
+      input.message.trim().match(
+        /^(?:执行|运行|启动|开始|立即)\s*(?:自动触达|营销)?策略\s+(\d{1,9})(?!\d)(?:\s*(?:并)?\s*(?:发送|执行|启动))?\s*$/,
+      )?.[1] ??
       input.message.trim().match(/^(?:执行|运行|启动|开始|立即)?\s*(?:自动触达|营销)?策略\s+(\d{1,9})$/)?.[1];
     const explicitId = Number(explicitIdText);
     if (explicitId > 0) {

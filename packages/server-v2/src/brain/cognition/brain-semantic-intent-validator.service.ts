@@ -295,7 +295,13 @@ export class BrainSemanticIntentValidatorService {
     missingSlots: Set<string>,
     hasImplicitRankingContract = false,
   ): void {
-    if (intent.entities.some((entity) => !entity.definitionRef)) missingSlots.add('entity');
+    if (
+      intent.entities.some(
+        (entity) => !entity.definitionRef && !(intent.intent === 'action' && isSpecificActionTarget(entity)),
+      )
+    ) {
+      missingSlots.add('entity');
+    }
 
     if (intent.intent === 'ranking' && !hasImplicitRankingContract) {
       if (intent.metrics.length === 0) missingSlots.add('metric');
@@ -360,7 +366,17 @@ function hasGovernedImplicitRankingContract(
 }
 
 function isSpecificActionTarget(entity: BrainSemanticIntent['entities'][number]): boolean {
-  if (!entity.definitionRef) return false;
+  if (
+    !entity.definitionRef
+    && !(
+      entity.source === 'user'
+      && entity.entityType === 'marketing_strategy'
+      && Boolean(entity.entityKey)
+      && entity.entityKey !== entity.entityType
+    )
+  ) {
+    return false;
+  }
   if (entity.entityKey && entity.entityKey !== entity.entityType) return true;
   const mention = normalizeMention(entity.mention);
   if (!mention) return false;

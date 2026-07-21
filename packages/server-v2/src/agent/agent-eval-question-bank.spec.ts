@@ -472,6 +472,32 @@ describe('Agent eval question bank', () => {
       ),
     ).toBe(true);
   });
+
+  it('marks management and backend capability gaps as explicit system boundaries', () => {
+    const bank = parseAgentEvalQuestionMarkdown(readQuestionBankMarkdown());
+    const annotated = annotateQuestionBankCoverage(bank.questions);
+
+    expect(annotated).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'qb-inventory-purchase-suggestion-055',
+          systemSupportStatus: 'system_unsupported',
+        }),
+        expect.objectContaining({
+          id: 'qb-inventory-supply-coordination-092',
+          systemSupportStatus: 'system_unsupported',
+        }),
+        expect.objectContaining({
+          id: 'qb-finance-cost-margin-042',
+          systemSupportStatus: 'system_unsupported',
+        }),
+        expect.objectContaining({
+          id: 'qb-marketing-automation-touch-092',
+          systemSupportStatus: 'system_unsupported',
+        }),
+      ]),
+    );
+  });
 });
 
 function countBy<T extends Record<string, unknown>>(items: T[], key: keyof T) {

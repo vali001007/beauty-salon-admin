@@ -124,6 +124,7 @@ describe('BrainController', () => {
     expect(response.status).toHaveBeenCalledWith(200);
     expect(response.setHeader).toHaveBeenCalledWith('Content-Type', 'text/event-stream; charset=utf-8');
     expect(response.write).toHaveBeenCalledWith(expect.stringContaining('event: run_started'));
+    expect(response.write).toHaveBeenCalledWith(expect.stringContaining('event: progress'));
     expect(response.write).toHaveBeenCalledWith(expect.stringContaining('event: step'));
     expect(response.write).toHaveBeenCalledWith(expect.stringContaining('event: answer_delta'));
     expect(response.write).toHaveBeenCalledWith(expect.stringContaining('event: completed'));
@@ -164,8 +165,9 @@ describe('BrainController', () => {
       timezone: 'Asia/Shanghai',
     });
 
-    expect(response.write).toHaveBeenCalledTimes(1);
-    expect(response.write).toHaveBeenCalledWith(expect.stringContaining('event: run_started'));
+    expect(response.write).toHaveBeenCalledTimes(2);
+    expect(response.write.mock.calls[0]?.[0]).toContain('event: run_started');
+    expect(response.write.mock.calls[1]?.[0]).toContain('event: progress');
     expect(response.end).not.toHaveBeenCalled();
 
     resolveChat({

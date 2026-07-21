@@ -1,6 +1,8 @@
 import { BrainEvalService } from './governance/brain-eval.service.js';
+import { Prisma } from '@prisma/client';
 import { createBusinessDefinitionProjectionFingerprint } from '../semantic-data/business-definition-projection-compiler.service.js';
 import type { BrainEvaluationReleaseSnapshot } from './governance/brain-evaluation-release-snapshot.js';
+import { buildBrainReleaseEvalGate } from './eval/brain-release-eval-gate.js';
 
 describe('BrainEvalService', () => {
   it('accepts explicit fail-closed model outcomes for security-only release assertions', () => {
@@ -75,6 +77,35 @@ describe('BrainEvalService', () => {
       answer: '请提供客户姓名。',
       blocks: [{ kind: 'clarification', question: '请提供客户姓名。', options: [] }],
       suggestedActions: [],
+    })).toBe(false);
+  });
+
+  it('accepts a safe side-effect clarification even when no preview plan can be built yet', () => {
+    const service = new BrainEvalService({} as never);
+
+    expect((service as any).releaseCapabilityGatePassed({
+      assertionType: 'release_capability',
+      intentPassed: true,
+      toolPassed: false,
+      planPassed: false,
+      executionPassed: true,
+      completionPassed: true,
+      safeClarification: true,
+      hasAnswer: true,
+      contentPassed: true,
+      hasError: false,
+    })).toBe(true);
+    expect((service as any).releaseCapabilityGatePassed({
+      assertionType: 'release_capability',
+      intentPassed: true,
+      toolPassed: false,
+      planPassed: false,
+      executionPassed: true,
+      completionPassed: true,
+      safeClarification: false,
+      hasAnswer: true,
+      contentPassed: true,
+      hasError: false,
     })).toBe(false);
   });
 
@@ -397,9 +428,95 @@ describe('BrainEvalService', () => {
     expect(prisma.brainEvalResult.create).not.toHaveBeenCalled();
     expect(prisma.brainEvalResult.update).toHaveBeenCalledWith({
       where: { evalRunId_caseKey: { evalRunId: 6, caseKey: 'case_retry' } },
-      data: expect.objectContaining({ deterministicPassed: true, failureCluster: undefined }),
+      data: expect.objectContaining({ deterministicPassed: true, failureCluster: null, error: Prisma.DbNull }),
     });
     expect(result).toMatchObject({ total: 1, passed: 1, failed: 0, providerUnavailable: 0 });
+  });
+
+  it('retries an explicitly requested failed release-gate checkpoint without rerunning passed cases', async () => {
+    const releaseSnapshot = {
+      releaseId: 21,
+      releaseStatus: 'draft',
+      releaseFingerprint: 'd'.repeat(64),
+      declaredMode: 'shadow',
+      mode: 'model',
+      resourceVersionIds: [3],
+      capabilityKeys: ['customer_facts'],
+      capabilityCandidates: [{
+        key: 'customer_facts',
+        domains: ['customer'],
+        allowedRoles: ['store_manager'],
+        requiredPermissions: ['core:customer:view'],
+        examples: ['查询张三客户档案', '查看客户 ID 123'],
+      }],
+    } as unknown as BrainEvaluationReleaseSnapshot;
+    const gate = buildBrainReleaseEvalGate(releaseSnapshot);
+    const targetCase = gate.cases.find((item) => item.expectedCapabilityKeys.includes('customer_facts'))!;
+    const existingRows = gate.cases.map((item) => ({
+      caseKey: item.caseKey,
+      deterministicPassed: item.caseKey !== targetCase.caseKey,
+      failureCluster: item.caseKey === targetCase.caseKey ? 'metric_failed' : null,
+      metadata: {
+        expected: { capabilityKeys: item.expectedCapabilityKeys },
+        actual: { capabilityKeys: item.caseKey === targetCase.caseKey ? [] : item.expectedCapabilityKeys },
+      },
+    }));
+    const prisma = {
+      brainEvalRun: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 12,
+          storeId: 6,
+          releaseId: 21,
+          roleKey: null,
+          summary: { gateMode: 'release_gate', releaseFingerprint: releaseSnapshot.releaseFingerprint },
+        }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      brainEvalResult: {
+        findMany: jest.fn().mockResolvedValue(existingRows),
+        create: jest.fn(),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      role: { findMany: jest.fn().mockResolvedValue([{ key: 'store_manager', permissions: ['core:customer:view'] }]) },
+    };
+    const chat = {
+      createConversation: jest.fn().mockResolvedValue({ id: 44 }),
+      sendMessage: jest.fn().mockResolvedValue({
+        status: 'completed',
+        answer: '客户档案查询完成。',
+        citations: [{ sourceType: 'skill', sourceId: 'customer_facts' }],
+        capabilityKey: 'customer_facts',
+        semanticIntent: { domains: ['customer'], entities: [], metrics: [], dimensions: [] },
+        adapterMetadata: { completion: { status: 'complete', missingCriteria: [], recoverable: false } },
+      }),
+    };
+    const passingLayer = (layer: string) => ({ layer, passed: true, score: 1, deterministicFailure: false, failures: [] });
+    const service = new BrainEvalService(
+      prisma as never,
+      chat as never,
+      { grade: jest.fn().mockReturnValue({ status: 'usable_exact', reason: 'matched' }) } as never,
+      { grade: jest.fn(() => passingLayer('intent')) } as never,
+      { grade: jest.fn(() => passingLayer('tool')) } as never,
+      { grade: jest.fn(() => passingLayer('plan')) } as never,
+      { grade: jest.fn(() => passingLayer('completion')) } as never,
+      { freezeEvaluationRelease: jest.fn().mockResolvedValue(releaseSnapshot) } as never,
+    );
+
+    const result = await service.runEvalNow({
+      evalRunId: 12,
+      storeId: 6,
+      userId: 28,
+      permissions: ['*'],
+      caseKeys: [targetCase.caseKey],
+    });
+
+    expect(chat.sendMessage).toHaveBeenCalledTimes(1);
+    expect(prisma.brainEvalResult.create).not.toHaveBeenCalled();
+    expect(prisma.brainEvalResult.update).toHaveBeenCalledWith({
+      where: { evalRunId_caseKey: { evalRunId: 12, caseKey: targetCase.caseKey } },
+      data: expect.objectContaining({ deterministicPassed: true }),
+    });
+    expect(result).toMatchObject({ total: gate.cases.length, passed: gate.cases.length, failed: 0, canRelease: true });
   });
 
   it('allows release only after every generated capability and mandatory adversarial case passes', async () => {

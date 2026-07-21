@@ -337,14 +337,17 @@ export class BrainAnswerGraderService {
   private detectExpectedIntent(question: string): BrainQuestionIntent {
     const text = this.normalize(question);
 
+    if (/(?:我想|帮我|能不能|请).*(?:系统)?自动.*(?:发|发送|提醒|通知|推送)/.test(text)) return 'action';
     if (/(写|生成|编辑|拟一|拟个|文案|话术|短信|消息|通知|朋友圈|小红书)/.test(text)) return 'draft';
+    if (/(?:帮我|请|给).*(?:设计|策划|做一个).*(?:方案|活动|礼包)|(?:活动方案|专属活动|客户生命周期运营方案)/.test(text)) {
+      return 'draft';
+    }
+    if (/(?:设置|创建|新建|做一个).*(?:自动|规则|流程)/.test(text)) return 'draft';
     if (/(临时来了没预约|临时到店).*(还能|能否|可以|安排)/.test(text)) return 'recommendation';
     if (/(如果|假设).*(打|折扣).*(毛利|利润)|打[一二三四五六七八九0-9].*折.*(毛利|利润)|毛利还剩多少/.test(text)) {
       return 'recommendation';
     }
-    if (/(做一个|策划|活动方案|专属活动|促销活动|做什么活动|拉动一下).*(活动|促销|客户)|(?:活动|促销).*(方案|策划|专属|拉动)/.test(text)) {
-      return 'recommendation';
-    }
+    if (/(做什么活动|拉动一下).*(活动|促销|客户)|(?:活动|促销).*(拉动)/.test(text)) return 'recommendation';
     if (/(快过期|临期|过期).*(怎么|如何|处理|规定|办法|方案|消化|优惠|减少|合适)/.test(text)) {
       return 'recommendation';
     }
@@ -401,6 +404,19 @@ export class BrainAnswerGraderService {
     if (blockKinds.has('table')) return 'list';
     if (this.hasMetricCitation(input.citations)) return 'metric_query';
     const skillId = this.detectActualSkill(input.citations);
+    if (skillId?.includes('campaign_plan') && /草稿|尚未发布|未发布活动/.test(input.answer)) return 'draft';
+    if (
+      skillId?.includes('automation_rule_preview') &&
+      /(?:设置|创建|新建|做一个).*(?:自动|规则|流程)/.test(input.question)
+    ) {
+      return 'draft';
+    }
+    if (
+      (skillId?.includes('automation_rule_preview') || skillId?.includes('gap_fill_touch_preview')) &&
+      /(?:我想|帮我|能不能|请).*(?:自动|推送|发送|发消息|提醒)/.test(input.question)
+    ) {
+      return 'action';
+    }
     if (skillId?.includes('automation_rule_preview')) return 'recommendation';
     if (skillId?.includes('draft')) return 'draft';
     if (skillId?.includes('action')) return 'action';

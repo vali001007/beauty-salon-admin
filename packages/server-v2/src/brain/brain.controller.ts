@@ -82,6 +82,9 @@ export class BrainController {
   ) {
     const context = this.contextService.fromRequest(req, dto.timezone ?? 'Asia/Shanghai');
     const conversationId = Number(id);
+    const streamStartedAt = Date.now();
+    let firstProgressAt: number | undefined;
+    let answerReadyAt: number | undefined;
     let closed = false;
     req.on('close', () => {
       closed = true;
@@ -100,12 +103,25 @@ export class BrainController {
       (res as Response & { flush?: () => void }).flush?.();
     };
 
-    emit('run_started', { conversationId, transport: 'sse', answerMode: 'buffered_chunks' });
+    emit('run_started', {
+      conversationId,
+      transport: 'sse',
+      answerMode: 'buffered_chunks',
+      progressMode: 'live_status',
+    });
+    firstProgressAt = Date.now();
+    emit('progress', {
+      conversationId,
+      phase: 'understanding',
+      message: '正在理解问题并核对可用数据...',
+      elapsedMs: firstProgressAt - streamStartedAt,
+    });
     try {
       let answerEmitted = false;
       const emitAnswer = (result: { runId: number; answer: string; suggestedActions?: unknown[]; blocks?: unknown[] }) => {
         if (answerEmitted) return;
         answerEmitted = true;
+        answerReadyAt = Date.now();
         emit('step', { conversationId, runId: result.runId, stepKey: 'answer_ready', status: 'completed' });
         for (const action of result.suggestedActions ?? []) {
           emit('action_preview', { conversationId, runId: result.runId, action });
@@ -120,7 +136,15 @@ export class BrainController {
       };
       const result = await this.chatService.sendMessage(context, conversationId, dto, { onAnswerReady: emitAnswer });
       emitAnswer(result);
-      emit('completed', result as unknown as Record<string, unknown>);
+      const completedAt = Date.now();
+      emit('completed', {
+        ...(result as unknown as Record<string, unknown>),
+        streamMetrics: {
+          firstProgressMs: firstProgressAt === undefined ? null : firstProgressAt - streamStartedAt,
+          answerReadyMs: answerReadyAt === undefined ? null : answerReadyAt - streamStartedAt,
+          completedMs: completedAt - streamStartedAt,
+        },
+      });
     } catch (error) {
       emit('failed', { message: error instanceof Error ? error.message : 'Ami Brain 回答失败' });
     } finally {

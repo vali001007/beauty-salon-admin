@@ -3,7 +3,10 @@ import type {
   BusinessDefinitionSnapshotProvider,
   PrismaRuntimeDataModel,
 } from './business-definition-snapshot.types.js';
-import { BrainOntologyRuntimeService } from './brain-ontology-runtime.service.js';
+import {
+  BrainOntologyRuntimeService,
+  buildProductionReadyBusinessDefinitionSnapshot,
+} from './brain-ontology-runtime.service.js';
 
 type EntityOverride = Partial<BusinessDefinitionSnapshotInput['entities'][number]>;
 
@@ -523,6 +526,19 @@ describe('BrainOntologyRuntimeService', () => {
 
     expect(firstIndex).toBeDefined();
     expect((runtime as unknown as { aliasIndex: unknown }).aliasIndex).toBe(firstIndex);
+  });
+
+  it('resolves aliases from an evaluation snapshot without requiring a production snapshot', () => {
+    const { runtime } = runtimeFor(validInput(), 'rules');
+    const evaluationSnapshot = buildProductionReadyBusinessDefinitionSnapshot(validInput(), runtimeDataModel());
+
+    expect(runtime.getSnapshot()).toBeNull();
+    expect(runtime.resolveEntityAlias('客户', evaluationSnapshot)).toMatchObject({
+      status: 'resolved',
+      matchType: 'exact',
+      refs: [{ definitionType: 'entity', definitionKey: 'entity:customer', definitionVersion: 1 }],
+    });
+    expect(runtime.getSnapshot()).toBeNull();
   });
 
   it('returns ambiguity for alias collisions instead of selecting an entity', async () => {

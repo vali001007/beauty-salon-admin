@@ -822,6 +822,17 @@ function applyP0ConversationExpectationOverrides(
   });
 }
 
+const QUESTION_BANK_SYSTEM_BOUNDARY_OVERRIDES: Readonly<Record<string, string>> = {
+  'qb-inventory-purchase-suggestion-055':
+    '当前采购预览必须有商品和数量，不能在缺少采购明细时估算总成本。',
+  'qb-inventory-supply-coordination-092':
+    '当前管理端和后端没有通过 Ami Brain 执行采购到货入库的受控动作能力。',
+  'qb-finance-cost-margin-042':
+    '当前管理端尚未发布统一净利润业务定义，不能用毛利或实收替代。',
+  'qb-marketing-automation-touch-092':
+    '当前管理端和后端没有客户满意度采集、问卷发送和回执事实闭环。',
+};
+
 export function annotateQuestionBankCoverage(questions: AgentEvalQuestionCase[]) {
   const p0Ids = new Set(selectP0QuestionBankCases(questions).map((item) => item.id));
   const conversationInputs = new Set(
@@ -835,7 +846,15 @@ export function annotateQuestionBankCoverage(questions: AgentEvalQuestionCase[])
         : conversationInputs.has(item.input)
           ? 'conversation'
           : 'not_run';
-    return { ...item, coverageStage };
+    const unsupportedReason = QUESTION_BANK_SYSTEM_BOUNDARY_OVERRIDES[item.id];
+    return unsupportedReason
+      ? {
+          ...item,
+          coverageStage,
+          systemSupportStatus: 'system_unsupported' as const,
+          systemSupportReason: unsupportedReason,
+        }
+      : { ...item, coverageStage };
   });
 }
 

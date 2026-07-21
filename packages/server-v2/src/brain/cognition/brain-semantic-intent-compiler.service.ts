@@ -340,6 +340,12 @@ export class BrainSemanticIntentCompilerService {
       : availableMetrics.length === 1 || intent === 'ranking'
         ? availableMetrics
         : [];
+    if (matchedMetrics.some((metric) => !metric.definitionKey.includes('collection_coverage_rate'))) {
+      metrics = uniqueDefinitionRefs([
+        ...metrics,
+        ...availableMetrics.filter((metric) => metric.definitionKey.includes('collection_coverage_rate')),
+      ]);
+    }
     if (intent === 'ranking' && capability.key === 'product_sales_ranking') {
       const preferredKey = /销量|数量|卖得最多/.test(input.question)
         ? 'metric.product_sales_quantity'
@@ -376,11 +382,13 @@ export class BrainSemanticIntentCompilerService {
           })()
         : [],
     );
-    const runtimeDimensionKeys = metrics.flatMap((metricRef) =>
-      input.ontologySnapshot?.metrics
-        .find((metric) => metric.definitionKey === metricRef.definitionKey)
-        ?.runtimeQuery?.dimensions ?? [],
-    );
+    const runtimeDimensionKeys = intent === 'ranking' || isExplicitListQuestion(input.question)
+      ? metrics.flatMap((metricRef) =>
+          input.ontologySnapshot?.metrics
+            .find((metric) => metric.definitionKey === metricRef.definitionKey)
+            ?.runtimeQuery?.dimensions ?? [],
+        )
+      : [];
     const inferredDimensions = input.ontologySnapshot?.dimensions
       .filter((dimension) =>
         runtimeDimensionKeys.includes(dimension.dimensionKey) ||
@@ -399,7 +407,10 @@ export class BrainSemanticIntentCompilerService {
       entities,
       metrics,
       dimensions,
-      orderBy: intent === 'ranking' && metrics[0]
+      orderBy:
+        (intent === 'ranking' ||
+          (capability.key === 'inventory_risk_ranking' && /最紧急|优先级最高/.test(input.question))) &&
+        metrics[0]
         ? [{ definitionRef: { ...metrics[0] }, direction: 'desc' }]
         : [],
     };
@@ -409,7 +420,10 @@ export class BrainSemanticIntentCompilerService {
     intent: BrainSemanticIntent,
     input: BrainSemanticIntentCompilerInput,
   ): BrainSemanticIntent {
-    const canonicalIntent = hydrateModelIntentDefinitionRefs(intent, input);
+    const canonicalIntent = applyQuestionSpeechActContract(
+      hydrateModelIntentDefinitionRefs(intent, input),
+      input.question,
+    );
     const intentKind = normalizeIntentKind(canonicalIntent);
     const exactCapability = input.capabilitySummaries.find(
       (capability) =>
@@ -935,7 +949,7 @@ function exactCapabilityIntent(
 ): BrainSemanticIntent['intent'] | undefined {
   const allowed = new Set(intents);
   const candidates: BrainSemanticIntent['intent'][] = [
-    ...(/排行|排名|(?:谁|哪个).*(?:最高|最多|最好)|(?:最高|最多|最好)(?:的)?(?:前\s*\d+)?|前\s*\d+|(?:各|每个).*(?:项目|员工|美容师|产品|商品).*(?:毛利|利润|成本|业绩|销售|消耗)/.test(question)
+    ...(/排行|排名|(?:谁|哪个|哪种|哪类|何种).*(?:最高|最多|最好)|(?:最高|最多|最好)(?:的)?(?:前\s*\d+)?|前\s*\d+|(?:各|每个).*(?:项目|员工|美容师|产品|商品).*(?:毛利|利润|成本|业绩|销售|消耗)/.test(question)
       ? ['ranking' as const]
       : []),
     ...(hasTimeComparison || /对比|相比|跟.*比|和.*比|差多少/.test(question) ? ['comparison' as const] : []),
@@ -956,7 +970,38 @@ function exactCapabilityAnswerShape(intent: BrainSemanticIntent['intent']): Brai
 }
 
 function isExplicitListQuestion(question: string) {
-  return /(哪些|哪几|名单|列表|列出|找出|分别是谁|都有谁)/.test(question);
+  return /(哪些|哪几|名单|列表|列出|找出|分别是谁|都有谁|最紧急的是什么|缺货最紧急)/.test(question);
+}
+
+function applyQuestionSpeechActContract(intent: BrainSemanticIntent, question: string): BrainSemanticIntent {
+  const text = question.normalize('NFKC').trim();
+  const automationDiagnosis = /^(?:如何|怎么).*(?:系统)?自动.*(?:识别|判断|分析).*(?:提醒|通知|跟进)/.test(text);
+  if (automationDiagnosis) {
+    return { ...intent, intent: 'diagnosis', answerShape: 'diagnosis' };
+  }
+  const automationAction =
+    /(?:我想|帮我|能不能|请).*(?:系统)?自动.*(?:发|发送|提醒|通知|推送|升级|触发)/.test(text);
+  if (automationAction) {
+    return { ...intent, intent: 'action', answerShape: 'action_preview' };
+  }
+  if (/(?:设置|创建|新建|做一个).*(?:自动|规则|流程)/.test(text)) {
+    return { ...intent, intent: 'draft', answerShape: 'draft', metrics: [], dimensions: [], orderBy: [] };
+  }
+  const draftRequest =
+    /(?:帮我|请|给).*(?:设计|策划|写|生成|拟).*(?:方案|活动|礼包|欢迎词|文案|话术|提醒|消息)/.test(text) ||
+    /(?:如何|怎么).*(?:设计|策划).*(?:方案|活动)/.test(text) ||
+    /(?:储值赠送方案).*(?:比例|定在)|(?:客户生命周期).*(?:运营方案)/.test(text);
+  if (draftRequest) {
+    return {
+      ...intent,
+      intent: 'draft',
+      answerShape: 'draft',
+      metrics: [],
+      dimensions: [],
+      orderBy: [],
+    };
+  }
+  return intent;
 }
 
 function isExplicitScalarQuestion(question: string) {
@@ -1018,7 +1063,7 @@ function resolveOntologyEntityRef(
 }
 
 function normalizeSemanticText(value: string): string {
-  return value.trim().toLocaleLowerCase('zh-CN').replace(/\s+/g, '');
+  return value.trim().toLocaleLowerCase('zh-CN').replace(/[^a-z0-9\u4e00-\u9fff]+/g, '');
 }
 
 function definitionMatchesQuestion(question: string, name: string, aliases: readonly string[] = []): boolean {
@@ -1092,6 +1137,9 @@ function governedDimensionKeyMatchesQuestion(question: string, definitionKey: st
   const dimensionKey = definitionKey.replace(/^dimension\./, '');
   if (dimensionKey === 'customerAgeGroup') {
     return /(年龄|年龄段|年龄画像)/.test(normalizedQuestion);
+  }
+  if (dimensionKey === 'paymentMethod') {
+    return /(支付方式|收款方式|付款方式|支付渠道|收款渠道)/.test(normalizedQuestion);
   }
   return false;
 }

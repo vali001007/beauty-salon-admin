@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { access } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { canonicalizeBusinessDefinition } from '../../semantic-data/business-definition-projection-compiler.service.js';
 import type { BrainCapabilityGenerationProposal } from './brain-capability-codegen.service.js';
 import { BrainCapabilityPublishedGateService } from './brain-capability-published-gate.service.js';
 import type { BrainCapabilityScanReport } from './brain-capability-scan.types.js';
@@ -116,7 +117,9 @@ export class BrainGeneratedCapabilityDraftService {
   private existingMatches(snapshotValue: unknown, proposal: BrainCapabilityGenerationProposal) {
     const snapshot = record(snapshotValue);
     return snapshot.sourceProposalFingerprint === proposal.proposalFingerprint &&
-      snapshot.sourceFingerprint === proposal.sourceFingerprint;
+      snapshot.sourceFingerprint === proposal.sourceFingerprint &&
+      canonicalizeBusinessDefinition(snapshot.definitionRefs) ===
+        canonicalizeBusinessDefinition(proposal.manifest.definitionRefs);
   }
 
   private json(value: unknown): Prisma.InputJsonValue {

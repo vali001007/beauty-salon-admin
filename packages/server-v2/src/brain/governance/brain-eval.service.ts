@@ -192,10 +192,12 @@ export class BrainEvalService {
         },
       });
       const existingByCaseKey = new Map(existingRows.map((row) => [row.caseKey, row]));
+      const explicitlyRequestedCaseKeys = new Set(input.caseKeys ?? []);
       for (const evalCase of cases) {
         const checkpoint = existingByCaseKey.get(evalCase.caseKey);
         const retryingProviderUnavailable = checkpoint?.failureCluster === 'provider_unavailable';
-        if (checkpoint && !retryingProviderUnavailable) {
+        const retryingExplicitCase = Boolean(checkpoint && explicitlyRequestedCaseKeys.has(evalCase.caseKey));
+        if (checkpoint && !retryingProviderUnavailable && !retryingExplicitCase) {
           const checkpointMetadata = this.record(checkpoint.metadata);
           const checkpointActual = this.record(checkpointMetadata.actual);
           const checkpointExpected = this.record(checkpointMetadata.expected);
@@ -302,16 +304,18 @@ export class BrainEvalService {
         const contentPassed = expectedContains.every((text) => answer.includes(text));
         const standardPassed = Object.values(layers).every((layer) => layer.passed) && contentPassed && !errorMessage;
         const safeReleaseClarification = this.safeReleaseCapabilityClarification(expected, runtimeResponse);
-        const releaseCapabilityPassed =
-          evalCase.assertionType === 'release_capability'
-          && layers.intent.passed
-          && (layers.tool.passed || safeReleaseClarification)
-          && layers.plan.passed
-          && layers.execution.passed
-          && layers.completion.passed
-          && answer.trim().length > 0
-          && contentPassed
-          && !errorMessage;
+        const releaseCapabilityPassed = this.releaseCapabilityGatePassed({
+          assertionType: evalCase.assertionType,
+          intentPassed: layers.intent.passed,
+          toolPassed: layers.tool.passed,
+          planPassed: layers.plan.passed,
+          executionPassed: layers.execution.passed,
+          completionPassed: layers.completion.passed,
+          safeClarification: safeReleaseClarification,
+          hasAnswer: answer.trim().length > 0,
+          contentPassed,
+          hasError: Boolean(errorMessage),
+        });
         const releaseTimeBoundaryPassed =
           evalCase.assertionType === 'release_time_boundary'
           && Object.values(layers).every((layer) => layer.passed)
@@ -363,10 +367,14 @@ export class BrainEvalService {
           error: errorMessage ? { message: errorMessage } : undefined,
           metadata: this.toJson(metadata),
         };
-        if (retryingProviderUnavailable) {
+        if (retryingProviderUnavailable || retryingExplicitCase) {
           await this.prisma.brainEvalResult.update({
             where: { evalRunId_caseKey: { evalRunId: input.evalRunId, caseKey: evalCase.caseKey } },
-            data: resultData,
+            data: {
+              ...resultData,
+              failureCluster: passed ? null : resultData.failureCluster,
+              error: errorMessage ? { message: errorMessage } : Prisma.DbNull,
+            },
           });
         } else {
           try {
@@ -381,7 +389,11 @@ export class BrainEvalService {
             if (!isPrismaCode(error, 'P2002')) throw error;
             await this.prisma.brainEvalResult.update({
               where: { evalRunId_caseKey: { evalRunId: input.evalRunId, caseKey: evalCase.caseKey } },
-              data: resultData,
+              data: {
+                ...resultData,
+                failureCluster: passed ? null : resultData.failureCluster,
+                error: errorMessage ? { message: errorMessage } : Prisma.DbNull,
+              },
             });
           }
         }
@@ -628,6 +640,29 @@ export class BrainEvalService {
       : [];
     return String(runtimeResponse.answer ?? '').trim().length > 0
       && !actions.some((action) => action.status === 'executed' || action.executed === true);
+  }
+
+  private releaseCapabilityGatePassed(input: {
+    assertionType: string;
+    intentPassed: boolean;
+    toolPassed: boolean;
+    planPassed: boolean;
+    executionPassed: boolean;
+    completionPassed: boolean;
+    safeClarification: boolean;
+    hasAnswer: boolean;
+    contentPassed: boolean;
+    hasError: boolean;
+  }) {
+    return input.assertionType === 'release_capability'
+      && input.intentPassed
+      && (input.toolPassed || input.safeClarification)
+      && (input.planPassed || input.safeClarification)
+      && input.executionPassed
+      && input.completionPassed
+      && input.hasAnswer
+      && input.contentPassed
+      && !input.hasError;
   }
 
   private async markEvalRunFailed(evalRunId: number, error: unknown) {

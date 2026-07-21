@@ -200,13 +200,7 @@ export class BrainReleaseService {
     if (regeneration) throw new BadRequestException('modification_superseded');
     if (!release.items.length) throw new BadRequestException('release_has_no_resource_items');
     this.assertReleaseItemsConsistent(release.items);
-    const evalRun = await prisma.brainEvalRun.findFirst({
-      where: { releaseId: release.id, status: 'completed' },
-      orderBy: { createdAt: 'desc' },
-    });
-    const summary = evalRun ? this.record(evalRun.summary) : {};
-    if (!evalRun) throw new BadRequestException('release_eval_gate_failed');
-    this.assertReleaseEvalSummary(summary, releaseFingerprint);
+    await this.assertReleaseEvalEvidence(prisma, release, releaseFingerprint);
     await this.validateGeneratedCapabilities(release.items.map((item) => item.resourceVersion));
     await this.validateDependencies(release.items.map((item) => item.resourceVersion));
 
@@ -221,12 +215,7 @@ export class BrainReleaseService {
         throw new BadRequestException('release_evaluation_only');
       }
       const lockedFingerprint = createReleaseFingerprint(lockedRelease.items);
-      const lockedEvalRun = await tx.brainEvalRun.findFirst({
-        where: { releaseId: lockedRelease.id, status: 'completed' },
-        orderBy: { createdAt: 'desc' },
-      });
-      if (!lockedEvalRun) throw new BadRequestException('release_eval_gate_failed');
-      this.assertReleaseEvalSummary(this.record(lockedEvalRun.summary), lockedFingerprint);
+      await this.assertReleaseEvalEvidence(tx as unknown as PrismaService, lockedRelease, lockedFingerprint);
       const modification = await tx.brainCapabilityRegenerationJob.findFirst({
         where: { releaseFingerprint: lockedFingerprint },
         select: { id: true, status: true },
@@ -458,6 +447,43 @@ export class BrainReleaseService {
     if (summary.releaseFingerprint !== releaseFingerprint) {
       throw new BadRequestException('release_eval_fingerprint_mismatch');
     }
+  }
+
+  private async assertReleaseEvalEvidence(
+    prisma: PrismaService,
+    release: BrainReleaseWithItems,
+    releaseFingerprint: string,
+  ) {
+    const ownEvalRun = await prisma.brainEvalRun.findFirst({
+      where: { releaseId: release.id, status: 'completed' },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (ownEvalRun) {
+      this.assertReleaseEvalSummary(this.record(ownEvalRun.summary), releaseFingerprint);
+      return;
+    }
+
+    const evidenceReleaseId = Number(this.record(release.rollout).evaluationEvidenceReleaseId);
+    if (!Number.isInteger(evidenceReleaseId) || evidenceReleaseId <= 0 || evidenceReleaseId === release.id) {
+      throw new BadRequestException('release_eval_gate_failed');
+    }
+    const evidenceRelease = await prisma.brainRelease.findUnique({
+      where: { id: evidenceReleaseId },
+      include: { items: { include: { resourceVersion: true } } },
+    });
+    if (!evidenceRelease || this.record(evidenceRelease.rollout).evaluationOnly !== true) {
+      throw new BadRequestException('release_eval_evidence_invalid');
+    }
+    const evidenceFingerprint = createReleaseFingerprint(evidenceRelease.items);
+    if (evidenceFingerprint !== releaseFingerprint) {
+      throw new BadRequestException('release_eval_evidence_fingerprint_mismatch');
+    }
+    const evidenceEvalRun = await prisma.brainEvalRun.findFirst({
+      where: { releaseId: evidenceRelease.id, status: 'completed' },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!evidenceEvalRun) throw new BadRequestException('release_eval_gate_failed');
+    this.assertReleaseEvalSummary(this.record(evidenceEvalRun.summary), releaseFingerprint);
   }
 
   private async validateGeneratedCapabilities(

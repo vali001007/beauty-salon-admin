@@ -133,6 +133,12 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
 
   @BrainCapability({
     key: 'staff_performance_ranking',
+    name: '美容师综合表现排行',
+    description: '按已发布员工表现评分查询美容师综合表现排行；不得用综合表现、业绩或服务量替代投诉、满意度、试用期或客户归属指标。',
+    intents: ['ranking', 'query'],
+    examples: ['美容师综合表现排行', '哪个美容师表现最好', '员工表现评分排名'],
+    negativeExamples: ['哪个美容师客诉最多', '美容师满意度排行', '评价新员工试用期表现', '谁挖走了其他美容师的客户'],
+    synonyms: ['美容师表现排行', '员工综合表现', '员工表现评分'],
     businessDefinitionKeys: ['metric.staff_performance_score', 'entity.beautician'],
     readOnly: true,
     storeScope: 'required',
@@ -205,6 +211,26 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
   async execute(input: BrainCapabilityExecutionInput): Promise<BrainDomainAnswer> {
     if (!this.capabilityKeys.includes(input.card.key as (typeof ALLOWED_CAPABILITY_KEYS)[number])) {
       throw new Error(`unsupported_semantic_capability:${input.card.key}`);
+    }
+
+    if (
+      input.card.key === 'staff_performance_ranking' &&
+      /(?:投诉|客诉|差评|满意度|负面反馈|试用期|转正|挖走.*客户|客户归属)/.test(input.question)
+    ) {
+      const limitation =
+        '当前问题需要独立的客户反馈、试用期或客户归属事实，不能用美容师综合表现评分替代。';
+      return {
+        status: 'completed',
+        answer: limitation,
+        citations: [],
+        grounding: 'none',
+        blocks: [{ kind: 'limitations', items: [limitation] }],
+        metadata: {
+          capabilityKey: 'staff_performance_ranking',
+          unsupportedReason: 'staff_performance_metric_not_applicable',
+          completion: { status: 'complete', missingCriteria: [], recoverable: false },
+        },
+      };
     }
 
     this.assertStructuredArgsSupported(input);

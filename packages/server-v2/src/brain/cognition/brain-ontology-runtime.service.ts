@@ -74,8 +74,13 @@ export class BrainOntologyRuntimeService implements OnModuleInit {
     return buildProductionReadyBusinessDefinitionSnapshot(input, this.provider.getRuntimeDataModel());
   }
 
-  resolveEntityAlias(query: string): EntityAliasResolution {
-    const aliasIndex = this.requireAliasIndex();
+  resolveEntityAlias(
+    query: string,
+    snapshotOverride?: ProductionReadyBusinessDefinitionSnapshot,
+  ): EntityAliasResolution {
+    const aliasIndex = snapshotOverride
+      ? buildEntityAliasIndex(snapshotOverride.entities)
+      : this.requireAliasIndex();
     const normalizedQuery = normalizeAlias(query);
     if (!normalizedQuery) {
       return { status: 'not_found', refs: [] };

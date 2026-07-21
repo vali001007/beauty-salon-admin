@@ -57,6 +57,24 @@ describe('BrainGroundedAnswerComposerService', () => {
     ]));
   });
 
+  it('deduplicates the same confirmation action from blocks and suggested actions', () => {
+    const action = { actionId: 'act_1', actionType: 'execute_marketing_strategy', requiresConfirmation: true };
+    const result = composer.compose({
+      observations: [observation({
+        data: {
+          blocks: [{ kind: 'action_preview', actions: [action] }],
+          metadata: {},
+          suggestedActions: [action],
+        },
+      })],
+      completion: { status: 'complete', missingCriteria: [] },
+    });
+
+    expect(result.blocks.filter((block) => block.kind === 'action_preview')).toHaveLength(1);
+    expect(result.suggestedActions).toEqual([action]);
+    expect(result.answer.match(/待确认操作/g)).toHaveLength(1);
+  });
+
   it('keeps a valid one-row ranking and preserves independent partial-completion limitations', () => {
     const result = composer.compose({
       observations: [observation({ data: { blocks: [{ kind: 'ranking', rows: [{ name: 'A' }], columns: ['name'] }], metadata: {}, suggestedActions: [] } })],

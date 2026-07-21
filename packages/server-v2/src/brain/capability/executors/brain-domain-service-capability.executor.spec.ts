@@ -2165,6 +2165,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       answerShape: 'scalar',
       args: {
         objective: '查询现金实收',
+        time: { label: '今天', timezone: 'Asia/Shanghai', startDate: '2026-07-10', endDate: '2026-07-10' },
         entities: [],
         metrics: [{ definitionKey: 'metric.paid_amount' }],
         dimensions: [],
@@ -2175,6 +2176,46 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
 
     expect(result.answer).toContain('现金 120.00 元，共 3 笔');
     expect(result.answer).not.toContain('1000');
+    expect(result.metadata).toMatchObject({
+      timeRange: {
+        startDate: '2026-07-09T16:00:00.000Z',
+        endExclusive: '2026-07-10T16:00:00.000Z',
+        boundary: '[start,end)',
+        timezone: 'Asia/Shanghai',
+      },
+    });
+  });
+
+  it('fails closed when net profit has no published unified definition', async () => {
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'finance_risk_overview', name: '财务经营风险概览' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'finance-net-profit-boundary-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 7,
+      question: '这个月的净利润大概是多少',
+      answerShape: 'scalar',
+      args: { objective: '查询净利润', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result).toMatchObject({
+      grounding: 'none',
+      metadata: { unsupportedReason: 'net_profit_definition_not_published' },
+    });
+    expect(result.answer).toContain('无法用毛利、实收或风险概览替代净利润');
   });
 
   it('returns only the requested refund scalar metrics instead of the full finance overview', async () => {
@@ -4314,6 +4355,36 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       },
     });
     expect(result.suggestedActions).toBeUndefined();
+  });
+
+  it('fails closed when satisfaction collection has no backend fact and receipt loop', async () => {
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'marketing_automation_rule_preview' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['marketing'],
+        permissions: ['core:brain:use', 'core:marketing:view', 'core:customer:view'],
+        deniedPermissions: [],
+        requestId: 'satisfaction-automation-boundary-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 90,
+      question: '我想自动收集每次服务后的客户满意度',
+      answerShape: 'draft',
+      args: { objective: '配置满意度采集', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result).toMatchObject({
+      grounding: 'none',
+      metadata: { unsupportedReason: 'customer_satisfaction_collection_capability_not_open' },
+    });
   });
 
   it('uses the logged-in beautician personal customer scope for dormant follow-up candidates', async () => {

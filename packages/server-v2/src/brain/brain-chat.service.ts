@@ -172,6 +172,7 @@ export class BrainChatService {
         storeId: context.storeId,
         userId: context.userId,
         title,
+        status: this.isEvaluationContext(context) ? 'evaluation' : 'active',
       },
     });
     this.rememberConversationAccess(context, conversation.id);
@@ -180,7 +181,7 @@ export class BrainChatService {
 
   async listConversations(context: BrainRequestContext) {
     this.assertBaseAccess(context);
-    const where = { storeId: context.storeId, userId: context.userId, deletedAt: null };
+    const where = { storeId: context.storeId, userId: context.userId, status: 'active', deletedAt: null };
     const [items, total] = await Promise.all([
       this.prisma.brainConversation.findMany({
         where,
@@ -192,6 +193,10 @@ export class BrainChatService {
 
     for (const conversation of items) this.rememberConversationAccess(context, conversation.id);
     return { items, total, storeId: context.storeId };
+  }
+
+  private isEvaluationContext(context: BrainRequestContext): boolean {
+    return context.governanceEvalReleaseId !== undefined || context.governanceEvalReleaseSnapshot !== undefined;
   }
 
   async sendMessage(
@@ -1165,7 +1170,7 @@ export class BrainChatService {
                 intent: this.normalizeGovernedReadOnlyPreviewIntent({
                   intent: this.normalizeReadOnlyQuestionIntent({
                     intent: this.normalizeModelClarificationIntent(
-                      this.enrichModelEntityRefs(compilation.intent),
+                      this.enrichModelEntityRefs(compilation.intent, snapshot),
                       input.dto.message,
                     ),
                     question: input.dto.message,
@@ -1272,7 +1277,7 @@ export class BrainChatService {
                     intent: this.normalizeGovernedReadOnlyPreviewIntent({
                       intent: this.normalizeReadOnlyQuestionIntent({
                         intent: this.normalizeModelClarificationIntent(
-                          this.enrichModelEntityRefs(repairCompilation.intent),
+                          this.enrichModelEntityRefs(repairCompilation.intent, snapshot),
                           input.dto.message,
                         ),
                         question: input.dto.message,
@@ -1930,6 +1935,26 @@ export class BrainChatService {
       /(?:哪个|哪些|有没有).*(?:客人|客户).*(?:难服务|需要注意|注意事项)|(?:客人|客户).*(?:难服务|需要注意|注意事项)/.test(
         input.question,
       );
+    const marketingStrategyId = matched.key === 'marketing_strategy_execute_preview'
+      ? input.question.match(/(?:营销|触达)策略\s*[#：:]?\s*(\d+)/)?.[1]
+      : undefined;
+    const normalizedEntities = input.intent.entities.map((entity) =>
+      marketingStrategyId && entity.entityType === 'marketing_strategy' && !entity.entityKey
+        ? { ...entity, entityKey: marketingStrategyId }
+        : entity,
+    );
+    const entities = marketingStrategyId && !normalizedEntities.some((entity) => entity.entityType === 'marketing_strategy')
+      ? [
+          ...normalizedEntities,
+          {
+            entityType: 'marketing_strategy',
+            entityKey: marketingStrategyId,
+            mention: `营销策略 ${marketingStrategyId}`,
+            source: 'user' as const,
+            confidence: 1,
+          },
+        ]
+      : normalizedEntities;
     const inferredDimensionKeys = new Set(inferQuestionDimensionDefinitions(input.question));
     const governedDimensions = (matched.definitionRefs ?? [])
       .filter((ref) => inferredDimensionKeys.has(ref.definitionKey))
@@ -2005,7 +2030,8 @@ export class BrainChatService {
       ...(staffAvailabilityIntent || pendingArrivalListIntent
         ? { intent: 'query' as const, answerShape: 'list' as const }
         : {}),
-      domains: [...new Set([...modelDomains, ...cardDomains])],
+      domains: !matched.readOnly ? [...matched.domains] : [...new Set([...modelDomains, ...cardDomains])],
+      entities,
       metrics,
       dimensions:
         storedBalanceRiskIntent || staffAvailabilityIntent || pendingArrivalListIntent || cardPackageSalesIntent
@@ -3430,6 +3456,7 @@ export class BrainChatService {
     ) {
       return intent;
     }
+    if (intent.intent === 'draft' || intent.intent === 'action') return intent;
     return {
       ...intent,
       intent: 'recommendation',
@@ -3724,13 +3751,16 @@ export class BrainChatService {
     return prefix && prefix.length <= 80 ? prefix : undefined;
   }
 
-  private enrichModelEntityRefs(intent: BrainSemanticIntent): BrainSemanticIntent {
+  private enrichModelEntityRefs(
+    intent: BrainSemanticIntent,
+    snapshot: ProductionReadyBusinessDefinitionSnapshot,
+  ): BrainSemanticIntent {
     const resolver = this.ontologyRuntime?.resolveEntityAlias;
     if (typeof resolver !== 'function') return intent;
     let changed = false;
     const entities = intent.entities.map((entity) => {
       if (entity.definitionRef) return entity;
-      const resolution = resolver.call(this.ontologyRuntime, entity.mention || entity.entityType);
+      const resolution = resolver.call(this.ontologyRuntime, entity.mention || entity.entityType, snapshot);
       if (resolution.status !== 'resolved' || resolution.matchType !== 'exact' || resolution.refs.length !== 1) {
         return entity;
       }

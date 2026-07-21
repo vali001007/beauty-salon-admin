@@ -95,7 +95,12 @@ export function buildBrainReleaseEvalGate(snapshot: BrainEvaluationReleaseSnapsh
     }
   }
 
-  if (evaluatesCapabilities && snapshot.capabilityKeys.includes('order_revenue_analysis')) {
+  const revenueCapabilityKey = snapshot.capabilityKeys.includes('finance_payment_breakdown')
+    ? 'finance_payment_breakdown'
+    : snapshot.capabilityKeys.includes('order_revenue_analysis')
+      ? 'order_revenue_analysis'
+      : undefined;
+  if (evaluatesCapabilities && revenueCapabilityKey) {
     requiredRoleKeys.add('store_manager');
     for (const item of REQUIRED_TIME_BOUNDARY_CASES) {
       cases.push({
@@ -103,12 +108,12 @@ export function buildBrainReleaseEvalGate(snapshot: BrainEvaluationReleaseSnapsh
         roleKey: 'store_manager',
         question: `${item.label}实收多少`,
         expected: {
-          capabilityKeys: ['order_revenue_analysis'],
+          capabilityKeys: [revenueCapabilityKey],
           timeBoundary: item,
           requiresGrounding: true,
           requiresComplete: true,
         },
-        expectedCapabilityKeys: ['order_revenue_analysis'],
+        expectedCapabilityKeys: [revenueCapabilityKey],
         assertionType: 'release_time_boundary',
       });
     }

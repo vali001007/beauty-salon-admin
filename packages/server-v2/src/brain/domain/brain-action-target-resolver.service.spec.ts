@@ -126,7 +126,7 @@ describe('BrainActionTargetResolverService', () => {
       lastExecutedAt: null,
     });
 
-    const result = await service.resolveMarketingStrategy({ storeId: 6, message: '执行策略 12' });
+    const result = await service.resolveMarketingStrategy({ storeId: 6, message: '运行营销策略 12 并发送' });
 
     expect(result).toMatchObject({ ok: false, reason: 'marketing_strategy_not_enabled' });
   });

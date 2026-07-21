@@ -91,14 +91,14 @@ describe('brain release eval gate', () => {
     });
   });
 
-  it('adds seven SQL boundary cases when revenue analysis is in the frozen release', () => {
+  it('adds seven SQL boundary cases for the current payment breakdown capability', () => {
     const revenueSnapshot = {
       ...snapshot,
-      capabilityKeys: [...snapshot.capabilityKeys, 'order_revenue_analysis'],
+      capabilityKeys: [...snapshot.capabilityKeys, 'finance_payment_breakdown'],
       capabilityCandidates: [
         ...snapshot.capabilityCandidates,
         {
-          key: 'order_revenue_analysis',
+          key: 'finance_payment_breakdown',
           version: 1,
           domains: ['payment'],
           allowedRoles: ['store_manager'],
@@ -121,6 +121,31 @@ describe('brain release eval gate', () => {
       'release_time:21:this_month',
       'release_time:21:last_month',
     ]));
+    expect(timeCases.every((item) => item.expectedCapabilityKeys[0] === 'finance_payment_breakdown')).toBe(true);
+  });
+
+  it('falls back to legacy revenue analysis when payment breakdown is absent', () => {
+    const revenueSnapshot = {
+      ...snapshot,
+      capabilityKeys: [...snapshot.capabilityKeys, 'order_revenue_analysis'],
+      capabilityCandidates: [
+        ...snapshot.capabilityCandidates,
+        {
+          key: 'order_revenue_analysis',
+          version: 1,
+          domains: ['payment'],
+          allowedRoles: ['store_manager'],
+          requiredPermissions: ['core:finance:view'],
+          examples: ['查询今天实收', '分析本月营业额'],
+        },
+      ],
+    } as unknown as BrainEvaluationReleaseSnapshot;
+
+    const timeCases = buildBrainReleaseEvalGate(revenueSnapshot).cases.filter(
+      (item) => item.assertionType === 'release_time_boundary',
+    );
+
+    expect(timeCases).toHaveLength(7);
     expect(timeCases.every((item) => item.expectedCapabilityKeys[0] === 'order_revenue_analysis')).toBe(true);
   });
 

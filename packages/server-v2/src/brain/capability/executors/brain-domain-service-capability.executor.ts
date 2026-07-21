@@ -655,7 +655,14 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '做一个次卡快过期时自动提醒续购的流程',
       '新客到店三天后自动创建跟进任务怎么设置',
     ],
-    negativeExamples: ['查看自动化规则实际转化效果', '立即发布规则并发送消息', '查询其他门店的自动化策略'],
+    negativeExamples: [
+      '查看自动化规则实际转化效果',
+      '立即发布规则并发送消息',
+      '查询其他门店的自动化策略',
+      '帮我做一个针对 VIP 客户的专属活动',
+      '给即将到期的次卡客户写一条温馨提醒',
+      '给首次办卡的客户写一条欢迎词',
+    ],
     synonyms: ['自动推荐规则', '自动跟进规则预览', '客户生命周期自动化', '消费后项目推荐', '规则草稿'],
     businessDefinitionKeys: ['entity.customer', 'entity.project'],
     readOnly: true,
@@ -869,7 +876,14 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     description:
       '根据用户明确表达的预约提醒、空档邀约、老客召回或到店邀请目标生成可编辑文案草稿。该能力不查询客户名单、不自动发送，也不要求用户先指定具体收件人。',
     intents: ['draft'],
-    examples: ['生成一条温和的预约提醒', '拟一段老客召回话术', '写一条空档邀约短信', '准备一段不过度推销的到店邀请'],
+    examples: [
+      '生成一条温和的预约提醒',
+      '拟一段老客召回话术',
+      '写一条空档邀约短信',
+      '准备一段不过度推销的到店邀请',
+      '给即将到期的次卡客户写一条温馨提醒',
+      '给首次办卡的客户写一条欢迎词',
+    ],
     negativeExamples: ['直接给全部客户群发消息', '替我创建并执行营销触达任务', '查询沉睡客户名单'],
     synonyms: ['预约提醒文案', '空档邀约话术', '老客召回文案', '到店邀请短信', '营销消息草稿'],
     businessDefinitionKeys: ['entity.customer', 'entity.reservation'],
@@ -891,6 +905,8 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '按当前门店和时间范围汇总实收金额并按支付方式拆分；对明确的储值卡问题，分别统计储值充值和储值消耗流水，不用支付方式或会员卡负债代替。',
     intents: ['query', 'ranking', 'comparison', 'trend'],
     examples: [
+      '本月实收多少',
+      '其中哪种支付方式最多',
       '本月实收按支付方式怎么分',
       '今天实收按支付方式怎么分',
       '今天现金收了多少，微信支付宝各多少',
@@ -3201,6 +3217,22 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         );
       }
       case 'finance_risk_overview': {
+        if (/净利润/.test(input.question)) {
+          const limitation =
+            '当前 Ami Brain 没有已发布的净利润统一口径，无法用毛利、实收或风险概览替代净利润。请先在管理端发布包含收入、退款、优惠、耗材、人工和经营费用的净利润定义。';
+          return {
+            status: 'completed',
+            answer: limitation,
+            citations: [],
+            grounding: 'none',
+            blocks: [{ kind: 'limitations', items: [limitation] }],
+            metadata: {
+              capabilityKey: 'finance_risk_overview',
+              unsupportedReason: 'net_profit_definition_not_published',
+              completion: { status: 'complete', missingCriteria: [], recoverable: false },
+            },
+          };
+        }
         if (
           /(?:项目).*(?:成本).*(?:上涨|上升).*(?:毛利|利润)|(?:项目).*(?:毛利|利润).*(?:成本).*(?:上涨|上升)/.test(
             input.question,
@@ -4017,6 +4049,22 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         };
       }
       case 'marketing_automation_rule_preview': {
+        if (/(?:满意度|服务评价).*(?:自动|收集|采集)|(?:自动|收集|采集).*(?:满意度|服务评价)/.test(input.question)) {
+          const limitation =
+            '当前管理端和后端没有客户满意度采集、问卷发送和回执事实闭环，无法生成可执行的满意度自动采集规则。';
+          return {
+            status: 'completed',
+            answer: limitation,
+            citations: [],
+            grounding: 'none',
+            blocks: [{ kind: 'limitations', items: [limitation] }],
+            metadata: {
+              capabilityKey: 'marketing_automation_rule_preview',
+              unsupportedReason: 'customer_satisfaction_collection_capability_not_open',
+              completion: { status: 'complete', missingCriteria: [], recoverable: false },
+            },
+          };
+        }
         const rule = this.buildMarketingAutomationRulePreview(input.question);
         const limitation =
           '当前只生成可审阅规则预览，不发布自动化规则、不发送消息、不修改会员等级或客户权益。';
@@ -4983,6 +5031,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             ],
             metadata: {
               rangeLabel: range.label,
+              ...this.executionTimeRange(range, input.context.timezone),
               balanceFlowDefinition: {
                 rechargeTypes: ['recharge', 'open'],
                 consumeTypes: ['deduct', 'consume'],
@@ -5060,7 +5109,11 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                 citationIds: ['capability_finance_payment_breakdown', 'metric.paid_amount'],
               },
             ],
-            metadata: { rangeLabel: range.label, requestedPaymentMethods: requestedMethods },
+            metadata: {
+              rangeLabel: range.label,
+              ...this.executionTimeRange(range, input.context.timezone),
+              requestedPaymentMethods: requestedMethods,
+            },
           });
         }
         const scalarAnswer = input.answerShape === 'scalar';
@@ -5148,6 +5201,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                     ],
           metadata: {
             rangeLabel: range.label,
+            ...this.executionTimeRange(range, input.context.timezone),
             comparisonRangeLabel: comparisonRange?.label ?? null,
             answerShape: input.answerShape ?? null,
             totalCollected: analysis.totalCollected,
@@ -6082,6 +6136,17 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     }
     const parsedTime = this.timeRangeParser.parse(structuredTime?.label ?? structuredTime?.preset ?? input.question);
     return parsedTime.range ?? defaultBrainDateRange();
+  }
+
+  private executionTimeRange(range: BrainDateRange, timezone: string) {
+    return {
+      timeRange: {
+        startDate: range.startDate.toISOString(),
+        endExclusive: new Date(range.endDate.getTime() + 1).toISOString(),
+        boundary: '[start,end)',
+        timezone,
+      },
+    };
   }
 
   private resolveComparisonRange(input: BrainCapabilityExecutionInput, current: BrainDateRange) {

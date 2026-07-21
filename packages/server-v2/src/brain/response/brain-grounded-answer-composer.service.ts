@@ -28,7 +28,8 @@ export class BrainGroundedAnswerComposerService {
       const blockCountBeforeObservation = blocks.length;
       for (const value of sourceBlocks) {
         const block = normalizeBlock(value, citationIds, limitations);
-        if (block) blocks.push(block);
+        if (block?.kind === 'action_preview') appendActionPreview(blocks, block.actions);
+        else if (block) blocks.push(block);
       }
       const observationBlocks = blocks.slice(blockCountBeforeObservation);
       const onlyEmptyCollections = observationBlocks.length > 0 && observationBlocks.every(
@@ -42,7 +43,7 @@ export class BrainGroundedAnswerComposerService {
         blocks.push({ kind: 'text', text: observation.summary.trim(), ...(citationIds.length ? { citationIds } : {}) });
       }
       const actions = Array.isArray(observation.data.suggestedActions) ? observation.data.suggestedActions : [];
-      if (actions.length) blocks.push({ kind: 'action_preview', actions });
+      if (actions.length) appendActionPreview(blocks, actions);
     }
     if (limitations.length) blocks.push({ kind: 'limitations', items: [...new Set(limitations)] });
     if (citations.length) blocks.push({ kind: 'evidence', citations });
@@ -53,7 +54,9 @@ export class BrainGroundedAnswerComposerService {
       answer,
       blocks,
       citations,
-      suggestedActions: blocks.filter((block) => block.kind === 'action_preview').flatMap((block) => block.actions),
+      suggestedActions: uniqueActions(
+        blocks.filter((block) => block.kind === 'action_preview').flatMap((block) => block.actions),
+      ),
       completion: { status: input.completion.status, missingCriteria: [...input.completion.missingCriteria] },
     };
     this.guard.assertValid(envelope);
@@ -85,6 +88,29 @@ export class BrainGroundedAnswerComposerService {
       intent,
     });
   }
+}
+
+function appendActionPreview(blocks: BrainResponseBlock[], actions: unknown[]) {
+  const normalized = uniqueActions(actions);
+  if (!normalized.length) return;
+  const existing = blocks.find((block) => block.kind === 'action_preview');
+  if (existing?.kind === 'action_preview') {
+    existing.actions = uniqueActions([...existing.actions, ...normalized]);
+    return;
+  }
+  blocks.push({ kind: 'action_preview', actions: normalized });
+}
+
+function uniqueActions(actions: unknown[]) {
+  const seen = new Set<string>();
+  return actions.filter((action) => {
+    const record = isRecord(action) ? action : undefined;
+    const actionId = record && typeof record.actionId === 'string' ? record.actionId : undefined;
+    const key = actionId ? `actionId:${actionId}` : JSON.stringify(action);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function normalizeBlock(value: unknown, citationIds: string[], limitations: string[]): BrainResponseBlock | undefined {

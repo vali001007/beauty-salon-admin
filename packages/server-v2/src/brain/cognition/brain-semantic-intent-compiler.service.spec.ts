@@ -53,6 +53,14 @@ const paidAmountMetricRef = {
   sourceFingerprint: '8'.repeat(64),
 } as const;
 
+const paymentMethodDimensionRef = {
+  definitionType: 'dimension',
+  definitionKey: 'dimension.paymentMethod',
+  definitionVersion: 2,
+  definitionFingerprint: '9'.repeat(64),
+  sourceFingerprint: 'a'.repeat(64),
+} as const;
+
 const refundAmountMetricRef = {
   definitionType: 'metric',
   definitionKey: 'metric.refund_amount',
@@ -608,6 +616,130 @@ describe('BrainSemanticIntentCompilerService', () => {
     expect(result).toMatchObject({ status: 'completed', intent: { ambiguities: [] } });
   });
 
+  it('keeps the governed collection coverage metric when an exact fact query depends on it', async () => {
+    const longWaitRef = {
+      definitionType: 'metric' as const,
+      definitionKey: 'metric.customer_long_wait_departure_count',
+      definitionVersion: 1,
+      definitionFingerprint: '1'.repeat(64),
+      sourceFingerprint: '2'.repeat(64),
+    };
+    const coverageRef = {
+      definitionType: 'metric' as const,
+      definitionKey: 'metric.customer_waiting_collection_coverage_rate',
+      definitionVersion: 1,
+      definitionFingerprint: '3'.repeat(64),
+      sourceFingerprint: '4'.repeat(64),
+    };
+    const input = compilerInput('最近有没有客户因为等待时间长而离开');
+    input.capabilitySummaries = [{
+      key: 'customer_waiting_loss_overview',
+      name: '客户等待流失分析',
+      description: '查询等待过久离店和等待记录覆盖率',
+      domains: ['customer_waiting_episode'],
+      intents: ['query', 'diagnosis'],
+      examples: ['最近有没有客户因为等待时间长而离开'],
+      readOnly: true,
+      definitionRefs: [longWaitRef, coverageRef],
+    }];
+    input.ontologySnapshot = {
+      ...ontologySnapshot,
+      metrics: [
+        {
+          ...ontologySnapshot.metrics[0],
+          definitionKey: longWaitRef.definitionKey,
+          version: longWaitRef.definitionVersion,
+          definitionFingerprint: longWaitRef.definitionFingerprint,
+          sourceFingerprint: longWaitRef.sourceFingerprint,
+          metricKey: 'customer_long_wait_departure_count',
+          name: '等待过久离店人数',
+          aliases: ['等待时间长而离开'],
+        },
+        {
+          ...ontologySnapshot.metrics[0],
+          definitionKey: coverageRef.definitionKey,
+          version: coverageRef.definitionVersion,
+          definitionFingerprint: coverageRef.definitionFingerprint,
+          sourceFingerprint: coverageRef.sourceFingerprint,
+          metricKey: 'customer_waiting_collection_coverage_rate',
+          name: '等待记录采集覆盖率',
+          aliases: ['等待记录覆盖率'],
+        },
+      ],
+    };
+    const aiService = fakeAiService(async () => {
+      throw new Error('exact governed example should not call the model');
+    });
+    const compiler = createCompiler(aiService);
+
+    const result = await compiler.compile(input);
+
+    expect(result).toMatchObject({
+      status: 'completed',
+      intent: {
+        metrics: expect.arrayContaining([
+          expect.objectContaining({ definitionKey: longWaitRef.definitionKey }),
+          expect.objectContaining({ definitionKey: coverageRef.definitionKey }),
+        ]),
+      },
+    });
+    expect(aiService.generateStructured).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['帮我设计一个新客专属的欢迎礼包', 'draft', 'draft'],
+    ['给首次办卡的客户写一条欢迎词', 'draft', 'draft'],
+    ['储值赠送方案定在什么比例客户更愿意储值', 'draft', 'draft'],
+    ['帮我设计一套完整的客户生命周期运营方案', 'draft', 'draft'],
+    ['我想让系统自动给快过期次卡的客户发消息', 'action', 'action_preview'],
+    ['如何让系统自动识别高流失风险的客户并提醒我', 'diagnosis', 'diagnosis'],
+  ] as const)(
+    'normalizes the model speech act contract for %s',
+    async (question, expectedIntent, expectedShape) => {
+      const modelIntent: BrainSemanticIntent = {
+        ...productRankingIntent,
+        intent: 'recommendation',
+        answerShape: 'list',
+      };
+      const compiler = createCompiler(fakeAiService(async () => structuredResult(modelIntent)));
+
+      const result = await compiler.compile(compilerInput(question));
+
+      expect(result).toMatchObject({
+        status: 'completed',
+        intent: { intent: expectedIntent, answerShape: expectedShape },
+      });
+    },
+  );
+
+  it('keeps the most urgent inventory question as a sorted list instead of a scalar metric', async () => {
+    const input = compilerInput('现在缺货最紧急的是什么');
+    input.capabilitySummaries = [{
+      key: 'inventory_risk_ranking',
+      name: '库存缺货风险排行',
+      description: '返回最紧急的库存风险商品',
+      domains: ['inventory'],
+      intents: ['ranking', 'query'],
+      examples: ['现在缺货最紧急的是什么'],
+      readOnly: true,
+      definitionRefs: [productSalesMetricRef],
+    }];
+    const compiler = createCompiler(fakeAiService(async () => {
+      throw new Error('exact governed example should not call the model');
+    }));
+
+    const result = await compiler.compile(input);
+
+    expect(result).toMatchObject({
+      status: 'completed',
+      intent: {
+        intent: 'query',
+        answerShape: 'list',
+        orderBy: [{ definitionRef: productSalesMetricRef, direction: 'desc' }],
+      },
+    });
+  });
+
   it('adds a governed descending order when ranking has one metric and no explicit order', async () => {
     const modelIntent: BrainSemanticIntent = {
       ...productRankingIntent,
@@ -1099,6 +1231,68 @@ describe('BrainSemanticIntentCompilerService', () => {
         answerShape: 'comparison',
         timeRange: { preset: 'this_month', label: '本月' },
         comparisonTarget: { type: 'time', timeRange: { preset: 'last_month', label: '上月' } },
+      },
+    });
+  });
+
+  it('uses the governed payment ranking example without calling the model', async () => {
+    const aiService = fakeAiService(async () => {
+      throw new Error('model_should_not_be_called');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput('其中哪种支付方式最多？');
+    input.capabilitySummaries = [{
+      key: 'finance_payment_breakdown',
+      name: '实收与储值流水拆分',
+      description: '实收查询、趋势与周期对比',
+      domains: ['finance', 'payment'],
+      intents: ['query', 'ranking', 'comparison', 'trend'],
+      examples: ['其中哪种支付方式最多'],
+      readOnly: true,
+      definitionRefs: [paidAmountMetricRef, paymentMethodDimensionRef],
+    }];
+
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      provider: 'governed_contract',
+      model: 'exact_example_fast_path',
+      intent: {
+        intent: 'ranking',
+        answerShape: 'ranking',
+        metrics: [expect.objectContaining({ definitionKey: 'metric.paid_amount' })],
+        dimensions: [expect.objectContaining({ definitionKey: 'dimension.paymentMethod' })],
+        orderBy: [expect.objectContaining({ direction: 'desc' })],
+      },
+    });
+  });
+
+  it('keeps an exact paid amount question scalar instead of adding payment grouping', async () => {
+    const aiService = fakeAiService(async () => {
+      throw new Error('model_should_not_be_called');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput('本月实收多少');
+    input.capabilitySummaries = [{
+      key: 'finance_payment_breakdown',
+      name: '实收与储值流水拆分',
+      description: '实收查询、趋势与周期对比',
+      domains: ['finance', 'payment'],
+      intents: ['query', 'ranking', 'comparison', 'trend'],
+      examples: ['本月实收多少'],
+      readOnly: true,
+      definitionRefs: [paidAmountMetricRef, paymentMethodDimensionRef],
+    }];
+
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      provider: 'governed_contract',
+      model: 'exact_example_fast_path',
+      intent: {
+        intent: 'query',
+        answerShape: 'scalar',
+        metrics: [expect.objectContaining({ definitionKey: 'metric.paid_amount' })],
+        dimensions: [],
+        orderBy: [],
       },
     });
   });

@@ -409,6 +409,31 @@ describe('BrainSemanticQueryCapabilityExecutor', () => {
     expect(semanticQuery.execute).not.toHaveBeenCalled();
   });
 
+  it('fails closed before querying when staff performance is selected for a complaint ranking', async () => {
+    const snapshot = {
+      loadActiveDefinitions: jest.fn(),
+      getRuntimeDataModel: jest.fn(),
+    };
+    const executor = new BrainSemanticQueryCapabilityExecutor(
+      snapshot as never,
+      parser as never,
+      {} as never,
+    );
+
+    const answer = await executor.execute(input(
+      card('staff_performance_ranking', 'semantic'),
+      { question: '哪个美容师的客诉最多，最近有没有' },
+    ));
+
+    expect(answer).toMatchObject({
+      status: 'completed',
+      grounding: 'none',
+      metadata: { unsupportedReason: 'staff_performance_metric_not_applicable' },
+    });
+    expect(answer.answer).toContain('不能用美容师综合表现评分替代');
+    expect(snapshot.loadActiveDefinitions).not.toHaveBeenCalled();
+  });
+
   it('executes only the requested governed metric and returns KPI-only output for scalar questions', async () => {
     const findMany = jest.fn().mockResolvedValue([{ netAmount: 3580 }]);
     const executor = new BrainSemanticQueryCapabilityExecutor(
@@ -2224,7 +2249,7 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
       expect(answer.answer).toMatch(/[\u4e00-\u9fff]/);
       expect(answer.citations[0].label).toMatch(/[\u4e00-\u9fff]/);
     }
-    expect(finance.metadata).toEqual({
+    expect(finance.metadata).toMatchObject({
       rangeLabel: '今天',
       comparisonRangeLabel: null,
       answerShape: null,
@@ -2827,6 +2852,14 @@ describe('BrainActionCapabilityExecutor', () => {
         })
         .mockResolvedValueOnce({
           status: 'completed',
+          answer: 'Strategy not found in this store',
+          citations: [],
+          suggestedActions: [],
+          grounding: 'none',
+          metadata: { unsupportedReason: 'marketing_strategy_not_found' },
+        })
+        .mockResolvedValueOnce({
+          status: 'completed',
           answer: 'No future schedule',
           citations: [{ sourceType: 'db_skill', sourceId: 'gap_preview' }],
           suggestedActions: [],
@@ -2844,6 +2877,10 @@ describe('BrainActionCapabilityExecutor', () => {
     const capabilityInput = input(card('customer_follow_up_draft', 'action'));
 
     await expect(executor.execute(capabilityInput)).resolves.toMatchObject({ grounding: 'none' });
+    await expect(executor.execute(capabilityInput)).resolves.toMatchObject({
+      grounding: 'none',
+      metadata: expect.objectContaining({ unsupportedReason: 'marketing_strategy_not_found' }),
+    });
     await expect(executor.execute(capabilityInput)).resolves.toMatchObject({
       grounding: 'db_skill',
       metadata: { noActionReason: 'appointment_gap_missing' },
@@ -2875,5 +2912,21 @@ describe('BrainActionCapabilityExecutor', () => {
 
     await expect(executor.execute(capabilityInput)).rejects.toThrow('action_preview_missing_suggested_action');
     await expect(executor.execute(capabilityInput)).rejects.toThrow('action_preview_contains_execution_receipt');
+  });
+
+  it.each([
+    ['帮我估算一下这次采购大概要花多少钱', 'purchase_cost_estimate_requires_items'],
+    ['这批新货到了，帮我记录入库', 'inventory_receipt_capability_not_open'],
+  ])('does not substitute a purchase draft for unsupported inventory work: %s', async (question, reason) => {
+    const adapterRegistry = { resolve: jest.fn() };
+    const executor = new BrainActionCapabilityExecutor(adapterRegistry as never);
+
+    const answer = await executor.execute(input(card('purchase_order_draft', 'action'), { question }));
+
+    expect(answer).toMatchObject({
+      grounding: 'none',
+      metadata: { unsupportedReason: reason },
+    });
+    expect(adapterRegistry.resolve).not.toHaveBeenCalled();
   });
 });

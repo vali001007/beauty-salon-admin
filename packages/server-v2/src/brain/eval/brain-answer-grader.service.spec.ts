@@ -348,16 +348,17 @@ describe('BrainAnswerGraderService', () => {
     expect(result.reason).toContain('事实数据');
   });
 
-  it('counts VIP exclusive campaign planning as recommendation instead of customer list', () => {
+  it('counts VIP exclusive campaign planning as a draft instead of customer list', () => {
     const result = grader.grade({
       question: '帮我做一个针对 VIP 客户的专属活动',
-      answer: '门店促销活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。',
+      answer: '门店促销活动方案草稿：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。尚未发布活动。',
       citations: [{ sourceType: 'skill', sourceId: 'marketing_campaign_plan', label: '营销活动方案' }],
       brainStatus: 'completed',
     });
 
     expect(result.status).toBe('usable_exact');
-    expect(result.expectedIntent).toBe('recommendation');
+    expect(result.expectedIntent).toBe('draft');
+    expect(result.actualIntent).toBe('draft');
     expect(result.groundingType).toBe('template_skill');
   });
 
@@ -445,16 +446,28 @@ describe('BrainAnswerGraderService', () => {
     },
   );
 
-  it('classifies a non-executable automation preview as a template recommendation', () => {
+  it('classifies a non-executable automation preview as a governed rule draft', () => {
     const result = grader.grade({
       question: '帮我设置一个新客自动跟进规则',
       answer: '规则预览，确认前不会启用。',
       citations: [{ sourceType: 'template_skill', sourceId: 'marketing_automation_rule_preview', label: '规则预览' }],
-      expectedIntent: 'recommendation',
       brainStatus: 'completed',
     });
     expect(result.groundingType).toBe('template_skill');
-    expect(result.actualIntent).toBe('recommendation');
+    expect(result.expectedIntent).toBe('draft');
+    expect(result.actualIntent).toBe('draft');
+    expect(result.status).toBe('usable_exact');
+  });
+
+  it('classifies a safe automation send preview as an action request', () => {
+    const result = grader.grade({
+      question: '我想让系统自动给快过期次卡的客户发消息',
+      answer: '自动提醒规则预览，当前不会发布规则或发送消息。',
+      citations: [{ sourceType: 'template_skill', sourceId: 'marketing_automation_rule_preview', label: '规则预览' }],
+      brainStatus: 'completed',
+    });
+    expect(result.expectedIntent).toBe('action');
+    expect(result.actualIntent).toBe('action');
     expect(result.status).toBe('usable_exact');
   });
 

@@ -630,6 +630,41 @@ describe('BrainChatService', () => {
     ).toMatchObject({ intent: 'recommendation', answerShape: 'diagnosis' });
   });
 
+  it.each([
+    ['draft', 'draft'],
+    ['action', 'action_preview'],
+  ] as const)('preserves %s semantics for a governed read-only preview', (intentKind, answerShape) => {
+    const { service } = createService();
+    const intent = {
+      schemaVersion: '1.0',
+      objective: '生成受治理预览',
+      domains: ['customer', 'project'],
+      intent: intentKind,
+      entities: [],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape,
+      successCriteria: [],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 0.95,
+      decisionSummary: '保留用户请求的语义形态',
+    };
+
+    expect(
+      (service as any).normalizeReadOnlyPreviewCapabilityIntent(intent, {
+        key: 'marketing_automation_rule_preview',
+        grounding: 'preview_action',
+        readOnly: true,
+        sideEffect: false,
+        intents: ['workflow', 'recommendation', 'draft', 'action'],
+      }),
+    ).toMatchObject({ intent: intentKind, answerShape });
+  });
+
   it('uses the governed preview card to normalize a paraphrased workflow without an exact example', () => {
     const { service } = createService();
     const intent = {
@@ -5147,6 +5182,47 @@ describe('BrainChatService', () => {
     expect(normalized.dimensions).toEqual([expect.objectContaining({ definitionKey: 'dimension.beauticianName' })]);
   });
 
+  it('binds a numeric marketing strategy target and discards a model-only customer domain', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const intent = {
+      schemaVersion: '1.0',
+      objective: '运行营销策略 12 并发送',
+      domains: ['customer'],
+      intent: 'action',
+      entities: [],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'action_preview',
+      successCriteria: ['确认前不发送'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 0.99,
+      decisionSummary: '运行策略',
+    };
+
+    const normalized = (service as any).normalizeGovernedCapabilityExampleIntent({
+      intent,
+      question: '运行营销策略 12 并发送',
+      cards: [{
+        key: 'marketing_strategy_execute_preview',
+        domains: ['marketing_growth'],
+        intents: ['action'],
+        examples: ['运行营销策略 12 并发送'],
+        readOnly: false,
+        definitionRefs: [],
+      }],
+      snapshot: { entities: [], metrics: [], dimensions: [] },
+    });
+
+    expect(normalized.domains).toEqual(['marketing_growth']);
+    expect(normalized.entities).toEqual([
+      expect.objectContaining({ entityType: 'marketing_strategy', entityKey: '12', mention: '营销策略 12' }),
+    ]);
+  });
+
   it('does not await a never-resolving shadow cognition completion before answering', async () => {
     const shadowCognition = {
       observe: jest.fn(() => ({ scheduled: true, completion: new Promise<void>(() => undefined) })),
@@ -5278,8 +5354,38 @@ describe('BrainChatService', () => {
 
     expect(response).toMatchObject({ id: 42, title: '晨会经营复盘', storeId: 2, userId: 9 });
     expect(prisma.brainConversation.create).toHaveBeenCalledWith({
-      data: { storeId: 2, userId: 9, title: '晨会经营复盘' },
+      data: { storeId: 2, userId: 9, title: '晨会经营复盘', status: 'active' },
     });
+  });
+
+  it('marks evaluation conversations and excludes them from the user workspace list', async () => {
+    const { prisma, service } = createService();
+    const evaluationContext = { ...context, governanceEvalReleaseId: 361 };
+    prisma.brainConversation.create.mockResolvedValue({
+      id: 43,
+      title: '评测 case-1',
+      storeId: 2,
+      userId: 9,
+      status: 'evaluation',
+    });
+    prisma.brainConversation.findMany.mockResolvedValue([]);
+    prisma.brainConversation.count.mockResolvedValue(0);
+
+    await service.createConversation(evaluationContext, { title: '评测 case-1' });
+    const listed = await service.listConversations(context);
+
+    expect(prisma.brainConversation.create).toHaveBeenCalledWith({
+      data: { storeId: 2, userId: 9, title: '评测 case-1', status: 'evaluation' },
+    });
+    expect(prisma.brainConversation.findMany).toHaveBeenCalledWith({
+      where: { storeId: 2, userId: 9, status: 'active', deletedAt: null },
+      orderBy: { updatedAt: 'desc' },
+      take: 50,
+    });
+    expect(prisma.brainConversation.count).toHaveBeenCalledWith({
+      where: { storeId: 2, userId: 9, status: 'active', deletedAt: null },
+    });
+    expect(listed).toEqual({ items: [], total: 0, storeId: 2 });
   });
 
   it('persists user and assistant messages, records a run, and returns a cited answer', async () => {

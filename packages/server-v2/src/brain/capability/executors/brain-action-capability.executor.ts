@@ -191,6 +191,16 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
   async execute(input: BrainCapabilityExecutionInput): Promise<BrainDomainAnswer> {
     const definition = CAPABILITIES[input.card.key];
     if (!definition) throw new Error(`unsupported_action_capability:${input.card.key}`);
+    if (
+      input.card.key === 'purchase_order_draft' &&
+      (/(?:估算|大概).*(?:采购).*(?:多少钱|花多少钱|成本)/.test(input.question) ||
+        /(?:新货|到货|这批货).*(?:记录|办理|确认)?.*入库|(?:记录|办理).*(?:到货|入库)/.test(input.question))
+    ) {
+      return this.clarification(
+        definition.adapterKey,
+        /入库/.test(input.question) ? 'inventory_receipt_capability_not_open' : 'purchase_cost_estimate_requires_items',
+      );
+    }
 
     const plan: BrainRoleIntentPlan = {
       role: definition.role,
@@ -225,7 +235,7 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
   private assertPreviewOnly(answer: BrainDomainAnswer) {
     if (answer.grounding === 'none') {
       const reason = String(answer.metadata?.unsupportedReason ?? '');
-      if (!/(target|capability|not_open|requires|missing|high_risk)/i.test(reason)) {
+      if (!/(target|capability|not_open|not_found|not_enabled|required|requires|missing|ambiguous|high_risk)/i.test(reason)) {
         throw new Error('action_executor_invalid_clarification');
       }
       return;
