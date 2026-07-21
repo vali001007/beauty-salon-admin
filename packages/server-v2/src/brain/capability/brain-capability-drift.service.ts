@@ -19,6 +19,14 @@ export class BrainCapabilityDriftService {
       const after = currentByKey.get(key);
       const before = baselineByKey.get(key);
       if (after?.status === 'blocked') {
+        const unchangedBaselineBlock =
+          before?.status === 'blocked' &&
+          before.sourceFingerprint === after.sourceFingerprint &&
+          sameSet(
+            before.issues.map((issue) => issue.code),
+            after.issues.map((issue) => issue.code),
+          );
+        if (unchangedBaselineBlock) continue;
         items.push(
           this.item(
             key,

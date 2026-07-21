@@ -136,7 +136,7 @@ function scanInterfaceContract(
       .filter((member) => member.name)
       .map((member) => [
         member.name.getText(sourceFile).replace(/["']/g, ''),
-        `${member.questionToken ? 'optional:' : 'required:'}${member.type?.getText(sourceFile) ?? 'unknown'}`,
+        `${member.questionToken ? 'optional:' : 'required:'}${normalizeTypeScriptText(member.type?.getText(sourceFile) ?? 'unknown')}`,
       ]),
   );
   dtoContracts.set(name, fields);
@@ -161,7 +161,10 @@ function scanClass(
   const serviceBindings = Object.fromEntries(
     constructorParameters
       .filter((parameter) => parameter.name && parameter.type)
-      .map((parameter) => [parameter.name.getText(sourceFile), parameter.type!.getText(sourceFile)]),
+      .map((parameter) => [
+        parameter.name.getText(sourceFile),
+        normalizeTypeScriptText(parameter.type!.getText(sourceFile)),
+      ]),
   );
   const injectionBindings = Object.fromEntries(
     constructorParameters.flatMap((parameter) => {
@@ -181,7 +184,7 @@ function scanClass(
         .filter((member) => member.name)
         .map((member) => [
           member.name.getText(sourceFile).replace(/["']/g, ''),
-          `${member.questionToken ? 'optional:' : 'required:'}${member.type?.getText(sourceFile) ?? 'unknown'}`,
+          `${member.questionToken ? 'optional:' : 'required:'}${normalizeTypeScriptText(member.type?.getText(sourceFile) ?? 'unknown')}`,
         ]),
     );
     dtoContracts.set(className, fields);
@@ -198,8 +201,10 @@ function scanClass(
       const ownPermissions = decoratorStrings(method, 'Permissions');
       const permissions = ownPermissions.length > 0 ? ownPermissions : classPermissions;
       const capability = decoratorObject(method, 'BrainCapability') ?? decoratorObject(node, 'BrainCapability');
-      const inputTypes = method.parameters.map((parameter) => parameter.type?.getText(sourceFile) ?? 'unknown');
-      const returnType = method.type?.getText(sourceFile) ?? 'unknown';
+      const inputTypes = method.parameters.map((parameter) =>
+        normalizeTypeScriptText(parameter.type?.getText(sourceFile) ?? 'unknown'),
+      );
+      const returnType = normalizeTypeScriptText(method.type?.getText(sourceFile) ?? 'unknown');
       const serviceCalls = collectPropertyCalls(method, sourceFile);
       const methodSemantics = collectMethodSemanticEvidence(method, sourceFile);
       const symbol = `${className}.${method.name.getText(sourceFile)}`;
@@ -244,8 +249,10 @@ function scanClass(
     for (const method of node.members.filter(ts.isMethodDeclaration)) {
       if (!method.name) continue;
       const prismaOperations = collectPrismaOperations(method, sourceFile);
-      const inputTypes = method.parameters.map((parameter) => parameter.type?.getText(sourceFile) ?? 'unknown');
-      const returnType = method.type?.getText(sourceFile) ?? 'unknown';
+      const inputTypes = method.parameters.map((parameter) =>
+        normalizeTypeScriptText(parameter.type?.getText(sourceFile) ?? 'unknown'),
+      );
+      const returnType = normalizeTypeScriptText(method.type?.getText(sourceFile) ?? 'unknown');
       const methodSemantics = collectMethodSemanticEvidence(method, sourceFile);
       const capability = decoratorObject(method, 'BrainCapability') ?? decoratorObject(node, 'BrainCapability');
       const symbol = `${className}.${method.name.getText(sourceFile)}`;

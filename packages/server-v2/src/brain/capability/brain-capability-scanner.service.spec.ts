@@ -678,6 +678,12 @@ describe('BrainCapabilityScannerService', () => {
     expect(candidate?.issues.map((item) => item.code)).toContain('parse_failure');
     expect(candidate?.status).toBe('blocked');
     expect(new BrainCapabilityDriftService().evaluateStrict(drift).passed).toBe(false);
+
+    const unchangedBaseline = new BrainCapabilityDriftService().compare(report, report);
+    expect(unchangedBaseline.items).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ key: 'customer_facts', type: 'blocked' })]),
+    );
+    expect(new BrainCapabilityDriftService().evaluateStrict(unchangedBaseline).passed).toBe(true);
   });
 
   it('resolves CLI paths from workspace root and escapes Markdown cells', () => {
