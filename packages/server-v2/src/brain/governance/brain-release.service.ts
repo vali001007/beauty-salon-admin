@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { createHash } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { BrainCapabilitySemanticVerifierService } from '../capability/brain-capability-semantic-verifier.service.js';
 import type { BrainCapabilityCandidate } from '../capability/brain-capability.types.js';
@@ -35,7 +36,7 @@ export class BrainReleaseService {
       { suffix: 'canary-5', rollout: { stage: 'canary_5', mode: 'model', userPercentage: 5 } },
       { suffix: 'canary-20', rollout: { stage: 'canary_20', mode: 'model', userPercentage: 20 } },
       { suffix: 'canary-50', rollout: { stage: 'canary_50', mode: 'model', userPercentage: 50 } },
-      { suffix: 'full', rollout: { stage: 'full', mode: 'model', userPercentage: 100 } },
+      { suffix: 'full', rollout: { stage: 'full', mode: 'model', userPercentage: 100, productionBaseline: true } },
     ] as const;
     const releases: unknown[] = [];
     let previousReleaseId: number | undefined;
@@ -171,12 +172,16 @@ export class BrainReleaseService {
     const versionMap = Object.fromEntries(
       versions.map((item) => [`${item.resourceType}:${item.resourceKey}`, item.version]),
     );
+    const rollout = {
+      ...(input.rollout ?? {}),
+      semanticSnapshotFingerprint: createSemanticSnapshotFingerprint(versions),
+    };
     return prisma.$transaction(async (tx) => {
       const release = await tx.brainRelease.create({
         data: {
           releaseKey,
           scope: input.scope || 'global',
-          rollout: this.toJson(input.rollout ?? {}),
+          rollout: this.toJson(rollout),
           versionMap: this.toJson(versionMap),
           status: 'draft',
           previousReleaseId: previous?.id,
@@ -222,6 +227,8 @@ export class BrainReleaseService {
     if (regeneration) throw new BadRequestException('modification_superseded');
     if (!release.items.length) throw new BadRequestException('release_has_no_resource_items');
     this.assertReleaseItemsConsistent(release.items);
+    this.assertDeployableRuntimeRelease(release);
+    this.assertSemanticSnapshotFingerprint(release);
     await this.assertReleaseEvalEvidence(prisma, release, releaseFingerprint);
     await this.validateGeneratedCapabilities(release.items.map((item) => item.resourceVersion));
     await this.validateDependencies(release.items.map((item) => item.resourceVersion));
@@ -237,6 +244,8 @@ export class BrainReleaseService {
         throw new BadRequestException('release_evaluation_only');
       }
       const lockedFingerprint = createReleaseFingerprint(lockedRelease.items);
+      this.assertDeployableRuntimeRelease(lockedRelease);
+      this.assertSemanticSnapshotFingerprint(lockedRelease);
       await this.assertReleaseEvalEvidence(tx as unknown as PrismaService, lockedRelease, lockedFingerprint);
       const modification = await tx.brainCapabilityRegenerationJob.findFirst({
         where: { releaseFingerprint: lockedFingerprint },
@@ -289,6 +298,8 @@ export class BrainReleaseService {
       : null;
     if (!previous) throw new BadRequestException('previous_release_not_found');
     this.assertReleaseItemsConsistent(previous.items);
+    this.assertDeployableRuntimeRelease(previous);
+    this.assertSemanticSnapshotFingerprint(previous);
     const previousVersions = previous.items.map((item) => item.resourceVersion);
     await this.validateGeneratedCapabilities(previousVersions);
     await this.validateDependencies(previousVersions);
@@ -325,6 +336,10 @@ export class BrainReleaseService {
   }
 
   async rollbackToRules(input: { releaseId: number; reason: string }) {
+    return this.rollbackToProductionBaseline(input);
+  }
+
+  async rollbackToProductionBaseline(input: { releaseId: number; reason: string }) {
     const prisma = this.requirePrisma();
     const current = await prisma.brainRelease.findUnique({
       where: { id: input.releaseId },
@@ -341,15 +356,18 @@ export class BrainReleaseService {
         include: { items: { include: { resourceVersion: true } } },
       });
       if (!candidate) break;
-      if (this.record(candidate.rollout).mode === 'rules') {
+      const rollout = this.record(candidate.rollout);
+      if (rollout.mode === 'model' && rollout.productionBaseline === true && candidate.items.length > 0) {
         target = candidate;
         break;
       }
       previousReleaseId = candidate.previousReleaseId;
     }
-    if (!target) throw new BadRequestException('rules_release_not_found');
+    if (!target) throw new BadRequestException('production_baseline_not_found');
 
     this.assertReleaseItemsConsistent(target.items);
+    this.assertDeployableRuntimeRelease(target);
+    this.assertSemanticSnapshotFingerprint(target);
     const targetVersions = target.items.map((item) => item.resourceVersion);
     await this.validateGeneratedCapabilities(targetVersions);
     await this.validateDependencies(targetVersions);
@@ -700,6 +718,25 @@ export class BrainReleaseService {
     }
   }
 
+  private assertDeployableRuntimeRelease(release: BrainReleaseWithItems) {
+    const rollout = this.record(release.rollout);
+    if (rollout.mode === undefined) return;
+    if (rollout.mode !== undefined && rollout.mode !== 'model' && rollout.mode !== 'shadow') {
+      throw new BadRequestException('release_runtime_mode_not_deployable');
+    }
+    if (!release.items.some((item) => item.resourceType === 'skill')) {
+      throw new BadRequestException('release_capability_baseline_missing');
+    }
+  }
+
+  private assertSemanticSnapshotFingerprint(release: BrainReleaseWithItems) {
+    const expected = this.record(release.rollout).semanticSnapshotFingerprint;
+    const actual = createSemanticSnapshotFingerprint(release.items.map((item) => item.resourceVersion));
+    if (typeof expected === 'string' && expected !== actual) {
+      throw new BadRequestException('release_semantic_snapshot_fingerprint_mismatch');
+    }
+  }
+
   private assertResourceManagedHere(resourceType: string) {
     if (resourceType === 'metric' || resourceType === 'ontology_entity' || resourceType === 'ontology_relation') {
       throw new BadRequestException(`business_definition_registry_required:${resourceType}`);
@@ -757,6 +794,33 @@ export class BrainReleaseService {
 
 function isPrismaCode(error: unknown, code: string): boolean {
   return Boolean(error && typeof error === 'object' && 'code' in error && (error as { code?: unknown }).code === code);
+}
+
+function createSemanticSnapshotFingerprint(
+  versions: readonly { resourceType: string; resourceKey: string; snapshot: Prisma.JsonValue }[],
+): string {
+  const contracts = versions
+    .filter((version) => version.resourceType === 'skill')
+    .map((version) => {
+      const snapshot = version.snapshot && typeof version.snapshot === 'object' && !Array.isArray(version.snapshot)
+        ? version.snapshot as Record<string, unknown>
+        : {};
+      const definitionRefs = Array.isArray(snapshot.definitionRefs)
+        ? snapshot.definitionRefs
+            .filter((ref): ref is Record<string, unknown> => Boolean(ref) && typeof ref === 'object' && !Array.isArray(ref))
+            .map((ref) => ({
+              definitionKey: String(ref.definitionKey ?? ''),
+              versionId: Number(ref.versionId ?? 0),
+              version: Number(ref.version ?? 0),
+              definitionFingerprint: String(ref.definitionFingerprint ?? ''),
+              sourceFingerprint: String(ref.sourceFingerprint ?? ''),
+            }))
+            .sort((left, right) => left.definitionKey.localeCompare(right.definitionKey))
+        : [];
+      return { resourceKey: version.resourceKey, definitionRefs };
+    })
+    .sort((left, right) => left.resourceKey.localeCompare(right.resourceKey));
+  return createHash('sha256').update(JSON.stringify(contracts)).digest('hex');
 }
 
 function deepCloneFreeze<T>(value: T): T {

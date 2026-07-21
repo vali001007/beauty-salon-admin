@@ -31,6 +31,13 @@ export interface BrainCapabilityRetrievalResult {
   reason: string;
 }
 
+export interface BrainCapabilityDiscoveryInput {
+  question: string;
+  context: BrainRequestContext;
+  cards: readonly BrainCapabilityCard[];
+  maxRisk?: BrainCapabilityRiskLevel;
+}
+
 @Injectable()
 export class BrainCapabilityRetrieverService {
   constructor(private readonly config: BrainRuntimeConfigService) {}
@@ -57,6 +64,32 @@ export class BrainCapabilityRetrieverService {
       return { status: 'clarify', topK, confidence, margin, reason: 'top1_margin_insufficient' };
     }
     return { status: 'selected', selected: top.card, topK, confidence, margin, reason: 'top1_selected' };
+  }
+
+  discover(input: BrainCapabilityDiscoveryInput): BrainCapabilityRetrievalResult {
+    const maxRisk = input.maxRisk ?? 'high';
+    const ranked = input.cards
+      .filter((card) =>
+        RISK_ORDER[card.riskLevel] <= RISK_ORDER[maxRisk] &&
+        this.hasPermissions(card, input.context) &&
+        this.hasAllowedRole(card, input.context),
+      )
+      .map((card) => this.rank(card, input.question))
+      .sort((left, right) => right.score - left.score || left.card.name.localeCompare(right.card.name));
+    if (!ranked.length) {
+      return { status: 'none', topK: [], confidence: 0, margin: 0, reason: 'no_capability_after_context_filters' };
+    }
+    const top = ranked[0]!;
+    const margin = round(top.score - (ranked[1]?.score ?? 0));
+    const confidence = round(top.score);
+    const topK = ranked.slice(0, this.config.runtime.capabilityTopK);
+    if (confidence < this.config.runtime.capabilityMinConfidence) {
+      return { status: 'clarify', topK, confidence, margin, reason: 'catalog_top1_below_confidence_threshold' };
+    }
+    if (ranked.length > 1 && margin < MIN_MARGIN) {
+      return { status: 'clarify', topK, confidence, margin, reason: 'catalog_top1_margin_insufficient' };
+    }
+    return { status: 'selected', selected: top.card, topK, confidence, margin, reason: 'catalog_top1_selected' };
   }
 
   retrieveTopKForSupervisor(input: Omit<BrainCapabilityRetrievalInput, 'readOnlyOnly'>): readonly BrainCapabilityRankedCandidate[] {

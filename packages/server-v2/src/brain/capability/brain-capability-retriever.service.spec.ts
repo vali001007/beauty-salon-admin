@@ -193,6 +193,18 @@ describe('BrainCapabilityRetrieverService', () => {
     }),
   ];
 
+  it('discovers the unique governed capability before semantic intent compilation', () => {
+    expect(service.discover({
+      question: '这个月各种支付渠道分别收了多少',
+      context,
+      cards: cards(),
+    })).toMatchObject({
+      status: 'selected',
+      selected: { key: 'paid_revenue' },
+      reason: 'catalog_top1_selected',
+    });
+  });
+
   it('penalizes a capability whose governed negative example matches the question', () => {
     const result = service.retrieve({
       intent: {

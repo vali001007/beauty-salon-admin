@@ -2051,6 +2051,31 @@ describe('BrainSemanticIntentCompilerService', () => {
     });
   });
 
+  it('uses a high-confidence capability catalog candidate when the model budget is exhausted', async () => {
+    const aiService = fakeAiService(async () => {
+      throw new AiStructuredOutputError('BUDGET_EXCEEDED', 'structured budget exhausted');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput('这个月商品卖得怎么样');
+    input.capabilitySummaries = [{
+      ...input.capabilitySummaries[0],
+      key: 'product_sales_ranking',
+      definitionRefs: [productEntityRef, productSalesMetricRef, productDimensionRef],
+    }];
+    input.preferredCapabilityKey = 'product_sales_ranking';
+
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      provider: 'governed_contract',
+      model: 'capability_catalog_fallback',
+      intent: {
+        intent: 'ranking',
+        metrics: [productSalesMetricRef],
+        dimensions: [productDimensionRef],
+      },
+    });
+  });
+
   it('returns MODEL_UNAVAILABLE for an untyped model failure without fabricating intent', async () => {
     const aiService = fakeAiService(async () => {
       throw new Error('model connection reset');

@@ -616,6 +616,16 @@ export class BrainChatService {
   ): Promise<BrainChatAnswer> {
     const releaseRuntime = await this.resolveReleaseRuntime(context);
     const releaseMode = releaseRuntime.mode;
+    if (releaseRuntime.failureCode) {
+      await this.recordModelFailure({
+        runId,
+        stepKey: 'production_runtime_baseline',
+        layer: 'governance',
+        stage: 'prepare',
+        code: releaseRuntime.failureCode,
+      });
+      return this.modelFailure(releaseRuntime.failureCode, this.modelMetadata('prepare'));
+    }
     if (this.isModelSingleToolPathEnabled(releaseMode)) {
       const deadlineAt = Date.now() + this.runtimeConfig!.runtime.totalTimeoutMs;
       const releaseSnapshot = await this.loadReleaseOntologySnapshot(releaseRuntime.capabilityCandidates);
@@ -953,12 +963,14 @@ export class BrainChatService {
   private isModelSingleToolPathEnabled(releaseMode?: 'rules' | 'shadow' | 'model'): boolean {
     if (releaseMode) return releaseMode === 'model';
     const runtime = this.runtimeConfig?.runtime;
+    if (runtime?.runtimeSource === 'database') return false;
     return Boolean(runtime?.cognitionMode === 'model' && runtime.plannerMode === 'model' && runtime.singleToolFastPath);
   }
 
   private async resolveReleaseRuntime(context: BrainRequestContext): Promise<{
     mode?: 'rules' | 'shadow' | 'model';
     capabilityCandidates?: readonly BrainCapabilityCandidate[];
+    failureCode?: 'PRODUCTION_BASELINE_UNAVAILABLE' | 'PRODUCTION_BASELINE_INVALID';
   }> {
     if (context.governanceEvalReleaseSnapshot) {
       return {
@@ -966,7 +978,11 @@ export class BrainChatService {
         capabilityCandidates: context.governanceEvalReleaseSnapshot.capabilityCandidates,
       };
     }
-    if (!this.releaseService) return {};
+    if (!this.releaseService) {
+      return this.runtimeConfig?.runtime.runtimeSource === 'database'
+        ? { failureCode: 'PRODUCTION_BASELINE_UNAVAILABLE' }
+        : {};
+    }
     try {
       const resolved = await this.releaseService.resolveRuntimeMode({
         storeId: context.storeId,
@@ -975,14 +991,17 @@ export class BrainChatService {
         evaluationReleaseId: context.governanceEvalReleaseId,
       });
       const mode =
-        resolved.mode === 'rules' || resolved.mode === 'shadow' || resolved.mode === 'model' ? resolved.mode : 'rules';
+        resolved.mode === 'rules' || resolved.mode === 'shadow' || resolved.mode === 'model' ? resolved.mode : undefined;
+      if (!resolved.release || !mode) return { failureCode: 'PRODUCTION_BASELINE_UNAVAILABLE' };
+      if (mode === 'rules') return { failureCode: 'PRODUCTION_BASELINE_INVALID' };
+      if (!resolved.capabilityCandidates?.length) return { failureCode: 'PRODUCTION_BASELINE_INVALID' };
       return {
         mode,
         capabilityCandidates: resolved.capabilityCandidates,
       };
     } catch (error) {
       if (context.governanceEvalReleaseId !== undefined) throw error;
-      return { mode: 'rules' };
+      return { failureCode: 'PRODUCTION_BASELINE_UNAVAILABLE' };
     }
   }
 
@@ -1039,7 +1058,7 @@ export class BrainChatService {
         status: 'completed',
       });
       return {
-        status: 'completed',
+        status: 'failed',
         answer: currentBackendGap.answer,
         citations: [],
         suggestedActions: [],
@@ -1048,7 +1067,7 @@ export class BrainChatService {
         adapterMetadata: {
           unsupportedReason: currentBackendGap.unsupportedReason,
           scope: 'current_management_backend',
-          completion: { status: 'complete', missingCriteria: [], recoverable: false },
+          completion: { status: 'incomplete', missingCriteria: [currentBackendGap.unsupportedReason], recoverable: false },
         },
         modelMetadata,
       };
@@ -1116,6 +1135,18 @@ export class BrainChatService {
         ];
         snapshot = await this.ontologyRuntime!.loadEvaluationSnapshot(definitionVersionIds);
       }
+      await this.recordModelTrace({
+        runId: input.runId,
+        stepKey: 'capability_catalog_snapshot',
+        layer: 'planning',
+        status: 'completed',
+        output: this.toJsonValue({
+          capabilityCount: cards.length,
+          capabilityKeys: cards.map((card) => card.key).sort(),
+          semanticSnapshotFingerprint: snapshot?.fingerprint ?? null,
+          decisionOrder: 'catalog_before_intent',
+        }),
+      });
     } catch (error) {
       await this.recordModelFailure({
         runId: input.runId,
@@ -1141,6 +1172,30 @@ export class BrainChatService {
     if (!cards.length) {
       return this.modelFailure('MODEL_ROLE_CAPABILITY_NONE', this.modelMetadata('retrieve'));
     }
+    const catalogDiscovery = this.capabilityRetriever!.discover({
+      question: input.dto.message,
+      context: modelRequestContext,
+      cards,
+      maxRisk: 'high',
+    });
+    await this.recordModelTrace({
+      runId: input.runId,
+      stepKey: 'capability_catalog_discovery',
+      layer: 'planning',
+      status: 'completed',
+      output: this.toJsonValue({
+        status: catalogDiscovery.status,
+        selectedCapabilityKey: catalogDiscovery.selected?.key ?? null,
+        confidence: catalogDiscovery.confidence,
+        margin: catalogDiscovery.margin,
+        reason: catalogDiscovery.reason,
+        topK: catalogDiscovery.topK.map((candidate) => ({
+          capabilityKey: candidate.card.key,
+          score: candidate.score,
+          matchedFields: candidate.matchedFields,
+        })),
+      }),
+    });
 
     const verifiedConversationSlots = await this.verifyConversationResultReferenceSlots({
       conversationId: input.conversationId,
@@ -1182,6 +1237,9 @@ export class BrainChatService {
           ];
         }),
       })),
+      ...(catalogDiscovery.status === 'selected' && catalogDiscovery.selected
+        ? { preferredCapabilityKey: catalogDiscovery.selected.key }
+        : {}),
     };
     let compilation: Awaited<ReturnType<BrainSemanticIntentCompilerService['compile']>>;
     try {
@@ -1446,7 +1504,7 @@ export class BrainChatService {
         }),
       });
       return {
-        status: 'completed',
+        status: 'failed',
         answer: `${capabilityBoundary.reason} Ami Brain 不会用相近指标、概览数据或推测结果替代。`,
         citations: [],
         suggestedActions: [],
@@ -1455,7 +1513,7 @@ export class BrainChatService {
         adapterMetadata: {
           unsupportedReason: capabilityBoundary.code,
           boundaryStatus: capabilityBoundary.status,
-          completion: { status: 'complete', missingCriteria: [], recoverable: false },
+          completion: { status: 'incomplete', missingCriteria: [capabilityBoundary.code], recoverable: false },
         },
         modelContextIntent: validation.intent,
         modelMetadata,
@@ -3880,6 +3938,8 @@ export class BrainChatService {
   private safeModelFailureAnswer(code: string): string {
     const messages: Record<string, string> = {
       MODEL_PIPELINE_UNAVAILABLE: '模型能力暂不可用，本次未执行查询。',
+      PRODUCTION_BASELINE_UNAVAILABLE: '生产能力基线暂不可用，本次未执行查询，请联系管理员恢复已验证发布。',
+      PRODUCTION_BASELINE_INVALID: '当前生产发布未包含有效语义快照和能力目录，本次未执行查询。',
       MODEL_SNAPSHOT_UNAVAILABLE: '业务定义暂不可用，本次未执行查询。',
       MODEL_CATALOG_UNAVAILABLE: '可用能力目录暂不可用，本次未执行查询。',
       MODEL_ROLE_PROFILE_UNAVAILABLE: '当前角色配置未发布，本次未执行查询。',

@@ -60,6 +60,7 @@ export interface BrainSemanticIntentCompilerInput {
   metricRefs: Array<BrainDefinitionRef<'metric'>>;
   dimensionRefs: Array<BrainDefinitionRef<'dimension'>>;
   capabilitySummaries: BrainSemanticCapabilitySummary[];
+  preferredCapabilityKey?: string;
   repairFeedback?: {
     previousIntent: BrainSemanticIntent;
     issues: Array<{ code: string; slot?: string; message: string }>;
@@ -196,6 +197,21 @@ export class BrainSemanticIntentCompilerService {
               },
             };
           }
+          const catalogFallback = this.buildPreferredCapabilityFallback(input);
+          if (catalogFallback) {
+            return {
+              status: 'completed',
+              intent: catalogFallback,
+              provider: 'governed_contract',
+              model: 'capability_catalog_fallback',
+              usage: {
+                provider: 'governed_contract',
+                model: 'capability_catalog_fallback',
+                inputTokens: 0,
+                outputTokens: 0,
+              },
+            };
+          }
           const definitionFallback = this.buildGovernedDefinitionFallback(input);
           if (definitionFallback) {
             return {
@@ -231,7 +247,7 @@ export class BrainSemanticIntentCompilerService {
     input: BrainSemanticIntentCompilerInput,
     mode: 'contract_fast_path' | 'model_unavailable',
   ): BrainSemanticIntent | undefined {
-    const capability = input.capabilitySummaries.find(
+    const capability = this.orderedCapabilitySummaries(input).find(
       (candidate) =>
         candidate.readOnly &&
         (mode !== 'contract_fast_path' || Boolean(candidate.definitionRefs?.length)) &&
@@ -241,6 +257,22 @@ export class BrainSemanticIntentCompilerService {
     );
     if (!capability) return undefined;
     return this.buildGovernedCapabilityIntent(capability, input, mode);
+  }
+
+  private buildPreferredCapabilityFallback(
+    input: BrainSemanticIntentCompilerInput,
+  ): BrainSemanticIntent | undefined {
+    if (!input.preferredCapabilityKey) return undefined;
+    const capability = input.capabilitySummaries.find((candidate) => candidate.key === input.preferredCapabilityKey);
+    if (!capability) return undefined;
+    return this.buildGovernedCapabilityIntent(capability, input, 'catalog_match');
+  }
+
+  private orderedCapabilitySummaries(input: BrainSemanticIntentCompilerInput): BrainSemanticCapabilitySummary[] {
+    if (!input.preferredCapabilityKey) return input.capabilitySummaries;
+    return [...input.capabilitySummaries].sort((left, right) =>
+      Number(right.key === input.preferredCapabilityKey) - Number(left.key === input.preferredCapabilityKey),
+    );
   }
 
   private buildGovernedDefinitionFallback(input: BrainSemanticIntentCompilerInput): BrainSemanticIntent | undefined {
@@ -298,10 +330,13 @@ export class BrainSemanticIntentCompilerService {
   private buildGovernedCapabilityIntent(
     capability: BrainSemanticCapabilitySummary,
     input: BrainSemanticIntentCompilerInput,
-    mode: 'contract_fast_path' | 'model_unavailable' | 'definition_match',
+    mode: 'contract_fast_path' | 'model_unavailable' | 'definition_match' | 'catalog_match',
   ): BrainSemanticIntent | undefined {
     const parsedTime = this.timeRangeParser.parse(input.question);
-    const intent = exactCapabilityIntent(input.question, capability.intents, Boolean(parsedTime.comparison));
+    const intent = exactCapabilityIntent(input.question, capability.intents, Boolean(parsedTime.comparison)) ??
+      (mode === 'catalog_match' && capability.intents.length === 1
+        ? supportedCapabilityIntent(capability.intents[0])
+        : undefined);
     if (!intent) return undefined;
     const timeRange = this.resolveQuestionTimeRange(input.question, input.timezone);
     const comparisonTarget = intent === 'comparison'
@@ -335,10 +370,12 @@ export class BrainSemanticIntentCompilerService {
           ? `问题完全匹配已发布能力 ${capability.key} 的正例合同`
           : mode === 'model_unavailable'
             ? `模型不可用或预算耗尽，按已发布能力 ${capability.key} 的完全匹配示例继续执行`
+            : mode === 'catalog_match'
+              ? `模型不可用或预算耗尽，按能力目录高置信唯一候选 ${capability.key} 继续执行`
             : `模型不可用或预算耗尽，按唯一匹配的已发布业务定义和能力 ${capability.key} 继续执行`,
       ],
       confidence: 1,
-      decisionSummary: mode === 'definition_match'
+      decisionSummary: mode === 'definition_match' || mode === 'catalog_match'
         ? `问题中的指标只匹配已发布能力 ${capability.key}。`
         : `问题与已发布能力 ${capability.key} 的示例完全匹配。`,
     };
@@ -986,6 +1023,12 @@ function exactCapabilityIntent(
     'query',
   ];
   return candidates.find((intent) => allowed.has(intent));
+}
+
+function supportedCapabilityIntent(value: string | undefined): BrainSemanticIntent['intent'] | undefined {
+  return BRAIN_SEMANTIC_INTENTS.includes(value as BrainSemanticIntent['intent'])
+    ? value as BrainSemanticIntent['intent']
+    : undefined;
 }
 
 function exactCapabilityAnswerShape(intent: BrainSemanticIntent['intent']): BrainSemanticIntent['answerShape'] {

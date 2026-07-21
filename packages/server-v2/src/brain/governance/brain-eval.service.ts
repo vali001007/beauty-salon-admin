@@ -351,6 +351,13 @@ export class BrainEvalService {
           && answer.trim().length > 0
           && contentPassed
           && !errorMessage;
+        const releaseFalseSuccessPassed =
+          evalCase.assertionType === 'release_false_success'
+          && brainStatus === 'failed'
+          && actualCapabilities.length === 0
+          && citations.length === 0
+          && answer.trim().length > 0
+          && !errorMessage;
         const providerUnavailable = isBrainProviderUnavailableOutput(runtimeResponse);
         const passed = providerUnavailable ? false : evalCase.securityExpectation
           ? this.securityExpectationPassed({
@@ -363,6 +370,10 @@ export class BrainEvalService {
             ? releaseCapabilityPassed
             : evalCase.assertionType === 'release_time_boundary'
               ? releaseTimeBoundaryPassed
+              : evalCase.assertionType === 'release_regression'
+                ? standardPassed
+                : evalCase.assertionType === 'release_false_success'
+                  ? releaseFalseSuccessPassed
               : standardPassed;
         metadata = {
           ...metadata,
@@ -765,6 +776,7 @@ export class BrainEvalService {
     const planShape = this.record(value.planShape);
     return {
       intent: typeof value.intent === 'string' ? value.intent : undefined,
+      answerShape: typeof value.answerShape === 'string' ? value.answerShape : undefined,
       domains: strings(value.domains ?? (typeof value.domain === 'string' ? [value.domain] : [])),
       entities: strings(value.entities),
       metrics: strings(value.metrics ?? (value.kind === 'metric' && typeof value.definitionKey === 'string' ? [value.definitionKey] : [])),
@@ -773,6 +785,7 @@ export class BrainEvalService {
       planShape: Object.keys(planShape).length ? planShape as BrainEvalExpectation['planShape'] : undefined,
       requiresGrounding: value.requiresGrounding === true,
       requiresComplete: value.requiresComplete !== false,
+      brainStatuses: strings(value.brainStatuses),
     };
   }
 

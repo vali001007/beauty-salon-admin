@@ -225,11 +225,11 @@ describe('BrainEvalService', () => {
         releaseId: 21,
       });
 
-      expect(run).toMatchObject({ id: 8, releaseId: 21, caseCount: 8 });
+      expect(run).toMatchObject({ id: 8, releaseId: 21, caseCount: 9 });
       expect(prisma.brainEvalRun.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           releaseId: 21,
-          caseCount: 8,
+          caseCount: 9,
           summary: expect.objectContaining({
             gateMode: 'release_gate',
             releaseFingerprint: 'a'.repeat(64),
@@ -631,6 +631,7 @@ describe('BrainEvalService', () => {
         findMany: jest.fn().mockResolvedValue([
           { key: 'store_manager', permissions: ['core:brain:use', 'core:customer:view'] },
           { key: 'finance', permissions: ['core:brain:use', 'core:finance:view'] },
+          { key: 'inventory', permissions: ['core:brain:use', 'core:supply:view'] },
         ]),
       },
     };
@@ -649,6 +650,15 @@ describe('BrainEvalService', () => {
             citations: [],
             grounding: 'preview_action',
             suggestedActions: [{ type: 'preview_action' }],
+          });
+        }
+        if (dto.message.includes('供应商性价比')) {
+          return Promise.resolve({
+            status: 'failed',
+            answer: '当前没有统一的供应商评分口径，本次未执行查询。',
+            citations: [],
+            suggestedActions: [],
+            blocks: [{ kind: 'limitations', items: ['supplier_score_definition_not_available'] }],
           });
         }
         return Promise.resolve({
@@ -696,8 +706,8 @@ describe('BrainEvalService', () => {
     });
 
     expect(result).toMatchObject({
-      total: 6,
-      passed: 6,
+      total: 7,
+      passed: 7,
       failed: 0,
       canRelease: true,
       gateMode: 'release_gate',
@@ -710,7 +720,7 @@ describe('BrainEvalService', () => {
       ]),
       releaseGate: { passed: true },
     });
-    expect(prisma.brainEvalResult.create).toHaveBeenCalledTimes(6);
+    expect(prisma.brainEvalResult.create).toHaveBeenCalledTimes(7);
   });
 
   it('marks the eval run failed when the frozen release fingerprint no longer matches the queued gate', async () => {

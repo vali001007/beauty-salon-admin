@@ -211,7 +211,7 @@ describe('BrainReleaseService', () => {
     await expect(service.activateRelease({ releaseId: 21, activatedBy: 9 })).rejects.toMatchObject({ message: 'modification_superseded' });
   });
 
-  it('rolls an active model release directly back to its rules ancestor in one transaction', async () => {
+  it('rolls an active model release directly back to its validated production baseline in one transaction', async () => {
     const rulesVersion = {
       id: 31,
       resourceType: 'skill',
@@ -227,7 +227,7 @@ describe('BrainReleaseService', () => {
         id: 10,
         status: 'archived',
         previousReleaseId: null,
-        rollout: { mode: 'rules' },
+        rollout: { mode: 'model', productionBaseline: true },
         items: [{ id: 101, resourceType: 'skill', resourceKey: 'customer_query', resourceVersionId: 31, resourceVersion: rulesVersion }],
       }],
     ]);
@@ -261,7 +261,7 @@ describe('BrainReleaseService', () => {
     });
   });
 
-  it('archives and disables candidate resources when rolling back to an empty rules release', async () => {
+  it('refuses to roll back to an empty rules rehearsal release', async () => {
     const candidateVersion = {
       id: 12,
       resourceType: 'skill',
@@ -292,16 +292,12 @@ describe('BrainReleaseService', () => {
       $transaction: jest.fn((callback) => callback(tx)),
     };
 
-    await new BrainReleaseService(prisma as never).rollbackToRules({ releaseId: 15, reason: 'test' });
+    await expect(
+      new BrainReleaseService(prisma as never).rollbackToRules({ releaseId: 15, reason: 'test' }),
+    ).rejects.toMatchObject({ message: 'production_baseline_not_found' });
 
-    expect(tx.brainResourceVersion.updateMany).toHaveBeenCalledWith({
-      where: { id: 12, status: 'active' },
-      data: { status: 'archived', archivedAt: expect.any(Date) },
-    });
-    expect(tx.brainSkillRegistry.updateMany).toHaveBeenCalledWith({
-      where: { id: 19 },
-      data: { enabled: false },
-    });
+    expect(tx.brainResourceVersion.updateMany).not.toHaveBeenCalled();
+    expect(tx.brainSkillRegistry.updateMany).not.toHaveBeenCalled();
   });
 
   it('creates an independently auditable shadow-to-full rollout sequence', async () => {
@@ -327,7 +323,7 @@ describe('BrainReleaseService', () => {
     }));
     expect(service.createRelease).toHaveBeenNthCalledWith(5, expect.objectContaining({
       releaseKey: 'brain-r1-full',
-      rollout: { stage: 'full', mode: 'model', userPercentage: 100 },
+      rollout: { stage: 'full', mode: 'model', userPercentage: 100, productionBaseline: true },
     }));
     expect(prisma.brainRelease.update).toHaveBeenCalledWith({ where: { id: 12 }, data: { previousReleaseId: 11 } });
     expect(releases.items).toHaveLength(5);

@@ -7,7 +7,7 @@ export interface BrainReleaseEvalGateCase {
   question: string;
   expected: Record<string, unknown>;
   expectedCapabilityKeys: string[];
-  assertionType: 'release_capability' | 'release_security' | 'release_time_boundary';
+  assertionType: 'release_capability' | 'release_security' | 'release_time_boundary' | 'release_regression' | 'release_false_success';
   securityExpectation?: string;
   contextOverride?: {
     permissions?: string[];
@@ -50,6 +50,15 @@ const REQUIRED_TIME_BOUNDARY_CASES = [
   { preset: 'last_week', label: '上周' },
   { preset: 'this_month', label: '本月' },
   { preset: 'last_month', label: '上月' },
+] as const;
+
+const REQUIRED_PRODUCTION_REGRESSION_CASES = [
+  { id: 'product_ranking_literal', capabilityKey: 'product_sales_ranking', roleKey: 'store_manager', question: '本月商品销售排行', intent: 'ranking', answerShape: 'ranking' },
+  { id: 'product_ranking_paraphrase', capabilityKey: 'product_sales_ranking', roleKey: 'store_manager', question: '这个月哪些商品卖得最好', intent: 'ranking', answerShape: 'ranking' },
+  { id: 'payment_breakdown_literal', capabilityKey: 'finance_payment_breakdown', roleKey: 'finance', question: '本月支付方式拆分', intent: 'query', answerShape: 'list' },
+  { id: 'payment_breakdown_paraphrase', capabilityKey: 'finance_payment_breakdown', roleKey: 'finance', question: '这个月各种收款渠道分别收了多少', intent: 'query', answerShape: 'list' },
+  { id: 'staff_ranking_literal', capabilityKey: 'staff_performance_ranking', roleKey: 'store_manager', question: '这个月谁的业绩最好', intent: 'ranking', answerShape: 'ranking' },
+  { id: 'appointment_copy_not_metric', capabilityKey: 'marketing_message_draft', roleKey: 'marketing', question: '写一条提醒客户预约空档的消息', intent: 'draft', answerShape: 'draft' },
 ] as const;
 
 export function buildBrainReleaseEvalGate(snapshot: BrainEvaluationReleaseSnapshot): {
@@ -117,6 +126,41 @@ export function buildBrainReleaseEvalGate(snapshot: BrainEvaluationReleaseSnapsh
         assertionType: 'release_time_boundary',
       });
     }
+  }
+
+  if (evaluatesCapabilities) {
+    for (const item of REQUIRED_PRODUCTION_REGRESSION_CASES) {
+      if (!snapshot.capabilityKeys.includes(item.capabilityKey)) {
+        continue;
+      }
+      requiredRoleKeys.add(item.roleKey);
+      cases.push({
+        caseKey: `release_regression:${snapshot.releaseId}:${item.id}`,
+        roleKey: item.roleKey,
+        question: item.question,
+        expected: {
+          capabilityKeys: [item.capabilityKey],
+          intent: item.intent,
+          answerShape: item.answerShape,
+          requiresGrounding: item.intent !== 'draft',
+          requiresComplete: true,
+        },
+        expectedCapabilityKeys: [item.capabilityKey],
+        assertionType: 'release_regression',
+      });
+    }
+    cases.push({
+      caseKey: `release_false_success:${snapshot.releaseId}:unsupported_supplier_score`,
+      roleKey: 'inventory',
+      question: '供应商性价比最高的是哪家',
+      expected: {
+        brainStatuses: ['failed'],
+        requiresGrounding: false,
+        requiresComplete: false,
+      },
+      expectedCapabilityKeys: [],
+      assertionType: 'release_false_success',
+    });
   }
 
   const adversarialById = new Map(BRAIN_ADVERSARIAL_EVAL_CASES.map((item) => [item.id, item]));
@@ -189,7 +233,11 @@ export function evaluateBrainReleaseEvalGate(
       .flatMap((result) => result.expectedCapabilityKeys ?? []),
   );
   const selectedCapabilities = new Set(
-    results.filter((result) => result.passed).flatMap((result) => result.actualCapabilityKeys),
+    results
+      .filter((result) => result.passed)
+      .flatMap((result) => result.actualCapabilityKeys.length
+        ? result.actualCapabilityKeys
+        : (result.expectedCapabilityKeys ?? [])),
   );
   const missingCapabilityKeys = manifest.requiredCapabilityKeys.filter(
     (key) => !selectedCapabilities.has(key) && !providerUnavailableCapabilities.has(key),

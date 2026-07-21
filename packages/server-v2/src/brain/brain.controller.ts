@@ -647,7 +647,17 @@ export class BrainController {
     if (!this.releaseService) throw new NotFoundException('发布服务不可用');
     return this.releaseService.rollbackToRules({
       releaseId: Number(releaseId),
-      reason: String(body.reason ?? 'emergency_rules_rollback'),
+      reason: String(body.reason ?? 'production_baseline_rollback'),
+    });
+  }
+
+  @Post('governance/releases/:releaseId/rollback-to-baseline')
+  @Permissions('core:brain-governance:manage')
+  rollbackReleaseToBaseline(@Param('releaseId') releaseId: string, @Body() body: { reason?: string }) {
+    if (!this.releaseService) throw new NotFoundException('发布服务不可用');
+    return this.releaseService.rollbackToProductionBaseline({
+      releaseId: Number(releaseId),
+      reason: String(body.reason ?? 'production_baseline_rollback'),
     });
   }
 

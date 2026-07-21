@@ -281,6 +281,14 @@ describe('BrainChatService', () => {
         ]),
       },
       retriever: {
+        discover: jest.fn((input) => ({
+          status: 'selected',
+          selected: input.cards[0],
+          topK: [{ card: input.cards[0], score: 0.95, matchedFields: ['name'] }],
+          confidence: 0.95,
+          margin: 0.95,
+          reason: 'catalog_top1_selected',
+        })),
         retrieve: jest.fn((input) => ({
           status: 'selected',
           selected: input.cards[0],
@@ -1799,7 +1807,11 @@ describe('BrainChatService', () => {
 
   it('uses the authenticated Brain role alias for plan validation and execution', async () => {
     const releaseService = {
-      resolveRuntimeMode: jest.fn().mockResolvedValue({ mode: 'model', capabilityCandidates: undefined }),
+      resolveRuntimeMode: jest.fn().mockResolvedValue({
+        mode: 'model',
+        release: { id: 21 },
+        capabilityCandidates: [{ key: 'product_sales_ranking', version: 1 }],
+      }),
     };
     const roleContextBuilder = {
       build: jest.fn().mockResolvedValue({
@@ -3161,7 +3173,7 @@ describe('BrainChatService', () => {
     expect(modelPipeline!.catalog.listEnabledCapabilities).toHaveBeenCalledWith([candidate]);
   });
 
-  it('fails closed to rules when the production release lookup is unavailable', async () => {
+  it('fails closed without entering rules when the production release lookup is unavailable', async () => {
     const releaseService = {
       resolveRuntimeMode: jest.fn().mockRejectedValue(new Error('release_db_unavailable')),
     };
@@ -3190,9 +3202,10 @@ describe('BrainChatService', () => {
       citations: [{ sourceType: 'metric', sourceId: 'paid_revenue', label: '实收流水' }],
     });
 
-    await service.sendMessage(context, 12, { message: '本月流水多少', timezone: 'Asia/Shanghai' });
+    const response = await service.sendMessage(context, 12, { message: '本月流水多少', timezone: 'Asia/Shanghai' });
 
-    expect(roleIntentRouter.route).toHaveBeenCalled();
+    expect(response).toMatchObject({ status: 'failed', failureCode: 'PRODUCTION_BASELINE_UNAVAILABLE' });
+    expect(roleIntentRouter.route).not.toHaveBeenCalled();
     expect(modelPipeline!.catalog.listEnabledCapabilities).not.toHaveBeenCalled();
     expect(modelPipeline!.compiler.compile).not.toHaveBeenCalled();
   });
@@ -3200,7 +3213,7 @@ describe('BrainChatService', () => {
   it.each([
     ['no matching release', { mode: undefined, release: null }],
     ['invalid active release mode', { mode: undefined, release: { id: 21, rollout: { mode: 'invalid' } } }],
-  ])('fails closed to rules when governance resolves %s', async (_label, resolved) => {
+  ])('fails closed without entering rules when governance resolves %s', async (_label, resolved) => {
     const releaseService = { resolveRuntimeMode: jest.fn().mockResolvedValue(resolved) };
     const { prisma, cognition, semanticEngine, roleIntentRouter, modelPipeline, service } = createService({
       modelPipeline: {},
@@ -3227,9 +3240,10 @@ describe('BrainChatService', () => {
       citations: [{ sourceType: 'metric', sourceId: 'paid_revenue', label: '实收流水' }],
     });
 
-    await service.sendMessage(context, 12, { message: '本月流水多少', timezone: 'Asia/Shanghai' });
+    const response = await service.sendMessage(context, 12, { message: '本月流水多少', timezone: 'Asia/Shanghai' });
 
-    expect(roleIntentRouter.route).toHaveBeenCalled();
+    expect(response).toMatchObject({ status: 'failed', failureCode: 'PRODUCTION_BASELINE_UNAVAILABLE' });
+    expect(roleIntentRouter.route).not.toHaveBeenCalled();
     expect(modelPipeline!.compiler.compile).not.toHaveBeenCalled();
   });
 
@@ -4625,7 +4639,7 @@ describe('BrainChatService', () => {
     const response = await service.sendMessage(context, 12, { message, timezone: 'Asia/Shanghai' });
 
     expect(response).toMatchObject({
-      status: 'completed',
+      status: 'failed',
       grounding: 'none',
       citations: [],
       adapterMetadata: { unsupportedReason, scope: 'current_management_backend' },
