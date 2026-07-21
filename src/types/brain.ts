@@ -248,10 +248,29 @@ export interface BrainMemoryRecord {
   createdAt: string;
   updatedAt: string;
   deletedAt?: string | null;
+  scope?: 'user' | 'store';
+  state?: 'active' | 'expired' | 'deleted';
 }
 
 export interface BrainMemoryListResponse {
   items: BrainMemoryRecord[];
+  total: number;
+}
+
+export interface BrainMemoryRevision {
+  id: number;
+  memoryId: number;
+  previousMemoryId?: number | null;
+  revisionType: string;
+  previousContent?: Record<string, unknown> | null;
+  nextContent?: Record<string, unknown> | null;
+  changedByUserId?: number | null;
+  reason?: string | null;
+  createdAt: string;
+}
+
+export interface BrainMemoryRevisionListResponse {
+  items: BrainMemoryRevision[];
   total: number;
 }
 

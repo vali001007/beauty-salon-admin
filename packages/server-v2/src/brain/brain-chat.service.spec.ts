@@ -64,6 +64,7 @@ describe('BrainChatService', () => {
       releaseService?: unknown;
       roleContextBuilder?: unknown;
       untrustedActionClaimGuard?: unknown;
+      memoryService?: unknown;
     } = {},
   ) => {
     const prisma = createPrismaMock();
@@ -381,7 +382,7 @@ describe('BrainChatService', () => {
         roleIntentRouter as never,
         domainAdapterRegistry as never,
         options.conversationContext as never,
-        undefined,
+        options.memoryService as never,
         options.orchestrator as never,
         options.taskExecutor as never,
         options.shadowCognition as never,
@@ -984,6 +985,149 @@ describe('BrainChatService', () => {
           }),
         }),
       }),
+    );
+  });
+
+  it('injects governed long-term memory into the model compiler context', async () => {
+    const memoryService = {
+      retrieveForPlanning: jest.fn().mockResolvedValue([
+        {
+          id: 31,
+          scope: 'user',
+          subject: 'user.preference.answer_style',
+          summary: '默认先说结论',
+          confidence: 0.9,
+          updatedAt: '2026-07-21T09:00:00.000Z',
+        },
+      ]),
+      applyUserInstruction: jest.fn().mockResolvedValue({ handled: false, action: 'none', memories: [] }),
+    };
+    const { prisma, cognition, trace, modelPipeline, service } = createService({ modelPipeline: {}, memoryService });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create.mockResolvedValue({ id: 101 });
+    prisma.brainRun.create.mockResolvedValue({ id: 77 });
+    prisma.brainRun.update.mockResolvedValue({ id: 77 });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+    cognition.understand.mockReturnValue({
+      normalizedText: '本月商品销售排行',
+      terms: [],
+      metrics: [],
+      dimensions: [],
+      entities: [],
+      unsupportedTerms: [],
+      intent: { key: 'metric_query', confidence: 0.9, reason: 'test' },
+      needsClarification: false,
+    });
+
+    await service.sendMessage(context, 12, { message: '本月商品销售排行', timezone: 'Asia/Shanghai' });
+
+    expect(memoryService.retrieveForPlanning).toHaveBeenCalledWith({
+      storeId: 2,
+      userId: 9,
+      question: '本月商品销售排行',
+    });
+    expect(modelPipeline!.compiler.compile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationSlots: expect.objectContaining({
+          longTermMemory: {
+            policy: 'explicit_preferences_and_decisions_only',
+            priority: 'user_correction_over_store_default_over_model_inference',
+            items: [expect.objectContaining({ id: 31, scope: 'user', summary: '默认先说结论' })],
+          },
+        }),
+      }),
+    );
+    expect(trace.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({ stepKey: 'long_term_memory_recall', status: 'completed' }),
+    );
+  });
+
+  it('handles a standalone remember instruction as a visible governed memory confirmation', async () => {
+    const rememberedAt = new Date('2026-07-21T09:00:00.000Z');
+    const memoryService = {
+      retrieveForPlanning: jest.fn().mockResolvedValue([]),
+      applyUserInstruction: jest.fn().mockResolvedValue({
+        handled: true,
+        action: 'remembered',
+        message: '已记住：默认先说结论。',
+        memories: [
+          {
+            id: 32,
+            userId: 9,
+            sourceRunId: 77,
+            updatedAt: rememberedAt,
+            deletedAt: null,
+          },
+        ],
+      }),
+    };
+    const { prisma, trace, modelPipeline, service } = createService({ modelPipeline: {}, memoryService });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create.mockResolvedValue({ id: 101 });
+    prisma.brainRun.create.mockResolvedValue({ id: 77 });
+    prisma.brainRun.update.mockResolvedValue({ id: 77 });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+
+    const response = await service.sendMessage(context, 12, {
+      message: '以后默认先说结论',
+      timezone: 'Asia/Shanghai',
+    });
+
+    expect(memoryService.applyUserInstruction).toHaveBeenCalledWith({
+      storeId: 2,
+      userId: 9,
+      runId: 77,
+      text: '以后默认先说结论',
+      allowStoreScope: false,
+    });
+    expect(response).toMatchObject({
+      status: 'completed',
+      answer: '已记住：默认先说结论。',
+      citations: [expect.objectContaining({ sourceType: 'memory', sourceId: '32', label: '个人长期记忆' })],
+      blocks: [{ kind: 'text', text: '已记住：默认先说结论。' }],
+      adapterMetadata: { memoryInstruction: { action: 'remembered', memoryIds: [32] } },
+    });
+    expect(trace.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({ stepKey: 'memory_instruction', status: 'completed' }),
+    );
+    expect(modelPipeline!.compiler.compile).not.toHaveBeenCalled();
+  });
+
+  it('allows store memory governance for wildcard admins unless the permission is explicitly denied', async () => {
+    const memoryService = {
+      retrieveForPlanning: jest.fn().mockResolvedValue([]),
+      applyUserInstruction: jest.fn().mockResolvedValue({
+        handled: true,
+        action: 'remembered',
+        message: '已记住 1 条门店共享偏好或决定。',
+        memories: [],
+      }),
+    };
+    const { prisma, service } = createService({ modelPipeline: {}, memoryService });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create.mockResolvedValue({ id: 101 });
+    prisma.brainRun.create.mockResolvedValue({ id: 77 });
+    prisma.brainRun.update.mockResolvedValue({ id: 77 });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+
+    await service.sendMessage(
+      { ...context, permissions: ['*'], deniedPermissions: [] },
+      12,
+      { message: '以后全店默认先说结论', timezone: 'Asia/Shanghai' },
+    );
+    await service.sendMessage(
+      { ...context, permissions: ['*'], deniedPermissions: ['core:brain-governance:manage'] },
+      12,
+      { message: '以后全店默认先说结论', timezone: 'Asia/Shanghai' },
+    );
+
+    expect(memoryService.applyUserInstruction).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ allowStoreScope: true }),
+    );
+    expect(memoryService.applyUserInstruction).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ allowStoreScope: false }),
     );
   });
 

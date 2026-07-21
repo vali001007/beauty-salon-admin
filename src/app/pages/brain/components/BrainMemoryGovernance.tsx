@@ -1,8 +1,14 @@
 import { useEffect, useState } from 'react';
-import { ArchiveRestore, Edit3, Loader2, RefreshCw, Save, Trash2, X } from 'lucide-react';
+import { ArchiveRestore, Edit3, History, Loader2, RefreshCw, Save, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { correctBrainMemory, deleteBrainMemory, listBrainMemories, restoreBrainMemory } from '@/api/brain';
-import type { BrainMemoryRecord } from '@/types/brain';
+import {
+  correctBrainMemory,
+  deleteBrainMemory,
+  listBrainMemories,
+  listBrainMemoryRevisions,
+  restoreBrainMemory,
+} from '@/api/brain';
+import type { BrainMemoryRecord, BrainMemoryRevision } from '@/types/brain';
 
 function dateText(value?: string | null) {
   if (!value) return '长期有效';
@@ -16,6 +22,9 @@ export function BrainMemoryGovernance() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [editing, setEditing] = useState<BrainMemoryRecord | null>(null);
   const [content, setContent] = useState('');
+  const [historyItem, setHistoryItem] = useState<BrainMemoryRecord | null>(null);
+  const [revisions, setRevisions] = useState<BrainMemoryRevision[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -70,6 +79,20 @@ export function BrainMemoryGovernance() {
       toast.error(error instanceof Error ? error.message : '记忆状态更新失败');
     } finally {
       setBusyId(null);
+    }
+  }
+
+  async function openHistory(item: BrainMemoryRecord) {
+    setHistoryItem(item);
+    setHistoryLoading(true);
+    try {
+      const response = await listBrainMemoryRevisions(item.id);
+      setRevisions(response.items);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '记忆版本记录加载失败');
+      setHistoryItem(null);
+    } finally {
+      setHistoryLoading(false);
     }
   }
 
@@ -141,6 +164,14 @@ export function BrainMemoryGovernance() {
                       ) : null}
                       <button
                         type="button"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-foreground"
+                        title="查看版本记录"
+                        onClick={() => void openHistory(item)}
+                      >
+                        <History className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
                         className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-foreground disabled:opacity-60"
                         title={item.deletedAt ? '恢复记忆' : '删除记忆'}
                         onClick={() => void toggleDeleted(item)}
@@ -194,6 +225,45 @@ export function BrainMemoryGovernance() {
                 保存纠正
               </button>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {historyItem ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-md border border-border bg-background p-5 shadow-xl">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="font-semibold text-foreground">记忆版本记录</h3>
+                <p className="mt-1 text-xs text-muted-foreground">{historyItem.subjectKey}</p>
+              </div>
+              <button type="button" className="text-muted-foreground" onClick={() => setHistoryItem(null)} title="关闭">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            {historyLoading ? (
+              <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                加载版本记录
+              </div>
+            ) : revisions.length === 0 ? (
+              <div className="py-8 text-sm text-muted-foreground">当前记忆还没有纠正、删除或恢复记录。</div>
+            ) : (
+              <div className="mt-4 divide-y divide-border border border-border">
+                {revisions.map((revision) => (
+                  <div key={revision.id} className="p-3 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-medium text-foreground">{revision.revisionType}</span>
+                      <span className="text-xs text-muted-foreground">{dateText(revision.createdAt)}</span>
+                    </div>
+                    {revision.reason ? <p className="mt-2 text-xs text-muted-foreground">原因：{revision.reason}</p> : null}
+                    <pre className="mt-2 whitespace-pre-wrap break-words bg-muted/40 p-2 text-xs text-muted-foreground">
+                      {JSON.stringify(revision.nextContent ?? revision.previousContent ?? {}, null, 2)}
+                    </pre>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       ) : null}

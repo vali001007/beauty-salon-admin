@@ -459,6 +459,37 @@ describe('BrainController', () => {
     expect(traceService.getRunTrace).toHaveBeenCalledWith({ runId: 77, storeId: 2 });
   });
 
+  it('scopes memory revision history to the current store and user', async () => {
+    const memoryService = {
+      listRevisions: jest.fn().mockResolvedValue({
+        items: [{ id: 8, memoryId: 31, revisionType: 'user_correction' }],
+        total: 1,
+      }),
+    };
+    const governanceController = new BrainController(
+      contextService,
+      chatService as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      memoryService as never,
+    );
+
+    await expect(governanceController.listMemoryRevisions(request, '31')).resolves.toMatchObject({
+      total: 1,
+      items: [expect.objectContaining({ memoryId: 31, revisionType: 'user_correction' })],
+    });
+    expect(memoryService.listRevisions).toHaveBeenCalledWith({ id: 31, storeId: 2, userId: 9 });
+  });
+
   it('exposes real eval, release and feedback governance endpoints', async () => {
     const evalService = {
       createEvalRun: jest.fn().mockResolvedValue({ id: 51, status: 'queued', caseCount: 1 }),

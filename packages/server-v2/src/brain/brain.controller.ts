@@ -333,6 +333,14 @@ export class BrainController {
     }) ?? { items: [], total: 0 };
   }
 
+  @Get('governance/memories/:id/revisions')
+  @Permissions('core:brain-governance:view')
+  listMemoryRevisions(@Req() req: Request, @Param('id') id: string) {
+    const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
+    if (!this.memoryService) throw new NotFoundException('记忆服务未启用');
+    return this.memoryService.listRevisions({ id: Number(id), storeId: context.storeId, userId: context.userId });
+  }
+
   @Post('governance/memories/:id/correct')
   @Permissions('core:brain-governance:manage')
   correctMemory(@Req() req: Request, @Param('id') id: string, @Body() body: Record<string, unknown>) {

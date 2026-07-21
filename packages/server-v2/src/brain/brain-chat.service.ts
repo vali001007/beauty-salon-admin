@@ -256,24 +256,64 @@ export class BrainChatService {
     }
     const [, run] = envelope;
 
-    let chatAnswer: BrainChatAnswer;
-    try {
-      chatAnswer = await this.buildAnswer(context, conversationId, dto, run.id);
-    } catch (error) {
-      const message = this.errorMessage(error);
+    let chatAnswer: BrainChatAnswer | undefined;
+    const standaloneMemoryInstruction = this.memoryService && this.isStandaloneMemoryInstruction(dto.message);
+    if (standaloneMemoryInstruction) {
       try {
-        await this.prisma.brainRun.update({
-          where: { id: run.id },
-          data: {
-            status: 'failed',
-            latencyMs: Date.now() - startedAt,
-            error: { message } as Prisma.InputJsonValue,
-          },
+        const memoryInstruction = await this.memoryService!.applyUserInstruction({
+          storeId: context.storeId,
+          userId: context.userId,
+          runId: run.id,
+          text: dto.message,
+          allowStoreScope: this.canManageStoreMemory(context),
         });
-      } catch {
-        // Preserve the original runtime failure for the caller.
+        if (memoryInstruction.handled && memoryInstruction.message) {
+          const memoryCitations = this.memoryInstructionCitations(memoryInstruction.memories, run.id);
+          chatAnswer = {
+            status: 'completed',
+            answer: memoryInstruction.message,
+            citations: memoryCitations,
+            suggestedActions: [],
+            blocks: [{ kind: 'text', text: memoryInstruction.message }],
+            grounding: 'governed_memory',
+            adapterMetadata: {
+              memoryInstruction: {
+                action: memoryInstruction.action,
+                memoryIds: memoryInstruction.memories.map((memory) => memory.id),
+              },
+            },
+          };
+          await this.recordMemoryInstructionTrace(run.id, memoryInstruction.action, memoryInstruction.memories.map((memory) => memory.id));
+        }
+      } catch (error) {
+        await this.traceService.recordStep({
+          runId: run.id,
+          stepKey: 'memory_instruction',
+          layer: 'memory',
+          status: 'failed',
+          error: { message: this.errorMessage(error) } as Prisma.InputJsonValue,
+        });
       }
-      throw error;
+    }
+    if (!chatAnswer) {
+      try {
+        chatAnswer = await this.buildAnswer(context, conversationId, dto, run.id);
+      } catch (error) {
+        const message = this.errorMessage(error);
+        try {
+          await this.prisma.brainRun.update({
+            where: { id: run.id },
+            data: {
+              status: 'failed',
+              latencyMs: Date.now() - startedAt,
+              error: { message } as Prisma.InputJsonValue,
+            },
+          });
+        } catch {
+          // Preserve the original runtime failure for the caller.
+        }
+        throw error;
+      }
     }
     if (this.memoryService && /(按我的习惯|照之前|照旧|默认方式|按之前)/.test(dto.message)) {
       try {
@@ -352,6 +392,45 @@ export class BrainChatService {
               itemCount: set.items.length,
             })),
           }),
+        });
+      }
+    }
+    if (this.memoryService && !standaloneMemoryInstruction && chatAnswer.status === 'completed') {
+      try {
+        const memoryInstruction = await this.memoryService.applyUserInstruction({
+          storeId: context.storeId,
+          userId: context.userId,
+          runId: run.id,
+          text: dto.message,
+          allowStoreScope: this.canManageStoreMemory(context),
+        });
+        if (memoryInstruction.handled && memoryInstruction.message) {
+          const memoryCitations = this.memoryInstructionCitations(memoryInstruction.memories, run.id);
+          chatAnswer = {
+            ...chatAnswer,
+            answer: `${chatAnswer.answer}\n\n${memoryInstruction.message}`,
+            citations: [...chatAnswer.citations, ...memoryCitations],
+            adapterMetadata: {
+              ...(chatAnswer.adapterMetadata ?? {}),
+              memoryInstruction: {
+                action: memoryInstruction.action,
+                memoryIds: memoryInstruction.memories.map((memory) => memory.id),
+              },
+            },
+          };
+          await this.recordMemoryInstructionTrace(
+            run.id,
+            memoryInstruction.action,
+            memoryInstruction.memories.map((memory) => memory.id),
+          );
+        }
+      } catch (error) {
+        await this.traceService.recordStep({
+          runId: run.id,
+          stepKey: 'memory_instruction',
+          layer: 'memory',
+          status: 'failed',
+          error: { message: this.errorMessage(error) } as Prisma.InputJsonValue,
         });
       }
     }
@@ -474,34 +553,6 @@ export class BrainChatService {
       }
     }
     options?.onAnswerReady?.(responseEnvelope);
-    if (this.memoryService) {
-      try {
-        const persistedMemories = await this.memoryService.persistCandidates({
-          storeId: context.storeId,
-          userId: context.userId,
-          runId: run.id,
-          text: dto.message,
-        });
-        if (persistedMemories.length) {
-          await this.traceService.recordStep({
-            runId: run.id,
-            stepKey: 'memory_write',
-            layer: 'memory',
-            input: { candidateCount: persistedMemories.length } as Prisma.InputJsonValue,
-            output: { memoryIds: persistedMemories.map((memory) => memory.id) } as Prisma.InputJsonValue,
-            status: 'completed',
-          });
-        }
-      } catch (error) {
-        await this.traceService.recordStep({
-          runId: run.id,
-          stepKey: 'memory_write',
-          layer: 'memory',
-          status: 'failed',
-          error: { message: this.errorMessage(error) } as Prisma.InputJsonValue,
-        });
-      }
-    }
 
     return responseEnvelope;
   }
@@ -595,6 +646,7 @@ export class BrainChatService {
           });
         }
       }
+      const longTermMemory = await this.loadLongTermMemorySlots({ context, question: inputDto.message, runId });
       const answer = await this.buildModelSingleToolAnswer({
         context,
         dto: inputDto,
@@ -604,6 +656,15 @@ export class BrainChatService {
         conversationSlots: {
           ...(prepared?.previous ?? {}),
           ...(prepared?.directives ? { turnDirectives: prepared.directives } : {}),
+          ...(longTermMemory.length
+            ? {
+                longTermMemory: {
+                  policy: 'explicit_preferences_and_decisions_only',
+                  priority: 'user_correction_over_store_default_over_model_inference',
+                  items: longTermMemory,
+                },
+              }
+            : {}),
         },
         capabilityCandidates: releaseRuntime.capabilityCandidates,
         snapshot: releaseSnapshot,
@@ -3985,28 +4046,96 @@ export class BrainChatService {
       pendingClarification?: unknown;
       lastCorrections?: unknown;
       turnDirectives?: unknown;
+      longTermMemory?: unknown;
       updatedAt?: unknown;
     };
-    if (snapshot.version !== 1) return {};
     return {
-      modelContext: {
-        version: snapshot.version,
-        objective: snapshot.objective,
-        definitionRefs: snapshot.definitionRefs,
-        metrics: snapshot.metrics,
-        dimensions: snapshot.dimensions,
-        entities: snapshot.entities,
-        intent: snapshot.intent,
-        answerShape: snapshot.answerShape,
-        timeRange: snapshot.timeRange,
-        capability: snapshot.capability,
-        resultSets: snapshot.resultSets,
-        pendingClarification: snapshot.pendingClarification,
-        lastCorrections: snapshot.lastCorrections,
-        updatedAt: snapshot.updatedAt,
-      },
+      ...(snapshot.version === 1
+        ? {
+            modelContext: {
+              version: snapshot.version,
+              objective: snapshot.objective,
+              definitionRefs: snapshot.definitionRefs,
+              metrics: snapshot.metrics,
+              dimensions: snapshot.dimensions,
+              entities: snapshot.entities,
+              intent: snapshot.intent,
+              answerShape: snapshot.answerShape,
+              timeRange: snapshot.timeRange,
+              capability: snapshot.capability,
+              resultSets: snapshot.resultSets,
+              pendingClarification: snapshot.pendingClarification,
+              lastCorrections: snapshot.lastCorrections,
+              updatedAt: snapshot.updatedAt,
+            },
+          }
+        : {}),
       ...(snapshot.turnDirectives ? { turnDirectives: snapshot.turnDirectives } : {}),
+      ...(snapshot.longTermMemory ? { longTermMemory: snapshot.longTermMemory } : {}),
     };
+  }
+
+  private async loadLongTermMemorySlots(input: { context: BrainRequestContext; question: string; runId: number }) {
+    if (!this.memoryService) return [];
+    try {
+      const items = await this.memoryService.retrieveForPlanning({
+        storeId: input.context.storeId,
+        userId: input.context.userId,
+        question: input.question,
+      });
+      if (items.length) {
+        await this.recordModelTrace({
+          runId: input.runId,
+          stepKey: 'long_term_memory_recall',
+          layer: 'memory',
+          status: 'completed',
+          output: this.toJsonValue({ memoryIds: items.map((item) => item.id), count: items.length }),
+        });
+      }
+      return items;
+    } catch (error) {
+      await this.recordModelTrace({
+        runId: input.runId,
+        stepKey: 'long_term_memory_recall',
+        layer: 'memory',
+        status: 'failed',
+        error: this.toJsonValue({ message: this.errorMessage(error) }),
+      });
+      return [];
+    }
+  }
+
+  private isStandaloneMemoryInstruction(message: string) {
+    const normalized = message.replace(/\s+/g, ' ').trim();
+    return /^(?:请记住|帮我记住|记住这条|以后|今后|设为默认|作为默认|忘记|不要再记|删除.*记忆|清除.*偏好|取消.*默认|你记得我什么|你都记得什么|查看我的记忆|列出我的记忆|我的偏好是什么|记住了什么)/.test(normalized);
+  }
+
+  private canManageStoreMemory(context: BrainRequestContext) {
+    const permission = 'core:brain-governance:manage';
+    return !context.deniedPermissions.includes(permission) &&
+      (context.permissions.includes('*') || context.permissions.includes(permission));
+  }
+
+  private memoryInstructionCitations(memories: Awaited<ReturnType<BrainMemoryService['retrieveRelevant']>>, runId: number) {
+    return memories
+      .filter((memory) => !memory.deletedAt)
+      .map((memory) => ({
+        sourceType: 'memory',
+        sourceId: String(memory.id),
+        label: memory.userId === null ? '门店共享记忆' : '个人长期记忆',
+        definition: `来源 Run #${memory.sourceRunId ?? runId}，更新时间 ${memory.updatedAt.toISOString()}`,
+      }));
+  }
+
+  private recordMemoryInstructionTrace(runId: number, action: string, memoryIds: number[]) {
+    return this.traceService.recordStep({
+      runId,
+      stepKey: 'memory_instruction',
+      layer: 'memory',
+      input: { action } as Prisma.InputJsonValue,
+      output: { action, memoryIds } as Prisma.InputJsonValue,
+      status: action === 'rejected' ? 'failed' : 'completed',
+    });
   }
 
   private modelOntologyCandidates(snapshot: ProductionReadyBusinessDefinitionSnapshot) {

@@ -11,6 +11,7 @@ import type {
   BrainMessageListResponse,
   BrainMemoryListResponse,
   BrainMemoryRecord,
+  BrainMemoryRevisionListResponse,
   BrainGovernanceRelease,
   BrainGovernanceReleaseListResponse,
   BrainGovernanceResourceVersionListResponse,
@@ -343,6 +344,10 @@ export async function createBrainFeedback(payload: {
 
 export async function listBrainMemories(): Promise<BrainMemoryListResponse> {
   return apiClient.get<unknown, BrainMemoryListResponse>('/brain/governance/memories');
+}
+
+export async function listBrainMemoryRevisions(id: number): Promise<BrainMemoryRevisionListResponse> {
+  return apiClient.get<unknown, BrainMemoryRevisionListResponse>(`/brain/governance/memories/${id}/revisions`);
 }
 
 export async function correctBrainMemory(

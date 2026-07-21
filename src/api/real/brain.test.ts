@@ -51,6 +51,7 @@ describe('brain real API contract', () => {
     await brainApi.updateBrainSemanticResource('metrics', 'paid_revenue', { status: 'active' });
     await brainApi.listBrainRoleProfiles();
     await brainApi.listBrainMemories();
+    await brainApi.listBrainMemoryRevisions(5);
     await brainApi.correctBrainMemory(5, { content: { preference: '先看毛利' } });
     await brainApi.deleteBrainMemory(5, 'obsolete');
     await brainApi.restoreBrainMemory(5);
@@ -82,6 +83,7 @@ describe('brain real API contract', () => {
     expect(apiClientMock.patch).toHaveBeenCalledWith('/brain/governance/semantic/metrics/paid_revenue', { status: 'active' });
     expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/roles');
     expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/memories');
+    expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/memories/5/revisions');
     expect(apiClientMock.post).toHaveBeenCalledWith('/brain/governance/memories/5/correct', {
       content: { preference: '先看毛利' },
     });
