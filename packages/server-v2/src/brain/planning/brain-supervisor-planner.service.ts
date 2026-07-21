@@ -59,17 +59,20 @@ export class BrainSupervisorPlannerService {
         if (remainingMs <= 0) {
           throw new AiStructuredOutputError('BUDGET_EXCEEDED', 'Brain Supervisor deadline is exhausted.');
         }
+        const messages = buildBrainSupervisorPlannerMessages({
+          question: input.question,
+          intent: input.intent,
+          candidates,
+          previousPlan: input.previousPlan,
+          observations: input.observations,
+          roleContext: input.roleContext,
+          contractRepair,
+        });
         const result = await this.aiService.generateStructured<BrainExecutionPlan>({
           scenario: input.previousPlan ? 'brain.supervisor_replan.v1' : 'brain.supervisor_plan.v1',
-          messages: buildBrainSupervisorPlannerMessages({
-            question: input.question,
-            intent: input.intent,
-            candidates,
-            previousPlan: input.previousPlan,
-            observations: input.observations,
-            roleContext: input.roleContext,
-            contractRepair,
-          }),
+          allowFallback: true,
+          messages,
+          fallbackMessages: messages,
           schema: BRAIN_EXECUTION_PLAN_JSON_SCHEMA,
           timeoutMs: Math.min(this.config.runtime.modelTimeoutMs, remainingMs),
           temperature: 0,

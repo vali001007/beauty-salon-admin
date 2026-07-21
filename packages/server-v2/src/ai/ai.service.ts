@@ -5,6 +5,7 @@ import addFormatsImport from 'ajv-formats';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { formatBusinessDate } from '../common/utils/business-time.js';
 import { IndustryService } from '../industry/industry.service.js';
+import { AiProviderHealthService } from './ai-provider-health.service.js';
 
 const applyAjvFormats = addFormatsImport as unknown as (ajv: Ajv) => Ajv;
 
@@ -37,6 +38,14 @@ export type AiStructuredOutputResult<T> = {
   usage: AiUsage;
   provider: string;
   model: string;
+  routing?: {
+    primarySkipped: boolean;
+    fallbackUsed: boolean;
+    primaryErrorCode?: AiStructuredOutputErrorCode;
+    primaryCircuitState: 'closed' | 'open' | 'half_open';
+    fallbackCircuitState?: 'closed' | 'open' | 'half_open';
+    redundancyMode: 'disabled' | 'same_route_retry' | 'independent_route';
+  };
 };
 export type AiStructuredOutputErrorCode =
   | 'SCHEMA_INVALID'
@@ -259,6 +268,7 @@ export class AiService {
   private fallbackBaseUrl: string;
   private fallbackChatPath: string;
   private fallbackTimeoutMs: number;
+  private fallbackInheritPrimaryAuthWhenSameRoute: boolean;
   private structuredOutputMode: StructuredOutputMode;
   private fallbackStructuredOutputMode: StructuredOutputMode;
   private structuredMaxTotalTokens: number;
@@ -268,12 +278,15 @@ export class AiService {
   private faceppSkinAnalyzeUrl: string;
   private faceppSkinAnalyzeTimeoutMs: number;
   private faceppSkinAnalyzeFallback: boolean;
+  private readonly providerHealth: AiProviderHealthService;
 
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
     @Optional() private industryService?: IndustryService,
+    @Optional() providerHealth?: AiProviderHealthService,
   ) {
+    this.providerHealth = providerHealth ?? new AiProviderHealthService(config);
     this.provider = this.normalizeProviderName(String(config.get('LLM_PROVIDER', 'mock')));
     this.model = config.get('LLM_MODEL', 'deepseek-v4-flash');
     this.apiKey = this.resolveConfiguredApiKey('LLM_API_KEY', 'LLM_API_KEY_ENV');
@@ -291,6 +304,8 @@ export class AiService {
     this.fallbackBaseUrl = String(config.get('LLM_FALLBACK_BASE_URL', '')).trim();
     this.fallbackChatPath = String(config.get('LLM_FALLBACK_CHAT_PATH', this.chatPath)).trim();
     this.fallbackTimeoutMs = Number(config.get('LLM_FALLBACK_TIMEOUT_MS', 20000));
+    this.fallbackInheritPrimaryAuthWhenSameRoute =
+      String(config.get('LLM_FALLBACK_INHERIT_PRIMARY_AUTH_WHEN_SAME_ROUTE', 'true')).toLowerCase() !== 'false';
     this.structuredOutputMode = this.parseStructuredOutputMode(
       'LLM_STRUCTURED_OUTPUT_MODE',
       config.get('LLM_STRUCTURED_OUTPUT_MODE', 'auto'),
@@ -362,6 +377,7 @@ export class AiService {
           provider: result.usage.provider,
           model: result.usage.model,
           usage: result.usage,
+          routing: result.routing,
           latencyMs: this.now() - start,
           status: 'success',
         });
@@ -1611,7 +1627,7 @@ export class AiService {
           const result = await this.callOpenAiResponsesWithConfig('chat_stream', messages, {
             provider: fallbackProvider,
             model: this.fallbackModel,
-            apiKey: this.fallbackApiKey,
+            apiKey: this.effectiveFallbackApiKey(),
             baseUrl: this.fallbackBaseUrl,
             chatPath: this.fallbackChatPath || this.chatPath,
             timeoutMs: this.fallbackTimeoutMs || this.timeoutMs,
@@ -1621,7 +1637,7 @@ export class AiService {
           yield* this.callOpenAiCompatibleStream('chat_stream', messages, {
             provider: fallbackProvider,
             model: this.fallbackModel,
-            apiKey: this.fallbackApiKey,
+            apiKey: this.effectiveFallbackApiKey(),
             baseUrl: this.fallbackBaseUrl,
             chatPath: this.fallbackChatPath || this.chatPath,
             timeoutMs: this.fallbackTimeoutMs || this.timeoutMs,
@@ -2145,7 +2161,7 @@ export class AiService {
     return Boolean(
       !this.isMockProvider() &&
       this.fallbackProvider &&
-      this.fallbackApiKey &&
+      this.effectiveFallbackApiKey() &&
       this.fallbackBaseUrl &&
       this.fallbackModel,
     );
@@ -2163,7 +2179,7 @@ export class AiService {
     const config = {
       provider: normalizedProvider,
       model: this.fallbackModel,
-      apiKey: this.fallbackApiKey,
+      apiKey: this.effectiveFallbackApiKey(),
       baseUrl: this.fallbackBaseUrl,
       chatPath: this.fallbackChatPath || this.chatPath,
       timeoutMs: this.fallbackTimeoutMs || this.timeoutMs,
@@ -2738,55 +2754,112 @@ export class AiService {
       structuredOutputMode: this.structuredOutputMode,
       maxTotalTokens: this.structuredMaxTotalTokens,
     };
+    const primaryKey = this.structuredProviderCircuitKey(primaryConfig);
+    const fallbackConfig: StructuredProviderConfig | undefined = this.canUseStructuredFallback(input)
+      ? {
+          provider: this.normalizeProviderName(this.fallbackProvider),
+          model: this.fallbackModel,
+          apiKey: this.effectiveFallbackApiKey(),
+          baseUrl: this.fallbackBaseUrl,
+          chatPath: this.fallbackChatPath || this.chatPath,
+          timeoutMs: this.fallbackTimeoutMs || this.timeoutMs,
+          fallback: true,
+          structuredOutputMode: this.fallbackStructuredOutputMode,
+          maxTotalTokens: this.fallbackStructuredMaxTotalTokens,
+        }
+      : undefined;
+    const fallbackKey = fallbackConfig ? this.structuredProviderCircuitKey(fallbackConfig) : undefined;
+    const redundancyMode = this.providerHealth.redundancyMode(primaryKey, fallbackKey);
+    const primaryDecision = this.providerHealth.beginRequest(primaryKey, this.now());
 
     let primaryError: AiStructuredOutputError;
-    try {
-      return await this.generateStructuredWithProvider(input, input.messages, validate, primaryConfig, budget);
-    } catch (error) {
-      if (
-        error instanceof AiStructuredOutputError &&
-        error.code !== 'PROVIDER_UNAVAILABLE' &&
-        error.code !== 'PROVIDER_AUTH_FAILED'
-      ) {
-        throw error;
-      }
-      primaryError = this.toStructuredOutputError(
-        error,
+    if (!primaryDecision.allowed) {
+      primaryError = new AiStructuredOutputError(
+        'PROVIDER_UNAVAILABLE',
+        'Primary structured provider circuit is open.',
         this.getStructuredProviderLabel(primaryConfig),
         primaryConfig.model,
         this.getStructuredBudgetUsage(budget),
       );
-      if (!this.canUseStructuredFallback(input)) throw primaryError;
+      if (!fallbackConfig) throw primaryError;
+    } else {
+      try {
+        const result = await this.generateStructuredWithProvider(input, input.messages, validate, primaryConfig, budget);
+        this.providerHealth.recordSuccess(primaryKey, this.now());
+        return {
+          ...result,
+          routing: {
+            primarySkipped: false,
+            fallbackUsed: false,
+            primaryCircuitState: primaryDecision.state,
+            redundancyMode,
+          },
+        };
+      } catch (error) {
+        const controlled = this.toStructuredOutputError(
+          error,
+          this.getStructuredProviderLabel(primaryConfig),
+          primaryConfig.model,
+          this.getStructuredBudgetUsage(budget),
+        );
+        if (this.isProviderHealthFailure(controlled)) {
+          this.providerHealth.recordFailure(primaryKey, controlled.code, this.now());
+        } else {
+          this.providerHealth.recordSuccess(primaryKey, this.now());
+          throw controlled;
+        }
+        primaryError = controlled;
+        if (!fallbackConfig) throw primaryError;
+      }
     }
 
-    const fallbackConfig: StructuredProviderConfig = {
-      provider: this.normalizeProviderName(this.fallbackProvider),
-      model: this.fallbackModel,
-      apiKey: this.fallbackApiKey,
-      baseUrl: this.fallbackBaseUrl,
-      chatPath: this.fallbackChatPath || this.chatPath,
-      timeoutMs: this.fallbackTimeoutMs || this.timeoutMs,
-      fallback: true,
-      structuredOutputMode: this.fallbackStructuredOutputMode,
-      maxTotalTokens: this.fallbackStructuredMaxTotalTokens,
-    };
+    if (!fallbackConfig || !fallbackKey) throw primaryError;
     this.tightenStructuredTokenBudget(budget, fallbackConfig.maxTotalTokens);
+    const fallbackDecision = this.providerHealth.beginRequest(fallbackKey, this.now());
+    if (!fallbackDecision.allowed) {
+      throw new AiStructuredOutputError(
+        'PROVIDER_UNAVAILABLE',
+        'Fallback structured provider circuit is open.',
+        this.getStructuredProviderLabel(fallbackConfig),
+        fallbackConfig.model,
+        this.getStructuredBudgetUsage(budget),
+        { cause: primaryError },
+      );
+    }
 
     try {
-      return await this.generateStructuredWithProvider(
+      const result = await this.generateStructuredWithProvider(
         input,
         input.fallbackMessages!,
         validate,
         fallbackConfig,
         budget,
       );
+      this.providerHealth.recordSuccess(fallbackKey, this.now());
+      return {
+        ...result,
+        routing: {
+          primarySkipped: !primaryDecision.allowed,
+          fallbackUsed: true,
+          primaryErrorCode: primaryError.code,
+          primaryCircuitState: primaryDecision.state,
+          fallbackCircuitState: fallbackDecision.state,
+          redundancyMode,
+        },
+      };
     } catch (error) {
-      throw this.toStructuredOutputError(
+      const controlled = this.toStructuredOutputError(
         error,
         this.getStructuredProviderLabel(fallbackConfig),
         fallbackConfig.model,
         this.getStructuredBudgetUsage(budget),
       );
+      if (this.isProviderHealthFailure(controlled)) {
+        this.providerHealth.recordFailure(fallbackKey, controlled.code, this.now());
+      } else {
+        this.providerHealth.recordSuccess(fallbackKey, this.now());
+      }
+      throw controlled;
     }
   }
 
@@ -2909,8 +2982,123 @@ export class AiService {
       input.allowFallback === true &&
       this.hasStructuredMessages(input.fallbackMessages) &&
       this.hasFallbackProvider() &&
-      this.isOpenAiCompatibleProvider(this.fallbackProvider),
+      (this.isOpenAiCompatibleProvider(this.fallbackProvider) || this.isOpenAiResponsesProvider(this.fallbackProvider)),
     );
+  }
+
+  getProviderHealth() {
+    const primaryConfig = this.currentStructuredPrimaryConfig();
+    const fallbackConfig = this.hasFallbackProvider()
+      ? this.currentStructuredFallbackConfig()
+      : undefined;
+    const primaryKey = this.structuredProviderCircuitKey(primaryConfig);
+    const fallbackKey = fallbackConfig ? this.structuredProviderCircuitKey(fallbackConfig) : undefined;
+    return {
+      primary: this.publicProviderRoute(primaryConfig, primaryKey),
+      fallback: fallbackConfig
+        ? this.publicProviderRoute(fallbackConfig, fallbackKey!, this.fallbackAuthMode())
+        : null,
+      redundancyMode: this.providerHealth.redundancyMode(primaryKey, fallbackKey),
+      circuits: this.providerHealth.snapshot(),
+    };
+  }
+
+  private currentStructuredPrimaryConfig(): StructuredProviderConfig {
+    return {
+      provider: this.provider,
+      model: this.model,
+      apiKey: this.apiKey,
+      baseUrl: this.baseUrl,
+      chatPath: this.chatPath,
+      timeoutMs: this.timeoutMs,
+      fallback: false,
+      structuredOutputMode: this.structuredOutputMode,
+      maxTotalTokens: this.structuredMaxTotalTokens,
+    };
+  }
+
+  private currentStructuredFallbackConfig(): StructuredProviderConfig {
+    return {
+      provider: this.normalizeProviderName(this.fallbackProvider),
+      model: this.fallbackModel,
+      apiKey: this.effectiveFallbackApiKey(),
+      baseUrl: this.fallbackBaseUrl,
+      chatPath: this.fallbackChatPath || this.chatPath,
+      timeoutMs: this.fallbackTimeoutMs || this.timeoutMs,
+      fallback: true,
+      structuredOutputMode: this.fallbackStructuredOutputMode,
+      maxTotalTokens: this.fallbackStructuredMaxTotalTokens,
+    };
+  }
+
+  private structuredProviderCircuitKey(config: StructuredProviderConfig) {
+    let route = config.baseUrl.trim().replace(/\/+$/, '');
+    try {
+      const parsed = new URL(route);
+      route = `${parsed.protocol}//${parsed.host}${parsed.pathname.replace(/\/+$/, '')}`;
+    } catch {
+      route = route || 'unconfigured';
+    }
+    return [this.normalizeProviderName(config.provider), route, config.chatPath, config.model].join('|');
+  }
+
+  private publicProviderRoute(
+    config: StructuredProviderConfig,
+    key: string,
+    authMode: 'primary' | 'dedicated' | 'inherited_primary' = 'primary',
+  ) {
+    let gateway = 'unconfigured';
+    try {
+      gateway = new URL(config.baseUrl).host;
+    } catch {
+      if (config.baseUrl) gateway = 'configured_invalid_url';
+    }
+    return {
+      key,
+      provider: this.normalizeProviderName(config.provider),
+      model: config.model,
+      gateway,
+      configured: Boolean(config.apiKey && config.baseUrl && config.model),
+      authMode,
+    };
+  }
+
+  private effectiveFallbackApiKey() {
+    if (
+      this.fallbackInheritPrimaryAuthWhenSameRoute &&
+      this.apiKey &&
+      this.fallbackSharesPrimaryRoute()
+    ) {
+      return this.apiKey;
+    }
+    return this.fallbackApiKey;
+  }
+
+  private fallbackAuthMode(): 'dedicated' | 'inherited_primary' {
+    return this.fallbackInheritPrimaryAuthWhenSameRoute && this.apiKey && this.fallbackSharesPrimaryRoute()
+      ? 'inherited_primary'
+      : 'dedicated';
+  }
+
+  private fallbackSharesPrimaryRoute() {
+    if (!this.fallbackProvider || !this.fallbackBaseUrl || !this.fallbackModel) return false;
+    const primaryConfig = this.currentStructuredPrimaryConfig();
+    const fallbackConfig: StructuredProviderConfig = {
+      provider: this.normalizeProviderName(this.fallbackProvider),
+      model: this.fallbackModel,
+      apiKey: this.fallbackApiKey,
+      baseUrl: this.fallbackBaseUrl,
+      chatPath: this.fallbackChatPath || this.chatPath,
+      timeoutMs: this.fallbackTimeoutMs || this.timeoutMs,
+      fallback: true,
+      structuredOutputMode: this.fallbackStructuredOutputMode,
+      maxTotalTokens: this.fallbackStructuredMaxTotalTokens,
+    };
+    return this.structuredProviderCircuitKey(primaryConfig) === this.structuredProviderCircuitKey(fallbackConfig);
+  }
+
+  private isProviderHealthFailure(error: AiStructuredOutputError) {
+    return error.code === 'PROVIDER_UNAVAILABLE' || error.code === 'PROVIDER_AUTH_FAILED';
   }
 
   private resolveStructuredPrimaryTimeout(input: AiStructuredOutputInput, budget: StructuredRequestBudget) {
@@ -3723,6 +3911,7 @@ export class AiService {
     provider: string;
     model: string;
     usage?: AiUsage;
+    routing?: AiStructuredOutputResult<unknown>['routing'];
     latencyMs: number;
     status: 'success' | 'failed';
     errorCode?: AiStructuredOutputErrorCode;
@@ -3736,7 +3925,14 @@ export class AiService {
         model: input.model,
         inputTokens: input.usage?.inputTokens || 0,
         outputTokens: input.usage?.outputTokens || 0,
-        ...(input.usage?.breakdown ? { inputSummary: JSON.stringify({ usageBreakdown: input.usage.breakdown }) } : {}),
+        ...(input.usage?.breakdown || input.routing
+          ? {
+              inputSummary: JSON.stringify({
+                ...(input.usage?.breakdown ? { usageBreakdown: input.usage.breakdown } : {}),
+                ...(input.routing ? { routing: input.routing } : {}),
+              }),
+            }
+          : {}),
         outputSummary:
           input.status === 'success'
             ? 'structured_output_valid'

@@ -901,6 +901,12 @@ describe('AiService', () => {
       usage: { provider: 'openai_compatible', model: 'structured-model', inputTokens: 21, outputTokens: 8 },
       provider: 'openai_compatible',
       model: 'structured-model',
+      routing: {
+        primarySkipped: false,
+        fallbackUsed: false,
+        primaryCircuitState: 'closed',
+        redundancyMode: 'disabled',
+      },
     });
     expect(prisma.aiAuditLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -968,6 +974,102 @@ describe('AiService', () => {
       provider: 'openai_responses',
       model: 'gpt-5.6-terra',
       usage: { inputTokens: 24, outputTokens: 8 },
+    });
+  });
+
+  it('allows OpenAI Responses to serve as the structured fallback provider', async () => {
+    const fetchMock = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('primary down'))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: 'resp-fallback',
+          output: [{ type: 'message', content: [{ type: 'output_text', text: '{"answer":"fallback","count":1}' }] }],
+          usage: { input_tokens: 12, output_tokens: 5 },
+        }),
+      });
+    global.fetch = fetchMock as any;
+    const { service: structuredService } = await createConfiguredService({
+      LLM_PROVIDER: 'openai_compatible',
+      LLM_API_KEY: 'primary-key',
+      LLM_BASE_URL: 'https://primary.example/v1',
+      LLM_MODEL: 'primary-model',
+      LLM_FALLBACK_PROVIDER: 'openai_responses',
+      LLM_FALLBACK_API_KEY: 'fallback-key',
+      LLM_FALLBACK_BASE_URL: 'https://fallback.example/v1',
+      LLM_FALLBACK_CHAT_PATH: '/responses',
+      LLM_FALLBACK_MODEL: 'gpt-5.6-terra',
+      LLM_FALLBACK_STRUCTURED_OUTPUT_MODE: 'json_schema',
+    });
+
+    const result = await structuredService.generateStructured<{ answer: string; count: number }>({
+      scenario: 'brain.responses_fallback',
+      allowFallback: true,
+      messages: [{ role: 'user', content: 'primary' }],
+      fallbackMessages: [{ role: 'user', content: 'fallback' }],
+      schema: structuredSchema,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('https://fallback.example/v1/responses');
+    expect(fetchMock.mock.calls[1]?.[1].headers.Authorization).toBe('Bearer fallback-key');
+    expect(result).toMatchObject({
+      data: { answer: 'fallback', count: 1 },
+      provider: 'openai_responses(fallback)',
+      model: 'gpt-5.6-terra',
+      routing: { fallbackUsed: true, primaryErrorCode: 'PROVIDER_UNAVAILABLE' },
+    });
+    expect(structuredService.getProviderHealth()).toMatchObject({
+      redundancyMode: 'independent_route',
+      fallback: { authMode: 'dedicated' },
+    });
+  });
+
+  it('inherits the verified primary credential for a same-route retry', async () => {
+    const fetchMock = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('transient gateway failure'))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: 'resp-same-route-retry',
+          output: [{ type: 'message', content: [{ type: 'output_text', text: '{"answer":"retry","count":1}' }] }],
+          usage: { input_tokens: 9, output_tokens: 4 },
+        }),
+      });
+    global.fetch = fetchMock as any;
+    const { service: structuredService } = await createConfiguredService({
+      LLM_PROVIDER: 'openai_responses',
+      LLM_API_KEY: 'verified-primary-key',
+      LLM_BASE_URL: 'https://relay.example/v1',
+      LLM_CHAT_PATH: '/responses',
+      LLM_MODEL: 'gpt-5.6-terra',
+      LLM_FALLBACK_PROVIDER: 'openai_responses',
+      LLM_FALLBACK_API_KEY: 'stale-fallback-key',
+      LLM_FALLBACK_BASE_URL: 'https://relay.example/v1',
+      LLM_FALLBACK_CHAT_PATH: '/responses',
+      LLM_FALLBACK_MODEL: 'gpt-5.6-terra',
+    });
+
+    const result = await structuredService.generateStructured<{ answer: string; count: number }>({
+      scenario: 'brain.same_route_retry',
+      allowFallback: true,
+      messages: [{ role: 'user', content: 'primary' }],
+      fallbackMessages: [{ role: 'user', content: 'retry' }],
+      schema: structuredSchema,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]?.[1].headers.Authorization).toBe('Bearer verified-primary-key');
+    expect(fetchMock.mock.calls[1]?.[1].headers.Authorization).toBe('Bearer verified-primary-key');
+    expect(result).toMatchObject({
+      data: { answer: 'retry', count: 1 },
+      routing: { fallbackUsed: true, redundancyMode: 'same_route_retry' },
+    });
+    expect(structuredService.getProviderHealth()).toMatchObject({
+      redundancyMode: 'same_route_retry',
+      fallback: { authMode: 'inherited_primary' },
     });
   });
 
@@ -2046,6 +2148,73 @@ describe('AiService', () => {
     expect(result).toMatchObject({ provider: 'openai_compatible(fallback)', model: 'fallback-model' });
   });
 
+  it('opens the primary circuit, skips repeated failures, and probes recovery after cooldown', async () => {
+    let now = 1000;
+    const urls: string[] = [];
+    const fetchMock = jest.fn(async (url: string) => {
+      urls.push(String(url));
+      if (urls.length === 1) throw new Error('primary unavailable');
+      const answer = urls.length === 4 ? 'primary recovered' : `fallback ${urls.length - 1}`;
+      return {
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: JSON.stringify({ answer, count: 1 }) } }] }),
+      };
+    });
+    global.fetch = fetchMock as any;
+    const { service: structuredService } = await createConfiguredService({
+      LLM_PROVIDER: 'openai_compatible',
+      LLM_API_KEY: 'primary-key',
+      LLM_BASE_URL: 'https://primary.example/v1',
+      LLM_MODEL: 'primary-model',
+      LLM_FALLBACK_PROVIDER: 'openai_compatible',
+      LLM_FALLBACK_API_KEY: 'fallback-key',
+      LLM_FALLBACK_BASE_URL: 'https://fallback.example/v1',
+      LLM_FALLBACK_MODEL: 'fallback-model',
+      LLM_CIRCUIT_FAILURE_THRESHOLD: '1',
+      LLM_CIRCUIT_OPEN_MS: '1000',
+    });
+    jest.spyOn(structuredService as any, 'now').mockImplementation(() => now);
+    const request = {
+      messages: [{ role: 'user', content: 'primary request' }],
+      allowFallback: true,
+      fallbackMessages: [{ role: 'user', content: 'fallback request' }],
+      schema: structuredSchema,
+      timeoutMs: 5000,
+    };
+
+    const first = await structuredService.generateStructured<{ answer: string; count: number }>({
+      ...request,
+      scenario: 'brain.circuit.first',
+    });
+    const second = await structuredService.generateStructured<{ answer: string; count: number }>({
+      ...request,
+      scenario: 'brain.circuit.second',
+    });
+
+    expect(first.routing).toMatchObject({ fallbackUsed: true, primarySkipped: false, redundancyMode: 'independent_route' });
+    expect(second.routing).toMatchObject({ fallbackUsed: true, primarySkipped: true, primaryCircuitState: 'open' });
+    expect(urls.filter((url) => url.includes('primary.example'))).toHaveLength(1);
+    expect(structuredService.getProviderHealth()).toMatchObject({
+      redundancyMode: 'independent_route',
+      circuits: expect.arrayContaining([expect.objectContaining({ state: 'open', consecutiveFailures: 1 })]),
+    });
+
+    now = 2101;
+    const recovered = await structuredService.generateStructured<{ answer: string; count: number }>({
+      ...request,
+      scenario: 'brain.circuit.recovered',
+    });
+
+    expect(recovered).toMatchObject({
+      data: { answer: 'primary recovered', count: 1 },
+      provider: 'openai_compatible',
+      routing: { fallbackUsed: false, primarySkipped: false, primaryCircuitState: 'half_open' },
+    });
+    expect(structuredService.getProviderHealth().circuits).toEqual(
+      expect.arrayContaining([expect.objectContaining({ state: 'closed', consecutiveFailures: 0 })]),
+    );
+  });
+
   it('rejects a fourth reserved call without incrementing callCount', async () => {
     const { service: structuredService } = await createConfiguredService({
       LLM_PROVIDER: 'openai_compatible',
@@ -2137,7 +2306,10 @@ describe('AiService', () => {
       outputTokens: 3,
       status: 'success',
     });
-    expect(JSON.parse(audit.inputSummary)).toEqual({ usageBreakdown: (result.usage as any).breakdown });
+    expect(JSON.parse(audit.inputSummary)).toEqual({
+      usageBreakdown: (result.usage as any).breakdown,
+      routing: result.routing,
+    });
   });
 
   it('limits primary failure, fallback, and fallback repair to three calls and aggregates successful usage', async () => {

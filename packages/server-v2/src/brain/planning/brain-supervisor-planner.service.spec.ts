@@ -292,7 +292,12 @@ describe('BrainSupervisorPlannerService', () => {
       deadlineAt: 10_250,
     })).resolves.toMatchObject({ status: 'planned' });
 
-    expect(generateStructured).toHaveBeenCalledWith(expect.objectContaining({ timeoutMs: 250 }));
+    expect(generateStructured).toHaveBeenCalledWith(expect.objectContaining({
+      timeoutMs: 250,
+      allowFallback: true,
+      fallbackMessages: expect.any(Array),
+    }));
+    expect(generateStructured.mock.calls[0]?.[0].fallbackMessages).toEqual(generateStructured.mock.calls[0]?.[0].messages);
   });
 
   it('does not call Supervisor after the shared deadline has expired', async () => {
