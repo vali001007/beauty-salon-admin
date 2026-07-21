@@ -45,6 +45,7 @@ describe('BrainChatService', () => {
     brainRun: {
       create: jest.fn(),
       findFirst: jest.fn(),
+      findMany: jest.fn(),
       update: jest.fn(),
     },
     brainRunStep: {
@@ -408,6 +409,9 @@ describe('BrainChatService', () => {
     const { service } = createService();
     const resultSets = new BrainResultReferenceService().buildResultSets({
       runId: 88,
+      conversationId: 12,
+      userId: 9,
+      storeId: 2,
       adapterMetadata: { mappingOutputs: { expiringBatches: [] } },
     });
     const answer = (service as any).answerFromConversationResultReference({
@@ -436,6 +440,9 @@ describe('BrainChatService', () => {
     const { service } = createService();
     const resultSets = new BrainResultReferenceService().buildResultSets({
       runId: 87,
+      conversationId: 12,
+      userId: 9,
+      storeId: 2,
       adapterMetadata: { mappingOutputs: { customerIds: [] } },
     });
     const answer = (service as any).answerFromConversationResultReference({
@@ -458,6 +465,9 @@ describe('BrainChatService', () => {
     const { service } = createService();
     const resultSets = new BrainResultReferenceService().buildResultSets({
       runId: 89,
+      conversationId: 12,
+      userId: 9,
+      storeId: 2,
       intent: {
         schemaVersion: '1.0',
         objective: '员工业绩排行',
@@ -543,6 +553,131 @@ describe('BrainChatService', () => {
       },
     });
     expect(answer.answer).toContain('没有员工内部通知');
+  });
+
+  it('clarifies a singular action reference when the previous ranking contains multiple employees', () => {
+    const { service } = createService();
+    const resultSets = new BrainResultReferenceService().buildResultSets({
+      runId: 90,
+      conversationId: 12,
+      userId: 9,
+      storeId: 2,
+      intent: {
+        schemaVersion: '1.0',
+        objective: '员工业绩排行',
+        domains: ['beautician'],
+        intent: 'ranking',
+        entities: [
+          {
+            entityType: 'beautician',
+            mention: '员工',
+            source: 'system',
+            confidence: 1,
+            definitionRef: {
+              definitionType: 'entity',
+              definitionKey: 'entity.beautician',
+              definitionVersion: 1,
+              definitionFingerprint: 'a'.repeat(64),
+              sourceFingerprint: 'b'.repeat(64),
+            },
+          },
+        ],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'ranking',
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 1,
+        decisionSummary: '排行',
+        successCriteria: ['返回排行'],
+      },
+      adapterMetadata: {
+        mappingOutputs: {
+          staffRanking: [
+            { entityType: 'beautician', entityKey: '12', mention: '宋乔' },
+            { entityType: 'beautician', entityKey: '19', mention: '顾然' },
+          ],
+        },
+      },
+    });
+
+    const normalized = (service as any).normalizeConversationResultReferenceIntent({
+      intent: {
+        intent: 'action',
+        entities: [],
+        missingSlots: ['entity'],
+        ambiguities: [],
+        assumptions: [],
+      },
+      question: '给她发个鼓励通知',
+      conversationSlots: { modelContext: { resultSets } },
+    });
+    const answer = (service as any).answerFromConversationResultReference({
+      intent: normalized,
+      question: '给她发个鼓励通知',
+      conversationSlots: { modelContext: { resultSets } },
+      cards: [],
+      modelMetadata: { cognitionMode: 'model', modelStage: 'validate', failureCode: null },
+    });
+
+    expect(normalized.entities).toEqual([]);
+    expect(answer).toMatchObject({
+      status: 'completed',
+      adapterMetadata: {
+        decisionCode: 'result_reference_ambiguity_clarification_required',
+        completion: { status: 'partial', missingCriteria: ['resultRef'], recoverable: true },
+      },
+      modelContextPendingClarification: { missingSlots: ['resultRef'] },
+      modelContextResultSets: resultSets,
+    });
+    expect(answer.blocks[0].options).toHaveLength(2);
+  });
+
+  it('keeps only result references proven by a completed run in the same conversation and store', async () => {
+    const { service, prisma } = createService();
+    const resultSets = new BrainResultReferenceService().buildResultSets({
+      runId: 91,
+      conversationId: 12,
+      userId: 9,
+      storeId: 2,
+      adapterMetadata: {
+        mappingOutputs: {
+          staffRanking: [{ entityType: 'beautician', entityKey: '12', mention: '宋乔' }],
+        },
+      },
+    });
+    prisma.brainRun.findMany.mockResolvedValue([{ id: 91, output: { adapterMetadata: { resultSets } } }]);
+
+    const verified = await (service as any).verifyConversationResultReferenceSlots({
+      conversationId: 12,
+      runId: 92,
+      context,
+      conversationSlots: { modelContext: { resultSets } },
+    });
+
+    expect(verified.modelContext.resultSets).toEqual(resultSets);
+    expect(prisma.brainRun.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: { in: [91] },
+          conversationId: 12,
+          userId: 9,
+          storeId: 2,
+          status: 'completed',
+        }),
+      }),
+    );
+
+    const rejected = await (service as any).verifyConversationResultReferenceSlots({
+      conversationId: 12,
+      runId: 93,
+      context: { ...context, storeId: 6 },
+      conversationSlots: { modelContext: { resultSets } },
+    });
+    expect(rejected.modelContext.resultSets).toEqual([]);
   });
 
   it('clarifies a gap insertion action when customer, project and target time are not bound', () => {
@@ -690,19 +825,21 @@ describe('BrainChatService', () => {
       (service as any).normalizeGovernedReadOnlyPreviewIntent({
         intent,
         question: '客户做完项目后，系统怎么自动推荐下次适合做的项目',
-        cards: [{
-          key: 'marketing_automation_rule_preview',
-          name: '营销自动化规则预览',
-          description: '客户消费或服务完成后生成下一项目推荐规则建议，不发布规则或发送消息',
-          domains: ['customer', 'project'],
-          examples: ['能不能在客户消费后自动给她推荐下一个适合的项目'],
-          synonyms: ['消费后项目推荐', '自动推荐规则'],
-          negativeExamples: [],
-          grounding: 'domain_service',
-          readOnly: true,
-          sideEffect: false,
-          intents: ['workflow', 'recommendation'],
-        }],
+        cards: [
+          {
+            key: 'marketing_automation_rule_preview',
+            name: '营销自动化规则预览',
+            description: '客户消费或服务完成后生成下一项目推荐规则建议，不发布规则或发送消息',
+            domains: ['customer', 'project'],
+            examples: ['能不能在客户消费后自动给她推荐下一个适合的项目'],
+            synonyms: ['消费后项目推荐', '自动推荐规则'],
+            negativeExamples: [],
+            grounding: 'domain_service',
+            readOnly: true,
+            sideEffect: false,
+            intents: ['workflow', 'recommendation'],
+          },
+        ],
       }),
     ).toMatchObject({ intent: 'recommendation', answerShape: 'diagnosis' });
   });
@@ -1687,24 +1824,27 @@ describe('BrainChatService', () => {
 
   it('normalizes a pure clarification as domain-neutral structured context', () => {
     const { service } = createService({ modelPipeline: {} });
-    const normalized = (service as any).normalizeModelClarificationIntent({
-      schemaVersion: '1.0',
-      objective: '澄清“这个”所指内容',
-      domains: ['general_unknown'],
-      intent: 'clarify',
-      entities: [{ entityType: 'unknown', mention: '这个', source: 'user', confidence: 0.5 }],
-      metrics: [],
-      dimensions: [],
-      filters: [],
-      orderBy: [],
-      answerShape: 'diagnosis',
-      successCriteria: ['明确用户目标'],
-      ambiguities: [{ slot: 'objective', reason: '指代不明', candidates: [] }],
-      missingSlots: ['请说明要看什么'],
-      assumptions: [],
-      confidence: 0.9,
-      decisionSummary: '需要澄清',
-    }, '帮我看看');
+    const normalized = (service as any).normalizeModelClarificationIntent(
+      {
+        schemaVersion: '1.0',
+        objective: '澄清“这个”所指内容',
+        domains: ['general_unknown'],
+        intent: 'clarify',
+        entities: [{ entityType: 'unknown', mention: '这个', source: 'user', confidence: 0.5 }],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'diagnosis',
+        successCriteria: ['明确用户目标'],
+        ambiguities: [{ slot: 'objective', reason: '指代不明', candidates: [] }],
+        missingSlots: ['请说明要看什么'],
+        assumptions: [],
+        confidence: 0.9,
+        decisionSummary: '需要澄清',
+      },
+      '帮我看看',
+    );
 
     expect(normalized).toMatchObject({
       intent: 'clarify',
@@ -4633,9 +4773,7 @@ describe('BrainChatService', () => {
       },
     });
 
-    expect(normalized.metrics).toEqual([
-      expect.objectContaining({ definitionKey: 'metric.average_order_value' }),
-    ]);
+    expect(normalized.metrics).toEqual([expect.objectContaining({ definitionKey: 'metric.average_order_value' })]);
   });
 
   it('selects the governed material cost rate metric for a focused finance example', () => {
@@ -4676,9 +4814,7 @@ describe('BrainChatService', () => {
       },
     });
 
-    expect(normalized.metrics).toEqual([
-      expect.objectContaining({ definitionKey: 'metric.material_cost_rate' }),
-    ]);
+    expect(normalized.metrics).toEqual([expect.objectContaining({ definitionKey: 'metric.material_cost_rate' })]);
   });
 
   it('enriches a model intent with the unique material cost rate before capability selection', () => {
@@ -4732,9 +4868,7 @@ describe('BrainChatService', () => {
       },
     });
 
-    expect(normalized.metrics).toEqual([
-      expect.objectContaining({ definitionKey: 'metric.material_cost_rate' }),
-    ]);
+    expect(normalized.metrics).toEqual([expect.objectContaining({ definitionKey: 'metric.material_cost_rate' })]);
   });
 
   it('maps a natural per-order average wording to the governed average order value', () => {
@@ -4776,9 +4910,7 @@ describe('BrainChatService', () => {
       },
     });
 
-    expect(normalized.metrics).toEqual([
-      expect.objectContaining({ definitionKey: 'metric.average_order_value' }),
-    ]);
+    expect(normalized.metrics).toEqual([expect.objectContaining({ definitionKey: 'metric.average_order_value' })]);
   });
 
   it('normalizes an exact product-margin maximum question to ranking', () => {
@@ -5206,14 +5338,16 @@ describe('BrainChatService', () => {
     const normalized = (service as any).normalizeGovernedCapabilityExampleIntent({
       intent,
       question: '运行营销策略 12 并发送',
-      cards: [{
-        key: 'marketing_strategy_execute_preview',
-        domains: ['marketing_growth'],
-        intents: ['action'],
-        examples: ['运行营销策略 12 并发送'],
-        readOnly: false,
-        definitionRefs: [],
-      }],
+      cards: [
+        {
+          key: 'marketing_strategy_execute_preview',
+          domains: ['marketing_growth'],
+          intents: ['action'],
+          examples: ['运行营销策略 12 并发送'],
+          readOnly: false,
+          definitionRefs: [],
+        },
+      ],
       snapshot: { entities: [], metrics: [], dimensions: [] },
     });
 

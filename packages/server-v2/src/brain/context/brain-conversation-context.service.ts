@@ -291,6 +291,8 @@ export class BrainConversationContextService {
       current.contextSnapshot && typeof current.contextSnapshot === 'object' && !Array.isArray(current.contextSnapshot)
         ? (current.contextSnapshot as Record<string, unknown>)
         : {};
+    const previousModel = this.parseModelSnapshot(current.contextSnapshot);
+    const resultSets = input.resultSets ?? previousModel?.resultSets ?? [];
     const next: BrainModelConversationContextSnapshot = {
       version: 1,
       objective: input.intent.objective.slice(0, 500),
@@ -305,7 +307,7 @@ export class BrainConversationContextService {
       answerShape: input.intent.answerShape,
       ...(input.intent.timeRange ? { timeRange: this.normalizeModelTimeRange(input.intent.timeRange) } : {}),
       ...(input.capability ? { capability: { ...input.capability } } : {}),
-      resultSets: (input.resultSets ?? []).map((set) => ({
+      resultSets: resultSets.map((set) => ({
         ...set,
         items: set.items.map((item) => ({
           ...item,

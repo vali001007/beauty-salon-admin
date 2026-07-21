@@ -227,7 +227,12 @@ describe('BrainConversationContextService model conversation preparation', () =>
 
   it('records explicit entity corrections and prevents the previous entity from being inherited', async () => {
     const { service, timeRangeParser } = createService({ model: validModelSnapshot() });
-    timeRangeParser.parse.mockReturnValue({ mentionedTime: false, filters: [], requiresComparison: false, unsupportedExpressions: [] });
+    timeRangeParser.parse.mockReturnValue({
+      mentionedTime: false,
+      filters: [],
+      requiresComparison: false,
+      unsupportedExpressions: [],
+    });
 
     const prepared = await service.prepareModelTurn({
       conversationId: 12,
@@ -354,9 +359,10 @@ describe('BrainConversationContextService model conversation preparation', () =>
       },
     });
 
-    await expect(
-      service.prepareModelTurn({ conversationId: 12, dto: { message: '继续' } }),
-    ).resolves.toEqual({ dto: { message: '继续' }, rejectionCode: 'MODEL_CONTEXT_INVALID' });
+    await expect(service.prepareModelTurn({ conversationId: 12, dto: { message: '继续' } })).resolves.toEqual({
+      dto: { message: '继续' },
+      rejectionCode: 'MODEL_CONTEXT_INVALID',
+    });
   });
 
   it('drops stale model context when any published definition binding no longer matches', async () => {
@@ -507,6 +513,75 @@ describe('BrainConversationContextService model conversation preparation', () =>
     );
   });
 
+  it('preserves the last governed result set across a clarification turn without new tool output', async () => {
+    const resultSets = [
+      {
+        setId: 'run:77:customerIds',
+        sourceRunId: 77,
+        sourceCapabilityKey: 'customer_facts',
+        sourceCapabilityVersion: 3,
+        outputKey: 'customerIds',
+        entityType: 'customer',
+        status: 'data' as const,
+        count: 1,
+        items: [
+          {
+            refId: 'run:77:customerIds:1',
+            entityType: 'customer',
+            entityKey: 'customer:1',
+            mention: '李女士',
+            rank: 1,
+            definitionRef: entityRef,
+          },
+        ],
+        scope: { conversationId: 12, userId: 9, storeId: 2 },
+        createdAt: new Date().toISOString(),
+      },
+    ];
+    const model = { ...validModelSnapshot(), resultSets };
+    const { prisma, service } = createService({ model });
+    prisma.brainConversation.findFirst.mockResolvedValue({
+      contextSnapshot: { model },
+      contextVersion: 4,
+    });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+
+    await service.updateAfterModelRun({
+      conversationId: 12,
+      runId: 78,
+      userId: 9,
+      storeId: 2,
+      intent: {
+        schemaVersion: '1.0',
+        objective: '确认要跟进的客户',
+        domains: ['customer'],
+        intent: 'clarify',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'clarification',
+        successCriteria: ['确认客户'],
+        ambiguities: [{ slot: 'resultRef', reason: '需要明确对象', candidates: ['李女士'] }],
+        missingSlots: ['resultRef'],
+        assumptions: [],
+        confidence: 0.8,
+        decisionSummary: '补充对象',
+      },
+    });
+
+    expect(prisma.brainConversation.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          contextSnapshot: expect.objectContaining({
+            model: expect.objectContaining({ resultSets }),
+          }),
+        }),
+      }),
+    );
+  });
+
   it('preserves the model context slot when a rules turn updates legacy context', async () => {
     const model = {
       version: 1,
@@ -518,7 +593,12 @@ describe('BrainConversationContextService model conversation preparation', () =>
       updatedAt: '2026-07-13T00:00:00.000Z',
     };
     const { prisma, timeRangeParser, service } = createService({ metrics: ['paid_revenue'], model });
-    timeRangeParser.parse.mockReturnValue({ mentionedTime: false, filters: [], requiresComparison: false, unsupportedExpressions: [] });
+    timeRangeParser.parse.mockReturnValue({
+      mentionedTime: false,
+      filters: [],
+      requiresComparison: false,
+      unsupportedExpressions: [],
+    });
     prisma.brainConversation.findFirst.mockResolvedValue({
       contextSnapshot: { metrics: ['paid_revenue'], model },
       contextVersion: 4,
