@@ -228,7 +228,7 @@ function canonicalCapabilityIntents(values: string[]): BrainSemanticIntentKind[]
   const intents = values
     .map((value) => canonicalCapabilityIntent(value))
     .filter((item): item is BrainSemanticIntentKind => Boolean(item));
-  return [...new Set(intents)].sort((left, right) => left.localeCompare(right));
+  return [...new Set(intents)].sort(compareSemanticText);
 }
 
 function canonicalCapabilityIntent(value: string): BrainSemanticIntentKind | undefined {
@@ -372,9 +372,11 @@ function nonEmptyStringArray(value: unknown): value is string[] {
 }
 
 function uniqueSorted(values: string[]): string[] {
-  return [...new Set(values.map((item) => item.trim()).filter(Boolean))].sort((left, right) =>
-    left.localeCompare(right),
-  );
+  return [...new Set(values.map((item) => item.trim()).filter(Boolean))].sort(compareSemanticText);
+}
+
+function compareSemanticText(left: string, right: string): number {
+  return left.localeCompare(right, 'zh-CN');
 }
 
 function deepFreeze<T>(value: T): T {
