@@ -11,7 +11,7 @@ import { createBusinessDefinitionProjectionFingerprint } from '../../semantic-da
 import { BrainReleaseService } from './brain-release.service.js';
 import {
   buildBrainEvalRolePermissionMap,
-  resolveBrainEvalRolePermissions,
+  resolveBrainEvalContextPermissions,
 } from '../eval/brain-eval-role-permissions.js';
 import { resolveBrainEvalRoleUsers } from '../eval/brain-eval-role-user-resolver.js';
 import {
@@ -251,7 +251,11 @@ export class BrainEvalService {
         try {
           const evaluationRole = evalRun.roleKey ?? evalCase.roleKey ?? 'store_manager';
           const evaluationPermissions = evalCase.contextOverride?.permissions
-            ?? resolveBrainEvalRolePermissions(permissionsByRole, evaluationRole);
+            ?? resolveBrainEvalContextPermissions(
+              permissionsByRole,
+              evaluationRole,
+              releaseSnapshot?.capabilityCandidates ?? [],
+            );
           const context = {
             userId: userIdsByRole[evaluationRole] ?? input.userId,
             storeId: input.storeId,

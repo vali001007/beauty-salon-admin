@@ -429,7 +429,7 @@ function hasExplicitObjectCollectionRequest(question: string): boolean {
 function hasInternalCapabilityCoverage(intent: BrainSemanticIntent): boolean {
   return intent.ambiguities.some((ambiguity) =>
     /组合能力|能力合同|内部/.test(ambiguity.reason) && ambiguity.candidates.every((candidate) => !isUserFacingCandidate(candidate)),
-  );
+  ) || intent.assumptions.some((assumption) => /能力\s+\S+\s+将采用并披露已治理的默认分析口径/.test(assumption));
 }
 
 function isGroupedDimensionComparison(intent: BrainSemanticIntent): boolean {

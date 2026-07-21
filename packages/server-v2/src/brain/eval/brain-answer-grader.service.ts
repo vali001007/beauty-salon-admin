@@ -680,6 +680,7 @@ export class BrainAnswerGraderService {
 
 function canonicalMetricKey(metricKey: string) {
   if (metricKey === 'paid_revenue') return 'paid_amount';
+  if (metricKey === 'staff_service_revenue') return 'paid_amount';
   if (metricKey === 'customer_unit_price') return 'average_order_value';
   return metricKey;
 }

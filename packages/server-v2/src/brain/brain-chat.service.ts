@@ -2432,7 +2432,23 @@ export class BrainChatService {
         : ['list', 'ranking'].includes(input.intent.answerShape)
           ? governedDimensions
           : supportedInputDimensions;
-    const entities = [...input.intent.entities]
+    const governedEntities = (matched.card.definitionRefs ?? [])
+      .filter((ref) => ref.definitionKey.startsWith('entity.'))
+      .map((ref) => ({
+        entityType: ref.definitionKey.slice('entity.'.length),
+        mention: ref.definitionKey.slice('entity.'.length),
+        source: 'system' as const,
+        confidence: 1,
+        definitionRef: definitionRefFromCard(ref, 'entity'),
+      }));
+    const entities = [
+      ...input.intent.entities,
+      ...(
+        input.intent.entities.length === 0 && ['list', 'ranking'].includes(input.intent.answerShape)
+          ? governedEntities
+          : []
+      ),
+    ]
       .sort((left, right) => right.confidence - left.confidence)
       .filter((entity, index, values) => {
         const mention = this.normalizeGovernedExampleText(entity.mention);
@@ -5283,7 +5299,7 @@ export function findUnresolvedBusinessDefinitionRequirements(intent: BrainSemant
   return [];
 }
 
-function definitionRefFromCard<T extends 'metric' | 'dimension'>(
+function definitionRefFromCard<T extends 'entity' | 'metric' | 'dimension'>(
   ref: BrainCapabilityCard['definitionRefs'][number],
   definitionType: T,
 ): BrainDefinitionRef<T> {

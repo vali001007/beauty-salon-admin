@@ -57,7 +57,7 @@ const REQUIRED_PRODUCTION_REGRESSION_CASES = [
   { id: 'product_ranking_paraphrase', capabilityKey: 'product_sales_ranking', roleKey: 'store_manager', question: '这个月哪些商品卖得最好', intent: 'ranking', answerShape: 'ranking' },
   { id: 'payment_breakdown_literal', capabilityKey: 'finance_payment_breakdown', roleKey: 'finance', question: '本月支付方式拆分', intent: 'query', answerShape: 'list' },
   { id: 'payment_breakdown_paraphrase', capabilityKey: 'finance_payment_breakdown', roleKey: 'finance', question: '这个月各种收款渠道分别收了多少', intent: 'query', answerShape: 'list' },
-  { id: 'staff_ranking_literal', capabilityKey: 'staff_performance_ranking', roleKey: 'store_manager', question: '这个月谁的业绩最好', intent: 'ranking', answerShape: 'ranking' },
+  { id: 'staff_ranking_literal', capabilityKey: 'manager_staff_overview', roleKey: 'store_manager', question: '这个月谁的业绩最好', intent: 'ranking', answerShape: 'ranking' },
   { id: 'appointment_copy_not_metric', capabilityKey: 'marketing_message_draft', roleKey: 'marketing', question: '写一条提醒客户预约空档的消息', intent: 'draft', answerShape: 'draft' },
 ] as const;
 
