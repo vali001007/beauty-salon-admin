@@ -11,6 +11,11 @@ import {
 
 @Injectable()
 export class BrainReleaseService {
+  private readonly evaluationReleaseSnapshotCache = new Map<
+    number,
+    Promise<BrainEvaluationReleaseSnapshot>
+  >();
+
   constructor(
     @Optional() private readonly prisma?: PrismaService,
     @Optional() private readonly semanticVerifier?: BrainCapabilitySemanticVerifierService,
@@ -99,13 +104,30 @@ export class BrainReleaseService {
   }
 
   async freezeEvaluationRelease(releaseId: number): Promise<BrainEvaluationReleaseSnapshot> {
+    const cached = this.evaluationReleaseSnapshotCache.get(releaseId);
+    if (cached) return cached;
+    const loading = this.loadEvaluationReleaseSnapshot(releaseId);
+    this.evaluationReleaseSnapshotCache.set(releaseId, loading);
+    try {
+      return await loading;
+    } catch (error) {
+      this.evaluationReleaseSnapshotCache.delete(releaseId);
+      throw error;
+    }
+  }
+
+  private async loadEvaluationReleaseSnapshot(releaseId: number): Promise<BrainEvaluationReleaseSnapshot> {
     const release = await this.selectEvaluationRelease(releaseId);
+    const skillItems = await this.requirePrisma().brainReleaseItem.findMany({
+      where: { releaseId, resourceType: 'skill' },
+      select: { snapshot: true },
+      orderBy: { resourceVersionId: 'asc' },
+    });
     const declaredMode = this.record(release.rollout).mode;
     if (declaredMode !== 'rules' && declaredMode !== 'shadow' && declaredMode !== 'model') {
       throw new BadRequestException('evaluation_release_mode_invalid');
     }
-    const capabilityCandidates = release.items
-      .filter((item) => item.resourceType === 'skill')
+    const capabilityCandidates = skillItems
       .map((item) => this.record(item.snapshot) as unknown as BrainCapabilityCandidate);
     return deepCloneFreeze({
       releaseId: release.id,
@@ -389,7 +411,19 @@ export class BrainReleaseService {
     if (!Number.isInteger(releaseId) || releaseId <= 0) throw new BadRequestException('evaluation_release_id_invalid');
     const release = await this.requirePrisma().brainRelease.findUnique({
       where: { id: releaseId },
-      include: { items: { include: { resourceVersion: true } } },
+      select: {
+        id: true,
+        status: true,
+        rollout: true,
+        items: {
+          select: {
+            resourceVersionId: true,
+            resourceType: true,
+            resourceKey: true,
+            resourceVersion: { select: { checksum: true } },
+          },
+        },
+      },
     });
     if (!release) throw new BadRequestException('evaluation_release_not_found');
     if (release.status !== 'draft' && release.status !== 'active') {

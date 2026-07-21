@@ -4,7 +4,12 @@ import {
 } from './brain-eval-infrastructure-status.js';
 
 describe('Ami Brain evaluation infrastructure status', () => {
-  it.each(['MODEL_INTENT_UNAVAILABLE', 'PROVIDER_UNAVAILABLE', 'PROVIDER_AUTH_FAILED'])(
+  it.each([
+    'MODEL_INTENT_UNAVAILABLE',
+    'MODEL_CATALOG_UNAVAILABLE',
+    'PROVIDER_UNAVAILABLE',
+    'PROVIDER_AUTH_FAILED',
+  ])(
     'classifies %s outside product failures',
     (failureCode) => {
       expect(isBrainProviderUnavailableOutput({ failureCode })).toBe(true);

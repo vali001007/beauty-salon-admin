@@ -329,6 +329,11 @@ describe('BrainReleaseService', () => {
         findUnique: jest.fn().mockResolvedValue(evaluationRelease),
         findMany: jest.fn().mockResolvedValue([{ id: 10, status: 'active', rollout: { mode: 'rules' }, items: [] }]),
       },
+      brainReleaseItem: {
+        findMany: jest.fn().mockResolvedValue(
+          evaluationRelease.items.filter((item) => item.resourceType === 'skill').map((item) => ({ snapshot: item.snapshot })),
+        ),
+      },
     };
     const service = new BrainReleaseService(prisma as never);
 
@@ -346,7 +351,19 @@ describe('BrainReleaseService', () => {
     });
     expect(prisma.brainRelease.findUnique).toHaveBeenCalledWith({
       where: { id: 21 },
-      include: { items: { include: { resourceVersion: true } } },
+      select: {
+        id: true,
+        status: true,
+        rollout: true,
+        items: {
+          select: {
+            resourceVersionId: true,
+            resourceType: true,
+            resourceKey: true,
+            resourceVersion: { select: { checksum: true } },
+          },
+        },
+      },
     });
     expect(prisma.brainRelease.findMany).not.toHaveBeenCalled();
   });
@@ -367,10 +384,14 @@ describe('BrainReleaseService', () => {
         },
       ],
     };
-    const prisma = { brainRelease: { findUnique: jest.fn().mockResolvedValue(release) } };
+    const prisma = {
+      brainRelease: { findUnique: jest.fn().mockResolvedValue(release) },
+      brainReleaseItem: { findMany: jest.fn().mockResolvedValue([{ snapshot: release.items[0]!.snapshot }]) },
+    };
     const service = new BrainReleaseService(prisma as never);
 
     const snapshot = await (service as any).freezeEvaluationRelease(21);
+    const cachedSnapshot = await (service as any).freezeEvaluationRelease(21);
 
     expect(snapshot).toMatchObject({
       releaseId: 21,
@@ -384,6 +405,7 @@ describe('BrainReleaseService', () => {
     });
     expect(Object.isFrozen(snapshot)).toBe(true);
     expect(Object.isFrozen(snapshot.capabilityCandidates)).toBe(true);
+    expect(cachedSnapshot).toBe(snapshot);
     expect(prisma.brainRelease.findUnique).toHaveBeenCalledTimes(1);
   });
 
@@ -403,6 +425,9 @@ describe('BrainReleaseService', () => {
           }],
         }),
         findMany: jest.fn(),
+      },
+      brainReleaseItem: {
+        findMany: jest.fn().mockResolvedValue([{ snapshot: { key: 'customer_facts' } }]),
       },
     };
     const service = new BrainReleaseService(prisma as never);

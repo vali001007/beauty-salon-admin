@@ -1010,6 +1010,32 @@ describe('Brain domain adapters', () => {
     }));
   });
 
+  it('honors the governed service-record capability before text heuristics', async () => {
+    const adapter = new BrainBeauticianDomainAdapter(
+      skillRuntime as never,
+      timeRangeParser as never,
+      customerFacts as never,
+      actionConfirmation as never,
+      actionTargets as never,
+    );
+    const answer = await adapter.execute(execution(
+      '为当前客户生成服务记录待确认方案，护理完成且无明显不适',
+      'beautician_service',
+      'action',
+      'service_record_completion_preview',
+    ));
+
+    expect(answer).toMatchObject({
+      grounding: 'preview_action',
+      suggestedActions: [expect.objectContaining({ actionType: 'save_service_record', requiresConfirmation: true })],
+    });
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'beautician_service_record_preview' });
+    expect(actionConfirmation.createPreview).toHaveBeenCalledWith(expect.objectContaining({
+      skillKey: 'save_service_record',
+      payload: expect.objectContaining({ taskId: 51 }),
+    }));
+  });
+
   it('inventory adapter returns low-stock list citation', async () => {
     const adapter = new BrainInventoryDomainAdapter(skillRuntime as never, timeRangeParser as never);
     const answer = await adapter.execute(execution('现在哪些产品库存不够了', 'inventory_procurement', 'list'));

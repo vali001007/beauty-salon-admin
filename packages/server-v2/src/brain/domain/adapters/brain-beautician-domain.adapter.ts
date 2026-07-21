@@ -31,7 +31,10 @@ export class BrainBeauticianDomainAdapter implements BrainDomainAdapter {
   async execute(input: BrainDomainAdapterExecution): Promise<BrainDomainAnswer | undefined> {
     const message = input.dto.message;
     const range = this.resolveRange(message);
-    if (/(保存|记录|完成).*(服务记录|护理记录|服务单)|服务完成.*记录/.test(message)) {
+    if (
+      input.plan.capabilityKey === 'service_record_completion_preview' ||
+      /(保存|记录|完成).*(服务记录|护理记录|服务单)|服务完成.*记录/.test(message)
+    ) {
       return this.previewServiceRecord(input);
     }
     if (/为什么.*(?:护理|项目)?.*效果.*(?:没有|不如|不好|差)/.test(message)) {
