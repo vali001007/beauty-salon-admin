@@ -8,8 +8,11 @@ const apiMocks = vi.hoisted(() => ({
   createBrainConversation: vi.fn(),
   createBrainFeedback: vi.fn(),
   getBrainRunEvents: vi.fn(),
+  getBrainInspectionRepairPreview: vi.fn(),
+  decideBrainInspectionRepair: vi.fn(),
   listBrainActionStatuses: vi.fn(),
   listBrainConversations: vi.fn(),
+  listBrainInspectionInbox: vi.fn(),
   listBrainMessages: vi.fn(),
   rejectBrainAction: vi.fn(),
   retryBrainAction: vi.fn(),
@@ -40,6 +43,27 @@ describe('BrainWorkspace', () => {
     apiMocks.listBrainMessages.mockResolvedValue({ conversationId: 42, items: [], total: 0, storeId: 6 });
     apiMocks.getBrainRunEvents.mockResolvedValue({ runId: 100, events: [], storeId: 6 });
     apiMocks.listBrainActionStatuses.mockResolvedValue({ runId: 100, items: [], storeId: 6 });
+    apiMocks.listBrainInspectionInbox.mockResolvedValue({
+      items: [],
+      summary: { total: 0, critical: 0, high: 0, medium: 0, low: 0 },
+      storeId: 6,
+    });
+    apiMocks.getBrainInspectionRepairPreview.mockResolvedValue({
+      schemaVersion: 1,
+      findingId: 31,
+      ruleKey: 'finance_margin_drop',
+      title: '本月毛利下降',
+      severity: 'high',
+      target: { objectType: 'store', objectId: '6' },
+      summary: '需要复核项目成本。',
+      entry: '/finance/overview',
+      changes: [],
+      risks: ['错误处理会影响经营判断。'],
+      policy: { mode: 'preview_only', autoExecute: false, createsBusinessWrite: false, requiresSeparateBusinessAction: true },
+      previewFingerprint: 'preview-31',
+      existingDecision: null,
+    });
+    apiMocks.decideBrainInspectionRepair.mockResolvedValue({ findingId: 31, decision: 'approve', status: 'in_progress' });
     apiMocks.createBrainConversation.mockResolvedValue(conversation);
     apiMocks.streamBrainMessage.mockImplementation(async (_conversationId, _payload, onEvent) => {
       onEvent({ type: 'run_started', data: { conversationId: 42 } });
@@ -104,6 +128,35 @@ describe('BrainWorkspace', () => {
     expect(screen.getByText('门店经营智能体')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('问经营数据、风险和下一步动作')).toBeInTheDocument();
     await waitFor(() => expect(apiMocks.listBrainConversations).toHaveBeenCalledOnce());
+  });
+
+  it('shows permission-filtered proactive risks and opens the governed review preview', async () => {
+    apiMocks.listBrainInspectionInbox.mockResolvedValue({
+      items: [{
+        id: 31,
+        ruleKey: 'finance_margin_drop',
+        domain: 'finance',
+        title: '本月毛利下降',
+        severity: 'high',
+        status: 'open',
+        target: { objectType: 'store', objectId: '6' },
+        evidence: { dropRate: 0.2 },
+        suggestion: { action: '复核项目成本', entry: '/finance/overview', planningStatus: 'planned', actionPreviewCount: 0 },
+        canReview: true,
+        firstDetectedAt: '2026-07-20T01:00:00.000Z',
+        lastDetectedAt: '2026-07-21T01:00:00.000Z',
+      }],
+      summary: { total: 1, critical: 0, high: 1, medium: 0, low: 0 },
+      storeId: 6,
+    });
+
+    render(<BrainWorkspace />);
+
+    expect(await screen.findByText('本月毛利下降')).toBeInTheDocument();
+    expect(screen.getByText('下降幅度：20.0%')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '审查' }));
+    expect(await screen.findByText('修复预览')).toBeInTheDocument();
+    expect(apiMocks.getBrainInspectionRepairPreview).toHaveBeenCalledWith(31);
   });
 
   it('loads persisted messages for the latest conversation', async () => {

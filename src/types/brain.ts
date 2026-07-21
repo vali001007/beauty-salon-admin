@@ -61,6 +61,32 @@ export interface BrainInspectionRepairDecisionResponse {
   nextAction: { type: 'open_business_screen'; entry: string | null; autoExecute: false } | null;
 }
 
+export interface BrainInspectionInboxItem {
+  id: number;
+  ruleKey: string;
+  domain: string;
+  title: string;
+  severity: BrainRiskLevel;
+  status: string;
+  target: { objectType: string; objectId: string };
+  evidence: Record<string, unknown>;
+  suggestion: {
+    action: string;
+    entry: string | null;
+    planningStatus: string | null;
+    actionPreviewCount: number;
+  };
+  canReview: boolean;
+  firstDetectedAt: string;
+  lastDetectedAt: string;
+}
+
+export interface BrainInspectionInboxResponse {
+  items: BrainInspectionInboxItem[];
+  summary: { total: number; critical: number; high: number; medium: number; low: number };
+  storeId: number;
+}
+
 export interface BrainChatRequest {
   conversationId?: number;
   message: string;

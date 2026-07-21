@@ -7,9 +7,12 @@ import {
   createBrainConversation,
   createBrainFeedback,
   getBrainRunEvents,
+  getBrainInspectionRepairPreview,
   listBrainActionStatuses,
   listBrainConversations,
+  listBrainInspectionInbox,
   listBrainMessages,
+  decideBrainInspectionRepair,
   rejectBrainAction,
   retryBrainAction,
   streamBrainMessage,
@@ -17,6 +20,9 @@ import {
 import type {
   BrainActionDecisionResponse,
   BrainConversation,
+  BrainInspectionInboxResponse,
+  BrainInspectionRepairDecision,
+  BrainInspectionRepairPreview,
   BrainMessage,
   BrainRoleKey,
   BrainResponseBlock,
@@ -25,6 +31,8 @@ import type {
 import { BrainChatPanel } from './components/BrainChatPanel';
 import { BrainConversationSidebar } from './components/BrainConversationSidebar';
 import { BrainEvidencePanel } from './components/BrainEvidencePanel';
+import { BrainInspectionInbox } from './components/BrainInspectionInbox';
+import { BrainInspectionRepairDialog } from './components/BrainInspectionRepairDialog';
 
 function conversationTitle(message: string) {
   const title = message.replace(/\s+/g, ' ').trim();
@@ -49,6 +57,11 @@ export function BrainWorkspace() {
   const [actionResults, setActionResults] = useState<Record<string, BrainActionDecisionResponse>>({});
   const [feedbackByRun, setFeedbackByRun] = useState<Record<number, string>>({});
   const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [inspectionInbox, setInspectionInbox] = useState<BrainInspectionInboxResponse | null>(null);
+  const [loadingInspectionInbox, setLoadingInspectionInbox] = useState(false);
+  const [inspectionPreview, setInspectionPreview] = useState<BrainInspectionRepairPreview | null>(null);
+  const [reviewingFindingId, setReviewingFindingId] = useState<number | null>(null);
+  const [savingInspectionDecision, setSavingInspectionDecision] = useState(false);
   const selectedRunId = selectedAssistant?.metadata?.runId;
   const hasExecutingAction = useMemo(
     () => Object.values(actionResults).some((result) => result.status === 'queued' || result.status === 'executing'),
@@ -151,6 +164,17 @@ export function BrainWorkspace() {
     }
   }, [loadMessages]);
 
+  const loadInspectionInbox = useCallback(async (showError = true) => {
+    setLoadingInspectionInbox(true);
+    try {
+      setInspectionInbox(await listBrainInspectionInbox(10));
+    } catch (error) {
+      if (showError) toast.error(error instanceof Error ? error.message : '主动风险加载失败');
+    } finally {
+      setLoadingInspectionInbox(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (currentStoreId === null && userStoreIds?.length === 1) {
       setCurrentStore(userStoreIds[0]);
@@ -160,10 +184,20 @@ export function BrainWorkspace() {
   useEffect(() => {
     if (currentStoreId === null) {
       setLoadingConversations(false);
+      setInspectionInbox(null);
       return;
     }
     void loadConversations(true);
-  }, [currentStoreId, loadConversations]);
+    void loadInspectionInbox();
+  }, [currentStoreId, loadConversations, loadInspectionInbox]);
+
+  useEffect(() => {
+    if (currentStoreId === null) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void loadInspectionInbox(false);
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, [currentStoreId, loadInspectionInbox]);
 
   const createConversation = useCallback(async (title?: string) => {
     if (useStoreStore.getState().currentStoreId === null) {
@@ -311,6 +345,36 @@ export function BrainWorkspace() {
     }
   }
 
+  async function openInspectionReview(findingId: number) {
+    setReviewingFindingId(findingId);
+    try {
+      setInspectionPreview(await getBrainInspectionRepairPreview(findingId));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '巡检审查加载失败');
+    } finally {
+      setReviewingFindingId(null);
+    }
+  }
+
+  async function decideInspection(
+    decision: BrainInspectionRepairDecision,
+    modifications: Record<string, unknown>,
+    note: string,
+  ) {
+    if (!inspectionPreview) return;
+    setSavingInspectionDecision(true);
+    try {
+      await decideBrainInspectionRepair(inspectionPreview.findingId, { decision, modifications, note });
+      toast.success(decision === 'reject' ? '已拒绝该风险处理建议' : '审批已记录，业务数据尚未修改');
+      setInspectionPreview(null);
+      await loadInspectionInbox(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '巡检审批失败');
+    } finally {
+      setSavingInspectionDecision(false);
+    }
+  }
+
   return (
     <div className="flex h-full min-h-0 bg-background">
       <BrainConversationSidebar
@@ -330,6 +394,15 @@ export function BrainWorkspace() {
         onCreateConversation={() => void createConversation()}
         onSend={handleSend}
         onSelectAssistant={(message) => void loadRunEvents(message)}
+        inspectionInbox={(
+          <BrainInspectionInbox
+            inbox={inspectionInbox}
+            loading={loadingInspectionInbox}
+            reviewingId={reviewingFindingId}
+            onRefresh={() => void loadInspectionInbox()}
+            onReview={(findingId) => void openInspectionReview(findingId)}
+          />
+        )}
       />
       <BrainEvidencePanel
         message={selectedAssistant}
@@ -343,6 +416,12 @@ export function BrainWorkspace() {
         onRejectAction={(actionId, runId) => void handleAction(actionId, runId, 'reject')}
         onRetryAction={(actionId, runId) => void handleAction(actionId, runId, 'retry')}
         onFeedback={(runId, rating) => void handleFeedback(runId, rating)}
+      />
+      <BrainInspectionRepairDialog
+        preview={inspectionPreview}
+        saving={savingInspectionDecision}
+        onClose={() => setInspectionPreview(null)}
+        onDecision={(decision, modifications, note) => void decideInspection(decision, modifications, note)}
       />
     </div>
   );

@@ -68,6 +68,174 @@ describe('BrainInspectionService', () => {
     expect(prisma.brainInspectionRule.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { enabled: true } }));
   });
 
+  it('filters the proactive inbox by the rule permission and exposes review only to executors', async () => {
+    prisma.brainInspectionFinding.findMany.mockResolvedValueOnce([
+      {
+        id: 31,
+        ruleKey: 'finance_margin_drop',
+        ruleVersion: 1,
+        domain: 'finance',
+        title: '本月毛利下降',
+        severity: 'high',
+        status: 'open',
+        objectType: 'store',
+        objectId: '6',
+        evidence: { dropRate: 0.2 },
+        suggestion: { entry: '/brain' },
+        firstDetectedAt: new Date('2026-07-20T01:00:00Z'),
+        lastDetectedAt: new Date('2026-07-21T01:00:00Z'),
+      },
+      {
+        id: 32,
+        ruleKey: 'inventory_expiry',
+        ruleVersion: 1,
+        domain: 'inventory',
+        title: '商品临期',
+        severity: 'medium',
+        status: 'open',
+        objectType: 'stock_batch',
+        objectId: '9',
+        evidence: { productName: '修护面膜' },
+        suggestion: { action: '处理临期库存', entry: '/inventory/expiry' },
+        firstDetectedAt: new Date('2026-07-20T01:00:00Z'),
+        lastDetectedAt: new Date('2026-07-21T01:00:00Z'),
+      },
+    ]);
+    prisma.brainInspectionRule.findMany.mockResolvedValueOnce([
+      { ruleKey: 'finance_margin_drop', version: 1, enabled: true, condition: { permission: 'core:operation-profit:view' } },
+      { ruleKey: 'inventory_expiry', version: 1, enabled: true, condition: { permission: 'core:inventory:expiry' } },
+    ]);
+
+    const result = await service.listInbox({
+      storeId: 6,
+      permissions: ['core:operation-profit:view', 'core:brain:execute'],
+      deniedPermissions: [],
+      userId: 9,
+      roles: ['store_manager'],
+    });
+
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        id: 31,
+        canReview: true,
+        suggestion: expect.objectContaining({
+          action: '复核成本、折扣与低毛利项目',
+          entry: '/finance/profit',
+        }),
+      }),
+    ]);
+    expect(result.summary).toMatchObject({ total: 1, high: 1, medium: 0 });
+  });
+
+  it('keeps disabled candidate findings out of the product inbox', async () => {
+    prisma.brainInspectionFinding.findMany.mockResolvedValueOnce([{
+      id: 34,
+      ruleKey: 'inventory_safety_stock_invalid',
+      ruleVersion: 1,
+      domain: 'product',
+      title: '库存安全线缺失',
+      severity: 'medium',
+      status: 'open',
+      objectType: 'product',
+      objectId: '301',
+      evidence: {},
+      suggestion: {},
+      firstDetectedAt: new Date(),
+      lastDetectedAt: new Date(),
+    }]);
+    prisma.brainInspectionRule.findMany.mockResolvedValueOnce([
+      { ruleKey: 'inventory_safety_stock_invalid', version: 1, enabled: false, condition: { permission: 'core:inventory:stock' } },
+    ]);
+
+    const result = await service.listInbox({
+      storeId: 6,
+      permissions: ['*'],
+      deniedPermissions: [],
+      userId: 9,
+      roles: ['store_manager'],
+    });
+
+    expect(result.items).toEqual([]);
+    expect(result.summary.total).toBe(0);
+  });
+
+  it('limits beautician findings to personally assigned service tasks and reservations', async () => {
+    prisma.brainInspectionFinding.findMany.mockResolvedValueOnce([
+      { id: 35, ruleKey: 'service_task_state_inconsistent', ruleVersion: 1, objectType: 'service_task', objectId: '201' },
+      { id: 36, ruleKey: 'service_task_state_inconsistent', ruleVersion: 1, objectType: 'service_task', objectId: '202' },
+      { id: 37, ruleKey: 'reception_in_store_state_stale', ruleVersion: 1, objectType: 'reservation', objectId: '301' },
+    ]);
+    prisma.brainInspectionRule.findMany.mockResolvedValueOnce([
+      { ruleKey: 'service_task_state_inconsistent', version: 1, enabled: true, condition: { permission: 'core:store:reservations' } },
+      { ruleKey: 'reception_in_store_state_stale', version: 1, enabled: true, condition: { permission: 'core:store:reservations' } },
+    ]);
+    prisma.serviceTask.findMany.mockResolvedValueOnce([{ id: 201 }]);
+    prisma.reservation.findMany.mockResolvedValueOnce([]);
+
+    const result = await service.listFindings({
+      storeId: 6,
+      permissions: ['core:store:reservations'],
+      deniedPermissions: [],
+      userId: 32,
+      roles: ['beautician'],
+      enabledRulesOnly: true,
+    });
+
+    expect(result.map((item) => item.id)).toEqual([35]);
+    expect(prisma.serviceTask.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ storeId: 6, beautician: { userId: 32 } }),
+    }));
+  });
+
+  it('honors denied permissions when filtering inspection findings', async () => {
+    prisma.brainInspectionFinding.findMany.mockResolvedValueOnce([{
+      id: 33,
+      ruleKey: 'finance_margin_drop',
+      ruleVersion: 1,
+      severity: 'high',
+      status: 'open',
+      lastDetectedAt: new Date(),
+    }]);
+    prisma.brainInspectionRule.findMany.mockResolvedValueOnce([
+      { ruleKey: 'finance_margin_drop', version: 1, condition: { permission: 'core:operation-profit:view' } },
+    ]);
+
+    await expect(service.listFindings({
+      storeId: 6,
+      permissions: ['*'],
+      deniedPermissions: ['core:operation-profit:view'],
+    })).resolves.toEqual([]);
+  });
+
+  it('runs only rules due in the current scheduled minute', async () => {
+    const scheduledRules = [
+      { ...rules[0], ruleKey: 'morning-8', scheduleCron: '0 8 * * *' },
+      { ...rules[0], ruleKey: 'morning-9', scheduleCron: '0 9 * * *' },
+    ];
+    prisma.brainInspectionRule.findMany.mockResolvedValueOnce(scheduledRules);
+    prisma.store.findMany.mockResolvedValueOnce([{ id: 6 }, { id: 7 }]);
+    const run = jest.spyOn(service, 'runInspection').mockResolvedValue({ status: 'completed' } as never);
+
+    const result = await service.runScheduledInspections(new Date('2026-07-21T09:00:00+08:00'));
+
+    expect(result).toMatchObject({ storeCount: 2, ruleCount: 1, ruleKeys: ['morning-9'] });
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(run).toHaveBeenCalledWith(expect.objectContaining({ ruleKeys: ['morning-9'], triggerType: 'schedule' }));
+    run.mockRestore();
+  });
+
+  it('does not scan stores when no valid rule is due', async () => {
+    prisma.brainInspectionRule.findMany.mockResolvedValueOnce([
+      { ...rules[0], scheduleCron: 'invalid cron' },
+    ]);
+
+    await expect(service.runScheduledInspections(new Date('2026-07-21T09:00:00+08:00'))).resolves.toMatchObject({
+      storeCount: 0,
+      ruleCount: 0,
+    });
+    expect(prisma.store.findMany).not.toHaveBeenCalled();
+  });
+
   it('runs real facts, upserts a deduplicated finding and completes the run', async () => {
     prisma.brainInspectionRule.findMany.mockResolvedValueOnce(rules);
     prisma.brainInspectionRun.create.mockResolvedValueOnce({ id: 11, storeId: 6, status: 'running' });

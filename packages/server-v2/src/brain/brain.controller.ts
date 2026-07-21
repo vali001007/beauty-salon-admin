@@ -421,7 +421,34 @@ export class BrainController {
   async listInspectionFindings(@Req() req: Request, @Query('status') status?: string) {
     const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
     if (!this.inspectionService) return { items: [] };
-    return { items: await this.inspectionService.listFindings({ storeId: context.storeId, status }) };
+    return {
+      items: await this.inspectionService.listFindings({
+        storeId: context.storeId,
+        status,
+        permissions: context.permissions,
+        deniedPermissions: context.deniedPermissions,
+        userId: context.userId,
+        roles: context.roles ?? [],
+        enabledRulesOnly: true,
+      }),
+    };
+  }
+
+  @Get('inspections/inbox')
+  @Permissions('core:brain:use')
+  async listInspectionInbox(@Req() req: Request, @Query('limit') limit?: string) {
+    const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
+    if (!this.inspectionService) {
+      return { items: [], summary: { total: 0, critical: 0, high: 0, medium: 0, low: 0 }, storeId: context.storeId };
+    }
+    return this.inspectionService.listInbox({
+      storeId: context.storeId,
+      permissions: context.permissions,
+      deniedPermissions: context.deniedPermissions,
+      userId: context.userId,
+      roles: context.roles ?? [],
+      limit: Number(limit) || undefined,
+    });
   }
 
   @Patch('inspections/findings/:findingId')

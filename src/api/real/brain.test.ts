@@ -56,6 +56,7 @@ describe('brain real API contract', () => {
     await brainApi.restoreBrainMemory(5);
     await brainApi.listBrainSkills();
     await brainApi.listBrainInspectionRules();
+    await brainApi.listBrainInspectionInbox(6);
     await brainApi.getBrainInspectionRepairPreview(21);
     await brainApi.decideBrainInspectionRepair(21, { decision: 'modify', modifications: { safetyStock: 12 } });
     await brainApi.createBrainEvalRun({ releaseId: 1, caseKeys: ['metric_001'] });
@@ -88,6 +89,7 @@ describe('brain real API contract', () => {
     expect(apiClientMock.post).toHaveBeenCalledWith('/brain/governance/memories/5/restore', {});
     expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/skills');
     expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/inspection-rules');
+    expect(apiClientMock.get).toHaveBeenCalledWith('/brain/inspections/inbox', { params: { limit: 6 } });
     expect(apiClientMock.get).toHaveBeenCalledWith('/brain/inspections/findings/21/repair-preview');
     expect(apiClientMock.post).toHaveBeenCalledWith('/brain/inspections/findings/21/repair-decisions', {
       decision: 'modify',

@@ -20,6 +20,7 @@ import type {
   BrainGovernanceTraceListResponse,
   BrainInspectionRepairDecision,
   BrainInspectionRepairDecisionResponse,
+  BrainInspectionInboxResponse,
   BrainInspectionRepairPreview,
   BrainReleaseModificationResponse,
   BrainRolloutSequenceResponse,
@@ -213,6 +214,10 @@ export async function runBrainInspection() {
 
 export async function listBrainInspectionFindings(status?: string) {
   return apiClient.get('/brain/inspections/findings', { params: status ? { status } : undefined });
+}
+
+export async function listBrainInspectionInbox(limit = 6): Promise<BrainInspectionInboxResponse> {
+  return apiClient.get<unknown, BrainInspectionInboxResponse>('/brain/inspections/inbox', { params: { limit } });
 }
 
 export async function updateBrainInspectionFinding(
