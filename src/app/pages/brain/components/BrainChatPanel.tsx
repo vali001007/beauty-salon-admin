@@ -94,12 +94,18 @@ export function BrainChatPanel({
             {messages.map((item) => {
               const assistant = item.role === 'assistant';
               return (
-                <button
+                <div
                   key={item.id}
-                  type="button"
-                  className={`flex w-full items-start gap-3 text-left ${assistant ? '' : 'flex-row-reverse'}`}
+                  role={assistant ? 'button' : undefined}
+                  tabIndex={assistant ? 0 : undefined}
+                  className={`flex w-full items-start gap-3 text-left ${assistant ? 'cursor-pointer' : 'flex-row-reverse'}`}
                   onClick={() => assistant && onSelectAssistant(item)}
-                  disabled={!assistant}
+                  onKeyDown={(event) => {
+                    if (assistant && (event.key === 'Enter' || event.key === ' ')) {
+                      event.preventDefault();
+                      onSelectAssistant(item);
+                    }
+                  }}
                 >
                   <span
                     className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${
@@ -116,7 +122,11 @@ export function BrainChatPanel({
                     }`}
                   >
                     {assistant ? (
-                      <BrainResponseRenderer blocks={item.metadata?.blocks} fallback={item.content} />
+                      <BrainResponseRenderer
+                        blocks={item.metadata?.blocks}
+                        fallback={item.content}
+                        onClarificationSelect={(_value, label) => void onSend(label, roleHint || undefined)}
+                      />
                     ) : (
                       <span className="whitespace-pre-wrap break-words">{item.content}</span>
                     )}
@@ -125,7 +135,7 @@ export function BrainChatPanel({
                       {assistant && item.metadata?.adapterKey ? ` · ${item.metadata.adapterKey}` : ''}
                     </span>
                   </span>
-                </button>
+                </div>
               );
             })}
             {sending ? (

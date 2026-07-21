@@ -23,6 +23,7 @@ export default defineConfig({
     hookTimeout: 15000,
     include: [
       'src/**/*.{test,spec}.{ts,tsx}',
+      'packages/app/src/**/*.{test,spec}.{ts,tsx}',
       'packages/Ami-Aura-Lite-Kiosk/src/**/*.{test,spec}.{ts,tsx}',
       'packages/agent-core/**/*.{test,spec}.{ts,tsx}',
     ],

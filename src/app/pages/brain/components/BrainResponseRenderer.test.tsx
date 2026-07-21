@@ -1,5 +1,14 @@
 import { render, screen } from '@testing-library/react';
+import { beforeAll, vi } from 'vitest';
 import { BrainResponseRenderer } from './BrainResponseRenderer';
+
+beforeAll(() => {
+  vi.stubGlobal('ResizeObserver', class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  });
+});
 
 describe('BrainResponseRenderer', () => {
   it('renders ranking, limitations and evidence without hiding the fallback contract', () => {
@@ -18,8 +27,9 @@ describe('BrainResponseRenderer', () => {
     expect(screen.getByText('兼容摘要')).toBeInTheDocument();
   });
 
-  it('renders clarification choices as non-executing options', () => {
-    render(<BrainResponseRenderer fallback="请补充范围" blocks={[
+  it('renders clarification choices as selectable follow-up options', () => {
+    const onSelect = vi.fn();
+    render(<BrainResponseRenderer fallback="请补充范围" onClarificationSelect={onSelect} blocks={[
       {
         kind: 'clarification',
         question: '请选择要查看的业务主题。',
@@ -33,6 +43,22 @@ describe('BrainResponseRenderer', () => {
     expect(screen.getByText('请选择要查看的业务主题。')).toBeInTheDocument();
     expect(screen.getByText('财务异常风险')).toBeInTheDocument();
     expect(screen.getByText('库存风险')).toBeInTheDocument();
+    screen.getByRole('button', { name: '财务异常风险' }).click();
+    expect(onSelect).toHaveBeenCalledWith('finance', '财务异常风险');
     expect(screen.queryByRole('button', { name: '确认执行' })).not.toBeInTheDocument();
+  });
+
+  it('renders chart rows as an actual chart surface', () => {
+    render(<BrainResponseRenderer fallback="营业额趋势" blocks={[
+      {
+        kind: 'chart',
+        chartType: 'line',
+        rows: [{ 日期: '07-20', 营业额: 1200 }, { 日期: '07-21', 营业额: 1800 }],
+        xKey: '日期',
+        yKeys: ['营业额'],
+      },
+    ]} />);
+
+    expect(screen.getByLabelText('趋势图')).toBeInTheDocument();
   });
 });

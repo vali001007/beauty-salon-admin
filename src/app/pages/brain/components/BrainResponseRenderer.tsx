@@ -1,12 +1,14 @@
-import { AlertTriangle, BarChart3, CheckCircle2, Database, HelpCircle, ListOrdered } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Database, HelpCircle, ListOrdered } from 'lucide-react';
+import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { BrainResponseBlock } from '@/types/brain';
 
 interface BrainResponseRendererProps {
   blocks?: BrainResponseBlock[];
   fallback: string;
+  onClarificationSelect?: (value: unknown, label: string) => void;
 }
 
-export function BrainResponseRenderer({ blocks = [], fallback }: BrainResponseRendererProps) {
+export function BrainResponseRenderer({ blocks = [], fallback, onClarificationSelect }: BrainResponseRendererProps) {
   if (!blocks.length) return <span className="whitespace-pre-wrap break-words">{fallback}</span>;
 
   return (
@@ -63,9 +65,17 @@ export function BrainResponseRenderer({ blocks = [], fallback }: BrainResponseRe
                 {block.options.length ? (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {block.options.map((option) => (
-                      <span key={option.id} className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900">
+                      <button
+                        key={option.id}
+                        type="button"
+                        className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900 hover:bg-amber-100"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onClarificationSelect?.(option.value, option.label);
+                        }}
+                      >
                         {option.label}
-                      </span>
+                      </button>
                     ))}
                   </div>
                 ) : null}
@@ -83,12 +93,42 @@ export function BrainResponseRenderer({ blocks = [], fallback }: BrainResponseRe
           return <div key={index} className="flex gap-2 text-xs text-muted-foreground"><Database className="h-4 w-4 shrink-0" /><span>{block.citations.length} 条可追溯证据</span></div>;
         }
         if (block.kind === 'chart') {
-          return <div key={index} className="flex gap-2 text-muted-foreground"><BarChart3 className="h-4 w-4 shrink-0" /><span>{block.chartType === 'line' ? '趋势图' : '柱状图'}数据已返回，共 {block.rows.length} 行</span></div>;
+          return <BrainChart key={index} block={block} />;
         }
         return <span key={index} className="whitespace-pre-wrap break-words">{fallback}</span>;
       })}
     </div>
   );
+}
+
+function BrainChart({ block }: { block: Extract<BrainResponseBlock, { kind: 'chart' }> }) {
+  if (!block.rows.length || !block.yKeys.length) {
+    return <div className="text-sm text-muted-foreground">暂无可绘制数据。</div>;
+  }
+  const Chart = block.chartType === 'line' ? LineChart : BarChart;
+  return (
+    <div className="h-56 w-full min-w-0" aria-label={block.chartType === 'line' ? '趋势图' : '柱状图'}>
+      <ResponsiveContainer width="100%" height="100%">
+        <Chart data={block.rows} margin={{ top: 8, right: 12, bottom: 8, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+          <XAxis dataKey={block.xKey} tick={{ fontSize: 11 }} minTickGap={16} />
+          <YAxis tick={{ fontSize: 11 }} width={48} />
+          <Tooltip formatter={(value) => formatCell(value)} />
+          {block.yKeys.map((key, seriesIndex) =>
+            block.chartType === 'line' ? (
+              <Line key={key} dataKey={key} type="monotone" stroke={chartColor(seriesIndex)} strokeWidth={2} dot={false} />
+            ) : (
+              <Bar key={key} dataKey={key} fill={chartColor(seriesIndex)} radius={[3, 3, 0, 0]} />
+            ),
+          )}
+        </Chart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function chartColor(index: number) {
+  return ['#25635b', '#c17b3f', '#4f6f9f', '#8a5a86'][index % 4];
 }
 
 function DataTable({ block, ranking }: { block: Extract<BrainResponseBlock, { kind: 'ranking' | 'table' }>; ranking: boolean }) {
