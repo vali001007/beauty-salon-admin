@@ -5249,7 +5249,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                     ]
                   : [
                       {
-                        kind: 'ranking',
+                        kind: 'table',
                         rows: paymentRows.map((item) => ({
                           paymentMethod: this.paymentMethodLabel(item.method),
                           amount: item.amount,

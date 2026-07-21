@@ -2186,6 +2186,22 @@ export class BrainChatService {
     question: string;
     cards: readonly BrainCapabilityCard[];
   }): BrainSemanticIntent {
+    const paymentBreakdownQuestion =
+      input.cards.some((card) => card.key === 'finance_payment_breakdown') &&
+      /(?:支付方式|收款渠道)/.test(input.question) &&
+      /(?:拆分|分别|各种|怎么分|各多少)/.test(input.question);
+    if (paymentBreakdownQuestion) {
+      input = {
+        ...input,
+        intent: {
+          ...input.intent,
+          intent: 'query',
+          answerShape: 'list',
+          ambiguities: input.intent.ambiguities.filter((item) => item.slot !== 'comparisonTarget'),
+          missingSlots: input.intent.missingSlots.filter((slot) => slot !== 'comparisonTarget'),
+        },
+      };
+    }
     const explicitSideEffect = this.hasExplicitSideEffectRequest(input.question);
     if (input.intent.intent !== 'action' && explicitSideEffect) {
       return {
@@ -2300,8 +2316,9 @@ export class BrainChatService {
     const contractMayResolveModelExpansion =
       ['action', 'draft', 'recommendation', 'diagnosis'].includes(input.intent.intent) ||
       requestedDefinitionKeys.size > 0;
+    const hasExactGovernedExample = Boolean(this.findGovernedCapabilityExampleCard(input.question, input.cards));
     if (
-      (!requestedSlots.size && !contractMayResolveModelExpansion) ||
+      (!requestedSlots.size && !contractMayResolveModelExpansion && !hasExactGovernedExample) ||
       this.hasProtectedCapabilityClarification(input.intent)
     ) {
       return input.intent;

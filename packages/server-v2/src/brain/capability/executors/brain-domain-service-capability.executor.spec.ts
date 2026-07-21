@@ -2121,7 +2121,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     expect(result.answer).toContain('支付宝：0.00 元');
     expect(result.blocks).toEqual([
       expect.objectContaining({
-        kind: 'ranking',
+        kind: 'table',
         rows: [
           { paymentMethod: '现金', amount: 0, count: 0 },
           { paymentMethod: '微信', amount: 0, count: 0 },
