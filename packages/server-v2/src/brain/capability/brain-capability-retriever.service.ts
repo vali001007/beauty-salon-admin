@@ -165,6 +165,7 @@ export class BrainCapabilityRetrieverService {
     if (!card.allowedRoles.length) return true;
     const roles = context.roles ?? [];
     if (!roles.length) return false;
+    if (roles.includes('super_admin')) return true;
     if (roles.includes('*') || card.allowedRoles.includes('*')) return true;
     return card.allowedRoles.some((role) => roles.includes(role));
   }
