@@ -47,7 +47,8 @@ export class BrainTimeRangeParserService {
         range: comparisonRange.range,
         comparison: comparisonRange.comparison,
         requiresComparison: true,
-        unsupportedExpressions: comparisonRange.comparison ? [] : [comparisonRange.range.label],
+        unsupportedExpressions:
+          comparisonRange.comparison || comparisonRange.incompleteComparison ? [] : [comparisonRange.range.label],
       };
     }
 
@@ -74,7 +75,7 @@ export class BrainTimeRangeParserService {
   private parseComparison(
     text: string,
     now: Date,
-  ): { range: BrainDateRange; comparison?: BrainComparisonRange } | undefined {
+  ): { range: BrainDateRange; comparison?: BrainComparisonRange; incompleteComparison?: boolean } | undefined {
     if ((text.includes('本月') || text.includes('这个月')) && (text.includes('上月') || text.includes('上个月'))) {
       const current = this.currentMonthRange(now);
       const previous = this.previousMonthRange(now);
@@ -82,6 +83,19 @@ export class BrainTimeRangeParserService {
         range: { ...current, label: '本月对比上月' },
         comparison: { label: '本月对比上月', current, previous },
       };
+    }
+    const explicitMonths = text.match(/([一二三四五六七八九十\d]{1,3})月.*?([一二三四五六七八九十\d]{1,3})月/);
+    if (explicitMonths) {
+      const currentMonth = chineseOrArabicNumber(explicitMonths[1]);
+      const previousMonth = chineseOrArabicNumber(explicitMonths[2]);
+      if (currentMonth >= 1 && currentMonth <= 12 && previousMonth >= 1 && previousMonth <= 12) {
+        const current = this.namedMonthRange(now, currentMonth);
+        const previous = this.namedMonthRange(now, previousMonth, current.startDate);
+        return {
+          range: { ...current, label: `${current.label}对比${previous.label}` },
+          comparison: { label: `${current.label}对比${previous.label}`, current, previous },
+        };
+      }
     }
     if ((text.includes('本周') || text.includes('这周')) && text.includes('上周')) {
       const current = this.currentWeekRange(now);
@@ -99,6 +113,23 @@ export class BrainTimeRangeParserService {
         comparison: { label: '今天对比昨天', current, previous },
       };
     }
+    if (text.includes('今天') && /(平时|平常|日常|通常)/.test(text)) {
+      const current = this.dayRange('今天', now, 0);
+      const previousStart = this.startOfDay(now);
+      previousStart.setDate(previousStart.getDate() - 30);
+      const previousEnd = this.endOfDay(now);
+      previousEnd.setDate(previousEnd.getDate() - 1);
+      const previous = {
+        label: '最近30个完整自然日',
+        startDate: previousStart,
+        endDate: previousEnd,
+        granularity: 'day' as const,
+      };
+      return {
+        range: { ...current, label: '今天对比平时' },
+        comparison: { label: '今天对比平时', current, previous },
+      };
+    }
     if (text.includes('去年同期')) {
       const start = new Date(now.getFullYear() - 1, 0, 1, 0, 0, 0, 0);
       const end = new Date(
@@ -112,13 +143,99 @@ export class BrainTimeRangeParserService {
       );
       return { range: { label: '去年同期', startDate: start, endDate: end, granularity: 'year' } };
     }
-    if (/(同比|环比|跟.*比|和.*比|相比|对比|差多少)/.test(text)) {
+    if (text.includes('环比')) {
+      const current = this.currentMonthRange(now);
+      const previous = this.previousMonthRange(now);
+      return {
+        range: { ...current, label: '本月环比上月' },
+        comparison: { label: '本月环比上月', current, previous },
+      };
+    }
+    if (/(同比|跟.*比|和.*比|相比|对比|比较|差多少)/.test(text)) {
+      const anchor = this.incompleteComparisonAnchor(text, now);
+      if (anchor) return { range: anchor, incompleteComparison: true };
       return { range: { label: '对比时间', startDate: now, endDate: now, granularity: 'day' } };
     }
     return undefined;
   }
 
+  private incompleteComparisonAnchor(text: string, now: Date): BrainDateRange | undefined {
+    if (text.includes('本月') || text.includes('这个月')) return this.currentMonthRange(now);
+    if (text.includes('本周') || text.includes('这周')) return this.currentWeekRange(now);
+    if (text.includes('今天')) return this.dayRange('今天', now, 0);
+    if (text.includes('本季度') || text.includes('这个季度')) {
+      const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+      return {
+        label: '本季度',
+        startDate: new Date(now.getFullYear(), quarterStartMonth, 1, 0, 0, 0, 0),
+        endDate: this.endOfDay(now),
+        granularity: 'quarter',
+      };
+    }
+    if (text.includes('今年')) {
+      return {
+        label: '今年',
+        startDate: new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0),
+        endDate: this.endOfDay(now),
+        granularity: 'year',
+      };
+    }
+    return undefined;
+  }
+
   private parseScalarRange(text: string, now: Date): BrainDateRange | undefined {
+    const inactiveDays = text.match(/(\d{1,3})\s*天(?:没来|未到店|未消费)/);
+    if (inactiveDays) {
+      const days = Number(inactiveDays[1]);
+      if (days >= 1 && days <= 366) return this.relativeThresholdRange(now, days, `${days}天未活跃阈值`);
+    }
+    const inactiveMonths = text.match(/([一二三四五六七八九十]|\d{1,2})\s*个月(?:没来|未到店|未消费)/);
+    if (inactiveMonths) {
+      const months = chineseOrArabicNumber(inactiveMonths[1]);
+      if (months >= 1 && months <= 24) return this.relativeThresholdRange(now, months * 30, `${months}个月未活跃阈值`);
+    }
+    const recentDays = text.match(/(?:最近|过去|近)\s*(\d{1,3})\s*天/);
+    if (recentDays) {
+      const days = Number(recentDays[1]);
+      if (days >= 1 && days <= 366) {
+        const startDate = this.startOfDay(now);
+        startDate.setDate(startDate.getDate() - (days - 1));
+        return {
+          label: `最近${days}天`,
+          startDate,
+          endDate: this.endOfDay(now),
+          granularity: 'day',
+        };
+      }
+    }
+    const recentMonths = text.match(/(?:最近|过去|近)\s*([一二三四五六七八九十\d]{1,3})\s*个月/);
+    if (recentMonths) {
+      const months = chineseOrArabicNumber(recentMonths[1]);
+      if (months >= 1 && months <= 36) {
+        const startDate = this.startOfDay(now);
+        startDate.setMonth(startDate.getMonth() - months);
+        return {
+          label: `过去${months}个月`,
+          startDate,
+          endDate: this.endOfDay(now),
+          granularity: months % 12 === 0 ? 'year' : 'month',
+        };
+      }
+    }
+    const recentYears = text.match(/(?:最近|过去|近)\s*([一二三四五六七八九十\d]{1,2})\s*年/);
+    if (recentYears) {
+      const years = chineseOrArabicNumber(recentYears[1]);
+      if (years >= 1 && years <= 10) {
+        const startDate = this.startOfDay(now);
+        startDate.setFullYear(startDate.getFullYear() - years);
+        return {
+          label: `过去${years}年`,
+          startDate,
+          endDate: this.endOfDay(now),
+          granularity: 'year',
+        };
+      }
+    }
     if (text.includes('最近')) {
       const startDate = this.startOfDay(now);
       startDate.setDate(startDate.getDate() - 29);
@@ -129,6 +246,8 @@ export class BrainTimeRangeParserService {
         granularity: 'day',
       };
     }
+    const currentPeriodToNow = this.currentPeriodToNow(text, now);
+    if (currentPeriodToNow) return currentPeriodToNow;
     if (text.includes('现在')) {
       return {
         label: '现在到今天结束',
@@ -218,6 +337,41 @@ export class BrainTimeRangeParserService {
     return undefined;
   }
 
+  private currentPeriodToNow(text: string, now: Date): BrainDateRange | undefined {
+    if (!/(截至|截止|到|至).*(现在|目前)|截至目前|至今/.test(text)) return undefined;
+    const endDate = new Date(now);
+    if (text.includes('本月') || text.includes('这个月')) {
+      return { ...this.currentMonthRange(now), label: '本月截至现在', endDate };
+    }
+    if (text.includes('本周') || text.includes('这周')) {
+      return { ...this.currentWeekRange(now), label: '本周截至现在', endDate };
+    }
+    if (text.includes('本季度') || text.includes('这个季度')) {
+      const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+      return {
+        label: '本季度截至现在',
+        startDate: new Date(now.getFullYear(), quarterStartMonth, 1, 0, 0, 0, 0),
+        endDate,
+        granularity: 'quarter',
+      };
+    }
+    if (text.includes('今年')) {
+      return {
+        label: '今年截至现在',
+        startDate: new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0),
+        endDate,
+        granularity: 'year',
+      };
+    }
+    return undefined;
+  }
+
+  private relativeThresholdRange(now: Date, days: number, label: string): BrainDateRange {
+    const startDate = this.startOfDay(now);
+    startDate.setDate(startDate.getDate() - (days - 1));
+    return { label, startDate, endDate: this.endOfDay(now), granularity: 'day' };
+  }
+
   private dayRange(label: string, now: Date, offsetDays: number): BrainDateRange {
     const date = new Date(now);
     date.setDate(date.getDate() + offsetDays);
@@ -264,6 +418,21 @@ export class BrainTimeRangeParserService {
     };
   }
 
+  private namedMonthRange(now: Date, month: number, notAfter?: Date): BrainDateRange {
+    const anchor = notAfter ?? now;
+    let year = anchor.getFullYear();
+    if (month - 1 > anchor.getMonth()) year -= 1;
+    const isCurrentMonth = year === now.getFullYear() && month - 1 === now.getMonth();
+    return {
+      label: `${month}月`,
+      startDate: new Date(year, month - 1, 1, 0, 0, 0, 0),
+      endDate: isCurrentMonth
+        ? this.endOfDay(now)
+        : new Date(year, month, 0, 23, 59, 59, 999),
+      granularity: 'month',
+    };
+  }
+
   private detectUnsupportedTimeExpressions(text: string) {
     const patterns = ['前天', '后天', '凌晨', '早上', '中午', '晚上', '最近', '近', '过去', '未来', '同期'];
     return patterns.filter((pattern) => text.includes(pattern));
@@ -290,4 +459,21 @@ export class BrainTimeRangeParserService {
     start.setDate(date.getDate() - ((date.getDay() + 6) % 7));
     return start;
   }
+}
+
+function chineseOrArabicNumber(value: string): number {
+  if (/^\d+$/.test(value)) return Number(value);
+  const digits: Record<string, number> = {
+    一: 1,
+    二: 2,
+    三: 3,
+    四: 4,
+    五: 5,
+    六: 6,
+    七: 7,
+    八: 8,
+    九: 9,
+    十: 10,
+  };
+  return digits[value] ?? Number.NaN;
 }

@@ -1,8 +1,11 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { AgentRole } from '../agent.types.js';
 import { CapabilityRegistryService } from '../capabilities/capability-registry.service.js';
 import { AgentSkillsRegistryService, type AmiBusinessSkillPlan } from '../skills/index.js';
-import { SemanticMetricRegistryService } from '../../semantic-data/semantic-metric-registry.service.js';
+import {
+  BUSINESS_METRIC_CATALOG,
+  type BusinessMetricCatalogReader,
+} from '../../semantic-data/business-metric-catalog.types.js';
 import { SemanticSqlDecisionService } from '../../semantic-sql/semantic-sql-decision.service.js';
 import { BusinessTaskPreParserService } from './business-task-preparser.service.js';
 import type {
@@ -40,7 +43,7 @@ export type BusinessTaskCompileResult = {
     reason: string;
     toolPlan: BusinessCapabilityPlan['toolPlan'];
   }>;
-  metricMatches: ReturnType<SemanticMetricRegistryService['match']>;
+  metricMatches: ReturnType<BusinessMetricCatalogReader['match']>;
   semanticSqlCandidate: SemanticSqlCandidate;
 };
 
@@ -49,7 +52,8 @@ export class BusinessTaskCompilerService {
   constructor(
     private readonly preParser: BusinessTaskPreParserService,
     private readonly capabilityRegistry: CapabilityRegistryService,
-    private readonly metricRegistry: SemanticMetricRegistryService,
+    @Inject(BUSINESS_METRIC_CATALOG)
+    private readonly metricCatalog: BusinessMetricCatalogReader,
     private readonly semanticSqlDecision: SemanticSqlDecisionService,
     @Optional()
     private readonly llmCompiler?: BusinessTaskLlmCompilerService,
@@ -64,8 +68,13 @@ export class BusinessTaskCompilerService {
       : this.disabledLlmDraft();
     const merged = this.mergeLlmDraft(preParsed, llmDraft);
     const task = merged.task;
-    const metricMatches = this.metricRegistry.match(task.metrics, task.taskType);
-    const validation = this.validate(task, [...preParsed.warnings, ...llmDraft.warnings, ...merged.warnings]);
+    const metricIssues = this.metricCatalogIssues(task);
+    const metricMatches = this.metricCatalog.match(task.metrics, task.taskType);
+    const validation = this.validate(
+      task,
+      [...preParsed.warnings, ...llmDraft.warnings, ...merged.warnings, ...metricIssues],
+      metricIssues,
+    );
     const skill = validation.valid ? this.skillRegistry?.match(task, input.role) ?? null : null;
     const capability = validation.valid ? this.capabilityFromSkillOrRegistry(skill, task, input.role) : null;
     const semanticSqlCandidate = this.semanticSqlDecision.decide({ task, role: input.role });
@@ -266,10 +275,10 @@ export class BusinessTaskCompilerService {
     return missingSlots;
   }
 
-  private validate(task: BusinessTask, warnings: string[]): BusinessTaskValidationResult {
-    const missingSlots = [...task.missingSlots];
+  private validate(task: BusinessTask, warnings: string[], metricIssues: string[] = []): BusinessTaskValidationResult {
+    const missingSlots = [...task.missingSlots, ...metricIssues.map((issue) => `metric:${issue}`)];
     const confidence = task.confidence;
-    const valid = task.domain !== 'unknown' && task.taskType !== 'clarify' && confidence >= 0.6;
+    const valid = task.domain !== 'unknown' && task.taskType !== 'clarify' && confidence >= 0.6 && metricIssues.length === 0;
     const clarificationQuestion = valid ? null : this.buildClarificationQuestion(task, missingSlots, confidence);
 
     return {
@@ -281,7 +290,22 @@ export class BusinessTaskCompilerService {
     };
   }
 
+  private metricCatalogIssues(task: BusinessTask): string[] {
+    return task.metrics.flatMap((key) => {
+      const metric = this.metricCatalog.findByKey(key);
+      if (!metric) return [`metric_not_published:${key}`];
+      if (!metric.allowedTaskTypes.includes(task.taskType)) {
+        return [`metric_task_type_not_allowed:${key}:${task.taskType}`];
+      }
+      return [];
+    });
+  }
+
   private buildClarificationQuestion(task: BusinessTask, missingSlots: string[], confidence: number) {
+    const metricIssue = missingSlots.find((slot) => slot.startsWith('metric:'));
+    if (metricIssue) {
+      return `当前指标目录不能安全执行这个请求：${metricIssue.slice('metric:'.length)}。`;
+    }
     if (missingSlots.includes('domain')) {
       return '请先说明要处理哪个业务领域，例如客户、订单、预约、库存、财务、营销或员工绩效。';
     }

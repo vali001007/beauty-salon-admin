@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "policy": "published_registry_gate",
+  "productionReady": true,
+  "proposalStatus": "ready",
+  "capabilityKey": "finance_payment_breakdown",
+  "sourceFingerprint": "17c0d4a5966212fc379219be6bdc6f81e5d837c1d6c1ade5dc5878c7125bc000",
+  "proposalFingerprint": "94c9a50dd016aa4c761874e6cb25da6cc7c370d77a0a4dd867b9a60f16667dde",
+  "bindingFingerprint": "cbce7ce2acd2c2231de2d36931f37861def85230f0154ff358f1932a1f4feaf8",
+  "executorBinding": {
+    "schemaVersion": 1,
+    "capabilityKey": "finance_payment_breakdown",
+    "sourceFingerprint": "17c0d4a5966212fc379219be6bdc6f81e5d837c1d6c1ade5dc5878c7125bc000",
+    "target": {
+      "kind": "service",
+      "className": "BrainDomainServiceCapabilityExecutor",
+      "methodName": "financePaymentBreakdown",
+      "sourcePath": "packages/server-v2/src/brain/capability/executors/brain-domain-service-capability.executor.ts",
+      "exportedClass": true,
+      "methodAccess": "public",
+      "parameterCount": 2,
+      "parameterTypes": [
+        "BrainCapabilityToolArgs",
+        "BrainCapabilityExecutionInput"
+      ],
+      "returnType": "unknown"
+    },
+    "generatedSourcePath": "packages/server-v2/src/brain/capability/generated/finance_payment_breakdown/binding.ts",
+    "targetImportPath": "../../executors/brain-domain-service-capability.executor.js",
+    "requiredPermissions": [
+      "core:brain:use",
+      "core:finance:view"
+    ],
+    "storeScope": "required",
+    "requiresConfirmation": false,
+    "idempotency": "not_applicable",
+    "readOnly": true,
+    "sideEffect": false,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "comparisonTarget": {
+          "type": "object"
+        },
+        "dimensions": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "entities": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "filters": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "limit": {
+          "type": "number"
+        },
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "objective": {
+          "type": "string"
+        },
+        "orderBy": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "time": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "dimensions",
+        "entities",
+        "filters",
+        "metrics",
+        "objective",
+        "orderBy"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "bindingFingerprint": "cbce7ce2acd2c2231de2d36931f37861def85230f0154ff358f1932a1f4feaf8"
+  },
+  "businessDefinitions": [
+    {
+      "definitionId": 73,
+      "versionId": 114,
+      "definitionKey": "dimension.paymentMethod",
+      "version": 2,
+      "definitionFingerprint": "c28a34c04d2629c810504cb3c6e3969bed28f5d185854a60d3cc21c8159c715e",
+      "sourceFingerprint": "17f296156b901e2545b0d719dbf49ed7af612cd34afb9bf8c64d6b7aeba1f101"
+    },
+    {
+      "definitionId": 57,
+      "versionId": 110,
+      "definitionKey": "metric.paid_amount",
+      "version": 8,
+      "definitionFingerprint": "fd3674d2d4c9e5b175394941b9e19f15ccdc331adc427cf9b2f5ab3807c2bcbc",
+      "sourceFingerprint": "58c6c78653d44a655a2f5a74d0ef77e02979a77076f789e69a54a3d3c3b58d1e"
+    }
+  ],
+  "artifacts": {
+    "manifest": "manifest.json",
+    "binding": "binding.ts",
+    "contractTest": "contract.spec.ts",
+    "gateReport": "gate-report.json"
+  }
+}

@@ -12,13 +12,22 @@ export interface BrainActionPreview {
 export interface ReceptionReservationSchedule {
   count: number;
   reservations: Array<{
+    reservationId: number;
+    customerId: number;
     date: string;
     customerName: string;
+    memberLevel: string;
+    visitCount: number;
     projectName: string;
     projectTypeName?: string;
     startTime: string;
+    endTime?: string;
+    status: string;
     beauticianName?: string;
     remark?: string;
+    attentionItems: string[];
+    createdAt: Date;
+    checkedInAt?: Date;
   }>;
 }
 
@@ -81,32 +90,55 @@ export class BrainReceptionSkillsService {
     storeId: number;
     startDate: Date;
     endDate: Date;
+    timezone?: string;
   }): Promise<ReceptionReservationSchedule> {
+    const timezone = input.timezone ?? 'Asia/Shanghai';
+    const dateRange = this.businessDateRange(input.startDate, input.endDate, timezone);
     const reservations = await this.prisma.reservation.findMany({
       where: {
         storeId: input.storeId,
-        date: { gte: input.startDate, lte: input.endDate },
-        status: { notIn: ['cancelled', 'canceled'] },
+        date: { gte: dateRange.startDate, lt: dateRange.endExclusive },
       },
       include: {
-        customer: { select: { name: true } },
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            memberLevel: true,
+            visitCount: true,
+            hasAllergy: true,
+            skinType: true,
+            skinCondition: true,
+            remark: true,
+            healthProfile: { select: { allergyHistory: true, skinStatus: true, mainProblems: true } },
+          },
+        },
         project: { select: { name: true, type: { select: { name: true } } } },
         beautician: { select: { name: true } },
       },
       orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
-      take: 20,
+      take: 2000,
     });
 
     return {
       count: reservations.length,
       reservations: reservations.map((reservation) => ({
-        date: reservation.date.toISOString().slice(0, 10),
+        reservationId: reservation.id,
+        customerId: reservation.customerId,
+        date: this.formatDate(reservation.date, timezone),
         customerName: reservation.customer?.name ?? '客户',
+        memberLevel: reservation.customer?.memberLevel ?? '无',
+        visitCount: reservation.customer?.visitCount ?? 0,
         projectName: reservation.project?.name ?? '服务项目',
         projectTypeName: reservation.project?.type?.name,
         startTime: reservation.startTime,
+        endTime: reservation.endTime ?? undefined,
+        status: reservation.status,
         beauticianName: reservation.beautician?.name,
         remark: reservation.remark ?? undefined,
+        attentionItems: this.buildAttentionItems(reservation.customer, reservation.remark),
+        createdAt: reservation.createdAt,
+        checkedInAt: reservation.checkedInAt ?? undefined,
       })),
     };
   }
@@ -128,9 +160,10 @@ export class BrainReceptionSkillsService {
   }
 
   async buildOperationsSnapshot(input: { storeId: number; startDate: Date; endDate: Date }): Promise<ReceptionOperationsSnapshot> {
+    const dateRange = this.businessDateRange(input.startDate, input.endDate, 'Asia/Shanghai');
     const [reservations, resources, bookings, beauticians, timeOffs] = await Promise.all([
       this.prisma.reservation.findMany({
-        where: { storeId: input.storeId, date: { gte: input.startDate, lte: input.endDate } },
+        where: { storeId: input.storeId, date: { gte: dateRange.startDate, lt: dateRange.endExclusive } },
         include: { customer: { select: { name: true } }, project: { select: { name: true } } },
         orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
         take: 300,
@@ -143,7 +176,7 @@ export class BrainReceptionSkillsService {
       this.prisma.resourceBooking.findMany({
         where: {
           storeId: input.storeId,
-          date: { gte: input.startDate, lte: input.endDate },
+          date: { gte: dateRange.startDate, lt: dateRange.endExclusive },
           status: 'active',
         },
         select: { resourceId: true },
@@ -158,7 +191,7 @@ export class BrainReceptionSkillsService {
       this.prisma.beauticianTimeOff.findMany({
         where: {
           storeId: input.storeId,
-          date: { gte: input.startDate, lte: input.endDate },
+          date: { gte: dateRange.startDate, lt: dateRange.endExclusive },
           status: 'approved',
         },
         select: { beauticianId: true },
@@ -227,6 +260,7 @@ export class BrainReceptionSkillsService {
     endDate: Date;
     timezone?: string;
   }): Promise<ReceptionServiceOverrunAnalysis> {
+    const dateRange = this.businessDateRange(input.startDate, input.endDate, input.timezone ?? 'Asia/Shanghai');
     const [tasks, reservations] = await Promise.all([
       this.prisma.serviceTask.findMany({
         where: {
@@ -245,7 +279,7 @@ export class BrainReceptionSkillsService {
       this.prisma.reservation.findMany({
         where: {
           storeId: input.storeId,
-          date: { gte: input.startDate, lte: input.endDate },
+          date: { gte: dateRange.startDate, lt: dateRange.endExclusive },
           beauticianId: { not: null },
           status: { notIn: ['cancelled', 'canceled', '已取消'] },
         },
@@ -262,7 +296,15 @@ export class BrainReceptionSkillsService {
     const timezone = input.timezone ?? 'Asia/Shanghai';
     const items = tasks.flatMap((task) => {
       const plannedEnd = new Date(task.appointmentTime.getTime() + task.duration * 60_000);
-      const actualEnd = task.completedAt ?? (task.startedAt && now <= input.endDate ? now : undefined);
+      const activeStatuses = ['started', 'in_progress', 'in_service', '服务中', '进行中'];
+      const liveDuration = task.startedAt ? now.getTime() - task.startedAt.getTime() : Number.POSITIVE_INFINITY;
+      const canUseCurrentTime =
+        Boolean(task.startedAt) &&
+        activeStatuses.includes(String(task.status)) &&
+        liveDuration >= 0 &&
+        liveDuration <= 12 * 60 * 60_000 &&
+        now <= input.endDate;
+      const actualEnd = task.completedAt ?? (canUseCurrentTime ? now : undefined);
       if (!actualEnd || actualEnd.getTime() <= plannedEnd.getTime()) return [];
 
       const overrunMinutes = Math.ceil((actualEnd.getTime() - plannedEnd.getTime()) / 60_000);
@@ -337,6 +379,48 @@ export class BrainReceptionSkillsService {
     return 0;
   }
 
+  private buildAttentionItems(customer: {
+    hasAllergy?: string | null;
+    skinType?: string | null;
+    skinCondition?: string | null;
+    remark?: string | null;
+    healthProfile?: {
+      allergyHistory?: string | null;
+      skinStatus?: string | null;
+      mainProblems?: string | null;
+    } | null;
+  } | null, reservationRemark?: string | null) {
+    if (!customer) return this.attentionValue('预约备注', reservationRemark);
+    return [
+      ...this.attentionValue('过敏史', customer.hasAllergy),
+      ...this.attentionValue('健康档案过敏史', customer.healthProfile?.allergyHistory),
+      ...this.attentionValue('肤质', customer.skinType),
+      ...this.attentionValue('皮肤状态', customer.skinCondition ?? customer.healthProfile?.skinStatus),
+      ...this.attentionValue('主要问题', customer.healthProfile?.mainProblems),
+      ...this.attentionValue('客户备注', customer.remark),
+      ...this.attentionValue('预约备注', reservationRemark),
+    ];
+  }
+
+  private attentionValue(label: string, value?: string | null) {
+    const text = String(value ?? '').trim();
+    if (!text || ['无', '否', '没有', '无过敏', '暂无', 'none', 'null'].includes(text.toLowerCase())) return [];
+    return [`${label}：${text}`];
+  }
+
+  private businessDateRange(startDate: Date, endDate: Date, timezone: string) {
+    const startLabel = this.formatDate(startDate, timezone);
+    const endLabel = this.formatDate(endDate, timezone);
+    const start = this.businessDateBoundary(startLabel, timezone);
+    const end = this.businessDateBoundary(endLabel, timezone);
+    end.setUTCDate(end.getUTCDate() + 1);
+    return { startDate: start, endExclusive: end };
+  }
+
+  private businessDateBoundary(date: string, timezone: string) {
+    return new Date(`${date}T00:00:00${timezone === 'Asia/Shanghai' ? '+08:00' : 'Z'}`);
+  }
+
   private reservationStartAt(date: Date, startTime: string, timezone: string) {
     const [hours = 0, minutes = 0] = startTime.split(':').map(Number);
     const offsetMinutes = timezone === 'Asia/Shanghai' ? 8 * 60 : 0;
@@ -350,5 +434,16 @@ export class BrainReceptionSkillsService {
       minute: '2-digit',
       hour12: false,
     }).format(date);
+  }
+
+  private formatDate(date: Date, timezone: string) {
+    const parts = new Intl.DateTimeFormat('zh-CN', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date);
+    const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? '';
+    return `${value('year')}-${value('month')}-${value('day')}`;
   }
 }

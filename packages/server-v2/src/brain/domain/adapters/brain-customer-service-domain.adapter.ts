@@ -1,8 +1,9 @@
-import { ForbiddenException, Injectable, Optional } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { BrainActionConfirmationService } from '../../skills/brain-action-confirmation.service.js';
 import { BrainCustomerFactResolverService } from '../brain-customer-fact-resolver.service.js';
 import { BrainActionTargetResolverService } from '../brain-action-target-resolver.service.js';
+import { extractSpecificCustomerNameFromMention } from '../brain-customer-identity.js';
 import type { BrainDomainAdapter, BrainDomainAdapterExecution, BrainDomainAnswer } from '../brain-domain-adapter.types.js';
 
 @Injectable()
@@ -22,6 +23,7 @@ export class BrainCustomerServiceDomainAdapter implements BrainDomainAdapter {
   }
 
   async execute(input: BrainDomainAdapterExecution): Promise<BrainDomainAnswer | undefined> {
+    if (input.plan.capabilityKey === 'customer_follow_up_draft') return this.previewAction(input);
     const message = input.dto.message;
     if (input.plan.intent === 'action' || /(建|创建).*(跟进任务)|群发|发券/.test(message)) {
       return this.previewAction(input);
@@ -59,12 +61,13 @@ export class BrainCustomerServiceDomainAdapter implements BrainDomainAdapter {
         metadata: { adapterKey: this.key, unsupportedReason: 'high_risk_bulk_action_not_open' },
       };
     }
-    if (!input.context.permissions.includes('*') && !input.context.permissions.includes('assist:followup:create')) {
-      throw new ForbiddenException('missing_permission:assist:followup:create');
-    }
     if (!this.actionTargets) return this.actionClarification('动作目标解析服务未就绪，请稍后重试。');
-    const customer = await this.actionTargets.resolveCustomer({ storeId: input.context.storeId, message });
-    if (!customer.ok) return this.actionClarification(customer.message);
+    const customer = await this.actionTargets.resolveCustomer({
+      storeId: input.context.storeId,
+      message,
+      customerName: this.specificCustomerName(input),
+    });
+    if (!customer.ok) return this.actionClarification(customer.message, ['entity']);
     const actionType = 'create_customer_followup';
     const riskLevel = 'medium' as const;
     const script = this.composeCareScript(message);
@@ -74,6 +77,7 @@ export class BrainCustomerServiceDomainAdapter implements BrainDomainAdapter {
       userId: input.context.userId,
       storeId: input.context.storeId,
       skillKey: actionType,
+      planId: input.plan.executionPlanId,
       riskLevel,
       preview: {
         actionType,
@@ -100,22 +104,29 @@ export class BrainCustomerServiceDomainAdapter implements BrainDomainAdapter {
           actionType,
           riskLevel,
           requiresConfirmation: true,
+          requiredPermissions: ['assist:followup:create'],
           summary,
         },
       ],
       grounding: 'preview_action',
-      metadata: { adapterKey: this.key },
+      metadata: { adapterKey: this.key, executionRequiredPermissions: ['assist:followup:create'] },
     };
   }
 
-  private actionClarification(answer: string): BrainDomainAnswer {
+  private actionClarification(answer: string, missingSlots: string[] = ['actionTarget']): BrainDomainAnswer {
     return {
       status: 'completed',
       answer,
       citations: [],
       suggestedActions: [],
       grounding: 'none',
-      metadata: { adapterKey: this.key, unsupportedReason: 'action_target_requires_clarification' },
+      blocks: [{ kind: 'clarification', question: answer, options: [] }],
+      metadata: {
+        adapterKey: this.key,
+        unsupportedReason: 'action_target_requires_clarification',
+        clarification: { questions: [answer], missingSlots, ambiguities: [] },
+        completion: { status: 'partial', missingCriteria: missingSlots, recoverable: true },
+      },
     };
   }
 
@@ -141,5 +152,12 @@ export class BrainCustomerServiceDomainAdapter implements BrainDomainAdapter {
     if (/疗程|周期|续购|快结束/.test(message)) return 'treatment_cycle';
     if (/满意度|回访|服务后|护理后/.test(message)) return 'service_follow_up';
     return 'general_care';
+  }
+
+  private specificCustomerName(input: BrainDomainAdapterExecution) {
+    return input.cognition.entities
+      .filter((entity) => entity.slot === 'customer')
+      .map((entity) => extractSpecificCustomerNameFromMention(entity.label))
+      .find((label): label is string => Boolean(label));
   }
 }

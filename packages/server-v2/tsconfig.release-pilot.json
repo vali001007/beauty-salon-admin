@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "./dist-release-pilot",
+    "declaration": false,
+    "sourceMap": false,
+    "incremental": false,
+    "noEmit": false
+  },
+  "include": ["prisma/ami-brain-release-pilot.ts", "src/**/*"],
+  "exclude": ["node_modules", "dist", "dist-release-pilot", "src/**/*.spec.ts", "test/**/*"]
+}

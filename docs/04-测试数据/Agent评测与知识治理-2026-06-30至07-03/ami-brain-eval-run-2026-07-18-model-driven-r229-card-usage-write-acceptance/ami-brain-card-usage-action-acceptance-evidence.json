@@ -1,0 +1,36 @@
+{
+  "status": "passed",
+  "databaseWritePerformed": true,
+  "target": {
+    "host": "127.0.0.1",
+    "port": 55433,
+    "database": "ami_brain_action_r229"
+  },
+  "evidence": {
+    "actionId": "brain_action_1784364725733_vq8hmh",
+    "executionId": 8,
+    "cardUsageRecordId": 9,
+    "remainingTimes": 8,
+    "projectRemainingTimes": 8,
+    "recognizedAmount": 200,
+    "productStock": 9,
+    "batchStock": 9,
+    "stockMovementQuantity": -1,
+    "stockMovementCost": 20,
+    "commissionAmount": 20,
+    "duplicateConfirmationShortCircuited": true,
+    "businessReplayReturnedSameRecord": true,
+    "mismatchedReplayRejected": true,
+    "receiptFailureDetectedAfterBusinessCommit": true,
+    "receiptSafeReplaySucceeded": true,
+    "receiptSafeReplayUsageCount": 1,
+    "receiptSafeReplayCardRemainingTimes": 9,
+    "receiptSafeReplayMovementCount": 1,
+    "receiptSafeReplayCommissionCount": 1,
+    "concurrentReplayUsageCount": 1,
+    "concurrentReplaySameBusinessObject": true,
+    "concurrentReplayCardRemainingTimes": 9,
+    "concurrentReplayMovementCount": 1,
+    "concurrentReplayCommissionCount": 1
+  }
+}

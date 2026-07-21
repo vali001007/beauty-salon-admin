@@ -6,6 +6,8 @@ import type {
   AudienceSnapshot,
   Customer,
   MarketingTriggerType,
+  MarketingRecommendationInstanceView,
+  RecommendationInstanceCoverage,
   RecommendationExecutionMode,
   RecommendationPriority,
   RecommendedAction,
@@ -24,6 +26,7 @@ export type UrgencyLevel = 'urgent' | 'recommended' | 'opportunity';
 
 export interface Recommendation {
   id: number;
+  recommendationInstanceId?: string;
   title: string;
   reason: string;
   targetCustomers: string;
@@ -132,6 +135,128 @@ export interface RecommendationExecutionState {
   automation: RecommendationActionExecutionState;
   activity: RecommendationActionExecutionState;
   followUp: RecommendationActionExecutionState;
+}
+
+function instanceNumericId(instanceId: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < instanceId.length; index += 1) {
+    hash ^= instanceId.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return Math.abs(hash) || 1;
+}
+
+function objectValue(value: unknown): Record<string, any> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, any> : {};
+}
+
+function instanceSource(instance: MarketingRecommendationInstanceView): Recommendation['source'] {
+  if (instance.sourceType === 'lifecycle') return 'customer_lifecycle';
+  if (instance.sourceType === 'product_project') {
+    if (instance.recommendationKey.includes('capacity')) return 'capacity';
+    if (instance.recommendationKey.includes('project')) return 'project';
+    if (instance.recommendationKey.includes('inventory') || instance.recommendationKey.includes('expiry')) return 'inventory';
+    return 'product';
+  }
+  if (instance.recommendationKey.includes('churn')) return 'churn';
+  if (instance.recommendationKey.includes('ltv')) return 'ltv';
+  return 'strategy';
+}
+
+export function mapRecommendationInstanceToRecommendation(
+  instance: MarketingRecommendationInstanceView,
+  coverage: RecommendationInstanceCoverage,
+): Recommendation & { recommendationInstanceId: string } {
+  const evidence = objectValue(instance.evidence);
+  const strategy = objectValue(instance.strategy);
+  const offer = objectValue(instance.offer?.offer) as RecommendedOffer;
+  const selectedPromotionId = instance.offer?.selectedPromotionId ?? undefined;
+  const selectedPromotion = selectedPromotionId ? {
+    promotionId: selectedPromotionId,
+    promotionName: String(offer.promotionName ?? offer.label ?? ''),
+    name: String(offer.promotionName ?? offer.label ?? ''),
+    discountText: String(offer.label ?? ''),
+    type: String(offer.type ?? ''),
+    fitScore: Number(objectValue(instance.offer?.fitBreakdown).score ?? offer.fitScore ?? 0),
+    fitReason: String(objectValue(instance.offer?.fitBreakdown).reasons?.join?.('、') ?? offer.reason ?? ''),
+  } satisfies RecommendedPromotionMatch : null;
+  const recommendationType = String(evidence.recommendationType ?? instance.recommendationKey.split(':').slice(1).join(':'));
+  const generatedAt = coverage.generatedAt;
+  const ageHours = generatedAt ? Number(((Date.now() - new Date(generatedAt).getTime()) / 3600000).toFixed(2)) : null;
+  const executionState = instance.executionState;
+  const actionState = (value: Record<string, unknown> | null | undefined) => ({
+    done: Boolean(value),
+    count: value ? 1 : 0,
+    lastAt: value?.createdAt ? String(value.createdAt) : undefined,
+    objectIds: value?.id ? [Number(value.id)] : [],
+  });
+  return {
+    id: instanceNumericId(instance.recommendationInstanceId),
+    recommendationInstanceId: instance.recommendationInstanceId,
+    recommendationKey: instance.recommendationKey,
+    title: instance.title,
+    reason: instance.description ?? '基于门店预测快照与实时经营信号生成',
+    targetCustomers: `${instance.targetCount} 位客户`,
+    targetCount: instance.targetCount,
+    targetCustomerIds: [],
+    expectedConversion: String(evidence.expectedConversion ?? '预测转化见推荐证据'),
+    expectedRevenue: String(evidence.expectedRevenue ?? '预测营收见推荐证据'),
+    strategy: String(strategy.modeReason ?? instance.description ?? instance.title),
+    discount: String(offer.label ?? '按权益快照执行'),
+    duration: `有效至 ${new Date(instance.expiresAt).toLocaleString('zh-CN', { hour12: false })}`,
+    matchScore: Number(objectValue(instance.offer?.fitBreakdown).score ?? 0),
+    image: MARKETING_RECOMMENDATION_IMAGES[instanceNumericId(instance.recommendationInstanceId) % MARKETING_RECOMMENDATION_IMAGES.length],
+    tags: [instance.priority, instance.sourceType],
+    category: recommendationType,
+    recommendationType,
+    triggerType: objectValue(strategy.triggerRule).type as MarketingTriggerType | undefined,
+    preferAutoRule: instance.preferredMode === 'automation',
+    urgency: instance.urgency,
+    urgencyLabel: instance.urgency === 'urgent' ? '🔴 紧急' : instance.urgency === 'recommended' ? '🟡 推荐' : '🟢 机会',
+    dataEvidence: Array.isArray(evidence.dataEvidence) ? evidence.dataEvidence.map(String) : [],
+    source: instanceSource(instance),
+    predictionRunId: instance.predictionRunId ?? undefined,
+    modelVersion: instance.sourceVersion,
+    predictionRunFinishedAt: coverage.generatedAt ?? undefined,
+    predictionFreshness: {
+      predictionRunId: coverage.predictionRunId,
+      generatedAt: coverage.generatedAt,
+      ageHours,
+      status: coverage.freshness,
+    },
+    totalCustomers: coverage.totalCustomers,
+    priority: instance.priority,
+    executionModes: instance.executionModes,
+    preferredMode: instance.preferredMode,
+    modeReason: String(strategy.modeReason ?? ''),
+    recommendedChannels: Array.isArray(strategy.recommendedChannels) ? strategy.recommendedChannels : [],
+    triggerRule: objectValue(strategy.triggerRule) as RecommendedTriggerRule,
+    recommendedActions: Array.isArray(strategy.recommendedActions) ? strategy.recommendedActions : [],
+    offer: instance.offer ? offer : undefined,
+    primaryPromotion: selectedPromotion,
+    // 推荐实例的权益快照由后端统一选定；在提供显式的服务端换权益接口前，
+    // 不向采纳页面暴露仅存在于展示层的备选项，避免“页面选择 A、实际执行 B”。
+    alternativePromotions: [],
+    offerFitBreakdown: instance.offer?.fitBreakdown as RecommendationOfferFitBreakdown | undefined,
+    recommendedItems: Array.isArray(strategy.recommendedItems) ? strategy.recommendedItems : [],
+    audienceSnapshot: instance.audience ? {
+      predictionRunId: instance.predictionRunId ?? undefined,
+      generatedAt: instance.audience.generatedAt,
+      ruleSummary: JSON.stringify(instance.audience.rule),
+      customerIds: [],
+      totalCustomers: instance.audience.customerCount,
+      sampleReasons: [],
+    } : undefined,
+    sourceSignals: Array.isArray(evidence.sourceSignals) ? evidence.sourceSignals.map(String) : [],
+    inventorySnapshot: instance.offer?.inventorySnapshot as Recommendation['inventorySnapshot'],
+    capacitySnapshot: instance.offer?.capacitySnapshot as Recommendation['capacitySnapshot'],
+    riskWarnings: instance.offer?.riskWarnings ?? [],
+    executionState: {
+      activity: actionState(executionState.activity),
+      automation: actionState(executionState.automation),
+      followUp: actionState(executionState.terminalFollowUp),
+    },
+  };
 }
 
 // ========== 季节 & 节日 ==========

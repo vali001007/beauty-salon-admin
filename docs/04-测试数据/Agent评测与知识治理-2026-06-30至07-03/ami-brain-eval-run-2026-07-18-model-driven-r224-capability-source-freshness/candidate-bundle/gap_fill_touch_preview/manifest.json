@@ -1,0 +1,147 @@
+{
+  "key": "gap_fill_touch_preview",
+  "version": 1,
+  "sourceFingerprint": "5624c7a8024b59fa40bda3f4843b96d229e5023d133fa41d98918702c9f93562",
+  "name": "空档补位客户匹配与触达预览",
+  "description": "读取当前门店排班、预约、客户、卡项、历史偏好和已发布预测快照，识别空档并匹配候选客户，自动选择最高分候选生成待确认触达任务预览。确认前不创建任务、不发送消息、不修改预约。",
+  "domains": [
+    "beautician",
+    "customer",
+    "project",
+    "reservation"
+  ],
+  "intents": [
+    "action",
+    "workflow"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "comparisonTarget": {
+        "type": "object"
+      },
+      "dimensions": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "entities": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "filters": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "limit": {
+        "type": "number"
+      },
+      "metrics": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "objective": {
+        "type": "string"
+      },
+      "orderBy": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "time": {
+        "type": "object"
+      }
+    },
+    "required": [
+      "dimensions",
+      "entities",
+      "filters",
+      "metrics",
+      "objective",
+      "orderBy"
+    ],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object"
+  },
+  "requiredPermissions": [
+    "core:brain:use",
+    "core:marketing:create",
+    "core:store:scheduling"
+  ],
+  "allowedRoles": [
+    "marketing",
+    "store_manager"
+  ],
+  "readOnly": false,
+  "sideEffect": true,
+  "riskLevel": "high",
+  "requiresConfirmation": true,
+  "idempotency": "required",
+  "timeoutMs": 10000,
+  "grounding": "preview_action",
+  "examples": [
+    "把明日空闲时段和可召回客户配对，再准备邀约",
+    "规划一个补齐明天下午空档的完整流程",
+    "先看预约资源，再选客户，最后给我触达草稿",
+    "找出明天下午空档、筛合适客户、写提醒并生成触达预览",
+    "组合预约清单、客户筛选和提醒文案，生成待确认方案"
+  ],
+  "negativeExamples": [
+    "读取其他门店的空档与客户",
+    "直接给候选客户发送消息",
+    "自动修改客户预约"
+  ],
+  "synonyms": [
+    "补位邀约预览",
+    "空档补位方案",
+    "空闲时段客户匹配",
+    "预约空档触达计划"
+  ],
+  "successSchema": {
+    "type": "object"
+  },
+  "definitionRefs": [
+    {
+      "definitionId": 42,
+      "versionId": 42,
+      "definitionKey": "entity.beautician",
+      "version": 1,
+      "definitionFingerprint": "37a4c2aa5f21152da29509f1f60b5767dfe658bc69959ec32909aac342ac7c2c",
+      "sourceFingerprint": "be47f37fcbe8846fd96ab81bcc09d2aaa8507556aad465ffb31676c252001d1d"
+    },
+    {
+      "definitionId": 43,
+      "versionId": 43,
+      "definitionKey": "entity.customer",
+      "version": 1,
+      "definitionFingerprint": "e2a455e1bb6fca496a965db988e5547f4bee98a5e43f4c0daf9a04777a0e908e",
+      "sourceFingerprint": "528c308346ae2b37db26eae2c35397fd02d981182ceb30d2378fb588e294ce04"
+    },
+    {
+      "definitionId": 48,
+      "versionId": 48,
+      "definitionKey": "entity.project",
+      "version": 1,
+      "definitionFingerprint": "172e39f445a03511fe7d3505d45373b62726a3136265c01800f415a4cdd53e95",
+      "sourceFingerprint": "85490c6c5cc1803b078f7d264cccd7f021ed7759412f83025c771f8c5240bf4f"
+    },
+    {
+      "definitionId": 49,
+      "versionId": 49,
+      "definitionKey": "entity.reservation",
+      "version": 1,
+      "definitionFingerprint": "b32f57f9bbc3f74914569e6045d91828ddac361b929b01dce233dfa1f2b3638e",
+      "sourceFingerprint": "546ca6346cdfee365eda191956a34fb67310885e0e540dfe34200965b95c2991"
+    }
+  ]
+}

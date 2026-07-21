@@ -1,4 +1,5 @@
 export * from './customer';
+export * from './customer-feedback';
 export * from './customer-app';
 export * from './product';
 export * from './inventory';

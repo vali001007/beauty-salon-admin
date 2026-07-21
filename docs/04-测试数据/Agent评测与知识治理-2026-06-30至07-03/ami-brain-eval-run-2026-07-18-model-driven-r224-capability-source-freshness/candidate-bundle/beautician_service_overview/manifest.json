@@ -1,0 +1,213 @@
+{
+  "key": "beautician_service_overview",
+  "version": 1,
+  "sourceFingerprint": "62872afaa6ed305b50c9f2d69a77f1dfdb575174918faded89dd03a4aa0fecd8",
+  "name": "美容师个人服务概览",
+  "description": "仅基于当前登录账号绑定的美容师身份，查询个人预约客户、开始与结束时间、首个/下一个/最后一个预约、预约间空档、计划服务时长、取消记录、首次到店、提前到店、上次服务项目、客户注意事项、个人业绩、提成和项目排行。未绑定美容师档案时失败关闭，绝不退化为全店数据。",
+  "domains": [
+    "customer",
+    "project",
+    "beautician",
+    "reservation"
+  ],
+  "intents": [
+    "diagnosis",
+    "query",
+    "recommendation"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "comparisonTarget": {
+        "type": "object"
+      },
+      "dimensions": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "entities": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "filters": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "limit": {
+        "type": "number"
+      },
+      "metrics": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "objective": {
+        "type": "string"
+      },
+      "orderBy": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "time": {
+        "type": "object"
+      }
+    },
+    "required": [
+      "dimensions",
+      "entities",
+      "filters",
+      "metrics",
+      "objective",
+      "orderBy"
+    ],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object"
+  },
+  "requiredPermissions": [
+    "core:brain:beautician-view",
+    "core:brain:use",
+    "core:store:reservations"
+  ],
+  "allowedRoles": [
+    "beautician"
+  ],
+  "readOnly": true,
+  "sideEffect": false,
+  "riskLevel": "low",
+  "requiresConfirmation": false,
+  "idempotency": "not_applicable",
+  "timeoutMs": 10000,
+  "grounding": "domain_service",
+  "examples": [
+    "帮我看一下今天客人的上次服务记录",
+    "今天我总共要服务几个小时",
+    "今天有没有安排我去做培训或其他任务",
+    "今天有没有客人提前到了在等我",
+    "今天最后一个客人几点结束",
+    "我今天的客人里有没有 VIP 需要特别对待",
+    "我今天的客人里有没有首次来的新客",
+    "我今天第一个客人几点来",
+    "我今天有几个客人，分别几点",
+    "我今天有没有空档，几点到几点",
+    "我这周的预约安排",
+    "下一个客人上次做了什么，有没有什么特殊要求",
+    "下一个客人是谁，做什么项目",
+    "下一个客人最近情绪状态怎么样，需要特别关心吗",
+    "有没有客人取消了"
+  ],
+  "negativeExamples": [
+    "查看其他美容师的客户过敏史",
+    "查询培训或非预约任务安排",
+    "推断客户情绪状态",
+    "直接替我修改客户护理记录"
+  ],
+  "synonyms": [
+    "服务注意事项",
+    "个人项目排行",
+    "美容师工作台",
+    "我的服务安排",
+    "我的空档",
+    "我的取消预约",
+    "我的提成",
+    "我的业绩",
+    "我的预约客户",
+    "下一位客户",
+    "最后一位客户"
+  ],
+  "successSchema": {
+    "type": "object"
+  },
+  "definitionRefs": [
+    {
+      "definitionId": 70,
+      "versionId": 95,
+      "definitionKey": "dimension.customerName",
+      "version": 1,
+      "definitionFingerprint": "16a020e1a509f25f3deb238be8a9c4f8a590659f8981783ed9257d9efa07e380",
+      "sourceFingerprint": "60b2f2c792c620d0da511234bb53d533b180c1870b6e2b5b486b8b57a32cb09d"
+    },
+    {
+      "definitionId": 65,
+      "versionId": 76,
+      "definitionKey": "dimension.projectName",
+      "version": 2,
+      "definitionFingerprint": "9fbfe8e74a8be704e8f8783e20469d6f32ff0403029a860fe2de5fc4c65941e8",
+      "sourceFingerprint": "f7a39099ba14aa097993505768b46e17684731b66d5a13779eecdef7899aecfd"
+    },
+    {
+      "definitionId": 42,
+      "versionId": 42,
+      "definitionKey": "entity.beautician",
+      "version": 1,
+      "definitionFingerprint": "37a4c2aa5f21152da29509f1f60b5767dfe658bc69959ec32909aac342ac7c2c",
+      "sourceFingerprint": "be47f37fcbe8846fd96ab81bcc09d2aaa8507556aad465ffb31676c252001d1d"
+    },
+    {
+      "definitionId": 43,
+      "versionId": 43,
+      "definitionKey": "entity.customer",
+      "version": 1,
+      "definitionFingerprint": "e2a455e1bb6fca496a965db988e5547f4bee98a5e43f4c0daf9a04777a0e908e",
+      "sourceFingerprint": "528c308346ae2b37db26eae2c35397fd02d981182ceb30d2378fb588e294ce04"
+    },
+    {
+      "definitionId": 48,
+      "versionId": 48,
+      "definitionKey": "entity.project",
+      "version": 1,
+      "definitionFingerprint": "172e39f445a03511fe7d3505d45373b62726a3136265c01800f415a4cdd53e95",
+      "sourceFingerprint": "85490c6c5cc1803b078f7d264cccd7f021ed7759412f83025c771f8c5240bf4f"
+    },
+    {
+      "definitionId": 49,
+      "versionId": 49,
+      "definitionKey": "entity.reservation",
+      "version": 1,
+      "definitionFingerprint": "b32f57f9bbc3f74914569e6045d91828ddac361b929b01dce233dfa1f2b3638e",
+      "sourceFingerprint": "546ca6346cdfee365eda191956a34fb67310885e0e540dfe34200965b95c2991"
+    },
+    {
+      "definitionId": 83,
+      "versionId": 131,
+      "definitionKey": "metric.staff_commission_amount",
+      "version": 2,
+      "definitionFingerprint": "396f3bcf067db6e0ff00571234e86abb60cb3721ab8def4a67af78611552692c",
+      "sourceFingerprint": "0dbee890a3a56fd9202b8722f98e011982c61d34f7c5b08dbb9bf0b109f76720"
+    },
+    {
+      "definitionId": 60,
+      "versionId": 115,
+      "definitionKey": "metric.staff_performance_score",
+      "version": 7,
+      "definitionFingerprint": "ee9d7882ef3af59f4b3777dcd2078202b6e0c090a68cb48b8dc1dce6df76176d",
+      "sourceFingerprint": "35c8bfec89ad2de8e79d2d8341e9426650e0f6e5789b165db346057da9b37ce6"
+    },
+    {
+      "definitionId": 76,
+      "versionId": 119,
+      "definitionKey": "metric.staff_service_count",
+      "version": 2,
+      "definitionFingerprint": "55262aec56bfc28c2e6116f60c1355780fc3f5e4056abf95ee2bd8aefaf7f64b",
+      "sourceFingerprint": "fd3876ccb1a2c10c684486152d7e2f4655eb240b2118784bb1d44c3b759de373"
+    },
+    {
+      "definitionId": 77,
+      "versionId": 120,
+      "definitionKey": "metric.staff_unique_customer_count",
+      "version": 1,
+      "definitionFingerprint": "052eed5f74444cbb372fbf90aacdd2263e24d615875a9ed21c906dc42901be75",
+      "sourceFingerprint": "76e349eeb8b44f7f9d72fe9bb3d6659e8e8f305dca15d4ce1f88650ac1977b9f"
+    }
+  ]
+}

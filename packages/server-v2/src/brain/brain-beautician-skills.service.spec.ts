@@ -4,6 +4,7 @@ describe('BrainBeauticianSkillsService', () => {
   it('includes customer allergy and skin notes for next service attention checks', async () => {
     const prisma = {
       beautician: { findFirst: jest.fn().mockResolvedValue({ id: 3 }) },
+      serviceTask: { findMany: jest.fn().mockResolvedValue([]) },
       reservation: {
         findMany: jest.fn().mockResolvedValue([
           {
@@ -69,5 +70,38 @@ describe('BrainBeauticianSkillsService', () => {
       { name: '补水护理', count: 2 },
       { name: '舒缓修护', count: 1 },
     ]);
+  });
+
+  it('does not turn explicit no-allergy values into an allergy warning', async () => {
+    const prisma = {
+      beautician: { findFirst: jest.fn().mockResolvedValue({ id: 3 }) },
+      serviceTask: { findMany: jest.fn().mockResolvedValue([]) },
+      reservation: {
+        findMany: jest.fn().mockResolvedValue([{
+          date: new Date('2026-07-10T16:00:00.000Z'),
+          startTime: '10:00',
+          customer: {
+            name: '李女士',
+            hasAllergy: '无',
+            skinCondition: null,
+            skinType: null,
+            remark: null,
+            healthProfile: { allergyHistory: '没有', skinStatus: null, mainProblems: null },
+          },
+          project: { name: '舒缓修护' },
+        }]),
+      },
+    };
+    const service = new BrainBeauticianSkillsService(prisma as never);
+
+    const summary = await service.buildTodayServiceSummary({
+      storeId: 2,
+      userId: 9,
+      timezone: 'Asia/Shanghai',
+      startDate: new Date('2026-07-10T16:00:00.000Z'),
+      endDate: new Date('2026-07-11T15:59:59.999Z'),
+    });
+
+    expect(summary.nextTasks[0]).toMatchObject({ appointmentTime: '2026-07-11 10:00', attentionItems: [] });
   });
 });

@@ -1,0 +1,174 @@
+{
+  "key": "reservation_list",
+  "version": 1,
+  "sourceFingerprint": "040e86051bad73f0b15d3f7c3a79a711cd64e259c5cd029fc33ca1b137537922",
+  "name": "门店预约清单",
+  "description": "按服务端解析的时间范围查询当前门店预约，支持指定客户、指定美容师、上午/下午、指定时点、待确认、首个/下一个/最后一个预约、项目分类和预约日期排行，返回客户、项目、美容师、状态、开始与结束时间，不执行创建、改期或取消。",
+  "domains": [
+    "customer",
+    "project",
+    "beautician",
+    "reservation"
+  ],
+  "intents": [
+    "query"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "comparisonTarget": {
+        "type": "object"
+      },
+      "dimensions": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "entities": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "filters": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "limit": {
+        "type": "number"
+      },
+      "metrics": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "objective": {
+        "type": "string"
+      },
+      "orderBy": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "time": {
+        "type": "object"
+      }
+    },
+    "required": [
+      "dimensions",
+      "entities",
+      "filters",
+      "metrics",
+      "objective",
+      "orderBy"
+    ],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object"
+  },
+  "requiredPermissions": [
+    "core:brain:use",
+    "core:store:reservations"
+  ],
+  "allowedRoles": [
+    "receptionist",
+    "store_manager"
+  ],
+  "readOnly": true,
+  "sideEffect": false,
+  "riskLevel": "low",
+  "requiresConfirmation": false,
+  "idempotency": "not_applicable",
+  "timeoutMs": 10000,
+  "grounding": "domain_service",
+  "examples": [
+    "帮我看一下今天赵美容师的预约安排",
+    "今天下午最后一个预约是几点，是谁",
+    "今天有几个预约是做面部的，几个是身体的",
+    "今天有哪些预约",
+    "明天下午预约清单",
+    "现在几点了，下一个预约是谁，什么时候",
+    "有没有预约超过两小时没有确认的",
+    "有没有预约了但还没确认的客人",
+    "张美丽的预约是几点，做什么项目",
+    "这个月预约最多的是哪几天"
+  ],
+  "negativeExamples": [
+    "查询其他门店预约",
+    "取消这个预约",
+    "确认通知是否送达",
+    "预测客户一定会爽约",
+    "直接帮我改期"
+  ],
+  "synonyms": [
+    "待确认预约",
+    "第一个预约",
+    "时段预约",
+    "下一个预约",
+    "预约安排",
+    "预约分类",
+    "预约排期",
+    "预约清单",
+    "预约日期排行",
+    "最后一个预约"
+  ],
+  "successSchema": {
+    "type": "object"
+  },
+  "definitionRefs": [
+    {
+      "definitionId": 70,
+      "versionId": 95,
+      "definitionKey": "dimension.customerName",
+      "version": 1,
+      "definitionFingerprint": "16a020e1a509f25f3deb238be8a9c4f8a590659f8981783ed9257d9efa07e380",
+      "sourceFingerprint": "60b2f2c792c620d0da511234bb53d533b180c1870b6e2b5b486b8b57a32cb09d"
+    },
+    {
+      "definitionId": 65,
+      "versionId": 76,
+      "definitionKey": "dimension.projectName",
+      "version": 2,
+      "definitionFingerprint": "9fbfe8e74a8be704e8f8783e20469d6f32ff0403029a860fe2de5fc4c65941e8",
+      "sourceFingerprint": "f7a39099ba14aa097993505768b46e17684731b66d5a13779eecdef7899aecfd"
+    },
+    {
+      "definitionId": 42,
+      "versionId": 42,
+      "definitionKey": "entity.beautician",
+      "version": 1,
+      "definitionFingerprint": "37a4c2aa5f21152da29509f1f60b5767dfe658bc69959ec32909aac342ac7c2c",
+      "sourceFingerprint": "be47f37fcbe8846fd96ab81bcc09d2aaa8507556aad465ffb31676c252001d1d"
+    },
+    {
+      "definitionId": 43,
+      "versionId": 43,
+      "definitionKey": "entity.customer",
+      "version": 1,
+      "definitionFingerprint": "e2a455e1bb6fca496a965db988e5547f4bee98a5e43f4c0daf9a04777a0e908e",
+      "sourceFingerprint": "528c308346ae2b37db26eae2c35397fd02d981182ceb30d2378fb588e294ce04"
+    },
+    {
+      "definitionId": 48,
+      "versionId": 48,
+      "definitionKey": "entity.project",
+      "version": 1,
+      "definitionFingerprint": "172e39f445a03511fe7d3505d45373b62726a3136265c01800f415a4cdd53e95",
+      "sourceFingerprint": "85490c6c5cc1803b078f7d264cccd7f021ed7759412f83025c771f8c5240bf4f"
+    },
+    {
+      "definitionId": 49,
+      "versionId": 49,
+      "definitionKey": "entity.reservation",
+      "version": 1,
+      "definitionFingerprint": "b32f57f9bbc3f74914569e6045d91828ddac361b929b01dce233dfa1f2b3638e",
+      "sourceFingerprint": "546ca6346cdfee365eda191956a34fb67310885e0e540dfe34200965b95c2991"
+    }
+  ]
+}

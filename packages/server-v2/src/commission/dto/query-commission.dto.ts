@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class QueryCommissionRulesDto {
@@ -476,6 +476,62 @@ export class GenerateDailySettlementDto {
   date: string;
 }
 
+export class RunFinanceReconciliationDto extends GenerateDailySettlementDto {}
+
+export class QueryFinanceReconciliationRunsDto extends QueryDailySettlementDto {
+  @ApiPropertyOptional({ enum: ['running', 'passed', 'warning', 'blocked', 'failed'] })
+  @IsOptional()
+  @IsString()
+  @IsIn(['running', 'passed', 'warning', 'blocked', 'failed'])
+  status?: string = undefined;
+}
+
+export class QueryFinanceReconciliationIssuesDto extends QueryDailySettlementDto {
+  @ApiPropertyOptional({ enum: ['operating_exception', 'data_integrity', 'automation_failure'] })
+  @IsOptional()
+  @IsString()
+  @IsIn(['operating_exception', 'data_integrity', 'automation_failure'])
+  category?: string;
+
+  @ApiPropertyOptional({ enum: ['high', 'medium', 'low'] })
+  @IsOptional()
+  @IsString()
+  @IsIn(['high', 'medium', 'low'])
+  severity?: string;
+}
+
+export class CreateDailySettlementAdjustmentDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(50)
+  adjustmentType: string;
+
+  @IsString()
+  @IsIn(['totalRevenue', 'cashRevenue', 'wechatRevenue', 'alipayRevenue', 'cardRevenue', 'balanceRevenue', 'rechargeIncome', 'refundAmount', 'materialCost', 'commissionTotal'])
+  effectField: string;
+
+  @Type(() => Number)
+  @IsNumber()
+  amount: number;
+
+  @IsString()
+  @MinLength(5)
+  @MaxLength(500)
+  reason: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  voucherNo?: string;
+}
+
+export class CancelDailySettlementAdjustmentDto {
+  @IsString()
+  @MinLength(5)
+  @MaxLength(500)
+  reason: string;
+}
+
 export class QueryAmiPerformanceDto {
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()
@@ -550,6 +606,55 @@ export class GenerateAmiBillDto {
   @ApiPropertyOptional({ example: '2026-06' })
   @IsString()
   settleMonth: string;
+}
+
+export class MarkCommissionSettlementPaidDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  paymentBatchNo: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(50)
+  paymentMethod: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  paymentVoucherNo: string;
+}
+
+export class CreateCommissionAdjustmentDto {
+  @IsString()
+  @IsIn(['deduction', 'bonus', 'refund_recovery', 'correction'])
+  type: string;
+
+  @Type(() => Number)
+  @IsNumber()
+  amount: number;
+
+  @IsString()
+  @MinLength(5)
+  @MaxLength(500)
+  reason: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  commissionRecordId?: number;
+}
+
+export class TransitionAmiBillDto {
+  @IsString()
+  @IsIn(['confirmed', 'invoiced', 'paid', 'voided'])
+  status: 'confirmed' | 'invoiced' | 'paid' | 'voided';
+
+  @IsOptional()
+  @IsString()
+  @MinLength(5)
+  @MaxLength(500)
+  reason?: string;
 }
 
 export class QueryPlatformRevenueDto {

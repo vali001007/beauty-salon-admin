@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ActivityPageSchema, MarketingActivity, Product, Project } from '@/types';
 import {
   buildMarketingActivityPageSchema,
+  buildMarketingActivityPayloadFromPageDraft,
   buildMarketingPagePayloadFromActivity,
   buildMarketingPagePayloadFromPageDraft,
   buildProductMarketingPageDraft,
@@ -105,6 +106,8 @@ describe('marketing page generator payloads', () => {
         }),
       ],
     });
+    expect(buildMarketingActivityPayloadFromPageDraft(draft, 'published').status).toBe('active');
+    expect(buildMarketingActivityPayloadFromPageDraft(draft, 'draft').status).toBe('draft');
   });
 
   it('builds a publish-ready MarketingPage payload from a project draft', () => {

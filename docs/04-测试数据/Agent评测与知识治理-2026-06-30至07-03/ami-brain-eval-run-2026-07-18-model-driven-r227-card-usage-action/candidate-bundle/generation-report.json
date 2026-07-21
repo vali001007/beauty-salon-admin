@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-18T07:36:52.512Z",
+  "policy": "published_registry_gate",
+  "productionReady": true,
+  "ready": 1,
+  "syntheticContracts": 0,
+  "blocked": 0,
+  "gateReports": [
+    {
+      "capabilityKey": "card_usage_action_preview",
+      "proposalFingerprint": "b31ceea2aaca0ba360d5b7811349b834657648e9d52e600902fbca0b8492b3c7",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    }
+  ],
+  "blockedItems": [],
+  "branchProposals": []
+}

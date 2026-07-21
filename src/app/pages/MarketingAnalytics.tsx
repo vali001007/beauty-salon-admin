@@ -45,6 +45,13 @@ const formatMoney = (value: number) => {
   return `¥${value.toLocaleString()}`;
 };
 
+const metricSourceLabel = (source?: 'actual' | 'predicted' | 'estimated') => {
+  if (source === 'actual') return '真实';
+  if (source === 'predicted') return '预测';
+  if (source === 'estimated') return '估算';
+  return '口径待确认';
+};
+
 const getPromotionLabel = (value?: Record<string, unknown> | null) => {
   if (!value) return '';
   return String(value.promotionName ?? value.name ?? value.label ?? value.discountText ?? value.promotionId ?? '').trim();
@@ -134,6 +141,7 @@ export function MarketingAnalytics() {
     cost: 0,
     roi: '0',
   };
+  const metricSummary = data?.metricSummary;
 
   const stats = [
     {
@@ -148,21 +156,23 @@ export function MarketingAnalytics() {
       value: summary.exposureCount.toLocaleString(),
       icon: Users,
       bgColor: 'bg-gradient-to-br from-green-500 to-green-600',
-      change: `${summary.clickCount.toLocaleString()} 点击`,
+      change: `${summary.clickCount.toLocaleString()} 点击 · ${metricSourceLabel(metricSummary?.exposure.source)}`,
     },
     {
       title: '成交收入',
       value: formatMoney(summary.revenue),
       icon: DollarSign,
       bgColor: 'bg-gradient-to-br from-purple-500 to-purple-600',
-      change: `${summary.conversionCount.toLocaleString()} 转化`,
+      change: `${summary.conversionCount.toLocaleString()} 转化 · ${metricSourceLabel(metricSummary?.revenue.source)}收入`,
     },
     {
       title: '投放回报',
       value: summary.roi,
       icon: TrendingUp,
       bgColor: 'bg-gradient-to-br from-orange-500 to-orange-600',
-      change: summary.cost > 0 ? `成本 ${formatMoney(summary.cost)}` : '暂无成本',
+      change: summary.cost > 0
+        ? `${metricSourceLabel(metricSummary?.cost.source)}成本 ${formatMoney(summary.cost)}`
+        : '暂无成本',
     },
   ];
 
@@ -222,6 +232,15 @@ export function MarketingAnalytics() {
               </div>
             ))}
           </div>
+
+          {metricSummary && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
+              <span className="font-medium text-slate-800">指标口径：</span>
+              <span className="rounded bg-emerald-50 px-2 py-1 text-emerald-700">真实收入：订单主归因减退款</span>
+              <span className="rounded bg-amber-50 px-2 py-1 text-amber-700">估算成本：非渠道账单</span>
+              <span className="rounded bg-blue-50 px-2 py-1 text-blue-700">汇总只计算一次，维度仅用于拆解</span>
+            </div>
+          )}
 
           <div className="grid gap-4 rounded-lg border border-emerald-100 bg-emerald-50 p-4 md:grid-cols-6">
             <div>

@@ -3,6 +3,11 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsDateString, IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateReservationDto {
+  @ApiPropertyOptional({ description: '外部创建请求幂等键' })
+  @IsOptional()
+  @IsString()
+  idempotencyKey?: string;
+
   @ApiPropertyOptional({ description: '客户 ID' })
   @IsOptional()
   @IsInt()

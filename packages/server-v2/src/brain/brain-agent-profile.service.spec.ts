@@ -36,4 +36,29 @@ describe('BrainAgentProfileService', () => {
       }),
     ).toThrow('unregistered_permissions:core:customer:view');
   });
+
+  it('projects the active profile into a bounded runtime context', async () => {
+    const prisma = {
+      brainAgentProfile: {
+        findFirst: jest.fn().mockResolvedValue({
+          roleKey: 'store_manager',
+          name: ' 店长 ',
+          version: 5,
+          systemPrompt: ` 负责经营分析 ${'x'.repeat(5000)} `,
+          allowedSkills: ['manager_summary', 123],
+          dataScopeRules: { storeScope: 'current_user_visible_stores' },
+          knowledgePack: { domains: ['store_operation'] },
+        }),
+      },
+    };
+    const runtime = await new BrainAgentProfileService(prisma as never).getRuntimeProfile('store_manager');
+
+    expect(runtime).toMatchObject({
+      roleKey: 'store_manager',
+      name: '店长',
+      version: 5,
+      allowedSkills: ['manager_summary'],
+    });
+    expect(runtime?.systemPrompt.length).toBe(4000);
+  });
 });

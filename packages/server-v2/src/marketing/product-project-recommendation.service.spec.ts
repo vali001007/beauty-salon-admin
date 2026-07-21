@@ -26,6 +26,11 @@ describe('ProductProjectRecommendationService', () => {
     );
   });
 
+  it('rejects product and project recommendation queries without a store scope', async () => {
+    await expect((service as any).getCards(undefined)).rejects.toThrow('storeId is required');
+    await expect((service as any).getAudience(2001, undefined)).rejects.toThrow('storeId is required');
+  });
+
   it('generates product expiry clearance cards with inventory evidence', async () => {
     const now = new Date();
     const expiryDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);

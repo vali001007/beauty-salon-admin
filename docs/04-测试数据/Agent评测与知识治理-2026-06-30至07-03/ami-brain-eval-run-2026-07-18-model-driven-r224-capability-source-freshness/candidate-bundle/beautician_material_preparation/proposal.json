@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "policy": "published_registry_gate",
+  "productionReady": true,
+  "proposalStatus": "ready",
+  "capabilityKey": "beautician_material_preparation",
+  "sourceFingerprint": "25e7001fdb588e1fc577d0587e59c0fe696404531d2e7bdbafaafb843b112901",
+  "proposalFingerprint": "de5f4ddbbd56bcc841c6b2dab830251c0853878d4b130d3895fd4603d59afc6b",
+  "bindingFingerprint": "af978560b3046fe4ff64089aaf93e3e22d02d80d4bda77135ce53b20c7ae034c",
+  "executorBinding": {
+    "schemaVersion": 1,
+    "capabilityKey": "beautician_material_preparation",
+    "sourceFingerprint": "25e7001fdb588e1fc577d0587e59c0fe696404531d2e7bdbafaafb843b112901",
+    "target": {
+      "kind": "service",
+      "className": "BrainDomainServiceCapabilityExecutor",
+      "methodName": "beauticianMaterialPreparation",
+      "sourcePath": "packages/server-v2/src/brain/capability/executors/brain-domain-service-capability.executor.ts",
+      "exportedClass": true,
+      "methodAccess": "public",
+      "parameterCount": 2,
+      "parameterTypes": [
+        "BrainCapabilityToolArgs",
+        "BrainCapabilityExecutionInput"
+      ],
+      "returnType": "unknown"
+    },
+    "generatedSourcePath": "packages/server-v2/src/brain/capability/generated/beautician_material_preparation/binding.ts",
+    "targetImportPath": "../../executors/brain-domain-service-capability.executor.js",
+    "requiredPermissions": [
+      "core:brain:beautician-view",
+      "core:brain:use",
+      "core:store:reservations"
+    ],
+    "storeScope": "required",
+    "requiresConfirmation": false,
+    "idempotency": "not_applicable",
+    "readOnly": true,
+    "sideEffect": false,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "comparisonTarget": {
+          "type": "object"
+        },
+        "dimensions": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "entities": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "filters": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "limit": {
+          "type": "number"
+        },
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "objective": {
+          "type": "string"
+        },
+        "orderBy": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "time": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "dimensions",
+        "entities",
+        "filters",
+        "metrics",
+        "objective",
+        "orderBy"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "bindingFingerprint": "af978560b3046fe4ff64089aaf93e3e22d02d80d4bda77135ce53b20c7ae034c"
+  },
+  "businessDefinitions": [
+    {
+      "definitionId": 46,
+      "versionId": 46,
+      "definitionKey": "entity.product",
+      "version": 1,
+      "definitionFingerprint": "f14dde84b29d3b4e424eb485096f9d50837922a5730ce65c34882838234187ef",
+      "sourceFingerprint": "b45a6f8262a31cc1d94620ea1a1f34ba8baf1b472ec8b6d11cec11d75abe2e8f"
+    }
+  ],
+  "artifacts": {
+    "manifest": "manifest.json",
+    "binding": "binding.ts",
+    "contractTest": "contract.spec.ts",
+    "gateReport": "gate-report.json"
+  }
+}

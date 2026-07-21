@@ -1,0 +1,131 @@
+{
+  "key": "card_usage_action_preview",
+  "version": 1,
+  "sourceFingerprint": "10cc7b95a1f6c24ab7835f60e43c2de13178a0084dc3f8837f733994a4768052",
+  "name": "次卡核销预览",
+  "description": "解析当前门店内的唯一客户、有效次卡、卡内项目、核销次数和服务美容师，生成关键风险待确认预览。确认后复用统一 CardsService 完成扣次、核销流水、耗材、收入和提成；同一幂等键可安全重放并返回原核销回执，不重复扣次、扣库存或计提成。",
+  "domains": [
+    "fixture"
+  ],
+  "intents": [
+    "action"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "comparisonTarget": {
+        "type": "object"
+      },
+      "dimensions": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "entities": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "filters": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "limit": {
+        "type": "number"
+      },
+      "metrics": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "objective": {
+        "type": "string"
+      },
+      "orderBy": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "time": {
+        "type": "object"
+      }
+    },
+    "required": [
+      "dimensions",
+      "entities",
+      "filters",
+      "metrics",
+      "objective",
+      "orderBy"
+    ],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object"
+  },
+  "requiredPermissions": [
+    "core:brain:use",
+    "core:order:card-usage"
+  ],
+  "allowedRoles": [
+    "receptionist",
+    "store_manager"
+  ],
+  "readOnly": false,
+  "sideEffect": true,
+  "riskLevel": "high",
+  "requiresConfirmation": true,
+  "idempotency": "required",
+  "timeoutMs": 10000,
+  "grounding": "preview_action",
+  "examples": [
+    "给张女士的补水次卡核销深层补水护理 1 次，服务人员是王美容师",
+    "预览为指定客户划扣一次卡项并归属到指定美容师"
+  ],
+  "negativeExamples": [
+    "核销其他门店客户的卡",
+    "没有客户卡项和服务人员也直接扣次",
+    "直接核销不要确认",
+    "只查询客户次卡剩余次数"
+  ],
+  "synonyms": [
+    "次卡扣次预览",
+    "卡项核销确认",
+    "疗程卡划扣预览"
+  ],
+  "successSchema": {
+    "type": "object"
+  },
+  "definitionRefs": [
+    {
+      "definitionId": 1,
+      "versionId": 10001,
+      "definitionKey": "entity.beautician",
+      "version": 1,
+      "definitionFingerprint": "590bbe3f8997cb92e3c4e042b7b53a7cf110918ede3b6ceaa26e04f3ffd3770c",
+      "sourceFingerprint": "bb9929c9e04beb11b09b23d441de8e8dbe95051ee450c860c9a78b982824e28f"
+    },
+    {
+      "definitionId": 2,
+      "versionId": 10002,
+      "definitionKey": "entity.customer",
+      "version": 1,
+      "definitionFingerprint": "1053aa9e8241847c017a429dbc21aadb5a7e6d3e37d8804f725dba3371d82969",
+      "sourceFingerprint": "7060e378d59a17556679b49f8c425deac02681d3df8193a7138ddb4981c3167d"
+    },
+    {
+      "definitionId": 3,
+      "versionId": 10003,
+      "definitionKey": "entity.project",
+      "version": 1,
+      "definitionFingerprint": "abeb4c22be72a58c4d60dd3146fdc8df519a0d83e52477694bd4d908f68e19d3",
+      "sourceFingerprint": "d3bc8be9f2090628a8adbf1ce93c66f13a6a29dd9c883faa4a7d7d1cacb0d67c"
+    }
+  ]
+}

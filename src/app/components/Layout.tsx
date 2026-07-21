@@ -3,10 +3,10 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { 
   Users, Store, ShoppingBag, FileText, 
   ChevronDown, ChevronRight, Menu, UserCircle, LogOut,
-  MessageSquare, Calendar, ClipboardList, Scissors, Star, LayoutGrid, User,
+  MessageSquare, MessageSquareWarning, Calendar, ClipboardList, Scissors, Star, LayoutGrid, User,
   Package, PackagePlus, AlertTriangle, ShoppingCart, Megaphone, Home,
   Settings, Shield, Lock, Building2, Monitor, WalletCards, BarChart3, Sparkles, Zap, TrendingUp,
-  Database, BookOpen, CheckCircle2, ShieldCheck, BrainCircuit,
+  Database, BookOpen, BookKey, CheckCircle2, ShieldCheck, BrainCircuit,
   type LucideIcon,
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
@@ -52,6 +52,7 @@ export const MENU_ITEMS: MenuItem[] = [
     path: '/customers',
     children: [
       { title: '客户数据', path: '/customers/data', icon: LayoutGrid, permission: 'core:customer:view' },
+      { title: '客户反馈', path: '/customers/feedback', icon: MessageSquareWarning, permission: 'core:customer:view' },
       { title: '客户画像', path: '/customers/profile', icon: User, permission: 'core:customer:profile' },
       { title: '智能邀约', path: '/customers/script', icon: MessageSquare, permission: 'core:customer:script' },
     ],
@@ -64,7 +65,7 @@ export const MENU_ITEMS: MenuItem[] = [
       { title: '营销工作台', path: '/customer-marketing/workbench', icon: Sparkles, permission: 'core:marketing:view' },
       { title: '智能推荐', path: '/customer-marketing/intelligent-recommendation', icon: Star, permission: 'core:marketing:view' },
       { title: '活动列表', path: '/customer-marketing/activity-management', icon: ClipboardList, permission: 'core:marketing:view' },
-      { title: '自动触达', path: '/customer-marketing/automation', icon: Zap, permission: 'core:marketing:template' },
+      { title: '自动触达', path: '/customer-marketing/automation', icon: Zap, permission: 'core:marketing:view' },
       { title: '推广资产', path: '/customer-marketing/assets', icon: Megaphone, permission: 'core:marketing:view' },
       { title: '数据复盘', path: '/customer-marketing/effect-analysis', icon: BarChart3, permission: 'core:marketing:analytics' },
     ],
@@ -163,6 +164,7 @@ export const MENU_ITEMS: MenuItem[] = [
       { title: '门店管理', path: '/system/stores', icon: Building2, permission: 'core:system:stores' },
       { title: '终端设备', path: '/system/devices', icon: Monitor, permission: 'core:system:stores' },
       { title: '平台收入报表', path: '/finance/platform-revenue', icon: BarChart3, permission: 'core:platform-revenue:view' },
+      { title: '业务口径中心', path: '/system/business-definitions', icon: BookKey, permission: 'core:system:view' },
       { title: 'AI 治理中心', path: '/system/agent-governance', icon: ShieldCheck, permission: 'core:agent-governance:view' },
       { title: 'Brain 治理中心', path: '/brain-governance', icon: ShieldCheck, permission: 'core:brain-governance:view' },
     ],

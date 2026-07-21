@@ -8,6 +8,7 @@ import { UsersModule } from './users/users.module.js';
 import { RolesModule } from './roles/roles.module.js';
 import { StoresModule } from './stores/stores.module.js';
 import { CustomersModule } from './customers/customers.module.js';
+import { CustomerFeedbackModule } from './customer-feedback/customer-feedback.module.js';
 import { ProductsModule } from './products/products.module.js';
 import { OrdersModule } from './orders/orders.module.js';
 import { CardsModule } from './cards/cards.module.js';
@@ -38,6 +39,7 @@ import { AgentV4Module } from './agent-v4/agent-v4.module.js';
 import { AgentV5Module } from './agent-v5/agent-v5.module.js';
 import { OperationProfitModule } from './operation-profit/operation-profit.module.js';
 import { FinanceMetricsModule } from './finance-metrics/finance-metrics.module.js';
+import { BusinessDefinitionModule } from './semantic-data/business-definition.module.js';
 import { CsrfMiddleware } from './common/middleware/csrf.middleware.js';
 
 @Module({
@@ -51,6 +53,7 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware.js';
     RolesModule,
     StoresModule,
     CustomersModule,
+    CustomerFeedbackModule,
     ProductsModule,
     OrdersModule,
     CardsModule,
@@ -78,6 +81,7 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware.js';
     AgentV4Module,
     AgentV5Module,
     FinanceMetricsModule,
+    BusinessDefinitionModule,
     OperationProfitModule,
     BomModule,
     HealthModule,

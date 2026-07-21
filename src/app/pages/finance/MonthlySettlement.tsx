@@ -99,8 +99,14 @@ export function MonthlySettlement() {
       toast.error('当前账号没有标记发放的权限');
       return;
     }
+    const paymentBatchNo = window.prompt('付款批次号');
+    if (!paymentBatchNo) return;
+    const paymentMethod = window.prompt('支付方式（如 bank_transfer）');
+    if (!paymentMethod) return;
+    const paymentVoucherNo = window.prompt('付款凭证号');
+    if (!paymentVoucherNo) return;
     try {
-      await markCommissionSettlementPaid(id);
+      await markCommissionSettlementPaid(id, { paymentBatchNo, paymentMethod, paymentVoucherNo });
       toast.success('已标记发放');
       loadData();
     } catch (error: any) {

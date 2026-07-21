@@ -164,8 +164,12 @@ export class InventoryController {
   @Post('purchase-orders')
   @Permissions('core:inventory:purchase')
   @ApiOperation({ summary: '创建采购单' })
-  createPurchaseOrder(@Body() dto: any) {
-    return this.inventoryService.createPurchaseOrder(dto);
+  createPurchaseOrder(@Body() dto: any, @Headers('idempotency-key') idempotencyKey?: string) {
+    return this.inventoryService.createPurchaseOrder({
+      ...dto,
+      source: 'admin',
+      idempotencyKey: idempotencyKey ?? dto.idempotencyKey,
+    });
   }
 
   @Patch('purchase-orders/:id/status')

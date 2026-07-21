@@ -1,0 +1,429 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-07-16T19:05:53.964Z",
+  "identity": {
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-model-driven-paraphrase-cases.json",
+    "storeId": 6,
+    "evaluationRoleKey": "persona",
+    "releaseFingerprint": "92b727237ba3dda028322b741e75caf51faef21caa0912080e500da1614efdb3"
+  },
+  "records": [
+    {
+      "questionId": "paraphrase-trend-01",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "trend",
+      "sourceIndex": 16,
+      "persona": "finance",
+      "question": "最近三十天每天收入走势",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 8338,
+      "conversationId": 22805,
+      "runId": 22718,
+      "answer": "趋势数据：\n1. 日期=2026-06-18，实收=8616.00\n2. 日期=2026-06-19，实收=0.00\n3. 日期=2026-06-20，实收=7086.00\n4. 日期=2026-06-21，实收=0.00\n5. 日期=2026-06-22，实收=8677.44\n6. 日期=2026-06-23，实收=39248.80\n7. 日期=2026-06-24，实收=0.00\n8. 日期=2026-06-25，实收=0.00\n9. 日期=2026-06-26，实收=51106.54\n10. 日期=2026-06-27，实收=6814.00\n11. 日期=2026-06-28，实收=0.00\n12. 日期=2026-06-29，实收=4264.00\n13. 日期=2026-06-30，实收=5498.90\n14. 日期=2026-07-01，实收=15019.40\n15. 日期=2026-07-02，实收=0.00\n16. 日期=2026-07-03，实收=0.00\n17. 日期=2026-07-04，实收=476.00\n18. 日期=2026-07-05，实收=0.00\n19. 日期=2026-07-06，实收=896.00\n20. 日期=2026-07-07，实收=1686.33\n21. 日期=2026-07-08，实收=741.70\n22. 日期=2026-07-09，实收=0.00\n23. 日期=2026-07-10，实收=0.00\n24. 日期=2026-07-11，实收=0.00\n25. 日期=2026-07-12，实收=0.00\n26. 日期=2026-07-13，实收=3407.53\n27. 日期=2026-07-14，实收=0.00\n28. 日期=2026-07-15，实收=4904.00\n29. 日期=2026-07-16，实收=0.00\n30. 日期=2026-07-17，实收=0.00\n\n数据依据：财务支付方式拆分；业务定义：实收金额。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "capability_finance_payment_breakdown",
+          "label": "财务支付方式拆分"
+        },
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.paid_amount@8",
+          "label": "业务定义：实收金额"
+        }
+      ],
+      "domains": [
+        "finance",
+        "payment"
+      ],
+      "capabilityKeys": [
+        "finance_payment_breakdown"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "comparison",
+        "actualIntent": "metric_query",
+        "expectedShape": "comparison",
+        "actualShape": "list",
+        "expectedMetric": "paid_amount",
+        "actualMetric": "paid_amount",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "trend",
+        "domains": [
+          "payment"
+        ],
+        "entities": [],
+        "metrics": [
+          "paid_amount"
+        ],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "paid_amount"
+        ],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [
+          "payment"
+        ],
+        "capabilityKeys": [
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": [
+          "dimension:date"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "paraphrase-trend-02",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "trend",
+      "sourceIndex": 17,
+      "persona": "finance",
+      "question": "画一下本月进账变化曲线",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 27331,
+      "conversationId": 22806,
+      "runId": 22719,
+      "answer": "趋势数据：\n1. 日期=2026-07-01，实收=15019.40\n2. 日期=2026-07-02，实收=0.00\n3. 日期=2026-07-03，实收=0.00\n4. 日期=2026-07-04，实收=476.00\n5. 日期=2026-07-05，实收=0.00\n6. 日期=2026-07-06，实收=896.00\n7. 日期=2026-07-07，实收=1686.33\n8. 日期=2026-07-08，实收=741.70\n9. 日期=2026-07-09，实收=0.00\n10. 日期=2026-07-10，实收=0.00\n11. 日期=2026-07-11，实收=0.00\n12. 日期=2026-07-12，实收=0.00\n13. 日期=2026-07-13，实收=3407.53\n14. 日期=2026-07-14，实收=0.00\n15. 日期=2026-07-15，实收=4904.00\n16. 日期=2026-07-16，实收=0.00\n17. 日期=2026-07-17，实收=0.00\n\n数据依据：财务支付方式拆分；业务定义：实收金额。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "capability_finance_payment_breakdown",
+          "label": "财务支付方式拆分"
+        },
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.paid_amount@8",
+          "label": "业务定义：实收金额"
+        }
+      ],
+      "domains": [
+        "finance",
+        "payment",
+        "payment_record"
+      ],
+      "capabilityKeys": [
+        "finance_payment_breakdown"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "comparison",
+        "actualIntent": "metric_query",
+        "expectedShape": "comparison",
+        "actualShape": "list",
+        "expectedMetric": "paid_amount",
+        "actualMetric": "paid_amount",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "trend",
+        "domains": [
+          "payment"
+        ],
+        "entities": [],
+        "metrics": [
+          "paid_amount"
+        ],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "paid_amount"
+        ],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [
+          "payment"
+        ],
+        "capabilityKeys": [
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": [
+          "dimension:date"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "paraphrase-trend-05",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "trend",
+      "sourceIndex": 20,
+      "persona": "finance",
+      "question": "按天展示最近一个月的实收趋势",
+      "status": "provider_unavailable",
+      "brainStatus": "failed",
+      "latencyMs": 22137,
+      "conversationId": 22807,
+      "runId": 22720,
+      "answer": "模型服务暂不可用，本次未执行查询，请稍后重试。",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "plan",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "metric_failed",
+        "expectedIntent": "comparison",
+        "actualIntent": "unknown",
+        "expectedShape": "comparison",
+        "actualShape": "non_metric",
+        "expectedMetric": "paid_amount",
+        "reason": "语义问数链路执行失败。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "trend",
+        "domains": [
+          "payment"
+        ],
+        "entities": [],
+        "metrics": [
+          "paid_amount"
+        ],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "paid_amount"
+        ],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [
+          "payment"
+        ],
+        "capabilityKeys": [
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": [
+          "dimension:date"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0,
+          "checked": 3,
+          "failures": [
+            "intent_mismatch",
+            "domain_missing:payment",
+            "metric_missing:paid_amount"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_any_of_missing:finance_payment_breakdown|finance_risk_overview|store_operations_overview"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "brain_status:failed"
+          ],
+          "deterministicFailure": true
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0,
+          "checked": 2,
+          "failures": [
+            "brain_status:failed",
+            "completion_grounding_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "metric_failed"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "infrastructure:provider_unavailable"
+    }
+  ]
+}

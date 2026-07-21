@@ -1,0 +1,397 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-16T12:04:54.100Z",
+    "startedAt": "2026-07-16T12:04:30.412Z",
+    "finishedAt": "2026-07-16T12:04:54.100Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\agent-eval-questions.md",
+    "questionCount": 1,
+    "actualRunCount": 1,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "releaseId": 264,
+    "releaseSnapshot": {
+      "releaseFingerprint": "fc35978783a2f66e1ac285347090301e4b29de7ec4e2a1ce521eb78eeea80ecf",
+      "declaredMode": "shadow",
+      "resourceVersionIds": [
+        150,
+        151,
+        153,
+        158,
+        159,
+        160,
+        163,
+        168,
+        169,
+        170,
+        172,
+        173,
+        174,
+        175
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview",
+        "customer_facts",
+        "finance_payment_breakdown",
+        "finance_risk_overview",
+        "front_desk_operations_overview",
+        "inventory_operations_overview",
+        "inventory_procurement_advice",
+        "manager_staff_overview",
+        "marketing_customer_segment",
+        "marketing_growth_overview",
+        "product_sales_ranking",
+        "project_service_ranking",
+        "reservation_list",
+        "store_operations_overview"
+      ]
+    },
+    "candidateSkillsEnabledForEval": true,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "permissionSource": "active_backend_role_catalog_plus_candidate_minimum_permissions",
+    "evaluationRoleKeys": [
+      "marketing"
+    ],
+    "permissionCatalogRoleKeys": [
+      "ami_demo_full_beautician",
+      "ami_demo_full_cashier",
+      "ami_demo_full_manager",
+      "beautician",
+      "cashier",
+      "store_manager",
+      "super_admin"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。",
+      "provider_unavailable": "模型供应商不可用，单列为评测基础设施失败，不进入产品可用率分母。",
+      "sixLayerGate": "意图、工具、计划、执行、完成度、答案六层必须全部通过；确定性失败不可被 LLM Judge 覆盖。"
+    }
+  },
+  "summary": {
+    "total": 1,
+    "evaluableTotal": 1,
+    "providerUnavailableCount": 0,
+    "legacyUsableWithCitation": 0,
+    "legacyUsableRate": 0,
+    "trueUsable": 1,
+    "trueUsableRate": 1,
+    "observedTrueUsableRate": 1,
+    "byStatus": [
+      {
+        "key": "usable_exact",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "marketing",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "客群识别与分析",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [],
+    "securityGate": {
+      "permissionBypassCount": 0,
+      "crossStoreReadCount": 0,
+      "roleHintBypassCount": 0,
+      "fakeActionConfirmationCount": 0
+    },
+    "grounding": {
+      "metricQueryCount": 0,
+      "dbSkillCount": 1,
+      "templateSkillCount": 0,
+      "previewActionCount": 0,
+      "noneCount": 0
+    },
+    "adapterDistribution": [
+      {
+        "reason": "none",
+        "count": 1
+      }
+    ],
+    "domainDistribution": [
+      {
+        "reason": "customer",
+        "count": 1
+      },
+      {
+        "reason": "marketing",
+        "count": 1
+      },
+      {
+        "reason": "project",
+        "count": 1
+      }
+    ],
+    "capabilityDistribution": [
+      {
+        "reason": "marketing_growth_overview",
+        "count": 1
+      }
+    ],
+    "sixLayer": {
+      "intent": {
+        "total": 1,
+        "passed": 1,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "tool": {
+        "total": 1,
+        "passed": 1,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "plan": {
+        "total": 1,
+        "passed": 1,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "execution": {
+        "total": 1,
+        "passed": 1,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "completion": {
+        "total": 1,
+        "passed": 1,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "answer": {
+        "total": 1,
+        "passed": 1,
+        "passRate": 1,
+        "averageScore": 1
+      }
+    },
+    "latency": {
+      "avgMs": 23557,
+      "p95Ms": 23557,
+      "maxMs": 23557
+    },
+    "baselineComparison": {
+      "baselinePath": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-eval-run-2026-07-10\\ami-brain-eval-results-2026-07-10.json",
+      "rows": [
+        {
+          "metric": "旧口径可用率",
+          "baseline": "15.5%",
+          "current": "0.0%"
+        },
+        {
+          "metric": "真实可用率",
+          "baseline": "3.7%",
+          "current": "100.0%"
+        },
+        {
+          "metric": "假阳性数",
+          "baseline": "77",
+          "current": "0"
+        },
+        {
+          "metric": "时间误退化全量数",
+          "baseline": "12",
+          "current": "0"
+        },
+        {
+          "metric": "文案/操作误命中指标数",
+          "baseline": "21",
+          "current": "0"
+        }
+      ]
+    }
+  },
+  "records": [
+    {
+      "questionId": "qb-marketing-audience-analysis-011",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "客群识别与分析",
+      "sourceIndex": 11,
+      "persona": "marketing",
+      "question": "我想做个高端护理套餐推广，找哪些客户合适",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 23557,
+      "conversationId": 22328,
+      "runId": 22256,
+      "answer": "明细：\n1. customerName=马美琳，memberLevel=钻石会员，totalSpent=196626，matchReason=按当前门店累计消费与到店次数排序，作为高端护理推广初筛名单。\n2. customerName=马语嫣，memberLevel=钻石会员，totalSpent=194425，matchReason=按当前门店累计消费与到店次数排序，作为高端护理推广初筛名单。\n3. customerName=刘思琪，memberLevel=钻石会员，totalSpent=193085，matchReason=按当前门店累计消费与到店次数排序，作为高端护理推广初筛名单。\n4. customerName=林雨薇，memberLevel=钻石会员，totalSpent=192673，matchReason=按当前门店累计消费与到店次数排序，作为高端护理推广初筛名单。\n5. customerName=王雅婷，memberLevel=钻石会员，totalSpent=190532，matchReason=按当前门店累计消费与到店次数排序，作为高端护理推广初筛名单。\n6. customerName=马佳慧，memberLevel=钻石会员，totalSpent=189115，matchReason=按当前门店累计消费与到店次数排序，作为高端护理推广初筛名单。\n7. customerName=刘婉清，memberLevel=钻石会员，totalSpent=186301，matchReason=按当前门店累计消费与到店次数排序，作为高端护理推广初筛名单。\n8. customerName=高美琳，memberLevel=钻石会员，totalSpent=186059，matchReason=按当前门店累计消费与到店次数排序，作为高端护理推广初筛名单。\n9. customerName=黄婉清，memberLevel=钻石会员，totalSpent=185855，matchReason=按当前门店累计消费与到店次数排序，作为高端护理推广初筛名单。\n10. customerName=何思琪，memberLevel=钻石会员，totalSpent=184887，matchReason=按当前门店累计消费与到店次数排序，作为高端护理推广初筛名单。\n\n排行：\n1. 项目=射频紧致提升护理，projectType=仪器护理，price=739，recommended=false\n2. 项目=紧致抗衰护理，projectType=仪器护理，price=698，recommended=false\n3. 项目=全身精油 SPA，projectType=身体护理，price=648，recommended=false\n\n未完成范围：名单仅用于经营推广初筛；不得替代健康禁忌、肤质评估和顾问确认，也不会自动发送营销消息。；推荐卡受众映射不可用，本次客户名单采用累计消费与到店次数降级口径。。\n\n数据依据：客户累计消费与到店次数初筛；营销推荐卡与套餐建议；当前门店在售护理项目。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "customer_value_fallback",
+          "label": "客户累计消费与到店次数初筛"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "marketing_recommendation_card:9001",
+          "label": "营销推荐卡与套餐建议"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "active_high_value_projects",
+          "label": "当前门店在售护理项目"
+        }
+      ],
+      "domains": [
+        "customer",
+        "marketing",
+        "project"
+      ],
+      "capabilityKeys": [
+        "marketing_growth_overview"
+      ],
+      "grounding": "db_skill",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "ranking",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [
+          "customer",
+          "project"
+        ],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [
+          "projectName",
+          "customerName"
+        ],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_facts",
+          "marketing_customer_segment",
+          "marketing_growth_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [
+          "projectName",
+          "customerName"
+        ],
+        "entityKeys": [
+          "customer",
+          "project"
+        ],
+        "domainKeys": [
+          "customer",
+          "project"
+        ],
+        "capabilityKeys": [
+          "customer_facts",
+          "marketing_customer_segment",
+          "marketing_growth_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 5,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    }
+  ]
+}

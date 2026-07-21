@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsInt, IsOptional } from 'class-validator';
+import { IsDateString, IsIn, IsInt, IsOptional } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class QueryFinanceDailyMetricsDto {
@@ -18,4 +18,9 @@ export class QueryFinanceDailyMetricsDto {
   @IsOptional()
   @IsDateString()
   dateTo?: string;
+
+  @ApiPropertyOptional({ enum: ['live', 'confirmed'], default: 'live' })
+  @IsOptional()
+  @IsIn(['live', 'confirmed'])
+  mode?: 'live' | 'confirmed';
 }

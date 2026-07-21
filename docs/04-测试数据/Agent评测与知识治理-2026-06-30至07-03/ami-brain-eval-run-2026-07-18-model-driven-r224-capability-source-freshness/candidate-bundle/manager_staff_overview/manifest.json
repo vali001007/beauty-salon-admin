@@ -1,0 +1,202 @@
+{
+  "key": "manager_staff_overview",
+  "version": 1,
+  "sourceFingerprint": "2cb152d7d209f4375014e3d8fcfbe32be844aba0deace790542e80bb898fb3a2",
+  "name": "店长员工运营分析",
+  "description": "按当前门店和时间范围分析美容师服务次数、独立客户数、客户复购率、业绩、提成、请假时长、排班忙闲和可用空档，支持按用户明确指定的员工指标排行、对比和工作饱和度诊断。试用期、转正待办和客户归属变更没有后台事实闭环时必须明确拒答，不得用通用员工排行替代。客户投诉与满意度由专用客户反馈能力处理。",
+  "domains": [
+    "staff",
+    "beautician",
+    "customer",
+    "reservation"
+  ],
+  "intents": [
+    "comparison",
+    "diagnosis",
+    "query",
+    "ranking"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "comparisonTarget": {
+        "type": "object"
+      },
+      "dimensions": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "entities": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "filters": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "limit": {
+        "type": "number"
+      },
+      "metrics": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "objective": {
+        "type": "string"
+      },
+      "orderBy": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "time": {
+        "type": "object"
+      }
+    },
+    "required": [
+      "dimensions",
+      "entities",
+      "filters",
+      "metrics",
+      "objective",
+      "orderBy"
+    ],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object"
+  },
+  "requiredPermissions": [
+    "core:beautician-performance:view",
+    "core:brain:use",
+    "core:store:reservations"
+  ],
+  "allowedRoles": [
+    "store_manager"
+  ],
+  "readOnly": true,
+  "sideEffect": false,
+  "riskLevel": "low",
+  "requiresConfirmation": false,
+  "idempotency": "not_applicable",
+  "timeoutMs": 10000,
+  "grounding": "domain_service",
+  "examples": [
+    "帮我看一下各美容师的服务次数对比",
+    "帮我看一下员工这周的工作饱和度",
+    "本月员工总提成大概多少",
+    "各美容师今天的排班情况，有没有空档",
+    "今天谁请假了，有没有影响接待",
+    "哪个美容师接的客人最多",
+    "谁的客户复购率最高",
+    "新员工试用期表现怎么样",
+    "有没有员工到期转正需要我处理",
+    "有没有员工的客户被别的美容师挖走的迹象",
+    "有没有员工这周业绩明显下滑",
+    "这个月提成最高的是谁，大概多少"
+  ],
+  "negativeExamples": [
+    "查看其他门店员工数据",
+    "直接修改员工排班或提成",
+    "最近有没有客户投诉或者表达不满"
+  ],
+  "synonyms": [
+    "客户归属流转",
+    "美容师服务排行",
+    "美容师接客排行",
+    "员工服务次数对比",
+    "员工工作饱和度",
+    "员工客户复购率排行",
+    "员工排班空档",
+    "员工提成排行",
+    "员工业绩下滑",
+    "员工运营分析",
+    "员工转正待办"
+  ],
+  "successSchema": {
+    "type": "object"
+  },
+  "definitionRefs": [
+    {
+      "definitionId": 67,
+      "versionId": 117,
+      "definitionKey": "dimension.beauticianName",
+      "version": 3,
+      "definitionFingerprint": "d0a3014dc9578917ae646f3f06c1642cf9c34579f4cfe4759aae9baee604a238",
+      "sourceFingerprint": "45bca8e4426b9a797e5279dc0b241d5172ade76b18bf9cce942551f6fadcaac6"
+    },
+    {
+      "definitionId": 42,
+      "versionId": 42,
+      "definitionKey": "entity.beautician",
+      "version": 1,
+      "definitionFingerprint": "37a4c2aa5f21152da29509f1f60b5767dfe658bc69959ec32909aac342ac7c2c",
+      "sourceFingerprint": "be47f37fcbe8846fd96ab81bcc09d2aaa8507556aad465ffb31676c252001d1d"
+    },
+    {
+      "definitionId": 43,
+      "versionId": 43,
+      "definitionKey": "entity.customer",
+      "version": 1,
+      "definitionFingerprint": "e2a455e1bb6fca496a965db988e5547f4bee98a5e43f4c0daf9a04777a0e908e",
+      "sourceFingerprint": "528c308346ae2b37db26eae2c35397fd02d981182ceb30d2378fb588e294ce04"
+    },
+    {
+      "definitionId": 49,
+      "versionId": 49,
+      "definitionKey": "entity.reservation",
+      "version": 1,
+      "definitionFingerprint": "b32f57f9bbc3f74914569e6045d91828ddac361b929b01dce233dfa1f2b3638e",
+      "sourceFingerprint": "546ca6346cdfee365eda191956a34fb67310885e0e540dfe34200965b95c2991"
+    },
+    {
+      "definitionId": 83,
+      "versionId": 131,
+      "definitionKey": "metric.staff_commission_amount",
+      "version": 2,
+      "definitionFingerprint": "396f3bcf067db6e0ff00571234e86abb60cb3721ab8def4a67af78611552692c",
+      "sourceFingerprint": "0dbee890a3a56fd9202b8722f98e011982c61d34f7c5b08dbb9bf0b109f76720"
+    },
+    {
+      "definitionId": 84,
+      "versionId": 132,
+      "definitionKey": "metric.staff_customer_repurchase_rate",
+      "version": 2,
+      "definitionFingerprint": "d971d216327b1d366b06a1f80184b29da9743bfdd9ebed1bad4f2a702ac21880",
+      "sourceFingerprint": "0dbc1a2732871f30eb0a58fb09ce335274a34781517bfd86379e5b8c339583e1"
+    },
+    {
+      "definitionId": 60,
+      "versionId": 115,
+      "definitionKey": "metric.staff_performance_score",
+      "version": 7,
+      "definitionFingerprint": "ee9d7882ef3af59f4b3777dcd2078202b6e0c090a68cb48b8dc1dce6df76176d",
+      "sourceFingerprint": "35c8bfec89ad2de8e79d2d8341e9426650e0f6e5789b165db346057da9b37ce6"
+    },
+    {
+      "definitionId": 76,
+      "versionId": 119,
+      "definitionKey": "metric.staff_service_count",
+      "version": 2,
+      "definitionFingerprint": "55262aec56bfc28c2e6116f60c1355780fc3f5e4056abf95ee2bd8aefaf7f64b",
+      "sourceFingerprint": "fd3876ccb1a2c10c684486152d7e2f4655eb240b2118784bb1d44c3b759de373"
+    },
+    {
+      "definitionId": 77,
+      "versionId": 120,
+      "definitionKey": "metric.staff_unique_customer_count",
+      "version": 1,
+      "definitionFingerprint": "052eed5f74444cbb372fbf90aacdd2263e24d615875a9ed21c906dc42901be75",
+      "sourceFingerprint": "76e349eeb8b44f7f9d72fe9bb3d6659e8e8f305dca15d4ce1f88650ac1977b9f"
+    }
+  ]
+}

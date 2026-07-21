@@ -35,4 +35,26 @@ describe('BrainInventorySkillsService procurement analysis', () => {
       leadDays: 3,
     });
   });
+
+  it('does not recommend healthy stock only because a minimum purchase quantity exists', async () => {
+    const prisma = {
+      product: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 1, name: '补水精华', currentStock: 20, safetyStock: 5, minPurchaseQty: 8 },
+        ]),
+      },
+      supplyCatalogMapping: {
+        findMany: jest.fn().mockResolvedValue([{
+          productId: 1,
+          supplySku: { quotes: [{ price: 20, moq: 5, leadDays: 3, supplier: { name: '供应商A', qualificationStatus: 'approved' } }] },
+        }]),
+      },
+      procurementOrder: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const service = new BrainInventorySkillsService(prisma as never);
+
+    const result = await service.buildProcurementAnalysis({ storeId: 6 });
+
+    expect(result.suggestions).toEqual([]);
+  });
 });

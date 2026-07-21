@@ -1,13 +1,28 @@
 import type {
   BrainActionDecisionResponse,
+  BrainActionStatusListResponse,
   BrainChatRequest,
   BrainChatResponse,
+  BrainCapabilityRegenerationJob,
+  BrainCapabilityRegenerationJobListResponse,
   BrainConversation,
   BrainConversationListResponse,
   BrainFeedbackResponse,
   BrainMessageListResponse,
   BrainMemoryListResponse,
   BrainMemoryRecord,
+  BrainGovernanceRelease,
+  BrainGovernanceReleaseListResponse,
+  BrainGovernanceResourceVersionListResponse,
+  BrainGovernanceRuntimeConfigResponse,
+  BrainGovernanceSkillListResponse,
+  BrainGovernanceTrace,
+  BrainGovernanceTraceListResponse,
+  BrainInspectionRepairDecision,
+  BrainInspectionRepairDecisionResponse,
+  BrainInspectionRepairPreview,
+  BrainReleaseModificationResponse,
+  BrainRolloutSequenceResponse,
   BrainRunEventsResponse,
   BrainRunContextResponse,
   BrainStreamEvent,
@@ -110,6 +125,10 @@ export async function getBrainRunContext(runId: number): Promise<BrainRunContext
   return apiClient.get<unknown, BrainRunContextResponse>(`/brain/runs/${runId}/context`);
 }
 
+export async function listBrainActionStatuses(runId: number): Promise<BrainActionStatusListResponse> {
+  return apiClient.get<unknown, BrainActionStatusListResponse>(`/brain/runs/${runId}/actions`);
+}
+
 export async function confirmBrainAction(actionId: string, runId: number): Promise<BrainActionDecisionResponse> {
   return apiClient.post<unknown, BrainActionDecisionResponse>(`/brain/actions/${actionId}/confirm`, { actionId, runId });
 }
@@ -118,12 +137,16 @@ export async function rejectBrainAction(actionId: string, runId: number): Promis
   return apiClient.post<unknown, BrainActionDecisionResponse>(`/brain/actions/${actionId}/reject`, { actionId, runId });
 }
 
-export async function listBrainTraces() {
-  return apiClient.get('/brain/governance/traces');
+export async function retryBrainAction(actionId: string, runId: number): Promise<BrainActionDecisionResponse> {
+  return apiClient.post<unknown, BrainActionDecisionResponse>(`/brain/actions/${actionId}/retry`, { actionId, runId });
 }
 
-export async function getBrainTrace(runId: number) {
-  return apiClient.get(`/brain/governance/traces/${runId}`);
+export async function listBrainTraces(): Promise<BrainGovernanceTraceListResponse> {
+  return apiClient.get<unknown, BrainGovernanceTraceListResponse>('/brain/governance/traces');
+}
+
+export async function getBrainTrace(runId: number): Promise<BrainGovernanceTrace | null> {
+  return apiClient.get<unknown, BrainGovernanceTrace | null>(`/brain/governance/traces/${runId}`);
 }
 
 export async function listBrainSemanticResource(resource: 'metrics' | 'entities' | 'relations' | string) {
@@ -150,8 +173,8 @@ export async function updateBrainRoleProfile(roleKey: string, payload: Record<st
   return apiClient.patch(`/brain/governance/roles/${roleKey}`, payload);
 }
 
-export async function listBrainSkills() {
-  return apiClient.get('/brain/governance/skills');
+export async function listBrainSkills(): Promise<BrainGovernanceSkillListResponse> {
+  return apiClient.get<unknown, BrainGovernanceSkillListResponse>('/brain/governance/skills');
 }
 
 export async function createBrainSkill(payload: Record<string, unknown>) {
@@ -174,8 +197,10 @@ export async function updateBrainInspectionRule(ruleKey: string, payload: Record
   return apiClient.patch(`/brain/governance/inspection-rules/${ruleKey}`, payload);
 }
 
-export async function listBrainResourceVersions(params?: { resourceType?: string; status?: string }) {
-  return apiClient.get('/brain/governance/resource-versions', { params });
+export async function listBrainResourceVersions(
+  params?: { resourceType?: string; status?: string },
+): Promise<BrainGovernanceResourceVersionListResponse> {
+  return apiClient.get<unknown, BrainGovernanceResourceVersionListResponse>('/brain/governance/resource-versions', { params });
 }
 
 export async function changeBrainResourceVersionStatus(id: number, status: 'draft' | 'active' | 'disabled' | 'archived') {
@@ -197,6 +222,20 @@ export async function updateBrainInspectionFinding(
   return apiClient.patch(`/brain/inspections/findings/${findingId}`, payload);
 }
 
+export async function getBrainInspectionRepairPreview(findingId: number): Promise<BrainInspectionRepairPreview> {
+  return apiClient.get<unknown, BrainInspectionRepairPreview>(`/brain/inspections/findings/${findingId}/repair-preview`);
+}
+
+export async function decideBrainInspectionRepair(
+  findingId: number,
+  payload: { decision: BrainInspectionRepairDecision; modifications?: Record<string, unknown>; note?: string },
+): Promise<BrainInspectionRepairDecisionResponse> {
+  return apiClient.post<unknown, BrainInspectionRepairDecisionResponse>(
+    `/brain/inspections/findings/${findingId}/repair-decisions`,
+    payload,
+  );
+}
+
 export async function createBrainEvalRun(payload: { releaseId?: number; caseKeys?: string[]; roleKey?: string; modelVersion?: string }) {
   return apiClient.post('/brain/governance/evals/runs', payload);
 }
@@ -213,16 +252,72 @@ export async function createBrainRelease(payload: Record<string, unknown>) {
   return apiClient.post('/brain/governance/releases', payload);
 }
 
-export async function listBrainReleases() {
-  return apiClient.get('/brain/governance/releases');
+export async function createBrainRolloutSequence(payload: {
+  releaseKey: string;
+  resourceVersionIds: number[];
+}): Promise<BrainRolloutSequenceResponse> {
+  return apiClient.post<unknown, BrainRolloutSequenceResponse>('/brain/governance/releases/rollout-sequence', payload);
 }
 
-export async function activateBrainRelease(releaseId: number) {
-  return apiClient.post(`/brain/governance/releases/${releaseId}/activate`, {});
+export async function getBrainGovernanceRuntimeConfig(): Promise<BrainGovernanceRuntimeConfigResponse> {
+  return apiClient.get<unknown, BrainGovernanceRuntimeConfigResponse>('/brain/governance/runtime-config');
 }
 
-export async function rollbackBrainRelease(releaseId: number, reason: string) {
-  return apiClient.post(`/brain/governance/releases/${releaseId}/rollback`, { reason });
+export async function listBrainReleases(): Promise<BrainGovernanceReleaseListResponse> {
+  return apiClient.get<unknown, BrainGovernanceReleaseListResponse>('/brain/governance/releases');
+}
+
+export async function activateBrainRelease(releaseId: number): Promise<BrainGovernanceRelease> {
+  return apiClient.post<unknown, BrainGovernanceRelease>(`/brain/governance/releases/${releaseId}/activate`, {});
+}
+
+export async function rollbackBrainRelease(releaseId: number, reason: string): Promise<BrainGovernanceRelease> {
+  return apiClient.post<unknown, BrainGovernanceRelease>(`/brain/governance/releases/${releaseId}/rollback`, { reason });
+}
+
+export async function rollbackBrainReleaseToRules(
+  releaseId: number,
+  reason: string,
+): Promise<BrainGovernanceRelease> {
+  return apiClient.post<unknown, BrainGovernanceRelease>(
+    `/brain/governance/releases/${releaseId}/rollback-to-rules`,
+    { reason },
+  );
+}
+
+export async function rejectBrainRelease(releaseId: number, reason: string): Promise<BrainGovernanceRelease> {
+  return apiClient.post<unknown, BrainGovernanceRelease>(`/brain/governance/releases/${releaseId}/reject`, { reason });
+}
+
+export async function submitBrainReleaseModification(
+  releaseId: number,
+  requirement: string,
+): Promise<BrainReleaseModificationResponse> {
+  return apiClient.post<unknown, BrainReleaseModificationResponse>(
+    `/brain/governance/releases/${releaseId}/modification-requirements`,
+    { requirement },
+  );
+}
+
+export async function listBrainCapabilityRegenerationJobs(
+  releaseId?: number,
+): Promise<BrainCapabilityRegenerationJobListResponse> {
+  return apiClient.get<unknown, BrainCapabilityRegenerationJobListResponse>(
+    '/brain/governance/regeneration-jobs',
+    { params: releaseId ? { releaseId } : undefined },
+  );
+}
+
+export async function getBrainCapabilityRegenerationJob(
+  id: number,
+): Promise<BrainCapabilityRegenerationJob> {
+  return apiClient.get<unknown, BrainCapabilityRegenerationJob>(`/brain/governance/regeneration-jobs/${id}`);
+}
+
+export async function retryBrainCapabilityRegenerationJob(
+  id: number,
+): Promise<BrainCapabilityRegenerationJob> {
+  return apiClient.post<unknown, BrainCapabilityRegenerationJob>(`/brain/governance/regeneration-jobs/${id}/retry`, {});
 }
 
 export async function listBrainFeedback() {

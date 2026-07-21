@@ -1,0 +1,32 @@
+{
+  "generatedAt": "2026-07-18T10:34:22.127Z",
+  "summary": {
+    "total": 29,
+    "draft": 29,
+    "blocked": 0,
+    "explicit": 29
+  },
+  "capability": {
+    "key": "purchase_order_draft",
+    "name": "采购单预览",
+    "status": "draft",
+    "enabled": false,
+    "explicit": true,
+    "readOnly": false,
+    "sideEffect": true,
+    "riskLevel": "high",
+    "storeScope": "required",
+    "requiredPermissions": [
+      "core:brain:use",
+      "core:supply:manage"
+    ],
+    "allowedRoles": [
+      "inventory",
+      "store_manager"
+    ],
+    "requiresConfirmation": true,
+    "idempotency": "required",
+    "sourceFingerprint": "6111121abf97d6b6a59b1899db7da9dcd2779f41dccabdb47f09bbc115faac07",
+    "issues": []
+  }
+}

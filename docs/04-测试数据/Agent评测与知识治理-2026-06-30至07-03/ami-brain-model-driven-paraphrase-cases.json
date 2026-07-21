@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "1.0",
+  "generatedAt": "2026-07-13",
+  "purpose": "Ami Brain 模型驱动语义意图同义改写门禁",
+  "cases": [
+    { "id": "query-01", "intent": "query", "input": "这个月店里实际收了多少钱", "expected": { "domains": ["finance_risk"], "metrics": ["paid_revenue"], "answerShape": "scalar" } },
+    { "id": "query-02", "intent": "query", "input": "帮我报一下本月实到账", "expected": { "domains": ["finance_risk"], "metrics": ["paid_revenue"], "answerShape": "scalar" } },
+    { "id": "query-03", "intent": "query", "input": "截至现在本月净收款是多少", "expected": { "domains": ["finance_risk"], "metrics": ["paid_revenue"], "answerShape": "scalar" } },
+    { "id": "query-04", "intent": "query", "input": "七月份真实进账给我一个数", "expected": { "domains": ["finance_risk"], "metrics": ["paid_revenue"], "answerShape": "scalar" } },
+    { "id": "query-05", "intent": "query", "input": "本月扣除无效订单后收款合计", "expected": { "domains": ["finance_risk"], "metrics": ["paid_revenue"], "answerShape": "scalar" } },
+
+    { "id": "ranking-01", "intent": "ranking", "input": "本月哪些货卖得最靠前", "expected": { "domains": ["inventory_procurement"], "entities": ["product"], "metrics": ["product_sales_quantity"], "dimensions": ["product"], "answerShape": "ranking" } },
+    { "id": "ranking-02", "intent": "ranking", "input": "给商品销量排个前十", "expected": { "domains": ["inventory_procurement"], "entities": ["product"], "metrics": ["product_sales_quantity"], "dimensions": ["product"], "answerShape": "ranking" } },
+    { "id": "ranking-03", "intent": "ranking", "input": "哪几款产品这个月出货最多", "expected": { "domains": ["inventory_procurement"], "entities": ["product"], "metrics": ["product_sales_quantity"], "dimensions": ["product"], "answerShape": "ranking" } },
+    { "id": "ranking-04", "intent": "ranking", "input": "最近卖得最好的商品依次是什么", "expected": { "domains": ["inventory_procurement"], "entities": ["product"], "metrics": ["product_sales_quantity"], "dimensions": ["product"], "answerShape": "ranking" } },
+    { "id": "ranking-05", "intent": "ranking", "input": "按销售件数把产品从高到低列出来", "expected": { "domains": ["inventory_procurement"], "entities": ["product"], "metrics": ["product_sales_quantity"], "dimensions": ["product"], "answerShape": "ranking" } },
+
+    { "id": "comparison-01", "intent": "comparison", "input": "这个月比上个月少收了多少", "expected": { "domains": ["finance_risk"], "metrics": ["paid_revenue"], "dimensions": ["date"], "answerShape": "comparison" } },
+    { "id": "comparison-02", "intent": "comparison", "input": "本月进账和上月相比变化多少", "expected": { "domains": ["finance_risk"], "metrics": ["paid_revenue"], "dimensions": ["date"], "answerShape": "comparison" } },
+    { "id": "comparison-03", "intent": "comparison", "input": "收入环比是涨了还是跌了，差额多少", "expected": { "domains": ["finance_risk"], "metrics": ["paid_revenue"], "dimensions": ["date"], "answerShape": "comparison" } },
+    { "id": "comparison-04", "intent": "comparison", "input": "把七月和六月实收放一起比较", "expected": { "domains": ["finance_risk"], "metrics": ["paid_revenue"], "dimensions": ["date"], "answerShape": "comparison" } },
+    { "id": "comparison-05", "intent": "comparison", "input": "上月到本月收款增减了几成", "expected": { "domains": ["finance_risk"], "metrics": ["paid_revenue"], "dimensions": ["date"], "answerShape": "comparison" } },
+
+    { "id": "trend-01", "intent": "trend", "input": "最近三十天每天收入走势", "expected": { "domains": ["finance_risk"], "metrics": ["paid_revenue"], "dimensions": ["date"], "answerShape": "trend" } },
+    { "id": "trend-02", "intent": "trend", "input": "画一下本月进账变化曲线", "expected": { "domains": ["finance_risk"], "metrics": ["paid_revenue"], "dimensions": ["date"], "answerShape": "trend" } },
+    { "id": "trend-03", "intent": "trend", "input": "七月份营业额每天是怎么走的", "expected": { "domains": ["finance_risk"], "metrics": ["paid_revenue"], "dimensions": ["date"], "answerShape": "trend" } },
+    { "id": "trend-04", "intent": "trend", "input": "近几周流水变化有没有持续下滑", "expected": { "domains": ["finance_risk"], "metrics": ["paid_revenue"], "dimensions": ["date"], "answerShape": "trend" } },
+    { "id": "trend-05", "intent": "trend", "input": "按天展示最近一个月的实收趋势", "expected": { "domains": ["finance_risk"], "metrics": ["paid_revenue"], "dimensions": ["date"], "answerShape": "trend" } },
+
+    { "id": "diagnosis-01", "intent": "diagnosis", "input": "最近毛利掉下来的主要原因是什么", "expected": { "domains": ["finance_risk"], "metrics": ["gross_margin_rate"], "answerShape": "diagnosis" } },
+    { "id": "diagnosis-02", "intent": "diagnosis", "input": "帮我拆解这段时间利润率变差的问题", "expected": { "domains": ["finance_risk"], "metrics": ["gross_margin_rate"], "answerShape": "diagnosis" } },
+    { "id": "diagnosis-03", "intent": "diagnosis", "input": "为什么最近做得不少却不赚钱", "expected": { "domains": ["finance_risk"], "answerShape": "diagnosis" } },
+    { "id": "diagnosis-04", "intent": "diagnosis", "input": "查一下毛利异常是折扣、成本还是项目结构造成的", "expected": { "domains": ["finance_risk"], "metrics": ["gross_margin_rate"], "answerShape": "diagnosis" } },
+    { "id": "diagnosis-05", "intent": "diagnosis", "input": "给我定位本月盈利能力下降的根因", "expected": { "domains": ["finance_risk"], "answerShape": "diagnosis" } },
+
+    { "id": "recommendation-01", "intent": "recommendation", "input": "库存不足的商品下一步怎么补最合理", "expected": { "domains": ["inventory_procurement"], "entities": ["product"], "answerShape": "diagnosis" } },
+    { "id": "recommendation-02", "intent": "recommendation", "input": "结合消耗速度给个补货建议", "expected": { "domains": ["inventory_procurement"], "entities": ["product"], "answerShape": "diagnosis" } },
+    { "id": "recommendation-03", "intent": "recommendation", "input": "哪些货该先采购，数量怎么定", "expected": { "domains": ["inventory_procurement"], "entities": ["product"], "answerShape": "diagnosis" } },
+    { "id": "recommendation-04", "intent": "recommendation", "input": "既别断货也别积压，采购应该怎么安排", "expected": { "domains": ["inventory_procurement"], "entities": ["product"], "answerShape": "diagnosis" } },
+    { "id": "recommendation-05", "intent": "recommendation", "input": "根据安全库存和近期销量推荐采购清单", "expected": { "domains": ["inventory_procurement"], "entities": ["product"], "answerShape": "diagnosis" } },
+
+    { "id": "draft-01", "intent": "draft", "input": "写一条提醒老客户预约护理的消息", "expected": { "domains": ["marketing_growth"], "entities": ["customer"], "answerShape": "draft" } },
+    { "id": "draft-02", "intent": "draft", "input": "帮我拟个预约空档提醒话术", "expected": { "domains": ["marketing_growth"], "answerShape": "draft" } },
+    { "id": "draft-03", "intent": "draft", "input": "给沉睡客户准备一段温和的召回文案", "expected": { "domains": ["marketing_growth"], "entities": ["customer"], "answerShape": "draft" } },
+    { "id": "draft-04", "intent": "draft", "input": "生成一个不强推销的到店邀请短信", "expected": { "domains": ["marketing_growth"], "entities": ["customer"], "answerShape": "draft" } },
+    { "id": "draft-05", "intent": "draft", "input": "为明天下午空档写条一对一邀约消息", "expected": { "domains": ["marketing_growth"], "answerShape": "draft" } },
+
+    { "id": "action-01", "intent": "action", "input": "把张女士的预约改到明天下午三点", "expected": { "domains": ["front_desk"], "entities": ["customer", "reservation"], "answerShape": "action_preview", "requiresConfirmation": true } },
+    { "id": "action-02", "intent": "action", "input": "帮张女士把明天的护理改约到十五点", "expected": { "domains": ["front_desk"], "entities": ["customer", "reservation"], "answerShape": "action_preview", "requiresConfirmation": true } },
+    { "id": "action-03", "intent": "action", "input": "预览一下将张女士预约调整到明天下午的操作", "expected": { "domains": ["front_desk"], "entities": ["customer", "reservation"], "answerShape": "action_preview", "requiresConfirmation": true } },
+    { "id": "action-04", "intent": "action", "input": "准备一份张女士预约改期方案，等我确认", "expected": { "domains": ["front_desk"], "entities": ["customer", "reservation"], "answerShape": "action_preview", "requiresConfirmation": true } },
+    { "id": "action-05", "intent": "action", "input": "将张女士下一次预约挪到周五三点，先不要执行", "expected": { "domains": ["front_desk"], "entities": ["customer", "reservation"], "answerShape": "action_preview", "requiresConfirmation": true } },
+
+    { "id": "workflow-01", "intent": "workflow", "input": "找出明天下午空档、筛合适客户、写提醒并生成触达预览", "expected": { "domains": ["front_desk", "marketing_growth"], "answerShape": "diagnosis" } },
+    { "id": "workflow-02", "intent": "workflow", "input": "把明日空闲时段和可召回客户配对，再准备邀约", "expected": { "domains": ["front_desk", "marketing_growth"], "answerShape": "diagnosis" } },
+    { "id": "workflow-03", "intent": "workflow", "input": "先看预约资源，再选客户，最后给我触达草稿", "expected": { "domains": ["front_desk", "marketing_growth"], "answerShape": "diagnosis" } },
+    { "id": "workflow-04", "intent": "workflow", "input": "规划一个补齐明天下午空档的完整流程", "expected": { "domains": ["front_desk", "marketing_growth"], "answerShape": "diagnosis" } },
+    { "id": "workflow-05", "intent": "workflow", "input": "组合预约清单、客户筛选和提醒文案，生成待确认方案", "expected": { "domains": ["front_desk", "marketing_growth"], "answerShape": "diagnosis" } },
+
+    { "id": "clarify-01", "intent": "clarify", "input": "帮我看看这个", "expected": { "answerShape": "clarification" } },
+    { "id": "clarify-02", "intent": "clarify", "input": "那个情况怎么样", "expected": { "answerShape": "clarification" } },
+    { "id": "clarify-03", "intent": "clarify", "input": "给我处理一下", "expected": { "answerShape": "clarification" } },
+    { "id": "clarify-04", "intent": "clarify", "input": "这个数据有问题吗", "expected": { "answerShape": "clarification" } },
+    { "id": "clarify-05", "intent": "clarify", "input": "按之前那个做", "expected": { "answerShape": "clarification" } }
+  ]
+}

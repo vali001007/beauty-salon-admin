@@ -1,0 +1,117 @@
+{
+  "key": "beautician_customer_card_progress",
+  "version": 1,
+  "sourceFingerprint": "a5fa18841b1e4d510fc42e4ce7e7901fa8174d8ad0e69196603eea0be1ba55cf",
+  "name": "美容师预约客户卡项进度",
+  "description": "仅基于当前登录美容师的预约客户和有效 CustomerCard，查询卡项总次数、已用次数、剩余次数和到期日。没有统一续卡阈值或项目推荐规则时只展示事实，不自动判定必须续卡。",
+  "domains": [
+    "customer"
+  ],
+  "intents": [
+    "query",
+    "recommendation"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "comparisonTarget": {
+        "type": "object"
+      },
+      "dimensions": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "entities": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "filters": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "limit": {
+        "type": "number"
+      },
+      "metrics": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "objective": {
+        "type": "string"
+      },
+      "orderBy": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "time": {
+        "type": "object"
+      }
+    },
+    "required": [
+      "dimensions",
+      "entities",
+      "filters",
+      "metrics",
+      "objective",
+      "orderBy"
+    ],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object"
+  },
+  "requiredPermissions": [
+    "core:brain:beautician-view",
+    "core:brain:use",
+    "core:store:reservations"
+  ],
+  "allowedRoles": [
+    "beautician"
+  ],
+  "readOnly": true,
+  "sideEffect": false,
+  "riskLevel": "low",
+  "requiresConfirmation": false,
+  "idempotency": "not_applicable",
+  "timeoutMs": 10000,
+  "grounding": "domain_service",
+  "examples": [
+    "今天有没有需要我帮客人续卡或者推荐项目的",
+    "她的疗程做了几次了，还有几次",
+    "下一个客人的疗程做到哪一步了"
+  ],
+  "negativeExamples": [
+    "查看非本人预约客户的卡项",
+    "修改卡项剩余次数",
+    "直接替客户续卡"
+  ],
+  "synonyms": [
+    "卡项到期",
+    "客户疗程进度",
+    "下一个客户剩余次数",
+    "预约客户卡项余次"
+  ],
+  "successSchema": {
+    "type": "object"
+  },
+  "definitionRefs": [
+    {
+      "definitionId": 43,
+      "versionId": 43,
+      "definitionKey": "entity.customer",
+      "version": 1,
+      "definitionFingerprint": "e2a455e1bb6fca496a965db988e5547f4bee98a5e43f4c0daf9a04777a0e908e",
+      "sourceFingerprint": "528c308346ae2b37db26eae2c35397fd02d981182ceb30d2378fb588e294ce04"
+    }
+  ]
+}

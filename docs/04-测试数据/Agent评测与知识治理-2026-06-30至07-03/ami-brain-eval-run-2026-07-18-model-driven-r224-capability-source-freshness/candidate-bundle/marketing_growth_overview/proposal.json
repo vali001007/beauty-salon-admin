@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "policy": "published_registry_gate",
+  "productionReady": true,
+  "proposalStatus": "ready",
+  "capabilityKey": "marketing_growth_overview",
+  "sourceFingerprint": "ff93f37217a7651dc00763bad5f8b0218242a205dd3c97ccf9b861c8a0e3e3f0",
+  "proposalFingerprint": "7a60d66b95637fc48611a491a365dc00467f3515c6efb989029adef1b69bf3d1",
+  "bindingFingerprint": "2be9e6e463bc1eed21ebebbebe0d0f29d13a11f2d9971488e2c09f70fcab5405",
+  "executorBinding": {
+    "schemaVersion": 1,
+    "capabilityKey": "marketing_growth_overview",
+    "sourceFingerprint": "ff93f37217a7651dc00763bad5f8b0218242a205dd3c97ccf9b861c8a0e3e3f0",
+    "target": {
+      "kind": "service",
+      "className": "BrainDomainServiceCapabilityExecutor",
+      "methodName": "marketingGrowthOverview",
+      "sourcePath": "packages/server-v2/src/brain/capability/executors/brain-domain-service-capability.executor.ts",
+      "exportedClass": true,
+      "methodAccess": "public",
+      "parameterCount": 2,
+      "parameterTypes": [
+        "BrainCapabilityToolArgs",
+        "BrainCapabilityExecutionInput"
+      ],
+      "returnType": "unknown"
+    },
+    "generatedSourcePath": "packages/server-v2/src/brain/capability/generated/marketing_growth_overview/binding.ts",
+    "targetImportPath": "../../executors/brain-domain-service-capability.executor.js",
+    "requiredPermissions": [
+      "core:brain:use",
+      "core:customer:view",
+      "core:marketing:analytics"
+    ],
+    "storeScope": "required",
+    "requiresConfirmation": false,
+    "idempotency": "not_applicable",
+    "readOnly": true,
+    "sideEffect": false,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "comparisonTarget": {
+          "type": "object"
+        },
+        "dimensions": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "entities": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "filters": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "limit": {
+          "type": "number"
+        },
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "objective": {
+          "type": "string"
+        },
+        "orderBy": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "time": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "dimensions",
+        "entities",
+        "filters",
+        "metrics",
+        "objective",
+        "orderBy"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "bindingFingerprint": "2be9e6e463bc1eed21ebebbebe0d0f29d13a11f2d9971488e2c09f70fcab5405"
+  },
+  "businessDefinitions": [
+    {
+      "definitionId": 69,
+      "versionId": 94,
+      "definitionKey": "dimension.customerId",
+      "version": 1,
+      "definitionFingerprint": "0bac6349d738a5e74a79d7c27a98ed72bf5e6dec319d7bffda34271e29008b15",
+      "sourceFingerprint": "154b940352b28b0827428928ffc5952e50fc09c833a3a444d479212ab04ad9f8"
+    },
+    {
+      "definitionId": 70,
+      "versionId": 95,
+      "definitionKey": "dimension.customerName",
+      "version": 1,
+      "definitionFingerprint": "16a020e1a509f25f3deb238be8a9c4f8a590659f8981783ed9257d9efa07e380",
+      "sourceFingerprint": "60b2f2c792c620d0da511234bb53d533b180c1870b6e2b5b486b8b57a32cb09d"
+    },
+    {
+      "definitionId": 75,
+      "versionId": 107,
+      "definitionKey": "dimension.marketingChannel",
+      "version": 1,
+      "definitionFingerprint": "3056c3473273a35b900f7dfd144dc01de8c7838c8cfab6cd8b4aa3637b61f795",
+      "sourceFingerprint": "59722b357f67b02923048ff37bb182313c05e36bd5324c10a622f573419a6f0a"
+    },
+    {
+      "definitionId": 65,
+      "versionId": 76,
+      "definitionKey": "dimension.projectName",
+      "version": 2,
+      "definitionFingerprint": "9fbfe8e74a8be704e8f8783e20469d6f32ff0403029a860fe2de5fc4c65941e8",
+      "sourceFingerprint": "f7a39099ba14aa097993505768b46e17684731b66d5a13779eecdef7899aecfd"
+    },
+    {
+      "definitionId": 43,
+      "versionId": 43,
+      "definitionKey": "entity.customer",
+      "version": 1,
+      "definitionFingerprint": "e2a455e1bb6fca496a965db988e5547f4bee98a5e43f4c0daf9a04777a0e908e",
+      "sourceFingerprint": "528c308346ae2b37db26eae2c35397fd02d981182ceb30d2378fb588e294ce04"
+    },
+    {
+      "definitionId": 48,
+      "versionId": 48,
+      "definitionKey": "entity.project",
+      "version": 1,
+      "definitionFingerprint": "172e39f445a03511fe7d3505d45373b62726a3136265c01800f415a4cdd53e95",
+      "sourceFingerprint": "85490c6c5cc1803b078f7d264cccd7f021ed7759412f83025c771f8c5240bf4f"
+    },
+    {
+      "definitionId": 68,
+      "versionId": 109,
+      "definitionKey": "metric.follow_up_priority_score",
+      "version": 3,
+      "definitionFingerprint": "8d76f4b89efb029acabad027a5850011ad5144df82fe4152632e97e5b06dd375",
+      "sourceFingerprint": "a6c64413476e2798b7c00804429f74c48e237de8f4429d6af6397c9b96785901"
+    }
+  ],
+  "artifacts": {
+    "manifest": "manifest.json",
+    "binding": "binding.ts",
+    "contractTest": "contract.spec.ts",
+    "gateReport": "gate-report.json"
+  }
+}

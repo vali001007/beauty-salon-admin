@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -23,10 +23,10 @@ export interface CustomerMarketingProfile {
 export class CustomerMarketingProfileService {
   constructor(private prisma: PrismaService) {}
 
-  async buildProfiles(storeId?: number, customerIds?: number[]): Promise<CustomerMarketingProfile[]> {
+  async buildProfiles(storeId: number, customerIds?: number[]): Promise<CustomerMarketingProfile[]> {
+    if (!Number.isInteger(storeId) || storeId <= 0) throw new BadRequestException('storeId is required');
     const ids = this.normalizeIds(customerIds);
-    const where: any = { deletedAt: null };
-    if (storeId) where.storeId = storeId;
+    const where: any = { storeId, deletedAt: null };
     if (ids.length) where.id = { in: ids };
 
     const customers = await this.prisma.customer.findMany({
@@ -209,12 +209,12 @@ export class CustomerMarketingProfileService {
     };
   }
 
-  private async latestPredictionSnapshots(customerIds: number[], storeId?: number) {
+  private async latestPredictionSnapshots(customerIds: number[], storeId: number) {
     const result = new Map<number, any>();
     const delegate = (this.prisma as any).customerPredictionSnapshot;
     if (!delegate?.findMany || !customerIds.length) return result;
     const snapshots = await delegate.findMany({
-      where: { customerId: { in: customerIds }, ...(storeId ? { storeId } : {}) },
+      where: { customerId: { in: customerIds }, storeId },
       orderBy: { createdAt: 'desc' },
       take: customerIds.length * 2,
     });
@@ -233,21 +233,21 @@ export class CustomerMarketingProfileService {
     }));
   }
 
-  private async recentReservations(customerIds: number[], storeId?: number) {
+  private async recentReservations(customerIds: number[], storeId: number) {
     const since = new Date(Date.now() - 30 * DAY_MS);
     const until = new Date(Date.now() + 30 * DAY_MS);
     return this.groupByCustomer(await this.safeFindMany('reservation', {
       where: {
         customerId: { in: customerIds },
         date: { gte: since, lte: until },
-        ...(storeId ? { storeId } : {}),
+        storeId,
       },
       take: Math.max(1, customerIds.length * 5),
       orderBy: { date: 'desc' },
     }));
   }
 
-  private async recentOrderItems(customerIds: number[], storeId?: number) {
+  private async recentOrderItems(customerIds: number[], storeId: number) {
     const since = new Date(Date.now() - 180 * DAY_MS);
     const items = await this.safeFindMany('orderItem', {
       where: {
@@ -255,7 +255,7 @@ export class CustomerMarketingProfileService {
           customerId: { in: customerIds },
           createdAt: { gte: since },
           status: { notIn: ['cancelled', 'canceled', 'refunded', '已取消'] },
-          ...(storeId ? { storeId } : {}),
+          storeId,
         },
       },
       include: { order: { select: { customerId: true, createdAt: true } } },
@@ -271,19 +271,19 @@ export class CustomerMarketingProfileService {
     return grouped;
   }
 
-  private async recentBehaviorEvents(customerIds: number[], storeId?: number) {
+  private async recentBehaviorEvents(customerIds: number[], storeId: number) {
     const since = new Date(Date.now() - 30 * DAY_MS);
     return this.groupByCustomer(await this.safeFindMany('customerBehaviorEvent', {
-      where: { customerId: { in: customerIds }, occurredAt: { gte: since }, ...(storeId ? { storeId } : {}) },
+      where: { customerId: { in: customerIds }, occurredAt: { gte: since }, storeId },
       take: Math.max(1, customerIds.length * 20),
       orderBy: { occurredAt: 'desc' },
     }));
   }
 
-  private async recentAppEvents(customerIds: number[], storeId?: number) {
+  private async recentAppEvents(customerIds: number[], storeId: number) {
     const since = new Date(Date.now() - 30 * DAY_MS);
     return this.groupByCustomer(await this.safeFindMany('customerAppEvent', {
-      where: { customerId: { in: customerIds }, occurredAt: { gte: since }, ...(storeId ? { storeId } : {}) },
+      where: { customerId: { in: customerIds }, occurredAt: { gte: since }, storeId },
       take: Math.max(1, customerIds.length * 20),
       orderBy: { occurredAt: 'desc' },
     }));

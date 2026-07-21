@@ -1,0 +1,164 @@
+{
+  "key": "front_desk_operations_overview",
+  "version": 1,
+  "sourceFingerprint": "4f2e5fa0fb9bca564185352a5d4e5422f154b667e3f0b2abb2b49198235e10d2",
+  "name": "前台现场运营概览",
+  "description": "查询当前门店预约现场事实，支持待到店、已到店、待确认、指定客户、指定美容师、指定时点、首个/下一个/最后一个预约、项目分类、预约日期排行、员工忙闲、到店率、爽约率和服务超时。名单题必须返回客户、时间和项目，不用预约总数或通用概览替代。",
+  "domains": [
+    "customer",
+    "project",
+    "reservation"
+  ],
+  "intents": [
+    "diagnosis",
+    "query"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "comparisonTarget": {
+        "type": "object"
+      },
+      "dimensions": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "entities": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "filters": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "limit": {
+        "type": "number"
+      },
+      "metrics": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "objective": {
+        "type": "string"
+      },
+      "orderBy": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "time": {
+        "type": "object"
+      }
+    },
+    "required": [
+      "dimensions",
+      "entities",
+      "filters",
+      "metrics",
+      "objective",
+      "orderBy"
+    ],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object"
+  },
+  "requiredPermissions": [
+    "core:brain:use",
+    "core:store:reservations"
+  ],
+  "allowedRoles": [
+    "receptionist",
+    "store_manager"
+  ],
+  "readOnly": true,
+  "sideEffect": false,
+  "riskLevel": "low",
+  "requiresConfirmation": false,
+  "idempotency": "not_applicable",
+  "timeoutMs": 10000,
+  "grounding": "domain_service",
+  "examples": [
+    "帮我搜一下今天预约了但还没来的客人",
+    "今天前台现场情况怎么样",
+    "今天下午还有几个预约没到",
+    "今天下午最后一个预约是几点，是谁",
+    "今天有几个预约是做面部的，几个是身体的",
+    "今天赵美容师的预约安排",
+    "下午3点那个预约是谁，有什么要注意的",
+    "有没有预约超过两小时没有确认的",
+    "有没有预约了但还没确认的客人",
+    "有哪些服务超时会影响后面的客户",
+    "这个月预约最多的是哪几天"
+  ],
+  "negativeExamples": [
+    "查询其他门店的预约情况",
+    "判断客户是否因为等待时间长而离开",
+    "确认预约通知是否已经送达",
+    "预测哪些客户一定会爽约",
+    "直接替我修改客户预约"
+  ],
+  "synonyms": [
+    "待到店客户",
+    "待确认预约",
+    "到店率",
+    "服务超时",
+    "接待能力",
+    "前台概览",
+    "下一个预约",
+    "现场运营",
+    "已到店客户",
+    "预约到店情况",
+    "预约分类",
+    "预约日期排行",
+    "预约爽约率",
+    "员工忙闲",
+    "最后一个预约"
+  ],
+  "successSchema": {
+    "type": "object"
+  },
+  "definitionRefs": [
+    {
+      "definitionId": 70,
+      "versionId": 95,
+      "definitionKey": "dimension.customerName",
+      "version": 1,
+      "definitionFingerprint": "16a020e1a509f25f3deb238be8a9c4f8a590659f8981783ed9257d9efa07e380",
+      "sourceFingerprint": "60b2f2c792c620d0da511234bb53d533b180c1870b6e2b5b486b8b57a32cb09d"
+    },
+    {
+      "definitionId": 65,
+      "versionId": 76,
+      "definitionKey": "dimension.projectName",
+      "version": 2,
+      "definitionFingerprint": "9fbfe8e74a8be704e8f8783e20469d6f32ff0403029a860fe2de5fc4c65941e8",
+      "sourceFingerprint": "f7a39099ba14aa097993505768b46e17684731b66d5a13779eecdef7899aecfd"
+    },
+    {
+      "definitionId": 43,
+      "versionId": 43,
+      "definitionKey": "entity.customer",
+      "version": 1,
+      "definitionFingerprint": "e2a455e1bb6fca496a965db988e5547f4bee98a5e43f4c0daf9a04777a0e908e",
+      "sourceFingerprint": "528c308346ae2b37db26eae2c35397fd02d981182ceb30d2378fb588e294ce04"
+    },
+    {
+      "definitionId": 49,
+      "versionId": 49,
+      "definitionKey": "entity.reservation",
+      "version": 1,
+      "definitionFingerprint": "b32f57f9bbc3f74914569e6045d91828ddac361b929b01dce233dfa1f2b3638e",
+      "sourceFingerprint": "546ca6346cdfee365eda191956a34fb67310885e0e540dfe34200965b95c2991"
+    }
+  ]
+}

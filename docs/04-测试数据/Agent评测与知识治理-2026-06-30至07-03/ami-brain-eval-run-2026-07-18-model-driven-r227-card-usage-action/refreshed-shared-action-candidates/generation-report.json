@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-18T07:40:53.780Z",
+  "policy": "published_registry_gate",
+  "productionReady": true,
+  "ready": 4,
+  "syntheticContracts": 0,
+  "blocked": 0,
+  "gateReports": [
+    {
+      "capabilityKey": "customer_follow_up_draft",
+      "proposalFingerprint": "013413ad0fdbf96847fdd970778d0844d77332d52b09d9b6f2375986279bad84",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    },
+    {
+      "capabilityKey": "gap_fill_touch_preview",
+      "proposalFingerprint": "35e13751b1d970acc1e4765947b9f15b2d6ac3250b9eb0d2baedb7103dd05de7",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    },
+    {
+      "capabilityKey": "marketing_touch_draft",
+      "proposalFingerprint": "aab3dcd92fafb6906cdd15c8e45945ff5483063ddb1c8fb1e53b95dbaf490cb9",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    },
+    {
+      "capabilityKey": "reservation_action_preview",
+      "proposalFingerprint": "fa2006ac0b778423ea4a6f2dd8b2ff7c8073408f8983c6db301a8e6e5b95a95b",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    }
+  ],
+  "blockedItems": [],
+  "branchProposals": []
+}

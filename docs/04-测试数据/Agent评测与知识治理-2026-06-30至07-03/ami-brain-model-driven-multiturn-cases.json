@@ -1,0 +1,169 @@
+{
+  "schemaVersion": "2.0",
+  "description": "Ami Brain 真实 BrainChat 多轮门禁。每个 case 共用一个会话，逐轮执行并评分。",
+  "cases": [
+    {
+      "id": "fill-comparison-period",
+      "persona": "finance",
+      "turns": [
+        {
+          "id": "ask",
+          "intent": "comparison",
+          "input": "把本月实收跟另一个周期比较",
+          "expected": {
+            "domains": ["finance_risk"],
+            "metrics": ["paid_amount"],
+            "answerShape": "clarification",
+            "brainStatus": "completed",
+            "missingSlots": ["comparisonTarget"]
+          }
+        },
+        {
+          "id": "fill-period",
+          "intent": "comparison",
+          "input": "上个月",
+          "expected": {
+            "domains": ["finance_risk"],
+            "metrics": ["paid_amount"],
+            "capabilityKeys": ["finance_payment_breakdown"],
+            "answerShape": "comparison",
+            "brainStatus": "completed",
+            "forbiddenMissingSlots": ["comparisonTarget"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "fill-customer-reference",
+      "persona": "reception",
+      "turns": [
+        {
+          "id": "ask",
+          "intent": "query",
+          "input": "查一下这个客户最近消费和卡项情况",
+          "expected": {
+            "answerShape": "clarification",
+            "brainStatus": "completed"
+          }
+        },
+        {
+          "id": "fill-customer",
+          "intent": "query",
+          "input": "客户叫胡静怡",
+          "expected": {
+            "answerShape": "clarification",
+            "brainStatus": "completed",
+            "missingSlots": ["entity"]
+          }
+        },
+        {
+          "id": "disambiguate-customer",
+          "intent": "query",
+          "input": "手机号后四位是7636",
+          "expected": {
+            "domains": ["customer_service"],
+            "entities": ["customer"],
+            "capabilityKeys": ["customer_facts"],
+            "brainStatus": "completed"
+          }
+        }
+      ]
+    },
+    {
+      "id": "fill-action-target",
+      "persona": "reception",
+      "turns": [
+        {
+          "id": "ask",
+          "intent": "action",
+          "input": "生成一个客户跟进预览，先不要执行",
+          "expected": {
+            "answerShape": "clarification",
+            "brainStatus": "completed"
+          }
+        },
+        {
+          "id": "fill-target",
+          "intent": "action",
+          "input": "目标客户是胡静怡，提醒她回来做护理",
+          "expected": {
+            "answerShape": "clarification",
+            "brainStatus": "completed",
+            "missingSlots": ["entity"]
+          }
+        },
+        {
+          "id": "disambiguate-target",
+          "intent": "action",
+          "input": "手机号后四位是7636，继续生成预览",
+          "expected": {
+            "domains": ["customer_service"],
+            "entities": ["customer"],
+            "capabilityKeys": ["customer_follow_up_draft"],
+            "answerShape": "action_preview",
+            "requiresConfirmation": true,
+            "brainStatus": "completed"
+          }
+        }
+      ]
+    },
+    {
+      "id": "correct-metric-objective",
+      "persona": "finance",
+      "turns": [
+        {
+          "id": "ask-paid",
+          "intent": "query",
+          "input": "本月实收是多少",
+          "expected": {
+            "domains": ["finance_risk"],
+            "metrics": ["paid_amount"],
+            "answerShape": "scalar",
+            "brainStatus": "completed"
+          }
+        },
+        {
+          "id": "correct-refund",
+          "intent": "query",
+          "input": "不是实收，改看本月退款金额",
+          "expected": {
+            "domains": ["finance_risk"],
+            "metrics": ["refund_amount"],
+            "answerShape": "scalar",
+            "brainStatus": "completed"
+          }
+        }
+      ]
+    },
+    {
+      "id": "abandon-clarification-objective",
+      "persona": "manager",
+      "turns": [
+        {
+          "id": "ask-comparison",
+          "intent": "comparison",
+          "input": "把本月实收跟另一个周期比较",
+          "expected": {
+            "answerShape": "clarification",
+            "brainStatus": "completed",
+            "missingSlots": ["comparisonTarget"]
+          }
+        },
+        {
+          "id": "abandon-and-rank",
+          "intent": "ranking",
+          "input": "算了，改看本月商品销售排行",
+          "expected": {
+            "domains": ["inventory_procurement"],
+            "entities": ["product"],
+            "metrics": ["product_sales_quantity"],
+            "capabilityKeys": ["product_sales_ranking"],
+            "answerShape": "ranking",
+            "brainStatus": "completed",
+            "forbiddenMissingSlots": ["comparisonTarget"]
+          }
+        }
+      ]
+    }
+  ]
+}

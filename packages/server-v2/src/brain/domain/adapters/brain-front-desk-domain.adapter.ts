@@ -1,4 +1,4 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { ForbiddenException, Injectable, Optional } from '@nestjs/common';
 import { BrainRiskLevel, Prisma } from '@prisma/client';
 import type { BrainDateRange } from '../../cognition/brain-time-range-parser.service.js';
 import { BrainTimeRangeParserService } from '../../cognition/brain-time-range-parser.service.js';
@@ -28,6 +28,9 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
   }
 
   async execute(input: BrainDomainAdapterExecution): Promise<BrainDomainAnswer | undefined> {
+    if (input.plan.capabilityKey === 'reservation_action_preview' || input.plan.capabilityKey === 'card_usage_action_preview') {
+      return this.previewAction(input);
+    }
     const message = input.dto.message;
     if (/(超时服务|超时.*(?:预约|下一个)|影响.*下一个预约)/.test(message)) {
       const range = this.resolveRange(message);
@@ -155,7 +158,7 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
         metadata: { adapterKey: this.key },
       };
     }
-    if (input.plan.intent === 'action' || /(改约|改期|帮我约|预约到|安排.*预约|取消.*预约|收银|结账|核销)/.test(message)) {
+    if (input.plan.intent === 'action' || this.isActionRequest(message)) {
       return this.previewAction(input);
     }
     if (this.isCustomerLookup(message)) {
@@ -267,11 +270,13 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
 
   private async previewAction(input: BrainDomainAdapterExecution): Promise<BrainDomainAnswer> {
     const message = input.dto.message;
-    if (/核销|次卡|收银|结账/.test(message)) {
-      const operation = /核销|次卡/.test(message) ? '次卡核销' : '收银结账';
+    if (/核销|次卡|扣次|划扣/.test(message)) {
+      return this.previewCardUsage(input);
+    }
+    if (/收银|结账/.test(message)) {
       return {
         status: 'completed',
-        answer: `${operation}尚未开放 Ami Brain 真实执行。请在现有${operation}页面选择客户和业务明细；当前不会生成不可执行的确认按钮。`,
+        answer: '收银结账尚未开放 Ami Brain 真实执行。请在现有收银页面选择客户、订单和支付明细；当前不会生成不可执行的确认按钮。',
         citations: [],
         suggestedActions: [],
         grounding: 'none',
@@ -333,6 +338,7 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
       userId: input.context.userId,
       storeId: input.context.storeId,
       skillKey: preview.actionType,
+      planId: input.plan.executionPlanId,
       riskLevel: preview.riskLevel as BrainRiskLevel,
       preview: preview as unknown as Prisma.InputJsonValue,
       payload: {
@@ -348,6 +354,71 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
       citations: [{ sourceType: 'skill', sourceId: 'front_desk_action_preview', label: '前台动作预览' }],
       suggestedActions: [persistedPreview],
       grounding: 'preview_action' as const,
+      metadata: { adapterKey: this.key },
+    };
+  }
+
+  private async previewCardUsage(input: BrainDomainAdapterExecution): Promise<BrainDomainAnswer> {
+    if (!this.actionTargets) return this.actionClarification('动作目标解析服务未就绪，请稍后重试。');
+    const permission = 'core:order:card-usage';
+    if (
+      input.context.deniedPermissions.includes(permission) ||
+      (!input.context.permissions.includes('*') && !input.context.permissions.includes(permission))
+    ) {
+      throw new ForbiddenException(`missing_permission:${permission}`);
+    }
+    const message = input.dto.message;
+    const times = this.actionTargets.resolveUsageTimes(message);
+    if (!times) return this.actionClarification('请明确本次核销次数，例如“核销 1 次”；Ami Brain 不会默认扣次。');
+    const [target, beautician] = await Promise.all([
+      this.actionTargets.resolveCardUsageTarget({ storeId: input.context.storeId, message }),
+      this.actionTargets.resolveBeautician({ storeId: input.context.storeId, message }),
+    ]);
+    if (!target.ok) return this.actionClarification(target.message);
+    if (!beautician.ok) return this.actionClarification(beautician.message);
+    if (times > target.value.remainingTimes || times > target.value.projectRemainingTimes) {
+      return this.actionClarification(
+        `本次核销 ${times} 次超过可用次数：整卡剩余 ${target.value.remainingTimes} 次，${target.value.projectName}剩余 ${target.value.projectRemainingTimes} 次。`,
+      );
+    }
+
+    const summary = `次卡核销：${target.value.customerName}，${target.value.cardName} / ${target.value.projectName}，核销 ${times} 次，服务人员 ${beautician.value.name}；核销后整卡预计剩余 ${target.value.remainingTimes - times} 次。`;
+    const preview = {
+      actionId: 'preview_verify_card_usage',
+      actionType: 'verify_card_usage',
+      riskLevel: 'critical' as const,
+      requiresConfirmation: true,
+      summary,
+      impactItems: [
+        { objectType: 'customer_card', objectId: String(target.value.customerCardId), label: target.value.cardName },
+        { objectType: 'customer', objectId: String(target.value.customerId), label: target.value.customerName },
+        { objectType: 'beautician', objectId: String(beautician.value.id), label: beautician.value.name },
+      ],
+    };
+    const confirmation = await this.actionConfirmationService.createPreview({
+      runId: input.runId,
+      userId: input.context.userId,
+      storeId: input.context.storeId,
+      skillKey: preview.actionType,
+      planId: input.plan.executionPlanId,
+      riskLevel: preview.riskLevel,
+      preview: preview as unknown as Prisma.InputJsonValue,
+      payload: {
+        customerCardId: target.value.customerCardId,
+        customerId: target.value.customerId,
+        projectId: target.value.projectId,
+        projectName: target.value.projectName,
+        times,
+        beauticianId: beautician.value.id,
+        remark: `Ami Brain 次卡核销：${message}`,
+      } as Prisma.InputJsonValue,
+    });
+    return {
+      status: 'completed',
+      answer: summary,
+      citations: [{ sourceType: 'skill', sourceId: 'front_desk_card_usage_action_preview', label: '次卡核销动作预览' }],
+      suggestedActions: [{ ...preview, actionId: confirmation.actionId }],
+      grounding: 'preview_action',
       metadata: { adapterKey: this.key },
     };
   }
@@ -379,6 +450,11 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
 
   private isServiceAdvice(message: string) {
     return /(洗手间|怎么回应|怎么处理|怎么操作|开发票|发票|收据|投诉|礼品卡|解释一下|效果不好|新项目|等待时间|补偿|安抚|新客人.*介绍|新客.*介绍|停车指引|门店位置)/.test(message);
+  }
+
+  private isActionRequest(message: string) {
+    if (/(改约|改期|帮我约|预约到|安排.*预约|取消.*预约|收银|结账)/.test(message)) return true;
+    return /(?:给|为|帮|把)[^。！？]{0,40}(?:核销|扣次|划扣)|(?:核销|扣次|划扣)[^。！？]{0,20}(?:[1-9]\d*|[一二两三四五六七八九十])\s*次/.test(message);
   }
 
   private isCustomerLookup(message: string) {

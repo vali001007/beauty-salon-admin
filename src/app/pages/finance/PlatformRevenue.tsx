@@ -93,10 +93,16 @@ export function PlatformRevenue() {
         />
       </div>
 
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-5">
         <div className="rounded-lg border border-border bg-card p-4">
           <div className="text-sm text-muted-foreground">总收入</div>
           <div className="mt-2 text-2xl font-semibold">{money(summary?.totalRevenue)}</div>
+          <div className="mt-1 text-xs text-emerald-700">仅已确认及后续状态</div>
+        </div>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <div className="text-sm text-amber-800">预计收入</div>
+          <div className="mt-2 text-2xl font-semibold text-amber-900">{money(summary?.estimatedRevenue)}</div>
+          <div className="mt-1 text-xs text-amber-700">草稿 Ami 账单，不计入总收入</div>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
           <div className="text-sm text-muted-foreground">环比</div>
@@ -107,8 +113,8 @@ export function PlatformRevenue() {
           <div className="mt-2 text-2xl font-semibold">{money(summary?.arpu)}</div>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
-          <div className="text-sm text-muted-foreground">LTV 估算</div>
-          <div className="mt-2 text-2xl font-semibold">{money(summary?.ltvEstimate)}</div>
+          <div className="text-sm text-muted-foreground">年化收入估算</div>
+          <div className="mt-2 text-2xl font-semibold">{money(summary?.annualizedRevenueEstimate ?? summary?.ltvEstimate)}</div>
         </div>
       </div>
 

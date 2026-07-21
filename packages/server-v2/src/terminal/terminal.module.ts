@@ -28,6 +28,8 @@ import {
   TerminalContextController,
 } from './terminal.controller.js';
 import { DeviceAuthGuard } from './guards/device-auth.guard.js';
+import { MarketingAttributionModule } from '../marketing/attribution/marketing-attribution.module.js';
+import { ReservationsModule } from '../reservations/reservations.module.js';
 
 @Module({
   imports: [
@@ -36,6 +38,8 @@ import { DeviceAuthGuard } from './guards/device-auth.guard.js';
     CustomersModule,
     OrdersModule,
     CardsModule,
+    MarketingAttributionModule,
+    ReservationsModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

@@ -481,8 +481,14 @@ export class TerminalOrderController {
     @CurrentDevice('id') deviceId: number,
     @CurrentDevice('userId') userId: number | undefined,
     @Body() dto: CreateTerminalFollowUpTaskDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
-    return this.terminalService.createFollowUpTask(storeId, deviceId, dto, userId);
+    return this.terminalService.createFollowUpTask(
+      storeId,
+      deviceId,
+      { ...dto, idempotencyKey: idempotencyKey?.trim() || dto.idempotencyKey },
+      userId,
+    );
   }
 
   @Get('follow-up-tasks')
@@ -586,8 +592,15 @@ export class TerminalReservationController {
 
   @Post()
   @ApiOperation({ summary: '创建预约' })
-  create(@CurrentDevice('storeId') storeId: number, @Body() dto: CreateReservationDto) {
-    return this.terminalService.createReservation(storeId, dto);
+  create(
+    @CurrentDevice('storeId') storeId: number,
+    @Body() dto: CreateReservationDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.terminalService.createReservation(storeId, {
+      ...dto,
+      idempotencyKey: idempotencyKey?.trim() || dto.idempotencyKey,
+    });
   }
 
   @Put(':id')

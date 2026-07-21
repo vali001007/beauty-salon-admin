@@ -18,8 +18,22 @@ describe('Brain MVP seed plan', () => {
       'inventory',
       'customer_service',
     ]);
-    expect(plan.inspectionRules.length).toBeGreaterThanOrEqual(6);
+    expect(plan.inspectionRules.length).toBeGreaterThanOrEqual(10);
     expect(plan.evalCases).toHaveLength(40);
+  });
+
+  it('includes data-quality rules that require review and never auto-repair', () => {
+    const plan = buildBrainMvpSeedPlan();
+    const dataQualityRules = plan.inspectionRules.filter((rule) => rule.condition.factType === 'data_quality');
+
+    expect(dataQualityRules.map((rule) => rule.ruleKey)).toEqual([
+      'reception_in_store_state_stale',
+      'service_task_state_inconsistent',
+      'inventory_safety_stock_invalid',
+      'procurement_evidence_missing',
+    ]);
+    expect(dataQualityRules.every((rule) => rule.suggestionTpl.autoRepair === false)).toBe(true);
+    expect(dataQualityRules.every((rule) => rule.suggestionTpl.requiresUserReview === true)).toBe(true);
   });
 
   it('includes all skill families required by the PRD', () => {

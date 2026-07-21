@@ -1,0 +1,1321 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-18T11:23:26.237Z",
+  "policy": "synthetic_contract_only",
+  "productionReady": false,
+  "scanSummary": {
+    "total": 2,
+    "draft": 2,
+    "blocked": 0,
+    "explicit": 2
+  },
+  "result": {
+    "proposals": [
+      {
+        "status": "synthetic_contract_only",
+        "capabilityKey": "customer_follow_up_draft",
+        "sourceFingerprint": "4adfc82f58a84c38d9c646a512f9107db9286f17ed18af63bfcfab231757f241",
+        "proposalFingerprint": "652b76119e450d704b66e8b85cf15944853440a77d9f3b6d35cd4d70e255088a",
+        "businessDefinitions": [
+          {
+            "definitionId": 1,
+            "versionId": 10001,
+            "definitionKey": "entity.customer",
+            "version": 1,
+            "definitionFingerprint": "3ed07da10b395b6363032c8afbaa96f98691e8c6e02a654e234d3e1aa5977bcc",
+            "sourceFingerprint": "7060e378d59a17556679b49f8c425deac02681d3df8193a7138ddb4981c3167d"
+          }
+        ],
+        "manifest": {
+          "key": "customer_follow_up_draft",
+          "version": 1,
+          "sourceFingerprint": "4adfc82f58a84c38d9c646a512f9107db9286f17ed18af63bfcfab231757f241",
+          "name": "客户跟进任务预览",
+          "description": "解析当前门店内的唯一客户并生成待确认的客户跟进任务预览；确认后通过统一跟进任务事实的强幂等合同创建并支持安全重放。",
+          "domains": [
+            "fixture"
+          ],
+          "intents": [
+            "action"
+          ],
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "comparisonTarget": {
+                "type": "object"
+              },
+              "dimensions": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "entities": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "filters": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "limit": {
+                "type": "number"
+              },
+              "metrics": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "objective": {
+                "type": "string"
+              },
+              "orderBy": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "time": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "dimensions",
+              "entities",
+              "filters",
+              "metrics",
+              "objective",
+              "orderBy"
+            ],
+            "additionalProperties": false
+          },
+          "outputSchema": {
+            "type": "object"
+          },
+          "requiredPermissions": [
+            "core:brain:use",
+            "core:customer:view"
+          ],
+          "allowedRoles": [
+            "customer_service",
+            "receptionist",
+            "store_manager"
+          ],
+          "readOnly": false,
+          "sideEffect": true,
+          "riskLevel": "high",
+          "requiresConfirmation": true,
+          "idempotency": "required",
+          "timeoutMs": 10000,
+          "grounding": "preview_action",
+          "examples": [
+            "给指定客户准备一个待确认跟进任务",
+            "生成客户回访任务预览"
+          ],
+          "negativeExamples": [
+            "操作其他门店客户",
+            "直接创建客户任务不要确认",
+            "只写一段通用回访文案"
+          ],
+          "synonyms": [
+            "跟进任务方案",
+            "客户跟进预览",
+            "客户回访任务草稿"
+          ],
+          "successSchema": {
+            "type": "object"
+          },
+          "definitionRefs": [
+            {
+              "definitionId": 1,
+              "versionId": 10001,
+              "definitionKey": "entity.customer",
+              "version": 1,
+              "definitionFingerprint": "3ed07da10b395b6363032c8afbaa96f98691e8c6e02a654e234d3e1aa5977bcc",
+              "sourceFingerprint": "7060e378d59a17556679b49f8c425deac02681d3df8193a7138ddb4981c3167d"
+            }
+          ]
+        },
+        "languageCandidates": {
+          "description": "解析当前门店内的唯一客户并生成待确认的客户跟进任务预览；确认后通过统一跟进任务事实的强幂等合同创建并支持安全重放。",
+          "positiveExamples": [
+            "给指定客户准备一个待确认跟进任务",
+            "生成客户回访任务预览"
+          ],
+          "negativeExamples": [
+            "操作其他门店客户",
+            "直接创建客户任务不要确认",
+            "只写一段通用回访文案"
+          ],
+          "synonyms": [
+            "跟进任务方案",
+            "客户跟进预览",
+            "客户回访任务草稿"
+          ],
+          "successSchema": {
+            "type": "object"
+          },
+          "riskExplanation": "Deterministic fixture: read-only proposal with fixed scanner evidence."
+        },
+        "executorBinding": {
+          "schemaVersion": 1,
+          "capabilityKey": "customer_follow_up_draft",
+          "sourceFingerprint": "4adfc82f58a84c38d9c646a512f9107db9286f17ed18af63bfcfab231757f241",
+          "target": {
+            "kind": "service",
+            "className": "BrainActionCapabilityExecutor",
+            "methodName": "customerFollowUpDraft",
+            "sourcePath": "packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts",
+            "exportedClass": true,
+            "methodAccess": "public",
+            "parameterCount": 2,
+            "parameterTypes": [
+              "BrainCapabilityToolArgs",
+              "BrainCapabilityExecutionInput"
+            ],
+            "returnType": "unknown"
+          },
+          "generatedSourcePath": "packages/server-v2/src/brain/capability/generated/customer_follow_up_draft/binding.ts",
+          "targetImportPath": "../../executors/brain-action-capability.executor.js",
+          "requiredPermissions": [
+            "core:brain:use",
+            "core:customer:view"
+          ],
+          "storeScope": "required",
+          "requiresConfirmation": true,
+          "idempotency": "required",
+          "readOnly": false,
+          "sideEffect": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "comparisonTarget": {
+                "type": "object"
+              },
+              "dimensions": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "entities": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "filters": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "limit": {
+                "type": "number"
+              },
+              "metrics": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "objective": {
+                "type": "string"
+              },
+              "orderBy": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "time": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "dimensions",
+              "entities",
+              "filters",
+              "metrics",
+              "objective",
+              "orderBy"
+            ],
+            "additionalProperties": false
+          },
+          "outputSchema": {
+            "type": "object"
+          },
+          "bindingFingerprint": "fb46802ff00a5d8670c4d51fee9c6108742ec9007861aedae9771483e58ee0bd"
+        },
+        "bindingSource": "import type { BrainActionCapabilityExecutor } from \"../../executors/brain-action-capability.executor.js\";\nimport { assertGeneratedCapabilityArgs } from '../../brain-generated-capability-binding.js';\n\nexport interface GeneratedCapabilityArgs {\n  readonly [key: string]: unknown;\n  readonly \"comparisonTarget\"?: Record<string, unknown>;\n  readonly \"dimensions\": Array<Record<string, unknown>>;\n  readonly \"entities\": Array<Record<string, unknown>>;\n  readonly \"filters\": Array<Record<string, unknown>>;\n  readonly \"limit\"?: number;\n  readonly \"metrics\": Array<Record<string, unknown>>;\n  readonly \"objective\": string;\n  readonly \"orderBy\": Array<Record<string, unknown>>;\n  readonly \"time\"?: Record<string, unknown>;\n}\n\ntype TargetMethod = Pick<BrainActionCapabilityExecutor, 'customerFollowUpDraft'>['customerFollowUpDraft'];\n\nexport interface GeneratedCapabilityExecutionContextProvider {\n  current(): Parameters<TargetMethod>[1];\n}\n\nexport const GENERATED_CAPABILITY_BINDING = Object.freeze({\n  \"schemaVersion\": 1,\n  \"capabilityKey\": \"customer_follow_up_draft\",\n  \"sourceFingerprint\": \"4adfc82f58a84c38d9c646a512f9107db9286f17ed18af63bfcfab231757f241\",\n  \"target\": {\n    \"kind\": \"service\",\n    \"className\": \"BrainActionCapabilityExecutor\",\n    \"methodName\": \"customerFollowUpDraft\",\n    \"sourcePath\": \"packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts\",\n    \"exportedClass\": true,\n    \"methodAccess\": \"public\",\n    \"parameterCount\": 2,\n    \"parameterTypes\": [\n      \"BrainCapabilityToolArgs\",\n      \"BrainCapabilityExecutionInput\"\n    ],\n    \"returnType\": \"unknown\"\n  },\n  \"generatedSourcePath\": \"packages/server-v2/src/brain/capability/generated/customer_follow_up_draft/binding.ts\",\n  \"targetImportPath\": \"../../executors/brain-action-capability.executor.js\",\n  \"requiredPermissions\": [\n    \"core:brain:use\",\n    \"core:customer:view\"\n  ],\n  \"storeScope\": \"required\",\n  \"requiresConfirmation\": true,\n  \"idempotency\": \"required\",\n  \"readOnly\": false,\n  \"sideEffect\": true,\n  \"inputSchema\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"comparisonTarget\": {\n        \"type\": \"object\"\n      },\n      \"dimensions\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"entities\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"filters\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"limit\": {\n        \"type\": \"number\"\n      },\n      \"metrics\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"objective\": {\n        \"type\": \"string\"\n      },\n      \"orderBy\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"time\": {\n        \"type\": \"object\"\n      }\n    },\n    \"required\": [\n      \"dimensions\",\n      \"entities\",\n      \"filters\",\n      \"metrics\",\n      \"objective\",\n      \"orderBy\"\n    ],\n    \"additionalProperties\": false\n  },\n  \"outputSchema\": {\n    \"type\": \"object\"\n  },\n  \"bindingFingerprint\": \"fb46802ff00a5d8670c4d51fee9c6108742ec9007861aedae9771483e58ee0bd\"\n} as const);\n\nexport class CustomerFollowUpDraftGeneratedCapabilityBinding {\n  constructor(private readonly target: Pick<BrainActionCapabilityExecutor, 'customerFollowUpDraft'>, private readonly contextProvider: GeneratedCapabilityExecutionContextProvider) {}\n\n  execute(args: GeneratedCapabilityArgs): ReturnType<TargetMethod> {\n    assertGeneratedCapabilityArgs(GENERATED_CAPABILITY_BINDING.inputSchema, args);\n    return this.target.customerFollowUpDraft(args, this.contextProvider.current());\n  }\n}\n",
+        "contractArtifact": {
+          "manifest": {
+            "key": "customer_follow_up_draft",
+            "version": 1,
+            "sourceFingerprint": "4adfc82f58a84c38d9c646a512f9107db9286f17ed18af63bfcfab231757f241",
+            "name": "客户跟进任务预览",
+            "description": "解析当前门店内的唯一客户并生成待确认的客户跟进任务预览；确认后通过统一跟进任务事实的强幂等合同创建并支持安全重放。",
+            "domains": [
+              "fixture"
+            ],
+            "intents": [
+              "action"
+            ],
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "comparisonTarget": {
+                  "type": "object"
+                },
+                "dimensions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "entities": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "filters": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "limit": {
+                  "type": "number"
+                },
+                "metrics": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "objective": {
+                  "type": "string"
+                },
+                "orderBy": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "time": {
+                  "type": "object"
+                }
+              },
+              "required": [
+                "dimensions",
+                "entities",
+                "filters",
+                "metrics",
+                "objective",
+                "orderBy"
+              ],
+              "additionalProperties": false
+            },
+            "outputSchema": {
+              "type": "object"
+            },
+            "requiredPermissions": [
+              "core:brain:use",
+              "core:customer:view"
+            ],
+            "allowedRoles": [
+              "customer_service",
+              "receptionist",
+              "store_manager"
+            ],
+            "readOnly": false,
+            "sideEffect": true,
+            "riskLevel": "high",
+            "requiresConfirmation": true,
+            "idempotency": "required",
+            "timeoutMs": 10000,
+            "grounding": "preview_action",
+            "examples": [
+              "给指定客户准备一个待确认跟进任务",
+              "生成客户回访任务预览"
+            ],
+            "negativeExamples": [
+              "操作其他门店客户",
+              "直接创建客户任务不要确认",
+              "只写一段通用回访文案"
+            ],
+            "synonyms": [
+              "跟进任务方案",
+              "客户跟进预览",
+              "客户回访任务草稿"
+            ],
+            "successSchema": {
+              "type": "object"
+            },
+            "definitionRefs": [
+              {
+                "definitionId": 1,
+                "versionId": 10001,
+                "definitionKey": "entity.customer",
+                "version": 1,
+                "definitionFingerprint": "3ed07da10b395b6363032c8afbaa96f98691e8c6e02a654e234d3e1aa5977bcc",
+                "sourceFingerprint": "7060e378d59a17556679b49f8c425deac02681d3df8193a7138ddb4981c3167d"
+              }
+            ]
+          },
+          "scanEvidence": {
+            "capabilityKey": "customer_follow_up_draft",
+            "sourceFingerprint": "4adfc82f58a84c38d9c646a512f9107db9286f17ed18af63bfcfab231757f241",
+            "requiredPermissions": [
+              "core:brain:use",
+              "core:customer:view"
+            ],
+            "storeScope": "required",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "comparisonTarget": {
+                  "type": "object"
+                },
+                "dimensions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "entities": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "filters": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "limit": {
+                  "type": "number"
+                },
+                "metrics": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "objective": {
+                  "type": "string"
+                },
+                "orderBy": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "time": {
+                  "type": "object"
+                }
+              },
+              "required": [
+                "dimensions",
+                "entities",
+                "filters",
+                "metrics",
+                "objective",
+                "orderBy"
+              ],
+              "additionalProperties": false
+            },
+            "outputSchema": {
+              "type": "object"
+            },
+            "executorBinding": {
+              "schemaVersion": 1,
+              "capabilityKey": "customer_follow_up_draft",
+              "sourceFingerprint": "4adfc82f58a84c38d9c646a512f9107db9286f17ed18af63bfcfab231757f241",
+              "target": {
+                "kind": "service",
+                "className": "BrainActionCapabilityExecutor",
+                "methodName": "customerFollowUpDraft",
+                "sourcePath": "packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts",
+                "exportedClass": true,
+                "methodAccess": "public",
+                "parameterCount": 2,
+                "parameterTypes": [
+                  "BrainCapabilityToolArgs",
+                  "BrainCapabilityExecutionInput"
+                ],
+                "returnType": "unknown"
+              },
+              "generatedSourcePath": "packages/server-v2/src/brain/capability/generated/customer_follow_up_draft/binding.ts",
+              "targetImportPath": "../../executors/brain-action-capability.executor.js",
+              "requiredPermissions": [
+                "core:brain:use",
+                "core:customer:view"
+              ],
+              "storeScope": "required",
+              "requiresConfirmation": true,
+              "idempotency": "required",
+              "readOnly": false,
+              "sideEffect": true,
+              "inputSchema": {
+                "type": "object",
+                "properties": {
+                  "comparisonTarget": {
+                    "type": "object"
+                  },
+                  "dimensions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "entities": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "filters": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "limit": {
+                    "type": "number"
+                  },
+                  "metrics": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "objective": {
+                    "type": "string"
+                  },
+                  "orderBy": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "time": {
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "dimensions",
+                  "entities",
+                  "filters",
+                  "metrics",
+                  "objective",
+                  "orderBy"
+                ],
+                "additionalProperties": false
+              },
+              "outputSchema": {
+                "type": "object"
+              },
+              "bindingFingerprint": "fb46802ff00a5d8670c4d51fee9c6108742ec9007861aedae9771483e58ee0bd"
+            }
+          },
+          "proposal": {
+            "capabilityKey": "customer_follow_up_draft",
+            "sourceFingerprint": "4adfc82f58a84c38d9c646a512f9107db9286f17ed18af63bfcfab231757f241",
+            "businessDefinitions": [
+              {
+                "definitionId": 1,
+                "versionId": 10001,
+                "definitionKey": "entity.customer",
+                "version": 1,
+                "definitionFingerprint": "3ed07da10b395b6363032c8afbaa96f98691e8c6e02a654e234d3e1aa5977bcc",
+                "sourceFingerprint": "7060e378d59a17556679b49f8c425deac02681d3df8193a7138ddb4981c3167d"
+              }
+            ],
+            "storeScope": "required",
+            "executorBinding": {
+              "schemaVersion": 1,
+              "capabilityKey": "customer_follow_up_draft",
+              "sourceFingerprint": "4adfc82f58a84c38d9c646a512f9107db9286f17ed18af63bfcfab231757f241",
+              "target": {
+                "kind": "service",
+                "className": "BrainActionCapabilityExecutor",
+                "methodName": "customerFollowUpDraft",
+                "sourcePath": "packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts",
+                "exportedClass": true,
+                "methodAccess": "public",
+                "parameterCount": 2,
+                "parameterTypes": [
+                  "BrainCapabilityToolArgs",
+                  "BrainCapabilityExecutionInput"
+                ],
+                "returnType": "unknown"
+              },
+              "generatedSourcePath": "packages/server-v2/src/brain/capability/generated/customer_follow_up_draft/binding.ts",
+              "targetImportPath": "../../executors/brain-action-capability.executor.js",
+              "requiredPermissions": [
+                "core:brain:use",
+                "core:customer:view"
+              ],
+              "storeScope": "required",
+              "requiresConfirmation": true,
+              "idempotency": "required",
+              "readOnly": false,
+              "sideEffect": true,
+              "inputSchema": {
+                "type": "object",
+                "properties": {
+                  "comparisonTarget": {
+                    "type": "object"
+                  },
+                  "dimensions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "entities": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "filters": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "limit": {
+                    "type": "number"
+                  },
+                  "metrics": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "objective": {
+                    "type": "string"
+                  },
+                  "orderBy": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "time": {
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "dimensions",
+                  "entities",
+                  "filters",
+                  "metrics",
+                  "objective",
+                  "orderBy"
+                ],
+                "additionalProperties": false
+              },
+              "outputSchema": {
+                "type": "object"
+              },
+              "bindingFingerprint": "fb46802ff00a5d8670c4d51fee9c6108742ec9007861aedae9771483e58ee0bd"
+            }
+          }
+        },
+        "contractTestSource": "import { GENERATED_CAPABILITY_BINDING } from './binding.js';\n\nexport function assertGeneratedBindingContract(): void {\n  if (GENERATED_CAPABILITY_BINDING.capabilityKey !== \"customer_follow_up_draft\") {\n    throw new Error('generated_binding_capability_key_mismatch');\n  }\n  if (GENERATED_CAPABILITY_BINDING.sourceFingerprint !== \"4adfc82f58a84c38d9c646a512f9107db9286f17ed18af63bfcfab231757f241\") {\n    throw new Error('generated_binding_source_fingerprint_mismatch');\n  }\n  if (GENERATED_CAPABILITY_BINDING.bindingFingerprint !== \"fb46802ff00a5d8670c4d51fee9c6108742ec9007861aedae9771483e58ee0bd\") {\n    throw new Error('generated_binding_fingerprint_mismatch');\n  }\n  if (GENERATED_CAPABILITY_BINDING.target.kind !== \"service\" ||\n      GENERATED_CAPABILITY_BINDING.target.className !== \"BrainActionCapabilityExecutor\" ||\n      GENERATED_CAPABILITY_BINDING.target.methodName !== \"customerFollowUpDraft\" ||\n      GENERATED_CAPABILITY_BINDING.target.sourcePath !== \"packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts\") {\n    throw new Error('generated_binding_target_mismatch');\n  }\n}\n\nassertGeneratedBindingContract();\n",
+        "gateReport": {
+          "passed": true,
+          "gates": [
+            {
+              "gate": "compile",
+              "passed": true,
+              "reasons": [],
+              "remediation": []
+            },
+            {
+              "gate": "contract",
+              "passed": true,
+              "reasons": [],
+              "remediation": []
+            },
+            {
+              "gate": "security",
+              "passed": true,
+              "reasons": [],
+              "remediation": []
+            },
+            {
+              "gate": "test",
+              "passed": true,
+              "reasons": [],
+              "remediation": []
+            }
+          ]
+        }
+      },
+      {
+        "status": "synthetic_contract_only",
+        "capabilityKey": "marketing_touch_draft",
+        "sourceFingerprint": "1e35a43df127e2452e32aa91e409590d697f6f667ef5bddc76ac3c729b5d88eb",
+        "proposalFingerprint": "886753512e3d49f7471484bcc703f1f9e611dbee9050eddb988197fed89b2729",
+        "businessDefinitions": [
+          {
+            "definitionId": 1,
+            "versionId": 10001,
+            "definitionKey": "entity.customer",
+            "version": 1,
+            "definitionFingerprint": "3ed07da10b395b6363032c8afbaa96f98691e8c6e02a654e234d3e1aa5977bcc",
+            "sourceFingerprint": "7060e378d59a17556679b49f8c425deac02681d3df8193a7138ddb4981c3167d"
+          }
+        ],
+        "manifest": {
+          "key": "marketing_touch_draft",
+          "version": 1,
+          "sourceFingerprint": "1e35a43df127e2452e32aa91e409590d697f6f667ef5bddc76ac3c729b5d88eb",
+          "name": "单客户营销触达预览",
+          "description": "解析当前门店内的唯一客户并生成单客户营销触达任务预览，包含可编辑话术和风险提示；确认后只创建强幂等跟进草稿，不自动群发。",
+          "domains": [
+            "fixture"
+          ],
+          "intents": [
+            "action"
+          ],
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "comparisonTarget": {
+                "type": "object"
+              },
+              "dimensions": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "entities": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "filters": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "limit": {
+                "type": "number"
+              },
+              "metrics": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "objective": {
+                "type": "string"
+              },
+              "orderBy": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "time": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "dimensions",
+              "entities",
+              "filters",
+              "metrics",
+              "objective",
+              "orderBy"
+            ],
+            "additionalProperties": false
+          },
+          "outputSchema": {
+            "type": "object"
+          },
+          "requiredPermissions": [
+            "core:brain:use",
+            "core:marketing:create"
+          ],
+          "allowedRoles": [
+            "marketing",
+            "store_manager"
+          ],
+          "readOnly": false,
+          "sideEffect": true,
+          "riskLevel": "high",
+          "requiresConfirmation": true,
+          "idempotency": "required",
+          "timeoutMs": 10000,
+          "grounding": "preview_action",
+          "examples": [
+            "给指定客户准备一条待确认的邀约任务",
+            "生成单客户召回触达预览"
+          ],
+          "negativeExamples": [
+            "操作其他门店客户",
+            "直接给全部客户群发",
+            "只生成通用文案"
+          ],
+          "synonyms": [
+            "单客户邀约任务",
+            "营销触达预览",
+            "召回任务草稿"
+          ],
+          "successSchema": {
+            "type": "object"
+          },
+          "definitionRefs": [
+            {
+              "definitionId": 1,
+              "versionId": 10001,
+              "definitionKey": "entity.customer",
+              "version": 1,
+              "definitionFingerprint": "3ed07da10b395b6363032c8afbaa96f98691e8c6e02a654e234d3e1aa5977bcc",
+              "sourceFingerprint": "7060e378d59a17556679b49f8c425deac02681d3df8193a7138ddb4981c3167d"
+            }
+          ]
+        },
+        "languageCandidates": {
+          "description": "解析当前门店内的唯一客户并生成单客户营销触达任务预览，包含可编辑话术和风险提示；确认后只创建强幂等跟进草稿，不自动群发。",
+          "positiveExamples": [
+            "给指定客户准备一条待确认的邀约任务",
+            "生成单客户召回触达预览"
+          ],
+          "negativeExamples": [
+            "操作其他门店客户",
+            "直接给全部客户群发",
+            "只生成通用文案"
+          ],
+          "synonyms": [
+            "单客户邀约任务",
+            "营销触达预览",
+            "召回任务草稿"
+          ],
+          "successSchema": {
+            "type": "object"
+          },
+          "riskExplanation": "Deterministic fixture: read-only proposal with fixed scanner evidence."
+        },
+        "executorBinding": {
+          "schemaVersion": 1,
+          "capabilityKey": "marketing_touch_draft",
+          "sourceFingerprint": "1e35a43df127e2452e32aa91e409590d697f6f667ef5bddc76ac3c729b5d88eb",
+          "target": {
+            "kind": "service",
+            "className": "BrainActionCapabilityExecutor",
+            "methodName": "marketingTouchDraft",
+            "sourcePath": "packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts",
+            "exportedClass": true,
+            "methodAccess": "public",
+            "parameterCount": 2,
+            "parameterTypes": [
+              "BrainCapabilityToolArgs",
+              "BrainCapabilityExecutionInput"
+            ],
+            "returnType": "unknown"
+          },
+          "generatedSourcePath": "packages/server-v2/src/brain/capability/generated/marketing_touch_draft/binding.ts",
+          "targetImportPath": "../../executors/brain-action-capability.executor.js",
+          "requiredPermissions": [
+            "core:brain:use",
+            "core:marketing:create"
+          ],
+          "storeScope": "required",
+          "requiresConfirmation": true,
+          "idempotency": "required",
+          "readOnly": false,
+          "sideEffect": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "comparisonTarget": {
+                "type": "object"
+              },
+              "dimensions": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "entities": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "filters": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "limit": {
+                "type": "number"
+              },
+              "metrics": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "objective": {
+                "type": "string"
+              },
+              "orderBy": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "time": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "dimensions",
+              "entities",
+              "filters",
+              "metrics",
+              "objective",
+              "orderBy"
+            ],
+            "additionalProperties": false
+          },
+          "outputSchema": {
+            "type": "object"
+          },
+          "bindingFingerprint": "a792502819d74699ce32b3431e144d23d844b4a2de967ac12a9ed859ade91fc4"
+        },
+        "bindingSource": "import type { BrainActionCapabilityExecutor } from \"../../executors/brain-action-capability.executor.js\";\nimport { assertGeneratedCapabilityArgs } from '../../brain-generated-capability-binding.js';\n\nexport interface GeneratedCapabilityArgs {\n  readonly [key: string]: unknown;\n  readonly \"comparisonTarget\"?: Record<string, unknown>;\n  readonly \"dimensions\": Array<Record<string, unknown>>;\n  readonly \"entities\": Array<Record<string, unknown>>;\n  readonly \"filters\": Array<Record<string, unknown>>;\n  readonly \"limit\"?: number;\n  readonly \"metrics\": Array<Record<string, unknown>>;\n  readonly \"objective\": string;\n  readonly \"orderBy\": Array<Record<string, unknown>>;\n  readonly \"time\"?: Record<string, unknown>;\n}\n\ntype TargetMethod = Pick<BrainActionCapabilityExecutor, 'marketingTouchDraft'>['marketingTouchDraft'];\n\nexport interface GeneratedCapabilityExecutionContextProvider {\n  current(): Parameters<TargetMethod>[1];\n}\n\nexport const GENERATED_CAPABILITY_BINDING = Object.freeze({\n  \"schemaVersion\": 1,\n  \"capabilityKey\": \"marketing_touch_draft\",\n  \"sourceFingerprint\": \"1e35a43df127e2452e32aa91e409590d697f6f667ef5bddc76ac3c729b5d88eb\",\n  \"target\": {\n    \"kind\": \"service\",\n    \"className\": \"BrainActionCapabilityExecutor\",\n    \"methodName\": \"marketingTouchDraft\",\n    \"sourcePath\": \"packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts\",\n    \"exportedClass\": true,\n    \"methodAccess\": \"public\",\n    \"parameterCount\": 2,\n    \"parameterTypes\": [\n      \"BrainCapabilityToolArgs\",\n      \"BrainCapabilityExecutionInput\"\n    ],\n    \"returnType\": \"unknown\"\n  },\n  \"generatedSourcePath\": \"packages/server-v2/src/brain/capability/generated/marketing_touch_draft/binding.ts\",\n  \"targetImportPath\": \"../../executors/brain-action-capability.executor.js\",\n  \"requiredPermissions\": [\n    \"core:brain:use\",\n    \"core:marketing:create\"\n  ],\n  \"storeScope\": \"required\",\n  \"requiresConfirmation\": true,\n  \"idempotency\": \"required\",\n  \"readOnly\": false,\n  \"sideEffect\": true,\n  \"inputSchema\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"comparisonTarget\": {\n        \"type\": \"object\"\n      },\n      \"dimensions\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"entities\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"filters\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"limit\": {\n        \"type\": \"number\"\n      },\n      \"metrics\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"objective\": {\n        \"type\": \"string\"\n      },\n      \"orderBy\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"time\": {\n        \"type\": \"object\"\n      }\n    },\n    \"required\": [\n      \"dimensions\",\n      \"entities\",\n      \"filters\",\n      \"metrics\",\n      \"objective\",\n      \"orderBy\"\n    ],\n    \"additionalProperties\": false\n  },\n  \"outputSchema\": {\n    \"type\": \"object\"\n  },\n  \"bindingFingerprint\": \"a792502819d74699ce32b3431e144d23d844b4a2de967ac12a9ed859ade91fc4\"\n} as const);\n\nexport class MarketingTouchDraftGeneratedCapabilityBinding {\n  constructor(private readonly target: Pick<BrainActionCapabilityExecutor, 'marketingTouchDraft'>, private readonly contextProvider: GeneratedCapabilityExecutionContextProvider) {}\n\n  execute(args: GeneratedCapabilityArgs): ReturnType<TargetMethod> {\n    assertGeneratedCapabilityArgs(GENERATED_CAPABILITY_BINDING.inputSchema, args);\n    return this.target.marketingTouchDraft(args, this.contextProvider.current());\n  }\n}\n",
+        "contractArtifact": {
+          "manifest": {
+            "key": "marketing_touch_draft",
+            "version": 1,
+            "sourceFingerprint": "1e35a43df127e2452e32aa91e409590d697f6f667ef5bddc76ac3c729b5d88eb",
+            "name": "单客户营销触达预览",
+            "description": "解析当前门店内的唯一客户并生成单客户营销触达任务预览，包含可编辑话术和风险提示；确认后只创建强幂等跟进草稿，不自动群发。",
+            "domains": [
+              "fixture"
+            ],
+            "intents": [
+              "action"
+            ],
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "comparisonTarget": {
+                  "type": "object"
+                },
+                "dimensions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "entities": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "filters": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "limit": {
+                  "type": "number"
+                },
+                "metrics": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "objective": {
+                  "type": "string"
+                },
+                "orderBy": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "time": {
+                  "type": "object"
+                }
+              },
+              "required": [
+                "dimensions",
+                "entities",
+                "filters",
+                "metrics",
+                "objective",
+                "orderBy"
+              ],
+              "additionalProperties": false
+            },
+            "outputSchema": {
+              "type": "object"
+            },
+            "requiredPermissions": [
+              "core:brain:use",
+              "core:marketing:create"
+            ],
+            "allowedRoles": [
+              "marketing",
+              "store_manager"
+            ],
+            "readOnly": false,
+            "sideEffect": true,
+            "riskLevel": "high",
+            "requiresConfirmation": true,
+            "idempotency": "required",
+            "timeoutMs": 10000,
+            "grounding": "preview_action",
+            "examples": [
+              "给指定客户准备一条待确认的邀约任务",
+              "生成单客户召回触达预览"
+            ],
+            "negativeExamples": [
+              "操作其他门店客户",
+              "直接给全部客户群发",
+              "只生成通用文案"
+            ],
+            "synonyms": [
+              "单客户邀约任务",
+              "营销触达预览",
+              "召回任务草稿"
+            ],
+            "successSchema": {
+              "type": "object"
+            },
+            "definitionRefs": [
+              {
+                "definitionId": 1,
+                "versionId": 10001,
+                "definitionKey": "entity.customer",
+                "version": 1,
+                "definitionFingerprint": "3ed07da10b395b6363032c8afbaa96f98691e8c6e02a654e234d3e1aa5977bcc",
+                "sourceFingerprint": "7060e378d59a17556679b49f8c425deac02681d3df8193a7138ddb4981c3167d"
+              }
+            ]
+          },
+          "scanEvidence": {
+            "capabilityKey": "marketing_touch_draft",
+            "sourceFingerprint": "1e35a43df127e2452e32aa91e409590d697f6f667ef5bddc76ac3c729b5d88eb",
+            "requiredPermissions": [
+              "core:brain:use",
+              "core:marketing:create"
+            ],
+            "storeScope": "required",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "comparisonTarget": {
+                  "type": "object"
+                },
+                "dimensions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "entities": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "filters": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "limit": {
+                  "type": "number"
+                },
+                "metrics": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "objective": {
+                  "type": "string"
+                },
+                "orderBy": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "time": {
+                  "type": "object"
+                }
+              },
+              "required": [
+                "dimensions",
+                "entities",
+                "filters",
+                "metrics",
+                "objective",
+                "orderBy"
+              ],
+              "additionalProperties": false
+            },
+            "outputSchema": {
+              "type": "object"
+            },
+            "executorBinding": {
+              "schemaVersion": 1,
+              "capabilityKey": "marketing_touch_draft",
+              "sourceFingerprint": "1e35a43df127e2452e32aa91e409590d697f6f667ef5bddc76ac3c729b5d88eb",
+              "target": {
+                "kind": "service",
+                "className": "BrainActionCapabilityExecutor",
+                "methodName": "marketingTouchDraft",
+                "sourcePath": "packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts",
+                "exportedClass": true,
+                "methodAccess": "public",
+                "parameterCount": 2,
+                "parameterTypes": [
+                  "BrainCapabilityToolArgs",
+                  "BrainCapabilityExecutionInput"
+                ],
+                "returnType": "unknown"
+              },
+              "generatedSourcePath": "packages/server-v2/src/brain/capability/generated/marketing_touch_draft/binding.ts",
+              "targetImportPath": "../../executors/brain-action-capability.executor.js",
+              "requiredPermissions": [
+                "core:brain:use",
+                "core:marketing:create"
+              ],
+              "storeScope": "required",
+              "requiresConfirmation": true,
+              "idempotency": "required",
+              "readOnly": false,
+              "sideEffect": true,
+              "inputSchema": {
+                "type": "object",
+                "properties": {
+                  "comparisonTarget": {
+                    "type": "object"
+                  },
+                  "dimensions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "entities": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "filters": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "limit": {
+                    "type": "number"
+                  },
+                  "metrics": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "objective": {
+                    "type": "string"
+                  },
+                  "orderBy": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "time": {
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "dimensions",
+                  "entities",
+                  "filters",
+                  "metrics",
+                  "objective",
+                  "orderBy"
+                ],
+                "additionalProperties": false
+              },
+              "outputSchema": {
+                "type": "object"
+              },
+              "bindingFingerprint": "a792502819d74699ce32b3431e144d23d844b4a2de967ac12a9ed859ade91fc4"
+            }
+          },
+          "proposal": {
+            "capabilityKey": "marketing_touch_draft",
+            "sourceFingerprint": "1e35a43df127e2452e32aa91e409590d697f6f667ef5bddc76ac3c729b5d88eb",
+            "businessDefinitions": [
+              {
+                "definitionId": 1,
+                "versionId": 10001,
+                "definitionKey": "entity.customer",
+                "version": 1,
+                "definitionFingerprint": "3ed07da10b395b6363032c8afbaa96f98691e8c6e02a654e234d3e1aa5977bcc",
+                "sourceFingerprint": "7060e378d59a17556679b49f8c425deac02681d3df8193a7138ddb4981c3167d"
+              }
+            ],
+            "storeScope": "required",
+            "executorBinding": {
+              "schemaVersion": 1,
+              "capabilityKey": "marketing_touch_draft",
+              "sourceFingerprint": "1e35a43df127e2452e32aa91e409590d697f6f667ef5bddc76ac3c729b5d88eb",
+              "target": {
+                "kind": "service",
+                "className": "BrainActionCapabilityExecutor",
+                "methodName": "marketingTouchDraft",
+                "sourcePath": "packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts",
+                "exportedClass": true,
+                "methodAccess": "public",
+                "parameterCount": 2,
+                "parameterTypes": [
+                  "BrainCapabilityToolArgs",
+                  "BrainCapabilityExecutionInput"
+                ],
+                "returnType": "unknown"
+              },
+              "generatedSourcePath": "packages/server-v2/src/brain/capability/generated/marketing_touch_draft/binding.ts",
+              "targetImportPath": "../../executors/brain-action-capability.executor.js",
+              "requiredPermissions": [
+                "core:brain:use",
+                "core:marketing:create"
+              ],
+              "storeScope": "required",
+              "requiresConfirmation": true,
+              "idempotency": "required",
+              "readOnly": false,
+              "sideEffect": true,
+              "inputSchema": {
+                "type": "object",
+                "properties": {
+                  "comparisonTarget": {
+                    "type": "object"
+                  },
+                  "dimensions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "entities": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "filters": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "limit": {
+                    "type": "number"
+                  },
+                  "metrics": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "objective": {
+                    "type": "string"
+                  },
+                  "orderBy": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "time": {
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "dimensions",
+                  "entities",
+                  "filters",
+                  "metrics",
+                  "objective",
+                  "orderBy"
+                ],
+                "additionalProperties": false
+              },
+              "outputSchema": {
+                "type": "object"
+              },
+              "bindingFingerprint": "a792502819d74699ce32b3431e144d23d844b4a2de967ac12a9ed859ade91fc4"
+            }
+          }
+        },
+        "contractTestSource": "import { GENERATED_CAPABILITY_BINDING } from './binding.js';\n\nexport function assertGeneratedBindingContract(): void {\n  if (GENERATED_CAPABILITY_BINDING.capabilityKey !== \"marketing_touch_draft\") {\n    throw new Error('generated_binding_capability_key_mismatch');\n  }\n  if (GENERATED_CAPABILITY_BINDING.sourceFingerprint !== \"1e35a43df127e2452e32aa91e409590d697f6f667ef5bddc76ac3c729b5d88eb\") {\n    throw new Error('generated_binding_source_fingerprint_mismatch');\n  }\n  if (GENERATED_CAPABILITY_BINDING.bindingFingerprint !== \"a792502819d74699ce32b3431e144d23d844b4a2de967ac12a9ed859ade91fc4\") {\n    throw new Error('generated_binding_fingerprint_mismatch');\n  }\n  if (GENERATED_CAPABILITY_BINDING.target.kind !== \"service\" ||\n      GENERATED_CAPABILITY_BINDING.target.className !== \"BrainActionCapabilityExecutor\" ||\n      GENERATED_CAPABILITY_BINDING.target.methodName !== \"marketingTouchDraft\" ||\n      GENERATED_CAPABILITY_BINDING.target.sourcePath !== \"packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts\") {\n    throw new Error('generated_binding_target_mismatch');\n  }\n}\n\nassertGeneratedBindingContract();\n",
+        "gateReport": {
+          "passed": true,
+          "gates": [
+            {
+              "gate": "compile",
+              "passed": true,
+              "reasons": [],
+              "remediation": []
+            },
+            {
+              "gate": "contract",
+              "passed": true,
+              "reasons": [],
+              "remediation": []
+            },
+            {
+              "gate": "security",
+              "passed": true,
+              "reasons": [],
+              "remediation": []
+            },
+            {
+              "gate": "test",
+              "passed": true,
+              "reasons": [],
+              "remediation": []
+            }
+          ]
+        }
+      }
+    ],
+    "blocked": []
+  }
+}

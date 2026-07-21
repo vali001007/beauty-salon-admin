@@ -6,7 +6,14 @@ interface ChatMessageProps {
   content?: string
   children?: ReactNode
   businessResult?: BusinessResult | null
+  blocks?: AssistantBlock[]
 }
+
+type AssistantBlock =
+  | { kind: 'text'; text: string }
+  | { kind: 'kpi'; items: Array<{ label: string; value: string; hint?: string }> }
+  | { kind: 'ranking' | 'table'; columns: string[]; rows: Array<Record<string, unknown>> }
+  | { kind: 'limitations'; items: string[] }
 
 function MarkdownText({ content }: { content: string }) {
   const blocks = content.split(/\n\s*\n/g).filter(Boolean)
@@ -181,7 +188,7 @@ function BusinessCard({ businessResult }: { businessResult: BusinessResult }) {
   return null
 }
 
-export function ChatMessage({ type, content, children, businessResult }: ChatMessageProps) {
+export function ChatMessage({ type, content, children, businessResult, blocks = [] }: ChatMessageProps) {
   if (type === 'system') {
     return (
       <div className="flex justify-center py-2">
@@ -198,7 +205,7 @@ export function ChatMessage({ type, content, children, businessResult }: ChatMes
         </div>
         <div className="flex-1 max-w-[80%]">
           <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-none p-3 shadow-sm">
-            {content && <MarkdownText content={content} />}
+            {blocks.length ? <AssistantBlocks blocks={blocks} /> : content && <MarkdownText content={content} />}
             {businessResult ? <BusinessCard businessResult={businessResult} /> : null}
             {children}
           </div>
@@ -217,4 +224,14 @@ export function ChatMessage({ type, content, children, businessResult }: ChatMes
       </div>
     </div>
   )
+}
+
+function AssistantBlocks({ blocks }: { blocks: AssistantBlock[] }) {
+  return <div className="space-y-3">{blocks.map((block, index) => {
+    if (block.kind === 'text') return <p key={index} className="whitespace-pre-wrap text-sm leading-6 text-gray-800">{block.text}</p>
+    if (block.kind === 'kpi') return <div key={index} className="grid grid-cols-2 gap-2">{block.items.map((item) => <div key={item.label} className="border-l-2 border-amber-500 pl-2"><div className="text-xs text-gray-500">{item.label}</div><div className="font-semibold text-gray-900">{item.value}</div></div>)}</div>
+    if (block.kind === 'limitations') return <div key={index} className="text-sm text-amber-700">未完成：{block.items.join('；')}</div>
+    const columns = block.columns.length ? block.columns : Object.keys(block.rows[0] ?? {})
+    return <div key={index} className="overflow-x-auto"><table className="min-w-full text-xs"><thead><tr>{columns.map((column) => <th key={column} className="border-b px-2 py-1 text-left">{column}</th>)}</tr></thead><tbody>{block.rows.map((row, rowIndex) => <tr key={rowIndex}>{columns.map((column) => <td key={column} className="border-b px-2 py-1">{String(row[column] ?? '-')}</td>)}</tr>)}</tbody></table></div>
+  })}</div>
 }

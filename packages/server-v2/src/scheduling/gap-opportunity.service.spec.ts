@@ -119,6 +119,39 @@ describe('GapOpportunityService', () => {
     expect(result.opportunities[0].candidateCount).toBe(1);
   });
 
+  it('previews opportunities and ranked customers without writing business tables', async () => {
+    const result = await service.preview({
+      storeId: 1,
+      startDate: weekStart,
+      endDate: weekStart,
+      opportunityLimit: 2,
+      candidateLimit: 2,
+    });
+
+    expect(result.persisted).toBe(false);
+    expect(result.summary.opportunityCount).toBe(1);
+    expect(result.opportunities[0]).toMatchObject({
+      source: 'brain_readonly_preview',
+      status: 'preview',
+      availableCapacity: 1,
+      candidates: [
+        expect.objectContaining({
+          customerId: 11,
+          customerName: '李丽丽',
+          customerPhone: '***0000',
+          projectName: '深层补水护理',
+          status: 'preview',
+        }),
+      ],
+    });
+    expect(prisma.appointmentGapOpportunity.upsert).not.toHaveBeenCalled();
+    expect(prisma.appointmentGapOpportunity.update).not.toHaveBeenCalled();
+    expect(prisma.appointmentGapCandidate.upsert).not.toHaveBeenCalled();
+    expect(prisma.appointmentGapCandidate.update).not.toHaveBeenCalled();
+    expect(prisma.appointmentGapOpportunityEvent.create).not.toHaveBeenCalled();
+    expect(terminalService.createFollowUpTask).not.toHaveBeenCalled();
+  });
+
   it('does not generate opportunity when slot is fully booked', async () => {
     prisma.reservation.findMany.mockResolvedValueOnce([
       { id: 1000, customerId: 33, beauticianId: 1, date: new Date('2099-07-06T00:00:00.000Z'), startTime: '10:00', endTime: '11:00' },

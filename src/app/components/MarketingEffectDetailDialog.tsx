@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/app/components/ui/dialog';
 import type { MarketingActivity, MarketingEffectObjectType, UnifiedMarketingEffectItem } from '@/types';
+import { getMarketingActivityStatusLabel } from '@/utils/marketingStatus';
 
 interface MarketingEffectDetailDialogProps {
   open: boolean;
@@ -95,7 +96,7 @@ function getTypeIcon(type: MarketingEffectObjectType) {
 
 function getRemainingText(activity?: MarketingActivity | null, item?: UnifiedMarketingEffectItem | null) {
   if (!activity) return item?.status || '-';
-  if (activity.status !== '进行中') return activity.status;
+  if (activity.status !== 'active') return getMarketingActivityStatusLabel(activity.status);
   const endTime = new Date(activity.endDate).getTime();
   if (Number.isNaN(endTime)) return '进行中';
   const days = Math.max(0, Math.ceil((endTime - Date.now()) / 86400000));
@@ -151,6 +152,7 @@ export function MarketingEffectDetailDialog({ open, onOpenChange, item, activity
   const dateRange = activity
     ? `${formatActivityDate(activity.startDate)} 至 ${formatActivityDate(activity.endDate)}`
     : item.dateRange || (item.lastEventAt ? `最近事件：${formatActivityDate(item.lastEventAt)}` : '-');
+  const displayStatus = item.objectType === 'activity' ? getMarketingActivityStatusLabel(item.status) : item.status;
   const participants = Number(activity?.participants ?? item.exposureCount ?? 0);
   const conversionCount = item.conversionCount ?? Math.round((participants * parsePercent(item.conversionRate)) / 100);
   const metrics = {
@@ -187,8 +189,8 @@ export function MarketingEffectDetailDialog({ open, onOpenChange, item, activity
                 <span className={`rounded px-2 py-0.5 font-medium ${getTypeStyle(item.objectType)}`}>
                   {item.objectTypeLabel}
                 </span>
-                <span className={`rounded px-2 py-0.5 font-medium ${getStatusBadgeClass(item.status)}`}>
-                  {item.status}
+                <span className={`rounded px-2 py-0.5 font-medium ${getStatusBadgeClass(displayStatus)}`}>
+                  {displayStatus}
                 </span>
                 <span>{dateRange}</span>
               </span>

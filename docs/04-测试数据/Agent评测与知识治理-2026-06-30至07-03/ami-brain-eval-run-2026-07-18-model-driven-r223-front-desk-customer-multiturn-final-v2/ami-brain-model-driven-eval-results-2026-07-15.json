@@ -1,0 +1,1310 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-18T05:23:00.829Z",
+    "startedAt": "2026-07-18T05:21:00.406Z",
+    "finishedAt": "2026-07-18T05:23:00.829Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-front-desk-customer-multiturn-eval-cases-2026-07-18.json",
+    "questionCount": 2,
+    "actualRunCount": 2,
+    "actualTurnCount": 6,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "releaseId": 314,
+    "releaseSnapshot": {
+      "releaseFingerprint": "4876c4c71ace5b799f90b273906d8d0c6ef71c8346996e6fbd81d102d9dfbc43",
+      "declaredMode": "shadow",
+      "resourceVersionIds": [
+        351,
+        486,
+        487,
+        488,
+        489,
+        491,
+        492,
+        493,
+        494,
+        495,
+        496,
+        497,
+        498,
+        499,
+        501,
+        510,
+        512,
+        513,
+        514,
+        515,
+        516
+      ],
+      "capabilityKeys": [
+        "beautician_customer_card_progress",
+        "beautician_material_preparation",
+        "beautician_service_overview",
+        "customer_facts",
+        "customer_follow_up_draft",
+        "finance_payment_breakdown",
+        "finance_risk_overview",
+        "front_desk_operations_overview",
+        "gap_fill_touch_preview",
+        "inventory_operations_overview",
+        "inventory_procurement_advice",
+        "manager_staff_overview",
+        "marketing_customer_segment",
+        "marketing_growth_overview",
+        "marketing_message_draft",
+        "marketing_touch_draft",
+        "product_sales_ranking",
+        "project_service_ranking",
+        "reservation_action_preview",
+        "reservation_list",
+        "store_operations_overview"
+      ]
+    },
+    "candidateSkillsEnabledForEval": true,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "permissionSource": "active_backend_role_catalog_plus_candidate_minimum_permissions",
+    "evaluationRoleKeys": [
+      "receptionist"
+    ],
+    "evaluationUserIds": {
+      "receptionist": 29
+    },
+    "permissionCatalogRoleKeys": [
+      "ami_demo_full_beautician",
+      "ami_demo_full_cashier",
+      "ami_demo_full_manager",
+      "beautician",
+      "cashier",
+      "store_manager",
+      "super_admin"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。",
+      "provider_unavailable": "模型供应商不可用，单列为评测基础设施失败，不进入产品可用率分母。",
+      "sixLayerGate": "意图、工具、计划、执行、完成度、答案六层必须全部通过；确定性失败不可被 LLM Judge 覆盖。"
+    }
+  },
+  "summary": {
+    "total": 2,
+    "evaluableTotal": 2,
+    "providerUnavailableCount": 0,
+    "legacyUsableWithCitation": 0,
+    "legacyUsableRate": 0,
+    "trueUsable": 2,
+    "trueUsableRate": 1,
+    "observedTrueUsableRate": 1,
+    "conversationGate": {
+      "scenarioCount": 2,
+      "passedScenarioCount": 2,
+      "turnCount": 6,
+      "passedTurnCount": 6
+    },
+    "byStatus": [
+      {
+        "key": "usable_exact",
+        "total": 2,
+        "evaluableTotal": 2,
+        "usable": 2,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "reception",
+        "total": 2,
+        "evaluableTotal": 2,
+        "usable": 2,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "front-desk-customer-context-followup",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "front-desk-customer-pronoun-clarification",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [],
+    "securityGate": {
+      "permissionBypassCount": 0,
+      "crossStoreReadCount": 0,
+      "roleHintBypassCount": 0,
+      "fakeActionConfirmationCount": 0
+    },
+    "grounding": {
+      "metricQueryCount": 0,
+      "dbSkillCount": 2,
+      "templateSkillCount": 0,
+      "previewActionCount": 0,
+      "noneCount": 0
+    },
+    "adapterDistribution": [
+      {
+        "reason": "none",
+        "count": 2
+      }
+    ],
+    "domainDistribution": [
+      {
+        "reason": "customer",
+        "count": 2
+      }
+    ],
+    "capabilityDistribution": [
+      {
+        "reason": "customer_facts",
+        "count": 2
+      }
+    ],
+    "executionPathDistribution": [
+      {
+        "reason": "model_primary",
+        "count": 2
+      }
+    ],
+    "sixLayer": {
+      "intent": {
+        "total": 6,
+        "passed": 6,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "tool": {
+        "total": 6,
+        "passed": 6,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "plan": {
+        "total": 6,
+        "passed": 6,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "execution": {
+        "total": 6,
+        "passed": 6,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "completion": {
+        "total": 6,
+        "passed": 6,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "answer": {
+        "total": 6,
+        "passed": 6,
+        "passRate": 1,
+        "averageScore": 1
+      }
+    },
+    "latency": {
+      "avgMs": 60209,
+      "p95Ms": 78784,
+      "maxMs": 78784
+    }
+  },
+  "records": [
+    {
+      "questionId": "conversation-front-desk-customer-context-followup",
+      "sourceSection": "模型驱动多轮会话门禁",
+      "sourceCategory": "front-desk-customer-context-followup",
+      "sourceIndex": 1,
+      "persona": "reception",
+      "question": "帮我查一下马美琳，手机尾号6325，她上次来是什么时候 -> 她有没有办过卡，还有多少次 -> 她上次做的什么项目，有没有特别备注 -> 她是从哪个渠道来的，标签和备注是什么",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 78784,
+      "conversationId": 26132,
+      "runId": 26118,
+      "scenarioId": "front-desk-customer-context-followup",
+      "turnCount": 4,
+      "answer": "客户：马美琳，手机 ***6325，会员等级 钻石会员。\n累计消费 196626.00 元，到店 119 次，最近到店 2026-07-15。\n最近完成服务：水氧清洁焕肤，美容师 顾然，完成时间 2026-06-19，服务备注 MVP 演示服务任务。\n最近消费：2026-06-23 亮肤淡斑管理 x1 593.00 元；2025-11-03 美白焕肤疗程 4708.00 元；2025-10-11 会员充值 714.00 元；2025-05-14 玻尿酸精华液 4772.00 元；2025-05-12 玻尿酸精华液 2595.00 元。\n标签：沉睡客户；备注：超过3个月未到店，建议回访。\n客户来源：小红书。\n\n数据依据：客户精确事实查询。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "capability_customer_facts",
+          "label": "客户精确事实查询"
+        }
+      ],
+      "domains": [
+        "customer"
+      ],
+      "capabilityKeys": [
+        "customer_facts"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "brainStatuses": [
+          "completed"
+        ],
+        "forbiddenMissingSlots": [
+          "entity",
+          "customerIdentity"
+        ],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_facts",
+          "front_desk_operations_overview",
+          "reservation_list"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_facts",
+          "front_desk_operations_overview",
+          "reservation_list"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable",
+      "turns": [
+        {
+          "questionId": "conversation-front-desk-customer-context-followup:resolve-customer",
+          "sourceSection": "模型驱动多轮会话门禁",
+          "sourceCategory": "front-desk-customer-context-followup",
+          "sourceIndex": 1,
+          "persona": "reception",
+          "question": "帮我查一下马美琳，手机尾号6325，她上次来是什么时候",
+          "status": "usable_exact",
+          "brainStatus": "completed",
+          "latencyMs": 25495,
+          "conversationId": 26132,
+          "runId": 26115,
+          "scenarioId": "front-desk-customer-context-followup",
+          "turnId": "resolve-customer",
+          "turnIndex": 1,
+          "turnCount": 4,
+          "answer": "客户：马美琳，手机 ***6325，会员等级 钻石会员。\n累计消费 196626.00 元，到店 119 次，最近到店 2026-07-15。\n最近完成服务：水氧清洁焕肤，美容师 顾然，完成时间 2026-06-19，服务备注 MVP 演示服务任务。\n最近消费：2026-06-23 亮肤淡斑管理 x1 593.00 元；2025-11-03 美白焕肤疗程 4708.00 元；2025-10-11 会员充值 714.00 元；2025-05-14 玻尿酸精华液 4772.00 元；2025-05-12 玻尿酸精华液 2595.00 元。\n\n数据依据：客户精确事实查询。",
+          "citations": [
+            {
+              "sourceType": "db_skill",
+              "sourceId": "capability_customer_facts",
+              "label": "客户精确事实查询"
+            }
+          ],
+          "domains": [
+            "customer"
+          ],
+          "capabilityKeys": [
+            "customer_facts"
+          ],
+          "grounding": "db_skill",
+          "executionPath": "model_primary",
+          "modelProvider": "openai_responses",
+          "modelName": "gpt-5.6-terra",
+          "modelStage": "execute",
+          "cognitionMode": "model",
+          "grader": {
+            "status": "usable_exact",
+            "expectedIntent": "unknown",
+            "actualIntent": "unknown",
+            "expectedShape": "non_metric",
+            "actualShape": "non_metric",
+            "reason": "意图、指标引用和回答粒度匹配。",
+            "legacyUsableWithCitation": false,
+            "groundingType": "db_skill"
+          },
+          "expected": {
+            "intent": "query",
+            "domains": [],
+            "entities": [],
+            "metrics": [],
+            "dimensions": [],
+            "capabilityKeys": [],
+            "brainStatuses": [
+              "completed"
+            ],
+            "requiresGrounding": true,
+            "requiresComplete": true,
+            "capabilityAnyOf": [
+              "customer_facts",
+              "front_desk_operations_overview",
+              "reservation_list"
+            ]
+          },
+          "expectationResolution": {
+            "metricKeys": [],
+            "dimensionKeys": [],
+            "entityKeys": [
+              "customer"
+            ],
+            "domainKeys": [],
+            "capabilityKeys": [
+              "customer_facts",
+              "front_desk_operations_overview",
+              "reservation_list"
+            ],
+            "unresolved": []
+          },
+          "layers": {
+            "intent": {
+              "layer": "intent",
+              "passed": true,
+              "score": 1,
+              "checked": 1,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "tool": {
+              "layer": "capability",
+              "passed": true,
+              "score": 1,
+              "checked": 1,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "plan": {
+              "layer": "plan",
+              "passed": true,
+              "score": 1,
+              "checked": 0,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "execution": {
+              "layer": "execution",
+              "passed": true,
+              "score": 1,
+              "checked": 1,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "completion": {
+              "layer": "completion",
+              "passed": true,
+              "score": 1,
+              "checked": 3,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "answer": {
+              "layer": "answer",
+              "passed": true,
+              "score": 1,
+              "checked": 1,
+              "failures": [],
+              "deterministicFailure": false
+            }
+          },
+          "sixLayerPassed": true,
+          "legacyStatus": "not_usable"
+        },
+        {
+          "questionId": "conversation-front-desk-customer-context-followup:card-progress",
+          "sourceSection": "模型驱动多轮会话门禁",
+          "sourceCategory": "front-desk-customer-context-followup",
+          "sourceIndex": 2,
+          "persona": "reception",
+          "question": "她有没有办过卡，还有多少次",
+          "status": "usable_exact",
+          "brainStatus": "completed",
+          "latencyMs": 13589,
+          "conversationId": 26132,
+          "runId": 26116,
+          "scenarioId": "front-desk-customer-context-followup",
+          "turnId": "card-progress",
+          "turnIndex": 2,
+          "turnCount": 4,
+          "answer": "客户：马美琳，手机 ***6325，会员等级 钻石会员。\n累计消费 196626.00 元，到店 119 次，最近到店 2026-07-15。\n卡项：焕肤清洁 12 次卡 剩余 10 次，有效期至 2027-06-14。\n储值余额：现金 700.00 元，赠送 50.00 元。\n\n数据依据：客户精确事实查询。",
+          "citations": [
+            {
+              "sourceType": "db_skill",
+              "sourceId": "capability_customer_facts",
+              "label": "客户精确事实查询"
+            }
+          ],
+          "domains": [
+            "customer"
+          ],
+          "capabilityKeys": [
+            "customer_facts"
+          ],
+          "grounding": "db_skill",
+          "executionPath": "model_primary",
+          "modelProvider": "openai_responses",
+          "modelName": "gpt-5.6-terra",
+          "modelStage": "execute",
+          "cognitionMode": "model",
+          "grader": {
+            "status": "usable_exact",
+            "expectedIntent": "unknown",
+            "actualIntent": "unknown",
+            "expectedShape": "non_metric",
+            "actualShape": "non_metric",
+            "reason": "意图、指标引用和回答粒度匹配。",
+            "legacyUsableWithCitation": false,
+            "groundingType": "db_skill"
+          },
+          "expected": {
+            "intent": "query",
+            "domains": [],
+            "entities": [],
+            "metrics": [],
+            "dimensions": [],
+            "capabilityKeys": [],
+            "brainStatuses": [
+              "completed"
+            ],
+            "forbiddenMissingSlots": [
+              "entity",
+              "customerIdentity"
+            ],
+            "requiresGrounding": true,
+            "requiresComplete": true,
+            "capabilityAnyOf": [
+              "customer_facts",
+              "front_desk_operations_overview",
+              "reservation_list"
+            ]
+          },
+          "expectationResolution": {
+            "metricKeys": [],
+            "dimensionKeys": [],
+            "entityKeys": [
+              "customer"
+            ],
+            "domainKeys": [],
+            "capabilityKeys": [
+              "customer_facts",
+              "front_desk_operations_overview",
+              "reservation_list"
+            ],
+            "unresolved": []
+          },
+          "layers": {
+            "intent": {
+              "layer": "intent",
+              "passed": true,
+              "score": 1,
+              "checked": 3,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "tool": {
+              "layer": "capability",
+              "passed": true,
+              "score": 1,
+              "checked": 1,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "plan": {
+              "layer": "plan",
+              "passed": true,
+              "score": 1,
+              "checked": 0,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "execution": {
+              "layer": "execution",
+              "passed": true,
+              "score": 1,
+              "checked": 1,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "completion": {
+              "layer": "completion",
+              "passed": true,
+              "score": 1,
+              "checked": 3,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "answer": {
+              "layer": "answer",
+              "passed": true,
+              "score": 1,
+              "checked": 1,
+              "failures": [],
+              "deterministicFailure": false
+            }
+          },
+          "sixLayerPassed": true,
+          "legacyStatus": "not_usable"
+        },
+        {
+          "questionId": "conversation-front-desk-customer-context-followup:last-service",
+          "sourceSection": "模型驱动多轮会话门禁",
+          "sourceCategory": "front-desk-customer-context-followup",
+          "sourceIndex": 3,
+          "persona": "reception",
+          "question": "她上次做的什么项目，有没有特别备注",
+          "status": "usable_exact",
+          "brainStatus": "completed",
+          "latencyMs": 26034,
+          "conversationId": 26132,
+          "runId": 26117,
+          "scenarioId": "front-desk-customer-context-followup",
+          "turnId": "last-service",
+          "turnIndex": 3,
+          "turnCount": 4,
+          "answer": "客户：马美琳，手机 ***6325，会员等级 钻石会员。\n累计消费 196626.00 元，到店 119 次，最近到店 2026-07-15。\n最近完成服务：水氧清洁焕肤，美容师 顾然，完成时间 2026-06-19，服务备注 MVP 演示服务任务。\n最近消费：2026-06-23 亮肤淡斑管理 x1 593.00 元；2025-11-03 美白焕肤疗程 4708.00 元；2025-10-11 会员充值 714.00 元；2025-05-14 玻尿酸精华液 4772.00 元；2025-05-12 玻尿酸精华液 2595.00 元。\n标签：沉睡客户；备注：超过3个月未到店，建议回访。\n\n数据依据：客户精确事实查询。",
+          "citations": [
+            {
+              "sourceType": "db_skill",
+              "sourceId": "capability_customer_facts",
+              "label": "客户精确事实查询"
+            }
+          ],
+          "domains": [
+            "customer"
+          ],
+          "capabilityKeys": [
+            "customer_facts"
+          ],
+          "grounding": "db_skill",
+          "executionPath": "model_primary",
+          "modelProvider": "openai_responses",
+          "modelName": "gpt-5.6-terra",
+          "modelStage": "execute",
+          "cognitionMode": "model",
+          "grader": {
+            "status": "usable_exact",
+            "expectedIntent": "unknown",
+            "actualIntent": "unknown",
+            "expectedShape": "non_metric",
+            "actualShape": "non_metric",
+            "reason": "意图、指标引用和回答粒度匹配。",
+            "legacyUsableWithCitation": false,
+            "groundingType": "db_skill"
+          },
+          "expected": {
+            "intent": "query",
+            "domains": [],
+            "entities": [],
+            "metrics": [],
+            "dimensions": [],
+            "capabilityKeys": [],
+            "brainStatuses": [
+              "completed"
+            ],
+            "forbiddenMissingSlots": [
+              "entity",
+              "customerIdentity"
+            ],
+            "requiresGrounding": true,
+            "requiresComplete": true,
+            "capabilityAnyOf": [
+              "customer_facts",
+              "front_desk_operations_overview",
+              "reservation_list"
+            ]
+          },
+          "expectationResolution": {
+            "metricKeys": [],
+            "dimensionKeys": [],
+            "entityKeys": [
+              "customer",
+              "project"
+            ],
+            "domainKeys": [],
+            "capabilityKeys": [
+              "customer_facts",
+              "front_desk_operations_overview",
+              "reservation_list"
+            ],
+            "unresolved": []
+          },
+          "layers": {
+            "intent": {
+              "layer": "intent",
+              "passed": true,
+              "score": 1,
+              "checked": 3,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "tool": {
+              "layer": "capability",
+              "passed": true,
+              "score": 1,
+              "checked": 1,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "plan": {
+              "layer": "plan",
+              "passed": true,
+              "score": 1,
+              "checked": 0,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "execution": {
+              "layer": "execution",
+              "passed": true,
+              "score": 1,
+              "checked": 1,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "completion": {
+              "layer": "completion",
+              "passed": true,
+              "score": 1,
+              "checked": 3,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "answer": {
+              "layer": "answer",
+              "passed": true,
+              "score": 1,
+              "checked": 1,
+              "failures": [],
+              "deterministicFailure": false
+            }
+          },
+          "sixLayerPassed": true,
+          "legacyStatus": "not_usable"
+        },
+        {
+          "questionId": "conversation-front-desk-customer-context-followup:source-tags",
+          "sourceSection": "模型驱动多轮会话门禁",
+          "sourceCategory": "front-desk-customer-context-followup",
+          "sourceIndex": 4,
+          "persona": "reception",
+          "question": "她是从哪个渠道来的，标签和备注是什么",
+          "status": "usable_exact",
+          "brainStatus": "completed",
+          "latencyMs": 13479,
+          "conversationId": 26132,
+          "runId": 26118,
+          "scenarioId": "front-desk-customer-context-followup",
+          "turnId": "source-tags",
+          "turnIndex": 4,
+          "turnCount": 4,
+          "answer": "客户：马美琳，手机 ***6325，会员等级 钻石会员。\n累计消费 196626.00 元，到店 119 次，最近到店 2026-07-15。\n最近完成服务：水氧清洁焕肤，美容师 顾然，完成时间 2026-06-19，服务备注 MVP 演示服务任务。\n最近消费：2026-06-23 亮肤淡斑管理 x1 593.00 元；2025-11-03 美白焕肤疗程 4708.00 元；2025-10-11 会员充值 714.00 元；2025-05-14 玻尿酸精华液 4772.00 元；2025-05-12 玻尿酸精华液 2595.00 元。\n标签：沉睡客户；备注：超过3个月未到店，建议回访。\n客户来源：小红书。\n\n数据依据：客户精确事实查询。",
+          "citations": [
+            {
+              "sourceType": "db_skill",
+              "sourceId": "capability_customer_facts",
+              "label": "客户精确事实查询"
+            }
+          ],
+          "domains": [
+            "customer"
+          ],
+          "capabilityKeys": [
+            "customer_facts"
+          ],
+          "grounding": "db_skill",
+          "executionPath": "model_primary",
+          "modelProvider": "openai_responses",
+          "modelName": "gpt-5.6-terra",
+          "modelStage": "execute",
+          "cognitionMode": "model",
+          "grader": {
+            "status": "usable_exact",
+            "expectedIntent": "diagnosis",
+            "actualIntent": "unknown",
+            "expectedShape": "non_metric",
+            "actualShape": "non_metric",
+            "reason": "意图、指标引用和回答粒度匹配。",
+            "legacyUsableWithCitation": false,
+            "groundingType": "db_skill"
+          },
+          "expected": {
+            "intent": "query",
+            "domains": [],
+            "entities": [],
+            "metrics": [],
+            "dimensions": [],
+            "capabilityKeys": [],
+            "brainStatuses": [
+              "completed"
+            ],
+            "forbiddenMissingSlots": [
+              "entity",
+              "customerIdentity"
+            ],
+            "requiresGrounding": true,
+            "requiresComplete": true,
+            "capabilityAnyOf": [
+              "customer_facts",
+              "front_desk_operations_overview",
+              "reservation_list"
+            ]
+          },
+          "expectationResolution": {
+            "metricKeys": [],
+            "dimensionKeys": [],
+            "entityKeys": [
+              "customer"
+            ],
+            "domainKeys": [],
+            "capabilityKeys": [
+              "customer_facts",
+              "front_desk_operations_overview",
+              "reservation_list"
+            ],
+            "unresolved": []
+          },
+          "layers": {
+            "intent": {
+              "layer": "intent",
+              "passed": true,
+              "score": 1,
+              "checked": 3,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "tool": {
+              "layer": "capability",
+              "passed": true,
+              "score": 1,
+              "checked": 1,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "plan": {
+              "layer": "plan",
+              "passed": true,
+              "score": 1,
+              "checked": 0,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "execution": {
+              "layer": "execution",
+              "passed": true,
+              "score": 1,
+              "checked": 1,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "completion": {
+              "layer": "completion",
+              "passed": true,
+              "score": 1,
+              "checked": 3,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "answer": {
+              "layer": "answer",
+              "passed": true,
+              "score": 1,
+              "checked": 1,
+              "failures": [],
+              "deterministicFailure": false
+            }
+          },
+          "sixLayerPassed": true,
+          "legacyStatus": "not_usable"
+        }
+      ]
+    },
+    {
+      "questionId": "conversation-front-desk-customer-pronoun-clarification",
+      "sourceSection": "模型驱动多轮会话门禁",
+      "sourceCategory": "front-desk-customer-pronoun-clarification",
+      "sourceIndex": 1,
+      "persona": "reception",
+      "question": "她有没有在我们店消费过 -> 马美琳，手机尾号6325",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 41633,
+      "conversationId": 26133,
+      "runId": 26120,
+      "scenarioId": "front-desk-customer-pronoun-clarification",
+      "turnCount": 2,
+      "answer": "客户：马美琳，手机 ***6325，会员等级 钻石会员。\n累计消费 196626.00 元，到店 119 次，最近到店 2026-07-15。\n\n数据依据：客户精确事实查询。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "capability_customer_facts",
+          "label": "客户精确事实查询"
+        }
+      ],
+      "domains": [
+        "customer"
+      ],
+      "capabilityKeys": [
+        "customer_facts"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "brainStatuses": [
+          "completed"
+        ],
+        "forbiddenMissingSlots": [
+          "entity",
+          "customerIdentity"
+        ],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_facts",
+          "front_desk_operations_overview",
+          "reservation_list"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_facts",
+          "front_desk_operations_overview",
+          "reservation_list"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable",
+      "turns": [
+        {
+          "questionId": "conversation-front-desk-customer-pronoun-clarification:missing-customer",
+          "sourceSection": "模型驱动多轮会话门禁",
+          "sourceCategory": "front-desk-customer-pronoun-clarification",
+          "sourceIndex": 1,
+          "persona": "reception",
+          "question": "她有没有在我们店消费过",
+          "status": "usable_exact",
+          "brainStatus": "clarify",
+          "latencyMs": 18270,
+          "conversationId": 26133,
+          "runId": 26119,
+          "scenarioId": "front-desk-customer-pronoun-clarification",
+          "turnId": "missing-customer",
+          "turnIndex": 1,
+          "turnCount": 2,
+          "answer": "为了准确处理，请一次确认：请补充业务对象；“她”未对应到可唯一识别的客户？",
+          "citations": [],
+          "domains": [
+            "customer"
+          ],
+          "capabilityKeys": [],
+          "grounding": "none",
+          "executionPath": "model_primary",
+          "modelProvider": "openai_responses",
+          "modelName": "gpt-5.6-terra",
+          "modelStage": "validate",
+          "cognitionMode": "model",
+          "grader": {
+            "status": "usable_exact",
+            "expectedIntent": "clarify",
+            "actualIntent": "clarify",
+            "expectedShape": "clarification",
+            "actualShape": "clarification",
+            "reason": "返回了结构化合并式澄清。",
+            "legacyUsableWithCitation": false,
+            "groundingType": "none"
+          },
+          "expected": {
+            "intent": "clarify",
+            "answerShape": "clarification",
+            "domains": [],
+            "entities": [],
+            "metrics": [],
+            "dimensions": [],
+            "capabilityKeys": [],
+            "brainStatuses": [
+              "clarify"
+            ],
+            "missingSlots": [
+              "entity"
+            ],
+            "requiresGrounding": false,
+            "requiresComplete": false
+          },
+          "expectationResolution": {
+            "metricKeys": [],
+            "dimensionKeys": [],
+            "entityKeys": [],
+            "domainKeys": [],
+            "capabilityKeys": [],
+            "unresolved": []
+          },
+          "layers": {
+            "intent": {
+              "layer": "intent",
+              "passed": true,
+              "score": 1,
+              "checked": 2,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "tool": {
+              "layer": "capability",
+              "passed": true,
+              "score": 1,
+              "checked": 0,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "plan": {
+              "layer": "plan",
+              "passed": true,
+              "score": 1,
+              "checked": 0,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "execution": {
+              "layer": "execution",
+              "passed": true,
+              "score": 1,
+              "checked": 1,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "completion": {
+              "layer": "completion",
+              "passed": true,
+              "score": 1,
+              "checked": 1,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "answer": {
+              "layer": "answer",
+              "passed": true,
+              "score": 1,
+              "checked": 1,
+              "failures": [],
+              "deterministicFailure": false
+            }
+          },
+          "sixLayerPassed": true,
+          "legacyStatus": "not_usable"
+        },
+        {
+          "questionId": "conversation-front-desk-customer-pronoun-clarification:fill-customer",
+          "sourceSection": "模型驱动多轮会话门禁",
+          "sourceCategory": "front-desk-customer-pronoun-clarification",
+          "sourceIndex": 2,
+          "persona": "reception",
+          "question": "马美琳，手机尾号6325",
+          "status": "usable_exact",
+          "brainStatus": "completed",
+          "latencyMs": 23191,
+          "conversationId": 26133,
+          "runId": 26120,
+          "scenarioId": "front-desk-customer-pronoun-clarification",
+          "turnId": "fill-customer",
+          "turnIndex": 2,
+          "turnCount": 2,
+          "answer": "客户：马美琳，手机 ***6325，会员等级 钻石会员。\n累计消费 196626.00 元，到店 119 次，最近到店 2026-07-15。\n\n数据依据：客户精确事实查询。",
+          "citations": [
+            {
+              "sourceType": "db_skill",
+              "sourceId": "capability_customer_facts",
+              "label": "客户精确事实查询"
+            }
+          ],
+          "domains": [
+            "customer"
+          ],
+          "capabilityKeys": [
+            "customer_facts"
+          ],
+          "grounding": "db_skill",
+          "executionPath": "model_primary",
+          "modelProvider": "openai_responses",
+          "modelName": "gpt-5.6-terra",
+          "modelStage": "execute",
+          "cognitionMode": "model",
+          "grader": {
+            "status": "usable_exact",
+            "expectedIntent": "unknown",
+            "actualIntent": "unknown",
+            "expectedShape": "non_metric",
+            "actualShape": "non_metric",
+            "reason": "意图、指标引用和回答粒度匹配。",
+            "legacyUsableWithCitation": false,
+            "groundingType": "db_skill"
+          },
+          "expected": {
+            "intent": "query",
+            "domains": [],
+            "entities": [],
+            "metrics": [],
+            "dimensions": [],
+            "capabilityKeys": [],
+            "brainStatuses": [
+              "completed"
+            ],
+            "forbiddenMissingSlots": [
+              "entity",
+              "customerIdentity"
+            ],
+            "requiresGrounding": true,
+            "requiresComplete": true,
+            "capabilityAnyOf": [
+              "customer_facts",
+              "front_desk_operations_overview",
+              "reservation_list"
+            ]
+          },
+          "expectationResolution": {
+            "metricKeys": [],
+            "dimensionKeys": [],
+            "entityKeys": [
+              "customer"
+            ],
+            "domainKeys": [],
+            "capabilityKeys": [
+              "customer_facts",
+              "front_desk_operations_overview",
+              "reservation_list"
+            ],
+            "unresolved": []
+          },
+          "layers": {
+            "intent": {
+              "layer": "intent",
+              "passed": true,
+              "score": 1,
+              "checked": 3,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "tool": {
+              "layer": "capability",
+              "passed": true,
+              "score": 1,
+              "checked": 1,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "plan": {
+              "layer": "plan",
+              "passed": true,
+              "score": 1,
+              "checked": 0,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "execution": {
+              "layer": "execution",
+              "passed": true,
+              "score": 1,
+              "checked": 1,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "completion": {
+              "layer": "completion",
+              "passed": true,
+              "score": 1,
+              "checked": 3,
+              "failures": [],
+              "deterministicFailure": false
+            },
+            "answer": {
+              "layer": "answer",
+              "passed": true,
+              "score": 1,
+              "checked": 1,
+              "failures": [],
+              "deterministicFailure": false
+            }
+          },
+          "sixLayerPassed": true,
+          "legacyStatus": "not_usable"
+        }
+      ]
+    }
+  ]
+}

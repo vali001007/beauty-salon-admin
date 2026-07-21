@@ -13,6 +13,55 @@ describe('BrainConversationContextService', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
+  const modelRef = {
+    definitionType: 'metric' as const,
+    definitionKey: 'metric.product_sales_quantity',
+    definitionVersion: 1,
+    definitionFingerprint: 'a'.repeat(64),
+    sourceFingerprint: 'b'.repeat(64),
+  };
+
+  const modelSnapshot = () => ({
+    version: 1,
+    definitionRefs: [{ ...modelRef }],
+    entities: [],
+    intent: 'ranking',
+    answerShape: 'ranking',
+    timeRange: {
+      label: '本月',
+      startDate: '2026-07-01',
+      endDate: '2026-07-31',
+      timezone: 'Asia/Shanghai',
+    },
+    updatedFromRunId: 8,
+    updatedAt: '2026-07-13T08:00:00.000Z',
+  });
+
+  const publishedSnapshot = {
+    productionReady: true,
+    fingerprint: 'c'.repeat(64),
+    entities: [],
+    relations: [],
+    metrics: [
+      {
+        definitionKey: modelRef.definitionKey,
+        version: modelRef.definitionVersion,
+        definitionFingerprint: modelRef.definitionFingerprint,
+        sourceFingerprint: modelRef.sourceFingerprint,
+      },
+    ],
+    dimensions: [],
+  };
+
+  async function prepareModel(model: unknown) {
+    prisma.brainConversation.findUnique.mockResolvedValue({ contextSnapshot: { model } });
+    return service.prepareModelTurn({
+      conversationId: 1,
+      dto: { message: '继续看排行', timezone: 'Asia/Shanghai' },
+      snapshot: publishedSnapshot as never,
+    });
+  }
+
   it('inherits the previous metric and time range for an elliptical follow-up', async () => {
     prisma.brainConversation.findUnique.mockResolvedValue({
       contextSnapshot: {
@@ -122,6 +171,64 @@ describe('BrainConversationContextService', () => {
     expect(prisma.brainConversation.update).toHaveBeenCalledWith({
       where: { id: 1 },
       data: expect.objectContaining({ contextVersion: 3, contextSnapshot: expect.objectContaining({ metrics: ['paid_revenue'] }) }),
+    });
+  });
+
+  it('accepts a strict model snapshot that is bound to the current published definition', async () => {
+    await expect(prepareModel(modelSnapshot())).resolves.toMatchObject({
+      previous: expect.objectContaining({
+        version: 1,
+        definitionRefs: [modelRef],
+        updatedAt: '2026-07-13T08:00:00.000Z',
+      }),
+    });
+  });
+
+  it.each([
+    ['invalid calendar date', (value: any) => (value.timeRange.startDate = '2026-02-30')],
+    ['invalid RFC3339 timestamp', (value: any) => (value.updatedAt = '2026-02-30T00:00:00.000Z')],
+    ['non-finite confidence', (value: any) => value.entities.push({
+      entityType: 'customer',
+      mention: '李女士',
+      source: 'conversation',
+      confidence: Number.NaN,
+    })],
+    ['reversed date range', (value: any) => {
+      value.timeRange.startDate = '2026-08-01';
+      value.timeRange.endDate = '2026-07-31';
+    }],
+  ])('rejects model context with %s', async (_label, mutate) => {
+    const value = modelSnapshot();
+    mutate(value);
+
+    await expect(prepareModel(value)).resolves.toMatchObject({
+      rejectionCode: 'MODEL_CONTEXT_INVALID',
+    });
+  });
+
+  it.each([
+    ['custom prototype', (value: any) => Object.assign(Object.create({ polluted: true }), value)],
+    ['symbol key', (value: any) => {
+      value[Symbol('hidden')] = 'forged';
+      return value;
+    }],
+    ['non-enumerable key', (value: any) => {
+      Object.defineProperty(value, 'hidden', { value: 'forged', enumerable: false });
+      return value;
+    }],
+    ['accessor key', (value: any) => {
+      Object.defineProperty(value, 'hidden', { get: () => 'forged', enumerable: true });
+      return value;
+    }],
+    ['cycle', (value: any) => {
+      value.loop = value;
+      return value;
+    }],
+  ])('rejects non-JSON model context with %s', async (_label, mutate) => {
+    const value = mutate(modelSnapshot());
+
+    await expect(prepareModel(value)).resolves.toMatchObject({
+      rejectionCode: 'MODEL_CONTEXT_INVALID',
     });
   });
 });

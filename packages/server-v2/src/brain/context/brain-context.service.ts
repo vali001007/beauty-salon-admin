@@ -5,9 +5,11 @@ import type { BrainRequestContext } from './brain-request-context.js';
 interface AuthenticatedBrainRequest extends Request {
   user?: {
     id?: number;
+    roles?: string[];
     permissions?: string[];
     deniedPermissions?: string[];
     storeIds?: number[];
+    stores?: number[];
   };
 }
 
@@ -21,11 +23,21 @@ export class BrainContextService {
       throw new BadRequestException('缺少有效的 X-Store-Id');
     }
 
+    const permissions = req.user?.permissions ?? [];
+    const visibleStoreIds = Array.from(
+      new Set([...(req.user?.storeIds ?? []), ...(req.user?.stores ?? [])].filter((id) => Number.isInteger(id) && id > 0)),
+    );
+    if (visibleStoreIds.length === 0 && permissions.includes('*')) visibleStoreIds.push(storeId);
+    if (!visibleStoreIds.includes(storeId)) {
+      throw new BadRequestException('当前账号无权访问该门店');
+    }
+
     return {
       userId: Number(req.user?.id),
       storeId,
-      visibleStoreIds: req.user?.storeIds?.length ? req.user.storeIds : [storeId],
-      permissions: req.user?.permissions ?? [],
+      visibleStoreIds,
+      roles: req.user?.roles ?? [],
+      permissions,
       deniedPermissions: req.user?.deniedPermissions ?? [],
       requestId: String(req.headers['x-request-id'] ?? `brain_${Date.now()}`),
       timezone,

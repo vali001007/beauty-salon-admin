@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/authStore';
 import { useStoreStore } from '@/stores/storeStore';
@@ -7,9 +7,11 @@ import {
   createBrainConversation,
   createBrainFeedback,
   getBrainRunEvents,
+  listBrainActionStatuses,
   listBrainConversations,
   listBrainMessages,
   rejectBrainAction,
+  retryBrainAction,
   streamBrainMessage,
 } from '@/api/brain';
 import type {
@@ -17,6 +19,7 @@ import type {
   BrainConversation,
   BrainMessage,
   BrainRoleKey,
+  BrainResponseBlock,
   BrainRunEvent,
 } from '@/types/brain';
 import { BrainChatPanel } from './components/BrainChatPanel';
@@ -46,6 +49,42 @@ export function BrainWorkspace() {
   const [actionResults, setActionResults] = useState<Record<string, BrainActionDecisionResponse>>({});
   const [feedbackByRun, setFeedbackByRun] = useState<Record<number, string>>({});
   const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const selectedRunId = selectedAssistant?.metadata?.runId;
+  const hasExecutingAction = useMemo(
+    () => Object.values(actionResults).some((result) => result.status === 'queued' || result.status === 'executing'),
+    [actionResults],
+  );
+
+  useEffect(() => {
+    if (!selectedRunId || !hasExecutingAction) return;
+    let cancelled = false;
+    let timer: number | undefined;
+    const poll = async () => {
+      if (cancelled) return;
+      if (document.visibilityState === 'hidden') {
+        timer = window.setTimeout(() => void poll(), 2_000);
+        return;
+      }
+      try {
+        const response = await listBrainActionStatuses(selectedRunId);
+        if (cancelled) return;
+        setActionResults((current) => ({
+          ...current,
+          ...Object.fromEntries(response.items.map((item) => [item.actionId, item])),
+        }));
+        if (response.items.some((item) => item.status === 'queued' || item.status === 'executing')) {
+          timer = window.setTimeout(() => void poll(), 2_000);
+        }
+      } catch {
+        if (!cancelled) timer = window.setTimeout(() => void poll(), 4_000);
+      }
+    };
+    timer = window.setTimeout(() => void poll(), 1_500);
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [hasExecutingAction, selectedRunId]);
 
   const loadRunEvents = useCallback(async (message: BrainMessage | null) => {
     setSelectedAssistant(message);
@@ -54,14 +93,24 @@ export function BrainWorkspace() {
     if (!runId) return;
 
     setLoadingEvents(true);
-    try {
-      const response = await getBrainRunEvents(runId);
-      setRunEvents(response.events);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '运行轨迹加载失败');
-    } finally {
-      setLoadingEvents(false);
+    const [eventsResult, actionsResult] = await Promise.allSettled([
+      getBrainRunEvents(runId),
+      listBrainActionStatuses(runId),
+    ]);
+    if (eventsResult.status === 'fulfilled') {
+      setRunEvents(eventsResult.value.events);
+    } else {
+      toast.error(eventsResult.reason instanceof Error ? eventsResult.reason.message : '运行轨迹加载失败');
     }
+    if (actionsResult.status === 'fulfilled') {
+      setActionResults((current) => ({
+        ...current,
+        ...Object.fromEntries(actionsResult.value.items.map((item) => [item.actionId, item])),
+      }));
+    } else {
+      toast.error(actionsResult.reason instanceof Error ? actionsResult.reason.message : '动作状态加载失败');
+    }
+    setLoadingEvents(false);
   }, []);
 
   const loadMessages = useCallback(
@@ -70,6 +119,7 @@ export function BrainWorkspace() {
       setMessages([]);
       setSelectedAssistant(null);
       setRunEvents([]);
+      setActionResults({});
       try {
         const response = await listBrainMessages(id);
         setMessages(response.items);
@@ -128,6 +178,7 @@ export function BrainWorkspace() {
       setMessages([]);
       setSelectedAssistant(null);
       setRunEvents([]);
+      setActionResults({});
       return conversation;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '新建会话失败');
@@ -172,6 +223,8 @@ export function BrainWorkspace() {
 
     try {
       let streamedAnswer = '';
+      let streamedStatus = '';
+      const streamedBlocks: BrainResponseBlock[] = [];
       const response = await streamBrainMessage(
         activeConversationId,
         {
@@ -180,16 +233,27 @@ export function BrainWorkspace() {
           timezone: 'Asia/Shanghai',
         },
         (event) => {
-          if (event.type !== 'answer_delta') return;
-          streamedAnswer += String(event.data.delta ?? '');
+          if (event.type === 'progress') {
+            streamedStatus = String(event.data.message ?? '正在处理...');
+          } else if (event.type === 'answer_delta') {
+            streamedAnswer += String(event.data.delta ?? '');
+          } else if (event.type === 'block_completed' && event.data.block && typeof event.data.block === 'object') {
+            streamedBlocks[Number(event.data.index ?? streamedBlocks.length)] = event.data.block as BrainResponseBlock;
+          } else {
+            return;
+          }
           setMessages((current) => {
             const existing = current.some((item) => item.id === streamingAssistantId);
             const streamingMessage: BrainMessage = {
               id: streamingAssistantId,
               conversationId: activeConversationId,
               role: 'assistant',
-              content: streamedAnswer,
-              metadata: { status: 'running' },
+              content: streamedAnswer || streamedStatus,
+              metadata: {
+                status: 'running',
+                streamPhase: event.type === 'progress' ? String(event.data.phase ?? 'understanding') : 'answering',
+                blocks: streamedBlocks.filter(Boolean),
+              },
               createdAt: new Date().toISOString(),
             };
             return existing
@@ -213,13 +277,17 @@ export function BrainWorkspace() {
     }
   }
 
-  async function handleAction(actionId: string, runId: number, decision: 'confirm' | 'reject') {
+  async function handleAction(actionId: string, runId: number, decision: 'confirm' | 'reject' | 'retry') {
     setPendingActionId(actionId);
     try {
-      const response =
-        decision === 'confirm' ? await confirmBrainAction(actionId, runId) : await rejectBrainAction(actionId, runId);
+      const response = decision === 'confirm'
+        ? await confirmBrainAction(actionId, runId)
+        : decision === 'retry'
+          ? await retryBrainAction(actionId, runId)
+          : await rejectBrainAction(actionId, runId);
       setActionResults((current) => ({ ...current, [actionId]: response }));
       if (response.status === 'succeeded') toast.success(response.receipt?.message ?? '动作执行成功');
+      else if (response.status === 'queued' || response.status === 'executing') toast.success(response.receipt?.message ?? '动作已进入执行队列');
       else if (response.status === 'rejected') toast.success('已拒绝动作');
       else if (response.status === 'failed') toast.error(response.error?.message ?? '动作执行失败');
       else if (response.status === 'expired') toast.error('动作确认已过期，请重新生成预览');
@@ -242,8 +310,6 @@ export function BrainWorkspace() {
       setFeedbackLoading(false);
     }
   }
-
-  const selectedRunId = selectedAssistant?.metadata?.runId;
 
   return (
     <div className="flex h-full min-h-0 bg-background">
@@ -275,6 +341,7 @@ export function BrainWorkspace() {
         feedbackLoading={feedbackLoading}
         onConfirmAction={(actionId, runId) => void handleAction(actionId, runId, 'confirm')}
         onRejectAction={(actionId, runId) => void handleAction(actionId, runId, 'reject')}
+        onRetryAction={(actionId, runId) => void handleAction(actionId, runId, 'retry')}
         onFeedback={(runId, rating) => void handleFeedback(runId, rating)}
       />
     </div>

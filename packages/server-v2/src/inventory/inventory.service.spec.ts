@@ -11,12 +11,13 @@ describe('InventoryService terminal dashboard cache', () => {
     commissionService = { recordAmiContribution: jest.fn() };
     prisma = {
       $transaction: jest.fn(async (callback: any) => callback(prisma)),
+      $executeRaw: jest.fn().mockResolvedValue(0),
       product: {
         findUnique: jest.fn(),
         findFirst: jest.fn(),
         update: jest.fn(),
         findMany: jest.fn(),
-        count: jest.fn(),
+        count: jest.fn().mockResolvedValue(1),
         fields: { safetyStock: 'safetyStock' },
       },
       stockBatch: {

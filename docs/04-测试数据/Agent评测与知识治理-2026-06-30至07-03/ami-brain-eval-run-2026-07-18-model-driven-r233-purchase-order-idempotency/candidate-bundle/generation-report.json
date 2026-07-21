@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-18T10:35:41.376Z",
+  "policy": "synthetic_contract_only",
+  "productionReady": false,
+  "ready": 0,
+  "syntheticContracts": 1,
+  "blocked": 0,
+  "gateReports": [
+    {
+      "capabilityKey": "purchase_order_draft",
+      "proposalFingerprint": "3d6b986bdc2d0773b89e4918eff193f6cf12703f17eb0b65fb918327585b1437",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    }
+  ],
+  "blockedItems": [],
+  "branchProposals": []
+}

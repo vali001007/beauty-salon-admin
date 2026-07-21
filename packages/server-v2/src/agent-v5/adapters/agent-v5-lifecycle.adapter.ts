@@ -113,7 +113,7 @@ export class AgentV5LifecycleAdapter {
     runId: number;
     actor: AgentActor;
   }): Promise<AgentV5AdapterResult> {
-    const result = await this.marketingService.submitLifecycleBusinessPlanActions(input.planId, {
+    const result = await this.marketingService.submitLifecycleBusinessPlanActions(input.planId, input.actor.storeId, {
       sourceAgentCode: AGENT_V5_CODE,
       sourceRunId: input.runId,
       sourceEntrypoint: input.actor.entrypoint,

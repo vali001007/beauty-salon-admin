@@ -1,0 +1,788 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-19T20:15:25.086Z",
+    "startedAt": "2026-07-19T20:14:42.571Z",
+    "finishedAt": "2026-07-19T20:15:25.086Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-eval-run-2026-07-20-p4-r347-reservation-member-level-targeted\\reservation-member-level-paraphrase-cases.json",
+    "questionCount": 3,
+    "actualRunCount": 3,
+    "actualTurnCount": 3,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "releaseId": 347,
+    "gate": null,
+    "releaseSnapshot": {
+      "releaseFingerprint": "e596138d4434c481b89ca9bfb0786938721f8063effbf2d66236b7cefba4384d",
+      "declaredMode": "shadow",
+      "resourceVersionIds": [
+        774,
+        776,
+        777,
+        778,
+        781,
+        782,
+        784,
+        786,
+        787,
+        788,
+        789,
+        792,
+        793,
+        794,
+        795,
+        796,
+        797,
+        798,
+        799,
+        803,
+        807,
+        809,
+        810,
+        811,
+        812,
+        813,
+        814,
+        815,
+        816,
+        817,
+        818,
+        819,
+        820,
+        821,
+        822,
+        823,
+        824
+      ],
+      "capabilityKeys": [
+        "appointment_gap_list",
+        "beautician_customer_card_progress",
+        "beautician_material_preparation",
+        "beautician_personal_performance",
+        "beautician_service_overview",
+        "card_usage_action_preview",
+        "customer_facts",
+        "customer_follow_up_draft",
+        "customer_priority_recommendation",
+        "finance_material_cost_summary",
+        "finance_payment_breakdown",
+        "finance_risk_overview",
+        "finance_staff_refund_rate_boundary",
+        "finance_transaction_anomaly_review",
+        "front_desk_operations_overview",
+        "gap_fill_touch_preview",
+        "inventory_operations_overview",
+        "inventory_procurement_advice",
+        "inventory_receipt_discrepancy_guidance",
+        "inventory_risk_ranking",
+        "manager_staff_overview",
+        "marketing_campaign_cost_attribution_review",
+        "marketing_campaign_plan",
+        "marketing_customer_segment",
+        "marketing_growth_overview",
+        "marketing_message_draft",
+        "marketing_strategy_execute_preview",
+        "marketing_touch_draft",
+        "order_revenue_analysis",
+        "product_sales_ranking",
+        "project_margin_analysis",
+        "project_material_consumption_analysis",
+        "project_service_ranking",
+        "reservation_action_preview",
+        "reservation_list",
+        "staff_performance_ranking",
+        "store_operations_overview"
+      ]
+    },
+    "candidateSkillsEnabledForEval": true,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "permissionSource": "active_backend_role_catalog_plus_candidate_minimum_permissions",
+    "evaluationRoleKeys": [
+      "store_manager"
+    ],
+    "evaluationUserIds": {
+      "store_manager": 28
+    },
+    "permissionCatalogRoleKeys": [
+      "ami_demo_full_beautician",
+      "ami_demo_full_cashier",
+      "ami_demo_full_manager",
+      "beautician",
+      "cashier",
+      "store_manager",
+      "super_admin"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。",
+      "provider_unavailable": "模型供应商不可用，单列为评测基础设施失败，不进入产品可用率分母。",
+      "sixLayerGate": "意图、工具、计划、执行、完成度、答案六层必须全部通过；确定性失败不可被 LLM Judge 覆盖。"
+    }
+  },
+  "summary": {
+    "total": 3,
+    "evaluableTotal": 3,
+    "providerUnavailableCount": 0,
+    "legacyUsableWithCitation": 0,
+    "legacyUsableRate": 0,
+    "trueUsable": 3,
+    "trueUsableRate": 1,
+    "observedTrueUsableRate": 1,
+    "contractPassed": 3,
+    "contractPassRate": 1,
+    "expectedBoundaryPassed": 0,
+    "conversationGate": {
+      "scenarioCount": 0,
+      "passedScenarioCount": 0,
+      "contractPassedScenarioCount": 0,
+      "turnCount": 3,
+      "passedTurnCount": 3,
+      "contractPassedTurnCount": 3
+    },
+    "byStatus": [
+      {
+        "key": "usable_partial",
+        "total": 3,
+        "evaluableTotal": 3,
+        "usable": 3,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "manager",
+        "total": 3,
+        "evaluableTotal": 3,
+        "usable": 3,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "query",
+        "total": 3,
+        "evaluableTotal": 3,
+        "usable": 3,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [],
+    "securityGate": {
+      "permissionBypassCount": 0,
+      "crossStoreReadCount": 0,
+      "roleHintBypassCount": 0,
+      "fakeActionConfirmationCount": 0
+    },
+    "grounding": {
+      "metricQueryCount": 0,
+      "dbSkillCount": 3,
+      "templateSkillCount": 0,
+      "previewActionCount": 0,
+      "noneCount": 0
+    },
+    "adapterDistribution": [
+      {
+        "reason": "none",
+        "count": 3
+      }
+    ],
+    "domainDistribution": [
+      {
+        "reason": "customer",
+        "count": 3
+      },
+      {
+        "reason": "reservation",
+        "count": 3
+      },
+      {
+        "reason": "project",
+        "count": 2
+      }
+    ],
+    "capabilityDistribution": [
+      {
+        "reason": "reservation_list",
+        "count": 3
+      }
+    ],
+    "executionPathDistribution": [
+      {
+        "reason": "model_primary",
+        "count": 3
+      }
+    ],
+    "sixLayer": {
+      "intent": {
+        "total": 3,
+        "passed": 3,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "tool": {
+        "total": 3,
+        "passed": 3,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "plan": {
+        "total": 3,
+        "passed": 3,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "execution": {
+        "total": 3,
+        "passed": 3,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "completion": {
+        "total": 3,
+        "passed": 3,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "answer": {
+        "total": 3,
+        "passed": 3,
+        "passRate": 1,
+        "averageScore": 0.75
+      }
+    },
+    "latency": {
+      "avgMs": 14089,
+      "p95Ms": 16334,
+      "maxMs": 16334
+    }
+  },
+  "records": [
+    {
+      "questionId": "paraphrase-reservation-member-level-preparation",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "query",
+      "sourceIndex": 1,
+      "persona": "manager",
+      "question": "今天预约的顾客中哪些会员等级需要特别接待",
+      "status": "usable_partial",
+      "brainStatus": "completed",
+      "latencyMs": 16334,
+      "conversationId": 32294,
+      "runId": 32520,
+      "answer": "今天没有预约客户。系统当前只有预约客户的原始会员等级，尚未发布统一的 VIP 等级映射规则，因此只展示会员等级，不自动把某个等级判定为 VIP。\n\n明细：当前没有匹配数据。\n\n未完成范围：当前时间范围没有匹配的明细数据；系统当前只有预约客户的原始会员等级，尚未发布统一的 VIP 等级映射规则，因此只展示会员等级，不自动把某个等级判定为 VIP。\n\n数据依据：门店预约清单。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "capability_reservation_list",
+          "label": "门店预约清单"
+        }
+      ],
+      "domains": [
+        "reservation",
+        "customer"
+      ],
+      "capabilityKeys": [
+        "reservation_list"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_partial",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "appointment_count",
+        "reason": "真实业务数据覆盖不足，系统返回了可审计的 no_data 边界且未用相近口径替代。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "answerShape": "list",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "appointment_gap_list",
+          "customer_facts",
+          "customer_priority_recommendation",
+          "finance_material_cost_summary",
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "finance_staff_refund_rate_boundary",
+          "finance_transaction_anomaly_review",
+          "front_desk_operations_overview",
+          "inventory_operations_overview",
+          "inventory_procurement_advice",
+          "inventory_risk_ranking",
+          "manager_staff_overview",
+          "marketing_campaign_cost_attribution_review",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "order_revenue_analysis",
+          "product_sales_ranking",
+          "project_margin_analysis",
+          "project_material_consumption_analysis",
+          "reservation_list",
+          "staff_performance_ranking",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "appointment_gap_list",
+          "customer_facts",
+          "customer_priority_recommendation",
+          "finance_material_cost_summary",
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "finance_staff_refund_rate_boundary",
+          "finance_transaction_anomaly_review",
+          "front_desk_operations_overview",
+          "inventory_operations_overview",
+          "inventory_procurement_advice",
+          "inventory_risk_ranking",
+          "manager_staff_overview",
+          "marketing_campaign_cost_attribution_review",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "order_revenue_analysis",
+          "product_sales_ranking",
+          "project_margin_analysis",
+          "project_material_consumption_analysis",
+          "reservation_list",
+          "staff_performance_ranking",
+          "store_operations_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 2,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 0.75,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "contractPassed": true,
+      "expectedBoundary": false,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "paraphrase-reservation-high-level-member-preparation",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "query",
+      "sourceIndex": 2,
+      "persona": "manager",
+      "question": "今天预约名单里有高等级会员吗，需要准备什么",
+      "status": "usable_partial",
+      "brainStatus": "completed",
+      "latencyMs": 13955,
+      "conversationId": 32295,
+      "runId": 32521,
+      "answer": "今天没有预约客户。系统当前只有预约客户的原始会员等级，尚未发布统一的 VIP 等级映射规则，因此只展示会员等级，不自动把某个等级判定为 VIP。\n\n明细：当前没有匹配数据。\n\n未完成范围：当前时间范围没有匹配的明细数据；系统当前只有预约客户的原始会员等级，尚未发布统一的 VIP 等级映射规则，因此只展示会员等级，不自动把某个等级判定为 VIP。\n\n数据依据：门店预约清单。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "capability_reservation_list",
+          "label": "门店预约清单"
+        }
+      ],
+      "domains": [
+        "reservation",
+        "customer",
+        "project"
+      ],
+      "capabilityKeys": [
+        "reservation_list"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_partial",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "appointment_count",
+        "reason": "真实业务数据覆盖不足，系统返回了可审计的 no_data 边界且未用相近口径替代。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "answerShape": "list",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "appointment_gap_list",
+          "customer_facts",
+          "customer_priority_recommendation",
+          "finance_material_cost_summary",
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "finance_staff_refund_rate_boundary",
+          "finance_transaction_anomaly_review",
+          "front_desk_operations_overview",
+          "inventory_operations_overview",
+          "inventory_procurement_advice",
+          "inventory_risk_ranking",
+          "manager_staff_overview",
+          "marketing_campaign_cost_attribution_review",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "order_revenue_analysis",
+          "product_sales_ranking",
+          "project_margin_analysis",
+          "project_material_consumption_analysis",
+          "reservation_list",
+          "staff_performance_ranking",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "appointment_gap_list",
+          "customer_facts",
+          "customer_priority_recommendation",
+          "finance_material_cost_summary",
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "finance_staff_refund_rate_boundary",
+          "finance_transaction_anomaly_review",
+          "front_desk_operations_overview",
+          "inventory_operations_overview",
+          "inventory_procurement_advice",
+          "inventory_risk_ranking",
+          "manager_staff_overview",
+          "marketing_campaign_cost_attribution_review",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "order_revenue_analysis",
+          "product_sales_ranking",
+          "project_margin_analysis",
+          "project_material_consumption_analysis",
+          "reservation_list",
+          "staff_performance_ranking",
+          "store_operations_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 2,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 0.75,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "contractPassed": true,
+      "expectedBoundary": false,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "paraphrase-reservation-raw-member-level",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "query",
+      "sourceIndex": 3,
+      "persona": "manager",
+      "question": "查看今天预约客户的原始会员等级和接待准备",
+      "status": "usable_partial",
+      "brainStatus": "completed",
+      "latencyMs": 11977,
+      "conversationId": 32296,
+      "runId": 32522,
+      "answer": "今天没有预约客户。系统当前只有预约客户的原始会员等级，尚未发布统一的 VIP 等级映射规则，因此只展示会员等级，不自动把某个等级判定为 VIP。\n\n明细：当前没有匹配数据。\n\n未完成范围：当前时间范围没有匹配的明细数据；系统当前只有预约客户的原始会员等级，尚未发布统一的 VIP 等级映射规则，因此只展示会员等级，不自动把某个等级判定为 VIP。\n\n数据依据：门店预约清单。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "capability_reservation_list",
+          "label": "门店预约清单"
+        }
+      ],
+      "domains": [
+        "customer",
+        "reservation",
+        "project"
+      ],
+      "capabilityKeys": [
+        "reservation_list"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_partial",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "appointment_count",
+        "reason": "真实业务数据覆盖不足，系统返回了可审计的 no_data 边界且未用相近口径替代。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "answerShape": "list",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "appointment_gap_list",
+          "customer_facts",
+          "customer_priority_recommendation",
+          "finance_material_cost_summary",
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "finance_staff_refund_rate_boundary",
+          "finance_transaction_anomaly_review",
+          "front_desk_operations_overview",
+          "inventory_operations_overview",
+          "inventory_procurement_advice",
+          "inventory_risk_ranking",
+          "manager_staff_overview",
+          "marketing_campaign_cost_attribution_review",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "order_revenue_analysis",
+          "product_sales_ranking",
+          "project_margin_analysis",
+          "project_material_consumption_analysis",
+          "reservation_list",
+          "staff_performance_ranking",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "appointment_gap_list",
+          "customer_facts",
+          "customer_priority_recommendation",
+          "finance_material_cost_summary",
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "finance_staff_refund_rate_boundary",
+          "finance_transaction_anomaly_review",
+          "front_desk_operations_overview",
+          "inventory_operations_overview",
+          "inventory_procurement_advice",
+          "inventory_risk_ranking",
+          "manager_staff_overview",
+          "marketing_campaign_cost_attribution_review",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "order_revenue_analysis",
+          "product_sales_ranking",
+          "project_margin_analysis",
+          "project_material_consumption_analysis",
+          "reservation_list",
+          "staff_performance_ranking",
+          "store_operations_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 2,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 0.75,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "contractPassed": true,
+      "expectedBoundary": false,
+      "legacyStatus": "not_usable"
+    }
+  ]
+}

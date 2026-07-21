@@ -5,7 +5,7 @@ import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow }
 import { Badge } from '../../components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { EmptyState } from '../../components/ui/empty-state';
-import { generateAmiMonthlyBill, getAmiMonthlyBills, type AmiBillStatus, type AmiMonthlyBill } from '@/api/commission';
+import { generateAmiMonthlyBill, getAmiMonthlyBills, transitionAmiMonthlyBill, type AmiBillStatus, type AmiMonthlyBill } from '@/api/commission';
 import { usePermission } from '@/hooks/usePermission';
 
 function currentMonth() {
@@ -54,6 +54,7 @@ const statusLabels: Record<AmiBillStatus, string> = {
   confirmed: '已确认',
   invoiced: '已开票',
   paid: '已支付',
+  voided: '已作废',
 };
 
 const statusClassNames: Record<AmiBillStatus, string> = {
@@ -61,6 +62,7 @@ const statusClassNames: Record<AmiBillStatus, string> = {
   confirmed: 'border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-300',
   invoiced: 'border-violet-500/25 bg-violet-500/10 text-violet-700 dark:text-violet-300',
   paid: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+  voided: 'border-slate-500/25 bg-slate-500/10 text-slate-700 dark:text-slate-300',
 };
 
 const statusBarClassNames: Record<AmiBillStatus, string> = {
@@ -68,9 +70,10 @@ const statusBarClassNames: Record<AmiBillStatus, string> = {
   confirmed: 'bg-sky-500',
   invoiced: 'bg-violet-500',
   paid: 'bg-emerald-500',
+  voided: 'bg-slate-500',
 };
 
-const statusOrder: AmiBillStatus[] = ['draft', 'confirmed', 'invoiced', 'paid'];
+const statusOrder: AmiBillStatus[] = ['draft', 'confirmed', 'invoiced', 'paid', 'voided'];
 
 type StatusStat = {
   count: number;
@@ -84,6 +87,7 @@ function createStatusStats(): Record<AmiBillStatus, StatusStat> {
     confirmed: { count: 0, totalFee: 0, recordCount: 0 },
     invoiced: { count: 0, totalFee: 0, recordCount: 0 },
     paid: { count: 0, totalFee: 0, recordCount: 0 },
+    voided: { count: 0, totalFee: 0, recordCount: 0 },
   };
 }
 
@@ -236,6 +240,21 @@ export function AmiBilling() {
     }
   };
 
+  const handleTransition = async (bill: AmiMonthlyBill, status: Exclude<AmiBillStatus, 'draft'>) => {
+    let reason: string | undefined;
+    if (status === 'voided') {
+      reason = window.prompt('请输入作废原因（5–500 字）') ?? undefined;
+      if (!reason) return;
+    }
+    try {
+      await transitionAmiMonthlyBill(bill.id, status, reason);
+      toast.success(status === 'confirmed' ? '账单已确认' : status === 'invoiced' ? '账单已标记开票' : status === 'paid' ? '账单已标记支付' : '账单已作废，可生成下一版本');
+      await loadData();
+    } catch (error) {
+      toast.error(errorMessage(error, '账单状态更新失败'));
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-5">
@@ -344,7 +363,7 @@ export function AmiBilling() {
               />
             </label>
             <p className="mt-4 text-sm text-muted-foreground">
-              生成账单会覆盖当前月份的最新 Ami 贡献数据；生成后页面会自动重新查询。
+              只有草稿可以重算；已确认账单需先作废，再生成同月份下一版本。
             </p>
           </CardContent>
         </Card>
@@ -392,6 +411,7 @@ export function AmiBilling() {
             <TableHeader>
               <TableRow>
                 <TableHead>月份</TableHead>
+                <TableHead>版本</TableHead>
                 <TableHead>门店</TableHead>
                 <TableHead className="text-right">基础费</TableHead>
                 <TableHead className="text-right">提成费</TableHead>
@@ -409,6 +429,7 @@ export function AmiBilling() {
               {bills.map((item) => (
                 <TableRow key={item.id} className={selectedBill?.id === item.id ? 'bg-primary/5' : undefined}>
                   <TableCell className="font-medium">{item.settleMonth}</TableCell>
+                  <TableCell>V{item.version ?? 1}</TableCell>
                   <TableCell>{item.storeName ?? `#${item.storeId}`}</TableCell>
                   <TableCell className="text-right tabular-nums">{money(item.baseFee)}</TableCell>
                   <TableCell className="text-right tabular-nums">{money(item.commissionFee)}</TableCell>
@@ -422,9 +443,13 @@ export function AmiBilling() {
                   </TableCell>
                   <TableCell>{dateText(item.createdAt)}</TableCell>
                   <TableCell className="text-right">
-                    <Button size="sm" variant="outline" onClick={() => setSelectedBillId(item.id)}>
-                      详情
-                    </Button>
+                    <div className="flex justify-end gap-1">
+                      {canManageFinance && item.status === 'draft' ? <Button size="sm" onClick={() => void handleTransition(item, 'confirmed')}>确认</Button> : null}
+                      {canManageFinance && item.status === 'confirmed' ? <Button size="sm" onClick={() => void handleTransition(item, 'invoiced')}>开票</Button> : null}
+                      {canManageFinance && item.status === 'invoiced' ? <Button size="sm" onClick={() => void handleTransition(item, 'paid')}>支付</Button> : null}
+                      {canManageFinance && ['confirmed', 'invoiced'].includes(item.status) ? <Button size="sm" variant="outline" onClick={() => void handleTransition(item, 'voided')}>作废</Button> : null}
+                      <Button size="sm" variant="outline" onClick={() => setSelectedBillId(item.id)}>详情</Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

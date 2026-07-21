@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { AMI_CORE_BUSINESS_METRIC_CONTRACTS } from '../semantic-data/ami-core-business-semantic-contracts.js';
 import type { SemanticQueryOutputShape } from './query-plan.types.js';
 
 export type SemanticQueryTemplateDefinition = {
@@ -7,6 +8,7 @@ export type SemanticQueryTemplateDefinition = {
   description: string;
   capabilityIds?: string[];
   metricKeys: string[];
+  requiredMetricKeys?: string[];
   defaultDimensions: string[];
   supportedOutputShapes: SemanticQueryOutputShape[];
   sourceModels: string[];
@@ -16,16 +18,42 @@ export type SemanticQueryTemplateDefinition = {
 
 @Injectable()
 export class QueryTemplateRegistryService {
-  private readonly templates: SemanticQueryTemplateDefinition[] = [
+  private readonly templates: SemanticQueryTemplateDefinition[] = this.withCanonicalCapabilityBindings([
     {
       id: 'order_revenue',
       title: '收银收入查询',
       description: '查询订单收入、实收、订单数、客单价和收银趋势。',
-      capabilityIds: ['order_revenue_analysis', 'revenue_diagnosis'],
+      capabilityIds: [
+        'order_revenue_analysis',
+        'revenue_diagnosis',
+        'finance_payment_breakdown',
+        'finance_risk_overview',
+        'store_operations_overview',
+      ],
       metricKeys: ['paid_amount', 'revenue', 'order_count', 'average_order_value', 'net_revenue'],
-      defaultDimensions: ['payMethod'],
+      defaultDimensions: ['paymentMethod'],
       supportedOutputShapes: ['summary', 'table', 'trend'],
       sourceModels: ['ProductOrder', 'PaymentRecord', 'RefundRecord'],
+    },
+    {
+      id: 'finance_risk',
+      title: '财务风险查询',
+      description: '查询退款、经营成本及财务风险构成。',
+      capabilityIds: ['finance_risk_overview'],
+      metricKeys: ['refund_amount', 'refund_count', 'discount_amount', 'operating_cost_amount'],
+      defaultDimensions: [],
+      supportedOutputShapes: ['summary', 'table', 'trend'],
+      sourceModels: ['RefundRecord', 'ProductOrder', 'OperatingCost'],
+    },
+    {
+      id: 'finance_cost',
+      title: '经营成本查询',
+      description: '按成本类别查询门店经营成本。',
+      capabilityIds: ['finance_risk_overview', 'finance_material_cost_summary'],
+      metricKeys: ['operating_cost_amount', 'material_cost_rate'],
+      defaultDimensions: ['costCategory'],
+      supportedOutputShapes: ['summary', 'table', 'trend'],
+      sourceModels: ['OperatingCost', 'ProductOrder', 'OrderItem', 'ServiceTask'],
     },
     {
       id: 'order_customer_consumption_list',
@@ -43,17 +71,28 @@ export class QueryTemplateRegistryService {
       id: 'product_sales',
       title: '商品销量查询',
       description: '查询商品销量、销售额和周期增长。',
-      capabilityIds: ['product_sales_ranking', 'product_sales_trend'],
-      metricKeys: ['product_sales_quantity', 'product_sales_amount', 'product_sales_growth'],
+      capabilityIds: ['product_sales_ranking', 'product_sales_trend', 'finance_risk_overview'],
+      metricKeys: [
+        'product_sales_quantity',
+        'product_sales_amount',
+        'product_sales_growth',
+        'product_gross_margin_rate',
+        'product_below_cost_sale_count',
+      ],
       defaultDimensions: ['productId', 'productName'],
       supportedOutputShapes: ['list', 'table'],
-      sourceModels: ['ProductOrder', 'OrderItem', 'Product'],
+      sourceModels: ['ProductOrder', 'OrderItem', 'RefundRecord', 'RefundItem', 'Product'],
     },
     {
       id: 'project_service',
       title: '项目服务查询',
       description: '查询项目服务次数、项目收入和增长排行。',
-      capabilityIds: ['project_business_diagnosis', 'project_service_trend'],
+      capabilityIds: [
+        'project_service_ranking',
+        'project_business_diagnosis',
+        'project_service_trend',
+        'store_operations_overview',
+      ],
       metricKeys: ['project_service_count', 'project_service_growth'],
       defaultDimensions: ['projectId', 'projectName'],
       supportedOutputShapes: ['list', 'table'],
@@ -63,21 +102,32 @@ export class QueryTemplateRegistryService {
       id: 'customer_follow_up',
       title: '客户跟进查询',
       description: '查询优先跟进、流失风险和复购机会客户。',
-      capabilityIds: ['customer_priority_recommendation', 'customer_growth_opportunity', 'customer_churn_risk'],
+      capabilityIds: [
+        'customer_priority_recommendation',
+        'customer_growth_opportunity',
+        'customer_churn_risk',
+        'marketing_growth_overview',
+      ],
       metricKeys: ['follow_up_priority_score', 'churn_risk_score', 'repurchase_opportunity_score'],
       defaultDimensions: ['customerId', 'customerName'],
       supportedOutputShapes: ['list', 'table'],
-      sourceModels: ['Customer', 'CustomerPredictionSnapshot', 'TerminalFollowUpTask'],
+      sourceModels: ['CustomerOpportunity', 'Customer', 'CustomerPredictionSnapshot', 'TerminalFollowUpTask'],
     },
     {
       id: 'inventory_risk',
       title: '库存风险查询',
       description: '查询低于安全库存的商品排行。',
-      capabilityIds: ['inventory_risk_ranking', 'inventory_alert', 'product_replenishment_opportunity'],
-      metricKeys: ['stock_risk_score'],
+      capabilityIds: [
+        'inventory_risk_ranking',
+        'inventory_alert',
+        'product_replenishment_opportunity',
+        'inventory_operations_overview',
+        'inventory_procurement_advice',
+      ],
+      metricKeys: ['stock_risk_score', 'inventory_consumption_quantity'],
       defaultDimensions: ['productId', 'productName'],
       supportedOutputShapes: ['list', 'table'],
-      sourceModels: ['Product'],
+      sourceModels: ['Product', 'StockMovement'],
     },
     {
       id: 'member_balance',
@@ -113,11 +163,98 @@ export class QueryTemplateRegistryService {
       id: 'staff_performance',
       title: '员工表现查询',
       description: '查询员工服务、业绩和综合表现排行。',
-      capabilityIds: ['staff_performance_ranking'],
-      metricKeys: ['staff_performance_score'],
+      capabilityIds: [
+        'staff_performance_ranking',
+        'beautician_service_overview',
+        'store_operations_overview',
+        'manager_staff_overview',
+      ],
+      metricKeys: [
+        'staff_service_count',
+        'staff_unique_customer_count',
+        'staff_customer_repurchase_rate',
+        'staff_service_revenue',
+        'staff_commission_amount',
+        'staff_performance_score',
+      ],
       defaultDimensions: ['beauticianId', 'beauticianName'],
       supportedOutputShapes: ['list', 'table'],
-      sourceModels: ['Beautician', 'Reservation', 'ProductOrder'],
+      sourceModels: ['Beautician', 'ServiceTask', 'Customer', 'CommissionRecord', 'BeauticianTimeOff'],
+    },
+    {
+      id: 'customer_feedback',
+      title: '客户投诉与满意度查询',
+      description: '查询客户投诉、未解决投诉、平均满意度、评价采集覆盖率和美容师客诉排行。',
+      capabilityIds: ['customer_feedback_overview'],
+      metricKeys: [
+        'customer_complaint_count',
+        'customer_unresolved_complaint_count',
+        'customer_average_satisfaction_rating',
+        'customer_feedback_collection_coverage_rate',
+      ],
+      defaultDimensions: [],
+      supportedOutputShapes: ['summary', 'table', 'list'],
+      sourceModels: ['CustomerServiceFeedback', 'ServiceTask', 'Beautician'],
+    },
+    {
+      id: 'customer_feedback_staff',
+      title: '美容师客诉排行',
+      description: '按美容师查询客户投诉数量和未解决投诉风险。',
+      capabilityIds: ['customer_feedback_overview'],
+      metricKeys: ['staff_customer_complaint_count'],
+      defaultDimensions: ['beauticianId', 'beauticianName'],
+      supportedOutputShapes: ['table', 'list'],
+      sourceModels: ['CustomerServiceFeedback', 'Beautician'],
+      defaultOrderBy: [{ key: 'staff_customer_complaint_count', direction: 'desc' }],
+      defaultLimit: 10,
+    },
+    {
+      id: 'customer_waiting',
+      title: '客户等待与离店查询',
+      description: '查询客户等待、因等待过久离店和等待记录采集覆盖率。',
+      capabilityIds: ['customer_waiting_loss_overview'],
+      metricKeys: ['customer_long_wait_departure_count', 'customer_waiting_collection_coverage_rate'],
+      defaultDimensions: [],
+      supportedOutputShapes: ['summary', 'table', 'list'],
+      sourceModels: ['CustomerWaitingEpisode', 'Reservation', 'Customer'],
+    },
+    {
+      id: 'customer_retention',
+      title: '客户留存查询',
+      description: '查询客户复购率和重复消费客户的平均回访间隔。',
+      capabilityIds: ['customer_facts'],
+      metricKeys: ['average_return_interval_days'],
+      defaultDimensions: [],
+      supportedOutputShapes: ['summary'],
+      sourceModels: ['Customer', 'ProductOrder'],
+    },
+    {
+      id: 'customer_reactivation',
+      title: '沉睡客户唤醒迹象查询',
+      description: '查询触达前满足沉睡证据、触达后出现预约、到店、消费或互动信号的客户。',
+      capabilityIds: ['customer_facts'],
+      metricKeys: ['dormant_reactivation_customer_count'],
+      defaultDimensions: ['customerId', 'customerName'],
+      supportedOutputShapes: ['summary', 'table', 'list'],
+      sourceModels: [
+        'Customer',
+        'MarketingAutomationTouch',
+        'MarketingAttribution',
+        'Reservation',
+        'ProductOrder',
+        'CustomerPredictionSnapshot',
+        'CustomerOpportunity',
+      ],
+    },
+    {
+      id: 'customer_acquisition',
+      title: '新客获取与转化查询',
+      description: '查询周期新增客户、周期内首单转化人数和转化率。',
+      capabilityIds: ['customer_facts'],
+      metricKeys: ['new_customer_count', 'new_customer_conversion_count', 'new_customer_conversion_rate'],
+      defaultDimensions: [],
+      supportedOutputShapes: ['summary'],
+      sourceModels: ['Customer', 'ProductOrder'],
     },
     {
       id: 'reservation_schedule',
@@ -125,6 +262,7 @@ export class QueryTemplateRegistryService {
       description: '查询预约数量、到店率和时段趋势。',
       capabilityIds: ['reservation_schedule_diagnosis', 'reservation_today'],
       metricKeys: ['reservation_count', 'arrival_rate'],
+      requiredMetricKeys: ['reservation_count', 'arrival_rate'],
       defaultDimensions: ['date'],
       supportedOutputShapes: ['summary', 'trend', 'table'],
       sourceModels: ['Reservation'],
@@ -151,7 +289,27 @@ export class QueryTemplateRegistryService {
       defaultOrderBy: [{ key: 'updatedAt', direction: 'desc' }],
       defaultLimit: 10,
     },
-  ];
+  ]);
+
+  private withCanonicalCapabilityBindings(
+    templates: SemanticQueryTemplateDefinition[],
+  ): SemanticQueryTemplateDefinition[] {
+    const explicitlyAssignedCapabilities = new Set(templates.flatMap((template) => template.capabilityIds ?? []));
+    return templates.map((template) => {
+      const canonicalCapabilities = AMI_CORE_BUSINESS_METRIC_CONTRACTS.filter((contract) =>
+        template.metricKeys.includes(contract.metricKey),
+      )
+        .flatMap((contract) => contract.payload.bindings.capability)
+        .filter(
+          (capabilityId) =>
+            !explicitlyAssignedCapabilities.has(capabilityId) || template.capabilityIds?.includes(capabilityId),
+        );
+      return {
+        ...template,
+        capabilityIds: [...new Set([...(template.capabilityIds ?? []), ...canonicalCapabilities])],
+      };
+    });
+  }
 
   list() {
     return [...this.templates];

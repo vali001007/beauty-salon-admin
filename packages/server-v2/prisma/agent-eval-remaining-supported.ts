@@ -13,7 +13,12 @@ import { BusinessTaskCompilerService } from '../src/agent/business-task/business
 import { BusinessTaskPreParserService } from '../src/agent/business-task/business-task-preparser.service.js';
 import { CapabilityRegistryService } from '../src/agent/capabilities/capability-registry.service.js';
 import { AgentSkillsRegistryService } from '../src/agent/skills/index.js';
-import { SemanticMetricRegistryService } from '../src/semantic-data/semantic-metric-registry.service.js';
+import { createInMemoryBusinessMetricCatalog } from '../src/semantic-data/business-metric-catalog.testing.js';
+import { LEGACY_SEMANTIC_METRICS } from '../src/semantic-data/legacy-semantic-metric.fixture.js';
+import { BusinessMetricCatalogService } from '../src/semantic-data/business-metric-catalog.service.js';
+import type { BusinessMetricCatalogReader } from '../src/semantic-data/business-metric-catalog.types.js';
+import { PublishedBusinessDefinitionSnapshotProviderService } from '../src/brain/cognition/published-business-definition-snapshot-provider.service.js';
+import { PrismaService } from '../src/prisma/prisma.service.js';
 import { SemanticSqlDecisionService } from '../src/semantic-sql/semantic-sql-decision.service.js';
 import type { AgentRole } from '../src/agent/agent.types.js';
 
@@ -22,6 +27,7 @@ type Args = {
   persona?: AgentQuestionBankPersona;
   limit?: number;
   output?: string;
+  legacyFixture: boolean;
 };
 
 type FailureReason =
@@ -57,6 +63,7 @@ const remaining = typeof args.limit === 'number' ? remainingAll.slice(0, args.li
 if (args.planOnly) {
   emitReport({
     mode: 'plan-only',
+    catalogMode: args.legacyFixture ? 'legacy_fixture_non_production' : 'governed_published_snapshot',
     totalQuestions: annotatedQuestions.length,
     persona: args.persona ?? 'all',
     systemUnsupported: summarizeUnsupported(systemUnsupported),
@@ -71,12 +78,14 @@ if (args.planOnly) {
   process.exit(0);
 }
 const toolRegistry = createToolRegistry();
-const planner = createPlanner();
 
 async function main() {
+  const runtime = await createCatalogRuntime();
+  const planner = createPlanner(runtime.catalog);
   const results = [];
-  for (const testCase of remaining) {
-    try {
+  try {
+    for (const testCase of remaining) {
+      try {
       const plan = await planner.plan({
         message: testCase.input,
         actor: { storeId: 1, userId: 1, role: testCase.evalRole, entrypoint: 'agent-eval-remaining' },
@@ -116,8 +125,8 @@ async function main() {
           outputKinds: testCase.expectedOutputKinds,
         },
       });
-    } catch (error) {
-      results.push({
+      } catch (error) {
+        results.push({
         id: testCase.id,
         input: testCase.input,
         persona: testCase.persona,
@@ -131,13 +140,15 @@ async function main() {
           intentType: testCase.expectedIntentType,
           outputKinds: testCase.expectedOutputKinds,
         },
-      });
+        });
+      }
     }
-  }
 
-  const failures = results.filter((item) => !item.passed);
-  emitReport({
-    mode: 'run',
+    const failures = results.filter((item) => !item.passed);
+    emitReport({
+      mode: 'run',
+      catalogMode: runtime.mode,
+      productionReadiness: runtime.mode === 'governed_published_snapshot' ? 'production-governed' : 'non-production',
     persona: args.persona ?? 'all',
     totalQuestions: annotatedQuestions.length,
     systemUnsupported: summarizeUnsupported(systemUnsupported),
@@ -174,7 +185,10 @@ async function main() {
       actual: item.actual,
       expected: item.expected,
     })),
-  });
+    });
+  } finally {
+    await runtime.close();
+  }
 }
 
 function parseArgs(): Args {
@@ -199,11 +213,21 @@ function parseArgs(): Args {
   if (limitRaw && (!Number.isInteger(limit) || Number(limit) <= 0)) {
     throw new Error('--limit must be a positive integer.');
   }
-  return { planOnly: flags.has('plan-only'), persona, limit, output: values.get('output') };
+  return {
+    planOnly: flags.has('plan-only'),
+    legacyFixture: flags.has('legacy-fixture'),
+    persona,
+    limit,
+    output: values.get('output'),
+  };
 }
 
 function readQuestionBankMarkdown() {
   const candidates = [
+    resolve(
+      process.cwd(),
+      '../../docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-eval-questions.md',
+    ),
     resolve(process.cwd(), 'docs/04-测试数据/agent-eval-questions.md'),
     resolve(process.cwd(), '../../docs/04-测试数据/agent-eval-questions.md'),
   ];
@@ -212,19 +236,44 @@ function readQuestionBankMarkdown() {
   return readFileSync(file, 'utf8');
 }
 
-function createPlanner() {
+function createPlanner(metricCatalog: BusinessMetricCatalogReader) {
   const skillRegistry = new AgentSkillsRegistryService();
   return new AgentPlannerService(
     toolRegistry as never,
     new BusinessTaskCompilerService(
       new BusinessTaskPreParserService(),
       new CapabilityRegistryService(),
-      new SemanticMetricRegistryService(),
+      metricCatalog,
       new SemanticSqlDecisionService(),
       undefined,
       skillRegistry,
     ),
   );
+}
+
+async function createCatalogRuntime(): Promise<{
+  catalog: BusinessMetricCatalogReader;
+  mode: 'governed_published_snapshot' | 'legacy_fixture_non_production';
+  close(): Promise<void>;
+}> {
+  if (args.legacyFixture) {
+    return {
+      catalog: createInMemoryBusinessMetricCatalog(LEGACY_SEMANTIC_METRICS),
+      mode: 'legacy_fixture_non_production',
+      close: async () => undefined,
+    };
+  }
+  const prisma = new PrismaService();
+  await prisma.onModuleInit();
+  const provider = new PublishedBusinessDefinitionSnapshotProviderService(prisma);
+  const catalog = new BusinessMetricCatalogService(provider);
+  await catalog.onModuleInit();
+  catalog.list();
+  return {
+    catalog,
+    mode: 'governed_published_snapshot',
+    close: () => prisma.onModuleDestroy(),
+  };
 }
 
 function collectFailureReasons(

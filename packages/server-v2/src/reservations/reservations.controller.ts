@@ -3,6 +3,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { ReservationsService } from './reservations.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { Permissions } from '../common/decorators/permissions.decorator.js';
+import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 
 @ApiTags('Reservations')
 @ApiBearerAuth()
@@ -54,8 +55,12 @@ export class ReservationsController {
   @Post()
   @Permissions('core:store:reservations')
   @ApiOperation({ summary: '创建预约' })
-  create(@Body() dto: any) {
-    return this.reservationsService.create(dto);
+  create(@Body() dto: any, @Headers('idempotency-key') idempotencyKey?: string) {
+    return this.reservationsService.create({
+      ...dto,
+      bookingSource: 'admin',
+      idempotencyKey: idempotencyKey?.trim() || dto.idempotencyKey,
+    });
   }
 
   @Put(':id')
@@ -75,8 +80,12 @@ export class ReservationsController {
   @Post(':id/check-in')
   @Permissions('core:store:reservations')
   @ApiOperation({ summary: '预约签到' })
-  checkIn(@Param('id', ParseIntPipe) id: number) {
-    return this.reservationsService.checkIn(id);
+  checkIn(
+    @Param('id', ParseIntPipe) id: number,
+    @Headers('x-store-id') storeId?: string,
+    @CurrentUser('id') userId?: number,
+  ) {
+    return this.reservationsService.checkIn(id, storeId ? Number(storeId) : undefined, userId);
   }
 
   @Post(':id/cancel')

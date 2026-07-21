@@ -1,4 +1,16 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
@@ -70,14 +82,22 @@ export class SupplyPlatformController {
   @Patch('suppliers/:id')
   @Permissions('core:supply:manage', 'core:supply:supplier')
   @ApiOperation({ summary: '更新供应链平台供应商' })
-  updateSupplier(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateSupplySupplierDto, @Req() req: SupplyPlatformRequest) {
+  updateSupplier(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateSupplySupplierDto,
+    @Req() req: SupplyPlatformRequest,
+  ) {
     return this.supplyPlatformService.updateSupplier(id, dto, req.user);
   }
 
   @Patch('suppliers/:id/status')
   @Permissions('core:supply:manage')
   @ApiOperation({ summary: '审核/启停供应商' })
-  updateSupplierStatus(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateSupplySupplierStatusDto, @Req() req: SupplyPlatformRequest) {
+  updateSupplierStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateSupplySupplierStatusDto,
+    @Req() req: SupplyPlatformRequest,
+  ) {
     return this.supplyPlatformService.updateSupplierStatus(id, dto, req.user);
   }
 
@@ -140,14 +160,22 @@ export class SupplyPlatformController {
   @Patch('quotes/:id')
   @Permissions('core:supply:manage', 'core:supply:supplier')
   @ApiOperation({ summary: '更新供应链报价' })
-  updateQuote(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateSupplyQuoteDto, @Req() req: SupplyPlatformRequest) {
+  updateQuote(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateSupplyQuoteDto,
+    @Req() req: SupplyPlatformRequest,
+  ) {
     return this.supplyPlatformService.updateQuote(id, dto, req.user);
   }
 
   @Patch('quotes/:id/audit')
   @Permissions('core:supply:manage')
   @ApiOperation({ summary: '审核供应链报价' })
-  auditQuote(@Param('id', ParseIntPipe) id: number, @Body() dto: AuditSupplyQuoteDto, @Req() req: SupplyPlatformRequest) {
+  auditQuote(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AuditSupplyQuoteDto,
+    @Req() req: SupplyPlatformRequest,
+  ) {
     return this.supplyPlatformService.auditQuote(id, dto, req.user);
   }
 
@@ -196,43 +224,75 @@ export class SupplyPlatformController {
   @Post('procurement/orders')
   @Permissions('core:inventory:purchase', 'core:supply:manage')
   @ApiOperation({ summary: '创建供应链平台采购订单' })
-  createOrder(@Body() dto: CreateProcurementOrderDto) {
-    return this.supplyPlatformService.createOrder(dto);
+  createOrder(@Body() dto: CreateProcurementOrderDto, @Headers('idempotency-key') idempotencyKey?: string) {
+    return this.supplyPlatformService.createOrder({
+      ...dto,
+      idempotencyKey: idempotencyKey?.trim() || dto.idempotencyKey,
+    });
   }
 
   @Post('procurement-orders/from-replenishment')
   @Permissions('core:inventory:purchase', 'core:supply:manage')
   @ApiOperation({ summary: '从库存补货建议生成供应链平台采购订单' })
-  createOrdersFromReplenishment(@Body() dto: CreateProcurementOrdersFromReplenishmentDto) {
-    return this.supplyPlatformService.createOrdersFromReplenishment(dto);
+  createOrdersFromReplenishment(
+    @Body() dto: CreateProcurementOrdersFromReplenishmentDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.supplyPlatformService.createOrdersFromReplenishment({
+      ...dto,
+      idempotencyKey: idempotencyKey?.trim() || dto.idempotencyKey,
+    });
   }
 
   @Post('procurement/orders/from-replenishment')
   @Permissions('core:inventory:purchase', 'core:supply:manage')
   @ApiOperation({ summary: '从库存补货建议生成供应链平台采购订单（兼容路径）' })
-  createOrdersFromReplenishmentCompat(@Body() dto: CreateProcurementOrdersFromReplenishmentDto) {
-    return this.supplyPlatformService.createOrdersFromReplenishment(dto);
+  createOrdersFromReplenishmentCompat(
+    @Body() dto: CreateProcurementOrdersFromReplenishmentDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.supplyPlatformService.createOrdersFromReplenishment({
+      ...dto,
+      idempotencyKey: idempotencyKey?.trim() || dto.idempotencyKey,
+    });
   }
 
   @Patch('procurement/orders/:id/status')
   @Permissions('core:supply:manage', 'core:supply:supplier')
   @ApiOperation({ summary: '更新采购订单状态' })
-  updateOrderStatus(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateProcurementOrderStatusDto, @Req() req: SupplyPlatformRequest) {
+  updateOrderStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateProcurementOrderStatusDto,
+    @Req() req: SupplyPlatformRequest,
+  ) {
     return this.supplyPlatformService.updateOrderStatus(id, dto, req.user);
   }
 
   @Post('procurement/orders/:id/shipments')
   @Permissions('core:supply:manage', 'core:supply:supplier')
   @ApiOperation({ summary: '供应商发货' })
-  createShipment(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateShipmentDto, @Req() req: SupplyPlatformRequest) {
+  createShipment(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateShipmentDto,
+    @Req() req: SupplyPlatformRequest,
+  ) {
     return this.supplyPlatformService.createShipment(id, dto, req.user);
   }
 
   @Post('procurement/orders/:id/receipts')
   @Permissions('core:inventory:purchase', 'core:supply:manage')
   @ApiOperation({ summary: '门店确认收货并入库' })
-  receiveOrder(@Param('id', ParseIntPipe) id: number, @Body() dto: ReceiveProcurementOrderDto, @Req() req: SupplyPlatformRequest) {
-    return this.supplyPlatformService.receiveOrder(id, { ...dto, operatorId: (dto as any).operatorId ?? req.user?.id } as any);
+  receiveOrder(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ReceiveProcurementOrderDto,
+    @Req() req: SupplyPlatformRequest,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.supplyPlatformService.receiveOrder(id, {
+      ...dto,
+      idempotencyKey: idempotencyKey?.trim() || dto.idempotencyKey,
+      operatorId: req.user?.id,
+    });
   }
 
   @Get('settlements')

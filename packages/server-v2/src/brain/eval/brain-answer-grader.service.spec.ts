@@ -1,6 +1,20 @@
 import { BrainAnswerGraderService } from './brain-answer-grader.service.js';
 
 describe('BrainAnswerGraderService', () => {
+  it('treats stored-value consumption as a payment metric rather than card liability', () => {
+    const result = new BrainAnswerGraderService().grade({
+      question: '今天有几笔是用储值卡消费的',
+      answer: '储值余额：0.00 元（0 笔）。',
+      citations: [
+        { sourceType: 'business_definition', sourceId: 'metric.paid_amount@8' },
+        { sourceType: 'db_skill', sourceId: 'capability_finance_payment_breakdown' },
+      ],
+      blocks: [{ kind: 'kpi', items: [{ label: '储值余额', value: '0.00 元' }] }],
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({ status: 'usable_exact', expectedMetric: 'paid_revenue', actualMetric: 'paid_amount' });
+  });
   const grader = new BrainAnswerGraderService();
 
   it('marks ranking questions answered by scalar metric as false positive', () => {
@@ -55,6 +69,48 @@ describe('BrainAnswerGraderService', () => {
     expect(result.actualIntent).toBe('metric_query');
   });
 
+  it('accepts a governed policy citation as template grounding for advice', () => {
+    const result = grader.grade({
+      question: '这个客人皮肤比较敏感，用什么护理方案最安全',
+      answer: '先复核过敏史和屏障状态，避开强刺激项目，并做局部耐受测试。',
+      citations: [
+        { sourceType: 'governed_policy', sourceId: 'beautician_sensitive_care_safety', label: '敏感肤质服务安全边界' },
+      ],
+      blocks: [{ kind: 'limitations', items: ['具体方案仍需结合客户档案和现场面诊确认。'] }],
+      expectedIntent: 'recommendation',
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({ status: 'usable_exact', groundingType: 'template_skill' });
+  });
+
+  it('never counts an explicit capability boundary answer as usable', () => {
+    const result = grader.grade({
+      question: '我们店里的 VIP 客户有多少个',
+      answer: '当前客户事实能力尚未注册该业务口径，不会编造回答。',
+      citations: [{ sourceType: 'db_skill', sourceId: 'capability_customer_facts', label: '客户事实查询' }],
+      brainStatus: 'completed',
+    });
+
+    expect(result.status).toBe('unsupported_intent');
+  });
+
+  it('does not mark a grounded multi-capability report unsupported because one component discloses a local gap', () => {
+    const result = grader.grade({
+      question: '帮我做一个本月经营分析报告',
+      answer: '本月经营分析已完成。当前客户事实能力尚未注册其中一个细分口径，不会编造回答。',
+      citations: [{ sourceType: 'db_skill', sourceId: 'store_manager_operations_analysis', label: '经营分析' }],
+      blocks: [
+        { kind: 'kpi', items: [{ label: '实收', value: '28756.30 元' }], citationIds: ['store_manager_operations_analysis'] },
+        { kind: 'diagnosis', findings: [{ title: '退款风险', detail: '退款 4 笔', severity: 'warning' }], citationIds: ['store_manager_operations_analysis'] },
+      ],
+      expectedIntent: 'diagnosis',
+      brainStatus: 'completed',
+    });
+
+    expect(result.status).toBe('usable_exact');
+  });
+
   it('classifies cashier and card-redemption interface requests as actions', () => {
     const result = grader.grade({
       question: '帮我打开核销界面，客人要用次卡',
@@ -79,6 +135,127 @@ describe('BrainAnswerGraderService', () => {
     expect(result.actualShape).toBe('scalar_metric');
   });
 
+  it('grades model-driven business definition KPI blocks as metric answers', () => {
+    const result = grader.grade({
+      question: '今天营业额到多少了',
+      answer: '已完成经营任务，结构化结果见下方。',
+      citations: [
+        {
+          sourceType: 'business_definition',
+          sourceId: 'metric.paid_amount@4',
+          label: '业务定义：实收金额',
+        },
+      ],
+      blocks: [{ kind: 'kpi', items: [{ label: '指标：实收金额', value: '116377.31' }] }],
+      expectedIntent: 'metric_query',
+      expectedMetric: 'paid_amount',
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({
+      status: 'usable_exact',
+      actualMetric: 'paid_amount',
+      actualShape: 'scalar_metric',
+      groundingType: 'metric_query',
+      legacyUsableWithCitation: true,
+    });
+  });
+
+  it('uses structured ranking blocks instead of generic wrapper text', () => {
+    const result = grader.grade({
+      question: '本月商品销售排行',
+      answer: '已完成经营任务，结构化结果见下方。',
+      citations: [
+        {
+          sourceType: 'business_definition',
+          sourceId: 'metric.product_sales_quantity@4',
+          label: '业务定义：商品销售数量',
+        },
+      ],
+      blocks: [{ kind: 'ranking', rows: [{ productName: '眼霜', productSalesQuantity: 14 }] }],
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({ status: 'usable_exact', actualIntent: 'ranking', actualShape: 'ranking' });
+  });
+
+  it('distinguishes product sales amount from whole-store paid revenue', () => {
+    const result = grader.grade({
+      question: '这个月产品销售额是多少',
+      answer: '本月商品销售额 3580.00 元。',
+      citations: [{ sourceType: 'business_definition', sourceId: 'metric.product_sales_amount@1', label: '业务定义：商品销售额' }],
+      blocks: [{ kind: 'kpi', items: [{ label: '商品销售额', value: '3580.00 元' }] }],
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({
+      status: 'usable_exact',
+      expectedMetric: 'product_sales_amount',
+      actualMetric: 'product_sales_amount',
+      actualShape: 'scalar_metric',
+    });
+  });
+
+  it('grades inventory consumption rankings against the governed outbound metric', () => {
+    const result = grader.grade({
+      question: '哪些耗材消耗速度最快',
+      answer: '消耗量最高的是美容棉片，共出库 30 件。',
+      citations: [{ sourceType: 'business_definition', sourceId: 'metric.inventory_consumption_quantity@1', label: '业务定义：库存消耗量' }],
+      blocks: [{ kind: 'ranking', rows: [{ productName: '美容棉片', value: 30 }] }],
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({
+      status: 'usable_exact',
+      expectedMetric: 'inventory_consumption_quantity',
+      actualMetric: 'inventory_consumption_quantity',
+      actualShape: 'ranking',
+    });
+  });
+
+  it('keeps a metric-grounded diagnosis classified as diagnosis', () => {
+    const result = grader.grade({
+      question: '最近新客转化效果好不好，问题出在哪',
+      answer: '新增客户 11 人，已转化 0 人。当前缺少未转化原因归因事实。',
+      citations: [{ sourceType: 'business_definition', sourceId: 'metric.new_customer_conversion_rate@1', label: '业务定义：新客转化率' }],
+      blocks: [
+        { kind: 'kpi', items: [{ label: '转化率', value: '0.0%' }] },
+        { kind: 'diagnosis', findings: [{ title: '归因边界', detail: '缺少未转化原因事实', severity: 'info' }] },
+      ],
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({
+      status: 'usable_exact',
+      expectedIntent: 'diagnosis',
+      actualIntent: 'diagnosis',
+      expectedShape: 'non_metric',
+      actualShape: 'non_metric',
+    });
+  });
+
+  it('keeps a metric-backed staff ranking as ranking instead of scalar metric intent', () => {
+    const result = grader.grade({
+      question: '谁的客户复购率最高',
+      answer: '本月客户复购率最高的是沈晴，复购率 35.0%。',
+      citations: [
+        { sourceType: 'business_definition', sourceId: 'metric.staff_customer_repurchase_rate@1', label: '业务定义：员工客户复购率' },
+        { sourceType: 'db_skill', sourceId: 'manager_staff_analysis', label: '员工客户复购分析' },
+      ],
+      blocks: [{ kind: 'ranking', rows: [{ staff: '沈晴', customerRepurchaseRate: 0.35 }] }],
+      expectedIntent: 'ranking',
+      expectedMetric: 'staff_customer_repurchase_rate',
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({
+      status: 'usable_exact',
+      actualIntent: 'ranking',
+      actualShape: 'ranking',
+      actualMetric: 'staff_customer_repurchase_rate',
+    });
+  });
+
   it('keeps gross margin rate answers usable when the question asks for rate', () => {
     const result = grader.grade({
       question: '这个月的毛利率是多少',
@@ -89,6 +266,59 @@ describe('BrainAnswerGraderService', () => {
 
     expect(result.status).toBe('usable_exact');
     expect(result.expectedMetric).toBe('gross_margin_rate');
+  });
+
+  it('does not reduce project margin analysis to a whole-store gross-margin metric', () => {
+    const result = grader.grade({
+      question: '帮我看一下各项目的毛利情况',
+      answer: '已返回各项目收入、耗材成本、提成成本和贡献毛利。',
+      citations: [{ sourceType: 'db_skill', sourceId: 'operation_profit_project_margins', label: '项目毛利分析' }],
+      blocks: [{ kind: 'ranking', rows: [{ projectName: '补水护理', contributionProfit: 500 }] }],
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({
+      status: 'usable_exact',
+      expectedIntent: 'ranking',
+      expectedMetric: undefined,
+      actualShape: 'ranking',
+    });
+  });
+
+  it('distinguishes material cost from operating cost', () => {
+    const result = grader.grade({
+      question: '这个月耗材成本占了多少',
+      answer: '经营费用为 5600.00 元。',
+      citations: [{ sourceType: 'metric', sourceId: 'operating_cost_amount', label: '经营费用' }],
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({
+      status: 'false_positive_metric_mismatch',
+      expectedMetric: 'material_cost',
+      actualMetric: 'operating_cost_amount',
+    });
+  });
+
+  it('grades a grounded no-data ranking boundary as usable partial', () => {
+    const result = grader.grade({
+      question: '这个月哪个项目消耗耗材最多',
+      answer: '本月完成服务 3 单，但实际耗材数量采集覆盖为 0，无法生成排行。',
+      citations: [{ sourceType: 'db_skill', sourceId: 'service_task_actual_consumption_items', label: '实际耗材记录' }],
+      blocks: [
+        { kind: 'ranking', rows: [] },
+        { kind: 'limitations', items: ['no_data: project_actual_material_quantity_not_recorded'] },
+      ],
+      expectedIntent: 'ranking',
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({
+      status: 'usable_partial',
+      actualIntent: 'ranking',
+      actualShape: 'ranking',
+      groundingType: 'db_skill',
+    });
   });
 
   it('keeps draft skill answers usable without metric citations', () => {
@@ -118,16 +348,17 @@ describe('BrainAnswerGraderService', () => {
     expect(result.reason).toContain('事实数据');
   });
 
-  it('counts VIP exclusive campaign planning as recommendation instead of customer list', () => {
+  it('counts VIP exclusive campaign planning as a draft instead of customer list', () => {
     const result = grader.grade({
       question: '帮我做一个针对 VIP 客户的专属活动',
-      answer: '门店促销活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。',
+      answer: '门店促销活动方案草稿：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。尚未发布活动。',
       citations: [{ sourceType: 'skill', sourceId: 'marketing_campaign_plan', label: '营销活动方案' }],
       brainStatus: 'completed',
     });
 
     expect(result.status).toBe('usable_exact');
-    expect(result.expectedIntent).toBe('recommendation');
+    expect(result.expectedIntent).toBe('draft');
+    expect(result.actualIntent).toBe('draft');
     expect(result.groundingType).toBe('template_skill');
   });
 
@@ -158,6 +389,22 @@ describe('BrainAnswerGraderService', () => {
         brainStatus: 'completed',
       }).groundingType,
     ).toBe('preview_action');
+  });
+
+  it('accepts runtime-native db_skill citations as grounded list answers', () => {
+    const result = grader.grade({
+      question: '今天所有的预约给我列一下',
+      answer: '预约清单：共 0 个。',
+      citations: [{ sourceType: 'db_skill', sourceId: 'capability_reservation_list', label: '门店预约清单' }],
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({
+      status: 'usable_exact',
+      groundingType: 'db_skill',
+      expectedShape: 'list',
+      actualShape: 'list',
+    });
   });
 
   it('keeps list skill answers usable when the answer has list granularity', () => {
@@ -199,14 +446,29 @@ describe('BrainAnswerGraderService', () => {
     },
   );
 
-  it('classifies all persisted preview skills as preview actions', () => {
+  it('classifies a non-executable automation preview as a governed rule draft', () => {
     const result = grader.grade({
       question: '帮我设置一个新客自动跟进规则',
       answer: '规则预览，确认前不会启用。',
-      citations: [{ sourceType: 'skill', sourceId: 'marketing_automation_rule_preview', label: '规则预览' }],
+      citations: [{ sourceType: 'template_skill', sourceId: 'marketing_automation_rule_preview', label: '规则预览' }],
       brainStatus: 'completed',
     });
-    expect(result.groundingType).toBe('preview_action');
+    expect(result.groundingType).toBe('template_skill');
+    expect(result.expectedIntent).toBe('draft');
+    expect(result.actualIntent).toBe('draft');
+    expect(result.status).toBe('usable_exact');
+  });
+
+  it('classifies a safe automation send preview as an action request', () => {
+    const result = grader.grade({
+      question: '我想让系统自动给快过期次卡的客户发消息',
+      answer: '自动提醒规则预览，当前不会发布规则或发送消息。',
+      citations: [{ sourceType: 'template_skill', sourceId: 'marketing_automation_rule_preview', label: '规则预览' }],
+      brainStatus: 'completed',
+    });
+    expect(result.expectedIntent).toBe('action');
+    expect(result.actualIntent).toBe('action');
+    expect(result.status).toBe('usable_exact');
   });
 
   it('keeps a multi-fact operations answer as list even when it contains ranking sections', () => {
@@ -235,7 +497,7 @@ describe('BrainAnswerGraderService', () => {
     expect(result.status).toBe('usable_exact');
   });
 
-  it('classifies an exact customer miss as not found instead of a false positive', () => {
+  it('treats a grounded exact customer miss as a usable audited result', () => {
     const result = grader.grade({
       question: '帮我查一下张雯，她上次来是什么时候',
       answer: '当前门店没有找到匹配客户，请核对姓名或手机号后四位。',
@@ -243,7 +505,20 @@ describe('BrainAnswerGraderService', () => {
       brainStatus: 'completed',
     });
 
-    expect(result.status).toBe('not_found');
+    expect(result.status).toBe('usable_exact');
+  });
+
+  it('recognizes a generic appointment lookup as a list request', () => {
+    const result = grader.grade({
+      question: '帮我看今天的预约。',
+      answer: '明细：当前没有匹配数据。',
+      blocks: [{ kind: 'table', rows: [], columns: ['customerName'] }],
+      citations: [{ sourceType: 'db_skill', sourceId: 'reservation_schedule', label: '门店预约清单' }],
+      brainStatus: 'completed',
+    });
+
+    expect(result.expectedShape).toBe('list');
+    expect(result.status).toBe('usable_exact');
   });
 
   it('classifies missing customer identity as an unsupported clarification', () => {
@@ -269,6 +544,21 @@ describe('BrainAnswerGraderService', () => {
     expect(result.status).toBe('usable_exact');
   });
 
+  it('grades explicitly split payment-method amounts as a list instead of a scalar total', () => {
+    const result = grader.grade({
+      question: '今天现金收了多少，微信支付宝各多少',
+      answer: '排行：\n1. 支付方式=现金，金额=0.00，笔数=0\n2. 支付方式=微信，金额=0.00，笔数=0\n3. 支付方式=支付宝，金额=0.00，笔数=0',
+      blocks: [{ kind: 'ranking', rows: [{ paymentMethod: '现金', amount: 0 }] }],
+      citations: [{ sourceType: 'db_skill', sourceId: 'capability_finance_payment_breakdown', label: '财务支付方式拆分' }],
+      brainStatus: 'completed',
+    });
+
+    expect(result.expectedIntent).toBe('list');
+    expect(result.expectedShape).toBe('list');
+    expect(result.actualShape).toBe('ranking');
+    expect(result.status).toBe('usable_exact');
+  });
+
   it('counts a database-backed domain skill with the requested scalar as partially usable', () => {
     const result = grader.grade({
       question: '我这个月业绩是多少',
@@ -282,6 +572,89 @@ describe('BrainAnswerGraderService', () => {
     expect(result.status).toBe('usable_partial');
   });
 
+  it('treats a structured clarification as an exact supported outcome without citations', () => {
+    const result = grader.grade({
+      question: '帮我看看这个',
+      answer: '请明确你要查看的业务对象。',
+      blocks: [{ kind: 'clarification', question: '请明确你要查看的业务对象。', options: [] }],
+      citations: [],
+      expectedIntent: 'clarify',
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({
+      status: 'usable_exact',
+      expectedIntent: 'clarify',
+      actualIntent: 'clarify',
+      expectedShape: 'clarification',
+      actualShape: 'clarification',
+      groundingType: 'none',
+    });
+  });
+
+  it('accepts a scalar database skill as exact when it cites the governed metric definition', () => {
+    const result = grader.grade({
+      question: '这个月店里实际收了多少钱',
+      answer: '本月实收合计：28756.30 元。',
+      blocks: [{ kind: 'kpi', items: [{ label: '本月实收合计', value: '28756.30 元' }] }],
+      citations: [
+        { sourceType: 'db_skill', sourceId: 'capability_finance_payment_breakdown', label: '财务支付方式拆分' },
+        { sourceType: 'business_definition', sourceId: 'metric.paid_amount@8', label: '业务定义：实收金额' },
+      ],
+      brainStatus: 'completed',
+    });
+
+    expect(result.expectedShape).toBe('scalar_metric');
+    expect(result.actualShape).toBe('scalar_metric');
+    expect(result.actualMetric).toBe('paid_amount');
+    expect(result.groundingType).toBe('db_skill');
+    expect(result.status).toBe('usable_exact');
+  });
+
+  it('counts member balance flow KPIs as a database-backed scalar answer', () => {
+    const result = grader.grade({
+      question: '今天储值卡消耗了多少，新充值了多少',
+      answer: '储值消耗：200.00 元；新充值入账：1200.00 元。',
+      blocks: [{ kind: 'kpi', items: [{ label: '储值消耗', value: '200.00 元' }] }],
+      citations: [{ sourceType: 'db_skill', sourceId: 'capability_member_balance_flow_summary', label: '会员储值充值与消耗流水' }],
+      brainStatus: 'completed',
+    });
+
+    expect(result.expectedShape).toBe('scalar_metric');
+    expect(result.status).toBe('usable_partial');
+  });
+
+  it('grades structured dormant-customer reactivation evidence as usable', () => {
+    const result = grader.grade({
+      question: '哪些沉睡客户最近有点被唤醒的迹象',
+      answer: '最近发现 1 位沉睡客户出现唤醒迹象，赵女士已预约并实际到店。',
+      citations: [
+        { sourceType: 'business_definition', sourceId: 'metric.dormant_reactivation_customer_count@1', label: '沉睡客户唤醒迹象人数' },
+        { sourceType: 'db_skill', sourceId: 'dormant_customer_reactivation_evidence', label: '营销触达与到店消费证据' },
+      ],
+      brainStatus: 'completed',
+      blocks: [{
+        kind: 'table',
+        columns: ['customerName', 'signalSummary'],
+        rows: [{ customerName: '赵女士', signalSummary: '新建有效预约、实际到店' }],
+      }],
+    });
+
+    expect(result.status).toBe('usable_exact');
+  });
+
+  it('distinguishes product margin ranking from whole-store gross margin', () => {
+    const result = grader.grade({
+      question: '哪些产品毛利率最高',
+      answer: '商品毛利率最高的是眼霜，毛利率 60.0%。',
+      citations: [{ sourceType: 'business_definition', sourceId: 'metric.product_gross_margin_rate@1', label: '业务定义：商品毛利率' }],
+      blocks: [{ kind: 'ranking', rows: [{ productName: '眼霜', grossMarginRate: '60.0%' }] }],
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({ status: 'usable_exact', expectedMetric: 'product_gross_margin_rate', actualMetric: 'product_gross_margin_rate', actualShape: 'ranking' });
+  });
+
   it('does not count a configured-target miss as a partial scalar answer', () => {
     const result = grader.grade({
       question: '这个月目标完成率多少了，还差多远',
@@ -291,6 +664,19 @@ describe('BrainAnswerGraderService', () => {
     });
 
     expect(result.status).not.toBe('usable_partial');
+  });
+
+  it('grades recall contact priority against the governed follow-up priority metric', () => {
+    const result = grader.grade({
+      question: '我想做个召回活动，哪些客户最值得联系',
+      answer: '优先联系客户：\n1. 李女士，评分 100。',
+      citations: [{ sourceType: 'business_definition', sourceId: 'metric.follow_up_priority_score@3', label: '客户跟进优先级评分' }],
+      brainStatus: 'completed',
+    });
+
+    expect(result.expectedMetric).toBe('follow_up_priority_score');
+    expect(result.actualMetric).toBe('follow_up_priority_score');
+    expect(result.status).toBe('usable_exact');
   });
 
   it.each([
@@ -415,6 +801,13 @@ describe('BrainAnswerGraderService', () => {
       'list',
     ],
     [
+      '今天有几个预约是做面部的，几个是身体的',
+      '预约分类：\n1. 功效面部护理 2 个\n2. 身体护理 1 个',
+      'front_desk_reservation_schedule',
+      'list',
+      'list',
+    ],
+    [
       '有个客人临时来了没预约，现在还能安排吗',
       '临时到店安排建议：当前有 1 名美容师可接新单，1 张床位未占用，可以先确认项目时长后安排。',
       'front_desk_walk_in_availability',
@@ -474,6 +867,44 @@ describe('BrainAnswerGraderService', () => {
     });
 
     expect(result.expectedIntent).toBe('list');
+    expect(result.status).toBe('usable_exact');
+  });
+
+  it('grades staff revenue decline as a comparison instead of a scalar revenue metric', () => {
+    const result = grader.grade({
+      question: '有没有员工这周业绩明显下滑',
+      answer: '本周未发现员工业绩较上一同长度周期下降 30% 以上。',
+      citations: [{ sourceType: 'db_skill', sourceId: 'manager_staff_revenue_comparison', label: '员工当前期与上一期业绩对比' }],
+      blocks: [{
+        kind: 'comparison',
+        items: [{ label: '明显下滑员工数', current: '0 人', previous: '判定阈值 30%', delta: '未发现' }],
+      }],
+      brainStatus: 'completed',
+    });
+
+    expect(result.expectedIntent).toBe('comparison');
+    expect(result.expectedMetric).toBeUndefined();
+    expect(result.status).toBe('usable_exact');
+  });
+
+  it('distinguishes card-package sales from card liability', () => {
+    const result = grader.grade({
+      question: '这个月次卡销售了多少金额',
+      answer: '本月次卡销售 8600.00 元，共 12 张。',
+      citations: [
+        {
+          sourceType: 'business_definition',
+          sourceId: 'metric.card_package_sales_amount',
+          label: '共享后台业务定义：次卡销售金额',
+        },
+        { sourceType: 'db_skill', sourceId: 'finance.card-package-sales.metric', label: '后台次卡销售指标服务' },
+      ],
+      blocks: [{ kind: 'kpi', items: [{ label: '次卡销售金额', value: '8600.00 元' }] }],
+      brainStatus: 'completed',
+    });
+
+    expect(result.expectedMetric).toBe('card_package_sales_amount');
+    expect(result.actualMetric).toBe('card_package_sales_amount');
     expect(result.status).toBe('usable_exact');
   });
 

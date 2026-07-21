@@ -1,6 +1,7 @@
 export * from './product';
 export * from './inventory';
 export * from './customer';
+export * from './customerFeedback';
 export * from './customerApp';
 export * from './order';
 export * from './auth';
@@ -35,3 +36,4 @@ export * from './agentV5';
 export * from './agentCapabilityCenter';
 export * from './agentGovernance';
 export * from './operationProfit';
+export * from './businessDefinition';

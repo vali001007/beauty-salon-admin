@@ -69,6 +69,14 @@ describe('CommissionService', () => {
         findMany: jest.fn(),
         count: jest.fn(),
       },
+      commissionAdjustment: { create: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+      dailySettlementSnapshot: {
+        create: jest.fn(),
+        findMany: jest.fn(),
+        findFirst: jest.fn(),
+        count: jest.fn(),
+      },
+      financeAuditLog: { create: jest.fn(), findMany: jest.fn() },
       amiPerformanceRecord: {
         findFirst: jest.fn(),
         create: jest.fn(),
@@ -77,6 +85,9 @@ describe('CommissionService', () => {
       },
       amiMonthlyBill: {
         upsert: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+        findFirst: jest.fn(),
         findMany: jest.fn(),
         count: jest.fn(),
         findUnique: jest.fn(),
@@ -367,6 +378,25 @@ describe('CommissionService', () => {
       where: { id: { in: [1, 2] } },
       data: { status: 'cancelled', remark: '订单退款，退款金额 188' },
     });
+  });
+
+  it('reverses only refunded item commissions and creates negative adjustments for settled records', async () => {
+    prisma.commissionRecord.findMany.mockResolvedValue([
+      { id: 1, orderItemId: 11, storeId: 3, amount: 50, sourceAmount: 500, status: 'confirmed', settlementRecords: [] },
+      { id: 2, orderItemId: 12, storeId: 3, amount: 80, sourceAmount: 800, status: 'settled', settlementRecords: [{ settlementId: 20 }] },
+    ]);
+    prisma.commissionRecord.updateMany.mockResolvedValue({ count: 1 });
+    prisma.commissionAdjustment.create.mockResolvedValue({ id: 801 });
+
+    const result = await service.reverseOrderCommissions(99, 900, prisma, [
+      { orderItemId: 11, refundAmount: 500 },
+      { orderItemId: 12, refundAmount: 400 },
+    ]);
+
+    expect(prisma.commissionRecord.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ orderItemId: { in: [11, 12] } }) }));
+    expect(prisma.commissionRecord.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: { in: [1] } } }));
+    expect(prisma.commissionAdjustment.create).toHaveBeenCalledWith({ data: expect.objectContaining({ settlementId: 20, commissionRecordId: 2, type: 'refund_recovery', amount: -40, status: 'pending' }) });
+    expect(result).toEqual(expect.objectContaining({ count: 1, adjustmentCount: 1 }));
   });
 
   it('lists, creates, updates and archives commission rule algorithms without binding objects or employees', async () => {
@@ -1712,6 +1742,36 @@ describe('CommissionService', () => {
     expect(result.summary).toEqual({ high: 3, medium: 2, low: 0 });
   });
 
+  it('rejects cross-store finance object access by id', async () => {
+    prisma.commissionRule.findUnique.mockResolvedValue({ id: 88, storeId: 9, status: 'active' });
+    await expect(service.getRuleById(88, { userId: 7, storeIds: [3], roles: ['store_manager'], permissions: ['core:finance:manage'] })).rejects.toThrow('无权访问该门店财务数据');
+
+    prisma.commissionRecord.findUnique.mockResolvedValue({ id: 99, storeId: 9, status: 'pending' });
+    await expect(service.confirmRecord(99, { userId: 7, storeIds: [3], roles: ['store_manager'], permissions: ['core:finance:manage'] })).rejects.toThrow('无权访问该门店财务数据');
+    expect(prisma.commissionRecord.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects paying a draft settlement and records payment evidence for a confirmed settlement', async () => {
+    prisma.commissionSettlement.findUnique.mockResolvedValueOnce({ id: 20, storeId: 3, status: 'draft', settlementRecords: [] });
+    await expect(service.markSettlementPaid(20, { userId: 7, storeIds: [3], roles: ['store_manager'], permissions: ['core:finance:manage'], paymentBatchNo: 'PAY-202607', paymentMethod: 'bank_transfer', paymentVoucherNo: 'V-001' } as any)).rejects.toThrow('只有已确认结算单可以发放');
+
+    prisma.commissionSettlement.findUnique.mockResolvedValueOnce({ id: 20, storeId: 3, status: 'confirmed', settlementRecords: [] });
+    prisma.commissionSettlement.update.mockResolvedValue({ id: 20, storeId: 3, status: 'paid', paidAt: new Date() });
+    await service.markSettlementPaid(20, { userId: 7, storeIds: [3], roles: ['store_manager'], permissions: ['core:finance:manage'], paymentBatchNo: 'PAY-202607', paymentMethod: 'bank_transfer', paymentVoucherNo: 'V-001' } as any);
+    expect(prisma.commissionSettlement.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'paid', paidBy: 7, paymentBatchNo: 'PAY-202607', paymentMethod: 'bank_transfer', paymentVoucherNo: 'V-001' }) }));
+  });
+
+  it('creates a traceable commission adjustment without mutating locked commission records', async () => {
+    prisma.commissionSettlement.findUnique.mockResolvedValue({ id: 20, storeId: 3, status: 'confirmed' });
+    prisma.commissionAdjustment.create.mockImplementation(async ({ data }: any) => ({ id: 801, ...data }));
+
+    const result = await service.createCommissionAdjustment(20, { type: 'refund_recovery', amount: -50, reason: '已结算订单退款追缴' }, { userId: 7, storeIds: [3], roles: ['store_manager'], permissions: ['core:finance:manage'] });
+
+    expect(prisma.commissionAdjustment.create).toHaveBeenCalledWith({ data: expect.objectContaining({ settlementId: 20, storeId: 3, type: 'refund_recovery', amount: -50, createdBy: 7, status: 'pending' }) });
+    expect(prisma.commissionRecord.update).not.toHaveBeenCalled();
+    expect(result.id).toBe(801);
+  });
+
   it('does not compare prepaid payment cash flow with operating revenue', async () => {
     prisma.dailySettlement.findMany.mockResolvedValue([{
       id: 1,
@@ -1876,6 +1936,125 @@ describe('CommissionService', () => {
     );
   });
 
+  it('rejects regenerating a confirmed daily settlement until it is reopened', async () => {
+    prisma.dailySettlement.findUnique.mockResolvedValue({ id: 99, storeId: 3, status: 'confirmed' });
+
+    await expect(service.generateDailySettlement(3, '2026-06-08')).rejects.toThrow('已确认日结禁止重新生成');
+    expect(prisma.dailySettlement.upsert).not.toHaveBeenCalled();
+  });
+
+  it('confirms a daily settlement by creating an immutable version snapshot and audit log', async () => {
+    const settlement = {
+      id: 99,
+      storeId: 3,
+      settleDate: new Date('2026-06-08T00:00:00.000Z'),
+      totalRevenue: 1200,
+      cashRevenue: 200,
+      wechatRevenue: 1000,
+      alipayRevenue: 0,
+      cardRevenue: 0,
+      balanceRevenue: 0,
+      rechargeIncome: 0,
+      refundAmount: 50,
+      orderCount: 4,
+      customerCount: 3,
+      avgTransaction: 300,
+      materialCost: 100,
+      grossProfit: 1050,
+      grossMargin: 87.5,
+      commissionTotal: 50,
+      status: 'draft',
+      summary: { total: 1200, dataQuality: { status: 'complete' } },
+    };
+    prisma.dailySettlement.findUnique.mockResolvedValue(settlement);
+    prisma.dailySettlementSnapshot.count.mockResolvedValue(0);
+    prisma.dailySettlementSnapshot.create.mockImplementation(async ({ data }: any) => ({ id: 501, ...data }));
+    prisma.dailySettlement.update.mockResolvedValue({ ...settlement, status: 'confirmed', confirmedBy: 7, confirmedAt: new Date() });
+
+    const result = await service.confirmDailySettlement(99, 7, 3);
+
+    expect(prisma.dailySettlementSnapshot.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ dailySettlementId: 99, storeId: 3, version: 1, confirmedBy: 7, totalRevenue: 1200, snapshot: expect.objectContaining({ summary: settlement.summary }) }),
+    });
+    expect(prisma.financeAuditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ storeId: 3, userId: 7, action: 'daily_settlement_confirm', entityType: 'DailySettlement', entityId: 99 }),
+    });
+    expect(result).toEqual(expect.objectContaining({ status: 'confirmed', version: 1 }));
+  });
+
+  it('allows system auto confirmation and freezes reconciliation summaries in the snapshot', async () => {
+    const settlement = {
+      id: 100,
+      storeId: 3,
+      settleDate: new Date('2026-06-09T00:00:00.000Z'),
+      totalRevenue: 900,
+      cashRevenue: 100,
+      wechatRevenue: 800,
+      alipayRevenue: 0,
+      cardRevenue: 0,
+      balanceRevenue: 0,
+      rechargeIncome: 0,
+      refundAmount: 0,
+      orderCount: 2,
+      customerCount: 2,
+      avgTransaction: 450,
+      materialCost: 50,
+      grossProfit: 850,
+      grossMargin: 94.44,
+      commissionTotal: 0,
+      status: 'draft',
+      summary: { total: 900 },
+      systemSummary: { totalRevenue: 900 },
+      adjustmentSummary: { totalRevenue: 0 },
+      finalSummary: { totalRevenue: 900 },
+    };
+    prisma.dailySettlement.findUnique.mockResolvedValue(settlement);
+    prisma.dailySettlementSnapshot.count.mockResolvedValue(0);
+    prisma.dailySettlementSnapshot.create.mockResolvedValue({ id: 502 });
+    prisma.dailySettlement.update.mockResolvedValue({ ...settlement, status: 'confirmed', confirmationMode: 'auto' });
+
+    const result = await service.confirmDailySettlement(100, undefined, 3, {
+      confirmationMode: 'auto',
+      reconciliationRunId: 88,
+      ruleVersion: 'finance_reconciliation_v1',
+      sourceDigest: 'digest-1',
+    });
+
+    expect(prisma.dailySettlementSnapshot.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        dailySettlementId: 100,
+        confirmedBy: null,
+        confirmationMode: 'auto',
+        reconciliationRunId: 88,
+        ruleVersion: 'finance_reconciliation_v1',
+        sourceDigest: 'digest-1',
+        systemSummary: settlement.systemSummary,
+        adjustmentSummary: settlement.adjustmentSummary,
+        finalSummary: settlement.finalSummary,
+      }),
+    });
+    expect(prisma.dailySettlement.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 100 },
+      data: expect.objectContaining({ status: 'confirmed', confirmedBy: null, confirmationMode: 'auto' }),
+    }));
+    expect(prisma.financeAuditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'daily_settlement_auto_confirm', userId: null }),
+    });
+    expect(result).toEqual(expect.objectContaining({ status: 'confirmed', version: 1 }));
+  });
+
+  it('allows only a super admin to reopen a confirmed daily settlement with a reason', async () => {
+    prisma.dailySettlement.findUnique.mockResolvedValue({ id: 99, storeId: 3, status: 'confirmed', settleDate: new Date('2026-06-08') });
+    prisma.dailySettlement.update.mockResolvedValue({ id: 99, storeId: 3, status: 'draft', settleDate: new Date('2026-06-08') });
+
+    await expect(service.reopenDailySettlement(99, { userId: 8, storeIds: [3], roles: ['store_manager'], permissions: ['core:finance:manage'], reason: '补录退款后重新结账' })).rejects.toThrow('仅平台管理员可以重开');
+
+    const result = await service.reopenDailySettlement(99, { userId: 1, storeIds: [], roles: ['super_admin'], permissions: ['*'], reason: '补录退款后重新结账' });
+    expect(prisma.dailySettlement.update).toHaveBeenCalledWith({ where: { id: 99 }, data: { status: 'draft', confirmedAt: null, confirmedBy: null } });
+    expect(prisma.financeAuditLog.create).toHaveBeenCalledWith({ data: expect.objectContaining({ action: 'daily_settlement_reopen', reason: '补录退款后重新结账', userId: 1 }) });
+    expect(result.status).toBe('draft');
+  });
+
   it('lists daily settlements by business date and hides legacy duplicate date rows', async () => {
     const canonical = {
       id: 20,
@@ -2008,6 +2187,21 @@ describe('CommissionService', () => {
     });
   });
 
+  it('runs the rule-driven reconciliation service for every active store at 01:00', async () => {
+    const systemNow = new Date('2026-06-09T01:00:00.000Z');
+    jest.useFakeTimers().setSystemTime(systemNow);
+    prisma.store.findMany.mockResolvedValue([{ id: 3, name: 'A 店' }, { id: 4, name: 'B 店' }]);
+    const runner = { runDailyClose: jest.fn().mockResolvedValue({ status: 'passed', autoConfirmed: true }) };
+    const cronService = new CommissionService(prisma, undefined, { get: jest.fn().mockReturnValue(runner) } as any);
+
+    const result = await cronService.handleDailySettlementCron();
+
+    expect(runner.runDailyClose).toHaveBeenCalledTimes(2);
+    expect(runner.runDailyClose).toHaveBeenNthCalledWith(1, 3, '2026-06-08', { triggerType: 'scheduled', autoConfirm: true });
+    expect(runner.runDailyClose).toHaveBeenNthCalledWith(2, 4, '2026-06-08', { triggerType: 'scheduled', autoConfirm: true });
+    expect(result).toEqual(expect.objectContaining({ total: 2, settleDate: '2026-06-08' }));
+  });
+
   it('records Ami marketing contribution with default commission rate and settle month', async () => {
     const occurredAt = new Date('2026-06-08T12:00:00.000Z');
     prisma.amiPerformanceRecord.findFirst.mockResolvedValue(null);
@@ -2099,18 +2293,18 @@ describe('CommissionService', () => {
       { category: 'marketing_conversion', revenueAmount: 50000, commissionAmount: 4000, workMinutes: null },
       { category: 'cashier_assist', revenueAmount: null, commissionAmount: null, workMinutes: 20 },
     ]);
-    prisma.amiMonthlyBill.upsert.mockImplementation(async ({ create }: any) => ({
+    prisma.amiMonthlyBill.create.mockImplementation(async ({ data }: any) => ({
       id: 1,
-      ...create,
-      store: { id: create.storeId, name: 'Store' },
+      ...data,
+      store: { id: data.storeId, name: 'Store' },
     }));
 
     const result = await service.generateAmiMonthlyBill(3, '2026-06');
 
-    expect(prisma.amiMonthlyBill.upsert).toHaveBeenCalledWith(
+    expect(prisma.amiMonthlyBill.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { storeId_settleMonth: { storeId: 3, settleMonth: '2026-06' } },
-        create: expect.objectContaining({
+        data: expect.objectContaining({
+          version: 1,
           baseFee: 699,
           commissionFee: 2097,
           totalFee: 2796,
@@ -2230,13 +2424,13 @@ describe('CommissionService', () => {
 
     const result = await service.getPlatformRevenue({ period: 'month', value: '2026-06' });
 
-    expect(prisma.amiMonthlyBill.findMany).toHaveBeenCalledWith({
-      where: { settleMonth: '2026-06' },
+    expect(prisma.amiMonthlyBill.findMany).toHaveBeenNthCalledWith(1, {
+      where: { settleMonth: '2026-06', status: { in: ['confirmed', 'invoiced', 'paid'] } },
       include: { store: { select: { id: true, name: true } } },
       orderBy: [{ settleMonth: 'asc' }, { storeId: 'asc' }],
     });
     expect(prisma.supplySettlement.findMany).toHaveBeenCalledWith({
-      where: { settleMonth: '2026-06' },
+      where: { settleMonth: '2026-06', status: { in: ['confirmed', 'supplier_confirmed', 'paid'] } },
       include: { supplier: { select: { id: true, name: true } } },
       orderBy: [{ settleMonth: 'asc' }, { supplierId: 'asc' }],
     });
@@ -2297,6 +2491,36 @@ describe('CommissionService', () => {
     ]);
   });
 
+  it('prevents regenerating a non-draft Ami bill and enforces the bill state machine', async () => {
+    prisma.amiMonthlyBill.findFirst.mockResolvedValueOnce({ id: 1, storeId: 3, settleMonth: '2026-06', version: 1, status: 'confirmed' });
+    await expect(service.generateAmiMonthlyBill(3, '2026-06')).rejects.toThrow('只有草稿账单可以重新生成');
+
+    prisma.amiMonthlyBill.findFirst.mockResolvedValueOnce({ id: 1, storeId: 3, settleMonth: '2026-06', version: 1, status: 'draft' });
+    prisma.amiMonthlyBill.update.mockResolvedValue({ id: 1, storeId: 3, settleMonth: '2026-06', version: 1, status: 'draft' });
+    prisma.amiPerformanceRecord.findMany.mockResolvedValue([]);
+    await service.generateAmiMonthlyBill(3, '2026-06');
+
+    prisma.amiMonthlyBill.findUnique.mockResolvedValue({ id: 1, storeId: 3, status: 'draft' });
+    prisma.amiMonthlyBill.update = jest.fn().mockResolvedValue({ id: 1, storeId: 3, status: 'confirmed' });
+    const confirmed = await service.transitionAmiMonthlyBill(1, 'confirmed', { userId: 7, storeIds: [3], roles: ['store_manager'], permissions: ['core:finance:manage'] });
+    expect(confirmed.status).toBe('confirmed');
+  });
+
+  it('separates confirmed platform revenue from draft estimated revenue', async () => {
+    prisma.amiMonthlyBill.findMany
+      .mockResolvedValueOnce([{ id: 1, storeId: 11, settleMonth: '2026-06', status: 'confirmed', baseFee: 699, commissionFee: 100, store: { id: 11, name: 'Store A' } }])
+      .mockResolvedValueOnce([{ id: 2, storeId: 12, settleMonth: '2026-06', status: 'draft', baseFee: 699, commissionFee: 200, totalFee: 899 }]);
+    prisma.supplySettlement.findMany.mockResolvedValue([]);
+    prisma.store.count.mockResolvedValue(2);
+
+    const result = await service.getPlatformRevenue({ period: 'month', value: '2026-06' });
+
+    expect(prisma.amiMonthlyBill.findMany).toHaveBeenNthCalledWith(1, expect.objectContaining({ where: { settleMonth: '2026-06', status: { in: ['confirmed', 'invoiced', 'paid'] } } }));
+    expect(result.totalRevenue).toBe(799);
+    expect(result.estimatedRevenue).toBe(899);
+    expect(result.annualizedRevenueEstimate).toBe(result.ltvEstimate);
+  });
+
   it('summarizes quarterly platform revenue by month trend and month-over-month growth', async () => {
     prisma.amiMonthlyBill.findMany.mockResolvedValue([
       { id: 1, storeId: 11, settleMonth: '2026-05', baseFee: 500, commissionFee: 100, store: { id: 11, name: 'Store A' } },
@@ -2312,12 +2536,12 @@ describe('CommissionService', () => {
 
     expect(prisma.amiMonthlyBill.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { settleMonth: { in: ['2026-04', '2026-05', '2026-06'] } },
+        where: { settleMonth: { in: ['2026-04', '2026-05', '2026-06'] }, status: { in: ['confirmed', 'invoiced', 'paid'] } },
       }),
     );
     expect(prisma.supplySettlement.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { settleMonth: { in: ['2026-04', '2026-05', '2026-06'] } },
+        where: { settleMonth: { in: ['2026-04', '2026-05', '2026-06'] }, status: { in: ['confirmed', 'supplier_confirmed', 'paid'] } },
       }),
     );
     expect(result.months).toEqual(['2026-04', '2026-05', '2026-06']);
@@ -2356,6 +2580,7 @@ describe('CommissionService', () => {
           settleMonth: {
             in: ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12'],
           },
+          status: { in: ['confirmed', 'invoiced', 'paid'] },
         },
       }),
     );

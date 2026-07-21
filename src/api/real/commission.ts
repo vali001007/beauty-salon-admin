@@ -8,7 +8,7 @@ export type CommissionRecordStatus = 'pending' | 'confirmed' | 'settled' | 'canc
 export type CommissionSettlementStatus = 'draft' | 'confirmed' | 'paid';
 export type CashierShiftStatus = 'open' | 'closed' | 'reconciled';
 export type DailySettlementStatus = 'draft' | 'confirmed';
-export type AmiBillStatus = 'draft' | 'confirmed' | 'invoiced' | 'paid';
+export type AmiBillStatus = 'draft' | 'confirmed' | 'invoiced' | 'paid' | 'voided';
 
 export interface AmiPerformanceRecord {
   id: number;
@@ -27,11 +27,13 @@ export interface AmiPerformanceRecord {
   workMinutes?: number;
   occurredAt: string;
   settleMonth: string;
+  version?: number;
   metadata?: Record<string, unknown>;
 }
 
 export interface AmiMonthlyBill {
   id: number;
+  version?: number;
   storeId: number;
   storeName?: string;
   settleMonth: string;
@@ -48,6 +50,12 @@ export interface AmiMonthlyBill {
     commissionCap?: number;
   };
   status: AmiBillStatus;
+  confirmedBy?: number;
+  confirmedAt?: string;
+  invoicedAt?: string;
+  paidAt?: string;
+  voidedAt?: string;
+  voidReason?: string;
   createdAt?: string;
 }
 
@@ -87,9 +95,11 @@ export interface PlatformRevenueSummary {
     records?: Array<{ id: number; supplierId: number; supplierName?: string; settleMonth: string; amount: number }>;
   };
   totalRevenue: number;
+  estimatedRevenue: number;
   monthOverMonth: number;
   arpu: number;
   ltvEstimate: number;
+  annualizedRevenueEstimate: number;
   storeRanking: Array<{ storeId: number; storeName: string; amiSubscription: number; amiCommission: number; totalRevenue: number }>;
   monthTrend: Array<{
     month: string;
@@ -235,6 +245,10 @@ export interface CommissionSettlement {
   regenerateChangedRecordCount?: number;
   confirmedAt?: string;
   paidAt?: string;
+  paidBy?: number;
+  paymentBatchNo?: string;
+  paymentMethod?: string;
+  paymentVoucherNo?: string;
 }
 
 export interface CashierShift {
@@ -294,7 +308,7 @@ export interface RefundRecord {
 }
 
 export interface ReconciliationException {
-  id: string;
+  id: string | number;
   storeId?: number;
   date: string;
   type: string;
@@ -304,6 +318,67 @@ export interface ReconciliationException {
   actionTarget: 'daily' | 'payments' | 'refunds' | 'shifts' | string;
   sourceId?: number;
   amountDiff?: number;
+  status?: 'open' | 'acknowledged' | 'resolved';
+  category?: 'operating_exception' | 'data_integrity' | 'automation_failure';
+  actionPath?: string;
+}
+
+export interface FinanceReconciliationRun {
+  id: number;
+  storeId: number;
+  dailySettlementId?: number;
+  businessDate: string;
+  triggerType: 'scheduled' | 'manual' | 'late_fact';
+  status: 'running' | 'passed' | 'warning' | 'blocked' | 'failed';
+  ruleVersion: string;
+  summary?: { autoConfirmed?: boolean; blockingIssueCount?: number; warningCount?: number; issueCount?: number };
+  errorMessage?: string;
+  startedAt: string;
+  completedAt?: string;
+}
+
+export interface FinanceReconciliationIssue {
+  id: number;
+  runId: number;
+  storeId: number;
+  dailySettlementId?: number;
+  businessDate: string;
+  code: string;
+  category: 'operating_exception' | 'data_integrity' | 'automation_failure';
+  severity: 'high' | 'medium' | 'low';
+  status: 'open' | 'acknowledged' | 'resolved';
+  title: string;
+  detail: string;
+  amount?: number;
+  actionPath: string;
+  acknowledgedAt?: string;
+  lastDetectedAt: string;
+  resolvedAt?: string;
+}
+
+export interface DailySettlementAdjustment {
+  id: number;
+  dailySettlementId: number;
+  storeId: number;
+  adjustmentType: string;
+  effectField: string;
+  amount: number;
+  reason: string;
+  voucherNo?: string;
+  status: 'applied' | 'cancelled';
+  createdBy: number;
+  cancelledBy?: number;
+  cancelledAt?: string;
+  cancelReason?: string;
+  createdAt: string;
+}
+
+export interface DailySettlementAdjustmentInput {
+  adjustmentType: string;
+  effectField: 'totalRevenue' | 'cashRevenue' | 'wechatRevenue' | 'alipayRevenue' | 'cardRevenue' | 'balanceRevenue' | 'rechargeIncome' | 'refundAmount' | 'materialCost' | 'commissionTotal';
+  amount: number;
+  reason: string;
+  voucherNo?: string;
 }
 
 export interface DailySettlement {
@@ -332,7 +407,44 @@ export interface DailySettlement {
   memberBalanceGiftDeduct?: number;
   status: DailySettlementStatus;
   confirmedAt?: string;
-  summary?: Record<string, number>;
+  confirmedBy?: number;
+  version?: number;
+  latestVersion?: number;
+  needsRefresh?: boolean;
+  reconciliationStatus?: 'pending' | 'running' | 'passed' | 'warning' | 'blocked' | 'failed';
+  confirmationMode?: 'auto' | 'manual';
+  latestReconciliationRunId?: number;
+  systemSummary?: Record<string, number>;
+  adjustmentSummary?: Record<string, number>;
+  finalSummary?: Record<string, number>;
+  summary?: Record<string, any>;
+}
+
+export interface DailySettlementSnapshot extends Omit<DailySettlement, 'status' | 'summary'> {
+  dailySettlementId: number;
+  version: number;
+  snapshot: Record<string, unknown>;
+  sourceDigest?: string;
+  systemSummary?: Record<string, number>;
+  adjustmentSummary?: Record<string, number>;
+  finalSummary?: Record<string, number>;
+  confirmationMode?: 'auto' | 'manual';
+  reconciliationRunId?: number;
+  ruleVersion?: string;
+  confirmedAt: string;
+}
+
+export interface CommissionAdjustmentInput {
+  type: 'deduction' | 'bonus' | 'refund_recovery' | 'correction';
+  amount: number;
+  reason: string;
+  commissionRecordId?: number;
+}
+
+export interface CommissionPaymentInput {
+  paymentBatchNo: string;
+  paymentMethod: string;
+  paymentVoucherNo: string;
 }
 
 function normalizePaginated<T>(response: any): PaginatedResponse<T> & { summary?: any } {
@@ -423,8 +535,12 @@ export async function realConfirmCommissionSettlement(id: number) {
   return apiClient.put(`/commission/settlements/${id}/confirm`);
 }
 
-export async function realMarkCommissionSettlementPaid(id: number) {
-  return apiClient.put(`/commission/settlements/${id}/mark-paid`);
+export async function realMarkCommissionSettlementPaid(id: number, data: CommissionPaymentInput) {
+  return apiClient.put(`/commission/settlements/${id}/mark-paid`, data);
+}
+
+export async function realCreateCommissionAdjustment(id: number, data: CommissionAdjustmentInput) {
+  return apiClient.post(`/commission/settlements/${id}/adjustments`, data);
 }
 
 export async function realExportCommissionSettlements(params: Record<string, unknown>) {
@@ -479,6 +595,46 @@ export async function realConfirmDailySettlement(id: number) {
   return apiClient.put<unknown, DailySettlement>(`/commission/daily-settlements/${id}/confirm`);
 }
 
+export async function realRunFinanceReconciliation(date: string) {
+  return apiClient.post<unknown, FinanceReconciliationRun>('/commission/reconciliation-runs', { date });
+}
+
+export async function realGetFinanceReconciliationRuns(params: PaginationParams & Record<string, unknown>) {
+  const response = await apiClient.get('/commission/reconciliation-runs', { params });
+  return normalizePaginated<FinanceReconciliationRun>(response);
+}
+
+export async function realGetFinanceReconciliationIssues(params: PaginationParams & Record<string, unknown>) {
+  const response = await apiClient.get('/commission/reconciliation-issues', { params });
+  return normalizePaginated<FinanceReconciliationIssue>(response);
+}
+
+export async function realAcknowledgeFinanceReconciliationIssue(id: number) {
+  return apiClient.put<unknown, FinanceReconciliationIssue>(`/commission/reconciliation-issues/${id}/acknowledge`);
+}
+
+export async function realReopenDailySettlement(id: number, reason: string) {
+  return apiClient.post<unknown, DailySettlement>(`/commission/daily-settlements/${id}/reopen`, { reason });
+}
+
+export async function realGetDailySettlementVersions(id: number) {
+  const response = await apiClient.get<unknown, any>(`/commission/daily-settlements/${id}/versions`);
+  return (response?.items ?? response?.data ?? response ?? []) as DailySettlementSnapshot[];
+}
+
+export async function realCreateDailySettlementAdjustment(id: number, data: DailySettlementAdjustmentInput) {
+  return apiClient.post<unknown, { adjustment: DailySettlementAdjustment; settlement: DailySettlement }>(`/commission/daily-settlements/${id}/adjustments`, data);
+}
+
+export async function realGetDailySettlementAdjustments(id: number) {
+  const response = await apiClient.get<unknown, any>(`/commission/daily-settlements/${id}/adjustments`);
+  return (response?.items ?? response?.data ?? response ?? []) as DailySettlementAdjustment[];
+}
+
+export async function realCancelDailySettlementAdjustment(id: number, adjustmentId: number, reason: string) {
+  return apiClient.put<unknown, { adjustment: DailySettlementAdjustment; settlement: DailySettlement }>(`/commission/daily-settlements/${id}/adjustments/${adjustmentId}/cancel`, { reason });
+}
+
 export async function realGetAmiPerformanceRecords(params: PaginationParams & Record<string, unknown>) {
   const response = await apiClient.get('/commission/ami/performance', { params });
   return normalizePaginated<AmiPerformanceRecord>(response);
@@ -491,6 +647,10 @@ export async function realGetAmiMonthlyBills(params: PaginationParams & Record<s
 
 export async function realGenerateAmiMonthlyBill(settleMonth: string) {
   return apiClient.post<unknown, AmiMonthlyBill>('/commission/ami/bills/generate', { settleMonth });
+}
+
+export async function realTransitionAmiMonthlyBill(id: number, status: Exclude<AmiBillStatus, 'draft'>, reason?: string) {
+  return apiClient.put<unknown, AmiMonthlyBill>(`/commission/ami/bills/${id}/status`, { status, reason });
 }
 
 export async function realGetAmiDashboard(params: Record<string, unknown>) {

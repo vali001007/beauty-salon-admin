@@ -33,26 +33,36 @@ describe('Brain domain adapters', () => {
     allowsScalarMetric: false,
     reason: 'test',
   };
-  const plan = (adapterKey: BrainRoleIntentPlan['adapterKey'], intent = 'diagnosis'): BrainRoleIntentPlan =>
+  const plan = (
+    adapterKey: BrainRoleIntentPlan['adapterKey'],
+    intent = 'diagnosis',
+    capabilityKey?: string,
+  ): BrainRoleIntentPlan =>
     ({
       role: 'store_manager',
       domain: 'store_operation',
       intent,
       answerShape: intent === 'list' ? 'list' : 'non_metric',
       adapterKey,
+      capabilityKey,
       requiredPermissions: [],
       confidence: 0.9,
       grounding: intent === 'draft' || intent === 'recommendation' ? 'template_skill' : 'db_skill',
       reason: 'test',
     }) as BrainRoleIntentPlan;
-  const execution = (message: string, adapterKey: BrainRoleIntentPlan['adapterKey'], intent = 'diagnosis') =>
+  const execution = (
+    message: string,
+    adapterKey: BrainRoleIntentPlan['adapterKey'],
+    intent = 'diagnosis',
+    capabilityKey?: string,
+  ) =>
     ({
       context,
       dto: { message, timezone: 'Asia/Shanghai' },
       runId: 1,
       cognition,
       runtimeIntent,
-      plan: plan(adapterKey, intent),
+      plan: plan(adapterKey, intent, capabilityKey),
     }) as BrainDomainAdapterExecution;
 
   const skillRuntime = {
@@ -217,6 +227,7 @@ describe('Brain domain adapters', () => {
       channels: [{ channel: 'wechat', reached: 80, converted: 18, revenue: 4500, conversionRate: 0.225 }],
       strategies: [{ id: 1, name: '沉睡客户召回', status: 'active', executionType: 'scheduled' }],
       attributionByStrategy: [{ id: 1, name: '沉睡客户召回', revenue: 5000 }],
+      dataCoverage: { touchesTruncated: false, attributionsTruncated: false, strategiesTruncated: false, touchSampleSize: 100, attributionSampleSize: 1 },
     }),
   };
   const timeRangeParser = {
@@ -250,6 +261,34 @@ describe('Brain domain adapters', () => {
     }),
     resolveAppointmentTime: jest.fn(() => new Date('2026-07-12T07:00:00.000Z')),
     resolveServiceTask: jest.fn().mockResolvedValue({ ok: true, value: { id: 51, customerName: '张女士', projectName: '补水护理' } }),
+    resolveCardUsageTarget: jest.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        customerId: 7,
+        customerName: '张女士',
+        customerCardId: 66,
+        cardName: '补水护理 10 次卡',
+        projectId: 101,
+        projectName: '深层补水护理',
+        remainingTimes: 5,
+        projectRemainingTimes: 7,
+      },
+    }),
+    resolveBeautician: jest.fn().mockResolvedValue({ ok: true, value: { id: 2, name: '王美容师' } }),
+    resolveUsageTimes: jest.fn().mockReturnValue(1),
+    resolveMarketingStrategy: jest.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        id: 12,
+        name: '沉睡客户唤醒',
+        status: 'enabled',
+        executionType: 'manual',
+        ruleRelation: 'AND',
+        actions: [{ channel: 'sms', value: '护理提醒' }],
+        targetCount: 20,
+        lastExecutedAt: '2026-07-10T08:00:00.000Z',
+      },
+    }),
   };
   const predictionSkills = {
     getCustomerPrediction: jest.fn().mockResolvedValue({
@@ -268,6 +307,31 @@ describe('Brain domain adapters', () => {
       lifecycleStage: 'at_risk',
       boundary: '预测用于优先级和建议，不是确定事实。',
     }),
+  };
+  const gapOpportunities = {
+    preview: jest.fn().mockResolvedValue({
+      persisted: false,
+      summary: { opportunityCount: 1, candidateCount: 2, availableCapacity: 1, expectedRevenue: 398, averageFillRate: 0.88 },
+      opportunities: [{
+        date: '2026-07-11',
+        startTime: '15:00',
+        endTime: '16:00',
+        availableCapacity: 1,
+        candidates: [{
+          customerId: 7,
+          customerName: '张女士',
+          projectName: '补水护理',
+          score: 88,
+          recommendedChannel: 'phone',
+          messageDraft: '张女士，今天下午有一个补水护理空档，是否帮您预留？',
+          reasons: ['护理周期已到', '下午到店偏好'],
+          risks: [],
+        }],
+      }],
+    }),
+  };
+  const marketingService = {
+    previewAudience: jest.fn().mockResolvedValue({ estimatedReachedCount: 18 }),
   };
 
   it('store manager adapter returns db-skill overview citation', async () => {
@@ -315,12 +379,61 @@ describe('Brain domain adapters', () => {
     }));
   });
 
-  it('front desk adapter does not expose an executable confirmation for unopened card redemption', async () => {
-    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never);
-    const answer = await adapter.execute(execution('帮我打开核销界面，客人要用次卡', 'front_desk', 'action'));
+  it('front desk adapter creates a critical card usage preview without writing business state', async () => {
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never, actionTargets as never);
+    const answer = await adapter.execute(execution(
+      '给张女士的补水护理 10 次卡核销深层补水护理 1 次，王美容师服务',
+      'front_desk',
+      'action',
+      'card_usage_action_preview',
+    ));
+
+    expect(answer?.grounding).toBe('preview_action');
+    expect(answer?.suggestedActions?.[0]).toMatchObject({ actionId: 'persisted_action', actionType: 'verify_card_usage', riskLevel: 'critical' });
+    expect(actionConfirmation.createPreview).toHaveBeenCalledWith(expect.objectContaining({
+      skillKey: 'verify_card_usage',
+      riskLevel: 'critical',
+      payload: expect.objectContaining({ customerCardId: 66, projectId: 101, times: 1, beauticianId: 2 }),
+    }));
+  });
+
+  it('front desk adapter refuses card usage preview without the dedicated permission', async () => {
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never, actionTargets as never);
+    const input = execution(
+      '给张女士的补水护理 10 次卡核销深层补水护理 1 次，王美容师服务',
+      'front_desk',
+      'action',
+      'card_usage_action_preview',
+    );
+    input.context = { ...context, permissions: ['core:store:reservations'] };
+
+    await expect(adapter.execute(input)).rejects.toThrow('missing_permission:core:order:card-usage');
+  });
+
+  it('front desk adapter asks for an explicit usage count instead of defaulting a deduction', async () => {
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never, actionTargets as never);
+    actionTargets.resolveUsageTimes.mockReturnValueOnce(undefined);
+
+    const answer = await adapter.execute(execution(
+      '给张女士的补水护理 10 次卡核销深层补水护理，王美容师服务',
+      'front_desk',
+      'action',
+      'card_usage_action_preview',
+    ));
 
     expect(answer?.suggestedActions).toEqual([]);
-    expect(answer?.answer).toContain('尚未开放 Ami Brain 真实执行');
+    expect(answer?.answer).toContain('明确本次核销次数');
+  });
+
+  it('front desk adapter keeps card-status questions read-only instead of turning them into deductions', async () => {
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never, actionTargets as never);
+    const previewCalls = actionConfirmation.createPreview.mock.calls.length;
+
+    const answer = await adapter.execute(execution('这个客人用次卡核销，帮我看一下她的次卡情况', 'front_desk', 'list'));
+
+    expect(answer?.grounding).toBe('db_skill');
+    expect(answer?.answer).toContain('客户：张雯');
+    expect(actionConfirmation.createPreview).toHaveBeenCalledTimes(previewCalls);
   });
 
   it('front desk adapter returns reception service advice for onsite questions', async () => {
@@ -490,7 +603,13 @@ describe('Brain domain adapters', () => {
     const answer = await adapter.execute(execution('给张女士创建跟进任务', 'customer_service', 'action'));
 
     expect(answer?.grounding).toBe('preview_action');
-    expect(answer?.suggestedActions?.[0]).toMatchObject({ actionId: 'persisted_action', actionType: 'create_customer_followup', requiresConfirmation: true });
+    expect(answer?.suggestedActions?.[0]).toMatchObject({
+      actionId: 'persisted_action',
+      actionType: 'create_customer_followup',
+      requiresConfirmation: true,
+      requiredPermissions: ['assist:followup:create'],
+    });
+    expect(answer?.metadata).toMatchObject({ executionRequiredPermissions: ['assist:followup:create'] });
     expect(actionConfirmation.createPreview).toHaveBeenCalledWith(expect.objectContaining({
       skillKey: 'create_customer_followup',
       payload: expect.objectContaining({ customerId: 7 }),
@@ -672,6 +791,62 @@ describe('Brain domain adapters', () => {
     expect(answer?.answer).toContain('不会生成不可执行的确认按钮');
   });
 
+  it('marketing adapter creates a high-risk preview for an existing enabled strategy', async () => {
+    const adapter = new BrainMarketingDomainAdapter(
+      skillRuntime as never,
+      customerFacts as never,
+      timeRangeParser as never,
+      actionConfirmation as never,
+      actionTargets as never,
+      predictionSkills as never,
+      gapOpportunities as never,
+      marketingService as never,
+    );
+    const answer = await adapter.execute(execution(
+      '执行自动触达策略沉睡客户唤醒',
+      'marketing_growth',
+      'action',
+      'marketing_strategy_execute_preview',
+    ));
+
+    expect(answer).toMatchObject({ grounding: 'preview_action' });
+    expect(answer?.answer).toContain('预计进入发送队列 18 人');
+    expect(answer?.suggestedActions?.[0]).toMatchObject({
+      actionType: 'execute_marketing_strategy',
+      riskLevel: 'high',
+      requiresConfirmation: true,
+    });
+    expect(actionConfirmation.createPreview).toHaveBeenCalledWith(expect.objectContaining({
+      skillKey: 'execute_marketing_strategy',
+      riskLevel: 'high',
+      payload: { strategyId: 12, strategyName: '沉睡客户唤醒', approvedAudienceCount: 18 },
+    }));
+  });
+
+  it('marketing adapter does not expose a confirmation when the live audience is empty', async () => {
+    marketingService.previewAudience.mockResolvedValueOnce({ estimatedReachedCount: 0 });
+    const adapter = new BrainMarketingDomainAdapter(
+      skillRuntime as never,
+      customerFacts as never,
+      timeRangeParser as never,
+      actionConfirmation as never,
+      actionTargets as never,
+      predictionSkills as never,
+      gapOpportunities as never,
+      marketingService as never,
+    );
+
+    const answer = await adapter.execute(execution(
+      '执行自动触达策略沉睡客户唤醒',
+      'marketing_growth',
+      'action',
+      'marketing_strategy_execute_preview',
+    ));
+
+    expect(answer).toMatchObject({ grounding: 'db_skill', suggestedActions: [] });
+    expect(answer?.metadata).toMatchObject({ noActionReason: 'marketing_strategy_audience_empty' });
+  });
+
   it('marketing adapter creates a customer-scoped touch task draft preview', async () => {
     const adapter = new BrainMarketingDomainAdapter(skillRuntime as never, customerFacts as never, timeRangeParser as never, actionConfirmation as never, actionTargets as never);
     const answer = await adapter.execute(execution('给张女士创建一个召回触达任务', 'marketing_growth', 'action'));
@@ -681,6 +856,78 @@ describe('Brain domain adapters', () => {
       skillKey: 'create_marketing_touch_draft',
       payload: expect.objectContaining({ customerId: 7 }),
     }));
+  });
+
+  it('marketing adapter turns a governed gap workflow into one confirmable touch preview', async () => {
+    const adapter = new BrainMarketingDomainAdapter(
+      skillRuntime as never,
+      customerFacts as never,
+      timeRangeParser as never,
+      actionConfirmation as never,
+      actionTargets as never,
+      predictionSkills as never,
+      gapOpportunities as never,
+    );
+    const answer = await adapter.execute(execution(
+      '找出明天下午空档、筛合适客户、写提醒并生成触达预览',
+      'marketing_growth',
+      'action',
+      'gap_fill_touch_preview',
+    ));
+
+    expect(gapOpportunities.preview).toHaveBeenCalledWith(expect.objectContaining({
+      storeId: 2,
+      opportunityLimit: 3,
+      candidateLimit: 3,
+    }));
+    expect(answer).toMatchObject({
+      grounding: 'preview_action',
+      metadata: expect.objectContaining({
+        capabilityKey: 'gap_fill_touch_preview',
+        selectedCustomerId: 7,
+        businessDataPersisted: false,
+      }),
+    });
+    expect(answer?.answer).toContain('张女士');
+    expect(answer?.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'table' }),
+      expect.objectContaining({ kind: 'action_preview' }),
+    ]));
+    expect(actionConfirmation.createPreview).toHaveBeenCalledWith(expect.objectContaining({
+      skillKey: 'create_marketing_touch_draft',
+      payload: expect.objectContaining({ customerId: 7, channel: 'phone' }),
+    }));
+  });
+
+  it('marketing adapter returns grounded no-data without a fake action when future schedules are missing', async () => {
+    gapOpportunities.preview.mockResolvedValueOnce({
+      persisted: false,
+      summary: { opportunityCount: 0, candidateCount: 0 },
+      opportunities: [],
+    });
+    const adapter = new BrainMarketingDomainAdapter(
+      skillRuntime as never,
+      customerFacts as never,
+      timeRangeParser as never,
+      actionConfirmation as never,
+      actionTargets as never,
+      predictionSkills as never,
+      gapOpportunities as never,
+    );
+    const answer = await adapter.execute(execution(
+      '规划一个补齐明天下午空档的完整流程',
+      'marketing_growth',
+      'action',
+      'gap_fill_touch_preview',
+    ));
+
+    expect(answer).toMatchObject({
+      grounding: 'db_skill',
+      suggestedActions: [],
+      metadata: expect.objectContaining({ noActionReason: 'appointment_gap_missing', businessDataPersisted: false }),
+    });
+    expect(answer?.answer).toContain('没有可补位的预约空档');
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'gap_opportunity_readonly_preview' });
   });
 
   it('beautician adapter returns service schedule citation', async () => {
@@ -739,5 +986,63 @@ describe('Brain domain adapters', () => {
     const answer = await adapter.execute(execution('今天退款有几笔，金额多少', 'finance_risk'));
     expect(answer?.citations[0]).toMatchObject({ sourceId: 'finance_risk_summary' });
     expect(answer?.answer).toContain('退款 2 笔');
+  });
+
+  it('front desk capability bridge enters reservation preview without keyword routing', async () => {
+    actionConfirmation.createPreview.mockClear();
+    const adapter = new BrainFrontDeskDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never, customerFacts as never, actionTargets as never);
+
+    const answer = await adapter.execute(
+      execution('执行已选择的能力', 'front_desk', 'diagnosis', 'reservation_action_preview'),
+    );
+
+    expect(answer?.grounding).toBe('preview_action');
+    expect(actionConfirmation.createPreview).toHaveBeenCalledWith(
+      expect.objectContaining({ skillKey: 'create_reservation' }),
+    );
+  });
+
+  it('customer service capability bridge enters follow-up preview without keyword routing', async () => {
+    actionConfirmation.createPreview.mockClear();
+    const adapter = new BrainCustomerServiceDomainAdapter(customerFacts as never, actionConfirmation as never, actionTargets as never);
+
+    const answer = await adapter.execute(
+      execution('执行已选择的能力', 'customer_service', 'diagnosis', 'customer_follow_up_draft'),
+    );
+
+    expect(answer?.grounding).toBe('preview_action');
+    expect(actionConfirmation.createPreview).toHaveBeenCalledWith(
+      expect.objectContaining({ skillKey: 'create_customer_followup' }),
+    );
+  });
+
+  it('inventory capability bridge enters purchase order preview without keyword routing', async () => {
+    actionConfirmation.createPreview.mockClear();
+    skillRuntime.buildInventoryProcurementAnalysis.mockClear();
+    const adapter = new BrainInventoryDomainAdapter(skillRuntime as never, timeRangeParser as never, actionConfirmation as never);
+
+    const answer = await adapter.execute(
+      execution('执行已选择的能力', 'inventory_procurement', 'diagnosis', 'purchase_order_draft'),
+    );
+
+    expect(skillRuntime.buildInventoryProcurementAnalysis).toHaveBeenCalledWith({ storeId: 2, keyword: undefined });
+    expect(answer?.grounding).toBe('preview_action');
+    expect(actionConfirmation.createPreview).toHaveBeenCalledWith(
+      expect.objectContaining({ skillKey: 'create_purchase_order' }),
+    );
+  });
+
+  it('marketing capability bridge enters touch preview without keyword routing', async () => {
+    actionConfirmation.createPreview.mockClear();
+    const adapter = new BrainMarketingDomainAdapter(skillRuntime as never, customerFacts as never, timeRangeParser as never, actionConfirmation as never, actionTargets as never);
+
+    const answer = await adapter.execute(
+      execution('执行已选择的能力', 'marketing_growth', 'diagnosis', 'marketing_touch_draft'),
+    );
+
+    expect(answer?.grounding).toBe('preview_action');
+    expect(actionConfirmation.createPreview).toHaveBeenCalledWith(
+      expect.objectContaining({ skillKey: 'create_marketing_touch_draft' }),
+    );
   });
 });

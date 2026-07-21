@@ -1,5 +1,6 @@
 import { CheckCircle2, Database, GitBranch, Loader2, ThumbsDown, ThumbsUp } from 'lucide-react';
 import type {
+  BrainActionPreview as BrainActionPreviewType,
   BrainActionDecisionResponse,
   BrainMessage,
   BrainRunEvent,
@@ -16,11 +17,25 @@ interface BrainEvidencePanelProps {
   feedbackLoading: boolean;
   onConfirmAction: (actionId: string, runId: number) => void;
   onRejectAction: (actionId: string, runId: number) => void;
+  onRetryAction: (actionId: string, runId: number) => void;
   onFeedback: (runId: number, rating: string) => void;
 }
 
 function eventLabel(event: BrainRunEvent) {
   return event.stepKey.replace(/^skill_/, '').replaceAll('_', ' ');
+}
+
+function isConfirmableAction(value: unknown): value is BrainActionPreviewType {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const action = value as Record<string, unknown>;
+  return (
+    typeof action.actionId === 'string' &&
+    action.actionId.trim().length > 0 &&
+    typeof action.summary === 'string' &&
+    action.summary.trim().length > 0 &&
+    ['low', 'medium', 'high', 'critical'].includes(String(action.riskLevel)) &&
+    action.requiresConfirmation === true
+  );
 }
 
 export function BrainEvidencePanel({
@@ -33,12 +48,13 @@ export function BrainEvidencePanel({
   feedbackLoading,
   onConfirmAction,
   onRejectAction,
+  onRetryAction,
   onFeedback,
 }: BrainEvidencePanelProps) {
   const metadata = message?.metadata;
   const runId = metadata?.runId;
   const citations = metadata?.citations ?? [];
-  const actions = metadata?.suggestedActions ?? [];
+  const actions = (metadata?.suggestedActions ?? []).filter(isConfirmableAction);
 
   return (
     <aside className="hidden w-80 min-w-80 flex-col border-l border-border bg-muted/10 xl:flex">
@@ -89,6 +105,7 @@ export function BrainEvidencePanel({
                       loading={pendingActionId === action.actionId}
                       onConfirm={() => onConfirmAction(action.actionId, runId)}
                       onReject={() => onRejectAction(action.actionId, runId)}
+                      onRetry={() => onRetryAction(action.actionId, runId)}
                     />
                   ))}
                 </div>

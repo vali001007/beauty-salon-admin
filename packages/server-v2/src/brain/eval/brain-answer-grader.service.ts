@@ -9,9 +9,17 @@ export type BrainQuestionIntent =
   | 'action'
   | 'recommendation'
   | 'diagnosis'
+  | 'clarify'
   | 'unknown';
 
-export type BrainAnswerShape = 'scalar_metric' | 'comparison' | 'ranking' | 'list' | 'non_metric' | 'empty';
+export type BrainAnswerShape =
+  | 'scalar_metric'
+  | 'comparison'
+  | 'ranking'
+  | 'list'
+  | 'clarification'
+  | 'non_metric'
+  | 'empty';
 export type BrainGroundingType = 'metric_query' | 'db_skill' | 'template_skill' | 'preview_action' | 'none';
 
 export type BrainAnswerGradeStatus =
@@ -26,6 +34,7 @@ export type BrainAnswerGradeStatus =
   | 'security_blocked'
   | 'permission_denied'
   | 'not_found'
+  | 'provider_unavailable'
   | 'error';
 
 export interface BrainAnswerGraderCitation {
@@ -39,6 +48,9 @@ export interface BrainAnswerGraderInput {
   question: string;
   answer: string;
   citations: BrainAnswerGraderCitation[];
+  blocks?: unknown[];
+  expectedIntent?: BrainQuestionIntent;
+  expectedMetric?: string;
   brainStatus?: string;
   error?: string;
 }
@@ -59,12 +71,13 @@ export interface BrainAnswerGrade {
 @Injectable()
 export class BrainAnswerGraderService {
   grade(input: BrainAnswerGraderInput): BrainAnswerGrade {
-    const expectedIntent = this.detectExpectedIntent(input.question);
+    const expectedIntent = input.expectedIntent ?? this.detectExpectedIntent(input.question);
     const actualIntent = this.detectActualIntent(input);
     const expectedShape = this.shapeForIntent(expectedIntent);
     const actualShape = this.detectActualShape(input, expectedShape);
-    const expectedMetric = this.detectExpectedMetric(input.question, expectedIntent);
-    const actualMetric = this.detectActualMetric(input.citations);
+    const expectedMetric = input.expectedMetric ?? this.detectExpectedMetric(input.question, expectedIntent);
+    const actualMetrics = this.detectActualMetrics(input.citations);
+    const actualMetric = actualMetrics[0];
     const groundingType = this.detectGroundingType(input.citations);
     const legacyUsableWithCitation = input.brainStatus === 'completed' && this.hasMetricCitation(input.citations);
 
@@ -94,7 +107,20 @@ export class BrainAnswerGraderService {
         legacyUsableWithCitation,
       });
     }
-    if (input.error?.includes('不存在') || input.answer.includes('不存在') || input.answer.includes('没有找到匹配客户')) {
+    if (input.brainStatus === 'completed' && input.answer.includes('没有找到匹配客户') && this.hasAnswerCitation(input.citations)) {
+      return this.buildGrade(input, {
+        status: 'usable_exact',
+        expectedIntent,
+        actualIntent,
+        expectedShape,
+        actualShape,
+        expectedMetric,
+        actualMetric,
+        reason: '在当前门店范围完成精确查询并返回可审计的查无结果。',
+        legacyUsableWithCitation,
+      });
+    }
+    if (input.error?.includes('不存在') || input.answer.includes('不存在')) {
       return this.buildGrade(input, {
         status: 'not_found',
         expectedIntent,
@@ -120,6 +146,33 @@ export class BrainAnswerGraderService {
         legacyUsableWithCitation,
       });
     }
+    if (expectedIntent === 'clarify') {
+      const matched = actualIntent === 'clarify' && actualShape === 'clarification';
+      return this.buildGrade(input, {
+        status: matched ? 'usable_exact' : 'false_positive_intent_mismatch',
+        expectedIntent,
+        actualIntent,
+        expectedShape,
+        actualShape,
+        expectedMetric,
+        actualMetric,
+        reason: matched ? '返回了结构化合并式澄清。' : '问题需要澄清，但系统未返回可继续的澄清结果。',
+        legacyUsableWithCitation,
+      });
+    }
+    if (this.isGroundedNoDataBoundary(input, groundingType)) {
+      return this.buildGrade(input, {
+        status: 'usable_partial',
+        expectedIntent,
+        actualIntent,
+        expectedShape,
+        actualShape,
+        expectedMetric,
+        actualMetric,
+        reason: '真实业务数据覆盖不足，系统返回了可审计的 no_data 边界且未用相近口径替代。',
+        legacyUsableWithCitation,
+      });
+    }
     if (this.isUnsupportedFormula(input.answer)) {
       return this.buildGrade(input, {
         status: 'unsupported_metric_formula',
@@ -130,6 +183,19 @@ export class BrainAnswerGraderService {
         expectedMetric,
         actualMetric,
         reason: '识别到指标，但真实口径尚未接入。',
+        legacyUsableWithCitation,
+      });
+    }
+    if (this.isUnsupportedIntent(input.answer, input.blocks)) {
+      return this.buildGrade(input, {
+        status: 'unsupported_intent',
+        expectedIntent,
+        actualIntent,
+        expectedShape,
+        actualShape,
+        expectedMetric,
+        actualMetric,
+        reason: '当前能力明确说明该业务口径尚未注册。',
         legacyUsableWithCitation,
       });
     }
@@ -237,7 +303,11 @@ export class BrainAnswerGraderService {
         legacyUsableWithCitation,
       });
     }
-    if (expectedMetric && actualMetric && expectedMetric !== actualMetric) {
+    if (
+      expectedMetric &&
+      actualMetrics.length > 0 &&
+      !actualMetrics.some((metric) => canonicalMetricKey(expectedMetric) === canonicalMetricKey(metric))
+    ) {
       return this.buildGrade(input, {
         status: 'false_positive_metric_mismatch',
         expectedIntent,
@@ -267,14 +337,17 @@ export class BrainAnswerGraderService {
   private detectExpectedIntent(question: string): BrainQuestionIntent {
     const text = this.normalize(question);
 
+    if (/(?:我想|帮我|能不能|请).*(?:系统)?自动.*(?:发|发送|提醒|通知|推送)/.test(text)) return 'action';
     if (/(写|生成|编辑|拟一|拟个|文案|话术|短信|消息|通知|朋友圈|小红书)/.test(text)) return 'draft';
+    if (/(?:帮我|请|给).*(?:设计|策划|做一个).*(?:方案|活动|礼包)|(?:活动方案|专属活动|客户生命周期运营方案)/.test(text)) {
+      return 'draft';
+    }
+    if (/(?:设置|创建|新建|做一个).*(?:自动|规则|流程)/.test(text)) return 'draft';
     if (/(临时来了没预约|临时到店).*(还能|能否|可以|安排)/.test(text)) return 'recommendation';
     if (/(如果|假设).*(打|折扣).*(毛利|利润)|打[一二三四五六七八九0-9].*折.*(毛利|利润)|毛利还剩多少/.test(text)) {
       return 'recommendation';
     }
-    if (/(做一个|策划|活动方案|专属活动|促销活动|做什么活动|拉动一下).*(活动|促销|客户)|(?:活动|促销).*(方案|策划|专属|拉动)/.test(text)) {
-      return 'recommendation';
-    }
+    if (/(做什么活动|拉动一下).*(活动|促销|客户)|(?:活动|促销).*(拉动)/.test(text)) return 'recommendation';
     if (/(快过期|临期|过期).*(怎么|如何|处理|规定|办法|方案|消化|优惠|减少|合适)/.test(text)) {
       return 'recommendation';
     }
@@ -289,7 +362,18 @@ export class BrainAnswerGraderService {
       return 'recommendation';
     }
     if (/(新建|创建|下单|开单|改约|取消|发券|发送|导出|调整|保存|确认|执行|帮我约|打开收银|打开核销|核销|结账)/.test(text)) return 'action';
+    if (/(?:员工|美容师).*(?:业绩|实收).*(?:下滑|下降)|(?:业绩|实收).*(?:下滑|下降).*(?:员工|美容师)/.test(text)) {
+      return 'comparison';
+    }
+    if (/(各|每个).*(项目).*(毛利|利润|成本)|(项目).*(毛利|利润|成本).*(情况|排行|排名)/.test(text)) {
+      return 'ranking';
+    }
     if (/(爽约率|到店率|超时服务|超时.*影响.*预约|爽约.*高不高)/.test(text)) return 'diagnosis';
+    if (
+      /(按支付方式|支付方式.*(?:多少|拆分)|现金.*(?:微信|支付宝)|微信.*(?:现金|支付宝)|支付宝.*(?:现金|微信)|(?:现金|微信|支付宝|银行卡|储值).*(?:各|分别).*(?:多少|金额))/.test(text)
+    ) {
+      return 'list';
+    }
     if (
       /(为什么|原因|诊断|分析一下|异常|怎么回事|总结|情况怎么样|风险|报告|复盘|核对|退款|折扣|优惠|漏收|多收|不正常|画像|渠道|对不上|利润.*降|收入.*利润|成本.*上涨|问题出在哪)/.test(
         text,
@@ -301,7 +385,8 @@ export class BrainAnswerGraderService {
     if (/(排行|排名|top|前\d|前十|谁.*(最好|最高|最多|最低|最差)|最高|最多|最好|最低|最差)/i.test(text)) {
       return 'ranking';
     }
-    if (/(几个客人|分别几点|下一个客人|服务安排|排班|预约.*几点|几点.*预约)/.test(text)) return 'list';
+    if (/(几个客人|分别几点|下一个客人|服务安排|排班|预约.*几点|几点.*预约|(?:看|查|列).*(?:今天|明天|本周|本月)?.*预约|预约.*(?:清单|安排|情况))/.test(text)) return 'list';
+    if (/(?:面部|身体).*(?:几个|多少).*(?:面部|身体)|(?:几个|多少).*预约.*(?:面部|身体)/.test(text)) return 'list';
     if (/(哪些|哪几个|名单|列出|明细|找一下.*(客户|客人|新客|老客)|办了卡.*(?:没|还没).*预约|客户.*(用了|没用|消费|没来)|有没有.*客户)/.test(text)) return 'list';
     if (/(库存.*(?:整体|情况|概览)|整体.*库存)/.test(text)) return 'diagnosis';
     if (this.detectExpectedMetric(question, 'metric_query')) return 'metric_query';
@@ -310,8 +395,29 @@ export class BrainAnswerGraderService {
   }
 
   private detectActualIntent(input: BrainAnswerGraderInput): BrainQuestionIntent {
+    if (this.hasClarificationBlock(input.blocks) || this.isGeneralClarification(input.answer)) return 'clarify';
+    const blockKinds = this.blockKinds(input.blocks);
+    if (blockKinds.has('action_preview')) return 'action';
+    if (blockKinds.has('diagnosis')) return 'diagnosis';
+    if (blockKinds.has('comparison')) return 'comparison';
+    if (blockKinds.has('ranking')) return 'ranking';
+    if (blockKinds.has('table')) return 'list';
     if (this.hasMetricCitation(input.citations)) return 'metric_query';
     const skillId = this.detectActualSkill(input.citations);
+    if (skillId?.includes('campaign_plan') && /草稿|尚未发布|未发布活动/.test(input.answer)) return 'draft';
+    if (
+      skillId?.includes('automation_rule_preview') &&
+      /(?:设置|创建|新建|做一个).*(?:自动|规则|流程)/.test(input.question)
+    ) {
+      return 'draft';
+    }
+    if (
+      (skillId?.includes('automation_rule_preview') || skillId?.includes('gap_fill_touch_preview')) &&
+      /(?:我想|帮我|能不能|请).*(?:自动|推送|发送|发消息|提醒)/.test(input.question)
+    ) {
+      return 'action';
+    }
+    if (skillId?.includes('automation_rule_preview')) return 'recommendation';
     if (skillId?.includes('draft')) return 'draft';
     if (skillId?.includes('action')) return 'action';
     if (skillId?.includes('recommend') || skillId?.includes('campaign') || skillId?.includes('advice') || skillId?.includes('plan')) {
@@ -323,6 +429,7 @@ export class BrainAnswerGraderService {
   }
 
   private shapeForIntent(intent: BrainQuestionIntent): BrainAnswerShape {
+    if (intent === 'clarify') return 'clarification';
     if (intent === 'comparison') return 'comparison';
     if (intent === 'ranking') return 'ranking';
     if (intent === 'list') return 'list';
@@ -333,7 +440,19 @@ export class BrainAnswerGraderService {
   private detectActualShape(input: BrainAnswerGraderInput, expectedShape: BrainAnswerShape): BrainAnswerShape {
     const answer = this.normalize(input.answer);
     const skillId = this.detectActualSkill(input.citations);
-    if (!answer) return 'empty';
+    const blockKinds = (input.blocks ?? []).flatMap((value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+      const kind = (value as Record<string, unknown>).kind;
+      return typeof kind === 'string' ? [kind] : [];
+    });
+    if (blockKinds.includes('clarification') || blockKinds.includes('clarification_card')) return 'clarification';
+    if (blockKinds.includes('diagnosis')) return 'non_metric';
+    if (blockKinds.includes('ranking')) return 'ranking';
+    if (blockKinds.includes('comparison')) return 'comparison';
+    if (blockKinds.includes('table') && expectedShape === 'list') return 'list';
+    if (blockKinds.includes('table') && expectedShape === 'ranking') return 'ranking';
+    if (blockKinds.includes('kpi') && expectedShape === 'scalar_metric') return 'scalar_metric';
+    if (!answer && !blockKinds.length) return 'empty';
     if (
       skillId?.includes('service_summary') ||
       skillId?.includes('reservation_schedule') ||
@@ -361,25 +480,61 @@ export class BrainAnswerGraderService {
     if (intent !== 'metric_query' && intent !== 'comparison' && intent !== 'ranking' && intent !== 'list') return undefined;
 
     const text = this.normalize(question);
+    if (/(?:员工|美容师).*(?:业绩|实收).*(?:下滑|下降)|(?:业绩|实收).*(?:下滑|下降).*(?:员工|美容师)/.test(text)) {
+      return undefined;
+    }
     if (/(预约|到店|空档|排班)/.test(text)) return 'appointment_count';
+    if (/(商品|产品).*(销售额|销售金额)|(销售额|销售金额).*(商品|产品)/.test(text)) return 'product_sales_amount';
+    if (/(耗材|物料|材料)成本/.test(text)) return 'material_cost';
+    if (/(耗材|物料|产品|商品).*(消耗|用量|出库).*(最快|最多|排行|排名)/.test(text)) return 'inventory_consumption_quantity';
+    if (/(退款).*(多少|金额|损失|减少)/.test(text)) return 'refund_amount';
+    if (/(折扣|优惠|让利).*(多少|金额|送出去|损失|减少)/.test(text)) return 'discount_amount';
+    if (/(?:次卡|套餐卡).*(?:销售|开卡).*(?:金额|多少)|(?:次卡|套餐卡).*(?:卖了多少)/.test(text)) {
+      return 'card_package_sales_amount';
+    }
+    if (/(?:储值|余额|银行卡|刷卡).*(?:消费|支付|几笔|笔数|金额|多少)/.test(text)) return 'paid_revenue';
+    if (/新客.*转化.*(?:几个|多少个|几人|多少人)/.test(text)) return 'new_customer_conversion_count';
+    if (/(缺货).*(?:最紧急|优先|风险最高)|(?:最紧急|优先|风险最高).*(?:缺货|库存)/.test(text)) return 'stock_risk_score';
     if (/(收入|流水|业绩|实收|营收|营业额|收款|收了|销售额)/.test(text)) return 'paid_revenue';
-    if (/(复购|回购|再次消费)/.test(text)) return 'repurchase_rate';
-    if (/毛利率/.test(text)) return 'gross_margin_rate';
-    if (/(毛利|利润)/.test(text)) return 'gross_margin';
+    if (/(谁|员工|美容师).*(客户复购率)|客户复购率.*(谁|员工|美容师)/.test(text)) return 'staff_customer_repurchase_rate';
+    if (/(复购|回购|再次消费|回头率)/.test(text)) return 'repurchase_rate';
+    if (/平均多久回来|回访间隔|回店间隔/.test(text)) return 'average_return_interval_days';
+    if (/提成/.test(text)) return 'staff_commission_amount';
+    if (/(?:产品|商品|货品).*(?:毛利率|利润率)|(?:毛利率|利润率).*(?:产品|商品|货品)/.test(text)) return 'product_gross_margin_rate';
+    if (/(?:产品|商品|货品).*(?:低于成本|亏本)|(?:低于成本|亏本).*(?:产品|商品|货品)/.test(text)) return 'product_below_cost_sale_count';
+    if (!/项目/.test(text) && /毛利率/.test(text)) return 'gross_margin_rate';
+    if (!/项目/.test(text) && /(毛利|利润)/.test(text)) return 'gross_margin';
     if (/(次卡|储值|负债|会员卡|剩余次数|卡项余额)/.test(text)) return 'card_liability';
     if (/(缺货|临期|过期|库存预警|库存货值)/.test(text)) return 'expiring_stock_value';
     if (/(roi|投产|活动效果|营销效果)/i.test(text)) return 'marketing_roi';
+    if (/(最值得|优先).*(联系|跟进)|(?:联系|跟进).*(优先级|优先)/.test(text)) return 'follow_up_priority_score';
+    if (/沉睡客户/.test(text) && /(?:唤醒|回流).*(?:迹象|信号)|(?:迹象|信号).*(?:唤醒|回流)/.test(text)) {
+      return 'dormant_reactivation_customer_count';
+    }
     if (/(流失|沉睡|召回)/.test(text)) return 'churn_risk_count';
 
     return undefined;
   }
 
-  private detectActualMetric(citations: BrainAnswerGraderCitation[]) {
-    return citations.find((citation) => citation.sourceType === 'metric' && citation.sourceId)?.sourceId;
+  private detectActualMetrics(citations: BrainAnswerGraderCitation[]) {
+    return citations.flatMap((citation) =>
+      this.isMetricCitation(citation) && citation.sourceId
+        ? [citation.sourceId.replace(/^metric\./, '').replace(/@\d+$/, '')]
+        : [],
+    );
   }
 
   private detectGroundingType(citations: BrainAnswerGraderCitation[]): BrainGroundingType {
-    const metric = citations.find((citation) => citation.sourceType === 'metric' && citation.sourceId);
+    if (citations.some((citation) => citation.sourceType === 'db_skill' && citation.sourceId)) return 'db_skill';
+    if (
+      citations.some(
+        (citation) =>
+          (citation.sourceType === 'template_skill' || citation.sourceType === 'governed_policy') && citation.sourceId,
+      )
+    )
+      return 'template_skill';
+    if (citations.some((citation) => citation.sourceType === 'preview_action' && citation.sourceId)) return 'preview_action';
+    const metric = citations.find((citation) => this.isMetricCitation(citation) && citation.sourceId);
     if (metric) return 'metric_query';
 
     const skillId = this.detectActualSkill(citations) ?? '';
@@ -398,15 +553,40 @@ export class BrainAnswerGraderService {
   }
 
   private detectActualSkill(citations: BrainAnswerGraderCitation[]) {
-    return citations.find((citation) => citation.sourceType === 'skill' && citation.sourceId)?.sourceId;
+    return citations.find(
+      (citation) =>
+        (citation.sourceType === 'skill' ||
+          citation.sourceType === 'db_skill' ||
+          citation.sourceType === 'template_skill' ||
+          citation.sourceType === 'governed_policy' ||
+          citation.sourceType === 'preview_action') &&
+        citation.sourceId,
+    )?.sourceId;
   }
 
   private hasAnswerCitation(citations: BrainAnswerGraderCitation[]) {
-    return citations.some((citation) => (citation.sourceType === 'metric' || citation.sourceType === 'skill') && Boolean(citation.sourceId));
+    return citations.some(
+      (citation) =>
+        (citation.sourceType === 'metric' ||
+          citation.sourceType === 'skill' ||
+          citation.sourceType === 'db_skill' ||
+          citation.sourceType === 'template_skill' ||
+          citation.sourceType === 'governed_policy' ||
+          citation.sourceType === 'preview_action') &&
+        Boolean(citation.sourceId),
+    ) || citations.some((citation) => this.isMetricCitation(citation));
   }
 
   private hasMetricCitation(citations: BrainAnswerGraderCitation[]) {
-    return citations.some((citation) => citation.sourceType === 'metric' && Boolean(citation.sourceId));
+    return citations.some((citation) => this.isMetricCitation(citation));
+  }
+
+  private isMetricCitation(citation: BrainAnswerGraderCitation) {
+    return Boolean(
+      citation.sourceId &&
+      (citation.sourceType === 'metric' ||
+        (citation.sourceType === 'business_definition' && citation.sourceId.startsWith('metric.'))),
+    );
   }
 
   private isTemplateGroundingMismatch(
@@ -423,21 +603,59 @@ export class BrainAnswerGraderService {
     return answer.includes('尚未完成门店级真实口径接入');
   }
 
-  private isUnsupportedIntent(answer: string) {
-    return answer.includes('尚未注册') || answer.includes('已接入门店经营指标问答') || answer.includes('不会编造回答');
+  private isUnsupportedIntent(answer: string, blocks?: unknown[]) {
+    const trimmed = answer.trim();
+    if (/^(?:当前[^。\n]{0,40})?尚未接入/.test(trimmed)) return true;
+    const containsBoundary = answer.includes('尚未注册') ||
+      answer.includes('已接入门店经营指标问答') ||
+      answer.includes('不会编造回答');
+    if (!containsBoundary) return false;
+    const kinds = this.blockKinds(blocks);
+    return !['kpi', 'ranking', 'table', 'chart', 'comparison', 'diagnosis'].some((kind) => kinds.has(kind));
   }
 
   private isClarificationRequired(answer: string) {
     return answer.includes('请提供客户姓名或手机号后四位') || answer.includes('请补充完整姓名或手机号后四位');
   }
 
+  private isGeneralClarification(answer: string) {
+    return /^(?:请|需要你|需要您)(?:确认|补充|说明|选择|提供|明确)/.test(answer.trim());
+  }
+
+  private hasClarificationBlock(blocks: unknown[] | undefined) {
+    return (blocks ?? []).some((value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+      const kind = (value as Record<string, unknown>).kind;
+      return kind === 'clarification' || kind === 'clarification_card';
+    });
+  }
+
+  private blockKinds(blocks: unknown[] | undefined) {
+    return new Set((blocks ?? []).flatMap((value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+      const kind = (value as Record<string, unknown>).kind;
+      return typeof kind === 'string' ? [kind] : [];
+    }));
+  }
+
   private isDbSkillScalarPartial(input: BrainAnswerGraderInput, groundingType: BrainGroundingType) {
     if (groundingType !== 'db_skill' || !/\d/.test(input.answer)) return false;
     if (/尚未配置|尚未接入|不会自行编造|不会编造/.test(input.answer)) return false;
     const skillId = this.detectActualSkill(input.citations) ?? '';
-    return /operations_analysis|income_analysis|inventory_detail_analysis|personal_performance|exact_lookup|operations_snapshot|marketing_attribution_analytics|customer_care_facts|staff_analysis|procurement_analysis|cost_liability_analysis|catalog_snapshot|service_overrun_analysis|walk_in_availability|discount_margin_simulation|forecast_baseline/.test(
+    return /operations_analysis|income_analysis|inventory_detail_analysis|personal_performance|exact_lookup|operations_snapshot|marketing_attribution_analytics|customer_care_facts|staff_analysis|procurement_analysis|cost_liability_analysis|finance_cost_analysis|catalog_snapshot|service_overrun_analysis|walk_in_availability|discount_margin_simulation|forecast_baseline|member_balance_flow_summary/.test(
       skillId,
     );
+  }
+
+  private isGroundedNoDataBoundary(input: BrainAnswerGraderInput, groundingType: BrainGroundingType) {
+    if (groundingType !== 'db_skill') return false;
+    return (input.blocks ?? []).some((value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+      const block = value as Record<string, unknown>;
+      return block.kind === 'limitations' && Array.isArray(block.items) && block.items.some(
+        (item) => typeof item === 'string' && item.startsWith('no_data:'),
+      );
+    });
   }
 
   private isSecurityBlocked(input: BrainAnswerGraderInput) {
@@ -458,4 +676,10 @@ export class BrainAnswerGraderService {
   ): BrainAnswerGrade {
     return { ...grade, groundingType: this.detectGroundingType(input.citations) };
   }
+}
+
+function canonicalMetricKey(metricKey: string) {
+  if (metricKey === 'paid_revenue') return 'paid_amount';
+  if (metricKey === 'customer_unit_price') return 'average_order_value';
+  return metricKey;
 }

@@ -1,0 +1,1345 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-20T00:57:43.584Z",
+    "startedAt": "2026-07-20T00:56:26.218Z",
+    "finishedAt": "2026-07-20T00:57:43.584Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-eval-run-2026-07-20-p4-r350-false-positive-fix\\metric-contract-paraphrase-cases.json",
+    "questionCount": 8,
+    "actualRunCount": 8,
+    "actualTurnCount": 8,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "releaseId": 351,
+    "gate": null,
+    "releaseSnapshot": {
+      "releaseFingerprint": "6312b46f23cf45aa03daffe56c9c32d58666061e97cc09280a656e58f6fca2d5",
+      "declaredMode": "shadow",
+      "resourceVersionIds": [
+        834,
+        835,
+        836,
+        837,
+        838,
+        839,
+        840,
+        841,
+        843,
+        844,
+        845,
+        846,
+        847,
+        848,
+        849,
+        850,
+        851,
+        852,
+        854,
+        855,
+        856,
+        857,
+        858,
+        859,
+        860,
+        861,
+        864,
+        865,
+        867,
+        868,
+        870,
+        871,
+        872,
+        874,
+        875,
+        876,
+        877
+      ],
+      "capabilityKeys": [
+        "appointment_gap_list",
+        "beautician_customer_card_progress",
+        "beautician_material_preparation",
+        "beautician_personal_performance",
+        "beautician_service_overview",
+        "card_usage_action_preview",
+        "customer_facts",
+        "customer_follow_up_draft",
+        "customer_priority_recommendation",
+        "finance_material_cost_summary",
+        "finance_payment_breakdown",
+        "finance_risk_overview",
+        "finance_staff_refund_rate_boundary",
+        "finance_transaction_anomaly_review",
+        "front_desk_operations_overview",
+        "gap_fill_touch_preview",
+        "inventory_operations_overview",
+        "inventory_procurement_advice",
+        "inventory_receipt_discrepancy_guidance",
+        "inventory_risk_ranking",
+        "manager_staff_overview",
+        "marketing_campaign_cost_attribution_review",
+        "marketing_campaign_plan",
+        "marketing_customer_segment",
+        "marketing_growth_overview",
+        "marketing_message_draft",
+        "marketing_strategy_execute_preview",
+        "marketing_touch_draft",
+        "order_revenue_analysis",
+        "product_sales_ranking",
+        "project_margin_analysis",
+        "project_material_consumption_analysis",
+        "project_service_ranking",
+        "reservation_action_preview",
+        "reservation_list",
+        "staff_performance_ranking",
+        "store_operations_overview"
+      ]
+    },
+    "candidateSkillsEnabledForEval": true,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "permissionSource": "active_backend_role_catalog_plus_candidate_minimum_permissions",
+    "evaluationRoleKeys": [
+      "finance",
+      "inventory"
+    ],
+    "evaluationUserIds": {
+      "finance": 29,
+      "inventory": 1
+    },
+    "permissionCatalogRoleKeys": [
+      "ami_demo_full_beautician",
+      "ami_demo_full_cashier",
+      "ami_demo_full_manager",
+      "beautician",
+      "cashier",
+      "store_manager",
+      "super_admin"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。",
+      "provider_unavailable": "模型供应商不可用，单列为评测基础设施失败，不进入产品可用率分母。",
+      "sixLayerGate": "意图、工具、计划、执行、完成度、答案六层必须全部通过；确定性失败不可被 LLM Judge 覆盖。"
+    }
+  },
+  "summary": {
+    "total": 8,
+    "evaluableTotal": 8,
+    "providerUnavailableCount": 0,
+    "legacyUsableWithCitation": 4,
+    "legacyUsableRate": 0.5,
+    "trueUsable": 8,
+    "trueUsableRate": 1,
+    "observedTrueUsableRate": 1,
+    "contractPassed": 8,
+    "contractPassRate": 1,
+    "expectedBoundaryPassed": 0,
+    "conversationGate": {
+      "scenarioCount": 0,
+      "passedScenarioCount": 0,
+      "contractPassedScenarioCount": 0,
+      "turnCount": 8,
+      "passedTurnCount": 8,
+      "contractPassedTurnCount": 8
+    },
+    "byStatus": [
+      {
+        "key": "usable_exact",
+        "total": 4,
+        "evaluableTotal": 4,
+        "usable": 4,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "usable_partial",
+        "total": 4,
+        "evaluableTotal": 4,
+        "usable": 4,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "finance",
+        "total": 4,
+        "evaluableTotal": 4,
+        "usable": 4,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "inventory",
+        "total": 4,
+        "evaluableTotal": 4,
+        "usable": 4,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "query",
+        "total": 8,
+        "evaluableTotal": 8,
+        "usable": 8,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [],
+    "securityGate": {
+      "permissionBypassCount": 0,
+      "crossStoreReadCount": 0,
+      "roleHintBypassCount": 0,
+      "fakeActionConfirmationCount": 0
+    },
+    "grounding": {
+      "metricQueryCount": 4,
+      "dbSkillCount": 4,
+      "templateSkillCount": 0,
+      "previewActionCount": 0,
+      "noneCount": 0
+    },
+    "adapterDistribution": [
+      {
+        "reason": "none",
+        "count": 8
+      }
+    ],
+    "domainDistribution": [
+      {
+        "reason": "order",
+        "count": 4
+      },
+      {
+        "reason": "payment",
+        "count": 4
+      },
+      {
+        "reason": "product",
+        "count": 4
+      },
+      {
+        "reason": "product_order",
+        "count": 4
+      }
+    ],
+    "capabilityDistribution": [
+      {
+        "reason": "finance_material_cost_summary",
+        "count": 4
+      },
+      {
+        "reason": "order_revenue_analysis",
+        "count": 4
+      }
+    ],
+    "executionPathDistribution": [
+      {
+        "reason": "model_primary",
+        "count": 8
+      }
+    ],
+    "sixLayer": {
+      "intent": {
+        "total": 8,
+        "passed": 8,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "tool": {
+        "total": 8,
+        "passed": 8,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "plan": {
+        "total": 8,
+        "passed": 8,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "execution": {
+        "total": 8,
+        "passed": 8,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "completion": {
+        "total": 8,
+        "passed": 8,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "answer": {
+        "total": 8,
+        "passed": 8,
+        "passRate": 1,
+        "averageScore": 0.875
+      }
+    },
+    "latency": {
+      "avgMs": 9602,
+      "p95Ms": 13651,
+      "maxMs": 13651
+    }
+  },
+  "records": [
+    {
+      "questionId": "paraphrase-average-order-value-per-order-wording",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "query",
+      "sourceIndex": 1,
+      "persona": "finance",
+      "question": "今天每笔订单平均收了多少钱",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 10464,
+      "conversationId": 33008,
+      "runId": 33233,
+      "answer": "指标：客单价：0（口径版本 2）。\n\n数据依据：业务定义：客单价。",
+      "citations": [
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.average_order_value@2",
+          "label": "业务定义：客单价",
+          "definition": "指定周期内当前门店有效订单实收金额除以有效订单数得到的平均每单金额。"
+        }
+      ],
+      "domains": [
+        "product_order",
+        "payment"
+      ],
+      "capabilityKeys": [
+        "order_revenue_analysis"
+      ],
+      "grounding": "metric_query",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "metric_query",
+        "actualIntent": "metric_query",
+        "expectedShape": "scalar_metric",
+        "actualShape": "scalar_metric",
+        "expectedMetric": "average_order_value",
+        "actualMetric": "average_order_value",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "metric_query"
+      },
+      "expected": {
+        "intent": "query",
+        "answerShape": "scalar",
+        "domains": [],
+        "entities": [],
+        "metrics": [
+          "average_order_value"
+        ],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "order_revenue_analysis"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "average_order_value"
+        ],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "order_revenue_analysis"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "contractPassed": true,
+      "expectedBoundary": false,
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "paraphrase-average-order-value-order-amount",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "query",
+      "sourceIndex": 2,
+      "persona": "finance",
+      "question": "今天订单平均金额是多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 7425,
+      "conversationId": 33009,
+      "runId": 33234,
+      "answer": "指标：客单价：0（口径版本 2）。\n\n数据依据：业务定义：客单价。",
+      "citations": [
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.average_order_value@2",
+          "label": "业务定义：客单价",
+          "definition": "指定周期内当前门店有效订单实收金额除以有效订单数得到的平均每单金额。"
+        }
+      ],
+      "domains": [
+        "product_order",
+        "payment"
+      ],
+      "capabilityKeys": [
+        "order_revenue_analysis"
+      ],
+      "grounding": "metric_query",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "metric_query",
+        "actualIntent": "metric_query",
+        "expectedShape": "scalar_metric",
+        "actualShape": "scalar_metric",
+        "expectedMetric": "average_order_value",
+        "actualMetric": "average_order_value",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "metric_query"
+      },
+      "expected": {
+        "intent": "query",
+        "answerShape": "scalar",
+        "domains": [],
+        "entities": [],
+        "metrics": [
+          "average_order_value"
+        ],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "order_revenue_analysis"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "average_order_value"
+        ],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "order_revenue_analysis"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "contractPassed": true,
+      "expectedBoundary": false,
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "paraphrase-average-order-value-direct",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "query",
+      "sourceIndex": 3,
+      "persona": "finance",
+      "question": "算一下今天客单价",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 8327,
+      "conversationId": 33010,
+      "runId": 33235,
+      "answer": "指标：客单价：0（口径版本 2）。\n\n数据依据：业务定义：客单价。",
+      "citations": [
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.average_order_value@2",
+          "label": "业务定义：客单价",
+          "definition": "指定周期内当前门店有效订单实收金额除以有效订单数得到的平均每单金额。"
+        }
+      ],
+      "domains": [
+        "product_order",
+        "payment"
+      ],
+      "capabilityKeys": [
+        "order_revenue_analysis"
+      ],
+      "grounding": "metric_query",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "metric_query",
+        "actualIntent": "metric_query",
+        "expectedShape": "scalar_metric",
+        "actualShape": "scalar_metric",
+        "expectedMetric": "average_order_value",
+        "actualMetric": "average_order_value",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "metric_query"
+      },
+      "expected": {
+        "intent": "query",
+        "answerShape": "scalar",
+        "domains": [],
+        "entities": [],
+        "metrics": [
+          "average_order_value"
+        ],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "order_revenue_analysis"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "average_order_value"
+        ],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "order_revenue_analysis"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "contractPassed": true,
+      "expectedBoundary": false,
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "paraphrase-average-order-value-month",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "query",
+      "sourceIndex": 4,
+      "persona": "finance",
+      "question": "本月平均客单价是多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 11974,
+      "conversationId": 33011,
+      "runId": 33236,
+      "answer": "指标：客单价：695.67（口径版本 2）。\n\n数据依据：业务定义：客单价。",
+      "citations": [
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.average_order_value@2",
+          "label": "业务定义：客单价",
+          "definition": "指定周期内当前门店有效订单实收金额除以有效订单数得到的平均每单金额。"
+        }
+      ],
+      "domains": [
+        "product_order",
+        "payment"
+      ],
+      "capabilityKeys": [
+        "order_revenue_analysis"
+      ],
+      "grounding": "metric_query",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "metric_query",
+        "actualIntent": "metric_query",
+        "expectedShape": "scalar_metric",
+        "actualShape": "scalar_metric",
+        "expectedMetric": "average_order_value",
+        "actualMetric": "average_order_value",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "metric_query"
+      },
+      "expected": {
+        "intent": "query",
+        "answerShape": "scalar",
+        "domains": [],
+        "entities": [],
+        "metrics": [
+          "average_order_value"
+        ],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "order_revenue_analysis"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "average_order_value"
+        ],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "order_revenue_analysis"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "contractPassed": true,
+      "expectedBoundary": false,
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "paraphrase-material-cost-rate-direct",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "query",
+      "sourceIndex": 5,
+      "persona": "inventory",
+      "question": "今天耗材成本率是多少",
+      "status": "usable_partial",
+      "brainStatus": "completed",
+      "latencyMs": 7273,
+      "conversationId": 33012,
+      "runId": 33237,
+      "answer": "耗材成本：0.00 元；耗材成本占收入：暂无。\n\n数据依据：财务收入与耗材成本分析。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "finance_cost_analysis",
+          "label": "财务收入与耗材成本分析"
+        }
+      ],
+      "domains": [
+        "product",
+        "order"
+      ],
+      "capabilityKeys": [
+        "finance_material_cost_summary"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_partial",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "scalar_metric",
+        "expectedMetric": "material_cost_rate",
+        "reason": "数据库技能返回了请求数值，并附带了扩展业务明细。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "answerShape": "scalar",
+        "domains": [],
+        "entities": [],
+        "metrics": [
+          "material_cost_rate"
+        ],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "finance_material_cost_summary"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "material_cost_rate"
+        ],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "finance_material_cost_summary"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 0.75,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "contractPassed": true,
+      "expectedBoundary": false,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "paraphrase-material-cost-rate-service-revenue",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "query",
+      "sourceIndex": 6,
+      "persona": "inventory",
+      "question": "物料成本占服务营收的比例是多少",
+      "status": "usable_partial",
+      "brainStatus": "completed",
+      "latencyMs": 9105,
+      "conversationId": 33013,
+      "runId": 33238,
+      "answer": "耗材成本：0.00 元；耗材成本占收入：暂无。\n\n数据依据：财务收入与耗材成本分析。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "finance_cost_analysis",
+          "label": "财务收入与耗材成本分析"
+        }
+      ],
+      "domains": [
+        "product",
+        "order"
+      ],
+      "capabilityKeys": [
+        "finance_material_cost_summary"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_partial",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "scalar_metric",
+        "expectedMetric": "material_cost_rate",
+        "reason": "数据库技能返回了请求数值，并附带了扩展业务明细。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "answerShape": "scalar",
+        "domains": [],
+        "entities": [],
+        "metrics": [
+          "material_cost_rate"
+        ],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "finance_material_cost_summary"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "material_cost_rate"
+        ],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "finance_material_cost_summary"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 0.75,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "contractPassed": true,
+      "expectedBoundary": false,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "paraphrase-material-cost-rate-division",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "query",
+      "sourceIndex": 7,
+      "persona": "inventory",
+      "question": "材料成本除以服务收入是多少",
+      "status": "usable_partial",
+      "brainStatus": "completed",
+      "latencyMs": 8593,
+      "conversationId": 33014,
+      "runId": 33239,
+      "answer": "耗材成本：0.00 元；耗材成本占收入：暂无。\n\n数据依据：财务收入与耗材成本分析。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "finance_cost_analysis",
+          "label": "财务收入与耗材成本分析"
+        }
+      ],
+      "domains": [
+        "product",
+        "order"
+      ],
+      "capabilityKeys": [
+        "finance_material_cost_summary"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_partial",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "scalar_metric",
+        "expectedMetric": "material_cost_rate",
+        "reason": "数据库技能返回了请求数值，并附带了扩展业务明细。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "answerShape": "scalar",
+        "domains": [],
+        "entities": [],
+        "metrics": [
+          "material_cost_rate"
+        ],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "finance_material_cost_summary"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "material_cost_rate"
+        ],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "finance_material_cost_summary"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 0.75,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "contractPassed": true,
+      "expectedBoundary": false,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "paraphrase-material-cost-rate-share",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "query",
+      "sourceIndex": 8,
+      "persona": "inventory",
+      "question": "帮我算耗材成本占收入的占比",
+      "status": "usable_partial",
+      "brainStatus": "completed",
+      "latencyMs": 13651,
+      "conversationId": 33015,
+      "runId": 33240,
+      "answer": "耗材成本：0.00 元；耗材成本占收入：暂无。\n\n数据依据：财务收入与耗材成本分析。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "finance_cost_analysis",
+          "label": "财务收入与耗材成本分析"
+        }
+      ],
+      "domains": [
+        "product",
+        "order"
+      ],
+      "capabilityKeys": [
+        "finance_material_cost_summary"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_partial",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "scalar_metric",
+        "expectedMetric": "material_cost_rate",
+        "reason": "数据库技能返回了请求数值，并附带了扩展业务明细。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "answerShape": "scalar",
+        "domains": [],
+        "entities": [],
+        "metrics": [
+          "material_cost_rate"
+        ],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "finance_material_cost_summary"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "material_cost_rate"
+        ],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "finance_material_cost_summary"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 0.75,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "contractPassed": true,
+      "expectedBoundary": false,
+      "legacyStatus": "not_usable"
+    }
+  ]
+}

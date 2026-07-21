@@ -946,10 +946,11 @@ function RunDetailTracePanel({ detail }: { detail: AgentGovernanceRunDetail }) {
         </div>
         <div className="space-y-2">
           {(toolSteps.length ? toolSteps : detail.toolCalls).map((tool, index) => {
-            const name = String(tool.name ?? tool.toolName ?? `tool-${index + 1}`);
-            const status = String(tool.status ?? '-');
-            const input = tool.input ?? tool.inputJson ?? tool.argsJson;
-            const output = tool.output ?? tool.outputJson ?? tool.resultJson;
+            const toolRecord = asRecord(tool) ?? {};
+            const name = String(toolRecord.name ?? toolRecord.toolName ?? `tool-${index + 1}`);
+            const status = String(toolRecord.status ?? '-');
+            const input = toolRecord.input ?? toolRecord.inputJson ?? toolRecord.argsJson;
+            const output = toolRecord.output ?? toolRecord.outputJson ?? toolRecord.resultJson;
             return (
               <div key={`${name}-${index}`} className="rounded-lg border border-border p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1570,8 +1571,8 @@ function KnowledgeGraphPreview({
     const simulationLinks: GraphSimulationLink[] = visibleEdges.map((edge) => ({ ...edge, source: edge.from, target: edge.to }));
     const simulation = forceSimulation<GraphSimulationNode>(simulationNodes)
       .force('link', forceLink<GraphSimulationNode, GraphSimulationLink>(simulationLinks).id((node) => node.id).distance((edge) => {
-        const sourceId = typeof edge.source === 'string' ? edge.source : edge.source.id;
-        const targetId = typeof edge.target === 'string' ? edge.target : edge.target.id;
+        const sourceId = typeof edge.source === 'string' ? edge.source : (edge.source as GraphSimulationNode).id;
+        const targetId = typeof edge.target === 'string' ? edge.target : (edge.target as GraphSimulationNode).id;
         return sourceId === focusId || targetId === focusId ? 72 : 92;
       }).strength(0.32))
       .force('charge', forceManyBody<GraphSimulationNode>().strength(-170))
@@ -2108,7 +2109,6 @@ export function AgentGovernanceCenter() {
       const result = await dryRunAgentV2TextToSql({
         question: textSqlQuestion,
         storeId: Number.isFinite(storeId) ? storeId : undefined,
-        mode: 'dry_run',
       });
       setTextSqlDryRunResult(result);
       toast.success(result.status === 'blocked' ? 'dry-run 已返回阻断原因' : 'dry-run 已生成查询计划');
