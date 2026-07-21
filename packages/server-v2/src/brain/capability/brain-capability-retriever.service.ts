@@ -68,12 +68,17 @@ export class BrainCapabilityRetrieverService {
 
   discover(input: BrainCapabilityDiscoveryInput): BrainCapabilityRetrievalResult {
     const maxRisk = input.maxRisk ?? 'high';
-    const ranked = input.cards
+    const contextCandidates = input.cards
       .filter((card) =>
         RISK_ORDER[card.riskLevel] <= RISK_ORDER[maxRisk] &&
         this.hasPermissions(card, input.context) &&
         this.hasAllowedRole(card, input.context),
-      )
+      );
+    const explicitIntent = inferExplicitInteractionIntent(input.question);
+    const intentCandidates = explicitIntent
+      ? contextCandidates.filter((card) => card.intents.includes(explicitIntent))
+      : [];
+    const ranked = (intentCandidates.length ? intentCandidates : contextCandidates)
       .map((card) => this.rank(card, input.question))
       .sort((left, right) => right.score - left.score || left.card.name.localeCompare(right.card.name));
     if (!ranked.length) {
@@ -86,10 +91,20 @@ export class BrainCapabilityRetrieverService {
     if (confidence < this.config.runtime.capabilityMinConfidence) {
       return { status: 'clarify', topK, confidence, margin, reason: 'catalog_top1_below_confidence_threshold' };
     }
-    if (ranked.length > 1 && margin < MIN_MARGIN) {
+    const hasUniqueCatalogEvidence =
+      top.matchedFields.length > 0 && (ranked[1]?.matchedFields.length ?? 0) === 0;
+    const usesUniqueCatalogEvidence = ranked.length > 1 && margin < MIN_MARGIN && hasUniqueCatalogEvidence;
+    if (ranked.length > 1 && margin < MIN_MARGIN && !hasUniqueCatalogEvidence) {
       return { status: 'clarify', topK, confidence, margin, reason: 'catalog_top1_margin_insufficient' };
     }
-    return { status: 'selected', selected: top.card, topK, confidence, margin, reason: 'catalog_top1_selected' };
+    return {
+      status: 'selected',
+      selected: top.card,
+      topK,
+      confidence,
+      margin,
+      reason: usesUniqueCatalogEvidence ? 'catalog_unique_field_evidence' : 'catalog_top1_selected',
+    };
   }
 
   retrieveTopKForSupervisor(input: Omit<BrainCapabilityRetrievalInput, 'readOnlyOnly'>): readonly BrainCapabilityRankedCandidate[] {
@@ -189,6 +204,18 @@ export class BrainCapabilityRetrieverService {
       matchedFields: scores.filter((item) => item.score >= 0.45).map((item) => item.field),
     };
   }
+}
+
+function inferExplicitInteractionIntent(question: string): string | undefined {
+  const normalized = question.trim().toLowerCase();
+  if (
+    /(?:写|生成|拟|编辑|准备).*(?:文案|话术|短信|消息|提醒|邀请|欢迎词)/.test(normalized) &&
+    !/(?:发送|群发|推送|发布|执行|保存)/.test(normalized)
+  ) {
+    return 'draft';
+  }
+  if (/(?:发送|群发|推送|发布|执行|创建|修改|取消|核销|下单)/.test(normalized)) return 'action';
+  return undefined;
 }
 
 function inputPropertyNames(schema: Readonly<Record<string, unknown>>): string[] {

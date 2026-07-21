@@ -221,6 +221,52 @@ describe('BrainCapabilityRetrieverService', () => {
       .toBe('none');
   });
 
+  it('uses explicit draft shape before comparing action and draft capabilities', () => {
+    const draft = card('marketing_message_draft', {
+      name: '营销提醒文案',
+      domain: 'marketing',
+      intent: 'draft',
+      refs: ['entity.customer'],
+      synonyms: ['预约提醒文案'],
+      examples: ['写一条空档邀约短信'],
+      permissions: ['core:marketing:create'],
+      roles: ['store_manager'],
+    });
+    const genericDraft = card('marketing_touch_draft', {
+      name: '营销触达草稿',
+      domain: 'marketing',
+      intent: 'draft',
+      refs: ['entity.customer'],
+      synonyms: ['客户触达'],
+      examples: ['准备客户触达内容'],
+      permissions: ['core:marketing:create'],
+      roles: ['store_manager'],
+    });
+    const action = card('reservation_action_preview', {
+      name: '预约动作预览',
+      domain: 'reservation',
+      intent: 'action',
+      refs: ['entity.reservation'],
+      synonyms: ['预约提醒'],
+      examples: ['提醒客户预约'],
+      permissions: ['core:marketing:create'],
+      roles: ['store_manager'],
+      readOnly: false,
+      riskLevel: 'high',
+    });
+    const result = service.discover({
+      question: '写一条提醒客户预约空档的消息',
+      context: { ...context, permissions: ['core:marketing:create'] },
+      cards: [action, genericDraft, draft],
+    });
+
+    expect(result).toMatchObject({
+      status: 'selected',
+      selected: { key: 'marketing_message_draft' },
+    });
+    expect(result.topK.map((item) => item.card.key)).not.toContain('reservation_action_preview');
+  });
+
   it('discovers the unique governed capability before semantic intent compilation', () => {
     expect(service.discover({
       question: '这个月各种支付渠道分别收了多少',
