@@ -559,6 +559,27 @@ describe('BrainAnswerGraderService', () => {
     expect(result.status).toBe('usable_exact');
   });
 
+  it('recognizes payment-channel paraphrases as payment breakdown lists', () => {
+    const result = grader.grade({
+      question: '这个月各种收款渠道分别收了多少',
+      answer: '明细：\n1. 支付方式=微信，金额=16086.10，笔数=27',
+      blocks: [{ kind: 'table', rows: [{ paymentMethod: '微信', amount: 16086.1, count: 27 }] }],
+      citations: [
+        { sourceType: 'db_skill', sourceId: 'capability_finance_payment_breakdown', label: '财务支付方式拆分' },
+        { sourceType: 'business_definition', sourceId: 'metric.paid_amount@8', label: '业务定义：实收金额' },
+      ],
+      brainStatus: 'completed',
+    });
+
+    expect(result).toMatchObject({
+      status: 'usable_exact',
+      expectedIntent: 'list',
+      actualIntent: 'list',
+      expectedShape: 'list',
+      actualShape: 'list',
+    });
+  });
+
   it('counts a database-backed domain skill with the requested scalar as partially usable', () => {
     const result = grader.grade({
       question: '我这个月业绩是多少',
