@@ -1290,16 +1290,28 @@ describe('BrainSemanticIntentCompilerService', () => {
         },
       ],
     };
-    input.capabilitySummaries = [{
-      key: 'finance_payment_breakdown',
-      name: '实收与储值流水拆分',
-      description: '实收查询、趋势与周期对比',
-      domains: ['finance', 'payment'],
-      intents: ['query', 'ranking', 'comparison', 'trend'],
-      examples: ['本月实收按支付方式怎么分'],
-      readOnly: true,
-      definitionRefs: [paidAmountMetricRef, paymentMethodDimensionRef],
-    }];
+    input.capabilitySummaries = [
+      {
+        key: 'finance_payment_breakdown',
+        name: '实收与储值流水拆分',
+        description: '实收查询、趋势与周期对比',
+        domains: ['finance', 'payment'],
+        intents: ['query', 'ranking', 'comparison', 'trend'],
+        examples: ['本月实收按支付方式怎么分'],
+        readOnly: true,
+        definitionRefs: [paidAmountMetricRef, paymentMethodDimensionRef],
+      },
+      {
+        key: 'store_operations_overview',
+        name: '门店经营概览',
+        description: '宽泛经营概览也包含支付方式信息',
+        domains: ['store_operations', 'payment'],
+        intents: ['query'],
+        examples: ['本月经营情况怎么样'],
+        readOnly: true,
+        definitionRefs: [paidAmountMetricRef, paymentMethodDimensionRef, productEntityRef],
+      },
+    ];
 
     await expect(compiler.compile(input)).resolves.toMatchObject({
       status: 'completed',

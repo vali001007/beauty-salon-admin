@@ -259,8 +259,16 @@ export class BrainSemanticIntentCompilerService {
           );
         });
       });
-      if (dimensionCapabilities.length === 1) {
-        return this.buildGovernedCapabilityIntent(dimensionCapabilities[0], input, 'definition_match');
+      const orderedBySpecificity = [...dimensionCapabilities].sort(
+        (left, right) => (left.definitionRefs?.length ?? 0) - (right.definitionRefs?.length ?? 0),
+      );
+      const selected = orderedBySpecificity.length === 1 ||
+        (orderedBySpecificity[0]?.definitionRefs?.length ?? 0) <
+          (orderedBySpecificity[1]?.definitionRefs?.length ?? 0)
+        ? orderedBySpecificity[0]
+        : undefined;
+      if (selected) {
+        return this.buildGovernedCapabilityIntent(selected, input, 'definition_match');
       }
     }
     if (
