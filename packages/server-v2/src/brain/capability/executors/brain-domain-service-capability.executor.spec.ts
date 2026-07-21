@@ -4014,17 +4014,30 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
   it('executes the existing transparent quarterly revenue forecast baseline', async () => {
     const skillRuntime = {
       buildManagerRevenueForecastBaseline: jest.fn().mockResolvedValue({
+        status: 'available',
         estimatedRevenue: 9200,
         lowerBound: 7600,
         upperBound: 10800,
         confidence: 0.72,
+        confidenceLabel: 'medium',
+        historyWindowDays: 90,
         sampleDays: 45,
+        missingDays: 45,
+        duplicateBusinessDateCount: 0,
+        trustedDays: 36,
+        dataCoverageRate: 0.5,
+        reconciliationRate: 0.8,
+        latestSettlementDate: '2026-07-18',
+        freshnessDays: 0,
         averageDailyRevenue: 102.22,
         forecastDays: 90,
-        modelVersion: 'deterministic_daily_revenue_v1',
+        modelVersion: 'deterministic_daily_revenue_v2',
         generatedAt: '2026-07-19T00:00:00.000Z',
         forecastStart: '2026-10-01',
         forecastEnd: '2026-12-30',
+        backtest: { status: 'available', evaluationDays: 31, meanAbsoluteError: 20, weightedAbsolutePercentageError: 0.18, accuracyRate: 0.82 },
+        methodology: 'test',
+        limitations: ['结算覆盖不足。'],
       }),
     };
     const executor = new BrainDomainServiceCapabilityExecutor(
@@ -4052,11 +4065,73 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     });
 
     expect(result.answer).toContain('基线预测 9200.00 元');
-    expect(result.answer).toContain('不是承诺值');
+    expect(result.answer).toContain('模型版本 deterministic_daily_revenue_v2');
+    expect(result.answer).toContain('回测准确度 82.0%');
+    expect(result.answer).toContain('不是经营承诺值');
     expect(result.blocks).toEqual(
       expect.arrayContaining([expect.objectContaining({ kind: 'diagnosis' }), expect.objectContaining({ kind: 'limitations' })]),
     );
-    expect(result.metadata).toMatchObject({ answerScope: 'manager_revenue_forecast_baseline' });
+    expect(result.metadata).toMatchObject({ answerScope: 'manager_revenue_forecast_backtested' });
+  });
+
+  it('withholds the quarterly forecast amount when backtest evidence is insufficient', async () => {
+    const skillRuntime = {
+      buildManagerRevenueForecastBaseline: jest.fn().mockResolvedValue({
+        status: 'insufficient',
+        modelVersion: 'deterministic_daily_revenue_v2',
+        generatedAt: '2026-07-21T04:30:00.000Z',
+        historyStart: '2026-04-22T00:00:00.000Z',
+        historyEnd: '2026-07-20T23:59:59.999Z',
+        forecastStart: '2026-10-01',
+        forecastEnd: '2026-12-31',
+        historyWindowDays: 90,
+        sampleDays: 33,
+        missingDays: 57,
+        duplicateBusinessDateCount: 5,
+        trustedDays: 14,
+        dataCoverageRate: 0.3667,
+        reconciliationRate: 0.4242,
+        latestSettlementDate: '2026-07-20',
+        freshnessDays: 0,
+        forecastDays: 92,
+        averageDailyRevenue: null,
+        estimatedRevenue: null,
+        lowerBound: null,
+        upperBound: null,
+        confidence: 0.294,
+        confidenceLabel: 'low',
+        backtest: { status: 'available', evaluationDays: 19, meanAbsoluteError: 4355, weightedAbsolutePercentageError: 3.05, accuracyRate: 0 },
+        methodology: 'test',
+        limitations: ['历史回测误差 305.0%，不能输出预测金额。'],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, new BrainTimeRangeParserService());
+
+    const result = await executor.execute({
+      card: storeCard(),
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['core:dashboard:view'],
+        deniedPermissions: [],
+        requestId: 'manager-forecast-insufficient-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 87,
+      question: '帮我预测下个季度的营业额',
+      answerShape: 'diagnosis',
+      args: { objective: '预测下季度营业额', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('当前无法形成下季度营业额预测');
+    expect(result.answer).not.toMatch(/309369|基线预测 \d/);
+    expect(result.blocks).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'diagnosis' })]));
+    expect(result.metadata).toMatchObject({
+      answerScope: 'manager_revenue_forecast_insufficient',
+      completionCriteria: ['daily_settlement_history_loaded', 'forecast_withheld_for_insufficient_evidence'],
+    });
   });
 
   it('does not let generic operations or customer segments impersonate missing waiting and feedback facts', async () => {

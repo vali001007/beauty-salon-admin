@@ -28,18 +28,89 @@ export class BrainStoreManagerDomainAdapter implements BrainDomainAdapter {
         storeId: input.context.storeId,
         asOf: new Date(),
       });
+      const qualitySummary = `90 天窗口有 ${forecast.sampleDays} 个营业日样本，覆盖率 ${formatBrainPercent(forecast.dataCoverageRate)}，已确认且对账通过 ${formatBrainPercent(forecast.reconciliationRate)}。`;
+      const backtestSummary = forecast.backtest.weightedAbsolutePercentageError === null
+        ? '历史样本不足，尚不能形成有效回测。'
+        : `滚动回测 ${forecast.backtest.evaluationDays} 天，误差 ${formatBrainPercent(forecast.backtest.weightedAbsolutePercentageError)}，回测准确度 ${formatBrainPercent(forecast.backtest.accuracyRate ?? 0)}。`;
+      if (
+        forecast.status === 'insufficient'
+        || forecast.estimatedRevenue === null
+        || forecast.lowerBound === null
+        || forecast.upperBound === null
+        || forecast.averageDailyRevenue === null
+      ) {
+        const limitation = forecast.limitations.join('；') || '当前日结样本不足。';
+        return {
+          status: 'completed',
+          answer: `当前无法形成下季度营业额预测：${qualitySummary}${backtestSummary}${limitation} Ami Brain 不会在样本不足时输出伪精确金额。`,
+          citations: [{ sourceType: 'skill', sourceId: 'store_manager_revenue_forecast_baseline', label: '下季度营业额透明基线预测' }],
+          grounding: 'db_skill',
+          blocks: [
+            {
+              kind: 'diagnosis',
+              findings: [{ title: '预测证据不足', detail: `${qualitySummary}${backtestSummary}`, severity: 'warning' }],
+              citationIds: ['store_manager_revenue_forecast_baseline'],
+            },
+            { kind: 'limitations', items: [qualitySummary, backtestSummary, ...forecast.limitations] },
+          ],
+          metadata: {
+            adapterKey: this.key,
+            answerScope: 'manager_revenue_forecast_insufficient',
+            modelVersion: forecast.modelVersion,
+            generatedAt: forecast.generatedAt,
+            sampleDays: forecast.sampleDays,
+            dataCoverageRate: forecast.dataCoverageRate,
+            reconciliationRate: forecast.reconciliationRate,
+            confidence: forecast.confidence,
+            confidenceLabel: forecast.confidenceLabel,
+            backtest: forecast.backtest,
+          },
+        };
+      }
+      const limitation = [
+        ...forecast.limitations,
+        '预测未包含节假日、活动预算和人员变化，不是经营承诺值。',
+      ];
       return {
         status: 'completed',
-        answer: `下季度营业额基线预测 ${formatBrainMoney(forecast.estimatedRevenue)}，区间 ${formatBrainMoney(forecast.lowerBound)} 至 ${formatBrainMoney(forecast.upperBound)}，置信度 ${formatBrainPercent(forecast.confidence)}。依据最近 ${forecast.sampleDays} 个自然日的日结流水，日均 ${formatBrainMoney(forecast.averageDailyRevenue)}，预测周期 ${forecast.forecastDays} 天；模型版本 ${forecast.modelVersion}。这是基于历史流水的透明基线，不是承诺值，也未包含节假日、活动预算和人员变化。`,
+        answer: `下季度营业额基线预测 ${formatBrainMoney(forecast.estimatedRevenue)}，区间 ${formatBrainMoney(forecast.lowerBound)} 至 ${formatBrainMoney(forecast.upperBound)}，置信度 ${formatBrainPercent(forecast.confidence)}（${forecast.confidenceLabel}）。${qualitySummary}${backtestSummary}最近 28 个可用营业日日均 ${formatBrainMoney(forecast.averageDailyRevenue)}，预测周期 ${forecast.forecastDays} 天；模型版本 ${forecast.modelVersion}。${limitation.join('；')}`,
         citations: [{ sourceType: 'skill', sourceId: 'store_manager_revenue_forecast_baseline', label: '下季度营业额透明基线预测' }],
         grounding: 'db_skill',
+        blocks: [
+          {
+            kind: 'kpi',
+            items: [
+              { label: '下季度基线预测', value: formatBrainMoney(forecast.estimatedRevenue) },
+              { label: '预测区间', value: `${formatBrainMoney(forecast.lowerBound)} - ${formatBrainMoney(forecast.upperBound)}` },
+              { label: '置信度', value: `${formatBrainPercent(forecast.confidence)}（${forecast.confidenceLabel}）` },
+              { label: '回测准确度', value: forecast.backtest.accuracyRate === null ? '样本不足' : formatBrainPercent(forecast.backtest.accuracyRate) },
+            ],
+            citationIds: ['store_manager_revenue_forecast_baseline'],
+          },
+          {
+            kind: 'diagnosis',
+            findings: [
+              { title: '数据覆盖', detail: qualitySummary, severity: forecast.dataCoverageRate >= 0.8 ? 'info' : 'warning' },
+              { title: '历史回测', detail: backtestSummary, severity: (forecast.backtest.accuracyRate ?? 0) >= 0.65 ? 'info' : 'warning' },
+            ],
+            citationIds: ['store_manager_revenue_forecast_baseline'],
+          },
+          { kind: 'limitations', items: limitation },
+        ],
         metadata: {
           adapterKey: this.key,
+          answerScope: 'manager_revenue_forecast_backtested',
           modelVersion: forecast.modelVersion,
           generatedAt: forecast.generatedAt,
           confidence: forecast.confidence,
+          confidenceLabel: forecast.confidenceLabel,
           forecastStart: forecast.forecastStart,
           forecastEnd: forecast.forecastEnd,
+          sampleDays: forecast.sampleDays,
+          dataCoverageRate: forecast.dataCoverageRate,
+          reconciliationRate: forecast.reconciliationRate,
+          duplicateBusinessDateCount: forecast.duplicateBusinessDateCount,
+          backtest: forecast.backtest,
         },
       };
     }
