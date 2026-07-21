@@ -242,7 +242,7 @@ export async function decideBrainInspectionRepair(
   );
 }
 
-export async function createBrainEvalRun(payload: { releaseId?: number; caseKeys?: string[]; roleKey?: string; modelVersion?: string }) {
+export async function createBrainEvalRun(payload: { sourceEvalRunId?: number; releaseId?: number; caseKeys?: string[]; roleKey?: string; modelVersion?: string }) {
   return apiClient.post('/brain/governance/evals/runs', payload);
 }
 

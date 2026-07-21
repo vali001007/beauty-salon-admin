@@ -540,6 +540,7 @@ export class BrainController {
       storeId: context.storeId,
       userId: context.userId,
       permissions: context.permissions.filter((permission) => !context.deniedPermissions.includes(permission)),
+      sourceEvalRunId: body.sourceEvalRunId,
       releaseId: body.releaseId,
       caseKeys: body.caseKeys,
       roleKey: body.roleKey,

@@ -245,6 +245,79 @@ describe('BrainEvalService', () => {
     }
   });
 
+  it('creates a scoped regression run from only the failed cases of a completed release evaluation', async () => {
+    const releaseSnapshot = {
+      releaseId: 21,
+      releaseStatus: 'draft',
+      releaseFingerprint: 'c'.repeat(64),
+      declaredMode: 'shadow',
+      mode: 'model',
+      resourceVersionIds: [3],
+      capabilityKeys: ['customer_facts'],
+      capabilityCandidates: [{
+        key: 'customer_facts',
+        domains: ['customer'],
+        allowedRoles: ['store_manager'],
+        requiredPermissions: ['core:customer:view'],
+        examples: ['查询张三客户档案', '查看客户 ID 123'],
+      }],
+    } as unknown as BrainEvaluationReleaseSnapshot;
+    const failedCaseKey = 'release_capability:21:customer_facts:1';
+    const prisma = {
+      brainEvalRun: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 41,
+          releaseId: 21,
+          roleKey: null,
+          evalResults: [{ caseKey: failedCaseKey }],
+        }),
+        create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 42, ...data })),
+      },
+    };
+    const releaseService = { freezeEvaluationRelease: jest.fn().mockResolvedValue(releaseSnapshot) };
+    const timeoutSpy = jest.spyOn(global, 'setTimeout').mockImplementation((() => 0) as never);
+    const service = new BrainEvalService(
+      prisma as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      releaseService as never,
+    );
+
+    try {
+      const run = await service.createEvalRun({
+        storeId: 6,
+        userId: 9,
+        permissions: ['*'],
+        sourceEvalRunId: 41,
+      });
+
+      expect(run).toMatchObject({ id: 42, releaseId: 21, caseCount: 1 });
+      expect(prisma.brainEvalRun.findFirst).toHaveBeenCalledWith({
+        where: { id: 41, storeId: 6, status: 'completed' },
+        select: expect.any(Object),
+      });
+      expect(prisma.brainEvalRun.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          releaseId: 21,
+          caseCount: 1,
+          summary: expect.objectContaining({
+            gateMode: 'release_regression',
+            sourceEvalRunId: 41,
+            regressionCaseKeys: [failedCaseKey],
+            requiredCaseKeys: [failedCaseKey],
+            canRelease: false,
+          }),
+        }),
+      });
+    } finally {
+      timeoutSpy.mockRestore();
+    }
+  });
+
   it('persists per-case deterministic grades and a completed eval summary', async () => {
     const tx = {
       brainEvalCase: {
