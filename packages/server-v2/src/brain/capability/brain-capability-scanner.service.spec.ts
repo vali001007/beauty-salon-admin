@@ -1,6 +1,6 @@
 import { mkdtemp, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { BrainCapabilityDriftService } from './brain-capability-drift.service.js';
 import { escapeMarkdownCell, resolveWorkspacePath } from './brain-capability-cli.helpers.js';
 import { BrainCapabilityScannerService } from './brain-capability-scanner.service.js';
@@ -681,7 +681,8 @@ describe('BrainCapabilityScannerService', () => {
   });
 
   it('resolves CLI paths from workspace root and escapes Markdown cells', () => {
-    expect(resolveWorkspacePath('D:/workspace', 'reports/scan.json')).toBe(join('D:/workspace', 'reports/scan.json'));
+    const workspaceRoot = resolve('workspace');
+    expect(resolveWorkspacePath(workspaceRoot, 'reports/scan.json')).toBe(join(workspaceRoot, 'reports/scan.json'));
     expect(escapeMarkdownCell('a|b\nc')).toBe('a\\|b<br>c');
   });
 
