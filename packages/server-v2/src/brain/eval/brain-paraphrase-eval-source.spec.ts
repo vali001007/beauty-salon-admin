@@ -55,10 +55,21 @@ describe('parseBrainParaphraseEvalJson', () => {
             answerShape: 'diagnosis',
           },
         },
+        {
+          id: 'beautician-action-01',
+          intent: 'action',
+          input: '预览完成服务单 #493 并保存护理记录',
+          expected: {
+            domains: ['beautician', 'customer', 'project'],
+            capabilityKeys: ['service_record_completion_preview'],
+            answerShape: 'action_preview',
+            requiresConfirmation: true,
+          },
+        },
       ],
     }));
 
-    expect(questions).toHaveLength(3);
+    expect(questions).toHaveLength(4);
     expect(questions[0]).toMatchObject({
       id: 'paraphrase-ranking-01',
       persona: 'inventory',
@@ -78,6 +89,13 @@ describe('parseBrainParaphraseEvalJson', () => {
       persona: 'edge',
       evalRole: 'manager',
       expectedSemanticIntent: 'workflow',
+    });
+    expect(questions[3]).toMatchObject({
+      id: 'paraphrase-beautician-action-01',
+      persona: 'beautician',
+      evalRole: 'beautician',
+      expectedCapabilityKeys: ['service_record_completion_preview'],
+      expectedPlanShape: { requiresPreview: true },
     });
   });
 

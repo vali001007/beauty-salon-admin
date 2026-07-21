@@ -480,6 +480,30 @@ describe('BrainSemanticIntentValidatorService', () => {
     expect(result.status).toBe('valid');
   });
 
+  it('accepts an explicit user-provided service task id for downstream store and ownership validation', () => {
+    const result = createValidator().validate(
+      rankingIntent({
+        domains: ['beautician'],
+        intent: 'action',
+        answerShape: 'action_preview',
+        entities: [{
+          entityType: 'service_task',
+          entityKey: '493',
+          mention: '服务单 #493',
+          source: 'user',
+          confidence: 0.99,
+        }],
+        metrics: [],
+        dimensions: [],
+        orderBy: [],
+        successCriteria: ['生成高风险待确认预览，确认前不保存服务记录'],
+      }),
+      { domains: ['beautician'], definitionRefs: [] },
+    );
+
+    expect(result.status).toBe('valid');
+  });
+
   it('clarifies an unresolved entity instead of treating it as a hallucinated active reference', () => {
     const result = createValidator().validate(
       rankingIntent({

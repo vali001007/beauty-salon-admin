@@ -136,7 +136,11 @@ export class BrainBeauticianDomainAdapter implements BrainDomainAdapter {
       throw new ForbiddenException('missing_permission:aura:service-record:create');
     }
     if (!this.actionConfirmation || !this.actionTargets) return this.actionClarification('服务记录动作依赖未就绪，请稍后重试。');
-    const task = await this.actionTargets.resolveServiceTask({ storeId: input.context.storeId, message: input.dto.message });
+    const task = await this.actionTargets.resolveServiceTask({
+      storeId: input.context.storeId,
+      userId: input.context.userId,
+      message: input.dto.message,
+    });
     if (!task.ok) return this.actionClarification(task.message);
     const remark = input.dto.message.trim();
     if (remark.length < 8) return this.actionClarification('请补充本次服务结果、客户反应或护理备注后再保存。');

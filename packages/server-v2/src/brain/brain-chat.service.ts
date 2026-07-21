@@ -1177,7 +1177,10 @@ export class BrainChatService {
                 intent: this.normalizeGovernedReadOnlyPreviewIntent({
                   intent: this.normalizeReadOnlyQuestionIntent({
                     intent: this.normalizeModelClarificationIntent(
-                      this.enrichModelEntityRefs(compilation.intent, snapshot),
+                      this.normalizeExplicitActionTargetIntent({
+                        intent: this.enrichModelEntityRefs(compilation.intent, snapshot),
+                        question: input.dto.message,
+                      }),
                       input.dto.message,
                     ),
                     question: input.dto.message,
@@ -1284,7 +1287,10 @@ export class BrainChatService {
                     intent: this.normalizeGovernedReadOnlyPreviewIntent({
                       intent: this.normalizeReadOnlyQuestionIntent({
                         intent: this.normalizeModelClarificationIntent(
-                          this.enrichModelEntityRefs(repairCompilation.intent, snapshot),
+                          this.normalizeExplicitActionTargetIntent({
+                            intent: this.enrichModelEntityRefs(repairCompilation.intent, snapshot),
+                            question: input.dto.message,
+                          }),
                           input.dto.message,
                         ),
                         question: input.dto.message,
@@ -3905,6 +3911,40 @@ export class BrainChatService {
       };
     });
     return changed ? { ...intent, entities } : intent;
+  }
+
+  private normalizeExplicitActionTargetIntent(input: {
+    intent: BrainSemanticIntent;
+    question: string;
+  }): BrainSemanticIntent {
+    if (input.intent.intent !== 'action') return input.intent;
+    const match = input.question.match(/(?:服务单|服务任务|任务)[#号\s]*(\d+)/);
+    if (!match) return input.intent;
+    const entityKey = match[1];
+    const mention = match[0].trim();
+    let normalized = false;
+    const entities = input.intent.entities.map((entity) => {
+      if (!['service_task', 'service_record'].includes(entity.entityType) || entity.definitionRef) return entity;
+      normalized = true;
+      return {
+        ...entity,
+        entityType: 'service_task',
+        entityKey,
+        mention,
+        source: 'user' as const,
+        confidence: Math.max(entity.confidence, 0.99),
+      };
+    });
+    if (!normalized) {
+      entities.unshift({
+        entityType: 'service_task',
+        entityKey,
+        mention,
+        source: 'user',
+        confidence: 0.99,
+      });
+    }
+    return { ...input.intent, entities };
   }
 
   private async recordModelTrace(input: Parameters<BrainTraceService['recordStep']>[0]): Promise<void> {

@@ -323,7 +323,7 @@ describe('BrainCapabilityScannerService', () => {
 
     const workspaceRoot = join(process.cwd(), '..', '..');
     const real = await new BrainCapabilityScannerService().scan({ workspaceRoot, explicitOnly: true });
-    expect(real.capabilities).toHaveLength(41);
+    expect(real.capabilities).toHaveLength(42);
     expect(real.capabilities.every((item) => item.explicit)).toBe(true);
   }, 30_000);
 
@@ -562,9 +562,7 @@ describe('BrainCapabilityScannerService', () => {
 
     const report = await new BrainCapabilityScannerService().scan({ workspaceRoot: root, explicitOnly: true });
 
-    expect(report.capabilities.find((item) => item.key === 'customer_facts')?.mappingOutputs).toEqual([
-      'customerIds',
-    ]);
+    expect(report.capabilities.find((item) => item.key === 'customer_facts')?.mappingOutputs).toEqual(['customerIds']);
   });
 
   it('changes the source fingerprint when a bound Prisma store predicate is removed', async () => {
@@ -736,11 +734,11 @@ describe('BrainCapabilityScannerService', () => {
     expect(byKey.get('customer_facts')?.requiredPermissions).toContain('core:customer:view');
   }, 30_000);
 
-  it('discovers forty-one explicit production executors without legacy anchor contamination', async () => {
+  it('discovers forty-two explicit production executors without legacy anchor contamination', async () => {
     const workspaceRoot = join(process.cwd(), '..', '..');
     const report = await new BrainCapabilityScannerService().scan({ workspaceRoot, explicitOnly: true });
 
-    expect(report.summary).toEqual({ total: 41, draft: 41, blocked: 0, explicit: 41 });
+    expect(report.summary).toEqual({ total: 42, draft: 42, blocked: 0, explicit: 42 });
     expect(report.capabilities.map((item) => item.key)).toEqual([
       'appointment_gap_list',
       'beautician_customer_card_progress',
@@ -781,6 +779,7 @@ describe('BrainCapabilityScannerService', () => {
       'purchase_order_draft',
       'reservation_action_preview',
       'reservation_list',
+      'service_record_completion_preview',
       'staff_performance_ranking',
       'store_operations_overview',
     ]);
@@ -811,5 +810,26 @@ describe('BrainCapabilityScannerService', () => {
     expect(
       new Map(report.capabilities.map((item) => [item.key, item.allowedRoles])).get('store_operations_overview'),
     ).toEqual(['store_manager']);
+    expect(byKey(report.capabilities, 'service_record_completion_preview')).toMatchObject({
+      readOnly: false,
+      sideEffect: true,
+      requiresConfirmation: true,
+      idempotency: 'required',
+      requiredPermissions: ['aura:service-record:create', 'core:brain:use'],
+      allowedRoles: ['beautician'],
+    });
+    expect(byKey(report.capabilities, 'service_record_completion_preview').implementationDependencies).toEqual(
+      expect.arrayContaining([
+        'BrainBeauticianDomainAdapter',
+        'BrainActionConfirmationService',
+        'BrainActionTargetResolverService',
+      ]),
+    );
   }, 30_000);
 });
+
+function byKey<T extends { key: string }>(items: T[], key: string): T {
+  const item = items.find((candidate) => candidate.key === key);
+  if (!item) throw new Error(`missing_test_capability:${key}`);
+  return item;
+}

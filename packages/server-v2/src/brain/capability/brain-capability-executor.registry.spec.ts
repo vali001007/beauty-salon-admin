@@ -42,6 +42,7 @@ const DOMAIN_KEYS = [
 const ACTION_KEYS = [
   'reservation_action_preview',
   'card_usage_action_preview',
+  'service_record_completion_preview',
   'customer_follow_up_draft',
   'purchase_order_draft',
   'marketing_strategy_execute_preview',
@@ -128,7 +129,7 @@ const stubExecutor = (
 });
 
 describe('BrainCapabilityExecutorRegistryService', () => {
-  it('resolves all 27 discoverable capability keys', () => {
+  it('resolves all 28 discoverable capability keys', () => {
     const snapshot = { loadActiveDefinitions: jest.fn() };
     const timeParser = { parse: jest.fn() };
     const semanticQuery = { execute: jest.fn() };
@@ -142,7 +143,7 @@ describe('BrainCapabilityExecutorRegistryService', () => {
       new BrainActionCapabilityExecutor(adapterRegistry as never),
     ]);
 
-    expect([...SEMANTIC_KEYS, ...DOMAIN_KEYS, ...ACTION_KEYS]).toHaveLength(27);
+    expect([...SEMANTIC_KEYS, ...DOMAIN_KEYS, ...ACTION_KEYS]).toHaveLength(28);
     for (const key of SEMANTIC_KEYS) expect(registry.resolve(key).kind).toBe('semantic');
     for (const key of DOMAIN_KEYS) expect(registry.resolve(key).kind).toBe('domain');
     for (const key of ACTION_KEYS) expect(registry.resolve(key).kind).toBe('action');
@@ -414,16 +415,11 @@ describe('BrainSemanticQueryCapabilityExecutor', () => {
       loadActiveDefinitions: jest.fn(),
       getRuntimeDataModel: jest.fn(),
     };
-    const executor = new BrainSemanticQueryCapabilityExecutor(
-      snapshot as never,
-      parser as never,
-      {} as never,
-    );
+    const executor = new BrainSemanticQueryCapabilityExecutor(snapshot as never, parser as never, {} as never);
 
-    const answer = await executor.execute(input(
-      card('staff_performance_ranking', 'semantic'),
-      { question: '哪个美容师的客诉最多，最近有没有' },
-    ));
+    const answer = await executor.execute(
+      input(card('staff_performance_ranking', 'semantic'), { question: '哪个美容师的客诉最多，最近有没有' }),
+    );
 
     expect(answer).toMatchObject({
       status: 'completed',
@@ -449,18 +445,25 @@ describe('BrainSemanticQueryCapabilityExecutor', () => {
       { productOrder: { findMany } } as never,
     );
 
-    const answer = await executor.execute(input(
-      card('product_sales_ranking', 'semantic', { requiredPermissions: ['core:metric:view'], intents: ['query', 'ranking'] }),
-      {
-        question: '这个月产品销售额是多少',
-        answerShape: 'scalar',
-        args: { metrics: [{ definitionKey: 'metric.product_sales_amount' }] },
-      },
-    ));
+    const answer = await executor.execute(
+      input(
+        card('product_sales_ranking', 'semantic', {
+          requiredPermissions: ['core:metric:view'],
+          intents: ['query', 'ranking'],
+        }),
+        {
+          question: '这个月产品销售额是多少',
+          answerShape: 'scalar',
+          args: { metrics: [{ definitionKey: 'metric.product_sales_amount' }] },
+        },
+      ),
+    );
 
     expect(findMany).toHaveBeenCalledTimes(1);
     expect(answer.answer).toContain('product_sales_amount 3580');
-    expect(answer.blocks).toEqual([expect.objectContaining({ kind: 'kpi', items: [expect.objectContaining({ value: '3580' })] })]);
+    expect(answer.blocks).toEqual([
+      expect.objectContaining({ kind: 'kpi', items: [expect.objectContaining({ value: '3580' })] }),
+    ]);
     expect(answer.citations).toEqual([expect.objectContaining({ sourceId: 'metric.product_sales_amount@2' })]);
   });
 
@@ -535,12 +538,8 @@ describe('BrainSemanticQueryCapabilityExecutor', () => {
     );
 
     await expect(
-      executor.execute(
-        input(card('product_sales_ranking', 'semantic', { requiredPermissions: ['core:metric:view'] })),
-      ),
-    ).rejects.toThrow(
-      'semantic_capability_task_type_not_allowed:product_sales_ranking:published_sales:diagnosis',
-    );
+      executor.execute(input(card('product_sales_ranking', 'semantic', { requiredPermissions: ['core:metric:view'] }))),
+    ).rejects.toThrow('semantic_capability_task_type_not_allowed:product_sales_ranking:published_sales:diagnosis');
     expect(semanticQuery.productOrder.findMany).not.toHaveBeenCalled();
   });
 
@@ -767,7 +766,10 @@ describe('BrainSemanticQueryCapabilityExecutor', () => {
     await expect(
       executor.execute({
         ...capabilityInput,
-        args: { ...capabilityInput.args, filters: [{ fieldRef: { definitionKey: 'field.status' }, operator: 'eq', value: 'paid' }] },
+        args: {
+          ...capabilityInput.args,
+          filters: [{ fieldRef: { definitionKey: 'field.status' }, operator: 'eq', value: 'paid' }],
+        },
       }),
     ).rejects.toThrow('semantic_filter_args_unsupported:product_sales_ranking');
 
@@ -776,10 +778,12 @@ describe('BrainSemanticQueryCapabilityExecutor', () => {
         ...capabilityInput,
         args: {
           ...capabilityInput.args,
-          orderBy: [{
-            definitionRef: { definitionKey: 'metric.published_sales' },
-            direction: 'desc',
-          }],
+          orderBy: [
+            {
+              definitionRef: { definitionKey: 'metric.published_sales' },
+              direction: 'desc',
+            },
+          ],
         },
       }),
     ).resolves.toMatchObject({ status: 'completed' });
@@ -1956,7 +1960,10 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
         returningCustomerCount: 4,
         largestOrder: null,
         paymentBreakdown: [],
-        projectRanking: [{ name: '补水护理', count: 5 }, { name: '舒缓护理', count: 3 }],
+        projectRanking: [
+          { name: '补水护理', count: 5 },
+          { name: '舒缓护理', count: 3 },
+        ],
         beauticianRanking: [],
         dailyTrend: [{ date: '2026-07-15', revenue: 1200 }],
         target: null,
@@ -1998,13 +2005,15 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
         ],
       }),
     });
-    expect(answer.blocks).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: 'kpi' }),
-      expect.objectContaining({ kind: 'ranking' }),
-      expect.objectContaining({ kind: 'chart' }),
-      expect.objectContaining({ kind: 'table' }),
-      expect.objectContaining({ kind: 'diagnosis' }),
-    ]));
+    expect(answer.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'kpi' }),
+        expect.objectContaining({ kind: 'ranking' }),
+        expect.objectContaining({ kind: 'chart' }),
+        expect.objectContaining({ kind: 'table' }),
+        expect.objectContaining({ kind: 'diagnosis' }),
+      ]),
+    );
     expect(answer.citations).toHaveLength(3);
   });
 
@@ -2131,7 +2140,9 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
         question: '她的消费情况',
         args: {
           ...structuredArgs,
-          entities: [{ entityType: 'customer', entityKey: 'customer:18', mention: '李女士', source: 'user', confidence: 0.99 }],
+          entities: [
+            { entityType: 'customer', entityKey: 'customer:18', mention: '李女士', source: 'user', confidence: 0.99 },
+          ],
         },
       }),
     );
@@ -2161,17 +2172,19 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
     const parse = jest.spyOn(parser, 'parse');
     const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, parser);
 
-    const answer = await executor.execute(input(card('reservation_list', 'domain'), {
-      question: 'words without a time expression',
-      args: {
-        time: { label: '本月', preset: 'this_month', timezone: 'Asia/Shanghai' },
-        entities: [],
-        metrics: [],
-        dimensions: [],
-        filters: [],
-        orderBy: [],
-      },
-    }));
+    const answer = await executor.execute(
+      input(card('reservation_list', 'domain'), {
+        question: 'words without a time expression',
+        args: {
+          time: { label: '本月', preset: 'this_month', timezone: 'Asia/Shanghai' },
+          entities: [],
+          metrics: [],
+          dimensions: [],
+          filters: [],
+          orderBy: [],
+        },
+      }),
+    );
 
     expect(parse).toHaveBeenCalledWith('本月');
     expect(answer.metadata).toMatchObject({ rangeLabel: '本月' });
@@ -2201,17 +2214,21 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
       metrics: [],
       dimensions: [],
       filters: [],
-      orderBy: [{
-        direction: 'desc',
-        definitionRef: { definitionKey: 'capability.reservation_list' },
-      }],
+      orderBy: [
+        {
+          direction: 'desc',
+          definitionRef: { definitionKey: 'capability.reservation_list' },
+        },
+      ],
     };
 
     await expect(executor.execute(input(capabilityCard, { args }))).resolves.toMatchObject({ status: 'completed' });
     await expect(
-      executor.execute(input(capabilityCard, {
-        args: { ...args, orderBy: [{ ...args.orderBy[0], direction: 'asc' }] },
-      })),
+      executor.execute(
+        input(capabilityCard, {
+          args: { ...args, orderBy: [{ ...args.orderBy[0], direction: 'asc' }] },
+        }),
+      ),
     ).rejects.toThrow('domain_order_args_unsupported:reservation_list');
   });
 
@@ -2292,11 +2309,13 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
       } as never,
     );
 
-    const answer = await executor.execute(input(card('finance_payment_breakdown', 'domain'), {
-      answerShape: 'scalar',
-      args: { metrics: [{ definitionKey: 'metric.paid_amount', definitionVersion: 8 }] },
-      question: '这个月店里实际收了多少钱',
-    }));
+    const answer = await executor.execute(
+      input(card('finance_payment_breakdown', 'domain'), {
+        answerShape: 'scalar',
+        args: { metrics: [{ definitionKey: 'metric.paid_amount', definitionVersion: 8 }] },
+        question: '这个月店里实际收了多少钱',
+      }),
+    );
 
     expect(answer.answer).toBe('今天实收合计 28756.30 元。');
     expect(answer.blocks).toEqual([
@@ -2306,9 +2325,11 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
       }),
     ]);
     expect(answer.blocks).not.toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'ranking' })]));
-    expect(answer.citations).toEqual(expect.arrayContaining([
-      expect.objectContaining({ sourceType: 'business_definition', sourceId: 'metric.paid_amount@8' }),
-    ]));
+    expect(answer.citations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sourceType: 'business_definition', sourceId: 'metric.paid_amount@8' }),
+      ]),
+    );
     expect(answer.metadata).toMatchObject({ answerShape: 'scalar', totalCollected: 28756.3 });
   });
 
@@ -2421,11 +2442,13 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
       } as never,
     );
 
-    const answer = await executor.execute(input(card('finance_payment_breakdown', 'domain'), {
-      answerShape: 'trend',
-      args: { metrics: [{ definitionKey: 'metric.paid_amount', definitionVersion: 8 }] },
-      question: '最近三十天每天收入走势',
-    }));
+    const answer = await executor.execute(
+      input(card('finance_payment_breakdown', 'domain'), {
+        answerShape: 'trend',
+        args: { metrics: [{ definitionKey: 'metric.paid_amount', definitionVersion: 8 }] },
+        question: '最近三十天每天收入走势',
+      }),
+    );
 
     expect(answer.answer).toContain('实收趋势已生成，共 2 个按日数据点');
     expect(answer.blocks).toEqual([
@@ -2455,24 +2478,41 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
       buildReceptionServiceOverrunAnalysis: jest.fn().mockResolvedValue({
         overrunCount: 1,
         impactedCount: 1,
-        items: [{
-          taskId: 1,
-          beauticianName: '小美',
-          customerName: '李女士',
-          projectName: '补水护理',
-          plannedEnd: '14:00',
-          actualEnd: '14:20',
-          overrunMinutes: 20,
-          impactedReservation: { startTime: '14:10', customerName: '王女士', projectName: '舒缓护理' },
-        }],
+        items: [
+          {
+            taskId: 1,
+            beauticianName: '小美',
+            customerName: '李女士',
+            projectName: '补水护理',
+            plannedEnd: '14:00',
+            actualEnd: '14:20',
+            overrunMinutes: 20,
+            impactedReservation: { startTime: '14:10', customerName: '王女士', projectName: '舒缓护理' },
+          },
+        ],
       }),
       listReceptionReservations: jest.fn().mockResolvedValue({
         count: 1,
-        reservations: [{ date: '2026-07-15', startTime: '14:10', customerName: '王女士', projectName: '舒缓护理', beauticianName: '小美' }],
+        reservations: [
+          {
+            date: '2026-07-15',
+            startTime: '14:10',
+            customerName: '王女士',
+            projectName: '舒缓护理',
+            beauticianName: '小美',
+          },
+        ],
       }),
       buildBeauticianServiceSummary: jest.fn().mockResolvedValue({
         serviceCount: 1,
-        nextTasks: [{ customerName: '李女士', projectName: '补水护理', appointmentTime: '2026-07-15 14:00', attentionItems: ['过敏史：酒精'] }],
+        nextTasks: [
+          {
+            customerName: '李女士',
+            projectName: '补水护理',
+            appointmentTime: '2026-07-15 14:00',
+            attentionItems: ['过敏史：酒精'],
+          },
+        ],
       }),
       buildBeauticianPersonalPerformance: jest.fn().mockResolvedValue({
         beauticianName: '小美',
@@ -2496,11 +2536,34 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
       buildInventoryDetailAnalysis: jest.fn().mockResolvedValue({
         totalSku: 10,
         totalStockValue: 5000,
-        products: [{ productId: 1, sku: 'P1', name: '补水精华', stock: 2, safetyStock: 5, stockValue: 200, outboundQty: 6, inboundQty: 0, coverageDays: 4 }],
+        products: [
+          {
+            productId: 1,
+            sku: 'P1',
+            name: '补水精华',
+            stock: 2,
+            safetyStock: 5,
+            stockValue: 200,
+            outboundQty: 6,
+            inboundQty: 0,
+            coverageDays: 4,
+          },
+        ],
         movements: [],
       }),
       buildInventoryProcurementAnalysis: jest.fn().mockResolvedValue({
-        suggestions: [{ productId: 1, sku: 'P1', productName: '补水精华', currentStock: 2, safetyStock: 5, suggestedQty: 8, supplierName: '供应商A', estimatedCost: 800 }],
+        suggestions: [
+          {
+            productId: 1,
+            sku: 'P1',
+            productName: '补水精华',
+            currentStock: 2,
+            safetyStock: 5,
+            suggestedQty: 8,
+            supplierName: '供应商A',
+            estimatedCost: 800,
+          },
+        ],
         recentOrders: [],
         suppliers: [{ supplierName: '供应商A', qualificationStatus: 'approved', quoteCount: 1 }],
       }),
@@ -2550,8 +2613,12 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
       expect(answer.blocks).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'kpi' })]));
       expect(answer.citations.length).toBeGreaterThanOrEqual(2);
     }
-    expect(skillRuntime.buildBeauticianServiceSummary).toHaveBeenCalledWith(expect.objectContaining({ userId: 9, storeId: 6 }));
-    expect(skillRuntime.buildBeauticianPersonalPerformance).toHaveBeenCalledWith(expect.objectContaining({ userId: 9, storeId: 6 }));
+    expect(skillRuntime.buildBeauticianServiceSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 9, storeId: 6 }),
+    );
+    expect(skillRuntime.buildBeauticianPersonalPerformance).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 9, storeId: 6 }),
+    );
     expect(answers[1].metadata).toMatchObject({ identitySource: 'server_context_user' });
     expect(answers[2].blocks).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'limitations' })]));
   });
@@ -2567,9 +2634,17 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
           { channel: 'wechat', reached: 12, converted: 2, conversionRate: 1 / 6, revenue: 1200 },
           { channel: 'phone', reached: 8, converted: 1, conversionRate: 0.125, revenue: 600 },
         ],
-        strategies: [{ name: '沉睡客户召回', status: 'enabled', executionType: 'manual', lastExecutedAt: new Date('2026-07-15') }],
+        strategies: [
+          { name: '沉睡客户召回', status: 'enabled', executionType: 'manual', lastExecutedAt: new Date('2026-07-15') },
+        ],
         attributionByStrategy: [{ id: 1, name: '沉睡客户召回', revenue: 1800 }],
-        dataCoverage: { touchesTruncated: false, attributionsTruncated: false, strategiesTruncated: false, touchSampleSize: 20, attributionSampleSize: 1 },
+        dataCoverage: {
+          touchesTruncated: false,
+          attributionsTruncated: false,
+          strategiesTruncated: false,
+          touchSampleSize: 20,
+          attributionSampleSize: 1,
+        },
       }),
       buildMarketingFollowUpPrioritySnapshot: jest.fn().mockResolvedValue({
         rows: [
@@ -2580,7 +2655,9 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
         scannedOpportunityCount: 2,
       }),
     };
-    const customerFacts = { summarizeCustomerSegments: jest.fn().mockResolvedValue('客户分层摘要：VIP 2 人，沉睡客户 5 人。') };
+    const customerFacts = {
+      summarizeCustomerSegments: jest.fn().mockResolvedValue('客户分层摘要：VIP 2 人，沉睡客户 5 人。'),
+    };
     const executor = new BrainDomainServiceCapabilityExecutor(
       skillRuntime as never,
       customerFacts as never,
@@ -2605,37 +2682,50 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
         ],
       }),
     });
-    expect(answer.blocks).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: 'kpi' }),
-      expect.objectContaining({ kind: 'table' }),
-      expect.objectContaining({ kind: 'ranking' }),
-      expect.objectContaining({ kind: 'text' }),
-      expect.objectContaining({ kind: 'diagnosis' }),
-      expect.objectContaining({ kind: 'limitations' }),
-    ]));
+    expect(answer.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'kpi' }),
+        expect.objectContaining({ kind: 'table' }),
+        expect.objectContaining({ kind: 'ranking' }),
+        expect.objectContaining({ kind: 'text' }),
+        expect.objectContaining({ kind: 'diagnosis' }),
+        expect.objectContaining({ kind: 'limitations' }),
+      ]),
+    );
     expect(answer.citations).toHaveLength(3);
-    expect(skillRuntime.buildMarketingFollowUpPrioritySnapshot).toHaveBeenCalledWith(expect.objectContaining({ storeId: 6 }));
+    expect(skillRuntime.buildMarketingFollowUpPrioritySnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({ storeId: 6 }),
+    );
     expect(customerFacts.summarizeCustomerSegments).toHaveBeenCalledWith(expect.objectContaining({ storeId: 6 }));
   });
 
   it('reuses marketing recommendations and real projects for a high-end package audience', async () => {
     const marketing = {
-      getRecommendations: jest.fn().mockResolvedValue([{
-        id: 4,
-        category: 'ltv-nurture',
-        triggerType: 'vip_privilege_care',
-        reason: '高 LTV 客户适合权益维护',
-        recommendedItems: [{ type: 'package', name: '季度高端护理礼遇' }],
-      }]),
-      getRecommendationAudience: jest.fn().mockResolvedValue([{
-        name: '张女士', segment: '钻石会员', totalSpent: 12800, matchReason: '高 LTV 且近期有复购机会',
-      }]),
+      getRecommendations: jest.fn().mockResolvedValue([
+        {
+          id: 4,
+          category: 'ltv-nurture',
+          triggerType: 'vip_privilege_care',
+          reason: '高 LTV 客户适合权益维护',
+          recommendedItems: [{ type: 'package', name: '季度高端护理礼遇' }],
+        },
+      ]),
+      getRecommendationAudience: jest.fn().mockResolvedValue([
+        {
+          name: '张女士',
+          segment: '钻石会员',
+          totalSpent: 12800,
+          matchReason: '高 LTV 且近期有复购机会',
+        },
+      ]),
     };
     const prisma = {
       project: {
-        findMany: jest.fn().mockResolvedValue([
-          { id: 31, name: '抗衰紧致护理', price: 1280, recommend: true, type: { name: '面部护理' } },
-        ]),
+        findMany: jest
+          .fn()
+          .mockResolvedValue([
+            { id: 31, name: '抗衰紧致护理', price: 1280, recommend: true, type: { name: '面部护理' } },
+          ]),
       },
       customer: { findMany: jest.fn() },
     };
@@ -2648,10 +2738,12 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
       prisma as never,
     );
 
-    const answer = await executor.execute(input(card('marketing_growth_overview', 'domain'), {
-      question: '我想做个高端护理套餐推广，找哪些客户合适',
-      args: { objective: '筛选高端护理套餐推广客户', limit: 10 },
-    }));
+    const answer = await executor.execute(
+      input(card('marketing_growth_overview', 'domain'), {
+        question: '我想做个高端护理套餐推广，找哪些客户合适',
+        args: { objective: '筛选高端护理套餐推广客户', limit: 10 },
+      }),
+    );
 
     expect(answer).toMatchObject({
       status: 'completed',
@@ -2668,34 +2760,42 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
     expect(answer.answer).toContain('季度高端护理礼遇');
     expect(answer.answer).toContain('抗衰紧致护理');
     expect(answer.answer).toContain('不是肤质或医疗适应症结论');
-    expect(answer.blocks).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: 'table' }),
-      expect.objectContaining({ kind: 'ranking' }),
-      expect.objectContaining({ kind: 'limitations' }),
-    ]));
+    expect(answer.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'table' }),
+        expect.objectContaining({ kind: 'ranking' }),
+        expect.objectContaining({ kind: 'limitations' }),
+      ]),
+    );
     expect(prisma.customer.findMany).not.toHaveBeenCalled();
   });
 
   it('falls back to store customer facts when a dynamic recommendation audience id is unavailable', async () => {
     const marketing = {
-      getRecommendations: jest.fn().mockResolvedValue([{
-        id: 901,
-        category: 'ltv-nurture',
-        triggerType: 'vip_privilege_care',
-        recommendedItems: [{ type: 'package', name: '高端护理年卡' }],
-      }]),
+      getRecommendations: jest.fn().mockResolvedValue([
+        {
+          id: 901,
+          category: 'ltv-nurture',
+          triggerType: 'vip_privilege_care',
+          recommendedItems: [{ type: 'package', name: '高端护理年卡' }],
+        },
+      ]),
       getRecommendationAudience: jest.fn().mockRejectedValue(new Error('Recommendation not found')),
     };
     const prisma = {
       project: {
-        findMany: jest.fn().mockResolvedValue([
-          { id: 32, name: '高端修护护理', price: 1680, recommend: true, type: { name: '面部护理' } },
-        ]),
+        findMany: jest
+          .fn()
+          .mockResolvedValue([
+            { id: 32, name: '高端修护护理', price: 1680, recommend: true, type: { name: '面部护理' } },
+          ]),
       },
       customer: {
-        findMany: jest.fn().mockResolvedValue([
-          { id: 11, name: '李女士', memberLevel: '黄金会员', totalSpent: 9800, visitCount: 12, lastVisitDate: null },
-        ]),
+        findMany: jest
+          .fn()
+          .mockResolvedValue([
+            { id: 11, name: '李女士', memberLevel: '黄金会员', totalSpent: 9800, visitCount: 12, lastVisitDate: null },
+          ]),
       },
     };
     const executor = new BrainDomainServiceCapabilityExecutor(
@@ -2707,10 +2807,12 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
       prisma as never,
     );
 
-    const answer = await executor.execute(input(card('marketing_growth_overview', 'domain'), {
-      question: '我想做个高端护理套餐推广，找哪些客户合适',
-      args: { objective: '筛选高端护理套餐推广客户', limit: 10 },
-    }));
+    const answer = await executor.execute(
+      input(card('marketing_growth_overview', 'domain'), {
+        question: '我想做个高端护理套餐推广，找哪些客户合适',
+        args: { objective: '筛选高端护理套餐推广客户', limit: 10 },
+      }),
+    );
 
     expect(answer).toMatchObject({
       status: 'completed',
@@ -2724,19 +2826,33 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
     expect(answer.answer).toContain('李女士');
     expect(answer.answer).toContain('受众映射不可用');
     expect(answer.answer).toContain('累计消费与到店次数初筛');
-    expect(answer.citations).toEqual(expect.arrayContaining([
-      expect.objectContaining({ sourceId: 'customer_value_fallback' }),
-      expect.objectContaining({ sourceId: 'marketing_recommendation_card:901' }),
-    ]));
-    expect(prisma.customer.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ storeId: 6 }),
-    }));
+    expect(answer.citations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sourceId: 'customer_value_fallback' }),
+        expect.objectContaining({ sourceId: 'marketing_recommendation_card:901' }),
+      ]),
+    );
+    expect(prisma.customer.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ storeId: 6 }),
+      }),
+    );
   });
 
   it('removes untrusted procurement facts and emits a data-quality limitation', async () => {
     const skillRuntime = {
       buildInventoryProcurementAnalysis: jest.fn().mockResolvedValue({
-        suggestions: [{ productId: 1, sku: 'P1', productName: '补水精华', currentStock: 2, safetyStock: 5, suggestedQty: 8, supplierName: '供应商A' }],
+        suggestions: [
+          {
+            productId: 1,
+            sku: 'P1',
+            productName: '补水精华',
+            currentStock: 2,
+            safetyStock: 5,
+            suggestedQty: 8,
+            supplierName: '供应商A',
+          },
+        ],
         recentOrders: [],
         suppliers: [{ supplierName: '供应商A' }],
       }),
@@ -2766,12 +2882,18 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
 
     const answer = await executor.execute(input(card('inventory_procurement_advice', 'domain')));
 
-    expect(answer.answer).toBe('当前不能生成完整库存采购建议。数据质量限制：发现 26 个商品安全库存无效，当前不能生成完整采购建议。');
+    expect(answer.answer).toBe(
+      '当前不能生成完整库存采购建议。数据质量限制：发现 26 个商品安全库存无效，当前不能生成完整采购建议。',
+    );
     expect(answer.answer).not.toContain('补水精华');
-    expect(answer.blocks).toEqual([{ kind: 'limitations', items: ['发现 26 个商品安全库存无效，当前不能生成完整采购建议。'] }]);
-    expect(answer.citations).toEqual(expect.arrayContaining([
-      expect.objectContaining({ sourceType: 'inspection_finding', sourceId: 'inventory_safety_stock_invalid' }),
-    ]));
+    expect(answer.blocks).toEqual([
+      { kind: 'limitations', items: ['发现 26 个商品安全库存无效，当前不能生成完整采购建议。'] },
+    ]);
+    expect(answer.citations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sourceType: 'inspection_finding', sourceId: 'inventory_safety_stock_invalid' }),
+      ]),
+    );
     expect(answer.metadata).toMatchObject({ dataQuality: expect.objectContaining({ status: 'degraded' }) });
   });
 });
@@ -2799,7 +2921,9 @@ describe('BrainActionCapabilityExecutor', () => {
         question: 'Create a reservation for Amy tomorrow at 3pm',
         args: {
           objective: 'Create a reservation for Amy tomorrow at 3pm',
-          entities: [{ entityType: 'customer', entityKey: 'customer:18', mention: 'Amy', source: 'user', confidence: 0.99 }],
+          entities: [
+            { entityType: 'customer', entityKey: 'customer:18', mention: 'Amy', source: 'user', confidence: 0.99 },
+          ],
           metrics: [],
           dimensions: [],
           filters: [],
@@ -2836,6 +2960,51 @@ describe('BrainActionCapabilityExecutor', () => {
 
     expect(answer).toMatchObject({ grounding: 'none' });
     expect(answer.answer).toMatch(/[\u4e00-\u9fff]/);
+  });
+
+  it('routes the governed service record capability to the beautician adapter as preview only', async () => {
+    const adapter = {
+      execute: jest.fn().mockResolvedValue({
+        status: 'completed',
+        answer: '服务记录预览',
+        citations: [{ sourceType: 'skill', sourceId: 'beautician_service_record_preview' }],
+        suggestedActions: [
+          { actionId: 'action-service-1', actionType: 'save_service_record', requiresConfirmation: true },
+        ],
+        grounding: 'preview_action',
+      }),
+    };
+    const adapterRegistry = { resolve: jest.fn().mockReturnValue(adapter) };
+    const executor = new BrainActionCapabilityExecutor(adapterRegistry as never);
+
+    const answer = await executor.execute(
+      input(
+        card('service_record_completion_preview', 'action', {
+          requiredPermissions: ['core:brain:use', 'aura:service-record:create'],
+          allowedRoles: ['beautician'],
+        }),
+        {
+          question: '记录张女士本次服务：补水护理完成，皮肤状态稳定',
+          context: context({
+            roles: ['beautician'],
+            permissions: ['core:brain:use', 'aura:service-record:create'],
+          }),
+        },
+      ),
+    );
+
+    expect(adapterRegistry.resolve).toHaveBeenCalledWith(
+      expect.objectContaining({
+        adapterKey: 'beautician_service',
+        role: 'beautician',
+        capabilityKey: 'service_record_completion_preview',
+        grounding: 'preview_action',
+      }),
+    );
+    expect(answer).toMatchObject({
+      grounding: 'preview_action',
+      suggestedActions: [expect.objectContaining({ actionType: 'save_service_record' })],
+    });
   });
 
   it('allows target clarification and grounded no-action results but rejects ungoverned non-preview results', async () => {

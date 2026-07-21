@@ -422,6 +422,7 @@ export class BrainActionConfirmationService {
     await this.targetResolver?.revalidateCapabilityTarget({
       capabilityKey: approval.capabilityKey,
       storeId: input.storeId,
+      userId: input.userId,
       args: validation.payload,
       idempotencyKey: approval.idempotencyKey,
     });

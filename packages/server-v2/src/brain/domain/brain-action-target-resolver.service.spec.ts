@@ -247,6 +247,42 @@ describe('BrainActionTargetResolverService', () => {
     });
   });
 
+  it('resolves only the current beautician own active service task', async () => {
+    prisma.serviceTask.findFirst.mockResolvedValue({
+      id: 41,
+      customer: { name: '张女士' },
+      project: { name: '补水护理' },
+    });
+
+    await expect(
+      service.resolveServiceTask({ storeId: 6, userId: 9, message: '预览完成服务单 #41 并保存记录' }),
+    ).resolves.toEqual({
+      ok: true,
+      value: { id: 41, customerName: '张女士', projectName: '补水护理' },
+    });
+    expect(prisma.serviceTask.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 41,
+        storeId: 6,
+        beautician: { userId: 9 },
+        status: { in: ['pending', 'in_progress'] },
+      },
+      select: { id: true, customer: { select: { name: true } }, project: { select: { name: true } } },
+    });
+  });
+
+  it('fails closed when the service task is not owned by the current beautician', async () => {
+    prisma.serviceTask.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.resolveServiceTask({ storeId: 6, userId: 10, message: '预览完成服务单 #41 并保存记录' }),
+    ).resolves.toEqual({
+      ok: false,
+      reason: 'service_task_not_owned_or_active',
+      message: '没有找到属于当前美容师且待完成的服务任务。',
+    });
+  });
+
   it('revalidates action targets inside the current store before confirmation', async () => {
     prisma.reservation.findFirst.mockResolvedValue({ id: 18 });
     await expect(service.revalidateCapabilityTarget({
@@ -256,6 +292,28 @@ describe('BrainActionTargetResolverService', () => {
     })).resolves.toBeUndefined();
     expect(prisma.reservation.findFirst).toHaveBeenCalledWith({
       where: { id: 18, storeId: 6 },
+      select: { id: true },
+    });
+  });
+
+  it('revalidates service record ownership for the confirming beautician', async () => {
+    prisma.serviceTask.findFirst.mockResolvedValue({ id: 41 });
+
+    await expect(
+      service.revalidateCapabilityTarget({
+        capabilityKey: 'save_service_record',
+        storeId: 6,
+        userId: 9,
+        args: { taskId: 41, remark: '客户肤况稳定' },
+      }),
+    ).resolves.toBeUndefined();
+    expect(prisma.serviceTask.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 41,
+        storeId: 6,
+        beautician: { userId: 9 },
+        status: { in: ['pending', 'in_progress'] },
+      },
       select: { id: true },
     });
   });

@@ -366,6 +366,11 @@ function hasGovernedImplicitRankingContract(
 }
 
 function isSpecificActionTarget(entity: BrainSemanticIntent['entities'][number]): boolean {
+  const explicitUserIdentifier =
+    entity.source === 'user'
+    && Boolean(entity.entityKey)
+    && entity.entityKey !== entity.entityType
+    && /(?:#|号|ID|id|任务|服务单)?\s*\d+/.test(`${entity.mention} ${entity.entityKey}`);
   if (
     !entity.definitionRef
     && !(
@@ -374,6 +379,7 @@ function isSpecificActionTarget(entity: BrainSemanticIntent['entities'][number])
       && Boolean(entity.entityKey)
       && entity.entityKey !== entity.entityType
     )
+    && !explicitUserIdentifier
   ) {
     return false;
   }
