@@ -43,6 +43,10 @@ describe('BrainWorkspace', () => {
     apiMocks.createBrainConversation.mockResolvedValue(conversation);
     apiMocks.streamBrainMessage.mockImplementation(async (_conversationId, _payload, onEvent) => {
       onEvent({ type: 'run_started', data: { conversationId: 42 } });
+      onEvent({
+        type: 'progress',
+        data: { conversationId: 42, phase: 'understanding', message: '正在理解问题并核对可用数据...' },
+      });
       onEvent({ type: 'answer_delta', data: { runId: 100, delta: '本月实收流水为 19907.10 元。' } });
       return {
         conversationId: 42,
@@ -52,6 +56,44 @@ describe('BrainWorkspace', () => {
         citations: [{ sourceType: 'metric', sourceId: 'paid_revenue', label: '实收流水' }],
         suggestedActions: [],
       };
+    });
+  });
+
+  it('shows live progress before the persisted answer is ready', async () => {
+    let resolveStream!: (value: {
+      conversationId: number;
+      runId: number;
+      status: 'completed';
+      answer: string;
+      citations: never[];
+      suggestedActions: never[];
+    }) => void;
+    apiMocks.streamBrainMessage.mockImplementation((_conversationId, _payload, onEvent) => {
+      onEvent({
+        type: 'progress',
+        data: { conversationId: 42, phase: 'understanding', message: '正在理解问题并核对可用数据...' },
+      });
+      return new Promise((resolve) => {
+        resolveStream = resolve;
+      });
+    });
+
+    render(<BrainWorkspace />);
+    await waitFor(() => expect(apiMocks.listBrainConversations).toHaveBeenCalledOnce());
+    fireEvent.change(screen.getByPlaceholderText('问经营数据、风险和下一步动作'), {
+      target: { value: '本月流水多少' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '发送' }));
+
+    expect(await screen.findByText('正在理解问题并核对可用数据...')).toBeInTheDocument();
+
+    resolveStream({
+      conversationId: 42,
+      runId: 100,
+      status: 'completed',
+      answer: '本月实收流水为 19907.10 元。',
+      citations: [],
+      suggestedActions: [],
     });
   });
 

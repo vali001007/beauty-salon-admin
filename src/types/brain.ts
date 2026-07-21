@@ -121,6 +121,7 @@ export interface BrainMessageMetadata {
   roleHint?: BrainRoleKey;
   runId?: number;
   status?: BrainRunStatus;
+  streamPhase?: string;
   citations?: BrainCitation[];
   suggestedActions?: BrainActionPreview[];
   blocks?: BrainResponseBlock[];
@@ -230,6 +231,7 @@ export interface BrainMemoryListResponse {
 
 export type BrainStreamEventType =
   | 'run_started'
+  | 'progress'
   | 'step'
   | 'answer_delta'
   | 'block_delta'

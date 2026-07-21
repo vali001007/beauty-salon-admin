@@ -223,6 +223,7 @@ export function BrainWorkspace() {
 
     try {
       let streamedAnswer = '';
+      let streamedStatus = '';
       const streamedBlocks: BrainResponseBlock[] = [];
       const response = await streamBrainMessage(
         activeConversationId,
@@ -232,7 +233,9 @@ export function BrainWorkspace() {
           timezone: 'Asia/Shanghai',
         },
         (event) => {
-          if (event.type === 'answer_delta') {
+          if (event.type === 'progress') {
+            streamedStatus = String(event.data.message ?? '正在处理...');
+          } else if (event.type === 'answer_delta') {
             streamedAnswer += String(event.data.delta ?? '');
           } else if (event.type === 'block_completed' && event.data.block && typeof event.data.block === 'object') {
             streamedBlocks[Number(event.data.index ?? streamedBlocks.length)] = event.data.block as BrainResponseBlock;
@@ -245,8 +248,12 @@ export function BrainWorkspace() {
               id: streamingAssistantId,
               conversationId: activeConversationId,
               role: 'assistant',
-              content: streamedAnswer,
-              metadata: { status: 'running', blocks: streamedBlocks.filter(Boolean) },
+              content: streamedAnswer || streamedStatus,
+              metadata: {
+                status: 'running',
+                streamPhase: event.type === 'progress' ? String(event.data.phase ?? 'understanding') : 'answering',
+                blocks: streamedBlocks.filter(Boolean),
+              },
               createdAt: new Date().toISOString(),
             };
             return existing
