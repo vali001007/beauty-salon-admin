@@ -1323,6 +1323,17 @@ describe('BrainSemanticIntentCompilerService', () => {
         dimensions: [expect.objectContaining({ definitionKey: 'dimension.paymentMethod' })],
       },
     });
+
+    input.question = '这个月各种收款渠道分别收了多少';
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      provider: 'governed_contract',
+      model: 'definition_match_fallback',
+      intent: {
+        dimensions: [expect.objectContaining({ definitionKey: 'dimension.paymentMethod' })],
+        assumptions: [expect.stringContaining('finance_payment_breakdown')],
+      },
+    });
   });
 
   it('keeps an exact paid amount question scalar instead of adding payment grouping', async () => {

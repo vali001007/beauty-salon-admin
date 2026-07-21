@@ -1222,7 +1222,7 @@ export const AMI_CORE_BUSINESS_DIMENSION_CONTRACTS: readonly AmiCoreBusinessDime
       population: 'unique_arrived_customers',
     },
   ),
-  dimension('paymentMethod', '支付方式', 'finance', ['收款方式', '支付渠道', '现金', '微信', '支付宝', '银行卡', '储值余额'], 'PaymentRecord', 'method', 'finance_payment_breakdown', [
+  dimension('paymentMethod', '支付方式', 'finance', ['收款方式', '收款渠道', '支付渠道', '现金', '微信', '支付宝', '银行卡', '储值余额'], 'PaymentRecord', 'method', 'finance_payment_breakdown', [
     'core:finance:view',
   ], ['finance_risk_overview']),
   dimension('costCategory', '成本类别', 'finance', ['费用类别', '成本分类', '支出类别'], 'OperatingCost', 'category', 'finance_risk_overview', [

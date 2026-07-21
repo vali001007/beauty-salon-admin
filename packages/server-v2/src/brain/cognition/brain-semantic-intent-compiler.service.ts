@@ -1102,7 +1102,7 @@ function definitionMatchesQuestion(question: string, name: string, aliases: read
 }
 
 function isExplicitDimensionBreakdownQuestion(question: string): boolean {
-  return /拆分|构成|分布|占比|各(?:有|是|多少)|按.+(?:分|看)/.test(question);
+  return /拆分|构成|分布|占比|各(?:有|是|多少)|分别.*(?:多少|金额|笔数|情况)|按.+(?:分|看)/.test(question);
 }
 
 function governedMetricKeyMatchesQuestion(question: string, definitionKey: string): boolean {
