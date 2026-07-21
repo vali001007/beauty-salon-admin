@@ -505,7 +505,12 @@ export class BrainReleaseService {
       where: { id: evidenceReleaseId },
       include: { items: { include: { resourceVersion: true } } },
     });
-    if (!evidenceRelease || this.record(evidenceRelease.rollout).evaluationOnly !== true) {
+    const evidenceRollout = this.record(evidenceRelease?.rollout as Prisma.JsonValue);
+    const validEvidenceRelease = evidenceRelease && (
+      evidenceRollout.evaluationOnly === true ||
+      (evidenceRelease.status === 'active' && evidenceRollout.mode === 'shadow')
+    );
+    if (!validEvidenceRelease) {
       throw new BadRequestException('release_eval_evidence_invalid');
     }
     const evidenceFingerprint = createReleaseFingerprint(evidenceRelease.items);

@@ -110,6 +110,39 @@ describe('BrainReleaseService', () => {
     });
   });
 
+  it('accepts a passing active shadow release as evidence for the next canary stage', async () => {
+    const resourceVersion = {
+      id: 11,
+      checksum: 'a'.repeat(64),
+      resourceType: 'skill',
+      resourceKey: 'customer_query',
+      snapshot: {},
+    };
+    const items = [
+      { resourceVersionId: 11, resourceType: 'skill', resourceKey: 'customer_query', resourceVersion },
+    ];
+    const target = {
+      id: 21,
+      rollout: { mode: 'model', evaluationEvidenceReleaseId: 20 },
+      items,
+    };
+    const evidenceRelease = {
+      id: 20,
+      status: 'active',
+      rollout: { mode: 'shadow', stage: 'shadow' },
+      items,
+    };
+    const prisma = {
+      brainRelease: { findUnique: jest.fn().mockResolvedValue(evidenceRelease) },
+      brainEvalRun: { findFirst: jest.fn().mockResolvedValue({ summary: passingEvalSummary(items) }) },
+    };
+    const service = new BrainReleaseService(prisma as never);
+
+    await expect(
+      (service as any).assertReleaseEvalEvidence(prisma, target, createReleaseFingerprint(items)),
+    ).resolves.toBeUndefined();
+  });
+
   it('rejects inherited evaluation evidence when the production fingerprint differs', async () => {
     const targetVersion = { id: 11, checksum: 'a'.repeat(64), resourceType: 'skill', resourceKey: 'customer_query', snapshot: {} };
     const evidenceVersion = { ...targetVersion, checksum: 'b'.repeat(64) };
