@@ -244,6 +244,25 @@ export class BrainSemanticIntentCompilerService {
   }
 
   private buildGovernedDefinitionFallback(input: BrainSemanticIntentCompilerInput): BrainSemanticIntent | undefined {
+    if (isExplicitDimensionBreakdownQuestion(input.question)) {
+      const dimensionCapabilities = input.capabilitySummaries.filter((candidate) => {
+        if (!candidate.readOnly || !candidate.intents.includes('query')) return false;
+        return (candidate.definitionRefs ?? []).some((ref) => {
+          if (ref.definitionType !== 'dimension') return false;
+          const definition = input.ontologySnapshot?.dimensions.find(
+            (item) => item.definitionKey === ref.definitionKey,
+          );
+          return Boolean(definition) && definitionMatchesQuestion(
+            input.question,
+            definition!.name,
+            definition!.aliases,
+          );
+        });
+      });
+      if (dimensionCapabilities.length === 1) {
+        return this.buildGovernedCapabilityIntent(dimensionCapabilities[0], input, 'definition_match');
+      }
+    }
     if (
       !isExplicitScalarQuestion(input.question) ||
       isExplicitListQuestion(input.question) ||
@@ -1072,6 +1091,10 @@ function definitionMatchesQuestion(question: string, name: string, aliases: read
     .map(normalizeSemanticText)
     .filter((value) => value.length >= 2)
     .some((value) => normalizedQuestion.includes(value));
+}
+
+function isExplicitDimensionBreakdownQuestion(question: string): boolean {
+  return /拆分|构成|分布|占比|各(?:有|是|多少)|按.+(?:分|看)/.test(question);
 }
 
 function governedMetricKeyMatchesQuestion(question: string, definitionKey: string): boolean {

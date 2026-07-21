@@ -1266,6 +1266,53 @@ describe('BrainSemanticIntentCompilerService', () => {
     });
   });
 
+  it('uses the unique governed payment dimension when the model budget is unavailable', async () => {
+    const aiService = fakeAiService(async () => {
+      throw new AiStructuredOutputError('BUDGET_EXCEEDED', 'structured budget exhausted');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput('本月支付方式拆分');
+    input.ontologySnapshot = {
+      ...ontologySnapshot,
+      dimensions: [
+        ...ontologySnapshot.dimensions,
+        {
+          definitionKey: paymentMethodDimensionRef.definitionKey,
+          version: paymentMethodDimensionRef.definitionVersion,
+          definitionFingerprint: paymentMethodDimensionRef.definitionFingerprint,
+          sourceFingerprint: paymentMethodDimensionRef.sourceFingerprint,
+          dimensionKey: 'paymentMethod',
+          name: '支付方式',
+          aliases: ['收款渠道'],
+          domain: 'payment',
+          source: { model: 'Payment' },
+          permissions: ['core:finance:view'],
+        },
+      ],
+    };
+    input.capabilitySummaries = [{
+      key: 'finance_payment_breakdown',
+      name: '实收与储值流水拆分',
+      description: '实收查询、趋势与周期对比',
+      domains: ['finance', 'payment'],
+      intents: ['query', 'ranking', 'comparison', 'trend'],
+      examples: ['本月实收按支付方式怎么分'],
+      readOnly: true,
+      definitionRefs: [paidAmountMetricRef, paymentMethodDimensionRef],
+    }];
+
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      provider: 'governed_contract',
+      model: 'definition_match_fallback',
+      intent: {
+        intent: 'query',
+        answerShape: 'list',
+        dimensions: [expect.objectContaining({ definitionKey: 'dimension.paymentMethod' })],
+      },
+    });
+  });
+
   it('keeps an exact paid amount question scalar instead of adding payment grouping', async () => {
     const aiService = fakeAiService(async () => {
       throw new Error('model_should_not_be_called');
