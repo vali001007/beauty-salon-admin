@@ -19,6 +19,21 @@ function createTx(options: { product?: any; batches?: any[]; existingMovement?: 
 }
 
 describe('inventory stock deduction helper', () => {
+  it('persists the originating order item on stock movements', async () => {
+    const tx = createTx({ product: { id: 10, storeId: 1, currentStock: 10, unit: '瓶' } });
+
+    await deductStockItems(tx, {
+      storeId: 1,
+      movementType: 'sale_out',
+      source: { type: 'product_order', id: 100, no: 'PO100' },
+      items: [{ productId: 10, quantity: 1, orderItemId: 501 }],
+    });
+
+    expect(tx.stockMovement.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ orderItemId: 501 }),
+    });
+  });
+
   it('deducts outbound stock by FIFO batches before updating product stock', async () => {
     const tx = createTx({
       product: { id: 10, storeId: 1, currentStock: 10, unit: '瓶', costPrice: 12 },

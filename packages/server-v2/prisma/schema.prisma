@@ -146,6 +146,7 @@ model User {
   commissionRuleAssignments CommissionRuleAssignment[] @relation("CommissionRuleAssignmentUser")
   commissionRecords      CommissionRecord[]      @relation("CommissionRecordStaffUser")
   commissionSettlements  CommissionSettlement[]  @relation("CommissionSettlementStaffUser")
+  handledRefundRecords   RefundRecord[] @relation("RefundOperator")
   publishedLifecycleRules CustomerLifecycleRuleVersion[] @relation("LifecycleRulePublisher")
   createdLifecycleBusinessPlans LifecycleBusinessPlan[] @relation("LifecycleBusinessPlanCreator")
   supplySupplier         SupplySupplier?         @relation(fields: [supplySupplierId], references: [id], onDelete: SetNull)
@@ -430,6 +431,8 @@ model StockMovement {
   sourceNo     String?
   remark       String?
   operatorId   Int?
+  orderItemId  Int?
+  refundItemId Int?
   occurredAt   DateTime @default(now())
   createdAt    DateTime @default(now())
 
@@ -437,6 +440,8 @@ model StockMovement {
   product  Product     @relation(fields: [productId], references: [id])
   batch    StockBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
   operator User?       @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  orderItem OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
+  refundItem RefundItem? @relation(fields: [refundItemId], references: [id], onDelete: SetNull)
   lifecycleAttributionEvents LifecycleAttributionEvent[]
 
   @@index([storeId, productId, occurredAt])
@@ -444,6 +449,8 @@ model StockMovement {
   @@index([sourceType, sourceId])
   @@index([batchId])
   @@index([operatorId])
+  @@index([orderItemId])
+  @@index([refundItemId])
 }
 
 // ─── Projects & Services ─────────────────────────────────────────────────────
@@ -1405,6 +1412,8 @@ model OrderItem {
   commissionRecords CommissionRecord[]
   sourceCustomerCards CustomerCard[]    @relation("CustomerCardSourceOrderItem")
   cardUsageSourceRecords CardUsageRecord[] @relation("CardUsageSourceOrderItem")
+  refundItems        RefundItem[]
+  stockMovements     StockMovement[]
 
   @@index([orderId])
   @@index([itemType, itemId])
@@ -1430,20 +1439,52 @@ model PaymentRecord {
 }
 
 model RefundRecord {
-  id         Int       @id @default(autoincrement())
-  orderId    Int
-  refundNo   String    @unique
-  amount     Decimal
-  reason     String?
-  status     String
-  refundedAt DateTime?
-  createdAt  DateTime  @default(now())
+  id              Int       @id @default(autoincrement())
+  orderId         Int
+  refundNo        String    @unique
+  requestId       String    @unique
+  refundMode      String    @default("refund_only")
+  amount          Decimal
+  reason          String?
+  status          String
+  operatorId      Int?
+  inventoryStatus String    @default("not_required")
+  refundedAt      DateTime?
+  createdAt       DateTime  @default(now())
 
-  order ProductOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order    ProductOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  operator User?        @relation("RefundOperator", fields: [operatorId], references: [id], onDelete: SetNull)
+  items    RefundItem[]
 
   @@index([orderId])
+  @@index([requestId])
+  @@index([refundMode])
   @@index([status])
   @@index([refundedAt])
+}
+
+model RefundItem {
+  id              Int       @id @default(autoincrement())
+  refundId        Int
+  orderItemId     Int
+  itemType        String
+  itemId          Int?
+  quantity        Decimal
+  listAmount      Decimal   @default(0)
+  discountAmount  Decimal   @default(0)
+  refundAmount    Decimal
+  inventoryAction String    @default("none")
+  inventoryStatus String    @default("not_required")
+  payload         Json?
+  createdAt       DateTime  @default(now())
+
+  refund         RefundRecord    @relation(fields: [refundId], references: [id], onDelete: Cascade)
+  orderItem      OrderItem       @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  stockMovements StockMovement[]
+
+  @@index([refundId])
+  @@index([orderItemId])
+  @@index([itemType, itemId])
 }
 
 model Card {

@@ -9,6 +9,7 @@ export type StockDeductionItem = {
   productId: number;
   quantity: number;
   batchId?: number;
+  orderItemId?: number;
   unit?: string;
   remark?: string;
 };
@@ -87,6 +88,7 @@ async function createStockMovement(
     unit?: string;
     remark: string;
     operatorId?: number;
+    orderItemId?: number;
     unitCost?: number;
     costAmount?: number;
     costSource?: string;
@@ -110,6 +112,7 @@ async function createStockMovement(
       sourceId: params.source.id,
       sourceNo: params.source.no ?? undefined,
       operatorId: params.operatorId,
+      orderItemId: params.orderItemId,
       remark: params.remark,
     },
   });
@@ -179,6 +182,7 @@ export async function deductStockItem(tx: any, params: Omit<DeductStockItemsPara
         source: params.source,
         unit: params.item.unit,
         operatorId: params.operatorId,
+        orderItemId: params.item.orderItemId,
         ...cost,
         remark: baseRemark,
       }));
@@ -200,6 +204,7 @@ export async function deductStockItem(tx: any, params: Omit<DeductStockItemsPara
       source: params.source,
       unit: params.item.unit,
       operatorId: params.operatorId,
+      orderItemId: params.item.orderItemId,
       ...cost,
       remark: outbound ? appendNoBatchRemark(baseRemark) : baseRemark,
     }));

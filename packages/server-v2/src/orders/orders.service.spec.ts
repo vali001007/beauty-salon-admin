@@ -107,6 +107,19 @@ describe('OrdersService marketing page attribution', () => {
       jest.useRealTimers();
     }
   });
+
+  it('only attributes orders to touches that were actually sent or delivered', async () => {
+    const tx: any = {
+      marketingAttribution: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      marketingAutomationTouch: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
+    };
+
+    await (service as any).applyMarketingAttribution(tx, { id: 88, customerId: 7 }, 680);
+
+    expect(tx.marketingAutomationTouch.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ status: { in: ['sent', 'delivered', 'opened', 'clicked', 'converted'] } }),
+    }));
+  });
 });
 
 describe('OrdersService member balance allocation', () => {
@@ -656,6 +669,75 @@ describe('OrdersService member card recharge', () => {
 });
 
 describe('OrdersService refunds', () => {
+  it('runs every checkout-group refund in one transaction', async () => {
+    const tx = { token: 'refund-group-tx' };
+    const prisma: any = { $transaction: jest.fn(async (callback: any) => callback(tx)) };
+    const commissionService = { reverseOrderCommissions: jest.fn(), generateDailySettlement: jest.fn() };
+    const service = new OrdersService(prisma as PrismaService, commissionService as any);
+    const refundSpy = jest.spyOn(service, 'refundOrder').mockResolvedValue({ id: 1, storeId: 1, status: 'partially_refunded' } as any);
+
+    await service.refundCheckoutGroup('GROUP-1', {
+      refunds: [
+        { orderId: 1, requestId: 'r1', refundMode: 'refund_only', reason: '组退款', items: [{ orderItemId: 11, quantity: 1 }] },
+        { orderId: 2, requestId: 'r2', refundMode: 'refund_only', reason: '组退款', items: [{ orderItemId: 21, quantity: 1 }] },
+      ],
+    } as any);
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(refundSpy).toHaveBeenNthCalledWith(1, 1, expect.any(Object), tx);
+    expect(refundSpy).toHaveBeenNthCalledWith(2, 2, expect.any(Object), tx);
+  });
+
+  it('marks a partially refunded order as partially_refunded and keeps the remaining amount', async () => {
+    const order = {
+      id: 601,
+      orderNo: 'PO601',
+      customerId: null,
+      storeId: 1,
+      totalAmount: 100,
+      netAmount: 100,
+      status: 'completed',
+      createdAt: new Date('2026-07-12T01:00:00.000Z'),
+      orderItems: [{ id: 9101, itemType: 'product', itemId: 8, name: '精华', quantity: 2, listAmount: 100, totalDiscountAmount: 0, netAmount: 100, stockMovements: [] }],
+      paymentRecords: [{ amount: 100, status: 'success', paidAt: new Date('2026-07-12T01:00:00.000Z') }],
+      refundRecords: [],
+      balanceTransactions: [],
+      marketingAttributions: [],
+      recommendationEvents: [],
+    };
+    const tx: any = {
+      refundRecord: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 71, refundNo: 'REF71', requestId: 'req-71', refundMode: 'refund_only', amount: 50, reason: '部分退款', status: 'success', refundedAt: new Date() }),
+      },
+      refundItem: { create: jest.fn().mockResolvedValue({ id: 81, refundId: 71, orderItemId: 9101, itemType: 'product', itemId: 8, quantity: 1, refundAmount: 50 }) },
+      productOrder: {
+        findUnique: jest.fn().mockResolvedValue(order),
+        update: jest.fn().mockResolvedValue({ ...order, status: 'partially_refunded' }),
+      },
+      customerBalanceTransaction: { findMany: jest.fn().mockResolvedValue([]) },
+      stockMovement: { findFirst: jest.fn(), findMany: jest.fn() },
+    };
+    const prisma: any = {
+      productOrder: { findUnique: jest.fn().mockResolvedValue(order) },
+      refundRecord: { findUnique: jest.fn().mockResolvedValue(null) },
+      $transaction: jest.fn(async (callback: any) => callback(tx)),
+    };
+    const commissionService = { reverseOrderCommissions: jest.fn(), generateDailySettlement: jest.fn() };
+    const service = new OrdersService(prisma as PrismaService, commissionService as any);
+    jest.spyOn(service as any, 'reverseMarketingAttribution').mockResolvedValue(undefined);
+
+    const result = await service.refundOrder(601, {
+      requestId: 'req-71',
+      refundMode: 'refund_only',
+      reason: '部分退款',
+      items: [{ orderItemId: 9101, quantity: 1 }],
+    } as any);
+
+    expect(tx.productOrder.update).toHaveBeenCalledWith({ where: { id: 601 }, data: expect.objectContaining({ status: 'partially_refunded' }) });
+    expect(result.remainingRefundableAmount).toBe(50);
+  });
+
   it('refreshes daily settlement after a successful product order refund', async () => {
     const createdAt = new Date('2026-06-23T05:00:00.000Z');
     const order = {
@@ -684,7 +766,7 @@ describe('OrdersService refunds', () => {
       refundRecord: { create: jest.fn() },
       productOrder: {
         update: jest.fn().mockResolvedValue(refundedOrder),
-        findUnique: jest.fn().mockResolvedValue(refundedOrder),
+        findUnique: jest.fn().mockResolvedValueOnce(order).mockResolvedValueOnce(refundedOrder),
       },
       customer: { update: jest.fn() },
       customerBalanceTransaction: {
