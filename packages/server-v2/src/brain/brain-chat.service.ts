@@ -1736,7 +1736,14 @@ export class BrainChatService {
       cards,
     );
     const customerFactsCard = this.findDeterministicCustomerFactsCard(input.dto.message, validation.intent, cards);
-    const deterministicCapabilityCard = governedExampleCard ?? pendingCapabilityCard ?? customerFactsCard;
+    const semanticContractCard = this.findDeterministicSemanticContractCard(
+      validation.intent,
+      input.dto.message,
+      cards,
+      catalogDiscovery.topK,
+    );
+    const deterministicCapabilityCard =
+      governedExampleCard ?? pendingCapabilityCard ?? customerFactsCard ?? semanticContractCard;
     if (validation.intent.intent === 'workflow' && !deterministicCapabilityCard) {
       return this.buildModelSupervisorAnswer({
         context: modelRequestContext,
@@ -1763,7 +1770,9 @@ export class BrainChatService {
                   ? 'examples'
                   : pendingCapabilityCard
                     ? 'pending_clarification'
-                    : 'customer_identity',
+                    : customerFactsCard
+                      ? 'customer_identity'
+                      : 'semantic_contract',
               ],
             },
           ],
@@ -1773,7 +1782,9 @@ export class BrainChatService {
             ? 'governed_example_selected'
             : pendingCapabilityCard
               ? 'pending_clarification_capability_reused'
-              : 'specific_customer_fact_selected',
+              : customerFactsCard
+                ? 'specific_customer_fact_selected'
+                : 'semantic_contract_selected',
         }
       : this.capabilityRetriever!.retrieve({
           intent: validation.intent,
@@ -3186,6 +3197,55 @@ export class BrainChatService {
     const unique = new Map(ordered.map((card) => [card.key, card]));
     if (unique.size) return [...unique.values()].slice(0, 12);
     return cards.slice(0, 12);
+  }
+
+  private findDeterministicSemanticContractCard(
+    intent: BrainSemanticIntent,
+    question: string,
+    cards: readonly BrainCapabilityCard[],
+    catalogTopK: readonly BrainCapabilityRankedCandidate[],
+  ): BrainCapabilityCard | undefined {
+    if (!['query', 'ranking', 'comparison', 'trend'].includes(intent.intent) || intent.metrics.length === 0) {
+      return undefined;
+    }
+    const requestedKeys = new Set([
+      ...intent.metrics.map((ref) => ref.definitionKey),
+      ...intent.dimensions.map((ref) => ref.definitionKey),
+      ...intent.entities.flatMap((entity) => (entity.definitionRef ? [entity.definitionRef.definitionKey] : [])),
+    ]);
+    if (!requestedKeys.size) return undefined;
+    const catalogScores = new Map(catalogTopK.map((candidate) => [candidate.card.key, candidate.score]));
+    const candidates = cards
+      .filter(
+        (card) =>
+          card.readOnly &&
+          !card.sideEffect &&
+          card.grounding === 'semantic_query' &&
+          card.intents.includes(intent.intent) &&
+          findCapabilityContractMissingDefinitions(intent, card, question).length === 0,
+      )
+      .map((card) => ({
+        card,
+        extraDefinitions: card.definitionRefs.filter((ref) => !requestedKeys.has(ref.definitionKey)).length,
+        catalogScore: catalogScores.get(card.key) ?? 0,
+      }))
+      .sort(
+        (left, right) =>
+          left.extraDefinitions - right.extraDefinitions ||
+          right.catalogScore - left.catalogScore ||
+          left.card.key.localeCompare(right.card.key),
+      );
+    const best = candidates[0];
+    if (!best) return undefined;
+    const second = candidates[1];
+    if (
+      second &&
+      best.extraDefinitions === second.extraDefinitions &&
+      best.catalogScore - second.catalogScore < 0.05
+    ) {
+      return undefined;
+    }
+    return best.card;
   }
 
   private modelEntityTypeLabel(entityType: string): string {

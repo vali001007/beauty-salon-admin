@@ -585,6 +585,55 @@ describe('BrainChatService', () => {
     expect(result.map((card: any) => card.key)).toEqual([selected.key, cards[4]!.key]);
   });
 
+  it('selects the narrow semantic-query capability from structured metric contracts before supervisor planning', () => {
+    const { service } = createService();
+    const productRef = {
+      definitionType: 'entity',
+      definitionKey: 'entity.product',
+      definitionVersion: 1,
+      definitionFingerprint: 'a'.repeat(64),
+      sourceFingerprint: 'b'.repeat(64),
+    };
+    const metric = {
+      ...productRef,
+      definitionType: 'metric',
+      definitionKey: 'metric.stock_risk_score',
+    };
+    const dimension = {
+      ...productRef,
+      definitionType: 'dimension',
+      definitionKey: 'dimension.productName',
+    };
+    const riskCard = {
+      ...controlledDomainCard('inventory_risk_ranking'),
+      grounding: 'semantic_query',
+      intents: ['query', 'ranking'],
+      definitionRefs: [productRef, metric, dimension],
+    };
+    const overviewCard = {
+      ...controlledDomainCard('inventory_operations_overview'),
+      grounding: 'semantic_query',
+      intents: ['query'],
+      definitionRefs: [productRef, metric, dimension, { ...dimension, definitionKey: 'dimension.projectName' }],
+    };
+    const selected = (service as any).findDeterministicSemanticContractCard(
+      {
+        intent: 'query',
+        metrics: [metric],
+        dimensions: [dimension],
+        entities: [{ entityType: 'product', mention: '商品', source: 'system', confidence: 1, definitionRef: productRef }],
+      },
+      '缺货的产品有哪些',
+      [overviewCard, riskCard],
+      [
+        { card: overviewCard, score: 0.51, matchedFields: ['examples'] },
+        { card: riskCard, score: 0.49, matchedFields: ['examples'] },
+      ],
+    );
+
+    expect(selected?.key).toBe('inventory_risk_ranking');
+  });
+
   it('resolves the top employee result reference before disclosing the missing notification capability', () => {
     const { service } = createService();
     const resultSets = new BrainResultReferenceService().buildResultSets({

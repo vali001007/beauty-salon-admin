@@ -475,6 +475,7 @@ async function executeCase(input: {
   const runIds: number[] = [];
   let conversationId: number | undefined;
   let completedTurns = 0;
+  const turnResults: Array<{ status: string; answer: string; failureCode?: string }> = [];
   const context = {
     userId: input.userId,
     storeId: 6,
@@ -504,6 +505,11 @@ async function executeCase(input: {
       status = response.status;
       runIds.push(response.runId);
       completedTurns += 1;
+      turnResults.push({
+        status: response.status,
+        answer: response.answer,
+        ...(response.failureCode ? { failureCode: response.failureCode } : {}),
+      });
     }
   } catch (cause) {
     error = cause instanceof Error ? cause.message : 'eval_case_failed';
@@ -518,6 +524,7 @@ async function executeCase(input: {
     blocks,
     error,
     completedTurns,
+    turnResults,
   });
   const judge = await judgeCase(input.ai, input.item, answer, citations, deterministic, error);
   return {
@@ -528,6 +535,7 @@ async function executeCase(input: {
     error,
     latencyMs: Date.now() - started,
     completedTurns,
+    turnResults,
     conversationId,
     runIds,
     evidence,
