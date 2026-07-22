@@ -18,6 +18,7 @@ describe('MarketingSchedulerService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    delete process.env.MARKETING_SCHEDULER_ENABLED;
     flags.deliveryJobEngine = false;
     flags.isEnabledForStore.mockImplementation((flag: string) => Boolean(flags[flag]));
     const module = await Test.createTestingModule({
@@ -110,5 +111,24 @@ describe('MarketingSchedulerService', () => {
     expect(recommendationOrchestrator.refreshForStore).toHaveBeenCalledTimes(2);
     expect(recommendationOrchestrator.refreshForStore).toHaveBeenCalledWith(6);
     expect(recommendationOrchestrator.refreshForStore).toHaveBeenCalledWith(8);
+  });
+
+  it('does not run recurring recommendation refreshes in local or test environments by default', async () => {
+    await expect(service.runScheduledRecommendationRefresh()).resolves.toEqual({
+      skipped: true,
+      reason: 'scheduler_disabled',
+    });
+
+    expect(prisma.store.findMany).not.toHaveBeenCalled();
+  });
+
+  it('runs recurring recommendation refreshes only when explicitly enabled outside production', async () => {
+    process.env.MARKETING_SCHEDULER_ENABLED = 'true';
+    prisma.store.findMany.mockResolvedValue([{ id: 6 }]);
+    recommendationOrchestrator.refreshForStore.mockResolvedValue({});
+
+    await service.runScheduledRecommendationRefresh();
+
+    expect(recommendationOrchestrator.refreshForStore).toHaveBeenCalledWith(6);
   });
 });
