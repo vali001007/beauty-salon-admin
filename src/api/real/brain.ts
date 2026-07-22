@@ -46,7 +46,7 @@ import type { AxiosRequestConfig } from 'axios';
 import apiClient from '../client';
 import { useStoreStore } from '@/stores/storeStore';
 
-const activeGovernanceReads = new Set<ReturnType<typeof globalThis.AbortController>>();
+const activeGovernanceReads = new Set<InstanceType<typeof globalThis.AbortController>>();
 
 function governanceGet<T>(url: string, config: AxiosRequestConfig = {}): Promise<T> {
   const controller = new globalThis.AbortController();

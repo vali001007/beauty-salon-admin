@@ -60,7 +60,7 @@ describe('BrainRoleGovernance', () => {
     await userEvent.click(await screen.findByRole('button', { name: '配置店长经营专家' }));
 
     expect(screen.getByText('配置角色 · store_manager')).toBeInTheDocument();
-    expect((screen.getByLabelText('角色配置 JSON') as { value: string }).value).toContain('query_margin');
+    expect((screen.getByLabelText('角色配置 JSON') as unknown as { value: string }).value).toContain('query_margin');
 
     await userEvent.click(screen.getByRole('button', { name: '保存新版本' }));
 
