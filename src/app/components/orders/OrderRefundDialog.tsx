@@ -27,6 +27,7 @@ export function OrderRefundDialog({ orderId, open, onOpenChange, onSuccess }: Pr
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [reason, setReason] = useState('客户申请退款');
   const [loading, setLoading] = useState(false);
+  const [sessionRequestId, setSessionRequestId] = useState('');
 
   useEffect(() => {
     if (!open || !orderId) return;
@@ -34,6 +35,7 @@ export function OrderRefundDialog({ orderId, open, onOpenChange, onSuccess }: Pr
     setSelected({});
     setQuantities({});
     setMode('refund_only');
+    setSessionRequestId(requestId());
     getProductOrderRefundPreview(orderId)
       .then(setPreview)
       .catch((error) => toast.error(error instanceof Error ? error.message : '退款预览加载失败'));
@@ -58,7 +60,7 @@ export function OrderRefundDialog({ orderId, open, onOpenChange, onSuccess }: Pr
     }
     setLoading(true);
     try {
-      await refundProductOrder(orderId, { requestId: requestId(), refundMode: mode, reason: reason.trim() || '客户申请退款', items: refundItems });
+      await refundProductOrder(orderId, { requestId: sessionRequestId || requestId(), refundMode: mode, reason: reason.trim() || '客户申请退款', items: refundItems });
       toast.success(amount < preview.remainingRefundableAmount ? '部分退款成功' : '退款成功');
       await onSuccess();
       onOpenChange(false);
