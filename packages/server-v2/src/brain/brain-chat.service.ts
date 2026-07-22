@@ -41,7 +41,11 @@ import { BrainSemanticIntentValidatorService } from './cognition/brain-semantic-
 import { BrainIntentCompletenessPolicyService } from './cognition/brain-intent-completeness-policy.service.js';
 import { BrainOntologyRuntimeService } from './cognition/brain-ontology-runtime.service.js';
 import { BRAIN_SEMANTIC_ANSWER_SHAPES, BRAIN_SEMANTIC_INTENTS } from './cognition/brain-semantic-intent.types.js';
-import type { BrainDefinitionRef, BrainSemanticIntent } from './cognition/brain-semantic-intent.types.js';
+import type {
+  BrainDefinitionRef,
+  BrainSemanticEntityReference,
+  BrainSemanticIntent,
+} from './cognition/brain-semantic-intent.types.js';
 import type {
   BusinessDefinitionBase,
   ProductionReadyBusinessDefinitionSnapshot,
@@ -1232,10 +1236,32 @@ export class BrainChatService {
       });
       return referencePreflight;
     }
+    const controlledReferenceAnswer = await this.answerFromVerifiedConversationReferenceCapability({
+      question: input.dto.message,
+      conversationSlots: verifiedConversationSlots,
+      cards,
+      context: modelRequestContext,
+      runId: input.runId,
+      modelMetadata,
+    });
+    if (controlledReferenceAnswer) {
+      await this.recordModelTrace({
+        runId: input.runId,
+        stepKey: 'verified_result_reference_capability',
+        layer: 'execution',
+        status: controlledReferenceAnswer.status === 'completed' ? 'completed' : 'failed',
+        output: this.toJsonValue({
+          capabilityKey: controlledReferenceAnswer.modelMetadata?.capabilityKey ?? null,
+          resultRef: controlledReferenceAnswer.adapterMetadata?.resolvedResultRef ?? null,
+        }),
+      });
+      return controlledReferenceAnswer;
+    }
     const compilerConversationSlots = this.resultReferenceService.projectConversationSlotsForCompiler(
       input.dto.message,
       verifiedConversationSlots,
     );
+    const compilerCards = this.modelCompilerCapabilityCards(cards, catalogDiscovery.topK, catalogDiscovery.selected);
     const compilerInput = {
       question: input.dto.message,
       deadlineAt: input.deadlineAt,
@@ -1248,7 +1274,7 @@ export class BrainChatService {
       ontologyCandidates: this.modelOntologyCandidates(snapshot),
       metricRefs: snapshot.metrics.map((metric) => this.modelDefinitionRef('metric', metric)),
       dimensionRefs: snapshot.dimensions.map((dimension) => this.modelDefinitionRef('dimension', dimension)),
-      capabilitySummaries: cards.map((card) => ({
+      capabilitySummaries: compilerCards.map((card) => ({
         key: card.key,
         name: card.name,
         description: card.description,
@@ -3001,6 +3027,165 @@ export class BrainChatService {
       },
       modelMetadata: input.modelMetadata,
     };
+  }
+
+  private async answerFromVerifiedConversationReferenceCapability(input: {
+    question: string;
+    conversationSlots: Record<string, unknown>;
+    cards: readonly BrainCapabilityCard[];
+    context: BrainRequestContext;
+    runId: number;
+    modelMetadata: BrainModelMetadata;
+  }): Promise<BrainChatAnswer | undefined> {
+    if (!this.capabilityExecutorRegistry) return undefined;
+    const resultSets = this.modelContextResultSets(input.conversationSlots);
+    if (!this.resultReferenceService.isFollowUpReferenceQuestion(input.question, resultSets)) return undefined;
+    const resolved = this.resultReferenceService.resolveReference({ question: input.question, resultSets });
+    if (resolved?.kind !== 'resolved' || !resolved.reference) return undefined;
+
+    const capabilityKey = this.controlledReferenceCapabilityKey(input.question, resolved.reference);
+    if (!capabilityKey) return undefined;
+    const card = input.cards.find((candidate) => candidate.key === capabilityKey);
+    if (!card || !card.readOnly || card.sideEffect || card.grounding !== 'domain_service') return undefined;
+    const entity = this.resultReferenceService.toConversationEntity(resolved.reference);
+    if (!entity) return undefined;
+
+    const answerShape = capabilityKey === 'marketing_message_draft' ? 'draft' : 'list';
+    try {
+      const execution = await this.capabilityExecutorRegistry.execute({
+        card,
+        context: input.context,
+        runId: input.runId,
+        question: input.question,
+        answerShape,
+        args: {
+          objective: input.question,
+          entities: [entity],
+          metrics: [],
+          dimensions: [],
+          filters: [],
+          orderBy: [],
+          limit: 1,
+        },
+      });
+      if (execution.status !== 'completed') {
+        return this.modelFailure(
+          'CAPABILITY_EXECUTION_FAILED',
+          this.modelMetadata('execute', {
+            ...input.modelMetadata,
+            capabilityKey: card.key,
+            capabilityVersion: card.version,
+          }),
+        );
+      }
+      const resultCitation = {
+        sourceType: 'brain_result_ref',
+        sourceId: resolved.reference.refId,
+        label: `上轮受控结果：${resolved.reference.mention}`,
+      };
+      const grounded =
+        execution.grounding === 'none'
+          ? undefined
+          : this.groundedAnswerComposer?.composeDomainAnswer(
+              execution,
+              this.controlledReferenceIntent(input.question, entity, capabilityKey),
+            );
+      return {
+        status: 'completed',
+        answer: grounded?.answer ?? execution.answer,
+        citations: [...(grounded?.citations ?? execution.citations), resultCitation],
+        suggestedActions: grounded?.suggestedActions ?? execution.suggestedActions ?? [],
+        blocks: grounded?.blocks ?? execution.blocks,
+        grounding: execution.grounding,
+        adapterMetadata: {
+          ...(execution.metadata ?? {}),
+          decisionCode: 'verified_result_reference_capability_executed',
+          resolvedResultRef: resolved.reference,
+          sourceResultSet: resolved.set,
+          completion: { status: 'complete', missingCriteria: [], recoverable: false },
+        },
+        modelMetadata: this.modelMetadata('execute', {
+          ...input.modelMetadata,
+          capabilityKey: card.key,
+          capabilityVersion: card.version,
+        }),
+        modelContextIntent: this.controlledReferenceIntent(input.question, entity, capabilityKey),
+        modelContextResultSets: resultSets,
+      };
+    } catch (error) {
+      await this.recordModelFailure({
+        runId: input.runId,
+        stepKey: 'verified_result_reference_capability',
+        layer: 'execution',
+        stage: 'execute',
+        code: 'CAPABILITY_EXECUTION_FAILED',
+        diagnosticCode: this.modelDiagnosticCode(error),
+        error,
+      });
+      return this.modelFailure(
+        'CAPABILITY_EXECUTION_FAILED',
+        this.modelMetadata('execute', {
+          ...input.modelMetadata,
+          capabilityKey: card.key,
+          capabilityVersion: card.version,
+        }),
+      );
+    }
+  }
+
+  private controlledReferenceCapabilityKey(
+    question: string,
+    reference: { entityType: string },
+  ): 'marketing_message_draft' | 'inventory_procurement_advice' | undefined {
+    if (reference.entityType === 'customer' && /(?:怎么|如何|怎样)?.*(?:召回|唤回|挽回)/.test(question)) {
+      return 'marketing_message_draft';
+    }
+    if (reference.entityType === 'product' && /(?:补多少|补货|采购|进货|备货)/.test(question)) {
+      return 'inventory_procurement_advice';
+    }
+    return undefined;
+  }
+
+  private controlledReferenceIntent(
+    question: string,
+    entity: BrainSemanticEntityReference,
+    capabilityKey: 'marketing_message_draft' | 'inventory_procurement_advice',
+  ): BrainSemanticIntent {
+    const marketing = capabilityKey === 'marketing_message_draft';
+    return {
+      schemaVersion: '1.0',
+      objective: question,
+      domains: marketing ? ['customer', 'marketing'] : ['inventory', 'procurement'],
+      intent: marketing ? 'draft' : 'recommendation',
+      entities: [entity],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      limit: 1,
+      answerShape: marketing ? 'draft' : 'list',
+      successCriteria: marketing
+        ? ['返回可编辑召回草稿', '不发送消息']
+        : ['仅返回所选商品的建议补货量'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [`对象来自服务端验证的上轮结果引用 ${entity.entityKey ?? entity.mention}。`],
+      confidence: 1,
+      decisionSummary: `使用已验证结果引用执行 ${capabilityKey}`,
+    };
+  }
+
+  private modelCompilerCapabilityCards(
+    cards: readonly BrainCapabilityCard[],
+    topK: readonly BrainCapabilityRankedCandidate[],
+    selected?: BrainCapabilityCard,
+  ): readonly BrainCapabilityCard[] {
+    const ordered = [selected, ...topK.map((candidate) => candidate.card)].filter(
+      (card): card is BrainCapabilityCard => Boolean(card),
+    );
+    const unique = new Map(ordered.map((card) => [card.key, card]));
+    if (unique.size) return [...unique.values()].slice(0, 12);
+    return cards.slice(0, 12);
   }
 
   private modelEntityTypeLabel(entityType: string): string {

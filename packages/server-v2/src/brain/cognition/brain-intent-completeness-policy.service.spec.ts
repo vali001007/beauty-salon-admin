@@ -71,6 +71,67 @@ describe('BrainIntentCompletenessPolicyService', () => {
     expect(result.missingSlots).toContain('objective');
   });
 
+  it('clarifies a structurally generic business assessment even when catalog discovery selected a card', () => {
+    const result = service.assess({
+      intent: baseIntent({ domains: ['finance', 'customer', 'reservation'], metrics: [], entities: [] }),
+      question: '昨天怎么样',
+      snapshot: snapshot as never,
+      catalogAmbiguous: false,
+      conversationSlots: {},
+    });
+
+    expect(result).toMatchObject({ intent: 'clarify', answerShape: 'clarification' });
+    expect(result.missingSlots).toContain('objective');
+  });
+
+  it('finds the governed staff performance family when only one published metric owns the generic alias', () => {
+    const familySnapshot = {
+      ...snapshot,
+      metrics: [
+        metric('staff_service_revenue', '员工服务收入', ['业绩']),
+        metric('staff_sales_revenue', '员工销售业绩', ['销售额']),
+        metric('staff_service_count', '员工服务次数', ['服务量']),
+        metric('staff_commission_amount', '员工提成', ['提成金额']),
+      ],
+    };
+    const result = service.assess({
+      intent: baseIntent({
+        objective: '查询唐伊业绩',
+        domains: ['beautician'],
+        entities: [{ entityType: 'beautician', entityKey: '41', mention: '唐伊', source: 'user', confidence: 1 }],
+        metrics: [metricRef('staff_service_revenue')],
+      }),
+      question: '看下唐伊的业绩',
+      snapshot: familySnapshot as never,
+      catalogAmbiguous: false,
+      conversationSlots: {},
+    });
+
+    expect(result.missingSlots).toContain('metric');
+    expect(result.ambiguities[0]?.candidates).toEqual(
+      expect.arrayContaining(['员工服务收入', '员工销售业绩', '员工服务次数', '员工提成']),
+    );
+  });
+
+  it.each(['看下唐伊的服务收入', '看下唐伊的销售业绩', '看下唐伊的服务次数', '看下唐伊的提成'])(
+    'does not clarify a specific staff performance metric: %s',
+    (question) => {
+      const result = service.assess({
+        intent: baseIntent({
+          domains: ['beautician'],
+          entities: [{ entityType: 'beautician', entityKey: '41', mention: '唐伊', source: 'user', confidence: 1 }],
+          metrics: [metricRef('staff_service_revenue')],
+        }),
+        question,
+        snapshot: snapshot as never,
+        catalogAmbiguous: false,
+        conversationSlots: {},
+      });
+
+      expect(result.missingSlots).not.toContain('metric');
+    },
+  );
+
   it.each(['昨天实收多少', '最近30天新客有多少'])(
     'does not over-clarify a scoped business question: %s',
     (question) => {

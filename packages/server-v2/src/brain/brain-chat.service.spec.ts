@@ -474,6 +474,117 @@ describe('BrainChatService', () => {
     expect(answer.answer).toContain('数量确定为 0');
   });
 
+  it('executes a governed recall draft directly for a verified customer result reference', async () => {
+    const { service, modelPipeline } = createService({ modelPipeline: {} });
+    const resultSets = new BrainResultReferenceService().buildResultSets({
+      runId: 87,
+      conversationId: 12,
+      userId: 9,
+      storeId: 2,
+      adapterMetadata: {
+        mappingOutputs: {
+          customerRows: [
+            { customerId: 501, customerName: '林女士' },
+            { customerId: 502, customerName: '周女士' },
+          ],
+        },
+      },
+    });
+    modelPipeline!.executor.execute.mockResolvedValue({
+      status: 'completed',
+      answer: '针对林女士的召回草稿',
+      citations: [{ sourceType: 'skill', sourceId: 'marketing_draft_customer_recall' }],
+      grounding: 'template_skill',
+      metadata: { deliveryStatus: 'draft_only' },
+    });
+
+    const answer = await (service as any).answerFromVerifiedConversationReferenceCapability({
+      question: '第一个怎么召回',
+      conversationSlots: { modelContext: { resultSets } },
+      cards: [controlledDomainCard('marketing_message_draft')],
+      context,
+      runId: 88,
+      modelMetadata: { cognitionMode: 'model', modelStage: 'prepare', failureCode: null },
+    });
+
+    expect(answer).toMatchObject({
+      status: 'completed',
+      adapterMetadata: {
+        decisionCode: 'verified_result_reference_capability_executed',
+        resolvedResultRef: { entityType: 'customer', entityKey: '501', mention: '林女士' },
+      },
+    });
+    expect(modelPipeline!.executor.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        card: expect.objectContaining({ key: 'marketing_message_draft' }),
+        args: expect.objectContaining({
+          entities: [expect.objectContaining({ entityKey: '501', mention: '林女士', source: 'conversation' })],
+        }),
+      }),
+    );
+  });
+
+  it('executes procurement advice only for the verified product selected from the prior result', async () => {
+    const { service, modelPipeline } = createService({ modelPipeline: {} });
+    const resultSets = new BrainResultReferenceService().buildResultSets({
+      runId: 89,
+      conversationId: 12,
+      userId: 9,
+      storeId: 2,
+      adapterMetadata: {
+        mappingOutputs: {
+          resultRows: [
+            { productId: 31, productName: '补水面膜' },
+            { productId: 32, productName: '氨基酸洁面乳' },
+          ],
+        },
+      },
+    });
+    modelPipeline!.executor.execute.mockResolvedValue({
+      status: 'completed',
+      answer: '补水面膜建议采购 8 件',
+      citations: [{ sourceType: 'db_skill', sourceId: 'capability_inventory_procurement_advice' }],
+      grounding: 'db_skill',
+      metadata: { suggestionCount: 1 },
+    });
+
+    const answer = await (service as any).answerFromVerifiedConversationReferenceCapability({
+      question: '其中最急的先补多少',
+      conversationSlots: { modelContext: { resultSets } },
+      cards: [controlledDomainCard('inventory_procurement_advice')],
+      context,
+      runId: 90,
+      modelMetadata: { cognitionMode: 'model', modelStage: 'prepare', failureCode: null },
+    });
+
+    expect(answer).toMatchObject({
+      status: 'completed',
+      adapterMetadata: {
+        decisionCode: 'verified_result_reference_capability_executed',
+        resolvedResultRef: { entityType: 'product', entityKey: '31', mention: '补水面膜' },
+      },
+    });
+    expect(modelPipeline!.executor.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ args: expect.objectContaining({ limit: 1 }) }),
+    );
+  });
+
+  it('bounds compiler capabilities to catalog top candidates and preserves the selected card first', () => {
+    const { service } = createService();
+    const cards = Array.from({ length: 20 }, (_, index) => controlledDomainCard(`capability_${index + 1}`));
+    const selected = cards[15]!;
+    const result = (service as any).modelCompilerCapabilityCards(
+      cards,
+      [
+        { card: cards[4], score: 0.9, matchedFields: ['name'] },
+        { card: selected, score: 0.8, matchedFields: ['description'] },
+      ],
+      selected,
+    );
+
+    expect(result.map((card: any) => card.key)).toEqual([selected.key, cards[4]!.key]);
+  });
+
   it('resolves the top employee result reference before disclosing the missing notification capability', () => {
     const { service } = createService();
     const resultSets = new BrainResultReferenceService().buildResultSets({
@@ -7065,4 +7176,32 @@ describe('findUnresolvedBusinessDefinitionRequirements', () => {
 
 function definitionRef(definitionKey: string) {
   return { definitionKey, definitionType: definitionKey.split('.')[0] };
+}
+
+function controlledDomainCard(key: string) {
+  return {
+    key,
+    version: 1,
+    name: key,
+    description: key,
+    domains: ['customer'],
+    intents: ['query'],
+    inputSchema: {},
+    outputSchema: {},
+    requiredPermissions: [],
+    allowedRoles: [],
+    readOnly: true,
+    sideEffect: false,
+    riskLevel: 'low',
+    requiresConfirmation: false,
+    idempotency: 'not_applicable',
+    timeoutMs: 5_000,
+    grounding: 'domain_service',
+    examples: [],
+    sourceFingerprint: 'c'.repeat(64),
+    definitionRefs: [],
+    synonyms: [],
+    negativeExamples: [],
+    successSchema: {},
+  };
 }

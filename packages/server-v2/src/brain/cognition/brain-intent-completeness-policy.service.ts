@@ -69,12 +69,12 @@ export class BrainIntentCompletenessPolicyService {
     }
 
     if (
-      input.catalogAmbiguous &&
       ['query', 'diagnosis'].includes(input.intent.intent) &&
       input.intent.metrics.length === 0 &&
       input.intent.entities.length === 0 &&
       input.intent.dimensions.length === 0 &&
-      input.intent.domains.length > 1
+      input.intent.domains.length > 1 &&
+      this.isGenericBusinessAssessment(input.question)
     ) {
       return this.withClarification(input.intent, {
         intent: 'clarify',
@@ -122,6 +122,7 @@ export class BrainIntentCompletenessPolicyService {
   ): string[] {
     const normalizedQuestion = this.normalizeMetricQuestion(question, intent);
     if (normalizedQuestion.length < 2) return [];
+    if (/(?:服务收入|服务业绩|销售业绩|销售额|服务次数|服务量|提成)/.test(normalizedQuestion)) return [];
     const matched = snapshot.metrics.filter((metric) =>
       [metric.name, ...(metric.aliases ?? [])]
         .map((alias) => this.normalize(alias))
@@ -133,8 +134,35 @@ export class BrainIntentCompletenessPolicyService {
             normalizedQuestion.endsWith(alias),
         ),
     );
-    if (matched.length < 2) return [];
-    return [...new Set(matched.map((metric) => metric.name.trim()).filter(Boolean))].slice(0, 6);
+    if (matched.length > 1) {
+      return [...new Set(matched.map((metric) => metric.name.trim()).filter(Boolean))].slice(0, 6);
+    }
+
+    if (!this.isGenericStaffPerformanceQuestion(normalizedQuestion)) return [];
+    const performanceFamily = snapshot.metrics.filter((metric) => this.staffPerformanceMetricCategory(metric));
+    const categories = new Set(performanceFamily.map((metric) => this.staffPerformanceMetricCategory(metric)));
+    if (performanceFamily.length < 2 || categories.size < 2) return [];
+    return [...new Set(performanceFamily.map((metric) => metric.name.trim()).filter(Boolean))].slice(0, 6);
+  }
+
+  private isGenericStaffPerformanceQuestion(normalizedQuestion: string): boolean {
+    if (!/(?:业绩|绩效)/.test(normalizedQuestion)) return false;
+    return !/(?:服务收入|服务业绩|销售业绩|销售额|服务次数|服务量|提成)/.test(normalizedQuestion);
+  }
+
+  private staffPerformanceMetricCategory(
+    metric: ProductionReadyBusinessDefinitionSnapshot['metrics'][number],
+  ): 'service_revenue' | 'sales_revenue' | 'service_count' | 'commission' | undefined {
+    const semanticText = this.normalize(
+      [metric.definitionKey, metric.metricKey, metric.name, metric.description, ...(metric.aliases ?? [])].join(' '),
+    );
+    const staffScoped = /(?:staff|beautician|employee|员工|美容师|顾问)/.test(semanticText);
+    if (!staffScoped && !['staff', 'beautician', 'employee'].includes(metric.domain)) return undefined;
+    if (/(?:commission|提成)/.test(semanticText)) return 'commission';
+    if (/(?:servicecount|servicetimes|服务次数|服务量)/.test(semanticText)) return 'service_count';
+    if (/(?:salesrevenue|salesamount|销售业绩|销售额)/.test(semanticText)) return 'sales_revenue';
+    if (/(?:servicerevenue|服务收入|服务业绩)/.test(semanticText)) return 'service_revenue';
+    return undefined;
   }
 
   private normalizeMetricQuestion(question: string, intent: BrainSemanticIntent): string {
@@ -168,6 +196,15 @@ export class BrainIntentCompletenessPolicyService {
     return (
       /(?:国庆|春节|五一|劳动节|元旦|中秋)(?:期间|假期|前后)?/.test(question) &&
       !/(?:20\d{2}|今年|去年|前年)/.test(question)
+    );
+  }
+
+  private isGenericBusinessAssessment(question: string): boolean {
+    const normalized = this.normalize(question)
+      .replace(/(?:今天|昨日|昨天|前天|本周|上周|这周|最近|近期|近来|这阵子|本月|上月|这个月|上个月)/g, '')
+      .replace(/^(?:帮我|请|看下|看看|查下|查询|分析)/, '');
+    return /^(?:(?:门店|店里|经营|生意)?(?:情况|表现)?(?:怎么样|如何|好不好|好吗|得好吗)|有什么问题(?:吗)?)$/.test(
+      normalized,
     );
   }
 
