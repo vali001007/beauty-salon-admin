@@ -3,9 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
 
 export type BrainRuntimeMode = 'rules' | 'shadow' | 'model';
+export type BrainRuntimeSource = 'database' | 'environment';
 export type BrainRolloutCohort = 'default' | 'shadow' | 'canary';
 
 export interface BrainRuntimeConfig {
+  runtimeSource: BrainRuntimeSource;
   cognitionMode: BrainRuntimeMode;
   plannerMode: BrainRuntimeMode;
   modelShadowPercent: number;
@@ -29,6 +31,7 @@ export class BrainRuntimeConfigService {
 
   constructor(private readonly configService: ConfigService) {
     const runtime: BrainRuntimeConfig = {
+      runtimeSource: this.readRuntimeSource('BRAIN_RUNTIME_SOURCE', 'database'),
       cognitionMode: this.readMode('BRAIN_COGNITION_MODE', 'rules'),
       plannerMode: this.readMode('BRAIN_PLANNER_MODE', 'rules'),
       modelShadowPercent: this.readInteger('BRAIN_MODEL_SHADOW_PERCENT', 0, 0, 100),
@@ -79,6 +82,14 @@ export class BrainRuntimeConfigService {
       throw new Error(`${key} must be one of ${RUNTIME_MODES.join(', ')}`);
     }
     return value as BrainRuntimeMode;
+  }
+
+  private readRuntimeSource(key: string, defaultValue: BrainRuntimeSource): BrainRuntimeSource {
+    const value = this.readRaw(key, defaultValue);
+    if (value !== 'database' && value !== 'environment') {
+      throw new Error(`${key} must be one of database, environment`);
+    }
+    return value;
   }
 
   private readInteger(key: string, defaultValue: number, min: number, max: number): number {

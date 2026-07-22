@@ -95,19 +95,32 @@ describe('Brain domain adapters', () => {
       ],
     }),
     buildManagerRevenueForecastBaseline: jest.fn().mockResolvedValue({
-      modelVersion: 'deterministic_daily_revenue_v1',
+      status: 'available',
+      modelVersion: 'deterministic_daily_revenue_v2',
       generatedAt: '2026-07-11T04:00:00.000Z',
       historyStart: '2026-04-13T00:00:00.000Z',
       historyEnd: '2026-07-11T23:59:59.999Z',
       forecastStart: '2026-10-01T00:00:00.000Z',
       forecastEnd: '2026-12-31T23:59:59.999Z',
+      historyWindowDays: 90,
       sampleDays: 90,
+      missingDays: 0,
+      duplicateBusinessDateCount: 0,
+      trustedDays: 90,
+      dataCoverageRate: 1,
+      reconciliationRate: 1,
+      latestSettlementDate: '2026-07-10',
+      freshnessDays: 0,
       forecastDays: 92,
       averageDailyRevenue: 100,
       estimatedRevenue: 9200,
       lowerBound: 7360,
       upperBound: 11040,
-      confidence: 0.75,
+      confidence: 0.95,
+      confidenceLabel: 'high',
+      backtest: { status: 'available', evaluationDays: 76, meanAbsoluteError: 0, weightedAbsolutePercentageError: 0, accuracyRate: 1 },
+      methodology: 'test',
+      limitations: [],
     }),
     listReceptionReservations: jest.fn().mockResolvedValue({
       count: 1,
@@ -364,8 +377,50 @@ describe('Brain domain adapters', () => {
 
     expect(answer?.citations[0]).toMatchObject({ sourceId: 'store_manager_revenue_forecast_baseline' });
     expect(answer?.answer).toContain('9200.00 元');
-    expect(answer?.answer).toContain('deterministic_daily_revenue_v1');
-    expect(answer?.answer).toContain('不是承诺值');
+    expect(answer?.answer).toContain('deterministic_daily_revenue_v2');
+    expect(answer?.answer).toContain('回测准确度 100.0%');
+    expect(answer?.answer).toContain('不是经营承诺值');
+    expect(answer?.metadata).toMatchObject({ answerScope: 'manager_revenue_forecast_backtested' });
+  });
+
+  it('store manager adapter withholds a forecast amount when evidence is insufficient', async () => {
+    skillRuntime.buildManagerRevenueForecastBaseline.mockResolvedValueOnce({
+      status: 'insufficient',
+      modelVersion: 'deterministic_daily_revenue_v2',
+      generatedAt: '2026-07-21T04:30:00.000Z',
+      historyStart: '2026-04-22T00:00:00.000Z',
+      historyEnd: '2026-07-20T23:59:59.999Z',
+      forecastStart: '2026-10-01T00:00:00.000Z',
+      forecastEnd: '2026-12-31T23:59:59.999Z',
+      historyWindowDays: 90,
+      sampleDays: 33,
+      missingDays: 57,
+      duplicateBusinessDateCount: 5,
+      trustedDays: 14,
+      dataCoverageRate: 0.3667,
+      reconciliationRate: 0.4242,
+      latestSettlementDate: '2026-07-20',
+      freshnessDays: 0,
+      forecastDays: 92,
+      averageDailyRevenue: null,
+      estimatedRevenue: null,
+      lowerBound: null,
+      upperBound: null,
+      confidence: 0.294,
+      confidenceLabel: 'low',
+      backtest: { status: 'available', evaluationDays: 19, meanAbsoluteError: 4355, weightedAbsolutePercentageError: 3.05, accuracyRate: 0 },
+      methodology: 'test',
+      limitations: ['历史回测误差 305.0%，不能输出预测金额。'],
+    });
+    const adapter = new BrainStoreManagerDomainAdapter(skillRuntime as never, timeRangeParser as never);
+
+    const answer = await adapter.execute(execution('帮我预测下个季度的营业额', 'store_manager', 'diagnosis'));
+
+    expect(answer?.answer).toContain('当前无法形成下季度营业额预测');
+    expect(answer?.answer).toContain('不会在样本不足时输出伪精确金额');
+    expect(answer?.answer).not.toMatch(/309369|基线预测 \d/);
+    expect(answer?.blocks).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'diagnosis' })]));
+    expect(answer?.metadata).toMatchObject({ answerScope: 'manager_revenue_forecast_insufficient' });
   });
 
   it('front desk adapter returns preview actions without writing business state', async () => {
@@ -949,6 +1004,32 @@ describe('Brain domain adapters', () => {
 
     expect(answer?.grounding).toBe('preview_action');
     expect(answer?.suggestedActions?.[0]).toMatchObject({ actionType: 'save_service_record' });
+    expect(actionConfirmation.createPreview).toHaveBeenCalledWith(expect.objectContaining({
+      skillKey: 'save_service_record',
+      payload: expect.objectContaining({ taskId: 51 }),
+    }));
+  });
+
+  it('honors the governed service-record capability before text heuristics', async () => {
+    const adapter = new BrainBeauticianDomainAdapter(
+      skillRuntime as never,
+      timeRangeParser as never,
+      customerFacts as never,
+      actionConfirmation as never,
+      actionTargets as never,
+    );
+    const answer = await adapter.execute(execution(
+      '为当前客户生成服务记录待确认方案，护理完成且无明显不适',
+      'beautician_service',
+      'action',
+      'service_record_completion_preview',
+    ));
+
+    expect(answer).toMatchObject({
+      grounding: 'preview_action',
+      suggestedActions: [expect.objectContaining({ actionType: 'save_service_record', requiresConfirmation: true })],
+    });
+    expect(answer?.citations[0]).toMatchObject({ sourceId: 'beautician_service_record_preview' });
     expect(actionConfirmation.createPreview).toHaveBeenCalledWith(expect.objectContaining({
       skillKey: 'save_service_record',
       payload: expect.objectContaining({ taskId: 51 }),

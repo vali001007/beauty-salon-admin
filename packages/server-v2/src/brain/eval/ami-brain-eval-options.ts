@@ -3,6 +3,8 @@ import type { AgentQuestionBankPersona } from '../../agent/agent-eval-question-b
 
 export type AmiBrainEvalOptions = {
   questionFile?: string;
+  regressionFrom?: string;
+  regressionScope?: 'product' | 'provider' | 'all';
   gate?: 'p0';
   limit?: number;
   persona?: AgentQuestionBankPersona;
@@ -19,9 +21,11 @@ export type AmiBrainEvalOptions = {
 
 export function parseAmiBrainEvalOptions(args: string[], defaultOutputDir: string): AmiBrainEvalOptions {
   const questionFile = optionalResolvedPathArg(args, 'question-file');
+  const regressionFrom = optionalResolvedPathArg(args, 'regression-from');
   const gate = parseGate(stringArg(args, 'gate'));
   return {
     ...(questionFile ? { questionFile } : {}),
+    ...(regressionFrom ? { regressionFrom, regressionScope: parseRegressionScope(stringArg(args, 'regression-scope')) } : {}),
     ...(gate ? { gate } : {}),
     limit: positiveIntegerArg(args, 'limit'),
     persona: parsePersona(stringArg(args, 'persona')),
@@ -35,6 +39,12 @@ export function parseAmiBrainEvalOptions(args: string[], defaultOutputDir: strin
     evaluationRoleKey: nonEmptyStringArg(args, 'evaluation-role') ?? 'persona',
     outputDir: resolve(stringArg(args, 'output-dir') ?? defaultOutputDir),
   };
+}
+
+function parseRegressionScope(value?: string): 'product' | 'provider' | 'all' {
+  if (value === undefined || value === 'product') return 'product';
+  if (value === 'provider' || value === 'all') return value;
+  throw new Error(`Invalid regression-scope: ${value}`);
 }
 
 function parseGate(value?: string): 'p0' | undefined {

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { formatBusinessDate, toBusinessDateOnly } from '../../common/utils/business-time.js';
 
 export interface BrainDailyOverview {
   revenue: number;
@@ -44,19 +45,38 @@ export interface BrainStaffAnalysis {
 }
 
 export interface BrainRevenueForecastBaseline {
-  modelVersion: 'deterministic_daily_revenue_v1';
+  status: 'available' | 'limited' | 'insufficient';
+  modelVersion: 'deterministic_daily_revenue_v2';
   generatedAt: string;
   historyStart: string;
   historyEnd: string;
   forecastStart: string;
   forecastEnd: string;
+  historyWindowDays: number;
   sampleDays: number;
+  missingDays: number;
+  duplicateBusinessDateCount: number;
+  trustedDays: number;
+  dataCoverageRate: number;
+  reconciliationRate: number;
+  latestSettlementDate: string | null;
+  freshnessDays: number | null;
   forecastDays: number;
-  averageDailyRevenue: number;
-  estimatedRevenue: number;
-  lowerBound: number;
-  upperBound: number;
+  averageDailyRevenue: number | null;
+  estimatedRevenue: number | null;
+  lowerBound: number | null;
+  upperBound: number | null;
   confidence: number;
+  confidenceLabel: 'high' | 'medium' | 'low';
+  backtest: {
+    status: 'available' | 'limited' | 'insufficient';
+    evaluationDays: number;
+    meanAbsoluteError: number | null;
+    weightedAbsolutePercentageError: number | null;
+    accuracyRate: number | null;
+  };
+  methodology: string;
+  limitations: string[];
 }
 
 @Injectable()
@@ -333,47 +353,165 @@ export class BrainManagerSkillsService {
   }
 
   async buildRevenueForecastBaseline(input: { storeId: number; asOf: Date }): Promise<BrainRevenueForecastBaseline> {
-    const historyEnd = new Date(
-      Date.UTC(input.asOf.getUTCFullYear(), input.asOf.getUTCMonth(), input.asOf.getUTCDate(), 23, 59, 59, 999),
-    );
-    const historyStart = new Date(historyEnd);
-    historyStart.setUTCHours(0, 0, 0, 0);
-    historyStart.setUTCDate(historyStart.getUTCDate() - 89);
+    const businessAsOf = toBusinessDateOnly(input.asOf);
+    const historyEndDate = new Date(businessAsOf);
+    historyEndDate.setUTCDate(historyEndDate.getUTCDate() - 1);
+    const historyStartDate = new Date(historyEndDate);
+    historyStartDate.setUTCDate(historyStartDate.getUTCDate() - 89);
+    const queryStart = new Date(historyStartDate);
+    queryStart.setUTCDate(queryStart.getUTCDate() - 1);
+    const queryEnd = new Date(historyEndDate);
+    queryEnd.setUTCDate(queryEnd.getUTCDate() + 1);
+    queryEnd.setUTCHours(23, 59, 59, 999);
     const settlements = await this.prisma.dailySettlement.findMany({
       where: {
         storeId: input.storeId,
-        settleDate: { gte: historyStart, lte: historyEnd },
+        settleDate: { gte: queryStart, lte: queryEnd },
       },
-      orderBy: { settleDate: 'asc' },
-      select: { settleDate: true, totalRevenue: true },
+      orderBy: [{ settleDate: 'asc' }, { updatedAt: 'asc' }],
+      select: {
+        id: true,
+        settleDate: true,
+        totalRevenue: true,
+        status: true,
+        reconciliationStatus: true,
+        updatedAt: true,
+      },
     });
 
-    const currentQuarter = Math.floor(input.asOf.getUTCMonth() / 3);
-    const forecastStart = new Date(Date.UTC(input.asOf.getUTCFullYear(), (currentQuarter + 1) * 3, 1));
-    const forecastEndExclusive = new Date(Date.UTC(input.asOf.getUTCFullYear(), (currentQuarter + 2) * 3, 1));
+    const currentQuarter = Math.floor(businessAsOf.getUTCMonth() / 3);
+    const forecastStart = new Date(Date.UTC(businessAsOf.getUTCFullYear(), (currentQuarter + 1) * 3, 1));
+    const forecastEndExclusive = new Date(Date.UTC(businessAsOf.getUTCFullYear(), (currentQuarter + 2) * 3, 1));
     const forecastEnd = new Date(forecastEndExclusive.getTime() - 1);
-    const sampleDays = 90;
+    const historyWindowDays = 90;
     const forecastDays = Math.round((forecastEndExclusive.getTime() - forecastStart.getTime()) / 86_400_000);
-    const totalRevenue = settlements.reduce((sum, row) => sum + this.toNumber(row.totalRevenue), 0);
-    const averageDailyRevenue = totalRevenue / sampleDays;
-    const estimatedRevenue = averageDailyRevenue * forecastDays;
-    const confidence = settlements.length >= 60 ? 0.75 : settlements.length >= 30 ? 0.55 : 0.35;
-    const margin = confidence >= 0.75 ? 0.2 : 0.35;
+    const historyStartKey = formatBusinessDate(historyStartDate);
+    const historyEndKey = formatBusinessDate(historyEndDate);
+    const byBusinessDate = new Map<string, (typeof settlements)[number][]>();
+    for (const settlement of settlements) {
+      const businessDate = formatBusinessDate(settlement.settleDate);
+      if (businessDate < historyStartKey || businessDate > historyEndKey) continue;
+      const rows = byBusinessDate.get(businessDate) ?? [];
+      rows.push(settlement);
+      byBusinessDate.set(businessDate, rows);
+    }
+    const duplicateBusinessDateCount = [...byBusinessDate.values()].reduce(
+      (sum, rows) => sum + Math.max(0, rows.length - 1),
+      0,
+    );
+    const dailyFacts = [...byBusinessDate.entries()]
+      .map(([businessDate, rows]) => {
+        const selected = [...rows].sort((left, right) => {
+          const trustDiff = Number(this.isTrustedSettlement(right)) - Number(this.isTrustedSettlement(left));
+          if (trustDiff !== 0) return trustDiff;
+          const updatedDiff = right.updatedAt.getTime() - left.updatedAt.getTime();
+          return updatedDiff !== 0 ? updatedDiff : right.id - left.id;
+        })[0];
+        return {
+          businessDate,
+          revenue: this.toNumber(selected.totalRevenue),
+          trusted: this.isTrustedSettlement(selected),
+        };
+      })
+      .sort((left, right) => left.businessDate.localeCompare(right.businessDate));
+
+    const sampleDays = dailyFacts.length;
+    const missingDays = historyWindowDays - sampleDays;
+    const trustedDays = dailyFacts.filter((fact) => fact.trusted).length;
+    const dataCoverageRate = sampleDays / historyWindowDays;
+    const reconciliationRate = sampleDays > 0 ? trustedDays / sampleDays : 0;
+    const latestSettlementDate = dailyFacts.at(-1)?.businessDate ?? null;
+    const freshnessDays = latestSettlementDate
+      ? Math.max(0, Math.round((historyEndDate.getTime() - new Date(`${latestSettlementDate}T00:00:00.000Z`).getTime()) / 86_400_000))
+      : null;
+    const backtest = this.backtestRevenue(dailyFacts.map((fact) => fact.revenue));
+    const coverageScore = Math.min(1, sampleDays / 60) * Math.min(1, dataCoverageRate / 0.8);
+    const reconciliationScore = reconciliationRate;
+    const backtestScore = backtest.accuracyRate ?? 0;
+    const freshnessScore = freshnessDays === null ? 0 : freshnessDays <= 1 ? 1 : freshnessDays <= 3 ? 0.7 : 0.2;
+    const rawConfidence = coverageScore * 0.35 + reconciliationScore * 0.25 + backtestScore * 0.3 + freshnessScore * 0.1;
+    const confidence = Math.min(0.95, Math.max(0.05, rawConfidence));
+    const confidenceLabel = confidence >= 0.75 ? 'high' : confidence >= 0.5 ? 'medium' : 'low';
+    const backtestError = backtest.weightedAbsolutePercentageError;
+    const status = sampleDays < 7 || confidence < 0.35 || (backtestError !== null && backtestError > 1)
+      ? 'insufficient'
+      : confidenceLabel === 'high' ? 'available' : 'limited';
+    const recentFacts = dailyFacts.slice(-Math.min(28, dailyFacts.length));
+    const averageDailyRevenue = status === 'insufficient'
+      ? null
+      : recentFacts.reduce((sum, fact) => sum + fact.revenue, 0) / recentFacts.length;
+    const estimatedRevenue = averageDailyRevenue === null ? null : averageDailyRevenue * forecastDays;
+    const intervalMargin = Math.min(1, Math.max(0.2, (backtestError ?? 0.5) + (1 - confidence) * 0.5));
+    const lowerBound = estimatedRevenue === null ? null : Math.max(0, estimatedRevenue * (1 - intervalMargin));
+    const upperBound = estimatedRevenue === null ? null : estimatedRevenue * (1 + intervalMargin);
+    const limitations: string[] = [];
+    if (sampleDays < 60) limitations.push(`90 天窗口仅有 ${sampleDays} 个营业日结算样本。`);
+    if (dataCoverageRate < 0.8) limitations.push(`结算日覆盖率仅 ${(dataCoverageRate * 100).toFixed(1)}%，缺失日期不按零营收处理。`);
+    if (reconciliationRate < 0.8) limitations.push(`已确认且对账通过的样本占比仅 ${(reconciliationRate * 100).toFixed(1)}%。`);
+    if (duplicateBusinessDateCount > 0) limitations.push(`发现 ${duplicateBusinessDateCount} 条重复营业日记录，已优先采用已确认且对账通过的版本。`);
+    if (backtest.status === 'insufficient') limitations.push('历史样本不足，暂时无法形成有效滚动回测。');
+    else if ((backtest.weightedAbsolutePercentageError ?? 0) > 1) limitations.push(`历史回测误差 ${(backtest.weightedAbsolutePercentageError! * 100).toFixed(1)}%，超过 100% 门禁，停止输出预测金额。`);
+    else if ((backtest.weightedAbsolutePercentageError ?? 0) > 0.35) limitations.push(`历史回测误差 ${(backtest.weightedAbsolutePercentageError! * 100).toFixed(1)}%，预测区间已相应放宽。`);
+    if (freshnessDays === null || freshnessDays > 3) limitations.push('最近日结数据不够新鲜，预测不能用于经营承诺。');
 
     return {
-      modelVersion: 'deterministic_daily_revenue_v1',
+      status,
+      modelVersion: 'deterministic_daily_revenue_v2',
       generatedAt: input.asOf.toISOString(),
-      historyStart: historyStart.toISOString(),
-      historyEnd: historyEnd.toISOString(),
+      historyStart: historyStartDate.toISOString(),
+      historyEnd: new Date(historyEndDate.getTime() + 86_400_000 - 1).toISOString(),
       forecastStart: forecastStart.toISOString(),
       forecastEnd: forecastEnd.toISOString(),
+      historyWindowDays,
       sampleDays,
+      missingDays,
+      duplicateBusinessDateCount,
+      trustedDays,
+      dataCoverageRate,
+      reconciliationRate,
+      latestSettlementDate,
+      freshnessDays,
       forecastDays,
       averageDailyRevenue,
       estimatedRevenue,
-      lowerBound: estimatedRevenue * (1 - margin),
-      upperBound: estimatedRevenue * (1 + margin),
+      lowerBound,
+      upperBound,
       confidence,
+      confidenceLabel,
+      backtest,
+      methodology: '最近 28 个可用营业日日结流水均值外推，并使用历史滚动均值回测误差、数据覆盖率、对账通过率和数据新鲜度共同计算置信度与区间。',
+      limitations,
+    };
+  }
+
+  private isTrustedSettlement(settlement: { status: string; reconciliationStatus: string }) {
+    return settlement.status === 'confirmed' && settlement.reconciliationStatus === 'passed';
+  }
+
+  private backtestRevenue(values: number[]): BrainRevenueForecastBaseline['backtest'] {
+    const minimumTrainingDays = 14;
+    if (values.length <= minimumTrainingDays) {
+      return { status: 'insufficient', evaluationDays: 0, meanAbsoluteError: null, weightedAbsolutePercentageError: null, accuracyRate: null };
+    }
+    const errors: number[] = [];
+    let actualTotal = 0;
+    for (let index = minimumTrainingDays; index < values.length; index += 1) {
+      const training = values.slice(Math.max(0, index - 28), index);
+      const predicted = training.reduce((sum, value) => sum + value, 0) / training.length;
+      const actual = values[index];
+      errors.push(Math.abs(actual - predicted));
+      actualTotal += Math.abs(actual);
+    }
+    const meanAbsoluteError = errors.reduce((sum, value) => sum + value, 0) / errors.length;
+    const weightedAbsolutePercentageError = actualTotal > 0
+      ? errors.reduce((sum, value) => sum + value, 0) / actualTotal
+      : meanAbsoluteError === 0 ? 0 : 1;
+    return {
+      status: errors.length >= 14 ? 'available' : 'limited',
+      evaluationDays: errors.length,
+      meanAbsoluteError,
+      weightedAbsolutePercentageError,
+      accuracyRate: Math.max(0, Math.min(1, 1 - weightedAbsolutePercentageError)),
     };
   }
 

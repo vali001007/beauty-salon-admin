@@ -61,6 +61,32 @@ export interface BrainInspectionRepairDecisionResponse {
   nextAction: { type: 'open_business_screen'; entry: string | null; autoExecute: false } | null;
 }
 
+export interface BrainInspectionInboxItem {
+  id: number;
+  ruleKey: string;
+  domain: string;
+  title: string;
+  severity: BrainRiskLevel;
+  status: string;
+  target: { objectType: string; objectId: string };
+  evidence: Record<string, unknown>;
+  suggestion: {
+    action: string;
+    entry: string | null;
+    planningStatus: string | null;
+    actionPreviewCount: number;
+  };
+  canReview: boolean;
+  firstDetectedAt: string;
+  lastDetectedAt: string;
+}
+
+export interface BrainInspectionInboxResponse {
+  items: BrainInspectionInboxItem[];
+  summary: { total: number; critical: number; high: number; medium: number; low: number };
+  storeId: number;
+}
+
 export interface BrainChatRequest {
   conversationId?: number;
   message: string;
@@ -269,10 +295,29 @@ export interface BrainMemoryRecord {
   createdAt: string;
   updatedAt: string;
   deletedAt?: string | null;
+  scope?: 'user' | 'store';
+  state?: 'active' | 'expired' | 'deleted';
 }
 
 export interface BrainMemoryListResponse {
   items: BrainMemoryRecord[];
+  total: number;
+}
+
+export interface BrainMemoryRevision {
+  id: number;
+  memoryId: number;
+  previousMemoryId?: number | null;
+  revisionType: string;
+  previousContent?: Record<string, unknown> | null;
+  nextContent?: Record<string, unknown> | null;
+  changedByUserId?: number | null;
+  reason?: string | null;
+  createdAt: string;
+}
+
+export interface BrainMemoryRevisionListResponse {
+  items: BrainMemoryRevision[];
   total: number;
 }
 

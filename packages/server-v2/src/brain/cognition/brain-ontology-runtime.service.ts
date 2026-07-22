@@ -38,6 +38,10 @@ const PHYSICAL_SOURCE_KEYS = new Set(['model', 'field']);
 export class BrainOntologyRuntimeService implements OnModuleInit {
   private snapshot: ProductionReadyBusinessDefinitionSnapshot | null = null;
   private aliasIndex: EntityAliasIndex | null = null;
+  private readonly evaluationSnapshotCache = new Map<
+    string,
+    Promise<ProductionReadyBusinessDefinitionSnapshot>
+  >();
 
   constructor(
     @Inject(BUSINESS_DEFINITION_SNAPSHOT_PROVIDER)
@@ -70,8 +74,23 @@ export class BrainOntologyRuntimeService implements OnModuleInit {
     if (!this.provider.loadEvaluationDefinitions) {
       throw new Error('business_definition_evaluation_snapshot_unavailable');
     }
-    const input = await this.provider.loadEvaluationDefinitions(definitionVersionIds);
-    return buildProductionReadyBusinessDefinitionSnapshot(input, this.provider.getRuntimeDataModel());
+    const normalizedVersionIds = [
+      ...new Set(definitionVersionIds.filter((value) => Number.isInteger(value) && value > 0)),
+    ].sort((left, right) => left - right);
+    const cacheKey = normalizedVersionIds.join(',');
+    const cached = this.evaluationSnapshotCache.get(cacheKey);
+    if (cached) return cached;
+
+    const loading = this.provider
+      .loadEvaluationDefinitions(normalizedVersionIds)
+      .then((input) => buildProductionReadyBusinessDefinitionSnapshot(input, this.provider.getRuntimeDataModel()));
+    this.evaluationSnapshotCache.set(cacheKey, loading);
+    try {
+      return await loading;
+    } catch (error) {
+      this.evaluationSnapshotCache.delete(cacheKey);
+      throw error;
+    }
   }
 
   resolveEntityAlias(

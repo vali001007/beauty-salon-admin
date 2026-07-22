@@ -165,6 +165,7 @@ export type BrainResponseBlockCompat =
   | { kind: 'comparison'; items: Array<{ label: string; current: string; previous: string; delta?: string }>; citationIds?: string[] }
   | { kind: 'diagnosis'; findings: Array<{ title: string; detail: string; severity: 'info' | 'warning' | 'critical' }>; citationIds?: string[] }
   | { kind: 'clarification'; question: string; options: Array<{ id: string; label: string; value: unknown }> }
+  | { kind: 'follow_up_questions'; questions: Array<{ id: string; label: string; value: string }> }
   | { kind: 'action_preview'; actions: unknown[] }
   | { kind: 'limitations'; items: string[] }
   | { kind: 'evidence'; citations: Array<{ sourceType: string; sourceId: string; label?: string; definition?: string }> };

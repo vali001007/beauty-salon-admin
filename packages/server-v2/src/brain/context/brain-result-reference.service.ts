@@ -16,6 +16,14 @@ export interface BrainModelResultReference {
   definitionRef?: BrainDefinitionRef<'entity'>;
 }
 
+export interface BrainResultReferenceScope {
+  conversationId: number;
+  userId: number;
+  storeId: number;
+}
+
+export type BrainResultReferenceResolutionKind = 'resolved' | 'set' | 'empty' | 'ambiguous';
+
 export interface BrainModelResultSet {
   setId: string;
   sourceRunId: number;
@@ -26,6 +34,7 @@ export interface BrainModelResultSet {
   status: BrainResultSetStatus;
   count: number;
   items: BrainModelResultReference[];
+  scope?: BrainResultReferenceScope;
   createdAt: string;
 }
 
@@ -43,6 +52,9 @@ const RESULT_REFERENCE_TTL_MS = 24 * 60 * 60 * 1000;
 export class BrainResultReferenceService {
   buildResultSets(input: {
     runId: number;
+    conversationId: number;
+    userId: number;
+    storeId: number;
     capabilityKey?: string;
     capabilityVersion?: number;
     intent?: BrainSemanticIntent;
@@ -86,6 +98,11 @@ export class BrainResultReferenceService {
           status: value.length > 0 ? 'data' : 'empty',
           count: value.length,
           items,
+          scope: {
+            conversationId: input.conversationId,
+            userId: input.userId,
+            storeId: input.storeId,
+          },
           createdAt,
         });
         if (resultSets.length >= MAX_RESULT_SETS) return resultSets;
@@ -97,9 +114,16 @@ export class BrainResultReferenceService {
   resolveReference(input: {
     question: string;
     resultSets: readonly BrainModelResultSet[];
-  }): { set: BrainModelResultSet; reference?: BrainModelResultReference } | undefined {
+    scope?: BrainResultReferenceScope;
+  }):
+    | {
+        kind: BrainResultReferenceResolutionKind;
+        set: BrainModelResultSet;
+        reference?: BrainModelResultReference;
+      }
+    | undefined {
     const active = input.resultSets
-      .filter((set) => this.isFresh(set.createdAt))
+      .filter((set) => this.isFresh(set.createdAt) && (!input.scope || this.isScopedTo(set, input.scope)))
       .sort((left, right) => right.sourceRunId - left.sourceRunId);
     if (!active.length) return undefined;
     const requestedType = this.requestedEntityType(input.question);
@@ -108,11 +132,50 @@ export class BrainResultReferenceService {
       : active;
     const selectedSet = candidates[0];
     if (!selectedSet) return undefined;
-    if (selectedSet.status === 'empty') return { set: selectedSet };
+    if (selectedSet.status === 'empty') return { kind: 'empty', set: selectedSet };
 
     const ordinal = this.requestedRank(input.question);
-    const reference = selectedSet.items.find((item) => item.rank === ordinal) ?? selectedSet.items[0];
-    return reference ? { set: selectedSet, reference } : { set: selectedSet };
+    if (ordinal !== undefined) {
+      const reference = selectedSet.items.find((item) => item.rank === ordinal);
+      return reference ? { kind: 'resolved', set: selectedSet, reference } : { kind: 'ambiguous', set: selectedSet };
+    }
+
+    const mentionMatches = selectedSet.items.filter(
+      (item) => item.mention.length >= 2 && input.question.includes(item.mention),
+    );
+    if (mentionMatches.length === 1) {
+      return { kind: 'resolved', set: selectedSet, reference: mentionMatches[0] };
+    }
+    if (mentionMatches.length > 1) return { kind: 'ambiguous', set: selectedSet };
+
+    if (this.requestsTopResult(input.question)) {
+      const reference = selectedSet.items.find((item) => item.rank === 1);
+      return reference ? { kind: 'resolved', set: selectedSet, reference } : { kind: 'ambiguous', set: selectedSet };
+    }
+    if (this.requestsWholeSet(input.question)) return { kind: 'set', set: selectedSet };
+    if (selectedSet.items.length === 1) {
+      return { kind: 'resolved', set: selectedSet, reference: selectedSet.items[0] };
+    }
+    if (this.usesSingularReference(input.question)) return { kind: 'ambiguous', set: selectedSet };
+    return { kind: 'set', set: selectedSet };
+  }
+
+  isScopedTo(set: BrainModelResultSet, scope: BrainResultReferenceScope) {
+    return Boolean(
+      set.scope &&
+      set.scope.conversationId === scope.conversationId &&
+      set.scope.userId === scope.userId &&
+      set.scope.storeId === scope.storeId,
+    );
+  }
+
+  isPersistedInRunOutput(set: BrainModelResultSet, output: unknown) {
+    const envelope = this.record(output);
+    const metadata = this.record(envelope.adapterMetadata);
+    if (!Array.isArray(metadata.resultSets)) return false;
+    return metadata.resultSets
+      .filter((candidate): candidate is BrainModelResultSet => isBrainModelResultSet(candidate))
+      .some((candidate) => this.sameResultSet(candidate, set));
   }
 
   toConversationEntity(reference: BrainModelResultReference): BrainSemanticEntityReference | undefined {
@@ -127,9 +190,12 @@ export class BrainResultReferenceService {
     };
   }
 
-  isFollowUpReferenceQuestion(question: string) {
-    return /(?:第一名|排名第|最高|最好|最多|最少|她|他|她们|他们|它|它们|这些|其中|上轮|刚才|前面|消化掉|搭配什么活动)/.test(
-      question,
+  isFollowUpReferenceQuestion(question: string, resultSets: readonly BrainModelResultSet[] = []) {
+    return (
+      /(?:第一名|排名第|最高|最好|最多|最少|她|他|她们|他们|它|它们|这些|其中|上轮|刚才|前面|消化掉|搭配什么活动)/.test(
+        question,
+      ) ||
+      resultSets.some((set) => set.items.some((item) => item.mention.length >= 2 && question.includes(item.mention)))
     );
   }
 
@@ -230,11 +296,23 @@ export class BrainResultReferenceService {
     return undefined;
   }
 
-  private requestedRank(question: string) {
+  private requestedRank(question: string): number | undefined {
     const match = question.match(/(?:第|排名第)\s*(\d+|一|二|三|四|五|六|七|八|九|十)\s*名?/);
-    if (!match) return 1;
+    if (!match) return undefined;
     const chinese: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
     return chinese[match[1]!] ?? Math.max(1, Number(match[1]) || 1);
+  }
+
+  private requestsTopResult(question: string) {
+    return /(?:第一名|最高|最好|最多|最少|冠军|榜首)/.test(question);
+  }
+
+  private requestsWholeSet(question: string) {
+    return /(?:她们|他们|它们|这些|这批|全部|所有|其中这些)/.test(question);
+  }
+
+  private usesSingularReference(question: string) {
+    return /(?:给她|给他|给它|她发|他发|它做|这个|那个|该员工|该客户|该商品)/.test(question);
   }
 
   private entityTypesMatch(left: string, right: string) {
@@ -278,6 +356,20 @@ export class BrainResultReferenceService {
     });
   }
 
+  private sameResultSet(left: BrainModelResultSet, right: BrainModelResultSet) {
+    return this.canonicalJson(left) === this.canonicalJson(right);
+  }
+
+  private canonicalJson(value: unknown): string {
+    if (value === null || typeof value !== 'object') return JSON.stringify(value);
+    if (Array.isArray(value)) return `[${value.map((item) => this.canonicalJson(item)).join(',')}]`;
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${this.canonicalJson(record[key])}`)
+      .join(',')}}`;
+  }
+
   private record(value: unknown): Record<string, unknown> {
     return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
   }
@@ -296,6 +388,7 @@ export function isBrainModelResultSet(value: unknown): value is BrainModelResult
     'status',
     'count',
     'items',
+    'scope',
     'createdAt',
   ]);
   if (!Reflect.ownKeys(set).every((key) => typeof key === 'string' && allowed.has(key))) return false;
@@ -318,6 +411,7 @@ export function isBrainModelResultSet(value: unknown): value is BrainModelResult
   ) {
     return false;
   }
+  if (set.scope !== undefined && !isBrainResultReferenceScope(set.scope)) return false;
   if (
     set.sourceCapabilityKey !== undefined &&
     (typeof set.sourceCapabilityKey !== 'string' || !set.sourceCapabilityKey)
@@ -331,6 +425,21 @@ export function isBrainModelResultSet(value: unknown): value is BrainModelResult
     return false;
   }
   return set.items.every(isBrainModelResultReference);
+}
+
+function isBrainResultReferenceScope(value: unknown): value is BrainResultReferenceScope {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const scope = value as Record<string, unknown>;
+  const allowed = new Set(['conversationId', 'userId', 'storeId']);
+  return Boolean(
+    Reflect.ownKeys(scope).every((key) => typeof key === 'string' && allowed.has(key)) &&
+    Number.isInteger(scope.conversationId) &&
+    (scope.conversationId as number) > 0 &&
+    Number.isInteger(scope.userId) &&
+    (scope.userId as number) > 0 &&
+    Number.isInteger(scope.storeId) &&
+    (scope.storeId as number) > 0,
+  );
 }
 
 function isBrainModelResultReference(value: unknown): value is BrainModelResultReference {

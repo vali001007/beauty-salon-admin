@@ -436,6 +436,14 @@ export class BrainController {
     );
   }
 
+  @Get('governance/memories/:id/revisions')
+  @Permissions('core:brain-governance:view')
+  listMemoryRevisions(@Req() req: Request, @Param('id') id: string) {
+    const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
+    if (!this.memoryService) throw new NotFoundException('记忆服务未启用');
+    return this.memoryService.listRevisions({ id: Number(id), storeId: context.storeId, userId: context.userId });
+  }
+
   @Post('governance/memories/:id/correct')
   @Permissions('core:brain-governance:manage')
   correctMemory(@Req() req: Request, @Param('id') id: string, @Body() body: Record<string, unknown>) {
@@ -563,7 +571,34 @@ export class BrainController {
   async listInspectionFindings(@Req() req: Request, @Query('status') status?: string) {
     const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
     if (!this.inspectionService) return { items: [] };
-    return { items: await this.inspectionService.listFindings({ storeId: context.storeId, status }) };
+    return {
+      items: await this.inspectionService.listFindings({
+        storeId: context.storeId,
+        status,
+        permissions: context.permissions,
+        deniedPermissions: context.deniedPermissions,
+        userId: context.userId,
+        roles: context.roles ?? [],
+        enabledRulesOnly: true,
+      }),
+    };
+  }
+
+  @Get('inspections/inbox')
+  @Permissions('core:brain:use')
+  async listInspectionInbox(@Req() req: Request, @Query('limit') limit?: string) {
+    const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
+    if (!this.inspectionService) {
+      return { items: [], summary: { total: 0, critical: 0, high: 0, medium: 0, low: 0 }, storeId: context.storeId };
+    }
+    return this.inspectionService.listInbox({
+      storeId: context.storeId,
+      permissions: context.permissions,
+      deniedPermissions: context.deniedPermissions,
+      userId: context.userId,
+      roles: context.roles ?? [],
+      limit: Number(limit) || undefined,
+    });
   }
 
   @Patch('inspections/findings/:findingId')
@@ -664,6 +699,7 @@ export class BrainController {
       storeId: context.storeId,
       userId: context.userId,
       permissions: context.permissions.filter((permission) => !context.deniedPermissions.includes(permission)),
+      sourceEvalRunId: body.sourceEvalRunId,
       releaseId: body.releaseId,
       caseKeys: body.caseKeys,
       roleKey: body.roleKey,
@@ -868,7 +904,17 @@ export class BrainController {
     if (!this.releaseService) throw new NotFoundException('发布服务不可用');
     return this.releaseService.rollbackToRules({
       releaseId: Number(releaseId),
-      reason: String(body.reason ?? 'emergency_rules_rollback'),
+      reason: String(body.reason ?? 'production_baseline_rollback'),
+    });
+  }
+
+  @Post('governance/releases/:releaseId/rollback-to-baseline')
+  @Permissions('core:brain-governance:manage')
+  rollbackReleaseToBaseline(@Param('releaseId') releaseId: string, @Body() body: { reason?: string }) {
+    if (!this.releaseService) throw new NotFoundException('发布服务不可用');
+    return this.releaseService.rollbackToProductionBaseline({
+      releaseId: Number(releaseId),
+      reason: String(body.reason ?? 'production_baseline_rollback'),
     });
   }
 

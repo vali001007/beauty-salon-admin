@@ -1,4 +1,5 @@
-import { AlertTriangle, BarChart3, CheckCircle2, Database, HelpCircle, ListOrdered, Sparkles } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Database, HelpCircle, ListOrdered, Sparkles } from 'lucide-react';
+import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { BrainGuidanceSelection, BrainResponseBlock } from '@/types/brain';
 
 interface BrainResponseRendererProps {
@@ -8,6 +9,7 @@ interface BrainResponseRendererProps {
   sending?: boolean;
   sourceRunId?: number;
   onGuidanceSelect?: (selection: BrainGuidanceSelection & { value: string }) => void;
+  onClarificationSelect?: (value: unknown, label: string) => void;
 }
 
 export function BrainResponseRenderer({
@@ -17,6 +19,7 @@ export function BrainResponseRenderer({
   sending = false,
   sourceRunId,
   onGuidanceSelect,
+  onClarificationSelect,
 }: BrainResponseRendererProps) {
   if (!blocks.length) return <span className="whitespace-pre-wrap break-words">{fallback}</span>;
 
@@ -97,16 +100,21 @@ export function BrainResponseRenderer({
                           key={option.id}
                           type="button"
                           className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-left text-xs text-amber-900 transition hover:border-amber-500 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
-                          disabled={!interactive || sending || !sourceRunId || !onGuidanceSelect}
-                          onClick={() =>
-                            sourceRunId &&
-                            onGuidanceSelect?.({
-                              kind: 'clarification',
-                              sourceRunId,
-                              optionId: option.id,
-                              value,
-                            })
-                          }
+                          disabled={sending || (!onClarificationSelect && (!interactive || !sourceRunId || !onGuidanceSelect))}
+                          onClick={() => {
+                            if (onClarificationSelect) {
+                              onClarificationSelect(value, option.label);
+                              return;
+                            }
+                            if (sourceRunId) {
+                              onGuidanceSelect?.({
+                                kind: 'clarification',
+                                sourceRunId,
+                                optionId: option.id,
+                                value,
+                              });
+                            }
+                          }}
                         >
                           {option.label}
                         </button>
@@ -175,14 +183,7 @@ export function BrainResponseRenderer({
           );
         }
         if (block.kind === 'chart') {
-          return (
-            <div key={index} className="flex gap-2 text-muted-foreground">
-              <BarChart3 className="h-4 w-4 shrink-0" />
-              <span>
-                {block.chartType === 'line' ? '趋势图' : '柱状图'}数据已返回，共 {block.rows.length} 行
-              </span>
-            </div>
-          );
+          return <BrainChart key={index} block={block} />;
         }
         return (
           <span key={index} className="whitespace-pre-wrap break-words">
@@ -192,6 +193,36 @@ export function BrainResponseRenderer({
       })}
     </div>
   );
+}
+
+function BrainChart({ block }: { block: Extract<BrainResponseBlock, { kind: 'chart' }> }) {
+  if (!block.rows.length || !block.yKeys.length) {
+    return <div className="text-sm text-muted-foreground">暂无可绘制数据。</div>;
+  }
+  const Chart = block.chartType === 'line' ? LineChart : BarChart;
+  return (
+    <div className="h-56 w-full min-w-0" aria-label={block.chartType === 'line' ? '趋势图' : '柱状图'}>
+      <ResponsiveContainer width="100%" height="100%">
+        <Chart data={block.rows} margin={{ top: 8, right: 12, bottom: 8, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+          <XAxis dataKey={block.xKey} tick={{ fontSize: 11 }} minTickGap={16} />
+          <YAxis tick={{ fontSize: 11 }} width={48} />
+          <Tooltip formatter={(value) => formatCell(value)} />
+          {block.yKeys.map((key, seriesIndex) =>
+            block.chartType === 'line' ? (
+              <Line key={key} dataKey={key} type="monotone" stroke={chartColor(seriesIndex)} strokeWidth={2} dot={false} />
+            ) : (
+              <Bar key={key} dataKey={key} fill={chartColor(seriesIndex)} radius={[3, 3, 0, 0]} />
+            ),
+          )}
+        </Chart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function chartColor(index: number) {
+  return ['#25635b', '#c17b3f', '#4f6f9f', '#8a5a86'][index % 4];
 }
 
 function guidanceOptionValue(value: unknown, fallback: string) {

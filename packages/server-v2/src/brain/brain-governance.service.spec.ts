@@ -225,11 +225,11 @@ describe('BrainEvalService', () => {
         releaseId: 21,
       });
 
-      expect(run).toMatchObject({ id: 8, releaseId: 21, caseCount: 8 });
+      expect(run).toMatchObject({ id: 8, releaseId: 21, caseCount: 9 });
       expect(prisma.brainEvalRun.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           releaseId: 21,
-          caseCount: 8,
+          caseCount: 9,
           summary: expect.objectContaining({
             gateMode: 'release_gate',
             releaseFingerprint: 'a'.repeat(64),
@@ -240,6 +240,79 @@ describe('BrainEvalService', () => {
         }),
       });
       expect(releaseService.freezeEvaluationRelease).toHaveBeenCalledTimes(1);
+    } finally {
+      timeoutSpy.mockRestore();
+    }
+  });
+
+  it('creates a scoped regression run from only the failed cases of a completed release evaluation', async () => {
+    const releaseSnapshot = {
+      releaseId: 21,
+      releaseStatus: 'draft',
+      releaseFingerprint: 'c'.repeat(64),
+      declaredMode: 'shadow',
+      mode: 'model',
+      resourceVersionIds: [3],
+      capabilityKeys: ['customer_facts'],
+      capabilityCandidates: [{
+        key: 'customer_facts',
+        domains: ['customer'],
+        allowedRoles: ['store_manager'],
+        requiredPermissions: ['core:customer:view'],
+        examples: ['查询张三客户档案', '查看客户 ID 123'],
+      }],
+    } as unknown as BrainEvaluationReleaseSnapshot;
+    const failedCaseKey = 'release_capability:21:customer_facts:1';
+    const prisma = {
+      brainEvalRun: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 41,
+          releaseId: 21,
+          roleKey: null,
+          evalResults: [{ caseKey: failedCaseKey }],
+        }),
+        create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 42, ...data })),
+      },
+    };
+    const releaseService = { freezeEvaluationRelease: jest.fn().mockResolvedValue(releaseSnapshot) };
+    const timeoutSpy = jest.spyOn(global, 'setTimeout').mockImplementation((() => 0) as never);
+    const service = new BrainEvalService(
+      prisma as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      releaseService as never,
+    );
+
+    try {
+      const run = await service.createEvalRun({
+        storeId: 6,
+        userId: 9,
+        permissions: ['*'],
+        sourceEvalRunId: 41,
+      });
+
+      expect(run).toMatchObject({ id: 42, releaseId: 21, caseCount: 1 });
+      expect(prisma.brainEvalRun.findFirst).toHaveBeenCalledWith({
+        where: { id: 41, storeId: 6, status: 'completed' },
+        select: expect.any(Object),
+      });
+      expect(prisma.brainEvalRun.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          releaseId: 21,
+          caseCount: 1,
+          summary: expect.objectContaining({
+            gateMode: 'release_regression',
+            sourceEvalRunId: 41,
+            regressionCaseKeys: [failedCaseKey],
+            requiredCaseKeys: [failedCaseKey],
+            canRelease: false,
+          }),
+        }),
+      });
     } finally {
       timeoutSpy.mockRestore();
     }
@@ -558,6 +631,7 @@ describe('BrainEvalService', () => {
         findMany: jest.fn().mockResolvedValue([
           { key: 'store_manager', permissions: ['core:brain:use', 'core:customer:view'] },
           { key: 'finance', permissions: ['core:brain:use', 'core:finance:view'] },
+          { key: 'inventory', permissions: ['core:brain:use', 'core:supply:view'] },
         ]),
       },
     };
@@ -576,6 +650,15 @@ describe('BrainEvalService', () => {
             citations: [],
             grounding: 'preview_action',
             suggestedActions: [{ type: 'preview_action' }],
+          });
+        }
+        if (dto.message.includes('供应商性价比')) {
+          return Promise.resolve({
+            status: 'failed',
+            answer: '当前没有统一的供应商评分口径，本次未执行查询。',
+            citations: [],
+            suggestedActions: [],
+            blocks: [{ kind: 'limitations', items: ['supplier_score_definition_not_available'] }],
           });
         }
         return Promise.resolve({
@@ -623,8 +706,8 @@ describe('BrainEvalService', () => {
     });
 
     expect(result).toMatchObject({
-      total: 6,
-      passed: 6,
+      total: 7,
+      passed: 7,
       failed: 0,
       canRelease: true,
       gateMode: 'release_gate',
@@ -637,7 +720,7 @@ describe('BrainEvalService', () => {
       ]),
       releaseGate: { passed: true },
     });
-    expect(prisma.brainEvalResult.create).toHaveBeenCalledTimes(6);
+    expect(prisma.brainEvalResult.create).toHaveBeenCalledTimes(7);
   });
 
   it('marks the eval run failed when the frozen release fingerprint no longer matches the queued gate', async () => {

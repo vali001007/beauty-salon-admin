@@ -34,6 +34,7 @@ describe('terminal Ami Brain runtime', () => {
       answer: '今日预约 3 单。',
       citations: [{ sourceType: 'metric', sourceId: 'appointment_count', label: '预约数' }],
       suggestedActions: [],
+      blocks: [{ kind: 'kpi', items: [{ label: '今日预约', value: '3 单' }] }],
     });
     api.confirmBrainAction.mockResolvedValue({ runId: 88, status: 'succeeded', receipt: { message: '预约已创建' } });
   });
@@ -46,7 +47,13 @@ describe('terminal Ami Brain runtime', () => {
       message: '今天预约多少',
       roleHint: 'store_manager',
     }));
-    expect(result).toMatchObject({ runId: 88, status: 'completed', answer: '今日预约 3 单。' });
+    expect(result).toMatchObject({
+      runId: 88,
+      status: 'completed',
+      answer: '今日预约 3 单。',
+      responseMode: 'structured_blocks',
+      brainBlocks: [{ kind: 'kpi', items: [{ label: '今日预约', value: '3 单' }] }],
+    });
     expect(result.evidence?.source).toContain('appointment_count');
   });
 

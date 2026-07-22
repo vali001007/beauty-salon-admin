@@ -144,4 +144,28 @@ describe('BrainRoleContextBuilderService', () => {
       ),
     ).toEqual([]);
   });
+
+  it('allows an authenticated super admin to discover cross-role capabilities without trusting roleHint', async () => {
+    const service = new BrainRoleContextBuilderService({
+      getRuntimeProfile: jest.fn().mockResolvedValue({
+        roleKey: 'store_manager',
+        name: '店长',
+        version: 1,
+        systemPrompt: '店长视角',
+        allowedSkills: [],
+        dataScopeRules: {},
+        knowledgePack: {},
+      }),
+    } as never);
+    const superAdminContext = context({ roles: ['super_admin'], permissions: ['*'] });
+    const roleContext = await service.build({ context: superAdminContext, roleHint: 'marketing' });
+    const marketing = {
+      ...capability('marketing_message_draft', ['core:marketing:create']),
+      generatedCapability: true,
+      allowedRoles: ['marketing'],
+    };
+
+    expect(service.filterCapabilities(roleContext, superAdminContext, [marketing])).toEqual([marketing]);
+    expect(roleContext).toMatchObject({ role: 'store_manager', expressionRole: 'marketing' });
+  });
 });

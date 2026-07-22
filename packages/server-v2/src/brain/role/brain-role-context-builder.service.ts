@@ -73,10 +73,11 @@ export class BrainRoleContextBuilderService {
     cards: readonly BrainCapabilityCard[],
   ): readonly BrainCapabilityCard[] {
     const allowed = new Set(roleContext.allowedSkills);
+    const isSuperAdmin = context.roles?.includes('super_admin') === true;
     return cards.filter(
       (card) =>
         (card.generatedCapability === true
-          ? card.allowedRoles.length === 0 || card.allowedRoles.includes(roleContext.role)
+          ? isSuperAdmin || card.allowedRoles.length === 0 || card.allowedRoles.includes(roleContext.role)
           : allowed.has(card.key)) &&
         !context.deniedPermissions.includes('*') &&
         card.requiredPermissions.every(

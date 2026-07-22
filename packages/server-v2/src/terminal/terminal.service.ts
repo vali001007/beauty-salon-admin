@@ -21,6 +21,7 @@ import { CustomersService } from '../customers/customers.service.js';
 import { TerminalDashboardCacheService } from './terminal-dashboard-cache.service.js';
 import { CardsService } from '../cards/cards.service.js';
 import { collectAuraUserFieldScopes, resolveAuraAvailableRolesForUser } from './terminal-role-access.js';
+import { TERMINAL_ROLE_PERMISSIONS } from './terminal-role-permissions.js';
 import { formatBusinessDate, formatBusinessDateTime, toBusinessDateOnly } from '../common/utils/business-time.js';
 import { deductStockItem, deductStockItems } from '../common/inventory-stock-deduction.js';
 import { DeviceLoginDto } from './dto/device-login.dto.js';
@@ -2698,33 +2699,6 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       reception: '围绕接待、预约、核销和收银快速处理',
       beautician: '只看自己的排班、客户和服务动作',
     };
-    const permissions: Record<string, string[]> = {
-      manager: [
-        'aura:manager:view',
-        'aura:customer:read',
-        'aura:appointment:read',
-        'aura:appointment:write',
-        'aura:card:consume',
-        'aura:cashier:create',
-        'aura:card-order:create',
-        'aura:recharge:create',
-        'aura:refund:create',
-        'aura:inventory:read',
-        'aura:staff:read',
-      ],
-      reception: [
-        'aura:reception:view',
-        'aura:customer:read',
-        'aura:appointment:read',
-        'aura:appointment:write',
-        'aura:card:consume',
-        'aura:cashier:create',
-        'aura:card-order:create',
-        'aura:recharge:create',
-        'aura:refund:create',
-      ],
-      beautician: ['aura:beautician:view', 'aura:customer:read', 'aura:appointment:read', 'aura:service-record:create'],
-    };
     const availableActions = actionMap[currentRole];
     const roleDefinition = {
       role: currentRole,
@@ -2744,7 +2718,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       availableActions,
       quickActions: roleDefinition.quickActions,
       roleDefinition,
-      permissions: permissions[currentRole],
+      permissions: TERMINAL_ROLE_PERMISSIONS[currentRole as keyof typeof TERMINAL_ROLE_PERMISSIONS],
       dataScopes: {
         store: 'own_store',
         customer: currentRole === 'beautician' ? 'served_customers' : 'own_store',
@@ -5207,7 +5181,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       ...dto,
       storeId,
       status: 'pending',
-      bookingSource: 'ami_aura_lite',
+      bookingSource: dto.bookingSource ?? 'ami_aura_lite',
       allowCreateCustomer: !dto.customerId,
       allowDefaultProject: !dto.projectId && !dto.projectName,
     });

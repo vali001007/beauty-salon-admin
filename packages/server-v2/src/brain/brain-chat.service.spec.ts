@@ -45,6 +45,7 @@ describe('BrainChatService', () => {
     brainRun: {
       create: jest.fn(),
       findFirst: jest.fn(),
+      findMany: jest.fn(),
       update: jest.fn(),
     },
     brainRunStep: {
@@ -63,7 +64,7 @@ describe('BrainChatService', () => {
       releaseService?: unknown;
       roleContextBuilder?: unknown;
       untrustedActionClaimGuard?: unknown;
-      conversationGuidance?: unknown;
+      memoryService?: unknown;
     } = {},
   ) => {
     const prisma = createPrismaMock();
@@ -280,6 +281,14 @@ describe('BrainChatService', () => {
         ]),
       },
       retriever: {
+        discover: jest.fn((input) => ({
+          status: 'selected',
+          selected: input.cards[0],
+          topK: [{ card: input.cards[0], score: 0.95, matchedFields: ['name'] }],
+          confidence: 0.95,
+          margin: 0.95,
+          reason: 'catalog_top1_selected',
+        })),
         retrieve: jest.fn((input) => ({
           status: 'selected',
           selected: input.cards[0],
@@ -381,7 +390,7 @@ describe('BrainChatService', () => {
         roleIntentRouter as never,
         domainAdapterRegistry as never,
         options.conversationContext as never,
-        undefined,
+        options.memoryService as never,
         options.orchestrator as never,
         options.taskExecutor as never,
         options.shadowCognition as never,
@@ -401,81 +410,17 @@ describe('BrainChatService', () => {
         options.releaseService as never,
         options.semanticEvidence,
         options.untrustedActionClaimGuard,
-        options.conversationGuidance,
       ),
     };
   };
-
-  it('returns structured guidance clarification with partial completion metadata', async () => {
-    const { service, trace } = createService();
-    const answer = await (service as any).answerFromConversationGuidance({
-      result: {
-        status: 'clarify',
-        question: '请选择你最想看的目标：',
-        options: [
-          { id: 'liability', label: '会员卡负债', value: '会员卡负债是多少？', capabilityKey: 'member_liability' },
-          { id: 'flow', label: '储值流水', value: '储值余额和流水分别是多少？', capabilityKey: 'stored_balance_flow' },
-        ],
-        capabilityKeys: ['member_liability', 'stored_balance_flow'],
-        pendingClarification: {
-          missingSlots: ['objective'],
-          questions: ['请选择你最想看的目标：'],
-          ambiguities: [{ slot: 'objective', reason: '存在多个候选目标', candidates: ['会员卡负债是多少？'] }],
-          turnCount: 1,
-        },
-      },
-      intent: {
-        intent: 'query',
-        answerShape: 'list',
-        missingSlots: [],
-        ambiguities: [],
-      },
-      modelMetadata: { cognitionMode: 'model', modelStage: 'retrieve', failureCode: null },
-      runId: 88,
-    });
-
-    expect(answer).toMatchObject({
-      status: 'completed',
-      grounding: 'none',
-      blocks: [{ kind: 'clarification', options: expect.any(Array) }],
-      adapterMetadata: {
-        decisionCode: 'conversation_guidance_clarification_required',
-        completion: { status: 'partial', missingCriteria: ['objective'], recoverable: true },
-      },
-      modelContextPendingClarification: { turnCount: 1 },
-    });
-    expect(trace.recordStep).toHaveBeenCalledWith(
-      expect.objectContaining({ stepKey: 'intent_clarification_requested' }),
-    );
-  });
-
-  it('records guidance selection only after validating the source run belongs to the conversation', async () => {
-    const { service, prisma, trace } = createService();
-    prisma.brainRun.findFirst.mockResolvedValue({ id: 102 });
-
-    await (service as any).recordGuidanceSelection(context, 42, 103, {
-      kind: 'follow_up',
-      sourceRunId: 102,
-      optionId: 'liability',
-    });
-
-    expect(prisma.brainRun.findFirst).toHaveBeenCalledWith({
-      where: { id: 102, conversationId: 42, storeId: 2, userId: 9 },
-      select: { id: true },
-    });
-    expect(trace.recordStep).toHaveBeenCalledWith(
-      expect.objectContaining({
-        runId: 103,
-        stepKey: 'follow_up_question_selected',
-        status: 'completed',
-      }),
-    );
-  });
 
   it('returns a deterministic no-campaign decision when the previous expiring product result is empty', () => {
     const { service } = createService();
     const resultSets = new BrainResultReferenceService().buildResultSets({
       runId: 88,
+      conversationId: 12,
+      userId: 9,
+      storeId: 2,
       adapterMetadata: { mappingOutputs: { expiringBatches: [] } },
     });
     const answer = (service as any).answerFromConversationResultReference({
@@ -504,6 +449,9 @@ describe('BrainChatService', () => {
     const { service } = createService();
     const resultSets = new BrainResultReferenceService().buildResultSets({
       runId: 87,
+      conversationId: 12,
+      userId: 9,
+      storeId: 2,
       adapterMetadata: { mappingOutputs: { customerIds: [] } },
     });
     const answer = (service as any).answerFromConversationResultReference({
@@ -526,6 +474,9 @@ describe('BrainChatService', () => {
     const { service } = createService();
     const resultSets = new BrainResultReferenceService().buildResultSets({
       runId: 89,
+      conversationId: 12,
+      userId: 9,
+      storeId: 2,
       intent: {
         schemaVersion: '1.0',
         objective: '员工业绩排行',
@@ -611,6 +562,131 @@ describe('BrainChatService', () => {
       },
     });
     expect(answer.answer).toContain('没有员工内部通知');
+  });
+
+  it('clarifies a singular action reference when the previous ranking contains multiple employees', () => {
+    const { service } = createService();
+    const resultSets = new BrainResultReferenceService().buildResultSets({
+      runId: 90,
+      conversationId: 12,
+      userId: 9,
+      storeId: 2,
+      intent: {
+        schemaVersion: '1.0',
+        objective: '员工业绩排行',
+        domains: ['beautician'],
+        intent: 'ranking',
+        entities: [
+          {
+            entityType: 'beautician',
+            mention: '员工',
+            source: 'system',
+            confidence: 1,
+            definitionRef: {
+              definitionType: 'entity',
+              definitionKey: 'entity.beautician',
+              definitionVersion: 1,
+              definitionFingerprint: 'a'.repeat(64),
+              sourceFingerprint: 'b'.repeat(64),
+            },
+          },
+        ],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'ranking',
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 1,
+        decisionSummary: '排行',
+        successCriteria: ['返回排行'],
+      },
+      adapterMetadata: {
+        mappingOutputs: {
+          staffRanking: [
+            { entityType: 'beautician', entityKey: '12', mention: '宋乔' },
+            { entityType: 'beautician', entityKey: '19', mention: '顾然' },
+          ],
+        },
+      },
+    });
+
+    const normalized = (service as any).normalizeConversationResultReferenceIntent({
+      intent: {
+        intent: 'action',
+        entities: [],
+        missingSlots: ['entity'],
+        ambiguities: [],
+        assumptions: [],
+      },
+      question: '给她发个鼓励通知',
+      conversationSlots: { modelContext: { resultSets } },
+    });
+    const answer = (service as any).answerFromConversationResultReference({
+      intent: normalized,
+      question: '给她发个鼓励通知',
+      conversationSlots: { modelContext: { resultSets } },
+      cards: [],
+      modelMetadata: { cognitionMode: 'model', modelStage: 'validate', failureCode: null },
+    });
+
+    expect(normalized.entities).toEqual([]);
+    expect(answer).toMatchObject({
+      status: 'completed',
+      adapterMetadata: {
+        decisionCode: 'result_reference_ambiguity_clarification_required',
+        completion: { status: 'partial', missingCriteria: ['resultRef'], recoverable: true },
+      },
+      modelContextPendingClarification: { missingSlots: ['resultRef'] },
+      modelContextResultSets: resultSets,
+    });
+    expect(answer.blocks[0].options).toHaveLength(2);
+  });
+
+  it('keeps only result references proven by a completed run in the same conversation and store', async () => {
+    const { service, prisma } = createService();
+    const resultSets = new BrainResultReferenceService().buildResultSets({
+      runId: 91,
+      conversationId: 12,
+      userId: 9,
+      storeId: 2,
+      adapterMetadata: {
+        mappingOutputs: {
+          staffRanking: [{ entityType: 'beautician', entityKey: '12', mention: '宋乔' }],
+        },
+      },
+    });
+    prisma.brainRun.findMany.mockResolvedValue([{ id: 91, output: { adapterMetadata: { resultSets } } }]);
+
+    const verified = await (service as any).verifyConversationResultReferenceSlots({
+      conversationId: 12,
+      runId: 92,
+      context,
+      conversationSlots: { modelContext: { resultSets } },
+    });
+
+    expect(verified.modelContext.resultSets).toEqual(resultSets);
+    expect(prisma.brainRun.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: { in: [91] },
+          conversationId: 12,
+          userId: 9,
+          storeId: 2,
+          status: 'completed',
+        }),
+      }),
+    );
+
+    const rejected = await (service as any).verifyConversationResultReferenceSlots({
+      conversationId: 12,
+      runId: 93,
+      context: { ...context, storeId: 6 },
+      conversationSlots: { modelContext: { resultSets } },
+    });
+    expect(rejected.modelContext.resultSets).toEqual([]);
   });
 
   it('clarifies a gap insertion action when customer, project and target time are not bound', () => {
@@ -917,6 +993,149 @@ describe('BrainChatService', () => {
           }),
         }),
       }),
+    );
+  });
+
+  it('injects governed long-term memory into the model compiler context', async () => {
+    const memoryService = {
+      retrieveForPlanning: jest.fn().mockResolvedValue([
+        {
+          id: 31,
+          scope: 'user',
+          subject: 'user.preference.answer_style',
+          summary: '默认先说结论',
+          confidence: 0.9,
+          updatedAt: '2026-07-21T09:00:00.000Z',
+        },
+      ]),
+      applyUserInstruction: jest.fn().mockResolvedValue({ handled: false, action: 'none', memories: [] }),
+    };
+    const { prisma, cognition, trace, modelPipeline, service } = createService({ modelPipeline: {}, memoryService });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create.mockResolvedValue({ id: 101 });
+    prisma.brainRun.create.mockResolvedValue({ id: 77 });
+    prisma.brainRun.update.mockResolvedValue({ id: 77 });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+    cognition.understand.mockReturnValue({
+      normalizedText: '本月商品销售排行',
+      terms: [],
+      metrics: [],
+      dimensions: [],
+      entities: [],
+      unsupportedTerms: [],
+      intent: { key: 'metric_query', confidence: 0.9, reason: 'test' },
+      needsClarification: false,
+    });
+
+    await service.sendMessage(context, 12, { message: '本月商品销售排行', timezone: 'Asia/Shanghai' });
+
+    expect(memoryService.retrieveForPlanning).toHaveBeenCalledWith({
+      storeId: 2,
+      userId: 9,
+      question: '本月商品销售排行',
+    });
+    expect(modelPipeline!.compiler.compile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationSlots: expect.objectContaining({
+          longTermMemory: {
+            policy: 'explicit_preferences_and_decisions_only',
+            priority: 'user_correction_over_store_default_over_model_inference',
+            items: [expect.objectContaining({ id: 31, scope: 'user', summary: '默认先说结论' })],
+          },
+        }),
+      }),
+    );
+    expect(trace.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({ stepKey: 'long_term_memory_recall', status: 'completed' }),
+    );
+  });
+
+  it('handles a standalone remember instruction as a visible governed memory confirmation', async () => {
+    const rememberedAt = new Date('2026-07-21T09:00:00.000Z');
+    const memoryService = {
+      retrieveForPlanning: jest.fn().mockResolvedValue([]),
+      applyUserInstruction: jest.fn().mockResolvedValue({
+        handled: true,
+        action: 'remembered',
+        message: '已记住：默认先说结论。',
+        memories: [
+          {
+            id: 32,
+            userId: 9,
+            sourceRunId: 77,
+            updatedAt: rememberedAt,
+            deletedAt: null,
+          },
+        ],
+      }),
+    };
+    const { prisma, trace, modelPipeline, service } = createService({ modelPipeline: {}, memoryService });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create.mockResolvedValue({ id: 101 });
+    prisma.brainRun.create.mockResolvedValue({ id: 77 });
+    prisma.brainRun.update.mockResolvedValue({ id: 77 });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+
+    const response = await service.sendMessage(context, 12, {
+      message: '以后默认先说结论',
+      timezone: 'Asia/Shanghai',
+    });
+
+    expect(memoryService.applyUserInstruction).toHaveBeenCalledWith({
+      storeId: 2,
+      userId: 9,
+      runId: 77,
+      text: '以后默认先说结论',
+      allowStoreScope: false,
+    });
+    expect(response).toMatchObject({
+      status: 'completed',
+      answer: '已记住：默认先说结论。',
+      citations: [expect.objectContaining({ sourceType: 'memory', sourceId: '32', label: '个人长期记忆' })],
+      blocks: [{ kind: 'text', text: '已记住：默认先说结论。' }],
+      adapterMetadata: { memoryInstruction: { action: 'remembered', memoryIds: [32] } },
+    });
+    expect(trace.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({ stepKey: 'memory_instruction', status: 'completed' }),
+    );
+    expect(modelPipeline!.compiler.compile).not.toHaveBeenCalled();
+  });
+
+  it('allows store memory governance for wildcard admins unless the permission is explicitly denied', async () => {
+    const memoryService = {
+      retrieveForPlanning: jest.fn().mockResolvedValue([]),
+      applyUserInstruction: jest.fn().mockResolvedValue({
+        handled: true,
+        action: 'remembered',
+        message: '已记住 1 条门店共享偏好或决定。',
+        memories: [],
+      }),
+    };
+    const { prisma, service } = createService({ modelPipeline: {}, memoryService });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create.mockResolvedValue({ id: 101 });
+    prisma.brainRun.create.mockResolvedValue({ id: 77 });
+    prisma.brainRun.update.mockResolvedValue({ id: 77 });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+
+    await service.sendMessage(
+      { ...context, permissions: ['*'], deniedPermissions: [] },
+      12,
+      { message: '以后全店默认先说结论', timezone: 'Asia/Shanghai' },
+    );
+    await service.sendMessage(
+      { ...context, permissions: ['*'], deniedPermissions: ['core:brain-governance:manage'] },
+      12,
+      { message: '以后全店默认先说结论', timezone: 'Asia/Shanghai' },
+    );
+
+    expect(memoryService.applyUserInstruction).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ allowStoreScope: true }),
+    );
+    expect(memoryService.applyUserInstruction).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ allowStoreScope: false }),
     );
   });
 
@@ -1588,7 +1807,11 @@ describe('BrainChatService', () => {
 
   it('uses the authenticated Brain role alias for plan validation and execution', async () => {
     const releaseService = {
-      resolveRuntimeMode: jest.fn().mockResolvedValue({ mode: 'model', capabilityCandidates: undefined }),
+      resolveRuntimeMode: jest.fn().mockResolvedValue({
+        mode: 'model',
+        release: { id: 21 },
+        capabilityCandidates: [{ key: 'product_sales_ranking', version: 1 }],
+      }),
     };
     const roleContextBuilder = {
       build: jest.fn().mockResolvedValue({
@@ -2950,7 +3173,7 @@ describe('BrainChatService', () => {
     expect(modelPipeline!.catalog.listEnabledCapabilities).toHaveBeenCalledWith([candidate]);
   });
 
-  it('fails closed to rules when the production release lookup is unavailable', async () => {
+  it('fails closed without entering rules when the production release lookup is unavailable', async () => {
     const releaseService = {
       resolveRuntimeMode: jest.fn().mockRejectedValue(new Error('release_db_unavailable')),
     };
@@ -2979,9 +3202,10 @@ describe('BrainChatService', () => {
       citations: [{ sourceType: 'metric', sourceId: 'paid_revenue', label: '实收流水' }],
     });
 
-    await service.sendMessage(context, 12, { message: '本月流水多少', timezone: 'Asia/Shanghai' });
+    const response = await service.sendMessage(context, 12, { message: '本月流水多少', timezone: 'Asia/Shanghai' });
 
-    expect(roleIntentRouter.route).toHaveBeenCalled();
+    expect(response).toMatchObject({ status: 'failed', failureCode: 'PRODUCTION_BASELINE_UNAVAILABLE' });
+    expect(roleIntentRouter.route).not.toHaveBeenCalled();
     expect(modelPipeline!.catalog.listEnabledCapabilities).not.toHaveBeenCalled();
     expect(modelPipeline!.compiler.compile).not.toHaveBeenCalled();
   });
@@ -2989,7 +3213,7 @@ describe('BrainChatService', () => {
   it.each([
     ['no matching release', { mode: undefined, release: null }],
     ['invalid active release mode', { mode: undefined, release: { id: 21, rollout: { mode: 'invalid' } } }],
-  ])('fails closed to rules when governance resolves %s', async (_label, resolved) => {
+  ])('fails closed without entering rules when governance resolves %s', async (_label, resolved) => {
     const releaseService = { resolveRuntimeMode: jest.fn().mockResolvedValue(resolved) };
     const { prisma, cognition, semanticEngine, roleIntentRouter, modelPipeline, service } = createService({
       modelPipeline: {},
@@ -3016,9 +3240,10 @@ describe('BrainChatService', () => {
       citations: [{ sourceType: 'metric', sourceId: 'paid_revenue', label: '实收流水' }],
     });
 
-    await service.sendMessage(context, 12, { message: '本月流水多少', timezone: 'Asia/Shanghai' });
+    const response = await service.sendMessage(context, 12, { message: '本月流水多少', timezone: 'Asia/Shanghai' });
 
-    expect(roleIntentRouter.route).toHaveBeenCalled();
+    expect(response).toMatchObject({ status: 'failed', failureCode: 'PRODUCTION_BASELINE_UNAVAILABLE' });
+    expect(roleIntentRouter.route).not.toHaveBeenCalled();
     expect(modelPipeline!.compiler.compile).not.toHaveBeenCalled();
   });
 
@@ -4414,7 +4639,7 @@ describe('BrainChatService', () => {
     const response = await service.sendMessage(context, 12, { message, timezone: 'Asia/Shanghai' });
 
     expect(response).toMatchObject({
-      status: 'completed',
+      status: 'failed',
       grounding: 'none',
       citations: [],
       adapterMetadata: { unsupportedReason, scope: 'current_management_backend' },
@@ -5439,7 +5664,7 @@ describe('BrainChatService', () => {
     prisma.brainConversation.count.mockResolvedValue(0);
 
     await service.createConversation(evaluationContext, { title: '评测 case-1' });
-    const listed = await service.listConversations(context, { page: 2, pageSize: 10 });
+    const listed = await service.listConversations(context);
 
     expect(prisma.brainConversation.create).toHaveBeenCalledWith({
       data: { storeId: 2, userId: 9, title: '评测 case-1', status: 'evaluation' },
@@ -5447,13 +5672,13 @@ describe('BrainChatService', () => {
     expect(prisma.brainConversation.findMany).toHaveBeenCalledWith({
       where: { storeId: 2, userId: 9, status: 'active', deletedAt: null },
       orderBy: { updatedAt: 'desc' },
-      skip: 10,
+      skip: 0,
       take: 10,
     });
     expect(prisma.brainConversation.count).toHaveBeenCalledWith({
       where: { storeId: 2, userId: 9, status: 'active', deletedAt: null },
     });
-    expect(listed).toEqual({ items: [], total: 0, page: 2, pageSize: 10, storeId: 2 });
+    expect(listed).toEqual({ items: [], total: 0, page: 1, pageSize: 10, storeId: 2 });
   });
 
   it('persists user and assistant messages, records a run, and returns a cited answer', async () => {
@@ -6644,49 +6869,9 @@ describe('BrainChatService', () => {
         storeId: context.storeId,
         userId: context.userId,
       },
-      select: { id: true, createdAt: true },
+      select: { id: true },
     });
     expect(prisma.brainRunStep.findMany).not.toHaveBeenCalled();
-  });
-
-  it('returns recorded durations and timeline estimates for every run event', async () => {
-    const { prisma, service } = createService();
-    prisma.brainRun.findFirst.mockResolvedValue({ id: 88, createdAt: new Date('2026-07-22T00:00:00.000Z') });
-    prisma.brainRunStep.findMany.mockResolvedValue([
-      {
-        id: 1,
-        runId: 88,
-        stepKey: 'cognition_rules',
-        layer: 'cognition',
-        input: { question: '本周营业额' },
-        output: { intent: 'revenue' },
-        status: 'completed',
-        latencyMs: null,
-        error: null,
-        createdAt: new Date('2026-07-22T00:00:00.120Z'),
-      },
-      {
-        id: 2,
-        runId: 88,
-        stepKey: 'cognition_model',
-        layer: 'cognition',
-        input: { question: '本周营业额' },
-        output: { usage: { inputTokens: 10, outputTokens: 5 } },
-        status: 'completed',
-        latencyMs: 80,
-        error: null,
-        createdAt: new Date('2026-07-22T00:00:00.250Z'),
-      },
-    ]);
-
-    await expect(service.listRunEvents(context, 88)).resolves.toMatchObject({
-      runId: 88,
-      events: [
-        { stepKey: 'cognition_rules', durationMs: 120, durationSource: 'timeline_estimate' },
-        { stepKey: 'cognition_model', durationMs: 80, durationSource: 'recorded' },
-      ],
-      storeId: context.storeId,
-    });
   });
 
   it('returns the owning conversation for a run in the current store and user scope', async () => {

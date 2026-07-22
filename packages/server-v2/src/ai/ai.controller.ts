@@ -121,6 +121,13 @@ export class AiController {
     return this.aiService.getAuditLogSummary({ scenario, status });
   }
 
+  @Get('provider-health')
+  @Permissions('core:system:view')
+  @ApiOperation({ summary: '获取模型主备路由与熔断状态' })
+  getProviderHealth() {
+    return this.aiService.getProviderHealth();
+  }
+
   @Get('audit-logs/paginated')
   @Permissions('core:system:view')
   @ApiOperation({ summary: '获取AI审计日志' })

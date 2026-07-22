@@ -46,7 +46,7 @@ describe('brain release eval gate', () => {
       contextOverride: { permissions: ['core:customer:view'] },
     });
     expect(gate.cases.filter((item) => item.caseKey.startsWith('release_security:'))).toHaveLength(4);
-    expect(gate.manifest.requiredCaseKeys).toHaveLength(8);
+    expect(gate.manifest.requiredCaseKeys).toHaveLength(9);
   });
 
   it('fails the release gate when one case is missing or a required capability was never selected', () => {
@@ -89,6 +89,20 @@ describe('brain release eval gate', () => {
       missingCapabilityKeys: [],
       providerUnavailableCapabilityKeys: [],
     });
+  });
+
+  it('counts a passed safe clarification against its expected side-effect capability coverage', () => {
+    const gate = buildBrainReleaseEvalGate(snapshot);
+    const results = gate.cases.map((item) => ({
+      caseKey: item.caseKey,
+      passed: true,
+      actualCapabilityKeys: item.caseKey === 'release_capability:21:reservation_list:1'
+        ? []
+        : item.expectedCapabilityKeys,
+      expectedCapabilityKeys: item.expectedCapabilityKeys,
+    }));
+
+    expect(evaluateBrainReleaseEvalGate(gate.manifest, results).missingCapabilityKeys).toEqual([]);
   });
 
   it('adds seven SQL boundary cases for the current payment breakdown capability', () => {

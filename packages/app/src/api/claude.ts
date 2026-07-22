@@ -1,4 +1,4 @@
-import { createBrainConversation, sendBrainMessage, type BrainChatResponse, type BrainRoleKey } from '@/api'
+import { createBrainConversation, sendBrainMessage, type BrainChatResponse, type BrainResponseBlock, type BrainRoleKey } from '@/api'
 import { useAuthStore } from '@/stores/authStore'
 import { useStoreStore } from '@/stores/storeStore'
 
@@ -7,6 +7,7 @@ export type Role = 'receptionist' | 'manager' | 'beautician'
 export interface Message {
   role: 'user' | 'assistant'
   content: string
+  blocks?: BrainResponseBlock[]
 }
 
 interface ReportRow {
@@ -101,7 +102,7 @@ export async function sendMessage(
   userMessage: string,
   onChunk: (chunk: string) => void,
   onToolCall?: (toolName: string) => void,
-  _onBusinessResult?: (result: BusinessResult) => void,
+  onStructuredResponse?: (result: BrainChatResponse) => void,
 ): Promise<Message[]> {
   void history
   onToolCall?.('Ami Brain')
@@ -125,10 +126,11 @@ export async function sendMessage(
   }
 
   const text = formatBrainAnswer(result)
+  onStructuredResponse?.(result)
   onChunk(text)
 
   return [
     { role: 'user', content: userMessage },
-    { role: 'assistant', content: text },
+    { role: 'assistant', content: text, blocks: result.blocks ?? [] },
   ]
 }

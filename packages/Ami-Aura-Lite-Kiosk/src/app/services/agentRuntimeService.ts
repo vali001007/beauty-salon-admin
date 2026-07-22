@@ -74,6 +74,7 @@ export function parseTerminalBrainAction(action: string): TerminalBrainActionCod
 function mapBrainResult(response: BrainChatResponse, role: Role): AgentRunResultV2 {
   const confirmationActions = response.suggestedActions.filter((action) => action.requiresConfirmation);
   const citations = response.citations;
+  const brainBlocks = (response.blocks ?? []).filter((block) => block.kind !== 'action_preview');
   return {
     runId: response.runId,
     runNo: `BRAIN-${response.runId}`,
@@ -128,8 +129,9 @@ function mapBrainResult(response: BrainChatResponse, role: Role): AgentRunResult
       riskLevel: toAgentRisk(action.riskLevel),
       impactSummary: action.impactItems?.map((item) => item.label).join('、'),
     })),
+    brainBlocks,
     followUpSuggestions: response.clarification?.options.map((option) => option.label) ?? [],
-    responseMode: confirmationActions.length ? 'structured_blocks' : 'composed_answer',
+    responseMode: confirmationActions.length || brainBlocks.length ? 'structured_blocks' : 'composed_answer',
     personaCode: toTerminalAgentRole(role),
   };
 }

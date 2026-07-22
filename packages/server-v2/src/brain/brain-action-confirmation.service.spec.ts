@@ -493,6 +493,7 @@ describe('BrainActionConfirmationService', () => {
     expect(targetResolver.revalidateCapabilityTarget).toHaveBeenCalledWith({
       capabilityKey: 'reschedule_reservation',
       storeId: 6,
+      userId: 9,
       args: validatedArgs,
       idempotencyKey: expect.any(String),
     });

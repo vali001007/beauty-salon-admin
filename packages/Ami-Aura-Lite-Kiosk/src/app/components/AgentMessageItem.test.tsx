@@ -2,11 +2,13 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { BrainResponseBlockCompat } from "@ami/agent-core";
 import type { AgentRunResult, AuraResponseBlock } from "@/types/agent";
 import { AgentMessageItem } from "./AgentMessageItem";
 
 type TestAgentRunResult = AgentRunResult & {
   renderedBlocks?: AuraResponseBlock[];
+  brainBlocks?: BrainResponseBlockCompat[];
   followUpSuggestions?: string[];
 };
 
@@ -128,6 +130,35 @@ describe("AgentMessageItem", () => {
     });
 
     expect(onAction).toHaveBeenCalledWith("customer.followup.draft", "生成回访话术");
+  });
+
+  it("renders Ami Brain structured KPI and ranking blocks instead of dropping them", async () => {
+    await act(async () => {
+      root.render(
+        <AgentMessageItem
+          data={createAgentResult({
+            answer: "本月商品销售排行已完成。",
+            brainBlocks: [
+              { kind: "kpi", items: [{ label: "商品数", value: "2" }] },
+              {
+                kind: "ranking",
+                columns: ["商品", "销量"],
+                rows: [{ 商品: "抗衰紧致眼霜", 销量: 14 }, { 商品: "烟酰胺亮肤精华", 销量: 11 }],
+              },
+            ],
+          })}
+        />,
+      );
+    });
+
+    await act(async () => {
+      await vi.dynamicImportSettled();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(container.textContent).toContain("商品数");
+    expect(container.textContent).toContain("抗衰紧致眼霜");
+    expect(container.textContent).toContain("14");
   });
 
   it("does not repeat top-level actions as follow-up suggestions", () => {

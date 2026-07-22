@@ -16,6 +16,7 @@ describe('BrainRuntimeConfigService', () => {
     const service = createService();
 
     expect(service.runtime).toEqual({
+      runtimeSource: 'database',
       cognitionMode: 'rules',
       plannerMode: 'rules',
       modelShadowPercent: 0,
@@ -50,6 +51,7 @@ describe('BrainRuntimeConfigService', () => {
     });
 
     expect(service.runtime).toEqual({
+      runtimeSource: 'database',
       cognitionMode: 'model',
       plannerMode: 'shadow',
       modelShadowPercent: 25,
@@ -67,6 +69,7 @@ describe('BrainRuntimeConfigService', () => {
   });
 
   it.each([
+    ['BRAIN_RUNTIME_SOURCE', 'file', 'must be one of database, environment'],
     ['BRAIN_COGNITION_MODE', 'invalid', 'must be one of rules, shadow, model'],
     ['BRAIN_PLANNER_MODE', 'MODEL', 'must be one of rules, shadow, model'],
     ['BRAIN_MODEL_SHADOW_PERCENT', '-1', 'must be between 0 and 100'],

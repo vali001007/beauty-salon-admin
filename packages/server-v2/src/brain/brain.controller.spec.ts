@@ -522,6 +522,7 @@ describe('BrainController', () => {
     const inspectionService = {
       runInspection: jest.fn().mockResolvedValue({ runId: 11, storeId: 2, findingCount: 3, status: 'completed' }),
       listFindings: jest.fn().mockResolvedValue([{ id: 21, storeId: 2, status: 'open' }]),
+      listInbox: jest.fn().mockResolvedValue({ items: [{ id: 21 }], summary: { total: 1 }, storeId: 2 }),
       updateFinding: jest.fn().mockResolvedValue({ id: 21, storeId: 2, status: 'in_progress', disposition: 'adopted' }),
     };
     const inspectionController = new BrainController(
@@ -540,6 +541,10 @@ describe('BrainController', () => {
     await expect(inspectionController.listInspectionFindings(request, 'open')).resolves.toMatchObject({
       items: [{ id: 21 }],
     });
+    await expect(inspectionController.listInspectionInbox(request, '3')).resolves.toMatchObject({
+      items: [{ id: 21 }],
+      storeId: 2,
+    });
     await expect(
       inspectionController.updateInspectionFinding(request, '21', { disposition: 'adopted', note: '已分配负责人' }),
     ).resolves.toMatchObject({
@@ -547,7 +552,23 @@ describe('BrainController', () => {
       status: 'in_progress',
     });
     expect(inspectionService.runInspection).toHaveBeenCalledWith({ storeId: 2, triggerType: 'manual' });
-    expect(inspectionService.listFindings).toHaveBeenCalledWith({ storeId: 2, status: 'open' });
+    expect(inspectionService.listFindings).toHaveBeenCalledWith({
+      storeId: 2,
+      status: 'open',
+      permissions: ['core:brain:use'],
+      deniedPermissions: [],
+      userId: 9,
+      roles: [],
+      enabledRulesOnly: true,
+    });
+    expect(inspectionService.listInbox).toHaveBeenCalledWith({
+      storeId: 2,
+      permissions: ['core:brain:use'],
+      deniedPermissions: [],
+      userId: 9,
+      roles: [],
+      limit: 3,
+    });
     expect(inspectionService.updateFinding).toHaveBeenCalledWith({
       storeId: 2,
       findingId: 21,
@@ -617,6 +638,37 @@ describe('BrainController', () => {
 
     expect(traceService.listTraces).toHaveBeenCalledWith({ storeId: 2 });
     expect(traceService.getRunTrace).toHaveBeenCalledWith({ runId: 77, storeId: 2 });
+  });
+
+  it('scopes memory revision history to the current store and user', async () => {
+    const memoryService = {
+      listRevisions: jest.fn().mockResolvedValue({
+        items: [{ id: 8, memoryId: 31, revisionType: 'user_correction' }],
+        total: 1,
+      }),
+    };
+    const governanceController = new BrainController(
+      contextService,
+      chatService as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      memoryService as never,
+    );
+
+    await expect(governanceController.listMemoryRevisions(request, '31')).resolves.toMatchObject({
+      total: 1,
+      items: [expect.objectContaining({ memoryId: 31, revisionType: 'user_correction' })],
+    });
+    expect(memoryService.listRevisions).toHaveBeenCalledWith({ id: 31, storeId: 2, userId: 9 });
   });
 
   it('exposes real eval, release and feedback governance endpoints', async () => {

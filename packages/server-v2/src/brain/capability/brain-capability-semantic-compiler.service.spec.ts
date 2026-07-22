@@ -275,6 +275,56 @@ describe('BrainCapabilitySemanticCompilerService', () => {
     ]));
   });
 
+  it('keeps governed service record completion previews executable as actions', async () => {
+    const model: BrainCapabilitySemanticModel = {
+      generate: jest.fn().mockResolvedValue({
+        name: '服务完成记录预览',
+        description: '完成服务前生成待确认记录预览。',
+        domains: ['customer'],
+        intents: ['action'],
+        positiveExamples: ['查询客户服务记录', '查看客户护理历史'],
+        negativeExamples: ['直接完成其他门店服务单'],
+        synonyms: ['完成服务记录'],
+        riskExplanation: '确认后会改变服务任务状态。',
+      }),
+    };
+    const service = new BrainCapabilitySemanticCompilerService(model);
+
+    const result = await service.compile({
+      capability: {
+        ...candidate(),
+        key: 'service_record_completion_preview',
+        businessDefinitionKeys: ['entity.customer'],
+        readOnly: false,
+        sideEffect: true,
+        riskLevel: 'high',
+        requiresConfirmation: true,
+        idempotency: 'required',
+        semanticHints: {
+          name: '服务完成记录预览',
+          description: '保存服务记录前生成待确认预览。',
+          intents: ['action'],
+          examples: [
+            '预览完成张女士服务单并保存护理备注',
+            '为当前客户生成服务记录待确认方案',
+          ],
+          negativeExamples: ['直接完成其他门店服务单'],
+          synonyms: ['完成服务单预览'],
+        },
+      },
+      definitions: [
+        definition('entity.customer', 'entity', 'customer', ['service_record_completion_preview'], []),
+      ],
+      successSchema: { type: 'object' },
+    });
+
+    expect(result.canonicalSemantics.intents).toEqual(['action']);
+    expect(result.canonicalSemantics.examples).toEqual([
+      '为当前客户生成服务记录待确认方案',
+      '预览完成张女士服务单并保存护理备注',
+    ]);
+  });
+
   it('uses explicit decorator examples when model wording is not executable for the governed intent', async () => {
     const model: BrainCapabilitySemanticModel = {
       generate: jest.fn().mockResolvedValue({

@@ -5,6 +5,14 @@ const pipe = new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, t
 const metadata: ArgumentMetadata = { type: 'body', metatype: CreateBrainEvalRunDto };
 
 describe('CreateBrainEvalRunDto', () => {
+  it('accepts a positive source eval run id for failed-case regression', async () => {
+    await expect(pipe.transform({ sourceEvalRunId: 41 }, metadata)).resolves.toMatchObject({ sourceEvalRunId: 41 });
+  });
+
+  it('rejects an invalid source eval run id', async () => {
+    await expect(pipe.transform({ sourceEvalRunId: 0 }, metadata)).rejects.toBeDefined();
+  });
+
   it('accepts a bounded release evaluation request', async () => {
     await expect(
       pipe.transform(

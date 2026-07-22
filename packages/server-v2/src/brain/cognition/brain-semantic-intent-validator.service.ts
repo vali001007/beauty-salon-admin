@@ -108,7 +108,7 @@ export class BrainSemanticIntentValidatorService {
       candidates: [...ambiguity.candidates],
     }));
 
-    this.collectIntentShapeGaps(intent, missingSlots, hasGovernedImplicitRankingContract(intent, governedScope));
+    this.collectIntentShapeGaps(intent, missingSlots, hasGovernedImplicitRankingContract(intent, governedScope), governedScope);
     clarificationIssues.push(...this.findEntityConflicts(intent));
     const stableClarificationIssues = dedupeIssues(clarificationIssues);
     const ambiguitySlots = new Set(actionableAmbiguities.map((ambiguity) => ambiguity.slot));
@@ -294,11 +294,34 @@ export class BrainSemanticIntentValidatorService {
     intent: BrainSemanticIntent,
     missingSlots: Set<string>,
     hasImplicitRankingContract = false,
+    governedScope?: BrainSemanticIntentGovernedScope,
   ): void {
+    if (hasExplicitTimeReference(intent.objective) && !intent.timeRange && intent.comparisonTarget?.type !== 'time') {
+      missingSlots.add('timeRange');
+    }
+
     if (
       intent.entities.some(
         (entity) => !entity.definitionRef && !(intent.intent === 'action' && isSpecificActionTarget(entity)),
       )
+    ) {
+      missingSlots.add('entity');
+    }
+
+    if (
+      ['scalar', 'trend'].includes(intent.answerShape) &&
+      intent.metrics.length === 0 &&
+      !hasInternalCapabilityCoverage(intent) &&
+      !governedScope?.definitionRefs.some((ref) => ref.definitionKey.startsWith('metric.'))
+    ) {
+      missingSlots.add('metric');
+    }
+
+    if (
+      intent.answerShape === 'list' &&
+      hasExplicitObjectCollectionRequest(intent.objective) &&
+      intent.entities.every((entity) => !entity.definitionRef && !entity.entityKey) &&
+      intent.dimensions.length === 0
     ) {
       missingSlots.add('entity');
     }
@@ -310,6 +333,10 @@ export class BrainSemanticIntentValidatorService {
     }
 
     if (intent.intent === 'comparison') {
+      if (
+        intent.metrics.length === 0 &&
+        !governedScope?.definitionRefs.some((ref) => ref.definitionKey.startsWith('metric.'))
+      ) missingSlots.add('metric');
       if (!intent.comparisonTarget) {
         if (!isGroupedDimensionComparison(intent)) missingSlots.add('comparisonTarget');
       } else if (intent.comparisonTarget.type === 'time') {
@@ -366,6 +393,11 @@ function hasGovernedImplicitRankingContract(
 }
 
 function isSpecificActionTarget(entity: BrainSemanticIntent['entities'][number]): boolean {
+  const explicitUserIdentifier =
+    entity.source === 'user'
+    && Boolean(entity.entityKey)
+    && entity.entityKey !== entity.entityType
+    && /(?:#|号|ID|id|任务|服务单)?\s*\d+/.test(`${entity.mention} ${entity.entityKey}`);
   if (
     !entity.definitionRef
     && !(
@@ -374,6 +406,7 @@ function isSpecificActionTarget(entity: BrainSemanticIntent['entities'][number])
       && Boolean(entity.entityKey)
       && entity.entityKey !== entity.entityType
     )
+    && !explicitUserIdentifier
   ) {
     return false;
   }
@@ -384,6 +417,20 @@ function isSpecificActionTarget(entity: BrainSemanticIntent['entities'][number])
 }
 
 const GENERIC_ACTION_TARGET_MENTIONS = new Set(['她', '他', 'ta', '对方', '目标客户', '目标对象']);
+
+function hasExplicitTimeReference(question: string): boolean {
+  return /今天|今日|明天|昨日|昨天|本周|上周|本月|这个月|上月|本季度|上季度|今年|去年|近\s*\d+\s*(?:天|周|个月|月)/.test(question);
+}
+
+function hasExplicitObjectCollectionRequest(question: string): boolean {
+  return /谁|哪些|哪个|哪位|列出|名单|排行|排名/.test(question);
+}
+
+function hasInternalCapabilityCoverage(intent: BrainSemanticIntent): boolean {
+  return intent.ambiguities.some((ambiguity) =>
+    /组合能力|能力合同|内部/.test(ambiguity.reason) && ambiguity.candidates.every((candidate) => !isUserFacingCandidate(candidate)),
+  ) || intent.assumptions.some((assumption) => /能力\s+\S+\s+将采用并披露已治理的默认分析口径/.test(assumption));
+}
 
 function isGroupedDimensionComparison(intent: BrainSemanticIntent): boolean {
   return (

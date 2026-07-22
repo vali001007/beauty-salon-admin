@@ -7,11 +7,14 @@ import {
   createBrainConversation,
   createBrainFeedback,
   getBrainRunEvents,
+  getBrainInspectionRepairPreview,
   listBrainActionStatuses,
   listBrainConversations,
   listBrainFeedbackIssues,
+  listBrainInspectionInbox,
   listBrainRuntimeEvalQuestionCatalog,
   listBrainMessages,
+  decideBrainInspectionRepair,
   rejectBrainAction,
   retryBrainAction,
   streamBrainMessage,
@@ -22,6 +25,9 @@ import type {
   BrainEvalCatalogItem,
   BrainFeedbackIssue,
   BrainGuidanceSelection,
+  BrainInspectionInboxResponse,
+  BrainInspectionRepairDecision,
+  BrainInspectionRepairPreview,
   BrainMessage,
   BrainRoleKey,
   BrainResponseBlock,
@@ -30,6 +36,8 @@ import type {
 import { BrainChatPanel } from './components/BrainChatPanel';
 import { BrainConversationSidebar, type BrainSidebarTab } from './components/BrainConversationSidebar';
 import { BrainEvidencePanel } from './components/BrainEvidencePanel';
+import { BrainInspectionInbox } from './components/BrainInspectionInbox';
+import { BrainInspectionRepairDialog } from './components/BrainInspectionRepairDialog';
 
 const CONVERSATION_PAGE_SIZE = 10;
 const FEEDBACK_ISSUE_PAGE_SIZE = 10;
@@ -85,6 +93,11 @@ export function BrainWorkspace() {
   const [actionResults, setActionResults] = useState<Record<string, BrainActionDecisionResponse>>({});
   const [feedbackByRun, setFeedbackByRun] = useState<Record<number, string>>({});
   const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [inspectionInbox, setInspectionInbox] = useState<BrainInspectionInboxResponse | null>(null);
+  const [loadingInspectionInbox, setLoadingInspectionInbox] = useState(false);
+  const [inspectionPreview, setInspectionPreview] = useState<BrainInspectionRepairPreview | null>(null);
+  const [reviewingFindingId, setReviewingFindingId] = useState<number | null>(null);
+  const [savingInspectionDecision, setSavingInspectionDecision] = useState(false);
   const selectedRunId = selectedAssistant?.metadata?.runId;
   const hasExecutingAction = useMemo(
     () => Object.values(actionResults).some((result) => result.status === 'queued' || result.status === 'executing'),
@@ -233,6 +246,17 @@ export function BrainWorkspace() {
     [loadMessages],
   );
 
+  const loadInspectionInbox = useCallback(async (showError = true) => {
+    setLoadingInspectionInbox(true);
+    try {
+      setInspectionInbox(await listBrainInspectionInbox(10));
+    } catch (error) {
+      if (showError) toast.error(error instanceof Error ? error.message : '主动风险加载失败');
+    } finally {
+      setLoadingInspectionInbox(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (currentStoreId === null && userStoreIds?.length === 1) {
       setCurrentStore(userStoreIds[0]);
@@ -244,6 +268,7 @@ export function BrainWorkspace() {
       setLoadingConversations(false);
       setLoadingFeedbackIssues(false);
       setLoadingEvalQuestions(false);
+      setInspectionInbox(null);
       return;
     }
     setConversationPage(1);
@@ -254,7 +279,16 @@ export function BrainWorkspace() {
     setEvalTotal(0);
     void loadConversations(true, 1);
     void loadFeedbackIssues(1);
-  }, [currentStoreId, loadConversations, loadFeedbackIssues]);
+    void loadInspectionInbox();
+  }, [currentStoreId, loadConversations, loadFeedbackIssues, loadInspectionInbox]);
+
+  useEffect(() => {
+    if (currentStoreId === null) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void loadInspectionInbox(false);
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, [currentStoreId, loadInspectionInbox]);
 
   useEffect(() => {
     if (currentStoreId === null || sidebarTab !== 'eval') return;
@@ -436,6 +470,36 @@ export function BrainWorkspace() {
     }
   }
 
+  async function openInspectionReview(findingId: number) {
+    setReviewingFindingId(findingId);
+    try {
+      setInspectionPreview(await getBrainInspectionRepairPreview(findingId));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '巡检审查加载失败');
+    } finally {
+      setReviewingFindingId(null);
+    }
+  }
+
+  async function decideInspection(
+    decision: BrainInspectionRepairDecision,
+    modifications: Record<string, unknown>,
+    note: string,
+  ) {
+    if (!inspectionPreview) return;
+    setSavingInspectionDecision(true);
+    try {
+      await decideBrainInspectionRepair(inspectionPreview.findingId, { decision, modifications, note });
+      toast.success(decision === 'reject' ? '已拒绝该风险处理建议' : '审批已记录，业务数据尚未修改');
+      setInspectionPreview(null);
+      await loadInspectionInbox(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '巡检审批失败');
+    } finally {
+      setSavingInspectionDecision(false);
+    }
+  }
+
   return (
     <div className="flex h-full min-h-0 overflow-hidden bg-background">
       <BrainConversationSidebar
@@ -492,6 +556,15 @@ export function BrainWorkspace() {
         onCreateConversation={() => void createConversation()}
         onSend={handleSend}
         onSelectAssistant={(message) => void loadRunEvents(message)}
+        inspectionInbox={(
+          <BrainInspectionInbox
+            inbox={inspectionInbox}
+            loading={loadingInspectionInbox}
+            reviewingId={reviewingFindingId}
+            onRefresh={() => void loadInspectionInbox()}
+            onReview={(findingId) => void openInspectionReview(findingId)}
+          />
+        )}
       />
       <BrainEvidencePanel
         message={selectedAssistant}
@@ -505,6 +578,12 @@ export function BrainWorkspace() {
         onRejectAction={(actionId, runId) => void handleAction(actionId, runId, 'reject')}
         onRetryAction={(actionId, runId) => void handleAction(actionId, runId, 'retry')}
         onFeedback={(runId, rating) => void handleFeedback(runId, rating)}
+      />
+      <BrainInspectionRepairDialog
+        preview={inspectionPreview}
+        saving={savingInspectionDecision}
+        onClose={() => setInspectionPreview(null)}
+        onDecision={(decision, modifications, note) => void decideInspection(decision, modifications, note)}
       />
     </div>
   );

@@ -7,6 +7,7 @@ import { NestFactory } from '@nestjs/core';
 import { BrainModule } from '../src/brain/brain.module.js';
 import { BrainCapabilityCatalogService } from '../src/brain/capability/brain-capability-catalog.service.js';
 import type { BrainCapabilityCandidate } from '../src/brain/capability/brain-capability.types.js';
+import { BrainOntologyRuntimeService } from '../src/brain/cognition/brain-ontology-runtime.service.js';
 import { loadWorkspaceEnvironment } from '../src/brain/capability/brain-capability-cli.helpers.js';
 import { BrainEvalService } from '../src/brain/governance/brain-eval.service.js';
 import { BrainGovernanceApprovalService } from '../src/brain/governance/brain-governance-approval.service.js';
@@ -27,6 +28,7 @@ type PilotOptions = {
   dryRun: boolean;
   evaluateOnly: boolean;
   resumeEvalRunId?: number;
+  caseKeys: string[];
   archiveOnFailure: boolean;
   regenerationRequirement?: string;
 };
@@ -36,6 +38,7 @@ async function main() {
   const options = parseOptions(process.argv.slice(2));
   process.env.BRAIN_COGNITION_MODE = 'model';
   process.env.BRAIN_PLANNER_MODE = 'model';
+  process.env.TERMINAL_AUTOMATION_SCHEDULER = 'disabled';
   if (options.preferFallback) preferConfiguredFallbackAsPrimary();
   process.stderr.write('[ami-brain-release-pilot] bootstrapping application context\n');
   const app = await NestFactory.createApplicationContext(AmiBrainReleasePilotModule, {
@@ -47,6 +50,7 @@ async function main() {
     const releaseService = app.get(BrainReleaseService, { strict: false });
     const evalService = app.get(BrainEvalService, { strict: false });
     const capabilityCatalog = app.get(BrainCapabilityCatalogService, { strict: false });
+    const ontologyRuntime = app.get(BrainOntologyRuntimeService, { strict: false });
     const approvalService = app.get(BrainGovernanceApprovalService, { strict: false });
     const regenerationWorker = app.get(BrainCapabilityRegenerationWorkerService, { strict: false });
     if (options.dryRun) {
@@ -77,7 +81,29 @@ async function main() {
     if (!shadow) throw new Error('shadow_release_not_created');
     const releaseSnapshot = await releaseService.freezeEvaluationRelease(shadow.id);
     process.stderr.write(`[ami-brain-release-pilot] shadow release ${shadow.id} frozen\n`);
-    const catalogReport = await capabilityCatalog.validateEnabledCapabilities(releaseSnapshot.capabilityCandidates);
+    const resumedRun = options.resumeEvalRunId
+      ? await prisma.brainEvalRun.findFirst({ where: { id: options.resumeEvalRunId, releaseId: shadow.id } })
+      : undefined;
+    if (options.resumeEvalRunId && !resumedRun) throw new Error('resume_eval_run_not_found');
+    const resumedSummary = asRecord(resumedRun?.summary);
+    if (
+      resumedRun &&
+      resumedSummary.releaseFingerprint !== releaseSnapshot.releaseFingerprint
+    ) {
+      throw new Error('resume_eval_release_fingerprint_changed');
+    }
+    let catalogReport = resumedRun
+      ? { valid: true, issues: [] }
+      : await capabilityCatalog.validateEnabledCapabilities(releaseSnapshot.capabilityCandidates);
+    if (resumedRun) {
+      try {
+        catalogReport = await capabilityCatalog.validateEnabledCapabilities(releaseSnapshot.capabilityCandidates);
+      } catch (error) {
+        process.stderr.write(
+          `[ami-brain-release-pilot] resume catalog prewarm skipped: ${error instanceof Error ? error.message : String(error)}\n`,
+        );
+      }
+    }
     if (options.regenerationRequirement) {
       const submitted = await approvalService.submitModificationRequirement({
         releaseId: shadow.id,
@@ -103,16 +129,27 @@ async function main() {
     if (!catalogReport.valid) {
       throw new Error(`candidate_catalog_invalid:${JSON.stringify(catalogReport.issues)}`);
     }
+    const definitionVersionIds = [
+      ...new Set(
+        releaseSnapshot.capabilityCandidates.flatMap((candidate) => {
+          if (!Array.isArray(candidate.definitionRefs)) return [];
+          return candidate.definitionRefs.flatMap((ref) => {
+            if (!ref || typeof ref !== 'object' || Array.isArray(ref)) return [];
+            const versionId = Number((ref as Record<string, unknown>).versionId);
+            return Number.isInteger(versionId) && versionId > 0 ? [versionId] : [];
+          });
+        }),
+      ),
+    ];
+    await ontologyRuntime.loadEvaluationSnapshot(definitionVersionIds);
 
-    const run = options.resumeEvalRunId
-      ? await prisma.brainEvalRun.findFirst({ where: { id: options.resumeEvalRunId, releaseId: shadow.id } })
-      : await evalService.createEvalRun({
+    const run = resumedRun ?? await evalService.createEvalRun({
           storeId: options.storeId,
           userId: options.userId,
           permissions: [],
           releaseId: shadow.id,
         });
-    if (!run) throw new Error('resume_eval_run_not_found');
+    if (!run) throw new Error('eval_run_not_created');
     process.stderr.write(`[ami-brain-release-pilot] eval run ${run.id} ${options.resumeEvalRunId ? 'resuming' : 'started'}\n`);
     if (options.resumeEvalRunId) {
       await evalService.runEvalNow({
@@ -120,6 +157,7 @@ async function main() {
         storeId: options.storeId,
         userId: options.userId,
         permissions: [],
+        ...(options.caseKeys.length ? { caseKeys: options.caseKeys } : {}),
       });
     }
     const completed = await waitForEval(prisma, run.id);
@@ -201,7 +239,12 @@ async function loadOrCreateSequence(
 ) {
   const existing = await prisma.brainRelease.findMany({
     where: { releaseKey: { startsWith: `${options.releaseKey}-` } },
-    include: { items: true },
+    select: {
+      id: true,
+      releaseKey: true,
+      status: true,
+      items: { select: { resourceVersionId: true } },
+    },
     orderBy: { id: 'asc' },
   });
   if (!existing.length) {
@@ -277,6 +320,7 @@ function parseOptions(args: string[]): PilotOptions {
     dryRun: values.get('dry-run') === 'true',
     evaluateOnly: values.get('evaluate-only') === 'true',
     resumeEvalRunId,
+    caseKeys: (values.get('case-keys') ?? '').split(',').map((item) => item.trim()).filter(Boolean),
     archiveOnFailure: values.get('archive-on-failure') === 'true',
     regenerationRequirement: values.get('regeneration-requirement')?.trim() || undefined,
   };

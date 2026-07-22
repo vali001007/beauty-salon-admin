@@ -11,6 +11,7 @@ import type {
   BrainCapabilityDefinitionSnapshotSource,
   BrainCapabilityNarrativeGenerator,
 } from './brain-capability-codegen.service.js';
+import { withBrainCapabilityMappingOutputs } from './brain-capability-mapping-output-contract.js';
 
 export function createDeterministicCapabilityGenerationFixture(scan: BrainCapabilityScanReport): {
   definitionSource: BrainCapabilityDefinitionSnapshotSource;
@@ -34,7 +35,10 @@ export function createDeterministicCapabilityGenerationFixture(scan: BrainCapabi
         examples: [`Execute ${capability.key}`],
         negativeExamples: [`Do not mutate through ${capability.key}`],
         synonyms: [],
-        successSchema: outputSchema(capability.outputContract.return),
+        successSchema: withBrainCapabilityMappingOutputs(
+          outputSchema(capability.outputContract.return),
+          capability.mappingOutputs,
+        ),
       }));
     const sourceFingerprint = sha256(`deterministic-fixture:${definitionKey}`);
     const payload = {

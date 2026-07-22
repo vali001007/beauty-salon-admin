@@ -1266,6 +1266,76 @@ describe('BrainSemanticIntentCompilerService', () => {
     });
   });
 
+  it('uses the unique governed payment dimension when the model budget is unavailable', async () => {
+    const aiService = fakeAiService(async () => {
+      throw new AiStructuredOutputError('BUDGET_EXCEEDED', 'structured budget exhausted');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput('本月支付方式拆分');
+    input.ontologySnapshot = {
+      ...ontologySnapshot,
+      dimensions: [
+        ...ontologySnapshot.dimensions,
+        {
+          definitionKey: paymentMethodDimensionRef.definitionKey,
+          version: paymentMethodDimensionRef.definitionVersion,
+          definitionFingerprint: paymentMethodDimensionRef.definitionFingerprint,
+          sourceFingerprint: paymentMethodDimensionRef.sourceFingerprint,
+          dimensionKey: 'paymentMethod',
+          name: '支付方式',
+          aliases: ['收款渠道'],
+          domain: 'payment',
+          source: { model: 'Payment' },
+          permissions: ['core:finance:view'],
+        },
+      ],
+    };
+    input.capabilitySummaries = [
+      {
+        key: 'finance_payment_breakdown',
+        name: '实收与储值流水拆分',
+        description: '实收查询、趋势与周期对比',
+        domains: ['finance', 'payment'],
+        intents: ['query', 'ranking', 'comparison', 'trend'],
+        examples: ['本月实收按支付方式怎么分'],
+        readOnly: true,
+        definitionRefs: [paidAmountMetricRef, paymentMethodDimensionRef],
+      },
+      {
+        key: 'store_operations_overview',
+        name: '门店经营概览',
+        description: '宽泛经营概览也包含支付方式信息',
+        domains: ['store_operations', 'payment'],
+        intents: ['query'],
+        examples: ['本月经营情况怎么样'],
+        readOnly: true,
+        definitionRefs: [paidAmountMetricRef, paymentMethodDimensionRef, productEntityRef],
+      },
+    ];
+
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      provider: 'governed_contract',
+      model: 'definition_match_fallback',
+      intent: {
+        intent: 'query',
+        answerShape: 'list',
+        dimensions: [expect.objectContaining({ definitionKey: 'dimension.paymentMethod' })],
+      },
+    });
+
+    input.question = '这个月各种收款渠道分别收了多少';
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      provider: 'governed_contract',
+      model: 'definition_match_fallback',
+      intent: {
+        dimensions: [expect.objectContaining({ definitionKey: 'dimension.paymentMethod' })],
+        assumptions: [expect.stringContaining('finance_payment_breakdown')],
+      },
+    });
+  });
+
   it('keeps an exact paid amount question scalar instead of adding payment grouping', async () => {
     const aiService = fakeAiService(async () => {
       throw new Error('model_should_not_be_called');
@@ -1978,6 +2048,31 @@ describe('BrainSemanticIntentCompilerService', () => {
       status: 'unavailable',
       errorCode: 'BUDGET_EXCEEDED',
       reason: 'structured budget exhausted',
+    });
+  });
+
+  it('uses a high-confidence capability catalog candidate when the model budget is exhausted', async () => {
+    const aiService = fakeAiService(async () => {
+      throw new AiStructuredOutputError('BUDGET_EXCEEDED', 'structured budget exhausted');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput('这个月商品卖得怎么样');
+    input.capabilitySummaries = [{
+      ...input.capabilitySummaries[0],
+      key: 'product_sales_ranking',
+      definitionRefs: [productEntityRef, productSalesMetricRef, productDimensionRef],
+    }];
+    input.preferredCapabilityKey = 'product_sales_ranking';
+
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      provider: 'governed_contract',
+      model: 'capability_catalog_fallback',
+      intent: {
+        intent: 'ranking',
+        metrics: [productSalesMetricRef],
+        dimensions: [productDimensionRef],
+      },
     });
   });
 

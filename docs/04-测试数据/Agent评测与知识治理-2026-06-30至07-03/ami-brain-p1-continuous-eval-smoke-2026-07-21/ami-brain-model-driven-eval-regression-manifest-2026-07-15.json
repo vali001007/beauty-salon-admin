@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "1.0",
+  "generatedAt": "2026-07-21T09:51:59.373Z",
+  "sourceResultsPath": "D:\\AI coding\\beauty-salon-admin-ami-brain-p1\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-p1-continuous-eval-smoke-2026-07-21\\ami-brain-model-driven-eval-results-2026-07-15.json",
+  "sourceGeneratedAt": "2026-07-21T09:51:59.366Z",
+  "sourceReleaseId": 362,
+  "sourceReleaseFingerprint": "ff731367df3f125236a49e7054f32f04b894d744cecbad171d458c261602e84e",
+  "productFailures": {
+    "count": 1,
+    "questionIds": [
+      "qb-manager-business-overview-005"
+    ],
+    "byStatus": [
+      {
+        "key": "metric_failed",
+        "count": 1
+      }
+    ],
+    "byReason": [
+      {
+        "key": "intent:intent_mismatch",
+        "count": 1
+      }
+    ]
+  },
+  "providerFailures": {
+    "count": 0,
+    "questionIds": [],
+    "byStatus": [],
+    "byReason": []
+  },
+  "allFailures": {
+    "count": 1,
+    "questionIds": [
+      "qb-manager-business-overview-005"
+    ],
+    "byStatus": [
+      {
+        "key": "metric_failed",
+        "count": 1
+      }
+    ],
+    "byReason": [
+      {
+        "key": "intent:intent_mismatch",
+        "count": 1
+      }
+    ]
+  }
+}

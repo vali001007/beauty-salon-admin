@@ -1,5 +1,6 @@
 import { config } from 'dotenv';
 config();
+process.env.TZ = 'Asia/Shanghai';
 
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';

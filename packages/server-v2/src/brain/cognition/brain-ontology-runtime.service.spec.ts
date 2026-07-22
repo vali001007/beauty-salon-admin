@@ -558,6 +558,32 @@ describe('BrainOntologyRuntimeService', () => {
     });
   });
 
+  it('reuses immutable evaluation snapshots for the same normalized version set', async () => {
+    const { runtime, provider } = runtimeFor(validInput(), 'rules');
+    const loadEvaluationDefinitions = jest.fn().mockResolvedValue(validInput());
+    (provider as BusinessDefinitionSnapshotProvider).loadEvaluationDefinitions = loadEvaluationDefinitions;
+
+    const first = await runtime.loadEvaluationSnapshot([12, 11, 12]);
+    const second = await runtime.loadEvaluationSnapshot([11, 12]);
+
+    expect(second).toBe(first);
+    expect(loadEvaluationDefinitions).toHaveBeenCalledTimes(1);
+    expect(loadEvaluationDefinitions).toHaveBeenCalledWith([11, 12]);
+  });
+
+  it('evicts a failed evaluation snapshot load so the next request can recover', async () => {
+    const { runtime, provider } = runtimeFor(validInput(), 'rules');
+    const loadEvaluationDefinitions = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('temporary_catalog_failure'))
+      .mockResolvedValueOnce(validInput());
+    (provider as BusinessDefinitionSnapshotProvider).loadEvaluationDefinitions = loadEvaluationDefinitions;
+
+    await expect(runtime.loadEvaluationSnapshot([21])).rejects.toThrow('temporary_catalog_failure');
+    await expect(runtime.loadEvaluationSnapshot([21])).resolves.toBeDefined();
+    expect(loadEvaluationDefinitions).toHaveBeenCalledTimes(2);
+  });
+
   it('does not fuzzy-match an unrelated short Chinese word through a long English entity key', async () => {
     const input = validInput();
     input.entities = [entity('customer', 'Customer', ['客户', '顾客'])];

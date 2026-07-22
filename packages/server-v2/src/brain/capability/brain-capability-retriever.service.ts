@@ -39,6 +39,13 @@ export interface BrainCapabilityGuidanceInput {
   limit?: number;
 }
 
+export interface BrainCapabilityDiscoveryInput {
+  question: string;
+  context: BrainRequestContext;
+  cards: readonly BrainCapabilityCard[];
+  maxRisk?: BrainCapabilityRiskLevel;
+}
+
 @Injectable()
 export class BrainCapabilityRetrieverService {
   constructor(private readonly config: BrainRuntimeConfigService) {}
@@ -67,9 +74,48 @@ export class BrainCapabilityRetrieverService {
     return { status: 'selected', selected: top.card, topK, confidence, margin, reason: 'top1_selected' };
   }
 
-  retrieveTopKForSupervisor(
-    input: Omit<BrainCapabilityRetrievalInput, 'readOnlyOnly'>,
-  ): readonly BrainCapabilityRankedCandidate[] {
+  discover(input: BrainCapabilityDiscoveryInput): BrainCapabilityRetrievalResult {
+    const maxRisk = input.maxRisk ?? 'high';
+    const contextCandidates = input.cards
+      .filter((card) =>
+        RISK_ORDER[card.riskLevel] <= RISK_ORDER[maxRisk] &&
+        this.hasPermissions(card, input.context) &&
+        this.hasAllowedRole(card, input.context),
+      );
+    const explicitIntent = inferExplicitInteractionIntent(input.question);
+    const intentCandidates = explicitIntent
+      ? contextCandidates.filter((card) => card.intents.includes(explicitIntent))
+      : [];
+    const ranked = (intentCandidates.length ? intentCandidates : contextCandidates)
+      .map((card) => this.rank(card, input.question))
+      .sort((left, right) => right.score - left.score || left.card.name.localeCompare(right.card.name));
+    if (!ranked.length) {
+      return { status: 'none', topK: [], confidence: 0, margin: 0, reason: 'no_capability_after_context_filters' };
+    }
+    const top = ranked[0]!;
+    const margin = round(top.score - (ranked[1]?.score ?? 0));
+    const confidence = round(top.score);
+    const topK = ranked.slice(0, this.config.runtime.capabilityTopK);
+    if (confidence < this.config.runtime.capabilityMinConfidence) {
+      return { status: 'clarify', topK, confidence, margin, reason: 'catalog_top1_below_confidence_threshold' };
+    }
+    const hasUniqueCatalogEvidence =
+      top.matchedFields.length > 0 && (ranked[1]?.matchedFields.length ?? 0) === 0;
+    const usesUniqueCatalogEvidence = ranked.length > 1 && margin < MIN_MARGIN && hasUniqueCatalogEvidence;
+    if (ranked.length > 1 && margin < MIN_MARGIN && !hasUniqueCatalogEvidence) {
+      return { status: 'clarify', topK, confidence, margin, reason: 'catalog_top1_margin_insufficient' };
+    }
+    return {
+      status: 'selected',
+      selected: top.card,
+      topK,
+      confidence,
+      margin,
+      reason: usesUniqueCatalogEvidence ? 'catalog_unique_field_evidence' : 'catalog_top1_selected',
+    };
+  }
+
+  retrieveTopKForSupervisor(input: Omit<BrainCapabilityRetrievalInput, 'readOnlyOnly'>): readonly BrainCapabilityRankedCandidate[] {
     return input.cards
       .filter((card) => this.passesSupervisorHardFilters(card, input))
       .map((card) => this.rankForSupervisor(card, input))
@@ -154,6 +200,7 @@ export class BrainCapabilityRetrieverService {
     if (!card.allowedRoles.length) return true;
     const roles = context.roles ?? [];
     if (!roles.length) return false;
+    if (roles.includes('super_admin')) return true;
     if (roles.includes('*') || card.allowedRoles.includes('*')) return true;
     return card.allowedRoles.some((role) => roles.includes(role));
   }
@@ -177,6 +224,18 @@ export class BrainCapabilityRetrieverService {
       matchedFields: scores.filter((item) => item.score >= 0.45).map((item) => item.field),
     };
   }
+}
+
+function inferExplicitInteractionIntent(question: string): string | undefined {
+  const normalized = question.trim().toLowerCase();
+  if (
+    /(?:写|生成|拟|编辑|准备).*(?:文案|话术|短信|消息|提醒|邀请|欢迎词)/.test(normalized) &&
+    !/(?:发送|群发|推送|发布|执行|保存)/.test(normalized)
+  ) {
+    return 'draft';
+  }
+  if (/(?:发送|群发|推送|发布|执行|创建|修改|取消|核销|下单)/.test(normalized)) return 'action';
+  return undefined;
 }
 
 function inputPropertyNames(schema: Readonly<Record<string, unknown>>): string[] {

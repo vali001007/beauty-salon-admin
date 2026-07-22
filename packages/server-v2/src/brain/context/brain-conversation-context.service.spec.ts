@@ -516,6 +516,75 @@ describe('BrainConversationContextService model conversation preparation', () =>
     );
   });
 
+  it('preserves the last governed result set across a clarification turn without new tool output', async () => {
+    const resultSets = [
+      {
+        setId: 'run:77:customerIds',
+        sourceRunId: 77,
+        sourceCapabilityKey: 'customer_facts',
+        sourceCapabilityVersion: 3,
+        outputKey: 'customerIds',
+        entityType: 'customer',
+        status: 'data' as const,
+        count: 1,
+        items: [
+          {
+            refId: 'run:77:customerIds:1',
+            entityType: 'customer',
+            entityKey: 'customer:1',
+            mention: '李女士',
+            rank: 1,
+            definitionRef: entityRef,
+          },
+        ],
+        scope: { conversationId: 12, userId: 9, storeId: 2 },
+        createdAt: new Date().toISOString(),
+      },
+    ];
+    const model = { ...validModelSnapshot(), resultSets };
+    const { prisma, service } = createService({ model });
+    prisma.brainConversation.findFirst.mockResolvedValue({
+      contextSnapshot: { model },
+      contextVersion: 4,
+    });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+
+    await service.updateAfterModelRun({
+      conversationId: 12,
+      runId: 78,
+      userId: 9,
+      storeId: 2,
+      intent: {
+        schemaVersion: '1.0',
+        objective: '确认要跟进的客户',
+        domains: ['customer'],
+        intent: 'clarify',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'clarification',
+        successCriteria: ['确认客户'],
+        ambiguities: [{ slot: 'resultRef', reason: '需要明确对象', candidates: ['李女士'] }],
+        missingSlots: ['resultRef'],
+        assumptions: [],
+        confidence: 0.8,
+        decisionSummary: '补充对象',
+      },
+    });
+
+    expect(prisma.brainConversation.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          contextSnapshot: expect.objectContaining({
+            model: expect.objectContaining({ resultSets }),
+          }),
+        }),
+      }),
+    );
+  });
+
   it('preserves the model context slot when a rules turn updates legacy context', async () => {
     const model = {
       version: 1,

@@ -345,7 +345,18 @@ export class BrainCapabilityGatewayService {
 
   private async saveServiceRecord(payload: Record<string, unknown>, context: BrainCapabilityContext) {
     const service = this.requireService(this.terminalService, 'TerminalService');
+    const prisma = this.requireService(this.prisma, 'PrismaService');
     const taskId = this.positiveInteger(payload.taskId, 'taskId');
+    const ownedTask = await prisma.serviceTask.findFirst({
+      where: {
+        id: taskId,
+        storeId: context.storeId,
+        beautician: { userId: context.userId },
+        status: { in: ['pending', 'in_progress'] },
+      },
+      select: { id: true },
+    });
+    if (!ownedTask) throw new ForbiddenException('service_task_not_owned_or_active');
     const current = await service.getTaskById(taskId);
     this.assertStore(current.storeId, context.storeId);
     const result = await service.completeTask(taskId, {

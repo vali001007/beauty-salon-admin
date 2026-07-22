@@ -1,8 +1,9 @@
-import { BadRequestException, ConflictException, Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { createHash } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import { BrainCapabilitySemanticVerifierService } from '../capability/brain-capability-semantic-verifier.service.js';
 import { BrainCapabilityCatalogService } from '../capability/brain-capability-catalog.service.js';
+import { BrainCapabilitySemanticVerifierService } from '../capability/brain-capability-semantic-verifier.service.js';
 import type { BrainCapabilityCatalogValidationReport } from '../capability/brain-capability.types.js';
 import type { BrainCapabilityCandidate } from '../capability/brain-capability.types.js';
 import type { BrainEvaluationReleaseSnapshot } from './brain-evaluation-release-snapshot.js';
@@ -12,28 +13,17 @@ import {
 } from './brain-capability-regeneration-fingerprint.js';
 
 @Injectable()
-export class BrainReleaseService implements OnModuleInit {
-  private readonly logger = new Logger(BrainReleaseService.name);
+export class BrainReleaseService {
+  private readonly evaluationReleaseSnapshotCache = new Map<
+    number,
+    Promise<BrainEvaluationReleaseSnapshot>
+  >();
 
   constructor(
     @Optional() private readonly prisma?: PrismaService,
     @Optional() private readonly semanticVerifier?: BrainCapabilitySemanticVerifierService,
     @Optional() private readonly capabilityCatalog?: BrainCapabilityCatalogService,
   ) {}
-
-  async onModuleInit(): Promise<void> {
-    if (!this.prisma || !this.capabilityCatalog) return;
-    const active = await this.prisma.brainRelease.findFirst({
-      where: { status: 'active' },
-      orderBy: { activatedAt: 'desc' },
-      select: { id: true },
-    });
-    if (!active) return;
-    const validation = await this.validateReleaseCatalog(active.id);
-    if (!validation.valid) {
-      this.logger.error(`Active Brain release #${active.id} catalog invalid: ${JSON.stringify(validation)}`);
-    }
-  }
 
   buildRollbackPlan(currentReleaseKey: string, previousReleaseKey: string) {
     return {
@@ -49,7 +39,7 @@ export class BrainReleaseService implements OnModuleInit {
       { suffix: 'canary-5', rollout: { stage: 'canary_5', mode: 'model', userPercentage: 5 } },
       { suffix: 'canary-20', rollout: { stage: 'canary_20', mode: 'model', userPercentage: 20 } },
       { suffix: 'canary-50', rollout: { stage: 'canary_50', mode: 'model', userPercentage: 50 } },
-      { suffix: 'full', rollout: { stage: 'full', mode: 'model', userPercentage: 100 } },
+      { suffix: 'full', rollout: { stage: 'full', mode: 'model', userPercentage: 100, productionBaseline: true } },
     ] as const;
     const releases: unknown[] = [];
     let previousReleaseId: number | undefined;
@@ -117,23 +107,31 @@ export class BrainReleaseService implements OnModuleInit {
       : { mode: undefined, declaredMode: undefined, release, capabilityCandidates };
   }
 
-  async resolveRuntimeSummary(input: { storeId: number; userId: number; roleKey: string }) {
-    const release = await this.selectReleaseSummary(input);
-    const declaredMode = release ? this.record(release.rollout).mode : undefined;
-    const mode = declaredMode === 'rules' || declaredMode === 'shadow' || declaredMode === 'model'
-      ? declaredMode
-      : undefined;
-    return { mode, declaredMode: mode, release };
+  async freezeEvaluationRelease(releaseId: number): Promise<BrainEvaluationReleaseSnapshot> {
+    const cached = this.evaluationReleaseSnapshotCache.get(releaseId);
+    if (cached) return cached;
+    const loading = this.loadEvaluationReleaseSnapshot(releaseId);
+    this.evaluationReleaseSnapshotCache.set(releaseId, loading);
+    try {
+      return await loading;
+    } catch (error) {
+      this.evaluationReleaseSnapshotCache.delete(releaseId);
+      throw error;
+    }
   }
 
-  async freezeEvaluationRelease(releaseId: number): Promise<BrainEvaluationReleaseSnapshot> {
+  private async loadEvaluationReleaseSnapshot(releaseId: number): Promise<BrainEvaluationReleaseSnapshot> {
     const release = await this.selectEvaluationRelease(releaseId);
+    const skillItems = await this.requirePrisma().brainReleaseItem.findMany({
+      where: { releaseId, resourceType: 'skill' },
+      select: { snapshot: true },
+      orderBy: { resourceVersionId: 'asc' },
+    });
     const declaredMode = this.record(release.rollout).mode;
     if (declaredMode !== 'rules' && declaredMode !== 'shadow' && declaredMode !== 'model') {
       throw new BadRequestException('evaluation_release_mode_invalid');
     }
-    const capabilityCandidates = release.items
-      .filter((item) => item.resourceType === 'skill')
+    const capabilityCandidates = skillItems
       .map((item) => this.record(item.snapshot) as unknown as BrainCapabilityCandidate);
     return deepCloneFreeze({
       releaseId: release.id,
@@ -154,7 +152,11 @@ export class BrainReleaseService implements OnModuleInit {
     const snapshot = await this.freezeEvaluationRelease(releaseId);
     const report = this.capabilityCatalog
       ? await this.capabilityCatalog.validateEnabledCapabilities(snapshot.capabilityCandidates)
-      : { valid: false, cards: [], issues: [{ capabilityKey: '*', capabilityVersion: 0, code: 'permission_registry_unavailable', message: 'Capability catalog service is unavailable.' }] } as BrainCapabilityCatalogValidationReport;
+      : {
+          valid: false,
+          cards: [],
+          issues: [{ capabilityKey: '*', capabilityVersion: 0, code: 'permission_registry_unavailable', message: 'Capability catalog service is unavailable.' }],
+        } as BrainCapabilityCatalogValidationReport;
     return {
       valid: report.valid,
       capabilityCount: snapshot.capabilityCandidates.length,
@@ -191,12 +193,16 @@ export class BrainReleaseService implements OnModuleInit {
     const versionMap = Object.fromEntries(
       versions.map((item) => [`${item.resourceType}:${item.resourceKey}`, item.version]),
     );
+    const rollout = {
+      ...(input.rollout ?? {}),
+      semanticSnapshotFingerprint: createSemanticSnapshotFingerprint(versions),
+    };
     return prisma.$transaction(async (tx) => {
       const release = await tx.brainRelease.create({
         data: {
           releaseKey,
           scope: input.scope || 'global',
-          rollout: this.toJson(input.rollout ?? {}),
+          rollout: this.toJson(rollout),
           versionMap: this.toJson(versionMap),
           status: 'draft',
           previousReleaseId: previous?.id,
@@ -242,10 +248,11 @@ export class BrainReleaseService implements OnModuleInit {
     if (regeneration) throw new BadRequestException('modification_superseded');
     if (!release.items.length) throw new BadRequestException('release_has_no_resource_items');
     this.assertReleaseItemsConsistent(release.items);
+    this.assertDeployableRuntimeRelease(release);
+    this.assertSemanticSnapshotFingerprint(release);
     await this.assertReleaseEvalEvidence(prisma, release, releaseFingerprint);
     await this.validateGeneratedCapabilities(release.items.map((item) => item.resourceVersion));
     await this.validateDependencies(release.items.map((item) => item.resourceVersion));
-    await this.assertCapabilityCandidatesValid(this.releaseCapabilityCandidates(release.items));
 
     return this.runSerializable('release_activation_conflict', async (tx) => {
       await lockReleaseResources(tx, release.id);
@@ -258,7 +265,8 @@ export class BrainReleaseService implements OnModuleInit {
         throw new BadRequestException('release_evaluation_only');
       }
       const lockedFingerprint = createReleaseFingerprint(lockedRelease.items);
-      await this.assertCapabilityCandidatesValid(this.releaseCapabilityCandidates(lockedRelease.items));
+      this.assertDeployableRuntimeRelease(lockedRelease);
+      this.assertSemanticSnapshotFingerprint(lockedRelease);
       await this.assertReleaseEvalEvidence(tx as unknown as PrismaService, lockedRelease, lockedFingerprint);
       const modification = await tx.brainCapabilityRegenerationJob.findFirst({
         where: { releaseFingerprint: lockedFingerprint },
@@ -311,9 +319,10 @@ export class BrainReleaseService implements OnModuleInit {
       : null;
     if (!previous) throw new BadRequestException('previous_release_not_found');
     this.assertReleaseItemsConsistent(previous.items);
+    this.assertDeployableRuntimeRelease(previous);
+    this.assertSemanticSnapshotFingerprint(previous);
     const previousVersions = previous.items.map((item) => item.resourceVersion);
     await this.validateGeneratedCapabilities(previousVersions);
-    await this.assertCapabilityCandidatesValid(this.releaseCapabilityCandidates(previous.items));
     await this.validateDependencies(previousVersions);
     return this.runSerializable('release_rollback_conflict', async (tx) => {
       const rolledBackAt = new Date();
@@ -348,6 +357,10 @@ export class BrainReleaseService implements OnModuleInit {
   }
 
   async rollbackToRules(input: { releaseId: number; reason: string }) {
+    return this.rollbackToProductionBaseline(input);
+  }
+
+  async rollbackToProductionBaseline(input: { releaseId: number; reason: string }) {
     const prisma = this.requirePrisma();
     const current = await prisma.brainRelease.findUnique({
       where: { id: input.releaseId },
@@ -364,15 +377,18 @@ export class BrainReleaseService implements OnModuleInit {
         include: { items: { include: { resourceVersion: true } } },
       });
       if (!candidate) break;
-      if (this.record(candidate.rollout).mode === 'rules') {
+      const rollout = this.record(candidate.rollout);
+      if (rollout.mode === 'model' && rollout.productionBaseline === true && candidate.items.length > 0) {
         target = candidate;
         break;
       }
       previousReleaseId = candidate.previousReleaseId;
     }
-    if (!target) throw new BadRequestException('rules_release_not_found');
+    if (!target) throw new BadRequestException('production_baseline_not_found');
 
     this.assertReleaseItemsConsistent(target.items);
+    this.assertDeployableRuntimeRelease(target);
+    this.assertSemanticSnapshotFingerprint(target);
     const targetVersions = target.items.map((item) => item.resourceVersion);
     await this.validateGeneratedCapabilities(targetVersions);
     await this.validateDependencies(targetVersions);
@@ -434,17 +450,22 @@ export class BrainReleaseService implements OnModuleInit {
         },
         take,
       });
-      return releases.map(({ _count, ...release }) => ({
-        ...release,
-        itemCount: _count.items,
-        items: [],
-      }));
+      return releases.map(({ _count, ...release }) => ({ ...release, itemCount: _count.items, items: [] }));
     }
     return this.requirePrisma().brainRelease.findMany({
       orderBy: { createdAt: 'desc' },
       include: { items: true },
       take,
     });
+  }
+
+  async resolveRuntimeSummary(input: { storeId: number; userId: number; roleKey: string }) {
+    const release = await this.selectReleaseSummary(input);
+    const declaredMode = release ? this.record(release.rollout).mode : undefined;
+    const mode = declaredMode === 'rules' || declaredMode === 'shadow' || declaredMode === 'model'
+      ? declaredMode
+      : undefined;
+    return { mode, declaredMode: mode, release };
   }
 
   async selectRelease(input: { storeId: number; userId: number; roleKey: string }) {
@@ -460,14 +481,7 @@ export class BrainReleaseService implements OnModuleInit {
     const releases = await this.requirePrisma().brainRelease.findMany({
       where: { status: 'active' },
       orderBy: { activatedAt: 'desc' },
-      select: {
-        id: true,
-        releaseKey: true,
-        scope: true,
-        rollout: true,
-        status: true,
-        activatedAt: true,
-      },
+      select: { id: true, releaseKey: true, scope: true, rollout: true, status: true, activatedAt: true },
     });
     return releases.find((release) => this.matchesRollout(release.scope, this.record(release.rollout), input)) ?? null;
   }
@@ -476,7 +490,19 @@ export class BrainReleaseService implements OnModuleInit {
     if (!Number.isInteger(releaseId) || releaseId <= 0) throw new BadRequestException('evaluation_release_id_invalid');
     const release = await this.requirePrisma().brainRelease.findUnique({
       where: { id: releaseId },
-      include: { items: { include: { resourceVersion: true } } },
+      select: {
+        id: true,
+        status: true,
+        rollout: true,
+        items: {
+          select: {
+            resourceVersionId: true,
+            resourceType: true,
+            resourceKey: true,
+            resourceVersion: { select: { checksum: true } },
+          },
+        },
+      },
     });
     if (!release) throw new BadRequestException('evaluation_release_not_found');
     if (release.status !== 'draft' && release.status !== 'active') {
@@ -558,7 +584,12 @@ export class BrainReleaseService implements OnModuleInit {
       where: { id: evidenceReleaseId },
       include: { items: { include: { resourceVersion: true } } },
     });
-    if (!evidenceRelease || this.record(evidenceRelease.rollout).evaluationOnly !== true) {
+    const evidenceRollout = this.record(evidenceRelease?.rollout as Prisma.JsonValue);
+    const validEvidenceRelease = evidenceRelease && (
+      evidenceRollout.evaluationOnly === true ||
+      (evidenceRelease.status === 'active' && evidenceRollout.mode === 'shadow')
+    );
+    if (!validEvidenceRelease) {
       throw new BadRequestException('release_eval_evidence_invalid');
     }
     const evidenceFingerprint = createReleaseFingerprint(evidenceRelease.items);
@@ -748,42 +779,29 @@ export class BrainReleaseService implements OnModuleInit {
     }
   }
 
+  private assertDeployableRuntimeRelease(release: BrainReleaseWithItems) {
+    const rollout = this.record(release.rollout);
+    if (rollout.mode === undefined) return;
+    if (rollout.mode !== undefined && rollout.mode !== 'model' && rollout.mode !== 'shadow') {
+      throw new BadRequestException('release_runtime_mode_not_deployable');
+    }
+    if (!release.items.some((item) => item.resourceType === 'skill')) {
+      throw new BadRequestException('release_capability_baseline_missing');
+    }
+  }
+
+  private assertSemanticSnapshotFingerprint(release: BrainReleaseWithItems) {
+    const expected = this.record(release.rollout).semanticSnapshotFingerprint;
+    const actual = createSemanticSnapshotFingerprint(release.items.map((item) => item.resourceVersion));
+    if (typeof expected === 'string' && expected !== actual) {
+      throw new BadRequestException('release_semantic_snapshot_fingerprint_mismatch');
+    }
+  }
+
   private assertResourceManagedHere(resourceType: string) {
     if (resourceType === 'metric' || resourceType === 'ontology_entity' || resourceType === 'ontology_relation') {
       throw new BadRequestException(`business_definition_registry_required:${resourceType}`);
     }
-  }
-
-  private releaseCapabilityCandidates(items: Array<{ resourceType: string; snapshot: Prisma.JsonValue }>) {
-    return items
-      .filter((item) => item.resourceType === 'skill')
-      .map((item) => this.record(item.snapshot) as unknown as BrainCapabilityCandidate);
-  }
-
-  private async assertCapabilityCandidatesValid(candidates: readonly BrainCapabilityCandidate[]) {
-    if (!this.capabilityCatalog) return;
-    const report = await this.capabilityCatalog.validateEnabledCapabilities(candidates);
-    if (!report.valid) {
-      this.throwCatalogValidation({
-        capabilityCount: candidates.length,
-        cardCount: report.cards.length,
-        issueCount: report.issues.length,
-        issues: report.issues,
-      });
-    }
-  }
-
-  private throwCatalogValidation(validation: {
-    capabilityCount: number;
-    cardCount: number;
-    issueCount: number;
-    issues: readonly unknown[];
-  }): never {
-    throw new BadRequestException({
-      message: 'brain_capability_catalog_invalid',
-      code: 'BRAIN_CAPABILITY_CATALOG_INVALID',
-      details: validation,
-    });
   }
 
   private matchesRollout(
@@ -837,6 +855,33 @@ export class BrainReleaseService implements OnModuleInit {
 
 function isPrismaCode(error: unknown, code: string): boolean {
   return Boolean(error && typeof error === 'object' && 'code' in error && (error as { code?: unknown }).code === code);
+}
+
+function createSemanticSnapshotFingerprint(
+  versions: readonly { resourceType: string; resourceKey: string; snapshot: Prisma.JsonValue }[],
+): string {
+  const contracts = versions
+    .filter((version) => version.resourceType === 'skill')
+    .map((version) => {
+      const snapshot = version.snapshot && typeof version.snapshot === 'object' && !Array.isArray(version.snapshot)
+        ? version.snapshot as Record<string, unknown>
+        : {};
+      const definitionRefs = Array.isArray(snapshot.definitionRefs)
+        ? snapshot.definitionRefs
+            .filter((ref): ref is Record<string, unknown> => Boolean(ref) && typeof ref === 'object' && !Array.isArray(ref))
+            .map((ref) => ({
+              definitionKey: String(ref.definitionKey ?? ''),
+              versionId: Number(ref.versionId ?? 0),
+              version: Number(ref.version ?? 0),
+              definitionFingerprint: String(ref.definitionFingerprint ?? ''),
+              sourceFingerprint: String(ref.sourceFingerprint ?? ''),
+            }))
+            .sort((left, right) => left.definitionKey.localeCompare(right.definitionKey))
+        : [];
+      return { resourceKey: version.resourceKey, definitionRefs };
+    })
+    .sort((left, right) => left.resourceKey.localeCompare(right.resourceKey));
+  return createHash('sha256').update(JSON.stringify(contracts)).digest('hex');
 }
 
 function deepCloneFreeze<T>(value: T): T {

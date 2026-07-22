@@ -22,28 +22,33 @@ describe('BrainCapabilityGatewayService', () => {
     expect(service.failureRecovery('create_marketing_touch_draft')).toBe('safe_replay');
     expect(service.failureRecovery('execute_marketing_strategy')).toBe('safe_replay');
     expect(service.failureRecovery('verify_card_usage')).toBe('safe_replay');
+    expect(service.failureRecovery('save_service_record')).toBe('manual_reconcile');
   });
 
   it('canonicalizes approved arguments and rejects model confirmation claims', () => {
     const service = new BrainCapabilityGatewayService();
 
-    expect(service.validateForExecution('create_reservation', 1, {
-      customerId: 11,
-      projectId: 22,
-      appointmentTime: '2026-07-12T10:00:00+08:00',
-      roleHint: 'finance',
-      sourceMessage: '帮我预约',
-    }).payload).toEqual({
+    expect(
+      service.validateForExecution('create_reservation', 1, {
+        customerId: 11,
+        projectId: 22,
+        appointmentTime: '2026-07-12T10:00:00+08:00',
+        roleHint: 'finance',
+        sourceMessage: '帮我预约',
+      }).payload,
+    ).toEqual({
       customerId: 11,
       projectId: 22,
       appointmentTime: '2026-07-12T10:00:00+08:00',
     });
-    expect(() => service.validateForExecution('create_reservation', 1, {
-      customerId: 11,
-      projectId: 22,
-      appointmentTime: '2026-07-12T10:00:00+08:00',
-      nested: { confirmed: true },
-    })).toThrow('model_confirmation_claim_forbidden:confirmed');
+    expect(() =>
+      service.validateForExecution('create_reservation', 1, {
+        customerId: 11,
+        projectId: 22,
+        appointmentTime: '2026-07-12T10:00:00+08:00',
+        nested: { confirmed: true },
+      }),
+    ).toThrow('model_confirmation_claim_forbidden:confirmed');
   });
 
   it('executes reservation creation through ReservationsService and forces current store scope', async () => {
@@ -53,7 +58,12 @@ describe('BrainCapabilityGatewayService', () => {
     const receipt = await service.execute({
       skillKey: 'create_reservation',
       payload: { storeId: 99, customerId: 11, projectId: 22, appointmentTime: '2026-07-12T10:00:00+08:00' },
-      context: { userId: 9, storeId: 6, permissions: ['core:store:reservations'], idempotencyKey: 'brain-reservation-101' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        permissions: ['core:store:reservations'],
+        idempotencyKey: 'brain-reservation-101',
+      },
     });
 
     expect(reservations.create).toHaveBeenCalledWith(
@@ -65,7 +75,11 @@ describe('BrainCapabilityGatewayService', () => {
         idempotencyKey: 'brain-reservation-101',
       }),
     );
-    expect(receipt).toMatchObject({ capabilityKey: 'create_reservation', businessObjectType: 'reservation', businessObjectId: 101 });
+    expect(receipt).toMatchObject({
+      capabilityKey: 'create_reservation',
+      businessObjectType: 'reservation',
+      businessObjectId: 101,
+    });
   });
 
   it('rejects cross-store reservation updates before invoking the business service', async () => {
@@ -122,12 +136,14 @@ describe('BrainCapabilityGatewayService', () => {
       context: { userId: 9, storeId: 6, permissions: ['core:supply:manage'], idempotencyKey: 'purchase-action-88' },
     });
 
-    expect(inventory.createPurchaseOrder).toHaveBeenCalledWith(expect.objectContaining({
-      storeId: 6,
-      status: '待审核',
-      source: 'ami_brain',
-      idempotencyKey: 'purchase-action-88',
-    }));
+    expect(inventory.createPurchaseOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        storeId: 6,
+        status: '待审核',
+        source: 'ami_brain',
+        idempotencyKey: 'purchase-action-88',
+      }),
+    );
     expect(inventory.updatePurchaseOrderStatus).not.toHaveBeenCalled();
     expect(receipt).toMatchObject({ businessObjectType: 'purchase_order', businessObjectId: 88 });
   });
@@ -158,16 +174,28 @@ describe('BrainCapabilityGatewayService', () => {
       context,
     });
 
-    expect(terminal.createFollowUpTask).toHaveBeenNthCalledWith(1, 6, undefined, expect.objectContaining({
-      customerId: 11,
-      source: 'brain_followup',
-      idempotencyKey: 'follow-up-action-31',
-    }), 9);
-    expect(terminal.createFollowUpTask).toHaveBeenNthCalledWith(2, 6, undefined, expect.objectContaining({
-      customerId: 11,
-      source: 'brain_marketing_touch_draft',
-      idempotencyKey: 'follow-up-action-31',
-    }), 9);
+    expect(terminal.createFollowUpTask).toHaveBeenNthCalledWith(
+      1,
+      6,
+      undefined,
+      expect.objectContaining({
+        customerId: 11,
+        source: 'brain_followup',
+        idempotencyKey: 'follow-up-action-31',
+      }),
+      9,
+    );
+    expect(terminal.createFollowUpTask).toHaveBeenNthCalledWith(
+      2,
+      6,
+      undefined,
+      expect.objectContaining({
+        customerId: 11,
+        source: 'brain_marketing_touch_draft',
+        idempotencyKey: 'follow-up-action-31',
+      }),
+      9,
+    );
     expect(followup.businessObjectId).toBe(31);
     expect(touch.businessObjectId).toBe(32);
   });
@@ -175,7 +203,9 @@ describe('BrainCapabilityGatewayService', () => {
   it('executes an approved marketing strategy through the existing idempotent business service', async () => {
     const marketing = {
       previewAudience: jest.fn().mockResolvedValue({ estimatedReachedCount: 18 }),
-      executeStrategy: jest.fn().mockResolvedValue({ id: 91, status: 'pending', queuedCount: 18, reachedCount: 0, failedCount: 0 }),
+      executeStrategy: jest
+        .fn()
+        .mockResolvedValue({ id: 91, status: 'pending', queuedCount: 18, reachedCount: 0, failedCount: 0 }),
     };
     const service = new BrainCapabilityGatewayService(
       undefined,
@@ -227,16 +257,18 @@ describe('BrainCapabilityGatewayService', () => {
       marketing as never,
     );
 
-    await expect(service.execute({
-      skillKey: 'execute_marketing_strategy',
-      payload: { strategyId: 12, approvedAudienceCount: 10 },
-      context: {
-        userId: 9,
-        storeId: 6,
-        permissions: ['core:marketing:update'],
-        idempotencyKey: 'brain-marketing-execution-92',
-      },
-    })).rejects.toThrow('marketing_audience_changed_reapproval_required');
+    await expect(
+      service.execute({
+        skillKey: 'execute_marketing_strategy',
+        payload: { strategyId: 12, approvedAudienceCount: 10 },
+        context: {
+          userId: 9,
+          storeId: 6,
+          permissions: ['core:marketing:update'],
+          idempotencyKey: 'brain-marketing-execution-92',
+        },
+      }),
+    ).rejects.toThrow('marketing_audience_changed_reapproval_required');
     expect(marketing.executeStrategy).not.toHaveBeenCalled();
   });
 
@@ -245,7 +277,10 @@ describe('BrainCapabilityGatewayService', () => {
       getTaskById: jest.fn().mockResolvedValue({ id: 41, storeId: 6, status: 'in_progress' }),
       completeTask: jest.fn().mockResolvedValue({ id: 41, storeId: 6, status: 'completed' }),
     };
-    const service = new BrainCapabilityGatewayService(undefined, undefined, terminal as never, undefined);
+    const prisma = {
+      serviceTask: { findFirst: jest.fn().mockResolvedValue({ id: 41 }) },
+    };
+    const service = new BrainCapabilityGatewayService(undefined, undefined, terminal as never, prisma as never);
 
     const receipt = await service.execute({
       skillKey: 'save_service_record',
@@ -253,8 +288,32 @@ describe('BrainCapabilityGatewayService', () => {
       context: { userId: 9, storeId: 6, permissions: ['aura:service-record:create'] },
     });
 
+    expect(prisma.serviceTask.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 41,
+        storeId: 6,
+        beautician: { userId: 9 },
+        status: { in: ['pending', 'in_progress'] },
+      },
+      select: { id: true },
+    });
     expect(terminal.completeTask).toHaveBeenCalledWith(41, expect.objectContaining({ remark: '客户肤况稳定' }));
     expect(receipt).toMatchObject({ businessObjectType: 'service_task', businessObjectId: 41 });
+  });
+
+  it('rejects completing a service record owned by another beautician', async () => {
+    const terminal = { getTaskById: jest.fn(), completeTask: jest.fn() };
+    const prisma = { serviceTask: { findFirst: jest.fn().mockResolvedValue(null) } };
+    const service = new BrainCapabilityGatewayService(undefined, undefined, terminal as never, prisma as never);
+
+    await expect(
+      service.execute({
+        skillKey: 'save_service_record',
+        payload: { taskId: 41, remark: '客户肤况稳定' },
+        context: { userId: 10, storeId: 6, permissions: ['aura:service-record:create'] },
+      }),
+    ).rejects.toThrow('service_task_not_owned_or_active');
+    expect(terminal.completeTask).not.toHaveBeenCalled();
   });
 
   it('executes card usage through CardsService with the current operator and critical permission', async () => {
@@ -281,16 +340,21 @@ describe('BrainCapabilityGatewayService', () => {
       },
     });
 
-    expect(service.resolve('verify_card_usage')).toMatchObject({ riskLevel: 'critical', permission: 'core:order:card-usage' });
-    expect(cards.verifyCardUsage).toHaveBeenCalledWith(expect.objectContaining({
-      customerCardId: 66,
-      customerId: 10,
-      projectId: 101,
-      times: 1,
-      beauticianId: 2,
-      operatorId: 9,
-      idempotencyKey: 'brain-action-71',
-    }));
+    expect(service.resolve('verify_card_usage')).toMatchObject({
+      riskLevel: 'critical',
+      permission: 'core:order:card-usage',
+    });
+    expect(cards.verifyCardUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customerCardId: 66,
+        customerId: 10,
+        projectId: 101,
+        times: 1,
+        beauticianId: 2,
+        operatorId: 9,
+        idempotencyKey: 'brain-action-71',
+      }),
+    );
     expect(receipt).toMatchObject({
       capabilityKey: 'verify_card_usage',
       businessObjectType: 'card_usage_record',

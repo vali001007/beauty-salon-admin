@@ -3,6 +3,7 @@ import type { ComponentProps } from 'react'
 import { Menu, LogOut } from 'lucide-react'
 import { toast } from 'sonner'
 import { ChatMessage } from './ChatMessage'
+import { confirmBrainAction, rejectBrainAction, type BrainActionPreview } from '@/api'
 import { QuickActions } from './QuickActions'
 import { ChatInput } from './ChatInput'
 import { sendMessage, type Message, type Role, type BusinessResult } from '../../api/claude'
@@ -50,6 +51,7 @@ interface UIMessage {
   content: string
   businessResult?: BusinessResult | null
   blocks?: ComponentProps<typeof ChatMessage>['blocks']
+  runId?: number
 }
 
 export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
@@ -95,9 +97,9 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
             )
           )
         },
-        (businessResult) => {
+        (result) => {
           setUiMessages((prev) =>
-            prev.map((m) => (m.id === aiMsgId ? { ...m, businessResult } : m))
+            prev.map((m) => (m.id === aiMsgId ? { ...m, blocks: completeBlocks(result), runId: result.runId } : m))
           )
         },
       )
@@ -109,6 +111,24 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
       setUiMessages((prev) => prev.filter((m) => m.id !== aiMsgId))
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleActionDecision = async (runId: number, action: BrainActionPreview, decision: 'confirm' | 'reject') => {
+    try {
+      const result = decision === 'confirm'
+        ? await confirmBrainAction(action.actionId, runId)
+        : await rejectBrainAction(action.actionId, runId)
+      const receipt = result.receipt ?? {}
+      const message = typeof receipt.message === 'string'
+        ? receipt.message
+        : decision === 'reject'
+          ? '已拒绝该动作，本次不会执行。'
+          : `动作已${result.status === 'succeeded' ? '执行' : '提交'}。`
+      setUiMessages((prev) => [...prev, { id: Date.now(), type: 'ai', content: message }])
+      toast.success(message)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '动作确认失败')
     }
   }
 
@@ -131,7 +151,16 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
       {/* 消息区域 */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {uiMessages.map((msg) => (
-          <ChatMessage key={msg.id} type={msg.type} content={msg.content} businessResult={msg.businessResult} blocks={msg.blocks} />
+          <ChatMessage
+            key={msg.id}
+            type={msg.type}
+            content={msg.content}
+            businessResult={msg.businessResult}
+            blocks={msg.blocks}
+            onClarificationSelect={(label) => void handleSend(label)}
+            onConfirmAction={msg.runId ? (action) => void handleActionDecision(msg.runId!, action, 'confirm') : undefined}
+            onRejectAction={msg.runId ? (action) => void handleActionDecision(msg.runId!, action, 'reject') : undefined}
+          />
         ))}
         {loading && uiMessages[uiMessages.length - 1]?.content === '' && (
           <div className="flex gap-2 items-center pl-10">
@@ -154,4 +183,18 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
       <ChatInput onSend={handleSend} disabled={loading} />
     </div>
   )
+}
+
+function completeBlocks(result: import('@/api').BrainChatResponse) {
+  const blocks = [...(result.blocks ?? [])]
+  if (result.clarification && !blocks.some((block) => block.kind === 'clarification')) {
+    blocks.push({ kind: 'clarification', ...result.clarification })
+  }
+  if (result.suggestedActions.length && !blocks.some((block) => block.kind === 'action_preview')) {
+    blocks.push({ kind: 'action_preview', actions: result.suggestedActions })
+  }
+  if (result.citations.length && !blocks.some((block) => block.kind === 'evidence')) {
+    blocks.push({ kind: 'evidence', citations: result.citations })
+  }
+  return blocks
 }

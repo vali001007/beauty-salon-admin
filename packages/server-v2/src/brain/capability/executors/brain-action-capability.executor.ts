@@ -25,6 +25,11 @@ interface ActionCapabilityDefinition {
 const CAPABILITIES: Record<string, ActionCapabilityDefinition> = {
   reservation_action_preview: { adapterKey: 'front_desk', role: 'receptionist', domain: 'front_desk' },
   card_usage_action_preview: { adapterKey: 'front_desk', role: 'receptionist', domain: 'front_desk' },
+  service_record_completion_preview: {
+    adapterKey: 'beautician_service',
+    role: 'beautician',
+    domain: 'beautician_service',
+  },
   customer_follow_up_draft: { adapterKey: 'customer_service', role: 'customer_service', domain: 'customer_service' },
   purchase_order_draft: { adapterKey: 'inventory_procurement', role: 'inventory', domain: 'inventory_procurement' },
   marketing_touch_draft: { adapterKey: 'marketing_growth', role: 'marketing', domain: 'marketing_growth' },
@@ -42,7 +47,8 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
   @BrainCapability({
     key: 'reservation_action_preview',
     name: '预约创建改期取消预览',
-    description: '解析当前门店内的客户、预约、项目与目标时间，生成预约创建、改期或取消的待确认预览。解析不到唯一目标时返回具体追问，确认前不写入业务数据。创建预约确认后使用业务表级幂等键，同键重放返回原预约回执，不创建重复预约。',
+    description:
+      '解析当前门店内的客户、预约、项目与目标时间，生成预约创建、改期或取消的待确认预览。解析不到唯一目标时返回具体追问，确认前不写入业务数据。创建预约确认后使用业务表级幂等键，同键重放返回原预约回执，不创建重复预约。',
     intents: ['action'],
     examples: ['把一位客户的预约改到明天下午三点', '预览取消指定客户下一次预约', '为指定客户准备一个新预约方案'],
     negativeExamples: ['直接执行改约不要确认', '操作其他门店预约', '只查询明天预约清单'],
@@ -62,10 +68,19 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
   @BrainCapability({
     key: 'card_usage_action_preview',
     name: '次卡核销预览',
-    description: '解析当前门店内的唯一客户、有效次卡、卡内项目、核销次数和服务美容师，生成关键风险待确认预览。确认后复用统一 CardsService 完成扣次、核销流水、耗材、收入和提成；同一幂等键可安全重放并返回原核销回执，不重复扣次、扣库存或计提成。',
+    description:
+      '解析当前门店内的唯一客户、有效次卡、卡内项目、核销次数和服务美容师，生成关键风险待确认预览。确认后复用统一 CardsService 完成扣次、核销流水、耗材、收入和提成；同一幂等键可安全重放并返回原核销回执，不重复扣次、扣库存或计提成。',
     intents: ['action'],
-    examples: ['给张女士的补水次卡核销深层补水护理 1 次，服务人员是王美容师', '预览为指定客户划扣一次卡项并归属到指定美容师'],
-    negativeExamples: ['直接核销不要确认', '核销其他门店客户的卡', '没有客户卡项和服务人员也直接扣次', '只查询客户次卡剩余次数'],
+    examples: [
+      '给张女士的补水次卡核销深层补水护理 1 次，服务人员是王美容师',
+      '预览为指定客户划扣一次卡项并归属到指定美容师',
+    ],
+    negativeExamples: [
+      '直接核销不要确认',
+      '核销其他门店客户的卡',
+      '没有客户卡项和服务人员也直接扣次',
+      '只查询客户次卡剩余次数',
+    ],
     synonyms: ['次卡扣次预览', '卡项核销确认', '疗程卡划扣预览'],
     businessDefinitionKeys: ['entity.customer', 'entity.project', 'entity.beautician'],
     readOnly: false,
@@ -80,9 +95,40 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
   }
 
   @BrainCapability({
+    key: 'service_record_completion_preview',
+    name: '服务完成记录预览',
+    description:
+      '解析当前门店内唯一待完成服务任务和服务备注，生成高风险待确认预览。确认后复用 TerminalService.completeTask 保存服务结果、耗材和完成状态；执行结果不明确时禁止自动重试，必须核对服务单后人工处理。',
+    intents: ['action'],
+    examples: [
+      '预览完成张女士服务单并保存备注：补水护理完成，皮肤状态稳定',
+      '为当前客户生成服务记录待确认方案，护理完成且无明显不适',
+      '保存服务记录前先给我确认预览，客户反馈舒适',
+    ],
+    negativeExamples: [
+      '我刚服务完这个客人，下一个几点来',
+      '直接完成其他门店的服务单',
+      '没有服务结果备注也直接完成服务',
+      '只查看客户上次服务记录',
+    ],
+    synonyms: ['完成服务单预览', '保存护理记录', '服务记录确认', '结束服务并记录'],
+    businessDefinitionKeys: ['entity.customer', 'entity.project', 'entity.beautician'],
+    readOnly: false,
+    storeScope: 'required',
+    permissions: ['core:brain:use', 'aura:service-record:create'],
+    allowedRoles: ['beautician'],
+    requiresConfirmation: true,
+    idempotency: 'required',
+  })
+  serviceRecordCompletionPreview(args: BrainCapabilityToolArgs, input: BrainCapabilityExecutionInput) {
+    return this.executeDeclared('service_record_completion_preview', args, input);
+  }
+
+  @BrainCapability({
     key: 'customer_follow_up_draft',
     name: '客户跟进任务预览',
-    description: '解析当前门店内的唯一客户并生成待确认的客户跟进任务预览；确认后通过统一跟进任务事实的强幂等合同创建并支持安全重放。',
+    description:
+      '解析当前门店内的唯一客户并生成待确认的客户跟进任务预览；确认后通过统一跟进任务事实的强幂等合同创建并支持安全重放。',
     intents: ['action'],
     examples: ['给指定客户准备一个待确认跟进任务', '生成客户回访任务预览'],
     negativeExamples: ['直接创建客户任务不要确认', '操作其他门店客户', '只写一段通用回访文案'],
@@ -102,7 +148,8 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
   @BrainCapability({
     key: 'purchase_order_draft',
     name: '采购单预览',
-    description: '基于当前门店库存与商品目标生成待确认采购单预览，缺少唯一商品或采购数量时返回具体追问；确认后通过采购业务表级强幂等合同创建并支持安全重放。',
+    description:
+      '基于当前门店库存与商品目标生成待确认采购单预览，缺少唯一商品或采购数量时返回具体追问；确认后通过采购业务表级强幂等合同创建并支持安全重放。',
     intents: ['action'],
     examples: ['根据补货建议准备采购单预览', '为指定商品生成采购草稿'],
     negativeExamples: ['直接提交采购单', '使用查看权限创建采购单', '查询低库存商品名单'],
@@ -122,7 +169,8 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
   @BrainCapability({
     key: 'marketing_touch_draft',
     name: '单客户营销触达预览',
-    description: '解析当前门店内的唯一客户并生成单客户营销触达任务预览，包含可编辑话术和风险提示；确认后只创建强幂等跟进草稿，不自动群发。',
+    description:
+      '解析当前门店内的唯一客户并生成单客户营销触达任务预览，包含可编辑话术和风险提示；确认后只创建强幂等跟进草稿，不自动群发。',
     intents: ['action'],
     examples: ['给指定客户准备一条待确认的邀约任务', '生成单客户召回触达预览'],
     negativeExamples: ['直接给全部客户群发', '操作其他门店客户', '只生成通用文案'],
@@ -142,7 +190,8 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
   @BrainCapability({
     key: 'marketing_strategy_execute_preview',
     name: '自动触达策略执行预览',
-    description: '解析当前门店内用户明确指定且已启用的自动触达策略，读取实时受众规模和渠道，生成高风险待确认预览。确认后复用营销执行、投递队列、触达冷却、回执和幂等合同；受众显著扩大时拒绝执行并要求重新审批。',
+    description:
+      '解析当前门店内用户明确指定且已启用的自动触达策略，读取实时受众规模和渠道，生成高风险待确认预览。确认后复用营销执行、投递队列、触达冷却、回执和幂等合同；受众显著扩大时拒绝执行并要求重新审批。',
     intents: ['action'],
     examples: ['执行自动触达策略“沉睡客户唤醒”', '运行营销策略 12 并发送', '启动指定的自动触达策略'],
     negativeExamples: ['直接群发不要确认', '执行其他门店策略', '创建一个新的自动触达规则', '只查看自动触达效果'],
@@ -162,7 +211,8 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
   @BrainCapability({
     key: 'gap_fill_touch_preview',
     name: '空档补位客户匹配与触达预览',
-    description: '读取当前门店排班、预约、客户、卡项、历史偏好和已发布预测快照，识别空档并匹配候选客户，自动选择最高分候选生成待确认触达任务预览。确认前不创建任务、不发送消息、不修改预约。',
+    description:
+      '读取当前门店排班、预约、客户、卡项、历史偏好和已发布预测快照，识别空档并匹配候选客户，自动选择最高分候选生成待确认触达任务预览。确认前不创建任务、不发送消息、不修改预约。',
     intents: ['workflow', 'action'],
     examples: [
       '找出明天下午空档、筛合适客户、写提醒并生成触达预览',
@@ -235,7 +285,11 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
   private assertPreviewOnly(answer: BrainDomainAnswer) {
     if (answer.grounding === 'none') {
       const reason = String(answer.metadata?.unsupportedReason ?? '');
-      if (!/(target|capability|not_open|not_found|not_enabled|required|requires|missing|ambiguous|high_risk)/i.test(reason)) {
+      if (
+        !/(target|capability|not_open|not_found|not_enabled|required|requires|missing|ambiguous|high_risk)/i.test(
+          reason,
+        )
+      ) {
         throw new Error('action_executor_invalid_clarification');
       }
       return;
@@ -261,7 +315,9 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
     }
 
     const serialized = JSON.stringify(answer);
-    if (/\breceipt\b|already executed|successfully executed|\u5df2\u6267\u884c|\u6267\u884c\u6210\u529f/i.test(serialized)) {
+    if (
+      /\breceipt\b|already executed|successfully executed|\u5df2\u6267\u884c|\u6267\u884c\u6210\u529f/i.test(serialized)
+    ) {
       throw new Error('action_preview_contains_execution_receipt');
     }
   }
@@ -294,9 +350,7 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
     return {
       normalizedText: question.trim(),
       terms: [],
-      metrics: Array.isArray(args.metrics)
-        ? args.metrics.flatMap((value) => this.definitionKey(value, 'metric.'))
-        : [],
+      metrics: Array.isArray(args.metrics) ? args.metrics.flatMap((value) => this.definitionKey(value, 'metric.')) : [],
       dimensions: Array.isArray(args.dimensions)
         ? args.dimensions.flatMap((value) => this.definitionKey(value, 'dimension.'))
         : [],

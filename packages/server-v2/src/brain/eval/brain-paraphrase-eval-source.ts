@@ -221,6 +221,7 @@ function personaFor(testCase: ParaphraseCase): AgentQuestionBankPersona {
   if (testCase.intent === 'workflow') return 'edge';
   if (domains.has('front_desk')) return 'reception';
   if (domains.has('marketing_growth')) return 'marketing';
+  if (domains.has('beautician') || domains.has('beautician_service')) return 'beautician';
   if (domains.has('inventory_procurement')) return 'inventory';
   if (domains.has('finance_risk')) return 'finance';
   return testCase.intent === 'clarify' ? 'edge' : 'manager';

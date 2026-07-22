@@ -8,6 +8,7 @@ import { PrismaModule } from '../prisma/prisma.module.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ReservationsModule } from '../reservations/reservations.module.js';
 import { TerminalModule } from '../terminal/terminal.module.js';
+import { StoreMetricsModule } from '../store-metrics/store-metrics.module.js';
 import { BusinessDefinitionModule } from '../semantic-data/business-definition.module.js';
 import { SemanticDataModule } from '../semantic-data/semantic-data.module.js';
 import { BrainController } from './brain.controller.js';
@@ -149,6 +150,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     OperationProfitModule,
     SchedulingModule,
     TerminalModule,
+    StoreMetricsModule,
     SemanticDataModule,
     BusinessDefinitionModule,
     CustomerFeedbackModule,

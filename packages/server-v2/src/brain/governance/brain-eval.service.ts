@@ -11,7 +11,7 @@ import { createBusinessDefinitionProjectionFingerprint } from '../../semantic-da
 import { BrainReleaseService } from './brain-release.service.js';
 import {
   buildBrainEvalRolePermissionMap,
-  resolveBrainEvalRolePermissions,
+  resolveBrainEvalContextPermissions,
 } from '../eval/brain-eval-role-permissions.js';
 import { resolveBrainEvalRoleUsers } from '../eval/brain-eval-role-user-resolver.js';
 import {
@@ -219,22 +219,39 @@ export class BrainEvalService {
     storeId: number;
     userId: number;
     permissions: string[];
+    sourceEvalRunId?: number;
     releaseId?: number;
     caseKeys?: string[];
     roleKey?: string;
     modelVersion?: string;
   }) {
-    const releaseSnapshot = await this.prepareReleaseSnapshot(input.releaseId);
-    const releaseGate = releaseSnapshot && !input.caseKeys?.length && !input.roleKey
-      ? buildBrainReleaseEvalGate(releaseSnapshot)
+    const regressionSource = await this.loadRegressionSource(input);
+    const releaseId = input.releaseId ?? regressionSource?.releaseId ?? undefined;
+    const roleKey = input.roleKey ?? regressionSource?.roleKey ?? undefined;
+    const caseKeys = regressionSource?.failedCaseKeys ?? input.caseKeys;
+    const releaseSnapshot = await this.prepareReleaseSnapshot(releaseId);
+    const fullReleaseGate = releaseSnapshot ? buildBrainReleaseEvalGate(releaseSnapshot) : undefined;
+    const selectedReleaseCases = fullReleaseGate && caseKeys?.length
+      ? this.selectReleaseCases(fullReleaseGate.cases, caseKeys)
       : undefined;
-    const caseCount = releaseGate ? releaseGate.cases.length : (await this.loadEvalCases(input)).length;
-    const gateMode = releaseGate ? 'release_gate' : input.releaseId ? 'development_sample' : 'general_eval';
+    const releaseGate = fullReleaseGate && !caseKeys?.length && !roleKey ? fullReleaseGate : undefined;
+    const caseCount = selectedReleaseCases
+      ? selectedReleaseCases.length
+      : releaseGate
+        ? releaseGate.cases.length
+        : (await this.loadEvalCases({ caseKeys, roleKey })).length;
+    const gateMode = regressionSource
+      ? 'release_regression'
+      : releaseGate
+        ? 'release_gate'
+        : releaseId
+          ? 'development_sample'
+          : 'general_eval';
     const run = await this.prisma.brainEvalRun.create({
       data: {
-        releaseId: input.releaseId,
+        releaseId,
         storeId: input.storeId,
-        roleKey: input.roleKey,
+        roleKey,
         modelVersion: input.modelVersion,
         status: 'queued',
         caseCount,
@@ -244,13 +261,19 @@ export class BrainEvalService {
           failed: 0,
           canRelease: false,
           gateMode,
-          ...(releaseGate
+          ...(regressionSource
             ? {
-                releaseFingerprint: releaseGate.manifest.releaseFingerprint,
-                requiredCapabilityKeys: releaseGate.manifest.requiredCapabilityKeys,
-                requiredRoleKeys: releaseGate.manifest.requiredRoleKeys,
-                requiredCaseKeys: releaseGate.manifest.requiredCaseKeys,
-                coverageComplete: releaseGate.manifest.coverageComplete,
+                sourceEvalRunId: regressionSource.id,
+                regressionCaseKeys: regressionSource.failedCaseKeys,
+              }
+            : {}),
+          ...(fullReleaseGate
+            ? {
+                releaseFingerprint: fullReleaseGate.manifest.releaseFingerprint,
+                requiredCapabilityKeys: fullReleaseGate.manifest.requiredCapabilityKeys,
+                requiredRoleKeys: fullReleaseGate.manifest.requiredRoleKeys,
+                requiredCaseKeys: selectedReleaseCases?.map((item) => item.caseKey) ?? fullReleaseGate.manifest.requiredCaseKeys,
+                coverageComplete: fullReleaseGate.manifest.coverageComplete,
               }
             : {}),
         }),
@@ -258,7 +281,7 @@ export class BrainEvalService {
       },
     });
     setTimeout(() => {
-      void this.runEvalNow({ evalRunId: run.id, ...input }).catch(() => undefined);
+      void this.runEvalNow({ evalRunId: run.id, ...input, caseKeys, roleKey }).catch(() => undefined);
     }, 0);
     return run;
   }
@@ -294,15 +317,21 @@ export class BrainEvalService {
         : undefined;
       const runSummary = this.record(evalRun.summary);
       gateMode = String(runSummary.gateMode ?? 'general_eval');
-      releaseGate = releaseSnapshot && gateMode === 'release_gate'
+      const frozenReleaseGate = releaseSnapshot && (gateMode === 'release_gate' || gateMode === 'release_regression')
         ? buildBrainReleaseEvalGate(releaseSnapshot)
         : undefined;
-      if (releaseGate && runSummary.releaseFingerprint !== releaseGate.manifest.releaseFingerprint) {
+      if (frozenReleaseGate && runSummary.releaseFingerprint !== frozenReleaseGate.manifest.releaseFingerprint) {
         throw new Error('brain_eval_release_fingerprint_changed');
       }
-      cases = releaseGate
-        ? releaseGate.cases.map((item) => this.runtimeReleaseCase(item))
-        : await this.loadEvalCases({ ...input, roleKey: evalRun.roleKey ?? undefined });
+      releaseGate = gateMode === 'release_gate' ? frozenReleaseGate : undefined;
+      cases = frozenReleaseGate && gateMode === 'release_regression'
+        ? this.selectReleaseCases(
+            frozenReleaseGate.cases,
+            this.stringArray(runSummary.regressionCaseKeys),
+          ).map((item) => this.runtimeReleaseCase(item))
+        : releaseGate
+          ? releaseGate.cases.map((item) => this.runtimeReleaseCase(item))
+          : await this.loadEvalCases({ ...input, roleKey: evalRun.roleKey ?? undefined });
       const roleRows = await this.prisma.role.findMany({
         where: { status: 'active' },
         select: { key: true, permissions: true },
@@ -371,7 +400,11 @@ export class BrainEvalService {
         try {
           const evaluationRole = evalRun.roleKey ?? evalCase.roleKey ?? 'store_manager';
           const evaluationPermissions = evalCase.contextOverride?.permissions
-            ?? resolveBrainEvalRolePermissions(permissionsByRole, evaluationRole);
+            ?? resolveBrainEvalContextPermissions(
+              permissionsByRole,
+              evaluationRole,
+              releaseSnapshot?.capabilityCandidates ?? [],
+            );
           const context = {
             userId: userIdsByRole[evaluationRole] ?? input.userId,
             storeId: input.storeId,
@@ -471,6 +504,13 @@ export class BrainEvalService {
           && answer.trim().length > 0
           && contentPassed
           && !errorMessage;
+        const releaseFalseSuccessPassed =
+          evalCase.assertionType === 'release_false_success'
+          && brainStatus === 'failed'
+          && actualCapabilities.length === 0
+          && citations.length === 0
+          && answer.trim().length > 0
+          && !errorMessage;
         const providerUnavailable = isBrainProviderUnavailableOutput(runtimeResponse);
         const passed = providerUnavailable ? false : evalCase.securityExpectation
           ? this.securityExpectationPassed({
@@ -483,6 +523,10 @@ export class BrainEvalService {
             ? releaseCapabilityPassed
             : evalCase.assertionType === 'release_time_boundary'
               ? releaseTimeBoundaryPassed
+              : evalCase.assertionType === 'release_regression'
+                ? standardPassed
+                : evalCase.assertionType === 'release_false_success'
+                  ? releaseFalseSuccessPassed
               : standardPassed;
         metadata = {
           ...metadata,
@@ -557,6 +601,18 @@ export class BrainEvalService {
           ? baseSummary.canRelease && releaseGateResult!.passed
           : false,
         gateMode,
+        ...(gateMode === 'release_regression'
+          ? {
+              sourceEvalRunId: this.record(evalRun.summary).sourceEvalRunId,
+              regression: {
+                selected: results.length,
+                resolved: results.filter((item) => item.passed).length,
+                unresolved: results.filter((item) => !item.passed && !item.providerUnavailable).length,
+                providerUnavailable: results.filter((item) => item.providerUnavailable).length,
+                passed: results.length > 0 && results.every((item) => item.passed),
+              },
+            }
+          : {}),
         ...(releaseSnapshot ? { releaseFingerprint: releaseSnapshot.releaseFingerprint } : {}),
         ...(releaseGate
           ? {
@@ -614,6 +670,44 @@ export class BrainEvalService {
       where: { id: input.evalRunId, storeId: input.storeId },
       include: { evalResults: { orderBy: { caseKey: 'asc' } } },
     });
+  }
+
+  private async loadRegressionSource(input: {
+    storeId: number;
+    sourceEvalRunId?: number;
+    releaseId?: number;
+    caseKeys?: string[];
+  }) {
+    if (input.sourceEvalRunId === undefined) return undefined;
+    if (input.caseKeys?.length) throw new BadRequestException('brain_eval_regression_case_keys_conflict');
+    const source = await this.prisma.brainEvalRun.findFirst({
+      where: { id: input.sourceEvalRunId, storeId: input.storeId, status: 'completed' },
+      select: {
+        id: true,
+        releaseId: true,
+        roleKey: true,
+        evalResults: {
+          where: { deterministicPassed: false },
+          select: { caseKey: true },
+          orderBy: { caseKey: 'asc' },
+        },
+      },
+    });
+    if (!source) throw new BadRequestException('brain_eval_regression_source_invalid');
+    if (input.releaseId !== undefined && input.releaseId !== source.releaseId) {
+      throw new BadRequestException('brain_eval_regression_release_mismatch');
+    }
+    const failedCaseKeys = [...new Set(source.evalResults.map((item) => item.caseKey))];
+    if (!failedCaseKeys.length) throw new BadRequestException('brain_eval_regression_source_has_no_failures');
+    return { ...source, failedCaseKeys };
+  }
+
+  private selectReleaseCases<T extends { caseKey: string }>(cases: T[], caseKeys: string[]) {
+    const requested = new Set(caseKeys);
+    const selected = cases.filter((item) => requested.has(item.caseKey));
+    const missing = caseKeys.filter((caseKey) => !selected.some((item) => item.caseKey === caseKey));
+    if (missing.length) throw new BadRequestException(`brain_eval_release_case_not_found:${missing.join(',')}`);
+    return selected;
   }
 
   private async loadEvalCases(input: { caseKeys?: string[]; roleKey?: string }): Promise<RuntimeBrainEvalCase[]> {
@@ -849,6 +943,7 @@ export class BrainEvalService {
     const planShape = this.record(value.planShape);
     return {
       intent: typeof value.intent === 'string' ? value.intent : undefined,
+      answerShape: typeof value.answerShape === 'string' ? value.answerShape : undefined,
       domains: strings(value.domains ?? (typeof value.domain === 'string' ? [value.domain] : [])),
       entities: strings(value.entities),
       metrics: strings(value.metrics ?? (value.kind === 'metric' && typeof value.definitionKey === 'string' ? [value.definitionKey] : [])),
@@ -857,6 +952,7 @@ export class BrainEvalService {
       planShape: Object.keys(planShape).length ? planShape as BrainEvalExpectation['planShape'] : undefined,
       requiresGrounding: value.requiresGrounding === true,
       requiresComplete: value.requiresComplete !== false,
+      brainStatuses: strings(value.brainStatuses),
     };
   }
 

@@ -111,8 +111,8 @@ describe('TerminalService automation', () => {
         findFirst: jest.fn(),
       },
     };
-    prisma.$executeRaw = jest.fn().mockResolvedValue(0);
-    prisma.$transaction = jest.fn(async (callback: (tx: any) => unknown) => callback(prisma));
+     prisma.$executeRaw = jest.fn().mockResolvedValue(0);
+     prisma.$transaction = jest.fn(async (callback: (tx: any) => unknown) => callback(prisma));
     service = new TerminalService(
       prisma as any,
       {} as any,
@@ -126,7 +126,7 @@ describe('TerminalService automation', () => {
     jest.useRealTimers();
   });
 
-  it('delegates reservation creation to the shared idempotent reservation service', async () => {
+   it('delegates reservation creation to the shared idempotent reservation service', async () => {
     const reservations = {
       createIdempotent: jest.fn().mockResolvedValue({
         replayed: false,
@@ -155,8 +155,7 @@ describe('TerminalService automation', () => {
       allowCreateCustomer: false,
     }));
     expect(terminalDashboardCache.invalidate).toHaveBeenCalled();
-  });
-
+   });
   it('progresses the source automation touch when a terminal follow-up produces a conversion', async () => {
     const completedAt = new Date('2026-07-14T10:00:00.000Z');
     const effectFacts = { recordFact: jest.fn().mockResolvedValue({ id: 501 }) };

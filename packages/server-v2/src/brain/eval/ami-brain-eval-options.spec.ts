@@ -54,6 +54,39 @@ describe('parseAmiBrainEvalOptions', () => {
     ).toBe(resolve('docs/paraphrases.json'));
   });
 
+  it('parses a previous result file as a product regression source by default', () => {
+    expect(
+      parseAmiBrainEvalOptions(['--regression-from=outputs/results.json'], 'default-output'),
+    ).toMatchObject({
+      regressionFrom: resolve('outputs/results.json'),
+      regressionScope: 'product',
+    });
+  });
+
+  it('accepts provider-only and all-failure regression scopes', () => {
+    expect(
+      parseAmiBrainEvalOptions(
+        ['--regression-from=outputs/results.json', '--regression-scope=provider'],
+        'default-output',
+      ).regressionScope,
+    ).toBe('provider');
+    expect(
+      parseAmiBrainEvalOptions(
+        ['--regression-from=outputs/results.json', '--regression-scope=all'],
+        'default-output',
+      ).regressionScope,
+    ).toBe('all');
+  });
+
+  it('fails closed for an unsupported regression scope', () => {
+    expect(() =>
+      parseAmiBrainEvalOptions(
+        ['--regression-from=outputs/results.json', '--regression-scope=unknown'],
+        'default-output',
+      ),
+    ).toThrow('Invalid regression-scope');
+  });
+
   it('parses resumable evaluation safety controls with upper bounds', () => {
     expect(
       parseAmiBrainEvalOptions(

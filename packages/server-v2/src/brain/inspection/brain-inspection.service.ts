@@ -1,6 +1,7 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { BrainRiskLevel, Prisma } from '@prisma/client';
 import { Cron } from '@nestjs/schedule';
+import { CronTime } from 'cron';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { BrainSkillRuntimeService } from '../skills/brain-skill-runtime.service.js';
 import { BrainInspectionPlanBridgeService } from './brain-inspection-plan-bridge.service.js';
@@ -19,6 +20,7 @@ interface InspectionRuleRecord {
   ruleKey: string;
   name: string;
   domain: string;
+  scheduleCron: string | null;
   condition: Prisma.JsonValue;
   suggestionTpl: Prisma.JsonValue;
   riskLevel: BrainRiskLevel;
@@ -137,12 +139,98 @@ export class BrainInspectionService {
     }
   }
 
-  listFindings(input: { storeId: number; status?: string }) {
-    return this.prisma.brainInspectionFinding.findMany({
-      where: { storeId: input.storeId, ...(input.status ? { status: input.status } : {}) },
+  async listFindings(input: {
+    storeId: number;
+    status?: string;
+    statuses?: string[];
+    permissions?: string[];
+    deniedPermissions?: string[];
+    userId?: number;
+    roles?: string[];
+    enabledRulesOnly?: boolean;
+    take?: number;
+  }) {
+    const findings = await this.prisma.brainInspectionFinding.findMany({
+      where: {
+        storeId: input.storeId,
+        ...(input.status
+          ? { status: input.status }
+          : input.statuses?.length
+            ? { status: { in: [...new Set(input.statuses)] } }
+            : {}),
+      },
       orderBy: [{ status: 'asc' }, { severity: 'desc' }, { lastDetectedAt: 'desc' }],
+      take: Math.min(Math.max(input.take ?? 200, 1), 200),
+    });
+    const permissionFiltered = await this.filterFindingsByPermissions(
+      findings,
+      input.permissions ?? [],
+      input.deniedPermissions ?? [],
+      input.enabledRulesOnly === true,
+    );
+    return this.filterFindingsByDataScope({
+      findings: permissionFiltered,
+      storeId: input.storeId,
+      userId: input.userId,
+      roles: input.roles ?? [],
+      permissions: input.permissions ?? [],
+    });
+  }
+
+  async listInbox(input: {
+    storeId: number;
+    permissions: string[];
+    deniedPermissions: string[];
+    userId: number;
+    roles: string[];
+    limit?: number;
+  }) {
+    const limit = Math.min(Math.max(input.limit ?? 6, 1), 20);
+    const findings = await this.listFindings({
+      storeId: input.storeId,
+      statuses: ['open', 'in_progress'],
+      permissions: input.permissions,
+      deniedPermissions: input.deniedPermissions,
+      userId: input.userId,
+      roles: input.roles,
+      enabledRulesOnly: true,
       take: 100,
     });
+    const items = findings.slice(0, limit).map((finding) => {
+      const evidence = this.record(finding.evidence);
+      const suggestion = this.record(finding.suggestion);
+      const planning = this.record(suggestion.planning as Prisma.JsonValue);
+      return {
+        id: finding.id,
+        ruleKey: finding.ruleKey,
+        domain: finding.domain,
+        title: finding.title,
+        severity: finding.severity,
+        status: finding.status,
+        target: { objectType: finding.objectType, objectId: finding.objectId },
+        evidence,
+        suggestion: {
+          action: this.inboxAction(finding.ruleKey, suggestion.action),
+          entry: this.inboxEntry(finding.ruleKey, suggestion.entry),
+          planningStatus: typeof planning.status === 'string' ? planning.status : null,
+          actionPreviewCount: Array.isArray(planning.actionPreviews) ? planning.actionPreviews.length : 0,
+        },
+        canReview: this.hasPermission(input.permissions, input.deniedPermissions, 'core:brain:execute'),
+        firstDetectedAt: finding.firstDetectedAt,
+        lastDetectedAt: finding.lastDetectedAt,
+      };
+    });
+    return {
+      items,
+      summary: {
+        total: findings.length,
+        critical: findings.filter((item) => item.severity === 'critical').length,
+        high: findings.filter((item) => item.severity === 'high').length,
+        medium: findings.filter((item) => item.severity === 'medium').length,
+        low: findings.filter((item) => item.severity === 'low').length,
+      },
+      storeId: input.storeId,
+    };
   }
 
   updateFinding(input: { storeId: number; findingId: number; disposition: 'adopted' | 'ignored' | 'false_positive'; note?: string }) {
@@ -158,12 +246,22 @@ export class BrainInspectionService {
     });
   }
 
-  @Cron('0 8 * * *')
-  async runMorningInspection() {
+  @Cron('* * * * *', { timeZone: 'Asia/Shanghai' })
+  runScheduledInspectionTick() {
+    return this.runScheduledInspections(new Date());
+  }
+
+  async runScheduledInspections(now: Date) {
+    const rules = this.latestRules(await this.listRules());
+    const dueRules = rules.filter((rule) => this.isRuleDue(rule.scheduleCron, now));
+    if (!dueRules.length) return { storeCount: 0, ruleCount: 0, ruleKeys: [], results: [] };
     const stores = await this.prisma.store.findMany({ where: { status: 'active', deletedAt: null }, select: { id: true } });
     const results = [];
-    for (const store of stores) results.push(await this.runInspection({ storeId: store.id, triggerType: 'schedule' }));
-    return { storeCount: stores.length, results };
+    const ruleKeys = dueRules.map((rule) => rule.ruleKey);
+    for (const store of stores) {
+      results.push(await this.runInspection({ storeId: store.id, triggerType: 'schedule', now, ruleKeys }));
+    }
+    return { storeCount: stores.length, ruleCount: ruleKeys.length, ruleKeys, results };
   }
 
   private latestRules<T extends InspectionRuleRecord>(rules: T[]) {
@@ -173,6 +271,146 @@ export class BrainInspectionService {
       if (!current || rule.version > current.version) latest.set(rule.ruleKey, rule);
     }
     return [...latest.values()];
+  }
+
+  private isRuleDue(scheduleCron: unknown, now: Date) {
+    if (typeof scheduleCron !== 'string' || !scheduleCron.trim()) return false;
+    const validation = CronTime.validateCronExpression(scheduleCron.trim());
+    if (!validation.valid) return false;
+    const minute = new Date(now);
+    minute.setSeconds(0, 0);
+    const previousMinute = new Date(minute.getTime() - 60_000);
+    const next = new CronTime(scheduleCron.trim(), 'Asia/Shanghai').getNextDateFrom(previousMinute, 'Asia/Shanghai');
+    return next.toMillis() === minute.getTime();
+  }
+
+  private async filterFindingsByPermissions<T extends { ruleKey: string; ruleVersion: number }>(
+    findings: T[],
+    permissions: string[],
+    deniedPermissions: string[],
+    enabledRulesOnly: boolean,
+  ): Promise<T[]> {
+    if (!findings.length) return [];
+    const granted = new Set(permissions);
+    const rulePairs = [...new Map(
+      findings.map((finding) => [`${finding.ruleKey}:${finding.ruleVersion}`, finding] as const),
+    ).values()];
+    const rules = await this.prisma.brainInspectionRule.findMany({
+      where: {
+        OR: rulePairs.map((finding) => ({ ruleKey: finding.ruleKey, version: finding.ruleVersion })),
+      },
+      select: { ruleKey: true, version: true, condition: true, enabled: true },
+    });
+    const accessByRule = new Map(rules.map((rule) => {
+      const condition = this.record(rule.condition);
+      return [`${rule.ruleKey}:${rule.version}`, {
+        enabled: rule.enabled,
+        requiredPermission: typeof condition.permission === 'string' ? condition.permission : null,
+      }] as const;
+    }));
+    return findings.filter((finding) => {
+      const access = accessByRule.get(`${finding.ruleKey}:${finding.ruleVersion}`);
+      if (!access) return granted.has('*') && !enabledRulesOnly;
+      if (enabledRulesOnly && !access.enabled) return false;
+      if (!access.requiredPermission) return granted.has('*');
+      return this.hasPermission(permissions, deniedPermissions, access.requiredPermission);
+    });
+  }
+
+  private async filterFindingsByDataScope<T extends { objectType: string; objectId: string }>(input: {
+    findings: T[];
+    storeId: number;
+    userId?: number;
+    roles: string[];
+    permissions: string[];
+  }): Promise<T[]> {
+    if (!input.findings.length || input.permissions.includes('*') || !this.isBeauticianOnly(input.roles)) {
+      return input.findings;
+    }
+    if (!Number.isInteger(input.userId) || Number(input.userId) <= 0) return [];
+    const serviceTaskIds = input.findings
+      .filter((finding) => finding.objectType === 'service_task')
+      .map((finding) => Number(finding.objectId))
+      .filter((id) => Number.isInteger(id) && id > 0);
+    const reservationIds = input.findings
+      .filter((finding) => finding.objectType === 'reservation')
+      .map((finding) => Number(finding.objectId))
+      .filter((id) => Number.isInteger(id) && id > 0);
+    const [serviceTasks, reservations] = await Promise.all([
+      serviceTaskIds.length
+        ? this.prisma.serviceTask.findMany({
+            where: { id: { in: serviceTaskIds }, storeId: input.storeId, beautician: { userId: Number(input.userId) } },
+            select: { id: true },
+          })
+        : [],
+      reservationIds.length
+        ? this.prisma.reservation.findMany({
+            where: { id: { in: reservationIds }, storeId: input.storeId, beautician: { userId: Number(input.userId) } },
+            select: { id: true },
+          })
+        : [],
+    ]);
+    const ownedServiceTasks = new Set(serviceTasks.map((item) => String(item.id)));
+    const ownedReservations = new Set(reservations.map((item) => String(item.id)));
+    return input.findings.filter((finding) => {
+      if (finding.objectType === 'service_task') return ownedServiceTasks.has(finding.objectId);
+      if (finding.objectType === 'reservation') return ownedReservations.has(finding.objectId);
+      return true;
+    });
+  }
+
+  private isBeauticianOnly(roles: string[]) {
+    const normalized = roles.map((role) => role.toLowerCase());
+    const beautician = normalized.some((role) => role === 'beautician' || role.includes('beautician'));
+    const manager = normalized.some((role) => role === 'super_admin' || role === 'store_manager' || role.includes('manager'));
+    return beautician && !manager;
+  }
+
+  private hasPermission(permissions: string[], deniedPermissions: string[], required: string) {
+    if (deniedPermissions.includes(required)) return false;
+    return permissions.includes('*') || permissions.includes(required);
+  }
+
+  private inboxAction(ruleKey: string, configured: unknown) {
+    if (typeof configured === 'string' && configured.trim()) return configured.trim();
+    const actions: Record<string, string> = {
+      customer_churn_risk: '创建客户召回或跟进预览',
+      high_value_customer_not_visited: '创建高价值客户关怀预览',
+      fulfillment_no_show: '安排前台跟进未到客户',
+      appointment_no_show_anomaly: '复核未到原因并安排回访',
+      finance_margin_drop: '复核成本、折扣与低毛利项目',
+      gross_margin_drop: '复核毛利下降来源',
+      inventory_expiry: '处理临期库存并制定去化方案',
+      stockout_sku: '核对库存并生成补货建议',
+      marketing_low_roi: '复核活动受众、成本与渠道',
+      staff_productivity_drop: '安排员工业绩复盘与辅导',
+      reception_in_store_state_stale: '核对客户是否仍在店并修正履约状态',
+      service_task_state_inconsistent: '核对服务任务实际进度与时间记录',
+      inventory_safety_stock_invalid: '补齐安全库存并复核库存基础参数',
+      procurement_evidence_missing: '维护供应商与报价后再生成采购预览',
+    };
+    return actions[ruleKey] ?? '查看风险证据并决定处理方式';
+  }
+
+  private inboxEntry(ruleKey: string, configured: unknown) {
+    if (typeof configured === 'string' && configured.trim() && configured.trim() !== '/brain') return configured.trim();
+    const entries: Record<string, string> = {
+      customer_churn_risk: '/customer-marketing/workbench',
+      high_value_customer_not_visited: '/customer-marketing/workbench',
+      fulfillment_no_show: '/stores/reservations',
+      appointment_no_show_anomaly: '/stores/reservations',
+      finance_margin_drop: '/finance/profit',
+      gross_margin_drop: '/finance/profit',
+      inventory_expiry: '/inventory/expiry',
+      stockout_sku: '/inventory/purchase',
+      marketing_low_roi: '/customer-marketing/effect-analysis',
+      staff_productivity_drop: '/finance/staff-commission',
+      reception_in_store_state_stale: '/stores/reservations',
+      service_task_state_inconsistent: '/stores/reservations',
+      inventory_safety_stock_invalid: '/inventory/products',
+      procurement_evidence_missing: '/inventory/purchase',
+    };
+    return entries[ruleKey] ?? null;
   }
 
   private async evaluateRule(rule: InspectionRuleRecord, storeId: number, now: Date): Promise<InspectionFindingCandidate[]> {

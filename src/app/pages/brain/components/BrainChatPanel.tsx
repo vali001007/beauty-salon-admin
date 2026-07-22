@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Activity, Bot, Loader2, MessageSquarePlus, Send, UserRound } from 'lucide-react';
 import type { BrainGuidanceSelection, BrainMessage, BrainRoleKey } from '@/types/brain';
 import { BrainResponseRenderer } from './BrainResponseRenderer';
@@ -24,6 +24,7 @@ interface BrainChatPanelProps {
   onCreateConversation: () => void;
   onSend: (message: string, roleHint?: BrainRoleKey, guidanceSelection?: BrainGuidanceSelection) => Promise<void>;
   onSelectAssistant: (message: BrainMessage) => void;
+  inspectionInbox?: ReactNode;
 }
 
 function formatTime(value: string) {
@@ -42,6 +43,7 @@ export function BrainChatPanel({
   onCreateConversation,
   onSend,
   onSelectAssistant,
+  inspectionInbox,
 }: BrainChatPanelProps) {
   const [message, setMessage] = useState('');
   const [roleHint, setRoleHint] = useState<BrainRoleKey | ''>('');
@@ -93,6 +95,8 @@ export function BrainChatPanel({
           新会话
         </button>
       </header>
+
+      {inspectionInbox}
 
       <div ref={scrollRef} data-testid="brain-message-scroll" className="min-h-0 flex-1 overflow-y-auto px-4 py-5 lg:px-8">
         {loadingMessages ? (

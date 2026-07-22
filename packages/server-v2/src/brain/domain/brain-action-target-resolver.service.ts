@@ -17,6 +17,7 @@ export class BrainActionTargetResolverService {
   async revalidateCapabilityTarget(input: {
     capabilityKey: string;
     storeId: number;
+    userId?: number;
     args: Record<string, unknown>;
     idempotencyKey?: string;
   }): Promise<void> {
@@ -72,7 +73,7 @@ export class BrainActionTargetResolverService {
         return;
       }
       case 'save_service_record':
-        await this.requireScopedRecord('serviceTask', input.args.taskId, input.storeId);
+        await this.requireOwnedServiceTask(input.args.taskId, input.storeId, input.userId);
         return;
       case 'verify_card_usage':
         await this.revalidateCardUsageTarget(input.storeId, input.args, input.idempotencyKey);
@@ -229,21 +230,31 @@ export class BrainActionTargetResolverService {
     };
   }
 
-  async resolveServiceTask(input: { storeId: number; message: string }): Promise<BrainTargetResolution<{ id: number; customerName: string; projectName: string }>> {
+  async resolveServiceTask(input: { storeId: number; userId: number; message: string }): Promise<BrainTargetResolution<{ id: number; customerName: string; projectName: string }>> {
     const explicitId = Number(input.message.match(/(?:任务|服务单)[#号\s]*(\d+)/)?.[1]);
     if (explicitId > 0) {
       const task = await this.prisma.serviceTask.findFirst({
-        where: { id: explicitId, storeId: input.storeId },
+        where: {
+          id: explicitId,
+          storeId: input.storeId,
+          beautician: { userId: input.userId },
+          status: { in: ['pending', 'in_progress'] },
+        },
         select: { id: true, customer: { select: { name: true } }, project: { select: { name: true } } },
       });
       return task
         ? { ok: true, value: { id: task.id, customerName: task.customer.name, projectName: task.project.name } }
-        : { ok: false, reason: 'service_task_not_found', message: '当前门店没有找到该服务任务。' };
+        : { ok: false, reason: 'service_task_not_owned_or_active', message: '没有找到属于当前美容师且待完成的服务任务。' };
     }
     const customer = await this.resolveCustomer(input);
     if (!customer.ok) return customer;
     const tasks = await this.prisma.serviceTask.findMany({
-      where: { storeId: input.storeId, customerId: customer.value.id, status: { in: ['pending', 'in_progress'] } },
+      where: {
+        storeId: input.storeId,
+        customerId: customer.value.id,
+        beautician: { userId: input.userId },
+        status: { in: ['pending', 'in_progress'] },
+      },
       select: { id: true, customer: { select: { name: true } }, project: { select: { name: true } } },
       orderBy: { appointmentTime: 'desc' },
       take: 2,
@@ -251,6 +262,23 @@ export class BrainActionTargetResolverService {
     if (!tasks.length) return { ok: false, reason: 'service_task_not_found', message: `${customer.value.name}没有待完成的服务任务。` };
     if (tasks.length > 1) return { ok: false, reason: 'ambiguous_service_task', message: `${customer.value.name}有多条待完成服务，请补充服务单号。` };
     return { ok: true, value: { id: tasks[0].id, customerName: tasks[0].customer.name, projectName: tasks[0].project.name } };
+  }
+
+  private async requireOwnedServiceTask(value: unknown, storeId: number, userId?: number) {
+    const taskId = this.positiveId(value);
+    if (!Number.isInteger(userId) || Number(userId) <= 0) {
+      throw new ForbiddenException('service_task_actor_required');
+    }
+    const task = await this.prisma.serviceTask.findFirst({
+      where: {
+        id: taskId,
+        storeId,
+        beautician: { userId: Number(userId) },
+        status: { in: ['pending', 'in_progress'] },
+      },
+      select: { id: true },
+    });
+    if (!task) throw new ForbiddenException('service_task_not_owned_or_active');
   }
 
   async resolveCardUsageTarget(input: { storeId: number; message: string }): Promise<BrainTargetResolution<{

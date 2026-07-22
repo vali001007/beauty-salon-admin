@@ -26,6 +26,11 @@ export class CreateBrainEvalRunDto {
   @IsOptional()
   @IsInt()
   @Min(1)
+  sourceEvalRunId?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   releaseId?: number;
 
   @IsOptional()

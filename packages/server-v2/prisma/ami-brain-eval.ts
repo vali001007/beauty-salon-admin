@@ -49,6 +49,12 @@ import { BrainEvalExpectationResolverService } from '../src/brain/eval/brain-eva
 import { BrainCompletionGraderService } from '../src/brain/eval/brain-completion-grader.service.js';
 import { statusForLayerFailure } from '../src/brain/eval/brain-eval-status.js';
 import { parseAmiBrainEvalOptions } from '../src/brain/eval/ami-brain-eval-options.js';
+import {
+  buildAmiBrainEvalRegressionManifest,
+  compareAmiBrainEvalRegression,
+  selectAmiBrainEvalRegressionRecords,
+  type AmiBrainEvalRegressionPayload,
+} from '../src/brain/eval/ami-brain-eval-regression.js';
 import { resolveBrainEvalRoleUsers } from '../src/brain/eval/brain-eval-role-user-resolver.js';
 import {
   finalizeAmiBrainEvalCheckpoint,
@@ -185,6 +191,7 @@ const BASELINE_RESULTS_FILE = 'ami-brain-eval-results-2026-07-10.json';
 const RESULTS_FILE = 'ami-brain-model-driven-eval-results-2026-07-15.json';
 const REPORT_FILE = 'ami-brain-model-driven-eval-report-2026-07-15.md';
 const CHECKPOINT_FILE = 'ami-brain-model-driven-eval-checkpoint-2026-07-15.json';
+const REGRESSION_MANIFEST_FILE = 'ami-brain-model-driven-eval-regression-manifest-2026-07-15.json';
 
 function loadEvalQuestions(questionFile: string): BrainEvalQuestionCase[] {
   const raw = readFileSync(questionFile, 'utf8');
@@ -201,9 +208,25 @@ async function main() {
   ensureDir(options.outputDir);
 
   const questionFile = options.questionFile ?? DEFAULT_QUESTION_FILE;
+  if (options.regressionFrom && options.questionIds?.length) {
+    throw new Error('ami_brain_eval_regression_from_conflicts_with_question_ids');
+  }
+  const regressionSource = options.regressionFrom ? loadRegressionSource(options.regressionFrom) : undefined;
   let questions = annotateQuestionBankCoverage(loadEvalQuestions(questionFile));
   if (options.gate === 'p0') questions = selectP0QuestionBankCases(questions) as BrainEvalQuestionCase[];
   if (options.persona) questions = questions.filter((item) => item.persona === options.persona);
+  if (regressionSource) {
+    const selected = selectAmiBrainEvalRegressionRecords(regressionSource, options.regressionScope ?? 'product');
+    if (!selected.length) throw new Error('ami_brain_eval_regression_source_has_no_matching_failures');
+    const requested = new Set(selected.map((item) => item.questionId));
+    questions = questions.filter((item) => requested.has(item.id));
+    const missing = selected.filter((item) => !questions.some((question) => question.id === item.questionId));
+    if (missing.length) {
+      throw new Error(
+        `ami_brain_eval_regression_question_ids_not_found:${missing.map((item) => item.questionId).join(',')}`,
+      );
+    }
+  }
   if (options.questionIds?.length) {
     const requested = new Set(options.questionIds);
     questions = questions.filter((item) => requested.has(item.id));
@@ -351,7 +374,12 @@ async function main() {
     const finishedAt = new Date();
     const summary = buildSummary(records);
     const baselineComparison =
-      questionFile === DEFAULT_QUESTION_FILE
+      questionFile === DEFAULT_QUESTION_FILE &&
+      !options.regressionFrom &&
+      !options.questionIds?.length &&
+      !options.limit &&
+      !options.persona &&
+      !options.gate
         ? buildBaselineComparison({
             records,
             grader,
@@ -362,6 +390,19 @@ async function main() {
         : undefined;
     if (baselineComparison) {
       (summary as any).baselineComparison = baselineComparison;
+    }
+    const regressionComparison =
+      regressionSource && options.regressionFrom
+        ? compareAmiBrainEvalRegression({
+            sourceResultsPath: options.regressionFrom,
+            sourcePayload: regressionSource,
+            scope: options.regressionScope ?? 'product',
+            selectedQuestionIds: questions.map((question) => question.id),
+            currentRecords: records,
+          })
+        : undefined;
+    if (regressionComparison) {
+      (summary as any).regressionComparison = regressionComparison;
     }
 
     const payload = {
@@ -377,6 +418,12 @@ async function main() {
         storeId: runtimeStoreId,
         releaseId: options.releaseId ?? null,
         gate: options.gate ?? null,
+        regression: options.regressionFrom
+          ? {
+              sourceResultsPath: options.regressionFrom,
+              scope: options.regressionScope ?? 'product',
+            }
+          : null,
         releaseSnapshot: releaseSnapshot
           ? {
               releaseFingerprint: releaseSnapshot.releaseFingerprint,
@@ -413,13 +460,35 @@ async function main() {
 
     const resultsPath = resolve(options.outputDir, RESULTS_FILE);
     const reportPath = resolve(options.outputDir, REPORT_FILE);
+    const regressionManifestPath = resolve(options.outputDir, REGRESSION_MANIFEST_FILE);
     writeFileSync(resultsPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
     writeFileSync(reportPath, buildMarkdownReport(payload), 'utf8');
+    writeFileSync(
+      regressionManifestPath,
+      `${JSON.stringify(
+        buildAmiBrainEvalRegressionManifest({
+          sourceResultsPath: resultsPath,
+          sourcePayload: payload,
+          currentRecords: records,
+        }),
+        null,
+        2,
+      )}\n`,
+      'utf8',
+    );
     console.log(`[ami-brain-eval] results=${resultsPath}`);
     console.log(`[ami-brain-eval] report=${reportPath}`);
+    console.log(`[ami-brain-eval] regressionManifest=${regressionManifestPath}`);
   } finally {
     await app.close();
   }
+}
+
+function loadRegressionSource(path: string): AmiBrainEvalRegressionPayload {
+  if (!existsSync(path)) throw new Error(`ami_brain_eval_regression_source_not_found:${path}`);
+  const payload = JSON.parse(readFileSync(path, 'utf8')) as AmiBrainEvalRegressionPayload;
+  if (!Array.isArray(payload.records)) throw new Error('ami_brain_eval_regression_source_records_invalid');
+  return payload;
 }
 
 function preferConfiguredFallbackAsPrimary() {
@@ -1181,6 +1250,24 @@ function buildMarkdownReport(payload: any) {
 ${baselineRows}
 `
     : '';
+  const regression = payload.summary.regressionComparison;
+  const regressionSection = regression
+    ? `## 失败题回归结果
+
+- 来源：${regression.sourceResultsPath}
+- 范围：${regression.scope}
+- 选中：${regression.selectedCount}
+- 已修复：${regression.resolvedCount}
+- 未修复：${regression.unresolvedCount}
+- 供应商不可用：${regression.providerUnavailableCount}
+- 题目缺失：${regression.missingCount}
+- 回归门禁：${regression.passed ? '通过' : '未通过'}
+
+${regression.unresolvedQuestionIds?.length ? `未修复题号：${regression.unresolvedQuestionIds.join(', ')}` : ''}
+${regression.providerUnavailableQuestionIds?.length ? `供应商失败题号：${regression.providerUnavailableQuestionIds.join(', ')}` : ''}
+${regression.missingQuestionIds?.length ? `缺失题号：${regression.missingQuestionIds.join(', ')}` : ''}
+`
+    : '';
   const sixLayerRows = ['intent', 'tool', 'plan', 'execution', 'completion', 'answer']
     .map((key) => {
       const value = payload.summary.sixLayer?.[key] ?? { passed: 0, total: 0, passRate: 0, averageScore: 0 };
@@ -1188,7 +1275,7 @@ ${baselineRows}
     })
     .join('\n');
 
-  return `# Ami Brain 650题真实请求路径评测报告
+  return `# Ami Brain ${payload.metadata.questionCount}题真实请求路径评测报告
 
 生成时间：${new Date(payload.metadata.generatedAt).toLocaleString('zh-CN', { hour12: false })}
 
@@ -1280,6 +1367,7 @@ ${domainRows}
 ${capabilityRows}
 
 ${baselineSection}
+${regressionSection}
 ## 状态分布
 
 | 状态 | 总数 | 可用 | 可用率 | 查询失败 | 意图未覆盖 | 口径未接入 | 安全拦截 | 供应商不可用 | 异常 |
