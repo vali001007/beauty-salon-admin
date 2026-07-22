@@ -271,13 +271,15 @@ describe('BrainCapabilityRetrieverService', () => {
         ]
       : [],
     dimensions: input.dimensionDefinitionKey
-      ? [{
-          definitionType: 'dimension',
-          definitionKey: input.dimensionDefinitionKey,
-          definitionVersion: 1,
-          definitionFingerprint,
-          sourceFingerprint,
-        }]
+      ? [
+          {
+            definitionType: 'dimension',
+            definitionKey: input.dimensionDefinitionKey,
+            definitionVersion: 1,
+            definitionFingerprint,
+            sourceFingerprint,
+          },
+        ]
       : [],
     filters: [],
     orderBy: [],
@@ -335,14 +337,16 @@ describe('BrainCapabilityRetrieverService', () => {
       }),
       question: '最近三十天每天收入走势',
       context,
-      cards: [card('finance_payment_breakdown', {
-        name: '实收、支付方式与收入趋势',
-        domain: 'finance',
-        intent: 'trend',
-        refs: ['metric.paid_amount', 'dimension.paymentMethod'],
-        synonyms: ['收入趋势', '实收走势'],
-        examples: ['最近三十天每天收入走势'],
-      })],
+      cards: [
+        card('finance_payment_breakdown', {
+          name: '实收、支付方式与收入趋势',
+          domain: 'finance',
+          intent: 'trend',
+          refs: ['metric.paid_amount', 'dimension.paymentMethod'],
+          synonyms: ['收入趋势', '实收走势'],
+          examples: ['最近三十天每天收入走势'],
+        }),
+      ],
     });
 
     expect(result).toMatchObject({ status: 'selected', selected: { key: 'finance_payment_breakdown' } });
@@ -510,6 +514,53 @@ describe('BrainCapabilityRetrieverService', () => {
     });
 
     expect(result.topK.map((item) => item.card.key)).toEqual(['safe_read']);
+  });
+
+  it('filters guidance candidates by domain, permission, role and side-effect policy', () => {
+    const candidates = [
+      card('safe_guidance', {
+        name: '会员卡负债',
+        domain: 'membership',
+        intent: 'query',
+        refs: [],
+        synonyms: [],
+        examples: ['会员卡负债是多少'],
+      }),
+      card('wrong_domain', {
+        name: '库存风险',
+        domain: 'inventory',
+        intent: 'diagnosis',
+        refs: [],
+        synonyms: [],
+        examples: ['库存有什么风险'],
+      }),
+      card('missing_permission', {
+        name: '会员卡余额',
+        domain: 'membership',
+        intent: 'query',
+        refs: [],
+        synonyms: [],
+        examples: ['会员卡余额是多少'],
+        permissions: ['core:customer:secret'],
+      }),
+      card('write_guidance', {
+        name: '调整会员卡余额',
+        domain: 'membership',
+        intent: 'action',
+        refs: [],
+        synonyms: [],
+        examples: ['调整会员卡余额'],
+        readOnly: false,
+      }),
+    ];
+    const result = service.retrieveGuidanceCandidates({
+      domains: ['membership'],
+      question: '会员卡情况怎么样',
+      context,
+      cards: candidates,
+    });
+
+    expect(result.map((item) => item.card.key)).toEqual(['safe_guidance']);
   });
 
   it('computes the margin before topK slicing and uses the configured confidence threshold', () => {

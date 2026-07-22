@@ -21,6 +21,7 @@ import { BrainCapabilitySemanticVerifierService } from './capability/brain-capab
 import { BrainCapabilityGenerationGateService } from './capability/brain-capability-generation-gate.service.js';
 import { BrainCapabilityPublishedGateService } from './capability/brain-capability-published-gate.service.js';
 import { BrainGeneratedCapabilityDraftService } from './capability/brain-generated-capability-draft.service.js';
+import { BrainConversationGuidanceService } from './guidance/brain-conversation-guidance.service.js';
 import {
   BRAIN_CAPABILITY_DEFINITION_SNAPSHOT_SOURCE,
   BRAIN_CAPABILITY_NARRATIVE_GENERATOR,
@@ -159,6 +160,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BrainConversationContextService,
     BrainResultReferenceService,
     BrainChatService,
+    BrainConversationGuidanceService,
     BrainRoleIntentRouterService,
     BrainDomainAdapterRegistryService,
     BrainCustomerFactResolverService,
@@ -324,6 +326,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BrainConversationContextService,
     BrainResultReferenceService,
     BrainChatService,
+    BrainConversationGuidanceService,
     BrainRoleIntentRouterService,
     BrainDomainAdapterRegistryService,
     BrainCustomerFactResolverService,

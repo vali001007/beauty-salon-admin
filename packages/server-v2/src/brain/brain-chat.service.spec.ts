@@ -63,6 +63,7 @@ describe('BrainChatService', () => {
       releaseService?: unknown;
       roleContextBuilder?: unknown;
       untrustedActionClaimGuard?: unknown;
+      conversationGuidance?: unknown;
     } = {},
   ) => {
     const prisma = createPrismaMock();
@@ -400,9 +401,76 @@ describe('BrainChatService', () => {
         options.releaseService as never,
         options.semanticEvidence,
         options.untrustedActionClaimGuard,
+        options.conversationGuidance,
       ),
     };
   };
+
+  it('returns structured guidance clarification with partial completion metadata', async () => {
+    const { service, trace } = createService();
+    const answer = await (service as any).answerFromConversationGuidance({
+      result: {
+        status: 'clarify',
+        question: '请选择你最想看的目标：',
+        options: [
+          { id: 'liability', label: '会员卡负债', value: '会员卡负债是多少？', capabilityKey: 'member_liability' },
+          { id: 'flow', label: '储值流水', value: '储值余额和流水分别是多少？', capabilityKey: 'stored_balance_flow' },
+        ],
+        capabilityKeys: ['member_liability', 'stored_balance_flow'],
+        pendingClarification: {
+          missingSlots: ['objective'],
+          questions: ['请选择你最想看的目标：'],
+          ambiguities: [{ slot: 'objective', reason: '存在多个候选目标', candidates: ['会员卡负债是多少？'] }],
+          turnCount: 1,
+        },
+      },
+      intent: {
+        intent: 'query',
+        answerShape: 'list',
+        missingSlots: [],
+        ambiguities: [],
+      },
+      modelMetadata: { cognitionMode: 'model', modelStage: 'retrieve', failureCode: null },
+      runId: 88,
+    });
+
+    expect(answer).toMatchObject({
+      status: 'completed',
+      grounding: 'none',
+      blocks: [{ kind: 'clarification', options: expect.any(Array) }],
+      adapterMetadata: {
+        decisionCode: 'conversation_guidance_clarification_required',
+        completion: { status: 'partial', missingCriteria: ['objective'], recoverable: true },
+      },
+      modelContextPendingClarification: { turnCount: 1 },
+    });
+    expect(trace.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({ stepKey: 'intent_clarification_requested' }),
+    );
+  });
+
+  it('records guidance selection only after validating the source run belongs to the conversation', async () => {
+    const { service, prisma, trace } = createService();
+    prisma.brainRun.findFirst.mockResolvedValue({ id: 102 });
+
+    await (service as any).recordGuidanceSelection(context, 42, 103, {
+      kind: 'follow_up',
+      sourceRunId: 102,
+      optionId: 'liability',
+    });
+
+    expect(prisma.brainRun.findFirst).toHaveBeenCalledWith({
+      where: { id: 102, conversationId: 42, storeId: 2, userId: 9 },
+      select: { id: true },
+    });
+    expect(trace.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        runId: 103,
+        stepKey: 'follow_up_question_selected',
+        status: 'completed',
+      }),
+    );
+  });
 
   it('returns a deterministic no-campaign decision when the previous expiring product result is empty', () => {
     const { service } = createService();
@@ -690,19 +758,21 @@ describe('BrainChatService', () => {
       (service as any).normalizeGovernedReadOnlyPreviewIntent({
         intent,
         question: '客户做完项目后，系统怎么自动推荐下次适合做的项目',
-        cards: [{
-          key: 'marketing_automation_rule_preview',
-          name: '营销自动化规则预览',
-          description: '客户消费或服务完成后生成下一项目推荐规则建议，不发布规则或发送消息',
-          domains: ['customer', 'project'],
-          examples: ['能不能在客户消费后自动给她推荐下一个适合的项目'],
-          synonyms: ['消费后项目推荐', '自动推荐规则'],
-          negativeExamples: [],
-          grounding: 'domain_service',
-          readOnly: true,
-          sideEffect: false,
-          intents: ['workflow', 'recommendation'],
-        }],
+        cards: [
+          {
+            key: 'marketing_automation_rule_preview',
+            name: '营销自动化规则预览',
+            description: '客户消费或服务完成后生成下一项目推荐规则建议，不发布规则或发送消息',
+            domains: ['customer', 'project'],
+            examples: ['能不能在客户消费后自动给她推荐下一个适合的项目'],
+            synonyms: ['消费后项目推荐', '自动推荐规则'],
+            negativeExamples: [],
+            grounding: 'domain_service',
+            readOnly: true,
+            sideEffect: false,
+            intents: ['workflow', 'recommendation'],
+          },
+        ],
       }),
     ).toMatchObject({ intent: 'recommendation', answerShape: 'diagnosis' });
   });
@@ -1687,24 +1757,27 @@ describe('BrainChatService', () => {
 
   it('normalizes a pure clarification as domain-neutral structured context', () => {
     const { service } = createService({ modelPipeline: {} });
-    const normalized = (service as any).normalizeModelClarificationIntent({
-      schemaVersion: '1.0',
-      objective: '澄清“这个”所指内容',
-      domains: ['general_unknown'],
-      intent: 'clarify',
-      entities: [{ entityType: 'unknown', mention: '这个', source: 'user', confidence: 0.5 }],
-      metrics: [],
-      dimensions: [],
-      filters: [],
-      orderBy: [],
-      answerShape: 'diagnosis',
-      successCriteria: ['明确用户目标'],
-      ambiguities: [{ slot: 'objective', reason: '指代不明', candidates: [] }],
-      missingSlots: ['请说明要看什么'],
-      assumptions: [],
-      confidence: 0.9,
-      decisionSummary: '需要澄清',
-    }, '帮我看看');
+    const normalized = (service as any).normalizeModelClarificationIntent(
+      {
+        schemaVersion: '1.0',
+        objective: '澄清“这个”所指内容',
+        domains: ['general_unknown'],
+        intent: 'clarify',
+        entities: [{ entityType: 'unknown', mention: '这个', source: 'user', confidence: 0.5 }],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'diagnosis',
+        successCriteria: ['明确用户目标'],
+        ambiguities: [{ slot: 'objective', reason: '指代不明', candidates: [] }],
+        missingSlots: ['请说明要看什么'],
+        assumptions: [],
+        confidence: 0.9,
+        decisionSummary: '需要澄清',
+      },
+      '帮我看看',
+    );
 
     expect(normalized).toMatchObject({
       intent: 'clarify',
@@ -4633,9 +4706,7 @@ describe('BrainChatService', () => {
       },
     });
 
-    expect(normalized.metrics).toEqual([
-      expect.objectContaining({ definitionKey: 'metric.average_order_value' }),
-    ]);
+    expect(normalized.metrics).toEqual([expect.objectContaining({ definitionKey: 'metric.average_order_value' })]);
   });
 
   it('selects the governed material cost rate metric for a focused finance example', () => {
@@ -4676,9 +4747,7 @@ describe('BrainChatService', () => {
       },
     });
 
-    expect(normalized.metrics).toEqual([
-      expect.objectContaining({ definitionKey: 'metric.material_cost_rate' }),
-    ]);
+    expect(normalized.metrics).toEqual([expect.objectContaining({ definitionKey: 'metric.material_cost_rate' })]);
   });
 
   it('enriches a model intent with the unique material cost rate before capability selection', () => {
@@ -4732,9 +4801,7 @@ describe('BrainChatService', () => {
       },
     });
 
-    expect(normalized.metrics).toEqual([
-      expect.objectContaining({ definitionKey: 'metric.material_cost_rate' }),
-    ]);
+    expect(normalized.metrics).toEqual([expect.objectContaining({ definitionKey: 'metric.material_cost_rate' })]);
   });
 
   it('maps a natural per-order average wording to the governed average order value', () => {
@@ -4776,9 +4843,7 @@ describe('BrainChatService', () => {
       },
     });
 
-    expect(normalized.metrics).toEqual([
-      expect.objectContaining({ definitionKey: 'metric.average_order_value' }),
-    ]);
+    expect(normalized.metrics).toEqual([expect.objectContaining({ definitionKey: 'metric.average_order_value' })]);
   });
 
   it('normalizes an exact product-margin maximum question to ranking', () => {
@@ -5206,14 +5271,16 @@ describe('BrainChatService', () => {
     const normalized = (service as any).normalizeGovernedCapabilityExampleIntent({
       intent,
       question: '运行营销策略 12 并发送',
-      cards: [{
-        key: 'marketing_strategy_execute_preview',
-        domains: ['marketing_growth'],
-        intents: ['action'],
-        examples: ['运行营销策略 12 并发送'],
-        readOnly: false,
-        definitionRefs: [],
-      }],
+      cards: [
+        {
+          key: 'marketing_strategy_execute_preview',
+          domains: ['marketing_growth'],
+          intents: ['action'],
+          examples: ['运行营销策略 12 并发送'],
+          readOnly: false,
+          definitionRefs: [],
+        },
+      ],
       snapshot: { entities: [], metrics: [], dimensions: [] },
     });
 
@@ -5372,7 +5439,7 @@ describe('BrainChatService', () => {
     prisma.brainConversation.count.mockResolvedValue(0);
 
     await service.createConversation(evaluationContext, { title: '评测 case-1' });
-    const listed = await service.listConversations(context);
+    const listed = await service.listConversations(context, { page: 2, pageSize: 10 });
 
     expect(prisma.brainConversation.create).toHaveBeenCalledWith({
       data: { storeId: 2, userId: 9, title: '评测 case-1', status: 'evaluation' },
@@ -5380,12 +5447,13 @@ describe('BrainChatService', () => {
     expect(prisma.brainConversation.findMany).toHaveBeenCalledWith({
       where: { storeId: 2, userId: 9, status: 'active', deletedAt: null },
       orderBy: { updatedAt: 'desc' },
-      take: 50,
+      skip: 10,
+      take: 10,
     });
     expect(prisma.brainConversation.count).toHaveBeenCalledWith({
       where: { storeId: 2, userId: 9, status: 'active', deletedAt: null },
     });
-    expect(listed).toEqual({ items: [], total: 0, storeId: 2 });
+    expect(listed).toEqual({ items: [], total: 0, page: 2, pageSize: 10, storeId: 2 });
   });
 
   it('persists user and assistant messages, records a run, and returns a cited answer', async () => {
@@ -6576,9 +6644,49 @@ describe('BrainChatService', () => {
         storeId: context.storeId,
         userId: context.userId,
       },
-      select: { id: true },
+      select: { id: true, createdAt: true },
     });
     expect(prisma.brainRunStep.findMany).not.toHaveBeenCalled();
+  });
+
+  it('returns recorded durations and timeline estimates for every run event', async () => {
+    const { prisma, service } = createService();
+    prisma.brainRun.findFirst.mockResolvedValue({ id: 88, createdAt: new Date('2026-07-22T00:00:00.000Z') });
+    prisma.brainRunStep.findMany.mockResolvedValue([
+      {
+        id: 1,
+        runId: 88,
+        stepKey: 'cognition_rules',
+        layer: 'cognition',
+        input: { question: '本周营业额' },
+        output: { intent: 'revenue' },
+        status: 'completed',
+        latencyMs: null,
+        error: null,
+        createdAt: new Date('2026-07-22T00:00:00.120Z'),
+      },
+      {
+        id: 2,
+        runId: 88,
+        stepKey: 'cognition_model',
+        layer: 'cognition',
+        input: { question: '本周营业额' },
+        output: { usage: { inputTokens: 10, outputTokens: 5 } },
+        status: 'completed',
+        latencyMs: 80,
+        error: null,
+        createdAt: new Date('2026-07-22T00:00:00.250Z'),
+      },
+    ]);
+
+    await expect(service.listRunEvents(context, 88)).resolves.toMatchObject({
+      runId: 88,
+      events: [
+        { stepKey: 'cognition_rules', durationMs: 120, durationSource: 'timeline_estimate' },
+        { stepKey: 'cognition_model', durationMs: 80, durationSource: 'recorded' },
+      ],
+      storeId: context.storeId,
+    });
   });
 
   it('returns the owning conversation for a run in the current store and user scope', async () => {

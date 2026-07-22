@@ -42,7 +42,7 @@ describe('BrainSkillRegistryService', () => {
           .mockResolvedValue([row({ id: 2, version: 2 }), row({ id: 4, skillKey: 'query_stock', version: 3 })]),
       },
     };
-    const prisma = { $transaction: jest.fn((callback) => callback(tx)) };
+    const prisma = { brainSkillRegistry: tx.brainSkillRegistry, $transaction: jest.fn() };
     const service = new BrainSkillRegistryService(prisma as any);
 
     const result = await service.listLatestEnabledSkills();
@@ -51,22 +51,11 @@ describe('BrainSkillRegistryService', () => {
       ['query_revenue', 2],
       ['query_stock', 3],
     ]);
-    expect(tx.brainSkillRegistry.groupBy).toHaveBeenCalledWith({
-      by: ['skillKey'],
-      where: { enabled: true },
-      _max: { version: true },
-    });
     expect(tx.brainSkillRegistry.findMany).toHaveBeenCalledWith({
-      where: {
-        enabled: true,
-        OR: [
-          { skillKey: 'query_revenue', version: 2 },
-          { skillKey: 'query_stock', version: 3 },
-        ],
-      },
-      orderBy: { skillKey: 'asc' },
+      where: { enabled: true },
+      orderBy: [{ skillKey: 'asc' }, { version: 'desc' }],
     });
-    expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'RepeatableRead' });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('maps a legacy read skill to conservative read-only capability defaults', async () => {
@@ -76,7 +65,7 @@ describe('BrainSkillRegistryService', () => {
         findMany: jest.fn().mockResolvedValue([row()]),
       },
     };
-    const prisma = { $transaction: jest.fn((callback) => callback(tx)) };
+    const prisma = { brainSkillRegistry: tx.brainSkillRegistry, $transaction: jest.fn() };
     const service = new BrainSkillRegistryService(prisma as any);
 
     await expect(service.listLatestEnabledCapabilityCandidates()).resolves.toEqual([
@@ -109,19 +98,15 @@ describe('BrainSkillRegistryService', () => {
         findMany: jest.fn().mockResolvedValue([row()]),
       },
     };
-    const prisma = { $transaction: jest.fn((callback) => callback(tx)) };
+    const prisma = { brainSkillRegistry: tx.brainSkillRegistry, $transaction: jest.fn() };
     const service = new BrainSkillRegistryService(prisma as any);
 
     await service.listLatestEnabledCapabilityCandidates();
 
-    expect(tx.brainSkillRegistry.groupBy).toHaveBeenCalledWith({
-      by: ['skillKey'],
+    expect(tx.brainSkillRegistry.findMany).toHaveBeenCalledWith({
       where: { enabled: true, sourceFingerprint: { not: null } },
-      _max: { version: true },
+      orderBy: [{ skillKey: 'asc' }, { version: 'desc' }],
     });
-    expect(tx.brainSkillRegistry.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ enabled: true, sourceFingerprint: { not: null } }) }),
-    );
   });
 
   it('maps a legacy action skill to confirmation, idempotency and medium-risk defaults', async () => {
@@ -137,7 +122,7 @@ describe('BrainSkillRegistryService', () => {
         ]),
       },
     };
-    const prisma = { $transaction: jest.fn((callback) => callback(tx)) };
+    const prisma = { brainSkillRegistry: tx.brainSkillRegistry, $transaction: jest.fn() };
     const service = new BrainSkillRegistryService(prisma as any);
 
     await expect(service.listLatestEnabledCapabilityCandidates()).resolves.toEqual([
@@ -159,13 +144,40 @@ describe('BrainSkillRegistryService', () => {
         findMany: jest.fn().mockResolvedValue([row({ version: 2 })]),
       },
     };
-    const prisma = { $transaction: jest.fn((callback) => callback(tx)) };
+    const prisma = { brainSkillRegistry: tx.brainSkillRegistry, $transaction: jest.fn() };
     const service = new BrainSkillRegistryService(prisma as any);
 
     const result = await service.listEnabledSkills();
 
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({ skillKey: 'query_revenue', version: 2 });
+  });
+
+  it('returns lightweight latest-version rows for governance list screens', async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      row({ id: 2, version: 2 }),
+      row({ id: 1, version: 1 }),
+      row({ id: 4, skillKey: 'query_stock', version: 3 }),
+    ]);
+    const service = new BrainSkillRegistryService({ brainSkillRegistry: { findMany } } as any);
+
+    const result = await service.listEnabledSkillSummaries();
+
+    expect(result.map((item) => [item.skillKey, item.version])).toEqual([
+      ['query_revenue', 2],
+      ['query_stock', 3],
+    ]);
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { enabled: true },
+      select: expect.objectContaining({
+        skillKey: true,
+        name: true,
+        version: true,
+        updatedAt: true,
+      }),
+    }));
+    expect(findMany.mock.calls[0][0].select).not.toHaveProperty('inputSchema');
+    expect(findMany.mock.calls[0][0].select).not.toHaveProperty('outputSchema');
   });
 
   it('preserves malformed JSON and arrays so the catalog can reject them', async () => {
@@ -190,7 +202,7 @@ describe('BrainSkillRegistryService', () => {
         findMany: jest.fn().mockResolvedValue([malformed]),
       },
     };
-    const prisma = { $transaction: jest.fn((callback) => callback(tx)) };
+    const prisma = { brainSkillRegistry: tx.brainSkillRegistry, $transaction: jest.fn() };
     const service = new BrainSkillRegistryService(prisma as any);
 
     const [candidate] = await service.listLatestEnabledCapabilityCandidates();
@@ -208,13 +220,13 @@ describe('BrainSkillRegistryService', () => {
     const tx = {
       brainSkillRegistry: {
         groupBy: jest.fn().mockResolvedValue([]),
-        findMany: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
       },
     };
-    const prisma = { $transaction: jest.fn((callback) => callback(tx)) };
+    const prisma = { brainSkillRegistry: tx.brainSkillRegistry, $transaction: jest.fn() };
     const service = new BrainSkillRegistryService(prisma as any);
 
     await expect(service.listLatestEnabledSkills()).resolves.toEqual([]);
-    expect(tx.brainSkillRegistry.findMany).not.toHaveBeenCalled();
+    expect(tx.brainSkillRegistry.findMany).toHaveBeenCalledTimes(1);
   });
 });

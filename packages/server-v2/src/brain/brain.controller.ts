@@ -1,4 +1,17 @@
-import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
@@ -12,11 +25,18 @@ import { BrainEvalService } from './governance/brain-eval.service.js';
 import { BrainFeedbackService } from './governance/brain-feedback.service.js';
 import { BrainReleaseService } from './governance/brain-release.service.js';
 import { BrainTraceService } from './governance/brain-trace.service.js';
-import { BrainGovernanceResourceService, type BrainGovernanceResourceType } from './governance/brain-governance-resource.service.js';
+import {
+  BrainGovernanceResourceService,
+  type BrainGovernanceResourceType,
+  type BrainSemanticGovernanceResourceType,
+} from './governance/brain-governance-resource.service.js';
 import { BrainGovernanceApprovalService } from './governance/brain-governance-approval.service.js';
 import { BrainCapabilityRegenerationService } from './governance/brain-capability-regeneration.service.js';
 import { BrainInspectionService } from './inspection/brain-inspection.service.js';
-import { BrainInspectionRepairPreviewService, type BrainInspectionRepairDecision } from './inspection/brain-inspection-repair-preview.service.js';
+import {
+  BrainInspectionRepairPreviewService,
+  type BrainInspectionRepairDecision,
+} from './inspection/brain-inspection-repair-preview.service.js';
 import { BrainAgentProfileService } from './orchestrator/brain-agent-profile.service.js';
 import { BrainKnowledgeGraphService } from './semantic/brain-knowledge-graph.service.js';
 import { BrainMetricRegistryService } from './semantic/brain-metric-registry.service.js';
@@ -60,9 +80,12 @@ export class BrainController {
 
   @Get('conversations')
   @Permissions('core:brain:use')
-  listConversations(@Req() req: Request) {
+  listConversations(@Req() req: Request, @Query('page') page?: string, @Query('pageSize') pageSize?: string) {
     const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
-    return this.chatService.listConversations(context);
+    return this.chatService.listConversations(context, {
+      page: Number(page),
+      pageSize: Number(pageSize),
+    });
   }
 
   @Post('conversations/:id/messages')
@@ -118,7 +141,12 @@ export class BrainController {
     });
     try {
       let answerEmitted = false;
-      const emitAnswer = (result: { runId: number; answer: string; suggestedActions?: unknown[]; blocks?: unknown[] }) => {
+      const emitAnswer = (result: {
+        runId: number;
+        answer: string;
+        suggestedActions?: unknown[];
+        blocks?: unknown[];
+      }) => {
         if (answerEmitted) return;
         answerEmitted = true;
         answerReadyAt = Date.now();
@@ -127,7 +155,10 @@ export class BrainController {
           emit('action_preview', { conversationId, runId: result.runId, action });
         }
         for (const [index, block] of (result.blocks ?? []).entries()) {
-          const kind = block && typeof block === 'object' && 'kind' in block ? String((block as { kind: unknown }).kind) : 'unknown';
+          const kind =
+            block && typeof block === 'object' && 'kind' in block
+              ? String((block as { kind: unknown }).kind)
+              : 'unknown';
           emit('block_delta', { conversationId, runId: result.runId, index, kind });
           emit('block_completed', { conversationId, runId: result.runId, index, block });
         }
@@ -181,11 +212,12 @@ export class BrainController {
       throw new BadRequestException('invalid_brain_run_id');
     }
     const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
-    const statuses = await this.actionConfirmationService?.listExecutionStatuses({
-      runId: parsedRunId,
-      userId: context.userId,
-      storeId: context.storeId,
-    }) ?? [];
+    const statuses =
+      (await this.actionConfirmationService?.listExecutionStatuses({
+        runId: parsedRunId,
+        userId: context.userId,
+        storeId: context.storeId,
+      })) ?? [];
     const items = statuses.map((status) => ({
       ...status,
       runId: parsedRunId,
@@ -284,9 +316,78 @@ export class BrainController {
     return { resource, items: [] };
   }
 
+  @Get('governance/semantic-versions/:resource')
+  @Permissions('core:brain-governance:view')
+  async listSemanticGovernanceSummaries(
+    @Req() req: Request,
+    @Param('resource') resource: string,
+    @Query('take') take?: string,
+  ) {
+    const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
+    return {
+      items: this.governanceResourceService
+        ? await this.governanceResourceService.listSemanticGovernanceSummaries({
+            resourceType: this.semanticGovernanceResourceType(resource),
+            storeId: context.storeId,
+            take: take ? Number(take) : undefined,
+          })
+        : [],
+    };
+  }
+
+  @Get('governance/semantic-versions/:resource/:resourceKey')
+  @Permissions('core:brain-governance:view')
+  async listSemanticGovernanceHistory(
+    @Param('resource') resource: string,
+    @Param('resourceKey') resourceKey: string,
+    @Query('take') take?: string,
+  ) {
+    return {
+      items: this.governanceResourceService
+        ? await this.governanceResourceService.listSemanticGovernanceHistory({
+            resourceType: this.semanticGovernanceResourceType(resource),
+            resourceKey,
+            take: take ? Number(take) : undefined,
+          })
+        : [],
+    };
+  }
+
+  @Patch('governance/semantic-versions/:resource/:resourceKey/enabled')
+  @Permissions('core:brain-governance:manage')
+  setPublishedSemanticEnabled(
+    @Param('resource') resource: string,
+    @Param('resourceKey') resourceKey: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    if (typeof body.enabled !== 'boolean') throw new BadRequestException('semantic_enabled_flag_invalid');
+    if (!this.governanceResourceService) throw new NotFoundException('语义治理服务不可用');
+    return this.governanceResourceService.setPublishedSemanticEnabled({
+      resourceType: this.semanticGovernanceResourceType(resource),
+      resourceKey,
+      enabled: body.enabled,
+    });
+  }
+
+  @Get('governance/semantic-graph')
+  @Permissions('core:brain-governance:view')
+  async getSemanticGraph() {
+    return (
+      this.governanceResourceService?.getSemanticGraph() ?? {
+        nodes: [],
+        edges: [],
+        summary: { entities: 0, relations: 0, metrics: 0, tables: 0, edges: 0 },
+      }
+    );
+  }
+
   @Post('governance/semantic/:resource')
   @Permissions('core:brain-governance:manage')
-  createSemanticResource(@Req() req: Request, @Param('resource') resource: string, @Body() body: Record<string, unknown>) {
+  createSemanticResource(
+    @Req() req: Request,
+    @Param('resource') resource: string,
+    @Body() body: Record<string, unknown>,
+  ) {
     const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
     if (!this.governanceResourceService) throw new NotFoundException('治理资源服务不可用');
     const resourceType = this.semanticResourceType(resource);
@@ -326,11 +427,13 @@ export class BrainController {
   @Permissions('core:brain-governance:view')
   listMemories(@Req() req: Request) {
     const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
-    return this.memoryService?.listForGovernance({
-      storeId: context.storeId,
-      userId: context.userId,
-      includeDeleted: true,
-    }) ?? { items: [], total: 0 };
+    return (
+      this.memoryService?.listForGovernance({
+        storeId: context.storeId,
+        userId: context.userId,
+        includeDeleted: true,
+      }) ?? { items: [], total: 0 }
+    );
   }
 
   @Post('governance/memories/:id/correct')
@@ -382,8 +485,39 @@ export class BrainController {
 
   @Get('governance/skills')
   @Permissions('core:brain-governance:view')
-  async listSkills() {
-    return { items: this.skillRegistryService ? await this.skillRegistryService.listEnabledSkills() : [] };
+  async listSkills(@Query('summary') summary?: string) {
+    if (!this.skillRegistryService) return { items: [] };
+    return {
+      items:
+        summary === 'true'
+          ? await this.skillRegistryService.listEnabledSkillSummaries()
+          : await this.skillRegistryService.listEnabledSkills(),
+    };
+  }
+
+  @Get('governance/skill-versions')
+  @Permissions('core:brain-governance:view')
+  async listSkillGovernanceSummaries(@Query('take') take?: string) {
+    return {
+      items: this.governanceResourceService
+        ? await this.governanceResourceService.listSkillGovernanceSummaries({
+            take: take ? Number(take) : undefined,
+          })
+        : [],
+    };
+  }
+
+  @Get('governance/skill-versions/:skillKey')
+  @Permissions('core:brain-governance:view')
+  async listSkillGovernanceHistory(@Param('skillKey') skillKey: string, @Query('take') take?: string) {
+    return {
+      items: this.governanceResourceService
+        ? await this.governanceResourceService.listSkillGovernanceHistory({
+            skillKey,
+            take: take ? Number(take) : undefined,
+          })
+        : [],
+    };
   }
 
   @Post('governance/skills')
@@ -396,6 +530,14 @@ export class BrainController {
   @Permissions('core:brain-governance:manage')
   updateSkill(@Req() req: Request, @Param('skillKey') skillKey: string, @Body() body: Record<string, unknown>) {
     return this.createGovernanceDraft(req, 'skill', skillKey, body);
+  }
+
+  @Patch('governance/skills/:skillKey/enabled')
+  @Permissions('core:brain-governance:manage')
+  setPublishedSkillEnabled(@Param('skillKey') skillKey: string, @Body() body: Record<string, unknown>) {
+    if (typeof body.enabled !== 'boolean') throw new BadRequestException('skill_enabled_flag_invalid');
+    if (!this.governanceResourceService) throw new NotFoundException('技能治理服务不可用');
+    return this.governanceResourceService.setPublishedSkillEnabled({ skillKey, enabled: body.enabled });
   }
 
   @Get('governance/inspection-rules')
@@ -485,13 +627,30 @@ export class BrainController {
 
   @Get('governance/resource-versions')
   @Permissions('core:brain-governance:view')
-  async listResourceVersions(@Query('resourceType') resourceType?: string, @Query('status') status?: string) {
-    return { items: this.governanceResourceService ? await this.governanceResourceService.listVersions({ resourceType, status }) : [] };
+  async listResourceVersions(
+    @Query('resourceType') resourceType?: string,
+    @Query('status') status?: string,
+    @Query('includeSnapshot') includeSnapshot?: string,
+    @Query('take') take?: string,
+  ) {
+    return {
+      items: this.governanceResourceService
+        ? await this.governanceResourceService.listVersions({
+            resourceType,
+            status,
+            includeSnapshot: includeSnapshot !== 'false',
+            take: take ? Number(take) : undefined,
+          })
+        : [],
+    };
   }
 
   @Patch('governance/resource-versions/:id/status')
   @Permissions('core:brain-governance:manage')
-  changeResourceVersionStatus(@Param('id') id: string, @Body() body: { status: 'draft' | 'active' | 'disabled' | 'archived' }) {
+  changeResourceVersionStatus(
+    @Param('id') id: string,
+    @Body() body: { status: 'draft' | 'active' | 'disabled' | 'archived' },
+  ) {
     if (!this.governanceResourceService) throw new NotFoundException('治理资源服务不可用');
     return this.governanceResourceService.changeStatus({ id: Number(id), status: body.status });
   }
@@ -519,6 +678,88 @@ export class BrainController {
     return { items: this.evalService ? await this.evalService.listRuns({ storeId: context.storeId }) : [] };
   }
 
+  @Get('governance/evals/catalog')
+  @Permissions('core:brain-governance:view')
+  listEvalQuestionCatalog(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
+    @Query('questionType') questionType?: string,
+    @Query('status') status?: string,
+  ) {
+    return (
+      this.evalService?.listQuestionCatalog({
+        page: page ? Number(page) : undefined,
+        pageSize: pageSize ? Number(pageSize) : undefined,
+        search,
+        questionType,
+        status: status === 'passed' || status === 'failed' || status === 'unavailable' ? status : undefined,
+      }) ?? { items: [], total: 0, page: 1, pageSize: 50, types: [], metadata: null }
+    );
+  }
+
+  @Get('evals/catalog')
+  @Permissions('core:brain:use')
+  listRuntimeEvalQuestionCatalog(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
+    @Query('questionType') questionType?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.listEvalQuestionCatalog(page, pageSize, search, questionType, status);
+  }
+
+  @Get('governance/evals/catalog/:questionId')
+  @Permissions('core:brain-governance:view')
+  getEvalQuestionCatalogDetail(@Param('questionId') questionId: string) {
+    if (!this.evalService) throw new NotFoundException('评测服务不可用');
+    return this.evalService.getQuestionCatalogDetail(questionId);
+  }
+
+  @Get('governance/evals/suites')
+  @Permissions('core:brain-governance:view')
+  async listEvalSuites(@Req() req: Request) {
+    const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
+    return this.evalService?.listEvaluationSuites({ storeId: context.storeId }) ?? { items: [] };
+  }
+
+  @Get('governance/evals/runs/:evalRunId/catalog')
+  @Permissions('core:brain-governance:view')
+  async listFullDomainEvalCatalog(
+    @Req() req: Request,
+    @Param('evalRunId') evalRunId: string,
+    @Query() query: Record<string, string | undefined>,
+  ) {
+    const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
+    if (!this.evalService) throw new NotFoundException('评测服务不可用');
+    return this.evalService.listFullDomainSuiteResults({
+      storeId: context.storeId,
+      evalRunId: Number(evalRunId),
+      page: query.page ? Number(query.page) : undefined,
+      pageSize: query.pageSize ? Number(query.pageSize) : undefined,
+      search: query.search,
+      domain: query.domain,
+      role: query.role,
+      type: query.type,
+      difficulty: query.difficulty,
+      deterministic: query.deterministic === 'passed' || query.deterministic === 'failed' ? query.deterministic : undefined,
+      judge: query.judge === 'pass' || query.judge === 'fail' || query.judge === 'insufficient_evidence' ? query.judge : undefined,
+    });
+  }
+
+  @Get('governance/evals/runs/:evalRunId/catalog/:caseKey')
+  @Permissions('core:brain-governance:view')
+  async getFullDomainEvalCatalogItem(
+    @Req() req: Request,
+    @Param('evalRunId') evalRunId: string,
+    @Param('caseKey') caseKey: string,
+  ) {
+    const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
+    if (!this.evalService) throw new NotFoundException('评测服务不可用');
+    return this.evalService.getFullDomainSuiteResult({ storeId: context.storeId, evalRunId: Number(evalRunId), caseKey });
+  }
+
   @Get('governance/evals/runs/:evalRunId')
   @Permissions('core:brain-governance:view')
   getEvalRun(@Req() req: Request, @Param('evalRunId') evalRunId: string) {
@@ -528,7 +769,11 @@ export class BrainController {
 
   @Post('governance/releases')
   @Permissions('core:brain-governance:manage')
-  createRelease(@Req() req: Request, @Body() body: { releaseKey?: string; scope?: string; rollout?: Record<string, unknown>; resourceVersionIds?: number[] }) {
+  createRelease(
+    @Req() req: Request,
+    @Body()
+    body: { releaseKey?: string; scope?: string; rollout?: Record<string, unknown>; resourceVersionIds?: number[] },
+  ) {
     const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
     if (!this.releaseService) throw new NotFoundException('发布服务不可用');
     return this.releaseService.createRelease({
@@ -542,10 +787,7 @@ export class BrainController {
 
   @Post('governance/releases/rollout-sequence')
   @Permissions('core:brain-governance:manage')
-  createRolloutSequence(
-    @Req() req: Request,
-    @Body() body: { releaseKey?: string; resourceVersionIds?: number[] },
-  ) {
+  createRolloutSequence(@Req() req: Request, @Body() body: { releaseKey?: string; resourceVersionIds?: number[] }) {
     const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
     if (!this.releaseService) throw new NotFoundException('发布服务不可用');
     return this.releaseService.createRolloutSequence({
@@ -557,8 +799,15 @@ export class BrainController {
 
   @Get('governance/releases')
   @Permissions('core:brain-governance:view')
-  async listReleases() {
-    return { items: this.releaseService ? await this.releaseService.listReleases() : [] };
+  async listReleases(@Query('includeSnapshot') includeSnapshot?: string, @Query('take') take?: string) {
+    return {
+      items: this.releaseService
+        ? await this.releaseService.listReleases({
+            includeSnapshot: includeSnapshot !== 'false',
+            take: take ? Number(take) : undefined,
+          })
+        : [],
+    };
   }
 
   @Get('governance/runtime-config')
@@ -568,15 +817,16 @@ export class BrainController {
     const configured = this.runtimeConfigService?.runtime ?? null;
     const roleKey = context.roles?.find((role) => role.trim().length > 0) ?? 'store_manager';
     const resolved = this.releaseService
-      ? await this.releaseService.resolveRuntimeMode({ storeId: context.storeId, userId: context.userId, roleKey })
+      ? await this.releaseService.resolveRuntimeSummary({ storeId: context.storeId, userId: context.userId, roleKey })
       : { mode: undefined, release: null };
     const release = resolved.release as
       | { id?: number; releaseKey?: string; rollout?: Prisma.JsonValue }
       | null
       | undefined;
-    const rollout = release?.rollout && typeof release.rollout === 'object' && !Array.isArray(release.rollout)
-      ? release.rollout as Record<string, unknown>
-      : {};
+    const rollout =
+      release?.rollout && typeof release.rollout === 'object' && !Array.isArray(release.rollout)
+        ? (release.rollout as Record<string, unknown>)
+        : {};
 
     return {
       configured,
@@ -602,7 +852,10 @@ export class BrainController {
   @Permissions('core:brain-governance:manage')
   rollbackRelease(@Param('releaseId') releaseId: string, @Body() body: { reason?: string }) {
     if (!this.releaseService) throw new NotFoundException('发布服务不可用');
-    return this.releaseService.rollbackRelease({ releaseId: Number(releaseId), reason: String(body.reason ?? 'manual_rollback') });
+    return this.releaseService.rollbackRelease({
+      releaseId: Number(releaseId),
+      reason: String(body.reason ?? 'manual_rollback'),
+    });
   }
 
   @Post('governance/releases/:releaseId/rollback-to-rules')
@@ -679,6 +932,28 @@ export class BrainController {
     return { status: 'open', runId: dto.runId, rating: dto.rating, storeId: context.storeId };
   }
 
+  @Get('feedback/issues')
+  @Permissions('core:brain:use')
+  listFeedbackIssues(@Req() req: Request, @Query('page') page?: string, @Query('pageSize') pageSize?: string) {
+    const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
+    if (this.feedbackService) {
+      return this.feedbackService.listUserIssues({
+        storeId: context.storeId,
+        userId: context.userId,
+        page: Number(page),
+        pageSize: Number(pageSize),
+      });
+    }
+
+    return {
+      items: [],
+      total: 0,
+      page: Math.max(1, Number(page) || 1),
+      pageSize: Math.max(1, Number(pageSize) || 10),
+      storeId: context.storeId,
+    };
+  }
+
   @Get('governance/feedback')
   @Permissions('core:brain-governance:view')
   async listFeedback(@Req() req: Request) {
@@ -701,7 +976,12 @@ export class BrainController {
   ) {
     const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
     if (!this.governanceResourceService) throw new NotFoundException('治理资源服务不可用');
-    return this.governanceResourceService.createDraft({ resourceType, resourceKey, payload, createdBy: context.userId });
+    return this.governanceResourceService.createDraft({
+      resourceType,
+      resourceKey,
+      payload,
+      createdBy: context.userId,
+    });
   }
 
   private semanticResourceType(resource: string): BrainGovernanceResourceType {
@@ -711,18 +991,23 @@ export class BrainController {
     throw new NotFoundException(`不支持的语义资源：${resource}`);
   }
 
+  private semanticGovernanceResourceType(resource: string): BrainSemanticGovernanceResourceType {
+    return this.semanticResourceType(resource) as BrainSemanticGovernanceResourceType;
+  }
+
   private resourceKey(resourceType: BrainGovernanceResourceType, body: Record<string, unknown>) {
-    const field = resourceType === 'metric'
-      ? 'metricKey'
-      : resourceType === 'ontology_entity'
-        ? 'entityKey'
-        : resourceType === 'ontology_relation'
-          ? 'relationKey'
-          : resourceType === 'agent_profile'
-            ? 'roleKey'
-            : resourceType === 'skill'
-              ? 'skillKey'
-              : 'ruleKey';
+    const field =
+      resourceType === 'metric'
+        ? 'metricKey'
+        : resourceType === 'ontology_entity'
+          ? 'entityKey'
+          : resourceType === 'ontology_relation'
+            ? 'relationKey'
+            : resourceType === 'agent_profile'
+              ? 'roleKey'
+              : resourceType === 'skill'
+                ? 'skillKey'
+                : 'ruleKey';
     return String(body[field] ?? '');
   }
 }

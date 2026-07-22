@@ -74,6 +74,10 @@ import {
 import { BrainReleaseService } from './governance/brain-release.service.js';
 import { BusinessSemanticEvidenceService } from '../semantic-data/business-semantic-evidence.service.js';
 import { matchBrainCapabilityBoundary } from './capability/brain-capability-boundary.registry.js';
+import {
+  BrainConversationGuidanceService,
+  type BrainGuidanceClarificationResult,
+} from './guidance/brain-conversation-guidance.service.js';
 
 type BrainChatStatus = 'completed' | 'failed';
 type BrainModelStage = 'prepare' | 'compile' | 'validate' | 'retrieve' | 'plan' | 'execute';
@@ -161,6 +165,7 @@ export class BrainChatService {
     private readonly releaseService?: BrainReleaseService,
     @Optional() private readonly semanticEvidence?: BusinessSemanticEvidenceService,
     @Optional() private readonly untrustedActionClaimGuard?: BrainUntrustedActionClaimGuardService,
+    @Optional() private readonly conversationGuidance?: BrainConversationGuidanceService,
   ) {}
 
   async createConversation(context: BrainRequestContext, dto: CreateBrainConversationDto) {
@@ -179,20 +184,23 @@ export class BrainChatService {
     return conversation;
   }
 
-  async listConversations(context: BrainRequestContext) {
+  async listConversations(context: BrainRequestContext, input: { page?: number; pageSize?: number } = {}) {
     this.assertBaseAccess(context);
+    const page = Math.max(1, Math.trunc(Number(input.page) || 1));
+    const pageSize = Math.min(50, Math.max(1, Math.trunc(Number(input.pageSize) || 10)));
     const where = { storeId: context.storeId, userId: context.userId, status: 'active', deletedAt: null };
     const [items, total] = await Promise.all([
       this.prisma.brainConversation.findMany({
         where,
         orderBy: { updatedAt: 'desc' },
-        take: 50,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
       }),
       this.prisma.brainConversation.count({ where }),
     ]);
 
     for (const conversation of items) this.rememberConversationAccess(context, conversation.id);
-    return { items, total, storeId: context.storeId };
+    return { items, total, page, pageSize, storeId: context.storeId };
   }
 
   private isEvaluationContext(context: BrainRequestContext): boolean {
@@ -229,6 +237,7 @@ export class BrainChatService {
               requestId: context.requestId,
               timezone: dto.timezone ?? context.timezone,
               roleHint: dto.roleHint,
+              ...(dto.guidanceSelection ? { guidanceSelection: { ...dto.guidanceSelection } } : {}),
             } as Prisma.InputJsonValue,
           },
         }),
@@ -243,6 +252,7 @@ export class BrainChatService {
               roleHint: dto.roleHint,
               timezone: dto.timezone ?? context.timezone,
               requestId: context.requestId,
+              ...(dto.guidanceSelection ? { guidanceSelection: { ...dto.guidanceSelection } } : {}),
             } as Prisma.InputJsonValue,
           },
         }),
@@ -255,6 +265,10 @@ export class BrainChatService {
       envelope = await createEnvelope();
     }
     const [, run] = envelope;
+
+    if (dto.guidanceSelection) {
+      await this.recordGuidanceSelection(context, conversationId, run.id, dto.guidanceSelection);
+    }
 
     let chatAnswer: BrainChatAnswer;
     try {
@@ -274,6 +288,22 @@ export class BrainChatService {
         // Preserve the original runtime failure for the caller.
       }
       throw error;
+    }
+    if (
+      dto.guidanceSelection?.kind === 'clarification' &&
+      !(chatAnswer.blocks ?? []).some((block) => block.kind === 'clarification')
+    ) {
+      await this.traceService.recordStep({
+        runId: run.id,
+        stepKey: 'intent_clarification_resolved',
+        layer: 'cognition',
+        status: 'completed',
+        output: this.toJsonValue({
+          sourceRunId: dto.guidanceSelection.sourceRunId,
+          optionId: dto.guidanceSelection.optionId,
+          resultStatus: chatAnswer.status,
+        }),
+      });
     }
     if (this.memoryService && /(按我的习惯|照之前|照旧|默认方式|按之前)/.test(dto.message)) {
       try {
@@ -418,7 +448,9 @@ export class BrainChatService {
         });
       }
     }
-    if (this.conversationContext) {
+    // Governance evaluation conversations are persisted for auditability, but must not
+    // become user conversation context or long-term memory candidates.
+    if (this.conversationContext && !this.isEvaluationContext(context)) {
       if (chatAnswer.status === 'completed' && chatAnswer.modelContextIntent) {
         try {
           await this.conversationContext.updateAfterModelRun({
@@ -471,7 +503,7 @@ export class BrainChatService {
       }
     }
     options?.onAnswerReady?.(responseEnvelope);
-    if (this.memoryService) {
+    if (this.memoryService && !this.isEvaluationContext(context)) {
       try {
         const persistedMemories = await this.memoryService.persistCandidates({
           storeId: context.storeId,
@@ -527,16 +559,30 @@ export class BrainChatService {
         storeId: context.storeId,
         userId: context.userId,
       },
-      select: { id: true },
+      select: { id: true, createdAt: true },
     });
 
     if (!run) {
       throw new NotFoundException('运行记录不存在或不属于当前用户');
     }
 
-    const events = await this.prisma.brainRunStep.findMany({
+    const persistedEvents = await this.prisma.brainRunStep.findMany({
       where: { runId },
       orderBy: { createdAt: 'asc' },
+    });
+
+    let previousTimestamp = run.createdAt.getTime();
+    const events = persistedEvents.map((event) => {
+      const currentTimestamp = event.createdAt.getTime();
+      const recordedDuration = event.latencyMs != null && Number.isFinite(event.latencyMs) ? event.latencyMs : null;
+      const timelineDuration = Math.max(0, currentTimestamp - previousTimestamp);
+      previousTimestamp = currentTimestamp;
+
+      return {
+        ...event,
+        durationMs: recordedDuration ?? timelineDuration,
+        durationSource: recordedDuration == null ? ('timeline_estimate' as const) : ('recorded' as const),
+      };
     });
 
     return { runId, events, storeId: context.storeId };
@@ -777,7 +823,7 @@ export class BrainChatService {
         status: 'completed',
         answer:
           runtimeIntent.unsupportedAnswer ??
-          '当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。',
+          'Ami Brain 已识别到问题，但当前没有唯一可安全执行的业务目标。请明确业务对象、指标或期望动作。',
         citations: [],
         suggestedActions: [],
         cognition,
@@ -1165,8 +1211,8 @@ export class BrainChatService {
       intent: this.normalizeExactCustomerFactIntent({
         intent: this.normalizeConversationEntityInheritance({
           intent: this.normalizeUnboundReferenceIntent({
-              intent: this.normalizeGovernedCapabilityContractIntent({
-                intent: this.normalizeGovernedCapabilityExampleIntent({
+            intent: this.normalizeGovernedCapabilityContractIntent({
+              intent: this.normalizeGovernedCapabilityExampleIntent({
                 intent: this.normalizeGovernedReadOnlyPreviewIntent({
                   intent: this.normalizeReadOnlyQuestionIntent({
                     intent: this.normalizeModelClarificationIntent(
@@ -1315,7 +1361,11 @@ export class BrainChatService {
           question: input.dto.message,
           conversationSlots: compilerInput.conversationSlots,
         });
-        const repairedValidation = this.semanticIntentValidator!.validate(repairedIntent, governedValidationScope, snapshot);
+        const repairedValidation = this.semanticIntentValidator!.validate(
+          repairedIntent,
+          governedValidationScope,
+          snapshot,
+        );
         compilation = repairCompilation;
         enrichedIntent = repairedIntent;
         validation = repairedValidation;
@@ -1339,11 +1389,13 @@ export class BrainChatService {
         });
       }
     }
-    const genericAmbiguity = this.answerFromGenericQuestionAmbiguity({
-      intent: validation.intent,
-      question: input.dto.message,
-      modelMetadata,
-    });
+    const genericAmbiguity = this.conversationGuidance
+      ? undefined
+      : this.answerFromGenericQuestionAmbiguity({
+          intent: validation.intent,
+          question: input.dto.message,
+          modelMetadata,
+        });
     if (genericAmbiguity) {
       await this.recordModelTrace({
         runId: input.runId,
@@ -1385,6 +1437,25 @@ export class BrainChatService {
     }
     if (validation.status === 'clarification_required') {
       const clarificationMetadata = this.modelMetadata('validate', modelMetadata);
+      const guidanceClarification = this.buildConversationGuidanceClarification({
+        question: input.dto.message,
+        intent: validation.intent,
+        context: modelRequestContext,
+        cards,
+        conversationSlots: compilerInput.conversationSlots,
+      });
+      if (
+        guidanceClarification &&
+        (validation.clarification.missingSlots.includes('objective') ||
+          this.conversationGuidance?.isBroadQuestion(input.dto.message, validation.intent))
+      ) {
+        return this.answerFromConversationGuidance({
+          result: guidanceClarification,
+          intent: validation.intent,
+          modelMetadata: clarificationMetadata,
+          runId: input.runId,
+        });
+      }
       const question =
         validation.clarification.questions[0] ?? this.safeModelFailureAnswer('MODEL_INTENT_CLARIFICATION_REQUIRED');
       const options = this.modelClarificationOptions(validation.clarification.ambiguities);
@@ -1441,6 +1512,25 @@ export class BrainChatService {
       modelMetadata,
     });
     if (semanticClarification) {
+      const guidanceClarification = this.buildConversationGuidanceClarification({
+        question: input.dto.message,
+        intent: validation.intent,
+        context: modelRequestContext,
+        cards,
+        conversationSlots: compilerInput.conversationSlots,
+      });
+      if (
+        guidanceClarification &&
+        (validation.intent.missingSlots.includes('objective') ||
+          this.conversationGuidance?.isBroadQuestion(input.dto.message, validation.intent))
+      ) {
+        return this.answerFromConversationGuidance({
+          result: guidanceClarification,
+          intent: validation.intent,
+          modelMetadata,
+          runId: input.runId,
+        });
+      }
       await this.recordModelTrace({
         runId: input.runId,
         stepKey: 'model_semantic_clarification',
@@ -1586,7 +1676,70 @@ export class BrainChatService {
       }),
       status: retrieval.status === 'selected' ? 'completed' : 'failed',
     });
+    await this.recordModelTrace({
+      runId: input.runId,
+      stepKey: 'conversation_guidance_decision',
+      layer: 'planning',
+      status: 'completed',
+      output: this.toJsonValue({
+        broadQuestion: this.conversationGuidance?.isBroadQuestion(input.dto.message, validation.intent) ?? false,
+        retrievalStatus: retrieval.status,
+        selectedCapabilityKey: retrieval.selected?.key ?? null,
+        selectedOverview: retrieval.selected
+          ? (this.conversationGuidance?.isOverviewCapability(retrieval.selected) ?? false)
+          : false,
+        confidence: retrieval.confidence,
+        margin: retrieval.margin,
+      }),
+    });
+    if (
+      this.conversationGuidance?.shouldClarifySelectedBroadQuestion({
+        question: input.dto.message,
+        intent: validation.intent,
+        retrieval,
+      })
+    ) {
+      const guidanceClarification = this.buildConversationGuidanceClarification({
+        question: input.dto.message,
+        intent: validation.intent,
+        context: modelRequestContext,
+        cards,
+        seedCandidates: retrieval.topK,
+        conversationSlots: compilerInput.conversationSlots,
+      });
+      if (guidanceClarification) {
+        return this.answerFromConversationGuidance({
+          result: guidanceClarification,
+          intent: validation.intent,
+          modelMetadata,
+          runId: input.runId,
+        });
+      }
+    }
     if (retrieval.status === 'clarify' && retrieval.topK.length > 0) {
+      const needsUserObjective = Boolean(
+        this.conversationGuidance?.isBroadQuestion(input.dto.message, validation.intent) ||
+        validation.intent.missingSlots.includes('objective') ||
+        validation.intent.ambiguities.some((ambiguity) => ambiguity.slot === 'objective'),
+      );
+      if (needsUserObjective) {
+        const guidanceClarification = this.buildConversationGuidanceClarification({
+          question: input.dto.message,
+          intent: validation.intent,
+          context: modelRequestContext,
+          cards,
+          seedCandidates: retrieval.topK,
+          conversationSlots: compilerInput.conversationSlots,
+        });
+        if (guidanceClarification) {
+          return this.answerFromConversationGuidance({
+            result: guidanceClarification,
+            intent: validation.intent,
+            modelMetadata,
+            runId: input.runId,
+          });
+        }
+      }
       return this.buildModelSupervisorAnswer({
         context: modelRequestContext,
         dto: input.dto,
@@ -1622,7 +1775,10 @@ export class BrainChatService {
       });
       return this.modelFailure(failureCode, this.modelMetadata('retrieve', modelMetadata), validation.intent);
     }
-    const capabilityGovernedIntent = this.normalizeReadOnlyPreviewCapabilityIntent(validation.intent, retrieval.selected);
+    const capabilityGovernedIntent = this.normalizeReadOnlyPreviewCapabilityIntent(
+      validation.intent,
+      retrieval.selected,
+    );
     if (capabilityGovernedIntent !== validation.intent) {
       validation = { ...validation, intent: capabilityGovernedIntent };
     }
@@ -1785,12 +1941,51 @@ export class BrainChatService {
         execution.grounding === 'none'
           ? undefined
           : this.groundedAnswerComposer?.composeDomainAnswer(execution, validation.intent);
+      const baseBlocks = grounded?.blocks ?? execution.blocks ?? [];
+      const followUpEligible = Boolean(
+        !executionClarification &&
+        this.conversationGuidance?.isBroadQuestion(input.dto.message, validation.intent) &&
+        this.conversationGuidance.isOverviewCapability(card) &&
+        !baseBlocks.some((block) => block.kind === 'limitations' || block.kind === 'action_preview'),
+      );
+      const followUpQuestions = followUpEligible
+        ? this.conversationGuidance!.buildFollowUpQuestions({
+            question: input.dto.message,
+            intent: validation.intent,
+            selected: card,
+            context: modelRequestContext,
+            cards,
+          })
+        : [];
+      if (followUpEligible) {
+        await this.recordModelTrace({
+          runId: input.runId,
+          stepKey:
+            followUpQuestions.length === 3 ? 'follow_up_questions_generated' : 'follow_up_questions_insufficient',
+          layer: 'response',
+          status: 'completed',
+          output: this.toJsonValue({
+            capabilityKey: card.key,
+            count: followUpQuestions.length,
+            optionIds: followUpQuestions.map((option) => option.id),
+          }),
+        });
+      }
       return {
         status: 'completed',
         answer: grounded?.answer ?? execution.answer,
         citations: grounded?.citations ?? execution.citations,
         suggestedActions: grounded?.suggestedActions ?? execution.suggestedActions ?? [],
-        blocks: grounded?.blocks ?? execution.blocks,
+        blocks:
+          followUpQuestions.length === 3
+            ? [
+                ...baseBlocks,
+                {
+                  kind: 'follow_up_questions' as const,
+                  questions: followUpQuestions.map(({ id, label, value }) => ({ id, label, value })),
+                },
+              ]
+            : baseBlocks,
         grounding: execution.grounding,
         adapterMetadata: {
           ...(execution.metadata ?? {}),
@@ -1828,6 +2023,129 @@ export class BrainChatService {
         this.modelMetadata('execute', { ...modelMetadata, capabilityKey: card.key, capabilityVersion: card.version }),
       );
     }
+  }
+
+  private buildConversationGuidanceClarification(input: {
+    question: string;
+    intent: BrainSemanticIntent;
+    context: BrainRequestContext;
+    cards: readonly BrainCapabilityCard[];
+    seedCandidates?: readonly BrainCapabilityRankedCandidate[];
+    conversationSlots: Record<string, unknown>;
+  }): BrainGuidanceClarificationResult | undefined {
+    if (!this.conversationGuidance) return undefined;
+    const modelContext = this.modelContextRecord(input.conversationSlots.modelContext);
+    return this.conversationGuidance.buildClarification({
+      question: input.question,
+      intent: input.intent,
+      context: input.context,
+      cards: input.cards,
+      seedCandidates: input.seedCandidates,
+      previousPending: this.modelPendingClarification(modelContext.pendingClarification),
+    });
+  }
+
+  private async answerFromConversationGuidance(input: {
+    result: BrainGuidanceClarificationResult;
+    intent: BrainSemanticIntent;
+    modelMetadata: BrainModelMetadata;
+    runId: number;
+  }): Promise<BrainChatAnswer> {
+    if (input.result.status === 'exhausted') {
+      const answer = '连续两次仍未明确具体目标。请直接输入包含业务对象、指标或动作的完整问题。';
+      await this.recordModelTrace({
+        runId: input.runId,
+        stepKey: 'conversation_guidance_decision',
+        layer: 'cognition',
+        status: 'completed',
+        output: this.toJsonValue({ code: 'CLARIFICATION_TURN_LIMIT_REACHED' }),
+      });
+      return {
+        status: 'completed',
+        answer,
+        citations: [],
+        suggestedActions: [],
+        blocks: [{ kind: 'limitations', items: [answer] }],
+        grounding: 'none',
+        adapterMetadata: {
+          decisionCode: 'clarification_turn_limit_reached',
+          completion: { status: 'complete', missingCriteria: [], recoverable: true },
+        },
+        modelContextIntent: input.intent,
+        modelMetadata: input.modelMetadata,
+      };
+    }
+    if (input.result.status === 'insufficient') {
+      const answer = '当前已发布能力不足以安全区分这个问题的目标。请补充具体业务对象、指标或期望动作。';
+      await this.recordModelTrace({
+        runId: input.runId,
+        stepKey: 'conversation_guidance_decision',
+        layer: 'cognition',
+        status: 'completed',
+        output: this.toJsonValue({
+          code: 'GUIDANCE_CANDIDATES_INSUFFICIENT',
+          capabilityKeys: input.result.capabilityKeys,
+        }),
+      });
+      return {
+        status: 'completed',
+        answer,
+        citations: [],
+        suggestedActions: [],
+        blocks: [{ kind: 'limitations', items: [answer] }],
+        grounding: 'none',
+        adapterMetadata: {
+          unsupportedReason: 'guidance_candidates_insufficient',
+          completion: { status: 'complete', missingCriteria: [], recoverable: true },
+        },
+        modelContextIntent: input.intent,
+        modelMetadata: input.modelMetadata,
+      };
+    }
+
+    const clarifiedIntent: BrainSemanticIntent = {
+      ...input.intent,
+      answerShape: 'clarification',
+      missingSlots: [...new Set([...input.intent.missingSlots, 'objective'])],
+      ambiguities: [
+        ...input.intent.ambiguities.filter((ambiguity) => ambiguity.slot !== 'objective'),
+        ...input.result.pendingClarification.ambiguities,
+      ],
+    };
+    await this.recordModelTrace({
+      runId: input.runId,
+      stepKey: 'intent_clarification_requested',
+      layer: 'cognition',
+      status: 'completed',
+      output: this.toJsonValue({
+        missingSlots: input.result.pendingClarification.missingSlots,
+        turnCount: input.result.pendingClarification.turnCount ?? 1,
+        capabilityKeys: input.result.capabilityKeys,
+        optionIds: input.result.options.map((option) => option.id),
+      }),
+    });
+    return {
+      status: 'completed',
+      answer: input.result.question,
+      citations: [],
+      suggestedActions: [],
+      blocks: [
+        {
+          kind: 'clarification',
+          question: input.result.question,
+          options: input.result.options.map(({ id, label, value }) => ({ id, label, value })),
+        },
+      ],
+      grounding: 'none',
+      adapterMetadata: {
+        decisionCode: 'conversation_guidance_clarification_required',
+        clarification: input.result.pendingClarification,
+        completion: { status: 'partial', missingCriteria: ['objective'], recoverable: true },
+      },
+      modelContextIntent: clarifiedIntent,
+      modelContextPendingClarification: input.result.pendingClarification,
+      modelMetadata: input.modelMetadata,
+    };
   }
 
   private shouldRepairModelIntent(
@@ -1891,9 +2209,7 @@ export class BrainChatService {
       );
     const sensitiveCareGuidanceIntent =
       matched.key === 'beautician_service_overview' &&
-      /(?:皮肤|肤质).*(?:敏感|易敏)|(?:敏感|易敏).*(?:护理方案|项目|护理).*(?:安全|合适)/.test(
-        input.question,
-      );
+      /(?:皮肤|肤质).*(?:敏感|易敏)|(?:敏感|易敏).*(?:护理方案|项目|护理).*(?:安全|合适)/.test(input.question);
     const storedBalanceRiskIntent =
       matched.key === 'finance_risk_overview' &&
       /(?:储值卡|会员余额|储值余额).*(?:余额总计|总余额|合计多少|总计多少).*(?:撑住|都来消费|集中消费)|(?:客户都来消费).*(?:撑住|储值)/.test(
@@ -1909,17 +2225,13 @@ export class BrainChatService {
       );
     const projectIncomeShareIntent =
       matched.key === 'project_margin_analysis' &&
-      /(?:各|每个).*(?:项目).*(?:收入|营收).*(?:占比|比例)|(?:项目).*(?:收入|营收).*(?:占比|比例)/.test(
-        input.question,
-      );
+      /(?:各|每个).*(?:项目).*(?:收入|营收).*(?:占比|比例)|(?:项目).*(?:收入|营收).*(?:占比|比例)/.test(input.question);
     const cardPackageSalesIntent =
       matched.key === 'finance_risk_overview' &&
       /(?:次卡|套餐卡).*(?:销售|开卡).*(?:金额|多少)|(?:次卡|套餐卡).*(?:卖了多少)/.test(input.question);
     const discountAmountAndRateIntent =
       matched.key === 'finance_risk_overview' &&
-      /(?:折扣|优惠).*(?:总金额|金额).*(?:折扣率)|(?:折扣率).*(?:折扣|优惠).*(?:总金额|金额)/.test(
-        input.question,
-      );
+      /(?:折扣|优惠).*(?:总金额|金额).*(?:折扣率)|(?:折扣率).*(?:折扣|优惠).*(?:总金额|金额)/.test(input.question);
     const refundComparisonIntent =
       matched.key === 'finance_risk_overview' &&
       /(?:退款|退货).*(?:上月|上个月|上一月).*(?:增加|减少|差多少|相比|对比)|(?:本月|这个月).*(?:退款|退货).*(?:上月|上个月).*(?:增加|减少|差多少|相比|对比)/.test(
@@ -1935,26 +2247,28 @@ export class BrainChatService {
       /(?:哪个|哪些|有没有).*(?:客人|客户).*(?:难服务|需要注意|注意事项)|(?:客人|客户).*(?:难服务|需要注意|注意事项)/.test(
         input.question,
       );
-    const marketingStrategyId = matched.key === 'marketing_strategy_execute_preview'
-      ? input.question.match(/(?:营销|触达)策略\s*[#：:]?\s*(\d+)/)?.[1]
-      : undefined;
+    const marketingStrategyId =
+      matched.key === 'marketing_strategy_execute_preview'
+        ? input.question.match(/(?:营销|触达)策略\s*[#：:]?\s*(\d+)/)?.[1]
+        : undefined;
     const normalizedEntities = input.intent.entities.map((entity) =>
       marketingStrategyId && entity.entityType === 'marketing_strategy' && !entity.entityKey
         ? { ...entity, entityKey: marketingStrategyId }
         : entity,
     );
-    const entities = marketingStrategyId && !normalizedEntities.some((entity) => entity.entityType === 'marketing_strategy')
-      ? [
-          ...normalizedEntities,
-          {
-            entityType: 'marketing_strategy',
-            entityKey: marketingStrategyId,
-            mention: `营销策略 ${marketingStrategyId}`,
-            source: 'user' as const,
-            confidence: 1,
-          },
-        ]
-      : normalizedEntities;
+    const entities =
+      marketingStrategyId && !normalizedEntities.some((entity) => entity.entityType === 'marketing_strategy')
+        ? [
+            ...normalizedEntities,
+            {
+              entityType: 'marketing_strategy',
+              entityKey: marketingStrategyId,
+              mention: `营销策略 ${marketingStrategyId}`,
+              source: 'user' as const,
+              confidence: 1,
+            },
+          ]
+        : normalizedEntities;
     const inferredDimensionKeys = new Set(inferQuestionDimensionDefinitions(input.question));
     const governedDimensions = (matched.definitionRefs ?? [])
       .filter((ref) => inferredDimensionKeys.has(ref.definitionKey))
@@ -1995,7 +2309,11 @@ export class BrainChatService {
         .map((ref) => definitionRefFromCard(ref, 'metric'));
     }
     const metrics =
-      projectIncomeShareIntent || storedBalanceRiskIntent || staffAvailabilityIntent || pendingArrivalListIntent || cardPackageSalesIntent
+      projectIncomeShareIntent ||
+      storedBalanceRiskIntent ||
+      staffAvailabilityIntent ||
+      pendingArrivalListIntent ||
+      cardPackageSalesIntent
         ? []
         : governedMetrics.length
           ? governedMetrics
@@ -2017,9 +2335,7 @@ export class BrainChatService {
       ...(inventoryDisposalGuidanceIntent
         ? { intent: 'recommendation' as const, answerShape: 'diagnosis' as const }
         : {}),
-      ...(sensitiveCareGuidanceIntent
-        ? { intent: 'recommendation' as const, answerShape: 'diagnosis' as const }
-        : {}),
+      ...(sensitiveCareGuidanceIntent ? { intent: 'recommendation' as const, answerShape: 'diagnosis' as const } : {}),
       ...(storedBalanceRiskIntent ? { intent: 'diagnosis' as const, answerShape: 'diagnosis' as const } : {}),
       ...(cardPackageSalesIntent || discountAmountAndRateIntent
         ? { intent: 'query' as const, answerShape: 'scalar' as const }
@@ -2158,9 +2474,7 @@ export class BrainChatService {
     const requestedDefinitionKeys = new Set([
       ...input.intent.metrics.map((metric) => metric.definitionKey),
       ...input.intent.dimensions.map((dimension) => dimension.definitionKey),
-      ...input.intent.entities.flatMap((entity) =>
-        entity.definitionRef ? [entity.definitionRef.definitionKey] : [],
-      ),
+      ...input.intent.entities.flatMap((entity) => (entity.definitionRef ? [entity.definitionRef.definitionKey] : [])),
     ]);
     const contractMayResolveModelExpansion =
       ['action', 'draft', 'recommendation', 'diagnosis'].includes(input.intent.intent) ||
@@ -2366,9 +2680,7 @@ export class BrainChatService {
         answerShape: 'list',
         ambiguities: [],
         missingSlots: [],
-        successCriteria: [
-          '仅返回预约客户档案中已记录的过敏、肤质、皮肤状态、服务备注和特殊要求，不给客户贴主观标签',
-        ],
+        successCriteria: ['仅返回预约客户档案中已记录的过敏、肤质、皮肤状态、服务备注和特殊要求，不给客户贴主观标签'],
         assumptions: [
           ...intent.assumptions,
           '“难服务”按治理规则改写为可审计的客户注意事项查询，不要求用户确认内部改写。',
@@ -2395,7 +2707,11 @@ export class BrainChatService {
         assumptions: [...intent.assumptions, '完整交易流水必须先唯一定位交易，不能用全店财务概览替代。'],
       };
     }
-    if (/(?:生成|做|出).*(?:完整).*(?:年度|全年).*(?:运营|经营).*(?:报告|总结)|(?:完整).*(?:年度|全年).*(?:运营|经营).*(?:报告|总结)/.test(question)) {
+    if (
+      /(?:生成|做|出).*(?:完整).*(?:年度|全年).*(?:运营|经营).*(?:报告|总结)|(?:完整).*(?:年度|全年).*(?:运营|经营).*(?:报告|总结)/.test(
+        question,
+      )
+    ) {
       return {
         ...intent,
         domains: [],
@@ -2975,11 +3291,18 @@ export class BrainChatService {
     const normalized = input.question.trim().replace(/[\s？?。！!]+/g, '');
     if (!['有什么问题吗', '有什么问题', '有问题吗'].includes(normalized)) return undefined;
 
-    const question =
-      '为了准确处理，请补充要检查的业务范围：门店经营、财务、库存、预约现场、客户经营或员工运营。';
+    const question = '为了准确处理，请补充要检查的业务范围：门店经营、财务、库存、预约现场、客户经营或员工运营。';
     const options = [
-      { id: 'objective:store_operations', label: '门店经营风险', value: { slot: 'objective', candidate: '门店经营风险' } },
-      { id: 'objective:finance_risk', label: '财务与退款风险', value: { slot: 'objective', candidate: '财务与退款风险' } },
+      {
+        id: 'objective:store_operations',
+        label: '门店经营风险',
+        value: { slot: 'objective', candidate: '门店经营风险' },
+      },
+      {
+        id: 'objective:finance_risk',
+        label: '财务与退款风险',
+        value: { slot: 'objective', candidate: '财务与退款风险' },
+      },
       { id: 'objective:inventory_risk', label: '库存风险', value: { slot: 'objective', candidate: '库存风险' } },
     ];
     const pendingClarification: BrainModelPendingClarification = {
@@ -3207,7 +3530,10 @@ export class BrainChatService {
         })
       : [];
     if (!missingSlots.length || !questions.length) return undefined;
-    return { missingSlots, questions, ambiguities };
+    const turnCount = Number.isInteger(clarification.turnCount)
+      ? Math.min(2, Math.max(1, Number(clarification.turnCount)))
+      : undefined;
+    return { missingSlots, questions, ambiguities, ...(turnCount ? { turnCount } : {}) };
   }
 
   private resolvePendingClarificationCapability(
@@ -3446,7 +3772,10 @@ export class BrainChatService {
     return intentCompatible && intent.domains.every((domain) => card.domains.includes(domain));
   }
 
-  private normalizeReadOnlyPreviewCapabilityIntent(intent: BrainSemanticIntent, card: BrainCapabilityCard): BrainSemanticIntent {
+  private normalizeReadOnlyPreviewCapabilityIntent(
+    intent: BrainSemanticIntent,
+    card: BrainCapabilityCard,
+  ): BrainSemanticIntent {
     if (
       (card.grounding !== 'preview_action' && !card.key.endsWith('_preview')) ||
       !card.readOnly ||
@@ -3461,10 +3790,7 @@ export class BrainChatService {
       ...intent,
       intent: 'recommendation',
       answerShape: 'diagnosis',
-      assumptions: [
-        ...intent.assumptions,
-        `能力 ${card.key} 只有只读规则建议合同，不生成不可执行的确认动作。`,
-      ],
+      assumptions: [...intent.assumptions, `能力 ${card.key} 只有只读规则建议合同，不生成不可执行的确认动作。`],
     };
   }
 
@@ -3962,8 +4288,11 @@ export class BrainChatService {
   }
 
   private modelRoleFromContext(context: BrainRequestContext): BrainDomainRole {
-    return context.roles?.map((role) => resolveBrainDomainRole(role)).find((role): role is BrainDomainRole => Boolean(role))
-      ?? 'store_manager';
+    return (
+      context.roles
+        ?.map((role) => resolveBrainDomainRole(role))
+        .find((role): role is BrainDomainRole => Boolean(role)) ?? 'store_manager'
+    );
   }
 
   private withBrainRole(context: BrainRequestContext, role?: BrainDomainRole): BrainRequestContext {
@@ -4790,9 +5119,7 @@ export class BrainChatService {
     return this.errorMessage(error).includes('Unable to start a transaction in the given time');
   }
 
-  private async createAssistantMessageWithRetry(
-    input: Parameters<PrismaService['brainMessage']['create']>[0],
-  ) {
+  private async createAssistantMessageWithRetry(input: Parameters<PrismaService['brainMessage']['create']>[0]) {
     try {
       return await this.prisma.brainMessage.create(input);
     } catch (error) {
@@ -4800,6 +5127,34 @@ export class BrainChatService {
       await new Promise((resolve) => setTimeout(resolve, 100));
       return this.prisma.brainMessage.create(input);
     }
+  }
+
+  private async recordGuidanceSelection(
+    context: BrainRequestContext,
+    conversationId: number,
+    runId: number,
+    selection: NonNullable<SendBrainMessageDto['guidanceSelection']>,
+  ) {
+    const source = await this.prisma.brainRun.findFirst({
+      where: {
+        id: selection.sourceRunId,
+        conversationId,
+        storeId: context.storeId,
+        userId: context.userId,
+      },
+      select: { id: true },
+    });
+    await this.traceService.recordStep({
+      runId,
+      stepKey: selection.kind === 'follow_up' ? 'follow_up_question_selected' : 'intent_clarification_selected',
+      layer: 'cognition',
+      status: source ? 'completed' : 'failed',
+      output: this.toJsonValue({
+        sourceRunId: selection.sourceRunId,
+        optionId: selection.optionId,
+        sourceValidated: Boolean(source),
+      }),
+    });
   }
 
   private isTransientAssistantPersistenceError(error: unknown) {

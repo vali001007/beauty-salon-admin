@@ -227,7 +227,12 @@ describe('BrainConversationContextService model conversation preparation', () =>
 
   it('records explicit entity corrections and prevents the previous entity from being inherited', async () => {
     const { service, timeRangeParser } = createService({ model: validModelSnapshot() });
-    timeRangeParser.parse.mockReturnValue({ mentionedTime: false, filters: [], requiresComparison: false, unsupportedExpressions: [] });
+    timeRangeParser.parse.mockReturnValue({
+      mentionedTime: false,
+      filters: [],
+      requiresComparison: false,
+      unsupportedExpressions: [],
+    });
 
     const prepared = await service.prepareModelTurn({
       conversationId: 12,
@@ -248,6 +253,7 @@ describe('BrainConversationContextService model conversation preparation', () =>
         missingSlots: ['timeRange'],
         questions: ['请补充时间范围'],
         ambiguities: [],
+        turnCount: 2,
       },
     };
     const { service, timeRangeParser } = createService({ model });
@@ -354,9 +360,10 @@ describe('BrainConversationContextService model conversation preparation', () =>
       },
     });
 
-    await expect(
-      service.prepareModelTurn({ conversationId: 12, dto: { message: '继续' } }),
-    ).resolves.toEqual({ dto: { message: '继续' }, rejectionCode: 'MODEL_CONTEXT_INVALID' });
+    await expect(service.prepareModelTurn({ conversationId: 12, dto: { message: '继续' } })).resolves.toEqual({
+      dto: { message: '继续' },
+      rejectionCode: 'MODEL_CONTEXT_INVALID',
+    });
   });
 
   it('drops stale model context when any published definition binding no longer matches', async () => {
@@ -476,6 +483,7 @@ describe('BrainConversationContextService model conversation preparation', () =>
         missingSlots: ['timeRange'],
         questions: ['请补充时间范围'],
         ambiguities: [],
+        turnCount: 2,
       },
     });
 
@@ -498,6 +506,7 @@ describe('BrainConversationContextService model conversation preparation', () =>
                 missingSlots: ['timeRange'],
                 questions: ['请补充时间范围'],
                 ambiguities: [],
+                turnCount: 2,
               },
               entities: [expect.objectContaining({ mention: '李女士' })],
             }),
@@ -518,7 +527,12 @@ describe('BrainConversationContextService model conversation preparation', () =>
       updatedAt: '2026-07-13T00:00:00.000Z',
     };
     const { prisma, timeRangeParser, service } = createService({ metrics: ['paid_revenue'], model });
-    timeRangeParser.parse.mockReturnValue({ mentionedTime: false, filters: [], requiresComparison: false, unsupportedExpressions: [] });
+    timeRangeParser.parse.mockReturnValue({
+      mentionedTime: false,
+      filters: [],
+      requiresComparison: false,
+      unsupportedExpressions: [],
+    });
     prisma.brainConversation.findFirst.mockResolvedValue({
       contextSnapshot: { metrics: ['paid_revenue'], model },
       contextVersion: 4,
