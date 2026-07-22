@@ -134,7 +134,7 @@ describe('BrainSkillGovernance', () => {
     await user.click(screen.getByRole('button', { name: '创建 Skill' }));
 
     expect(screen.getByRole('dialog', { name: '创建 Skill 草稿版本' })).toBeInTheDocument();
-    expect((screen.getByLabelText('Skill 配置 JSON') as HTMLTextAreaElement).value).toContain('new_skill');
+    expect((screen.getByLabelText('Skill 配置 JSON') as { value: string }).value).toContain('new_skill');
   });
 
   it('creates a draft from the create dialog and closes it after saving', async () => {

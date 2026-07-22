@@ -46,10 +46,10 @@ import type { AxiosRequestConfig } from 'axios';
 import apiClient from '../client';
 import { useStoreStore } from '@/stores/storeStore';
 
-const activeGovernanceReads = new Set<AbortController>();
+const activeGovernanceReads = new Set<ReturnType<typeof globalThis.AbortController>>();
 
 function governanceGet<T>(url: string, config: AxiosRequestConfig = {}): Promise<T> {
-  const controller = new AbortController();
+  const controller = new globalThis.AbortController();
   activeGovernanceReads.add(controller);
   const requestConfig: AxiosRequestConfig & { skipRetry?: boolean } = {
     ...config,
