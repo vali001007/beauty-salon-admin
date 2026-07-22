@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ClipboardList, RefreshCcw, RotateCcw, WalletCards } from 'lucide-react';
+import { AlertTriangle, ClipboardList, RefreshCcw, RotateCcw, WalletCards } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/UI';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
@@ -7,13 +7,15 @@ import {
   getCashierShiftHistory,
   getPaymentRecords,
   getRefundRecords,
+  getReconciliationExceptions,
   type CashierShift,
   type PaymentRecord,
   type RefundRecord,
+  type ReconciliationException,
 } from '@/api/commission';
 import { DailySettlement } from './DailySettlement';
 
-type CashierTab = 'daily' | 'payments' | 'refunds' | 'shifts';
+type CashierTab = 'daily' | 'payments' | 'refunds' | 'exceptions' | 'shifts';
 
 const methodLabels: Record<string, string> = {
   cash: '现金',
@@ -141,6 +143,7 @@ function PaymentRecordsPane() {
   const [items, setItems] = useState<PaymentRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [summaryAmount, setSummaryAmount] = useState(0);
   const [viewMode, setViewMode] = useState<'grouped' | 'detail'>('grouped');
 
   const loadData = useCallback(async () => {
@@ -149,6 +152,7 @@ function PaymentRecordsPane() {
       const page = await getPaymentRecords({ page: 1, pageSize: 200, dateFrom: filters.dateFrom, dateTo: filters.dateTo });
       setItems(page.items);
       setTotal(page.total);
+      setSummaryAmount(Number((page as any).summary?.paymentAmount ?? 0));
     } catch (error: any) {
       toast.error(error?.message || '加载支付流水失败');
     } finally {
@@ -160,7 +164,7 @@ function PaymentRecordsPane() {
     loadData();
   }, [loadData]);
 
-  const amount = useMemo(() => items.reduce((sum, item) => sum + Number(item.amount ?? 0), 0), [items]);
+  const amount = summaryAmount;
   const paymentGroups = useMemo(() => buildPaymentGroups(items), [items]);
 
   return (
@@ -250,6 +254,7 @@ function RefundRecordsPane() {
   const [items, setItems] = useState<RefundRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [summaryAmount, setSummaryAmount] = useState(0);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -257,6 +262,7 @@ function RefundRecordsPane() {
       const page = await getRefundRecords({ page: 1, pageSize: 200, dateFrom: filters.dateFrom, dateTo: filters.dateTo });
       setItems(page.items);
       setTotal(page.total);
+      setSummaryAmount(Number((page as any).summary?.refundAmount ?? 0));
     } catch (error: any) {
       toast.error(error?.message || '加载退款记录失败');
     } finally {
@@ -268,7 +274,7 @@ function RefundRecordsPane() {
     loadData();
   }, [loadData]);
 
-  const amount = useMemo(() => items.reduce((sum, item) => sum + Number(item.amount ?? 0), 0), [items]);
+  const amount = summaryAmount;
 
   return (
     <div className="flex flex-col gap-4">
@@ -315,6 +321,55 @@ function RefundRecordsPane() {
               <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">暂无退款记录</TableCell>
             </TableRow>
           ) : null}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function ReconciliationExceptionsPane() {
+  const [filters, setFilters] = useState({ dateFrom: daysAgoText(6), dateTo: todayText() });
+  const [items, setItems] = useState<ReconciliationException[]>([]);
+  const [summary, setSummary] = useState({ high: 0, medium: 0, low: 0 });
+  const [loading, setLoading] = useState(false);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const page = await getReconciliationExceptions({ page: 1, pageSize: 200, ...filters });
+      setItems(page.items);
+      setSummary((page as any).summary ?? { high: 0, medium: 0, low: 0 });
+    } catch (error: any) {
+      toast.error(error?.message || '加载对账异常失败');
+    } finally {
+      setLoading(false);
+    }
+  }, [filters]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        自动核对支付现金流、营业收入、预收资金、退款明细和库存冲销，避免只看订单状态判断账务完成。
+      </div>
+      <FlowFilters {...filters} onChange={(patch) => setFilters((previous) => ({ ...previous, ...patch }))} onRefresh={loadData} loading={loading} />
+      <div className="grid gap-3 md:grid-cols-3">
+        <div className="rounded-lg border p-4"><div className="text-sm text-muted-foreground">高风险</div><div className="mt-2 text-2xl font-semibold text-red-600">{summary.high}</div></div>
+        <div className="rounded-lg border p-4"><div className="text-sm text-muted-foreground">中风险</div><div className="mt-2 text-2xl font-semibold text-amber-600">{summary.medium}</div></div>
+        <div className="rounded-lg border p-4"><div className="text-sm text-muted-foreground">低风险</div><div className="mt-2 text-2xl font-semibold">{summary.low}</div></div>
+      </div>
+      <Table>
+        <TableHeader><TableRow><TableHead>日期</TableHead><TableHead>级别</TableHead><TableHead>异常</TableHead><TableHead>说明</TableHead><TableHead>差额</TableHead></TableRow></TableHeader>
+        <TableBody>
+          {items.map((item) => <TableRow key={item.id}>
+            <TableCell>{item.date}</TableCell>
+            <TableCell>{item.severity === 'high' ? '高' : item.severity === 'medium' ? '中' : '低'}</TableCell>
+            <TableCell className="font-medium">{item.title}</TableCell>
+            <TableCell>{item.detail}</TableCell>
+            <TableCell>{item.amountDiff === undefined ? '-' : money(item.amountDiff)}</TableCell>
+          </TableRow>)}
+          {!items.length ? <TableRow><TableCell colSpan={5} className="py-10 text-center text-muted-foreground">当前范围没有对账异常</TableCell></TableRow> : null}
         </TableBody>
       </Table>
     </div>
@@ -409,6 +464,10 @@ export function CashierReconciliation() {
             <RotateCcw className="h-4 w-4" />
             退款记录
           </TabsTrigger>
+          <TabsTrigger value="exceptions" className="gap-2">
+            <AlertTriangle className="h-4 w-4" />
+            对账异常
+          </TabsTrigger>
           <TabsTrigger value="shifts">班次/钱箱</TabsTrigger>
         </TabsList>
 
@@ -424,6 +483,9 @@ export function CashierReconciliation() {
         </TabsContent>
         <TabsContent value="refunds">
           {tab === 'refunds' ? <RefundRecordsPane /> : null}
+        </TabsContent>
+        <TabsContent value="exceptions">
+          {tab === 'exceptions' ? <ReconciliationExceptionsPane /> : null}
         </TabsContent>
         <TabsContent value="shifts">
           {tab === 'shifts' ? <ShiftHistoryPane /> : null}

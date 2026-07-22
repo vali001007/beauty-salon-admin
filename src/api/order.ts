@@ -9,6 +9,7 @@ import type {
   ProductOrder,
   ProductOrderCreatePayload,
   ProductOrderRefundPayload,
+  OrderRefundPreview,
   ProductOrderProfitDetail,
   ProjectOrderProfitDetail,
 } from '@/types';
@@ -18,6 +19,7 @@ import {
   realDeleteProductOrder,
   realGetProductOrderById,
   realGetProductOrderProfit,
+  realGetProductOrderRefundPreview,
   realGetProductOrders,
   realGetProjectOrderById,
   realGetProjectOrderProfit,
@@ -56,6 +58,9 @@ export const deleteProductOrder: (id: number) => Promise<void> =
 
 export const refundProductOrder: (id: number, data?: ProductOrderRefundPayload) => Promise<ProductOrder> =
   realRefundProductOrder;
+
+export const getProductOrderRefundPreview: (id: number) => Promise<OrderRefundPreview> =
+  realGetProductOrderRefundPreview;
 
 export const getProjectOrders: (params?: { status?: string; keyword?: string; storeId?: number }) => Promise<ProductOrder[]> =
   realGetProjectOrders;

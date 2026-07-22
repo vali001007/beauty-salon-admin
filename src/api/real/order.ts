@@ -6,6 +6,7 @@ import type {
   ProductOrderItem,
   ProductOrderPaymentMethod,
   ProductOrderRefundPayload,
+  OrderRefundPreview,
   ProductOrderStatus,
   ProductOrderProfitDetail,
   ProjectOrderProfitDetail,
@@ -46,6 +47,7 @@ const STATUS_TO_API: Record<ProductOrderStatus, string> = {
   待付款: 'pending',
   已付款: 'paid',
   已完成: 'completed',
+  部分退款: 'partially_refunded',
   已取消: 'cancelled',
   已退款: 'refunded',
 };
@@ -56,6 +58,7 @@ const STATUS_FROM_API: Record<string, ProductOrderStatus> = {
   unpaid: '待付款',
   paid: '已付款',
   completed: '已完成',
+  partially_refunded: '部分退款',
   cancelled: '已取消',
   canceled: '已取消',
   refunded: '已退款',
@@ -264,6 +267,10 @@ export async function realDeleteProductOrder(id: number): Promise<void> {
 export async function realRefundProductOrder(id: number, data?: ProductOrderRefundPayload): Promise<ProductOrder> {
   const item = await apiClient.post<unknown, ApiProductOrder>(`/orders/product/${id}/refund`, data ?? {});
   return normalizeProductOrder(item);
+}
+
+export async function realGetProductOrderRefundPreview(id: number): Promise<OrderRefundPreview> {
+  return apiClient.get<unknown, OrderRefundPreview>(`/orders/product/${id}/refund-preview`);
 }
 
 export async function realGetProductOrdersPaginated(

@@ -36,6 +36,10 @@ export type {
   MemberCardDeductPayload,
   MemberCardRefundPayload,
   ProductOrderRefundPayload,
+  OrderRefundMode,
+  RefundItem,
+  OrderRefundPreviewItem,
+  OrderRefundPreview,
 } from './order';
 export * from './marketing';
 export * from './marketing-page';

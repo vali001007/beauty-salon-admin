@@ -3,7 +3,8 @@ import { BarChart3, Download, Eye, Loader2, Minus, Plus, RotateCcw, Search, Tras
 import { toast } from 'sonner';
 import { Button, Input, Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/UI';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { createProductOrder, getProductOrderProfit, getProductOrdersPaginated, refundProductOrder } from '@/api/order';
+import { createProductOrder, getProductOrderProfit, getProductOrdersPaginated } from '@/api/order';
+import { OrderRefundDialog } from '../components/orders/OrderRefundDialog';
 import { CustomerPicker } from '../components/CustomerPicker';
 import { ProductCatalogPicker } from '../components/ProductCatalogPicker';
 import {
@@ -31,7 +32,7 @@ const ORDER_EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'createdAt', header: '下单时间', width: 18 },
 ];
 
-const STATUS_OPTIONS: Array<'全部' | ProductOrderStatus> = ['全部', '待付款', '已付款', '已完成', '已取消', '已退款'];
+const STATUS_OPTIONS: Array<'全部' | ProductOrderStatus> = ['全部', '待付款', '已付款', '已完成', '部分退款', '已取消', '已退款'];
 const CREATE_STATUS_OPTIONS: ProductOrderStatus[] = ['待付款', '已付款', '已完成'];
 
 type DraftItem = {
@@ -289,7 +290,7 @@ export function ProductOrderManagement() {
   const [profitDetail, setProfitDetail] = useState<ProductOrderProfitDetail | null>(null);
   const [profitLoading, setProfitLoading] = useState(false);
   const [profitError, setProfitError] = useState('');
-  const [refundSubmittingId, setRefundSubmittingId] = useState<number | null>(null);
+  const [refundOrderId, setRefundOrderId] = useState<number | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
@@ -383,6 +384,8 @@ export function ProductOrderManagement() {
         return 'bg-blue-100 text-blue-700';
       case '已完成':
         return 'bg-green-100 text-green-700';
+      case '部分退款':
+        return 'bg-amber-100 text-amber-700';
       case '已取消':
         return 'bg-gray-100 text-gray-600';
       case '已退款':
@@ -617,34 +620,7 @@ export function ProductOrderManagement() {
     }
   };
 
-  const handleRefundOrder = async (order: ProductOrder) => {
-    const refundableAmount = Number(order.netAmount ?? order.totalAmount ?? 0);
-    if (refundableAmount <= 0) {
-      toast.error('该订单没有可退款金额');
-      return;
-    }
-    const amountText = window.prompt(`请输入退款金额，最大 ${formatCurrency(refundableAmount)}`, String(refundableAmount));
-    if (amountText === null) return;
-    const amount = Number(amountText);
-    if (!Number.isFinite(amount) || amount <= 0 || amount > refundableAmount) {
-      toast.error('退款金额必须大于 0，且不能超过订单实收金额');
-      return;
-    }
-    const reason = window.prompt('请输入退款原因', '商品订单退款');
-    if (reason === null) return;
-    if (!window.confirm(`确认退款 ${formatCurrency(amount)}？退款后订单会进入已退款状态，并同步日结。`)) return;
-
-    setRefundSubmittingId(order.id);
-    try {
-      await refundProductOrder(order.id, { amount, reason: reason.trim() || '商品订单退款' });
-      toast.success('退款成功，已同步退款流水');
-      refresh();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '退款失败，请稍后重试');
-    } finally {
-      setRefundSubmittingId(null);
-    }
-  };
+  const handleRefundOrder = (order: ProductOrder) => setRefundOrderId(order.id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -818,11 +794,10 @@ export function ProductOrderManagement() {
                       </button>
                       {canRefundOrder && !['已取消', '已退款'].includes(order.status) && (
                         <button
-                          onClick={() => void handleRefundOrder(order)}
-                          disabled={refundSubmittingId === order.id}
-                          className="inline-flex items-center gap-1 text-sm text-red-500 hover:text-red-600 disabled:text-gray-300"
+                          onClick={() => handleRefundOrder(order)}
+                          className="inline-flex items-center gap-1 text-sm text-red-500 hover:text-red-600"
                         >
-                          <RotateCcw className="h-3.5 w-3.5" /> {refundSubmittingId === order.id ? '退款中' : '退款'}
+                          <RotateCcw className="h-3.5 w-3.5" /> 退款
                         </button>
                       )}
                     </div>
@@ -1491,6 +1466,12 @@ export function ProductOrderManagement() {
           )}
         </DialogContent>
       </Dialog>
+      <OrderRefundDialog
+        orderId={refundOrderId}
+        open={refundOrderId !== null}
+        onOpenChange={(open) => !open && setRefundOrderId(null)}
+        onSuccess={refresh}
+      />
     </div>
   );
 }
