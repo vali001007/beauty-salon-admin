@@ -37,4 +37,19 @@ describe('OrderRefundDialog', () => {
       items: [{ orderItemId: 11, quantity: 1, refundAmount: 50 }],
     }));
   });
+
+  it('reuses the same request id when a failed request is retried', async () => {
+    api.refundProductOrder.mockRejectedValue(new Error('network timeout'));
+    render(<OrderRefundDialog orderId={1} open onOpenChange={vi.fn()} onSuccess={vi.fn()} />);
+
+    await screen.findByText('精华');
+    fireEvent.click(screen.getByLabelText('选择精华'));
+    fireEvent.click(screen.getByRole('button', { name: '确认退款' }));
+    await waitFor(() => expect(api.refundProductOrder).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByRole('button', { name: '确认退款' })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole('button', { name: '确认退款' }));
+    await waitFor(() => expect(api.refundProductOrder).toHaveBeenCalledTimes(2));
+
+    expect(api.refundProductOrder.mock.calls[1][1].requestId).toBe(api.refundProductOrder.mock.calls[0][1].requestId);
+  });
 });

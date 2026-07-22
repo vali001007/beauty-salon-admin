@@ -40,6 +40,7 @@ export function RefundFlowCard({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessionRequestId, setSessionRequestId] = useState('');
   const orders = safeArray(data.orders);
   const todayKey = getTodayKey(data);
   const refundAmount = Math.max(0, Number(amount) || 0);
@@ -83,6 +84,7 @@ export function RefundFlowCard({
     setReason("客户申请退款");
     setRefundMode('refund_only');
     setSelectedItems({});
+    setSessionRequestId(globalThis.crypto?.randomUUID?.() ?? `refund-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
     setSearchKeyword(`${order.customerName || "散客"} · ${order.orderNo}`);
     setDropdownOpen(false);
     setStep(2);
@@ -103,7 +105,7 @@ export function RefundFlowCard({
         orderKind: selectedOrder.orderKind,
         amount: calculatedAmount,
         reason: reason.trim() || "客户申请退款",
-        requestId: globalThis.crypto?.randomUUID?.() ?? `refund-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        requestId: sessionRequestId,
         refundMode,
         items: selectedRefundItems,
       });
