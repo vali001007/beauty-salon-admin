@@ -1,0 +1,5739 @@
+[
+  {
+    "id": 5965,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1921",
+    "roleKey": "store_manager",
+    "question": "第1轮:先看今天流水 → 第2轮:跟双十一期间比呢",
+    "answer": "实收：0.00 元；退款：0.00 元（0 笔）；优惠：0.00 元；毛利：0.00 元；毛利率：暂无结算口径；会员卡负债：1066931.14 元。\n\n排行：当前时间范围没有可排行的数据。\n\n趋势数据：\n1. 日期=2026-07-22，实收=0.00\n\n明细：\n1. 成本类别=物料成本，金额=0.00\n2. 成本类别=提成成本，金额=0.00\n3. 成本类别=经营费用，金额=0.00\n\n诊断：\n1. [提示] 未触发财务预警：今天退款、优惠和毛利未触发当前预警规则。\n\n说明：当前时间范围没有可排行的数据。\n\n数据依据：退款、优惠与毛利风险；实收、支付方式与收入趋势；成本、毛利与会员卡负债。",
+    "citations": [
+      {
+        "label": "退款、优惠与毛利风险",
+        "sourceId": "finance_risk_summary",
+        "sourceType": "db_skill"
+      },
+      {
+        "label": "实收、支付方式与收入趋势",
+        "sourceId": "finance_income_analysis",
+        "sourceType": "db_skill"
+      },
+      {
+        "label": "成本、毛利与会员卡负债",
+        "sourceId": "finance_cost_analysis",
+        "sourceType": "db_skill"
+      }
+    ],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "未提供前序轮次中的原指标、原时间范围及仅需替换的目标时间，无法验证回答是否正确承接多轮上下文并只换时间。数值和引用仅为列举，缺少可核验依据。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 40577,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "沿用指标只换时间",
+      "turns": [
+        "先看今天流水",
+        "跟双十一期间比呢"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39449,
+        39450
+      ],
+      "evidence": {
+        "runIds": [
+          39449,
+          39450
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "comparison",
+                "domains": [
+                  "finance",
+                  "payment",
+                  "payment_record"
+                ],
+                "metricKeys": [
+                  "metric.paid_amount"
+                ],
+                "ambiguities": [],
+                "answerShape": "comparison",
+                "entityTypes": [
+                  "payment_record"
+                ],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 3,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39137,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:32:22.095Z"
+  },
+  {
+    "id": 5966,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1922",
+    "roleKey": "store_manager",
+    "question": "第1轮:孙俊杰最近消费如何 → 第2轮:她的补水护理 10 次卡还剩几次",
+    "answer": "为了准确处理，请一次确认：请补充业务对象；“她”缺少可解析的上一轮客户结果或明确客户身份，无法唯一定位客户？",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": false
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "未提供“她”所指向的上一轮对话或客户信息，无法验证该回答是否正确承接多轮上下文，也无法判定其澄清请求是否应当出现。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 45194,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "指代\"她\"",
+      "turns": [
+        "孙俊杰最近消费如何",
+        "她的补水护理 10 次卡还剩几次"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39448,
+        39451
+      ],
+      "evidence": {
+        "runIds": [
+          39448,
+          39451
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "customer",
+                  "project"
+                ],
+                "metricKeys": [],
+                "ambiguities": [
+                  {
+                    "slot": "entity",
+                    "reason": "“她”缺少可解析的上一轮客户结果或明确客户身份，无法唯一定位客户。"
+                  }
+                ],
+                "answerShape": "scalar",
+                "entityTypes": [
+                  "customer",
+                  "project"
+                ],
+                "missingSlots": [
+                  "entity"
+                ],
+                "dimensionKeys": [
+                  "dimension.projectName"
+                ],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39136,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:32:26.708Z"
+  },
+  {
+    "id": 5968,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1923",
+    "roleKey": "store_manager",
+    "question": "第1轮:宋乔今天业绩 → 第2轮:那提成呢",
+    "answer": "排行：\n1. 员工=顾然，提成金额=0.00\n2. 员工=林雅，提成金额=0.00\n3. 员工=沈晴，提成金额=0.00\n4. 员工=宋乔，提成金额=0.00\n5. 员工=唐伊，提成金额=0.00\n6. 员工=周宁，提成金额=0.00\n\n数据依据：业务定义：员工提成金额；员工服务、客户、业绩与提成分析；员工排班忙闲与可用空档。",
+    "citations": [
+      {
+        "label": "业务定义：员工提成金额",
+        "sourceId": "metric.staff_commission_amount@2",
+        "sourceType": "business_definition"
+      },
+      {
+        "label": "员工服务、客户、业绩与提成分析",
+        "sourceId": "manager_staff_analysis",
+        "sourceType": "db_skill"
+      },
+      {
+        "label": "员工排班忙闲与可用空档",
+        "sourceId": "reception_operations_snapshot",
+        "sourceType": "db_skill"
+      }
+    ],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "未提供前序轮次中的沿用对象与原指标，无法验证是否正确完成“沿用对象换指标”。答案虽给出员工提成金额排行及3条数据依据，但缺少可核验的数据来源、筛选范围和计算口径，无法确认排名与数值真实性。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 29408,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "沿用对象换指标",
+      "turns": [
+        "宋乔今天业绩",
+        "那提成呢"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39452,
+        39454
+      ],
+      "evidence": {
+        "runIds": [
+          39452,
+          39454
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "beautician"
+                ],
+                "metricKeys": [
+                  "metric.staff_commission_amount"
+                ],
+                "ambiguities": [],
+                "answerShape": "scalar",
+                "entityTypes": [],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 3,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39138,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:32:51.607Z"
+  },
+  {
+    "id": 5967,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1924",
+    "roleKey": "store_manager",
+    "question": "第1轮:哪些客户快流失了 → 第2轮:第一个怎么召回",
+    "answer": "当前无法完成查询，请稍后重试。",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": false
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": false
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": false
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": false,
+      "strictPassed": false,
+      "qualityBucket": "deterministic_failure",
+      "contractPassed": false,
+      "failureCluster": "multi_turn_not_continued",
+      "providerUnavailable": false
+    },
+    "deterministicPassed": false,
+    "llmJudge": {
+      "reason": "确定性门禁失败：multi_turn_not_continued",
+      "verdict": "fail",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 22369,
+    "failureCluster": "multi_turn_not_continued",
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "指代\"第一个\"",
+      "turns": [
+        "哪些客户快流失了",
+        "第一个怎么召回"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39453,
+        39455
+      ],
+      "evidence": {
+        "runIds": [
+          39453,
+          39455
+        ],
+        "status": "failed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "draft",
+                "domains": [
+                  "customer",
+                  "reservation"
+                ],
+                "metricKeys": [],
+                "ambiguities": [],
+                "answerShape": "draft",
+                "entityTypes": [
+                  "customer"
+                ],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "deterministic_failure",
+      "completedTurns": 2,
+      "conversationId": 39139,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:32:49.160Z"
+  },
+  {
+    "id": 5969,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1925",
+    "roleKey": "store_manager",
+    "question": "第1轮:头皮舒缓养护卖得好吗 → 第2轮:它的毛利呢",
+    "answer": "为了准确处理，请一次确认：请补充业务对象；请补充指标口径；“它”缺少可解析的上一轮对象引用，无法判断是商品、服务项目或其他业务对象。（商品、服务项目）；已发布指标仅提供商品毛利率；服务项目可由已治理项目毛利分析返回贡献毛利及毛利率，当前无法确定用户所问口径。（商品毛利率、项目贡献毛利、项目毛利率）？",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "未提供“它”所指向的上一轮用户内容或标准解析对象，无法核验回答称“缺少可解析引用”是否成立，也无法判断其是否实现多轮上下文承接。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 39850,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "指代\"它\"",
+      "turns": [
+        "头皮舒缓养护卖得好吗",
+        "它的毛利呢"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39456,
+        39458
+      ],
+      "evidence": {
+        "runIds": [
+          39456,
+          39458
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "finance",
+                  "product",
+                  "project",
+                  "order"
+                ],
+                "metricKeys": [],
+                "ambiguities": [
+                  {
+                    "slot": "entity",
+                    "reason": "“它”缺少可解析的上一轮对象引用，无法判断是商品、项目或其他业务对象。"
+                  },
+                  {
+                    "slot": "metric",
+                    "reason": "当前已发布指标包含商品毛利率，但没有独立的通用毛利金额指标；若所指为项目，可由项目毛利分析能力返回贡献毛利及毛利率。"
+                  }
+                ],
+                "answerShape": "scalar",
+                "entityTypes": [
+                  "referenced_object"
+                ],
+                "missingSlots": [
+                  "entity",
+                  "metric"
+                ],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39140,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:33:29.088Z"
+  },
+  {
+    "id": 5970,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1926",
+    "roleKey": "store_manager",
+    "question": "第1轮:今天有多少空档 → 第2轮:双十一期间的呢",
+    "answer": "明细：当前没有匹配数据。\n\n今天没有计算出可预约空档。\n\n未完成范围：当前时间范围没有匹配的明细数据；本能力只计算空档，不匹配客户、不创建触达任务、不修改预约。\n\n数据依据：排班、预约占用与可用容量计算。",
+    "citations": [
+      {
+        "label": "排班、预约占用与可用容量计算",
+        "sourceId": "appointment_gap_readonly_preview",
+        "sourceType": "db_skill"
+      }
+    ],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "缺少上一轮的原始预约时间、变更后的目标时间及排班/预约数据，无法验证其是否正确承接“换时间”上下文。“今天”也未与用户指定的新时间建立明确对应。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 44826,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "换时间",
+      "turns": [
+        "今天有多少空档",
+        "双十一期间的呢"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39457,
+        39459
+      ],
+      "evidence": {
+        "runIds": [
+          39457,
+          39459
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "reservation"
+                ],
+                "metricKeys": [],
+                "ambiguities": [],
+                "answerShape": "list",
+                "entityTypes": [
+                  "reservation"
+                ],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 1,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39141,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:33:36.510Z"
+  },
+  {
+    "id": 5972,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1927",
+    "roleKey": "store_manager",
+    "question": "第1轮:缺货的产品有哪些 → 第2轮:其中最急的先补多少",
+    "answer": "模型服务暂不可用，本次未执行查询，请稍后重试。",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": false
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": false
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": false
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": false,
+      "strictPassed": false,
+      "qualityBucket": "deterministic_failure",
+      "contractPassed": false,
+      "failureCluster": "multi_turn_not_continued",
+      "providerUnavailable": false
+    },
+    "deterministicPassed": false,
+    "llmJudge": {
+      "reason": "确定性门禁失败：multi_turn_not_continued",
+      "verdict": "fail",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 61789,
+    "failureCluster": "multi_turn_not_continued",
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "指代承接",
+      "turns": [
+        "缺货的产品有哪些",
+        "其中最急的先补多少"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39460,
+        39463
+      ],
+      "evidence": {
+        "runIds": [
+          39460,
+          39463
+        ],
+        "status": "failed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "recommendation",
+                "domains": [
+                  "product"
+                ],
+                "metricKeys": [
+                  "metric.stock_risk_score"
+                ],
+                "ambiguities": [],
+                "answerShape": "list",
+                "entityTypes": [
+                  "product"
+                ],
+                "missingSlots": [],
+                "dimensionKeys": [
+                  "dimension.productName"
+                ],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "deterministic_failure",
+      "completedTurns": 2,
+      "conversationId": 39142,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:34:31.077Z"
+  },
+  {
+    "id": 5971,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1928",
+    "roleKey": "store_manager",
+    "question": "第1轮:上周新客多少 → 第2轮:这些新客复购了几个",
+    "answer": "为了准确处理，请一次确认：请补充业务对象；当前上下文未提供可引用的上一轮结果集或已解析的新客客群，无法确定“这些新客”的具体范围。（上一轮查询返回的新客客户集合、当前默认时间范围内的新客集合）？",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": false
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "仅提供了“承接对象”这一抽象目标，未提供上一轮上下文、待承接对象或标准回复，无法验证该回答是否应直接承接“这些新客”而非要求补充信息。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 33975,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "承接对象",
+      "turns": [
+        "上周新客多少",
+        "这些新客复购了几个"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39461,
+        39462
+      ],
+      "evidence": {
+        "runIds": [
+          39461,
+          39462
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": "store_operations_overview"
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "customer"
+                ],
+                "metricKeys": [],
+                "ambiguities": [
+                  {
+                    "slot": "entity",
+                    "reason": "当前上下文未提供上一轮结果集或已解析的新客客群，无法确定“这些新客”的具体指代范围。"
+                  }
+                ],
+                "answerShape": "scalar",
+                "entityTypes": [
+                  "customer"
+                ],
+                "missingSlots": [
+                  "entity"
+                ],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39143,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:34:10.590Z"
+  },
+  {
+    "id": 5973,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1929",
+    "roleKey": "store_manager",
+    "question": "第1轮:沈晴上周几个任务 → 第2轮:第二个客户有什么注意事项",
+    "answer": "明细：当前没有匹配数据。\n\n今天有效预约共 0 个。\n\n说明：当前时间范围没有匹配的明细数据。\n\n数据依据：门店预约清单。",
+    "citations": [
+      {
+        "label": "门店预约清单",
+        "sourceId": "capability_reservation_list",
+        "sourceType": "db_skill"
+      }
+    ],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "未提供前序轮次、被指代的序号或标准明细，无法验证回答是否正确承接多轮上下文。“0个预约”仅引用“门店预约清单”，但无可核验数据支撑；且未体现对序号指代的处理。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 42620,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "指代序号",
+      "turns": [
+        "沈晴上周几个任务",
+        "第二个客户有什么注意事项"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39464,
+        39465
+      ],
+      "evidence": {
+        "runIds": [
+          39464,
+          39465
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "customer",
+                  "reservation"
+                ],
+                "metricKeys": [],
+                "ambiguities": [],
+                "answerShape": "list",
+                "entityTypes": [],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 1,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39144,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:34:53.288Z"
+  },
+  {
+    "id": 5974,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1930",
+    "roleKey": "store_manager",
+    "question": "第1轮:临期库存有哪些 → 第2轮:金额最高那个补多少合适",
+    "answer": "当前无法理解该问题，请换一种清晰表述后重试。",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": false
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": false
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": false
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": false,
+      "strictPassed": false,
+      "qualityBucket": "deterministic_failure",
+      "contractPassed": false,
+      "failureCluster": "multi_turn_not_continued",
+      "providerUnavailable": false
+    },
+    "deterministicPassed": false,
+    "llmJudge": {
+      "reason": "确定性门禁失败：multi_turn_not_continued",
+      "verdict": "fail",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 31600,
+    "failureCluster": "multi_turn_not_continued",
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "指代+建议",
+      "turns": [
+        "临期库存有哪些",
+        "金额最高那个补多少合适"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39466,
+        39467
+      ],
+      "evidence": {
+        "runIds": [
+          39466,
+          39467
+        ],
+        "status": "failed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "deterministic_failure",
+      "completedTurns": 2,
+      "conversationId": 39145,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:35:02.769Z"
+  },
+  {
+    "id": 5975,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1931",
+    "roleKey": "store_manager",
+    "question": "第1轮:最近7天营销触达效果 → 第2轮:转化最好那个策略再跑一次",
+    "answer": "为了准确处理，请一次确认：请补充操作对象；当前上下文未提供可引用的上一轮策略结果或已命名策略，无法确定“转化最好那个策略”的具体指向？",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": false
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "仅提供候选回答和目标标签，未提供上一轮策略结果、已命名策略或具体操作请求，无法验证其是否正确承接上下文。回答能识别“转化最好那个策略”的指代缺失并请求补充，方向相关。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": true,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 49199,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "指代+操作",
+      "turns": [
+        "最近7天营销触达效果",
+        "转化最好那个策略再跑一次"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39468,
+        39470
+      ],
+      "evidence": {
+        "runIds": [
+          39468,
+          39470
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "action",
+                "domains": [
+                  "customer"
+                ],
+                "metricKeys": [],
+                "ambiguities": [
+                  {
+                    "slot": "actionTarget",
+                    "reason": "当前上下文未提供可引用的上一轮策略结果或已命名策略，无法确定“转化最好那个策略”具体指向。"
+                  }
+                ],
+                "answerShape": "action_preview",
+                "entityTypes": [],
+                "missingSlots": [
+                  "actionTarget"
+                ],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39146,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:35:42.571Z"
+  },
+  {
+    "id": 5977,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1932",
+    "roleKey": "store_manager",
+    "question": "第1轮:吴若兰的档案 → 第2轮:帮她约个全身精油 SPA",
+    "answer": "需要确认：请提供客户姓名或手机号后四位后再生成动作预览。",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": false
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "未提供前序对话，无法验证“客户”指代及所需动作是否被正确承接。该回答仅要求补充身份信息，未展示上下文承接或动作预览，因此无法判定通过。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 70523,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "指代+操作",
+      "turns": [
+        "吴若兰的档案",
+        "帮她约个全身精油 SPA"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39469,
+        39471
+      ],
+      "evidence": {
+        "runIds": [
+          39469,
+          39471
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "action",
+                "domains": [
+                  "customer",
+                  "project",
+                  "reservation"
+                ],
+                "metricKeys": [],
+                "ambiguities": [],
+                "answerShape": "action_preview",
+                "entityTypes": [
+                  "project",
+                  "customer"
+                ],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39147,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:36:13.365Z"
+  },
+  {
+    "id": 5976,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1933",
+    "roleKey": "store_manager",
+    "question": "第1轮:先看上周流水 → 第2轮:跟昨天比呢",
+    "answer": "实收：8311.53 元；订单：19 单；客户：9 人；客单价：437.45 元；预约：0 个；已到店：0 人；当前在店：0 人；新客：0 人（老客 0 人）；退款：299.00 元（2 笔）；最大订单：700.00 元（PO1783924794634）。\n\n对比：实收，当前 8311.53 元，上一期 0.00 元，变化 +8311.53 元；订单，当前 19 单，上一期 0 单，变化 +19 单；客户，当前 9 人，上一期 0 人，变化 +9 人；客单价，当前 437.45 元，上一期 0.00 元，变化 +437.45 元；预约，当前 0 个，上一期 0 个，变化 0 个；新客，当前 0 人，上一期 0 人，变化 0 人；退款，当前 299.00 元，上一期 0.00 元，变化 +299.00 元；退款笔数，当前 2 笔，上一期 0 笔，变化 +2 笔。\n\n排行：\n1. 星期=周三，本期日期=2026-07-15，本期实收=4904.00，上期日期=2026-07-24，上期实收=0.00，差额=+4904.00 元\n2. 星期=周一，本期日期=2026-07-13，本期实收=3407.53，上期日期=2026-07-22，上期实收=0.00，差额=+3407.53 元\n3. 星期=周二，本期日期=2026-07-14，本期实收=0.00，上期日期=2026-07-23，上期实收=0.00，差额=0.00 元\n4. 星期=周四，本期日期=2026-07-16，本期实收=0.00，上期日期=2026-07-25，上期实收=0.00，差额=0.00 元\n5. 星期=周五，本期日期=2026-07-17，本期实收=0.00，上期日期=2026-07-26，上期实收=0.00，差额=0.00 元\n6. 星期=周六，本期日期=2026-07-18，本期实收=0.00，上期日期=2026-07-27，上期实收=0.00，差额=0.00 元\n7. 星期=周日，本期日期=2026-07-19，本期实收=0.00，上期日期=2026-07-28，上期实收=0.00，差额=0.00 元\n\n排行：\n1. 支付方式=现金，金额=1.00\n2. 支付方式=微信，金额=6104.00\n3. 支付方式=支付宝，金额=628.20\n4. 支付方式=储值余额，金额=996.00\n\n趋势数据：\n1. 日期=2026-07-13，实收=3407.53\n2. 日期=2026-07-14，实收=0.00\n3. 日期=2026-07-15，实收=4904.00\n4. 日期=2026-07-16，实收=0.00\n5. 日期=2026-07-17，实收=0.00\n6. 日期=2026-07-18，实收=0.00\n7. 日期=2026-07-19，实收=0.00\n\n明细：\n1. 员工=周宁，预约数=0，状态=可接待，下次可用时间=暂无\n2. 员工=唐伊，预约数=0，状态=可接待，下次可用时间=暂无\n3. 员工=宋乔，预约数=0，状态=可接待，下次可用时间=暂无\n4. 员工=林雅，预约数=0，状态=可接待，下次可用时间=暂无\n5. 员工=沈晴，预约数=0，状态=可接待，下次可用时间=暂无\n6. 员工=顾然，预约数=0，状态=可接待，下次可用时间=暂无\n\n诊断：\n1. [预警] 财务风险：退款金额 299.00 元，需要复核原因。\n2. [预警] 财务风险：优惠金额 756.80 元，需要确认授权来源。\n\n未完成范围：当前时间范围未配置经营目标，无法计算目标完成率和剩余差额。\n\n数据依据：经营收入、客户、项目与员工分析；预约到店与员工忙闲快照；退款、优惠与毛利风险。",
+    "citations": [
+      {
+        "label": "经营收入、客户、项目与员工分析",
+        "sourceId": "store_manager_operations_analysis",
+        "sourceType": "db_skill"
+      },
+      {
+        "label": "预约到店与员工忙闲快照",
+        "sourceId": "reception_operations_snapshot",
+        "sourceType": "db_skill"
+      },
+      {
+        "label": "退款、优惠与毛利风险",
+        "sourceId": "finance_risk_summary",
+        "sourceType": "db_skill"
+      }
+    ],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "未提供本轮用户问题及前序对话，无法核验回答是否确实沿用既有指标、仅调整时间范围；虽包含多项经营数据和对比，但数值及引用依据无法独立验证。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 28953,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "沿用指标只换时间",
+      "turns": [
+        "先看上周流水",
+        "跟昨天比呢"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39472,
+        39473
+      ],
+      "evidence": {
+        "runIds": [
+          39472,
+          39473
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": "store_operations_overview"
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "comparison",
+                "domains": [
+                  "finance",
+                  "payment",
+                  "payment_record"
+                ],
+                "metricKeys": [
+                  "metric.paid_amount"
+                ],
+                "ambiguities": [],
+                "answerShape": "comparison",
+                "entityTypes": [
+                  "payment_record"
+                ],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 3,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39148,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:36:11.609Z"
+  },
+  {
+    "id": 5979,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1934",
+    "roleKey": "store_manager",
+    "question": "第1轮:张心怡最近消费如何 → 第2轮:她的综合养护 20 次卡还剩几次",
+    "answer": "为了准确处理，请一次确认：请补充业务对象；当前上下文未提供“她”所指客户的受控结果集或可唯一解析的客户信息？",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": false
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "回答识别了“她”的指代需依赖前文上下文，并请求补充可唯一解析的客户信息，方向符合多轮承接目标。但未提供前序对话或标准处理结果，无法验证其具体澄清措辞是否完整或最优。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": true,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 46049,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "指代\"她\"",
+      "turns": [
+        "张心怡最近消费如何",
+        "她的综合养护 20 次卡还剩几次"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39474,
+        39477
+      ],
+      "evidence": {
+        "runIds": [
+          39474,
+          39477
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "customer",
+                  "project"
+                ],
+                "metricKeys": [],
+                "ambiguities": [
+                  {
+                    "slot": "entity",
+                    "reason": "当前上下文未提供“她”所指客户的受控结果集或可唯一解析的客户信息。"
+                  }
+                ],
+                "answerShape": "scalar",
+                "entityTypes": [
+                  "customer",
+                  "project"
+                ],
+                "missingSlots": [
+                  "entity"
+                ],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39149,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:36:57.802Z"
+  },
+  {
+    "id": 5978,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1935",
+    "roleKey": "store_manager",
+    "question": "第1轮:沈晴上周业绩 → 第2轮:那提成呢",
+    "answer": "排行：\n1. 员工=顾然，提成金额=0.00\n2. 员工=林雅，提成金额=0.00\n3. 员工=沈晴，提成金额=0.00\n4. 员工=宋乔，提成金额=0.00\n5. 员工=唐伊，提成金额=0.00\n6. 员工=周宁，提成金额=0.00\n\n数据依据：业务定义：员工提成金额；员工服务、客户、业绩与提成分析；员工排班忙闲与可用空档。",
+    "citations": [
+      {
+        "label": "业务定义：员工提成金额",
+        "sourceId": "metric.staff_commission_amount@2",
+        "sourceType": "business_definition"
+      },
+      {
+        "label": "员工服务、客户、业绩与提成分析",
+        "sourceId": "manager_staff_analysis",
+        "sourceType": "db_skill"
+      },
+      {
+        "label": "员工排班忙闲与可用空档",
+        "sourceId": "reception_operations_snapshot",
+        "sourceType": "db_skill"
+      }
+    ],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "回答以员工为对象并给出提成金额排行，形式上符合“沿用对象换指标”。但未提供可核验的数据明细、时间范围或具体引用，且所有金额均为0.00无法验证，不能判定结果完整或事实成立。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": true,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 40080,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "沿用对象换指标",
+      "turns": [
+        "沈晴上周业绩",
+        "那提成呢"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39475,
+        39476
+      ],
+      "evidence": {
+        "runIds": [
+          39475,
+          39476
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "beautician"
+                ],
+                "metricKeys": [
+                  "metric.staff_commission_amount"
+                ],
+                "ambiguities": [],
+                "answerShape": "scalar",
+                "entityTypes": [
+                  "beautician"
+                ],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 3,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39150,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:36:53.532Z"
+  },
+  {
+    "id": 5981,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1936",
+    "roleKey": "store_manager",
+    "question": "第1轮:胶原焕活提拉卖得好吗 → 第2轮:它的毛利呢",
+    "answer": "为了准确处理，请一次确认：请补充业务对象；请补充指标口径；“它”缺少可解析的会话指代对象，无法判断是商品、服务项目还是门店整体。（商品、服务项目、门店整体）；“毛利”对应的已发布口径取决于所指对象；当前无法唯一确定商品毛利率或项目毛利相关口径。（商品毛利率、项目贡献毛利、项目毛利率、门店整体毛利）？",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "仅提供了模型回答与“指代第一个”的目标说明，缺少此前多轮会话中“第一个”实际指向的对象，无法核验其是否应当承接上下文。回答明确称无法解析指代，未体现目标要求的上下文承接。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 59034,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "指代\"第一个\"",
+      "turns": [
+        "胶原焕活提拉卖得好吗",
+        "它的毛利呢"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39478,
+        39481
+      ],
+      "evidence": {
+        "runIds": [
+          39478,
+          39481
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "finance",
+                  "product",
+                  "project"
+                ],
+                "metricKeys": [],
+                "ambiguities": [
+                  {
+                    "slot": "entity",
+                    "reason": "“它”缺少可解析的会话指代对象，无法判断是商品、项目还是门店整体。"
+                  },
+                  {
+                    "slot": "metric",
+                    "reason": "“毛利”可能指商品毛利率或项目贡献毛利/毛利率，当前没有可唯一引用的已发布指标口径。"
+                  }
+                ],
+                "answerShape": "scalar",
+                "entityTypes": [
+                  "unknown"
+                ],
+                "missingSlots": [
+                  "entity",
+                  "metric"
+                ],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39151,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:37:52.659Z"
+  },
+  {
+    "id": 5980,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1937",
+    "roleKey": "store_manager",
+    "question": "第1轮:上周有多少空档 → 第2轮:昨天的呢",
+    "answer": "明细：当前没有匹配数据。\n\n昨天没有计算出可预约空档。\n\n未完成范围：当前时间范围没有匹配的明细数据；本能力只计算空档，不匹配客户、不创建触达任务、不修改预约。\n\n数据依据：排班、预约占用与可用容量计算。",
+    "citations": [
+      {
+        "label": "排班、预约占用与可用容量计算",
+        "sourceId": "appointment_gap_readonly_preview",
+        "sourceType": "db_skill"
+      }
+    ],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "未提供“它”所指向的前序轮次内容、实际数据或逐题标准答案，无法核验回答是否正确承接指代，也无法验证“没有匹配数据”等事实与引用依据。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 37376,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "指代\"它\"",
+      "turns": [
+        "上周有多少空档",
+        "昨天的呢"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39479,
+        39480
+      ],
+      "evidence": {
+        "runIds": [
+          39479,
+          39480
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "reservation"
+                ],
+                "metricKeys": [],
+                "ambiguities": [],
+                "answerShape": "scalar",
+                "entityTypes": [
+                  "reservation"
+                ],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 1,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39152,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:37:35.258Z"
+  },
+  {
+    "id": 5982,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1938",
+    "roleKey": "store_manager",
+    "question": "第1轮:最近7天新客多少 → 第2轮:这些新客复购了几个",
+    "answer": "为了准确处理，请一次确认：请补充业务对象；当前会话上下文未提供可供“这些新客”引用的上一轮结果集或已解析新客客群？",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": false
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "未提供上一轮实际对话、待承接的新客结果集或“换时间”的具体目标，无法验证回答是否正确承接上下文。回答仅要求补充信息，未完成预期的多轮上下文承接。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 46169,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "换时间",
+      "turns": [
+        "最近7天新客多少",
+        "这些新客复购了几个"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39482,
+        39483
+      ],
+      "evidence": {
+        "runIds": [
+          39482,
+          39483
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": "store_operations_overview"
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "customer"
+                ],
+                "metricKeys": [],
+                "ambiguities": [
+                  {
+                    "slot": "entity",
+                    "reason": "当前会话上下文未提供可供“这些新客”引用的上一轮结果集或已解析新客客群。"
+                  }
+                ],
+                "answerShape": "scalar",
+                "entityTypes": [
+                  "customer"
+                ],
+                "missingSlots": [
+                  "entity"
+                ],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39153,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:38:21.507Z"
+  },
+  {
+    "id": 5983,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1939",
+    "roleKey": "store_manager",
+    "question": "第1轮:顾然最近7天几个任务 → 第2轮:第二个客户有什么注意事项",
+    "answer": "为了准确处理，请一次确认：请补充业务对象？",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": false
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "仅提供了候选回复，未提供前序轮次上下文或指代对象，无法验证其是否正确承接多轮指代。该回复要求补充业务对象，未体现对既有上下文的承接。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 49272,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "指代承接",
+      "turns": [
+        "顾然最近7天几个任务",
+        "第二个客户有什么注意事项"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39484,
+        39485
+      ],
+      "evidence": {
+        "runIds": [
+          39484,
+          39485
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "beautician"
+                ],
+                "metricKeys": [],
+                "ambiguities": [],
+                "answerShape": "list",
+                "entityTypes": [],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39154,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:38:42.007Z"
+  },
+  {
+    "id": 5984,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1940",
+    "roleKey": "store_manager",
+    "question": "第1轮:今年营销触达效果 → 第2轮:转化最好那个策略再跑一次",
+    "answer": "为了准确处理，请一次确认：请补充操作对象；上下文结果集中只有客户优先级名单，未提供可唯一定位“转化最好”的营销策略名称、编号或策略结果引用？",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": false
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "回答尝试承接“转化最好”的对象并要求补充可定位的营销策略信息，方向与“承接对象”一致；但未提供实际多轮上下文或策略结果，无法核验其关于现有结果集的陈述及是否完整满足任务。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": true,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 42474,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "承接对象",
+      "turns": [
+        "今年营销触达效果",
+        "转化最好那个策略再跑一次"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39486,
+        39487
+      ],
+      "evidence": {
+        "runIds": [
+          39486,
+          39487
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "action",
+                "domains": [
+                  "customer"
+                ],
+                "metricKeys": [],
+                "ambiguities": [
+                  {
+                    "slot": "actionTarget",
+                    "reason": "上下文结果集中只有客户优先级名单，未提供可唯一定位“转化最好”的营销策略名称、编号或策略结果引用。"
+                  }
+                ],
+                "answerShape": "action_preview",
+                "entityTypes": [],
+                "missingSlots": [
+                  "actionTarget"
+                ],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39155,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:39:04.055Z"
+  },
+  {
+    "id": 5986,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1941",
+    "roleKey": "store_manager",
+    "question": "第1轮:罗若兰的档案 → 第2轮:帮她约个晒后舒缓修护",
+    "answer": "需要确认：请提供客户姓名或手机号后四位后再生成动作预览。",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": false
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "题目仅提供预期目标“多轮上下文承接/指代序号”，未提供此前轮次内容，无法验证是否确实缺少客户身份信息或该追问是否必要。该回答未体现对既有序号指代的承接，且无引用依据。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 51712,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "指代序号",
+      "turns": [
+        "罗若兰的档案",
+        "帮她约个晒后舒缓修护"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39488,
+        39489
+      ],
+      "evidence": {
+        "runIds": [
+          39488,
+          39489
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "action",
+                "domains": [
+                  "customer",
+                  "project",
+                  "reservation"
+                ],
+                "metricKeys": [],
+                "ambiguities": [],
+                "answerShape": "action_preview",
+                "entityTypes": [
+                  "project",
+                  "customer"
+                ],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39156,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:39:33.814Z"
+  },
+  {
+    "id": 5985,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1942",
+    "roleKey": "store_manager",
+    "question": "第1轮:先看最近7天流水 → 第2轮:跟最近三个月比呢",
+    "answer": "对比：实收金额，当前 最近7天 2454.00 元，上一期 对比时间 0.00 元，变化 +2454.00 元（上期为 0，无法计算增减比例）。\n\n数据依据：财务支付方式拆分；业务定义：实收金额。",
+    "citations": [
+      {
+        "label": "财务支付方式拆分",
+        "sourceId": "capability_finance_payment_breakdown",
+        "sourceType": "db_skill"
+      },
+      {
+        "label": "业务定义：实收金额",
+        "sourceId": "metric.paid_amount@8",
+        "sourceType": "business_definition"
+      }
+    ],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "仅提供了候选回答，未提供前序多轮对话、用户指代对象或逐题标准数值，无法核验其是否正确承接上下文，也无法验证实收金额及对比计算。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 24582,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "指代+建议",
+      "turns": [
+        "先看最近7天流水",
+        "跟最近三个月比呢"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39490,
+        39491
+      ],
+      "evidence": {
+        "runIds": [
+          39490,
+          39491
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "comparison",
+                "domains": [
+                  "finance",
+                  "payment",
+                  "payment_record"
+                ],
+                "metricKeys": [
+                  "metric.paid_amount"
+                ],
+                "ambiguities": [],
+                "answerShape": "comparison",
+                "entityTypes": [
+                  "payment_record"
+                ],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 2,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39157,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:39:28.727Z"
+  },
+  {
+    "id": 5988,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1943",
+    "roleKey": "store_manager",
+    "question": "第1轮:吴若兰最近消费如何 → 第2轮:她的敏感修护 8 次卡还剩几次",
+    "answer": "找到 4 位同名或尾号匹配客户：\n1. 吴若兰，手机 ***8017，金卡会员\n2. 吴若兰，手机 ***9370，无\n3. 吴若兰，手机 ***2437，无\n4. 吴若兰，手机 ***3060，钻石会员\n请补充完整姓名或手机号后四位后继续。",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": false
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "仅提供了一段候选客户查询结果，未提供本轮及前序用户指令、客户数据来源或逐题标准答案，无法核验其是否正确承接指代并执行目标操作。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 39807,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "指代+操作",
+      "turns": [
+        "吴若兰最近消费如何",
+        "她的敏感修护 8 次卡还剩几次"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39492,
+        39494
+      ],
+      "evidence": {
+        "runIds": [
+          39492,
+          39494
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "customer",
+                  "project"
+                ],
+                "metricKeys": [],
+                "ambiguities": [
+                  {
+                    "slot": "entity",
+                    "reason": "上一轮“吴若兰”匹配到多位客户；本轮“她”未提供可用于唯一确认客户身份的信息。"
+                  }
+                ],
+                "answerShape": "list",
+                "entityTypes": [
+                  "customer"
+                ],
+                "missingSlots": [
+                  "entity"
+                ],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39158,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:40:08.618Z"
+  },
+  {
+    "id": 5987,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1944",
+    "roleKey": "store_manager",
+    "question": "第1轮:顾然最近7天业绩 → 第2轮:那提成呢",
+    "answer": "排行：\n1. 员工=顾然，提成金额=0.00\n2. 员工=林雅，提成金额=0.00\n3. 员工=沈晴，提成金额=0.00\n4. 员工=宋乔，提成金额=0.00\n5. 员工=唐伊，提成金额=0.00\n6. 员工=周宁，提成金额=0.00\n\n数据依据：业务定义：员工提成金额；员工服务、客户、业绩与提成分析；员工排班忙闲与可用空档。",
+    "citations": [
+      {
+        "label": "业务定义：员工提成金额",
+        "sourceId": "metric.staff_commission_amount@2",
+        "sourceType": "business_definition"
+      },
+      {
+        "label": "员工服务、客户、业绩与提成分析",
+        "sourceId": "manager_staff_analysis",
+        "sourceType": "db_skill"
+      },
+      {
+        "label": "员工排班忙闲与可用空档",
+        "sourceId": "reception_operations_snapshot",
+        "sourceType": "db_skill"
+      }
+    ],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "未提供多轮上下文中的指代对象、筛选条件或时间范围，无法确认排行是否承接了前文操作。所列“数据依据”为泛化业务定义，未给出可核验的数据来源、计算口径或明细，无法验证员工及提成金额。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 33468,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "指代+操作",
+      "turns": [
+        "顾然最近7天业绩",
+        "那提成呢"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39493,
+        39495
+      ],
+      "evidence": {
+        "runIds": [
+          39493,
+          39495
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "beautician"
+                ],
+                "metricKeys": [
+                  "metric.staff_commission_amount"
+                ],
+                "ambiguities": [],
+                "answerShape": "scalar",
+                "entityTypes": [
+                  "beautician"
+                ],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 3,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39159,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:40:07.358Z"
+  },
+  {
+    "id": 5990,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1945",
+    "roleKey": "store_manager",
+    "question": "第1轮:水氧清洁焕肤卖得好吗 → 第2轮:它的毛利呢",
+    "answer": "排行：当前时间范围没有可排行的数据。\n\n今天没有可计算的项目毛利记录。\n\n说明：当前时间范围没有可排行的数据。\n\n数据依据：管理端项目收入、耗材、提成与贡献毛利分析。",
+    "citations": [
+      {
+        "label": "管理端项目收入、耗材、提成与贡献毛利分析",
+        "sourceId": "operation_profit_project_margins",
+        "sourceType": "db_skill"
+      }
+    ],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "未提供前序轮次中的原始指标、时间范围或标准结果，无法验证是否实现“沿用指标只换时间”的上下文承接。回答的“无数据”结论仅有泛化数据依据，缺少可核验的具体数据或引用。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 53137,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "沿用指标只换时间",
+      "turns": [
+        "水氧清洁焕肤卖得好吗",
+        "它的毛利呢"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39496,
+        39499
+      ],
+      "evidence": {
+        "runIds": [
+          39496,
+          39499
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "diagnosis",
+                "domains": [
+                  "project"
+                ],
+                "metricKeys": [],
+                "ambiguities": [],
+                "answerShape": "diagnosis",
+                "entityTypes": [
+                  "project"
+                ],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 1,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39160,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:41:00.610Z"
+  },
+  {
+    "id": 5989,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1946",
+    "roleKey": "store_manager",
+    "question": "第1轮:最近7天有多少空档 → 第2轮:最近三个月的呢",
+    "answer": "明细：当前没有匹配数据。\n\n过去3个月没有计算出可预约空档。\n\n未完成范围：当前时间范围没有匹配的明细数据；本能力只计算空档，不匹配客户、不创建触达任务、不修改预约。\n\n数据依据：排班、预约占用与可用容量计算。",
+    "citations": [
+      {
+        "label": "排班、预约占用与可用容量计算",
+        "sourceId": "appointment_gap_readonly_preview",
+        "sourceType": "db_skill"
+      }
+    ],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "期望能力是承接多轮上下文中“她”的指代，但回答未解析或确认“她”对应的客户，也未体现对前序上下文的承接。仅有笼统的空档计算说明，且未提供可核验的排班、预约或客户范围依据，无法验证“没有匹配数据”等结论。",
+      "verdict": "insufficient_evidence",
+      "completeness": "partial",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 37878,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "指代\"她\"",
+      "turns": [
+        "最近7天有多少空档",
+        "最近三个月的呢"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39497,
+        39498
+      ],
+      "evidence": {
+        "runIds": [
+          39497,
+          39498
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "reservation"
+                ],
+                "metricKeys": [],
+                "ambiguities": [],
+                "answerShape": "list",
+                "entityTypes": [
+                  "reservation"
+                ],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 1,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39161,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:40:46.574Z"
+  },
+  {
+    "id": 5991,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1947",
+    "roleKey": "store_manager",
+    "question": "第1轮:今年新客多少 → 第2轮:这些新客复购了几个",
+    "answer": "实收：0.00 元；订单：0 单；客户：0 人；客单价：0.00 元；预约：0 个；已到店：0 人；当前在店：0 人；新客：0 人（老客 0 人）；退款：0.00 元（0 笔）。\n\n明细：\n1. 员工=周宁，预约数=0，状态=可接待，下次可用时间=暂无\n2. 员工=唐伊，预约数=0，状态=可接待，下次可用时间=暂无\n3. 员工=宋乔，预约数=0，状态=可接待，下次可用时间=暂无\n4. 员工=林雅，预约数=0，状态=可接待，下次可用时间=暂无\n5. 员工=沈晴，预约数=0，状态=可接待，下次可用时间=暂无\n6. 员工=顾然，预约数=0，状态=可接待，下次可用时间=暂无\n\n未完成范围：当前时间范围未配置经营目标，无法计算目标完成率和剩余差额。\n\n数据依据：经营收入、客户、项目与员工分析；预约到店与员工忙闲快照；退款、优惠与毛利风险。",
+    "citations": [
+      {
+        "label": "经营收入、客户、项目与员工分析",
+        "sourceId": "store_manager_operations_analysis",
+        "sourceType": "db_skill"
+      },
+      {
+        "label": "预约到店与员工忙闲快照",
+        "sourceId": "reception_operations_snapshot",
+        "sourceType": "db_skill"
+      },
+      {
+        "label": "退款、优惠与毛利风险",
+        "sourceId": "finance_risk_summary",
+        "sourceType": "db_skill"
+      }
+    ],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "未提供前序轮次中的承接对象、时间范围或目标指标，无法验证回答是否正确沿用了对象并切换指标；所列经营与员工数据也缺少可核验引用明细。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 32706,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "沿用对象换指标",
+      "turns": [
+        "今年新客多少",
+        "这些新客复购了几个"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39500,
+        39501
+      ],
+      "evidence": {
+        "runIds": [
+          39500,
+          39501
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": "store_operations_overview"
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "finance",
+                  "beautician",
+                  "customer",
+                  "reservation",
+                  "payment",
+                  "order"
+                ],
+                "metricKeys": [],
+                "ambiguities": [],
+                "answerShape": "scalar",
+                "entityTypes": [],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 3,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39162,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:41:19.355Z"
+  },
+  {
+    "id": 5993,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1948",
+    "roleKey": "store_manager",
+    "question": "第1轮:唐伊今年几个任务 → 第2轮:第二个客户有什么注意事项",
+    "answer": "当前无法理解该问题，请换一种清晰表述后重试。",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": false
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": false
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": false
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": false,
+      "strictPassed": false,
+      "qualityBucket": "deterministic_failure",
+      "contractPassed": false,
+      "failureCluster": "multi_turn_not_continued",
+      "providerUnavailable": false
+    },
+    "deterministicPassed": false,
+    "llmJudge": {
+      "reason": "确定性门禁失败：multi_turn_not_continued",
+      "verdict": "fail",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 35034,
+    "failureCluster": "multi_turn_not_continued",
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "指代\"第一个\"",
+      "turns": [
+        "唐伊今年几个任务",
+        "第二个客户有什么注意事项"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39502,
+        39503
+      ],
+      "evidence": {
+        "runIds": [
+          39502,
+          39503
+        ],
+        "status": "failed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "deterministic_failure",
+      "completedTurns": 2,
+      "conversationId": 39163,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:41:35.800Z"
+  },
+  {
+    "id": 5992,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1949",
+    "roleKey": "store_manager",
+    "question": "第1轮:本周末营销触达效果 → 第2轮:转化最好那个策略再跑一次",
+    "answer": "当前无法理解该问题，请换一种清晰表述后重试。",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": false
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": false
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": false
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": false,
+      "strictPassed": false,
+      "qualityBucket": "deterministic_failure",
+      "contractPassed": false,
+      "failureCluster": "multi_turn_not_continued",
+      "providerUnavailable": false
+    },
+    "deterministicPassed": false,
+    "llmJudge": {
+      "reason": "确定性门禁失败：multi_turn_not_continued",
+      "verdict": "fail",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 14838,
+    "failureCluster": "multi_turn_not_continued",
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "指代\"它\"",
+      "turns": [
+        "本周末营销触达效果",
+        "转化最好那个策略再跑一次"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39504,
+        39505
+      ],
+      "evidence": {
+        "runIds": [
+          39504,
+          39505
+        ],
+        "status": "failed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "deterministic_failure",
+      "completedTurns": 2,
+      "conversationId": 39164,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:41:34.275Z"
+  },
+  {
+    "id": 5995,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1950",
+    "roleKey": "store_manager",
+    "question": "第1轮:黄婉清的档案 → 第2轮:帮她约个亮肤淡斑管理",
+    "answer": "当前无法理解该问题，请换一种清晰表述后重试。",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": false
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": false
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": false
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": false,
+      "strictPassed": false,
+      "qualityBucket": "deterministic_failure",
+      "contractPassed": false,
+      "failureCluster": "multi_turn_not_continued",
+      "providerUnavailable": false
+    },
+    "deterministicPassed": false,
+    "llmJudge": {
+      "reason": "确定性门禁失败：multi_turn_not_continued",
+      "verdict": "fail",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 43884,
+    "failureCluster": "multi_turn_not_continued",
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "换时间",
+      "turns": [
+        "黄婉清的档案",
+        "帮她约个亮肤淡斑管理"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39508,
+        39510
+      ],
+      "evidence": {
+        "runIds": [
+          39508,
+          39510
+        ],
+        "status": "failed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "deterministic_failure",
+      "completedTurns": 2,
+      "conversationId": 39168,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:52:48.228Z"
+  },
+  {
+    "id": 5994,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1951",
+    "roleKey": "store_manager",
+    "question": "第1轮:先看今年流水 → 第2轮:跟国庆期间比呢",
+    "answer": "当前无法生成受控复合计划，本次未执行查询。",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": false
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": false
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": false
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": false,
+      "strictPassed": false,
+      "qualityBucket": "deterministic_failure",
+      "contractPassed": false,
+      "failureCluster": "multi_turn_not_continued",
+      "providerUnavailable": false
+    },
+    "deterministicPassed": false,
+    "llmJudge": {
+      "reason": "确定性门禁失败：multi_turn_not_continued",
+      "verdict": "fail",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 33383,
+    "failureCluster": "multi_turn_not_continued",
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "指代承接",
+      "turns": [
+        "先看今年流水",
+        "跟国庆期间比呢"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39507,
+        39509
+      ],
+      "evidence": {
+        "runIds": [
+          39507,
+          39509
+        ],
+        "status": "failed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "comparison",
+                "domains": [
+                  "finance",
+                  "payment",
+                  "payment_record"
+                ],
+                "metricKeys": [
+                  "metric.paid_amount"
+                ],
+                "ambiguities": [],
+                "answerShape": "comparison",
+                "entityTypes": [
+                  "payment_record"
+                ],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "deterministic_failure",
+      "completedTurns": 2,
+      "conversationId": 39167,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:52:37.734Z"
+  },
+  {
+    "id": 5996,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1952",
+    "roleKey": "store_manager",
+    "question": "第1轮:罗若兰最近消费如何 → 第2轮:她的焕肤清洁 12 次卡还剩几次",
+    "answer": "找到 5 位同名或尾号匹配客户：\n1. 罗若兰，手机 ***1614，银卡会员\n2. 罗若兰，手机 ***4137，金卡会员\n3. 罗若兰，手机 ***3664，钻石会员\n4. 罗若兰，手机 ***4962，无\n5. 罗若兰，手机 ***6751，普通会员\n请补充完整姓名或手机号后四位后继续。",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": false
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "回答形式上对同名客户进行了消歧并请求补充识别信息，符合多轮承接的处理方式；但未提供前序上下文、客户数据或引用，无法验证候选名单、匹配条件及是否承接了正确对象。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": true,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 28692,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "承接对象",
+      "turns": [
+        "罗若兰最近消费如何",
+        "她的焕肤清洁 12 次卡还剩几次"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39511,
+        39512
+      ],
+      "evidence": {
+        "runIds": [
+          39511,
+          39512
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "customer",
+                  "project"
+                ],
+                "metricKeys": [],
+                "ambiguities": [],
+                "answerShape": "list",
+                "entityTypes": [
+                  "project",
+                  "customer"
+                ],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39169,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:53:06.516Z"
+  },
+  {
+    "id": 5997,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1953",
+    "roleKey": "store_manager",
+    "question": "第1轮:唐伊今年业绩 → 第2轮:那提成呢",
+    "answer": "排行：\n1. 员工=顾然，提成金额=0.00\n2. 员工=林雅，提成金额=0.00\n3. 员工=沈晴，提成金额=0.00\n4. 员工=宋乔，提成金额=0.00\n5. 员工=唐伊，提成金额=0.00\n6. 员工=周宁，提成金额=0.00\n\n数据依据：业务定义：员工提成金额；员工服务、客户、业绩与提成分析；员工排班忙闲与可用空档。",
+    "citations": [
+      {
+        "label": "业务定义：员工提成金额",
+        "sourceId": "metric.staff_commission_amount@2",
+        "sourceType": "business_definition"
+      },
+      {
+        "label": "员工服务、客户、业绩与提成分析",
+        "sourceId": "manager_staff_analysis",
+        "sourceType": "db_skill"
+      },
+      {
+        "label": "员工排班忙闲与可用空档",
+        "sourceId": "reception_operations_snapshot",
+        "sourceType": "db_skill"
+      }
+    ],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "仅提供了排行结果与泛化数据依据，缺少多轮上下文及被“序号”指代的具体对象，无法验证是否正确承接指代、排行范围和提成数值。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 32871,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "multi_turn",
+      "notes": "指代序号",
+      "turns": [
+        "唐伊今年业绩",
+        "那提成呢"
+      ],
+      "domain": "横切-多轮",
+      "runIds": [
+        39513,
+        39514
+      ],
+      "evidence": {
+        "runIds": [
+          39513,
+          39514
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "beautician"
+                ],
+                "metricKeys": [
+                  "metric.staff_commission_amount"
+                ],
+                "ambiguities": [],
+                "answerShape": "scalar",
+                "entityTypes": [
+                  "beautician"
+                ],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 3,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 2,
+      "conversationId": 39170,
+      "expectedTarget": "多轮上下文承接"
+    },
+    "createdAt": "2026-07-22T04:53:21.174Z"
+  },
+  {
+    "id": 5998,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1954",
+    "roleKey": "store_manager",
+    "question": "看下顾然的业绩",
+    "answer": "为了准确处理，请一次确认：请补充业务对象；“顾然”可能对应多位同名美容师，需由受治理能力在当前门店范围内解析唯一人员。（beautician）？",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "回答符合“应触发澄清追问”的目标，并明确要求确认具体人员；但无引用或可核验依据支持“存在多位同名美容师”的事实，无法判定事实依据充分。",
+      "verdict": "insufficient_evidence",
+      "completeness": "complete",
+      "targetAlignment": true,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 31290,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "ambiguity",
+      "notes": "有多个同姓员工应澄清是谁",
+      "turns": [
+        "看下顾然的业绩"
+      ],
+      "domain": "横切-歧义",
+      "runIds": [
+        39515
+      ],
+      "evidence": {
+        "runIds": [
+          39515
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": "manager_staff_overview"
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "beautician"
+                ],
+                "metricKeys": [
+                  "metric.staff_service_revenue"
+                ],
+                "ambiguities": [
+                  {
+                    "slot": "entity",
+                    "reason": "“顾然”可能对应多位同名美容师，需由受治理能力在当前门店范围内解析唯一人员。"
+                  }
+                ],
+                "answerShape": "scalar",
+                "entityTypes": [
+                  "beautician"
+                ],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 1,
+      "conversationId": 39171,
+      "expectedTarget": "应触发澄清追问"
+    },
+    "createdAt": "2026-07-22T04:53:37.892Z"
+  },
+  {
+    "id": 5999,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1955",
+    "roleKey": "store_manager",
+    "question": "那个客户的卡还能用吗",
+    "answer": "为了准确处理，请一次确认：请补充业务对象；“那个客户”未在当前对话上下文中解析为唯一客户？",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "回答明确指出“那个客户”无法在当前上下文唯一解析，并请求补充业务对象，符合应触发澄清追问的目标。",
+      "verdict": "pass",
+      "completeness": "complete",
+      "targetAlignment": true,
+      "factualGrounding": "sufficient"
+    },
+    "latencyMs": 26507,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "ambiguity",
+      "notes": "未指明客户应追问",
+      "turns": [
+        "那个客户的卡还能用吗"
+      ],
+      "domain": "横切-歧义",
+      "runIds": [
+        39516
+      ],
+      "evidence": {
+        "runIds": [
+          39516
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": "customer_facts"
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "customer",
+                  "project"
+                ],
+                "metricKeys": [],
+                "ambiguities": [
+                  {
+                    "slot": "entity",
+                    "reason": "“那个客户”未在当前对话上下文中解析为唯一客户。"
+                  }
+                ],
+                "answerShape": "list",
+                "entityTypes": [
+                  "customer"
+                ],
+                "missingSlots": [
+                  "entity"
+                ],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 1,
+      "conversationId": 39172,
+      "expectedTarget": "应触发澄清追问"
+    },
+    "createdAt": "2026-07-22T04:53:47.807Z"
+  },
+  {
+    "id": 6000,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1956",
+    "roleKey": "store_manager",
+    "question": "昨天怎么样",
+    "answer": "模型服务暂不可用，本次未执行查询，请稍后重试。",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": false
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": false
+        },
+        "clarification": {
+          "passed": false
+        }
+      },
+      "passed": false,
+      "strictPassed": false,
+      "qualityBucket": "deterministic_failure",
+      "contractPassed": false,
+      "failureCluster": "ambiguity_not_clarified",
+      "providerUnavailable": false
+    },
+    "deterministicPassed": false,
+    "llmJudge": {
+      "reason": "确定性门禁失败：ambiguity_not_clarified",
+      "verdict": "fail",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 30900,
+    "failureCluster": "ambiguity_not_clarified",
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "ambiguity",
+      "notes": "未指明指标应追问看哪个维度",
+      "turns": [
+        "昨天怎么样"
+      ],
+      "domain": "横切-歧义",
+      "runIds": [
+        39517
+      ],
+      "evidence": {
+        "runIds": [
+          39517
+        ],
+        "status": "failed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": "front_desk_operations_overview"
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "clarify",
+                "domains": [],
+                "metricKeys": [],
+                "ambiguities": [
+                  {
+                    "slot": "objective",
+                    "reason": "“昨天怎么样”未说明要了解经营、预约、客户、库存或财务等具体业务范围"
+                  }
+                ],
+                "answerShape": "clarification",
+                "entityTypes": [],
+                "missingSlots": [
+                  "objective"
+                ],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "deterministic_failure",
+      "completedTurns": 1,
+      "conversationId": 39173,
+      "expectedTarget": "应触发澄清追问"
+    },
+    "createdAt": "2026-07-22T04:54:08.877Z"
+  },
+  {
+    "id": 6001,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1957",
+    "roleKey": "store_manager",
+    "question": "帮我约一下",
+    "answer": "明细：当前没有匹配数据。\n\n今天没有计算出可预约空档。\n\n当前客户事实能力尚未注册该业务口径，不会编造回答。已接入精确客户、VIP、高价值、沉睡、生日、低余次卡、重要到店和营销响应客户查询。\n\n未完成范围：当前时间范围没有匹配的明细数据；本能力只计算空档，不匹配客户、不创建触达任务、不修改预约。\n\n数据依据：排班、预约占用与可用容量计算；客户精确事实查询。",
+    "citations": [
+      {
+        "label": "排班、预约占用与可用容量计算",
+        "sourceId": "appointment_gap_readonly_preview",
+        "sourceType": "db_skill"
+      },
+      {
+        "label": "客户精确事实查询",
+        "sourceId": "capability_customer_facts",
+        "sourceType": "db_skill"
+      }
+    ],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": false
+        }
+      },
+      "passed": false,
+      "strictPassed": false,
+      "qualityBucket": "deterministic_failure",
+      "contractPassed": false,
+      "failureCluster": "ambiguity_not_clarified",
+      "providerUnavailable": false
+    },
+    "deterministicPassed": false,
+    "llmJudge": {
+      "reason": "确定性门禁失败：ambiguity_not_clarified",
+      "verdict": "fail",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 24737,
+    "failureCluster": "ambiguity_not_clarified",
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "ambiguity",
+      "notes": "缺客户/项目/时间应追问",
+      "turns": [
+        "帮我约一下"
+      ],
+      "domain": "横切-歧义",
+      "runIds": [
+        39518
+      ],
+      "evidence": {
+        "runIds": [
+          39518
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": "customer_facts"
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "reservation"
+                ],
+                "metricKeys": [],
+                "ambiguities": [],
+                "answerShape": "list",
+                "entityTypes": [
+                  "reservation"
+                ],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 2,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "deterministic_failure",
+      "completedTurns": 1,
+      "conversationId": 39174,
+      "expectedTarget": "应触发澄清追问"
+    },
+    "createdAt": "2026-07-22T04:54:12.622Z"
+  },
+  {
+    "id": 6002,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1958",
+    "roleKey": "store_manager",
+    "question": "业绩好不好",
+    "answer": "模型服务暂不可用，本次未执行查询，请稍后重试。",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": false
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": false
+        },
+        "clarification": {
+          "passed": false
+        }
+      },
+      "passed": false,
+      "strictPassed": false,
+      "qualityBucket": "deterministic_failure",
+      "contractPassed": false,
+      "failureCluster": "ambiguity_not_clarified",
+      "providerUnavailable": false
+    },
+    "deterministicPassed": false,
+    "llmJudge": {
+      "reason": "确定性门禁失败：ambiguity_not_clarified",
+      "verdict": "fail",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 30910,
+    "failureCluster": "ambiguity_not_clarified",
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "ambiguity",
+      "notes": "口径不明应确认指标",
+      "turns": [
+        "业绩好不好"
+      ],
+      "domain": "横切-歧义",
+      "runIds": [
+        39519
+      ],
+      "evidence": {
+        "runIds": [
+          39519
+        ],
+        "status": "failed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": "manager_staff_overview"
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "diagnosis",
+                "domains": [
+                  "finance",
+                  "payment",
+                  "order",
+                  "customer",
+                  "reservation",
+                  "beautician"
+                ],
+                "metricKeys": [],
+                "ambiguities": [],
+                "answerShape": "diagnosis",
+                "entityTypes": [],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "deterministic_failure",
+      "completedTurns": 1,
+      "conversationId": 39175,
+      "expectedTarget": "应触发澄清追问"
+    },
+    "createdAt": "2026-07-22T04:54:39.862Z"
+  },
+  {
+    "id": 6003,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1959",
+    "roleKey": "store_manager",
+    "question": "给她充值",
+    "answer": "为了准确处理，请一次确认：请补充业务对象；“她”未在当前上下文中解析为唯一客户？",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "回答正确触发了澄清追问，并指出“她”缺少唯一客户指代；但未明确追问题注要求补充的金额信息，因此不完整。",
+      "verdict": "fail",
+      "completeness": "partial",
+      "targetAlignment": true,
+      "factualGrounding": "sufficient"
+    },
+    "latencyMs": 33981,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "ambiguity",
+      "notes": "未指明客户和金额应追问",
+      "turns": [
+        "给她充值"
+      ],
+      "domain": "横切-歧义",
+      "runIds": [
+        39520
+      ],
+      "evidence": {
+        "runIds": [
+          39520
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": "finance_payment_breakdown"
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "customer"
+                ],
+                "metricKeys": [],
+                "ambiguities": [
+                  {
+                    "slot": "entity",
+                    "reason": "“她”未在当前上下文中解析为唯一客户。"
+                  }
+                ],
+                "answerShape": "list",
+                "entityTypes": [
+                  "customer"
+                ],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 1,
+      "conversationId": 39176,
+      "expectedTarget": "应触发澄清追问"
+    },
+    "createdAt": "2026-07-22T04:54:46.694Z"
+  },
+  {
+    "id": 6004,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1960",
+    "roleKey": "store_manager",
+    "question": "核销一下",
+    "answer": "为了准确处理，请一次确认：请补充操作对象；请补充业务对象；用户仅表达核销意图，未说明要核销的客户、次卡项目、次数或服务美容师？",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "回答明确触发澄清追问，并覆盖客户、次卡/项目、核销次数等关键缺失信息，符合“缺客户/卡/项目应追问”的目标。",
+      "verdict": "pass",
+      "completeness": "complete",
+      "targetAlignment": true,
+      "factualGrounding": "sufficient"
+    },
+    "latencyMs": 34066,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "ambiguity",
+      "notes": "缺客户/卡/项目应追问",
+      "turns": [
+        "核销一下"
+      ],
+      "domain": "横切-歧义",
+      "runIds": [
+        39521
+      ],
+      "evidence": {
+        "runIds": [
+          39521
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "action",
+                "domains": [
+                  "customer",
+                  "project",
+                  "beautician"
+                ],
+                "metricKeys": [],
+                "ambiguities": [
+                  {
+                    "slot": "actionTarget",
+                    "reason": "用户仅表达核销意图，未说明要核销的客户、次卡项目、次数或服务美容师。"
+                  }
+                ],
+                "answerShape": "action_preview",
+                "entityTypes": [],
+                "missingSlots": [
+                  "actionTarget",
+                  "entity"
+                ],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 1,
+      "conversationId": 39177,
+      "expectedTarget": "应触发澄清追问"
+    },
+    "createdAt": "2026-07-22T04:55:14.002Z"
+  },
+  {
+    "id": 6005,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1961",
+    "roleKey": "store_manager",
+    "question": "最近生意如何",
+    "answer": "模型服务暂不可用，本次未执行查询，请稍后重试。",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": false
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": false
+        },
+        "clarification": {
+          "passed": false
+        }
+      },
+      "passed": false,
+      "strictPassed": false,
+      "qualityBucket": "deterministic_failure",
+      "contractPassed": false,
+      "failureCluster": "ambiguity_not_clarified",
+      "providerUnavailable": false
+    },
+    "deterministicPassed": false,
+    "llmJudge": {
+      "reason": "确定性门禁失败：ambiguity_not_clarified",
+      "verdict": "fail",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 28853,
+    "failureCluster": "ambiguity_not_clarified",
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "ambiguity",
+      "notes": "口径与时间不明应澄清",
+      "turns": [
+        "最近生意如何"
+      ],
+      "domain": "横切-歧义",
+      "runIds": [
+        39522
+      ],
+      "evidence": {
+        "runIds": [
+          39522
+        ],
+        "status": "failed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "diagnosis",
+                "domains": [
+                  "finance",
+                  "beautician",
+                  "customer",
+                  "reservation",
+                  "payment",
+                  "order"
+                ],
+                "metricKeys": [],
+                "ambiguities": [],
+                "answerShape": "diagnosis",
+                "entityTypes": [],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "deterministic_failure",
+      "completedTurns": 1,
+      "conversationId": 39178,
+      "expectedTarget": "应触发澄清追问"
+    },
+    "createdAt": "2026-07-22T04:55:15.621Z"
+  },
+  {
+    "id": 6007,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1962",
+    "roleKey": "store_manager",
+    "question": "那个项目还有多少耗材",
+    "answer": "为了准确处理，请一次确认：请补充业务对象；“那个项目”未在当前上下文中对应到唯一已知服务项目？",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "回答明确指出“那个项目”无法对应唯一服务项目，并提出补充业务对象的澄清追问，符合应触发澄清追问的目标。",
+      "verdict": "pass",
+      "completeness": "complete",
+      "targetAlignment": true,
+      "factualGrounding": "sufficient"
+    },
+    "latencyMs": 26109,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "ambiguity",
+      "notes": "未指明项目应追问",
+      "turns": [
+        "那个项目还有多少耗材"
+      ],
+      "domain": "横切-歧义",
+      "runIds": [
+        39523
+      ],
+      "evidence": {
+        "runIds": [
+          39523
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": "inventory_operations_overview"
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "product",
+                  "project"
+                ],
+                "metricKeys": [],
+                "ambiguities": [
+                  {
+                    "slot": "entity",
+                    "reason": "“那个项目”未在当前上下文中对应到唯一已知服务项目。"
+                  }
+                ],
+                "answerShape": "list",
+                "entityTypes": [
+                  "project",
+                  "product"
+                ],
+                "missingSlots": [
+                  "entity"
+                ],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 1,
+      "conversationId": 39179,
+      "expectedTarget": "应触发澄清追问"
+    },
+    "createdAt": "2026-07-22T04:55:40.200Z"
+  },
+  {
+    "id": 6006,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1963",
+    "roleKey": "store_manager",
+    "question": "给他派个跟进",
+    "answer": "为了准确处理，请一次确认：请补充操作对象；“他”未在当前上下文中解析为唯一客户？",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "回答明确指出“他”无法在当前上下文唯一解析，并要求补充操作对象，符合应触发澄清追问的目标。",
+      "verdict": "pass",
+      "completeness": "complete",
+      "targetAlignment": true,
+      "factualGrounding": "sufficient"
+    },
+    "latencyMs": 20225,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "ambiguity",
+      "notes": "指代不明应追问是谁",
+      "turns": [
+        "给他派个跟进"
+      ],
+      "domain": "横切-歧义",
+      "runIds": [
+        39524
+      ],
+      "evidence": {
+        "runIds": [
+          39524
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "action",
+                "domains": [
+                  "customer"
+                ],
+                "metricKeys": [],
+                "ambiguities": [
+                  {
+                    "slot": "actionTarget",
+                    "reason": "“他”未在当前上下文中解析为唯一客户。"
+                  }
+                ],
+                "answerShape": "action_preview",
+                "entityTypes": [
+                  "customer"
+                ],
+                "missingSlots": [
+                  "actionTarget"
+                ],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 1,
+      "conversationId": 39180,
+      "expectedTarget": "应触发澄清追问"
+    },
+    "createdAt": "2026-07-22T04:55:35.926Z"
+  },
+  {
+    "id": 6008,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1964",
+    "roleKey": "store_manager",
+    "question": "看下唐伊的业绩",
+    "answer": "当前无法完成查询，请稍后重试。",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": false
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": false
+        },
+        "clarification": {
+          "passed": false
+        }
+      },
+      "passed": false,
+      "strictPassed": false,
+      "qualityBucket": "deterministic_failure",
+      "contractPassed": false,
+      "failureCluster": "ambiguity_not_clarified",
+      "providerUnavailable": false
+    },
+    "deterministicPassed": false,
+    "llmJudge": {
+      "reason": "确定性门禁失败：ambiguity_not_clarified",
+      "verdict": "fail",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": false,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 8905,
+    "failureCluster": "ambiguity_not_clarified",
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "ambiguity",
+      "notes": "有多个同姓员工应澄清是谁",
+      "turns": [
+        "看下唐伊的业绩"
+      ],
+      "domain": "横切-歧义",
+      "runIds": [
+        39525
+      ],
+      "evidence": {
+        "runIds": [
+          39525
+        ],
+        "status": "failed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": "manager_staff_overview"
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "beautician"
+                ],
+                "metricKeys": [
+                  "metric.staff_service_revenue"
+                ],
+                "ambiguities": [],
+                "answerShape": "scalar",
+                "entityTypes": [
+                  "beautician"
+                ],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "deterministic_failure",
+      "completedTurns": 1,
+      "conversationId": 39181,
+      "expectedTarget": "应触发澄清追问"
+    },
+    "createdAt": "2026-07-22T04:55:44.912Z"
+  },
+  {
+    "id": 6009,
+    "evalRunId": 112,
+    "caseId": null,
+    "caseKey": "BQ1965",
+    "roleKey": "store_manager",
+    "question": "本月怎么样",
+    "answer": "为了准确处理，请一次确认：请补充目标或要处理的问题；“本月怎么样”未明确要了解的业务域、指标或报告范围。（经营概览、财务与营收、预约现场、客户经营、员工表现、库存风险）？",
+    "citations": [],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "safety_pass",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "回答明确识别“本月怎么样”的业务域、指标和报告范围不清，并发起澄清追问，同时给出可选范围，符合应触发澄清追问的目标。",
+      "verdict": "pass",
+      "completeness": "complete",
+      "targetAlignment": true,
+      "factualGrounding": "sufficient"
+    },
+    "latencyMs": 37121,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "ambiguity",
+      "notes": "未指明客户应追问",
+      "turns": [
+        "本月怎么样"
+      ],
+      "domain": "横切-歧义",
+      "runIds": [
+        39526
+      ],
+      "evidence": {
+        "runIds": [
+          39526
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "domain": null,
+              "intent": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "domain": null,
+              "intent": {
+                "intent": "clarify",
+                "domains": [],
+                "metricKeys": [],
+                "ambiguities": [
+                  {
+                    "slot": "objective",
+                    "reason": "“本月怎么样”未明确要了解的业务域、指标或报告范围。"
+                  }
+                ],
+                "answerShape": "clarification",
+                "entityTypes": [],
+                "missingSlots": [
+                  "objective"
+                ],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0"
+              },
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          }
+        ],
+        "citationCount": 0,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_normalized"
+        ]
+      },
+      "suiteKey": "ami_brain_full_domain_2000",
+      "difficulty": "hard",
+      "qualityBucket": "safety_pass",
+      "completedTurns": 1,
+      "conversationId": 39182,
+      "expectedTarget": "应触发澄清追问"
+    },
+    "createdAt": "2026-07-22T04:59:11.120Z"
+  }
+]

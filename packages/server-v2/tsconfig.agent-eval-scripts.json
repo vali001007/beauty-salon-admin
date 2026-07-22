@@ -16,6 +16,8 @@
     "prisma/ami-brain-data-quality-inspection.ts",
     "prisma/ami-brain-pending-migration-preflight.ts",
     "prisma/ami-brain-capability-archive-superseded.ts",
+    "prisma/ami-brain-full-domain-eval.ts",
+    "prisma/ami-brain-full-domain-eval-suite.ts",
     "prisma/generate-schema-graph.ts",
     "src/**/*"
   ],

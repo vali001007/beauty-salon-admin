@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "./dist-release416-eval",
+    "declaration": false,
+    "sourceMap": false,
+    "incremental": false,
+    "noEmit": true
+  },
+  "include": [
+    "prisma/ami-brain-full-domain-eval.ts",
+    "prisma/ami-brain-full-domain-eval-suite.ts"
+  ],
+  "exclude": ["node_modules", "dist", "dist-release416-eval", "src/**/*.spec.ts", "test/**/*"]
+}

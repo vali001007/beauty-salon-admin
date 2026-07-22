@@ -1,0 +1,13 @@
+case_id,domain,role,type,quality_bucket,failure_cluster,reason
+"BQ1924","横切-多轮","店长","multi_turn","deterministic_failure","multi_turn_not_continued","确定性门禁失败：multi_turn_not_continued"
+"BQ1927","横切-多轮","店长","multi_turn","deterministic_failure","multi_turn_not_continued","确定性门禁失败：multi_turn_not_continued"
+"BQ1930","横切-多轮","店长","multi_turn","deterministic_failure","multi_turn_not_continued","确定性门禁失败：multi_turn_not_continued"
+"BQ1948","横切-多轮","店长","multi_turn","deterministic_failure","multi_turn_not_continued","确定性门禁失败：multi_turn_not_continued"
+"BQ1949","横切-多轮","店长","multi_turn","deterministic_failure","multi_turn_not_continued","确定性门禁失败：multi_turn_not_continued"
+"BQ1950","横切-多轮","店长","multi_turn","deterministic_failure","multi_turn_not_continued","确定性门禁失败：multi_turn_not_continued"
+"BQ1951","横切-多轮","店长","multi_turn","deterministic_failure","multi_turn_not_continued","确定性门禁失败：multi_turn_not_continued"
+"BQ1956","横切-歧义","店长","ambiguity","deterministic_failure","ambiguity_not_clarified","确定性门禁失败：ambiguity_not_clarified"
+"BQ1957","横切-歧义","店长","ambiguity","deterministic_failure","ambiguity_not_clarified","确定性门禁失败：ambiguity_not_clarified"
+"BQ1958","横切-歧义","店长","ambiguity","deterministic_failure","ambiguity_not_clarified","确定性门禁失败：ambiguity_not_clarified"
+"BQ1961","横切-歧义","店长","ambiguity","deterministic_failure","ambiguity_not_clarified","确定性门禁失败：ambiguity_not_clarified"
+"BQ1964","横切-歧义","店长","ambiguity","deterministic_failure","ambiguity_not_clarified","确定性门禁失败：ambiguity_not_clarified"
