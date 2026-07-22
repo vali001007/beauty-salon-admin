@@ -105,6 +105,7 @@ model Store {
   marketingRecommendationAudienceSnapshots MarketingRecommendationAudienceSnapshot[]
   marketingRecommendationAudienceMembers MarketingRecommendationAudienceMember[]
   marketingRecommendationOfferSnapshots MarketingRecommendationOfferSnapshot[]
+  marketingRecommendationAdoptions MarketingRecommendationAdoption[]
   amiMonthlyBills          AmiMonthlyBill[]
   procurementOrders        ProcurementOrder[]
   procurementReceipts      ProcurementReceipt[]
@@ -3158,6 +3159,7 @@ model MarketingRecommendationAdoption {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
   recommendationInstance MarketingRecommendationInstance? @relation(fields: [recommendationInstanceId], references: [id], onDelete: SetNull)
   activities MarketingActivity[]
   pages MarketingPage[]

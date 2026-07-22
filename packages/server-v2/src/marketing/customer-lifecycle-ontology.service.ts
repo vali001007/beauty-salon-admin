@@ -410,7 +410,7 @@ export class CustomerLifecycleOntologyService {
     return { items: items.map((item: any) => this.serializeAttributionEvent(item)), data: items.map((item: any) => this.serializeAttributionEvent(item)), total, page, pageSize };
   }
 
-  async getDormantReactivationEvidence(
+   async getDormantReactivationEvidence(
     storeId: number,
     query: {
       startDate?: Date | string;
@@ -652,8 +652,7 @@ export class CustomerLifecycleOntologyService {
       explicitAttributionCustomerCount: allRows.filter((row) => row.attributionConfidence === 'explicit_attribution').length,
       rows: allRows.slice(0, limit),
     };
-  }
-
+   }
   async getQualitySnapshot(storeId: number) {
     const scopedStoreId = storeId;
     const delegate = this.delegate('customerLifecycleQualitySnapshot');
