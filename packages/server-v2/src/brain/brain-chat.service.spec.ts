@@ -7,6 +7,7 @@ import {
 import type { BrainRequestContext } from './context/brain-request-context.js';
 import { BrainResultReferenceService } from './context/brain-result-reference.service.js';
 import { BrainAnswerComposerService } from './semantic/brain-answer-composer.service.js';
+import { BrainIntentCompletenessPolicyService } from './cognition/brain-intent-completeness-policy.service.js';
 
 describe('BrainChatService', () => {
   const context: BrainRequestContext = {
@@ -65,6 +66,7 @@ describe('BrainChatService', () => {
       roleContextBuilder?: unknown;
       untrustedActionClaimGuard?: unknown;
       memoryService?: unknown;
+      intentCompleteness?: unknown;
     } = {},
   ) => {
     const prisma = createPrismaMock();
@@ -190,6 +192,7 @@ describe('BrainChatService', () => {
       }),
     };
     const resultReferenceService = new BrainResultReferenceService();
+    const intentCompleteness = options.intentCompleteness ?? new BrainIntentCompletenessPolicyService();
     const roleIntentRouter = {
       route: jest.fn(() => ({
         role: 'store_manager',
@@ -410,6 +413,7 @@ describe('BrainChatService', () => {
         options.releaseService as never,
         options.semanticEvidence,
         options.untrustedActionClaimGuard,
+        intentCompleteness as never,
       ),
     };
   };
@@ -688,6 +692,49 @@ describe('BrainChatService', () => {
     });
     expect(rejected.modelContext.resultSets).toEqual([]);
   });
+
+  it.each([
+    ['BQ1948', '第二个客户有什么注意事项', '客户'],
+    ['BQ1948 同义 1', '第 2 位客户需要注意什么', '客户'],
+    ['BQ1948 同义 2', '其中第二个客人有什么禁忌', '客户'],
+    ['BQ1949', '转化最好那个策略再跑一次', '营销策略'],
+    ['BQ1949 同义 1', '把效果最好的活动方案再执行一遍', '营销策略'],
+    ['BQ1949 同义 2', '其中转化最高的策略再来一次', '营销策略'],
+  ])(
+    'clarifies when %s asks to select from a result set the previous turn never returned',
+    (_caseKey, question, label) => {
+      const { service } = createService();
+      const answer = (service as any).answerFromConversationReferencePreflight({
+        question,
+        conversationSlots: { modelContext: { resultSets: [] } },
+        modelMetadata: { cognitionMode: 'model', modelStage: 'prepare', failureCode: null },
+      });
+
+      expect(answer).toMatchObject({
+        status: 'completed',
+        grounding: 'none',
+        adapterMetadata: {
+          decisionCode: 'result_reference_source_set_missing_clarification_required',
+          completion: { status: 'partial', missingCriteria: ['resultRef'], recoverable: true },
+        },
+      });
+      expect(answer.answer).toContain(`上轮没有返回可供选择的${label}列表`);
+    },
+  );
+
+  it.each(['查询刘婉清的注意事项', '重新生成国庆活动策略'])(
+    'does not require a prior result set for a fully named request: %s',
+    (question) => {
+      const { service } = createService();
+      expect(
+        (service as any).answerFromConversationReferencePreflight({
+          question,
+          conversationSlots: { modelContext: { resultSets: [] } },
+          modelMetadata: { cognitionMode: 'model', modelStage: 'prepare', failureCode: null },
+        }),
+      ).toBeUndefined();
+    },
+  );
 
   it('clarifies a gap insertion action when customer, project and target time are not bound', () => {
     const { service } = createService();
@@ -1118,11 +1165,10 @@ describe('BrainChatService', () => {
     prisma.brainRun.update.mockResolvedValue({ id: 77 });
     prisma.brainConversation.update.mockResolvedValue({ id: 12 });
 
-    await service.sendMessage(
-      { ...context, permissions: ['*'], deniedPermissions: [] },
-      12,
-      { message: '以后全店默认先说结论', timezone: 'Asia/Shanghai' },
-    );
+    await service.sendMessage({ ...context, permissions: ['*'], deniedPermissions: [] }, 12, {
+      message: '以后全店默认先说结论',
+      timezone: 'Asia/Shanghai',
+    });
     await service.sendMessage(
       { ...context, permissions: ['*'], deniedPermissions: ['core:brain-governance:manage'] },
       12,

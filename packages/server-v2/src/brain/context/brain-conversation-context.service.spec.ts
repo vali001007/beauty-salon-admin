@@ -225,6 +225,35 @@ describe('BrainConversationContextService model conversation preparation', () =>
     expect(prepared.directives).not.toHaveProperty('replace');
   });
 
+  it.each([
+    '第一个怎么召回',
+    '第二个客户有什么注意事项',
+    '其中最急的先补多少',
+    '金额最高那个补多少合适',
+    '转化最好那个策略再跑一次',
+    '帮她约个亮肤淡斑管理',
+    '跟国庆期间比呢',
+  ])('recognizes governed follow-up wording: %s', async (message) => {
+    const { service, timeRangeParser } = createService({ model: validModelSnapshot() });
+    timeRangeParser.parse.mockReturnValue({
+      mentionedTime: false,
+      filters: [],
+      requiresComparison: false,
+      unsupportedExpressions: [],
+    });
+
+    const prepared = await service.prepareModelTurn({
+      conversationId: 12,
+      dto: { message, timezone: 'Asia/Shanghai' },
+      snapshot: productionSnapshot as never,
+    });
+
+    expect(prepared.directives).toMatchObject({
+      mode: 'continue',
+      inherit: expect.arrayContaining(['objective', 'entities', 'metrics', 'dimensions', 'capability']),
+    });
+  });
+
   it('records explicit entity corrections and prevents the previous entity from being inherited', async () => {
     const { service, timeRangeParser } = createService({ model: validModelSnapshot() });
     timeRangeParser.parse.mockReturnValue({

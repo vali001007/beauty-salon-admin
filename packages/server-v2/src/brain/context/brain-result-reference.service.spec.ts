@@ -85,6 +85,237 @@ describe('BrainResultReferenceService', () => {
     });
   });
 
+  it.each(['第一个怎么召回', '第二个客户有什么注意事项', '第 2 个怎么处理'])(
+    'resolves ordinal object wording: %s',
+    (question) => {
+      const [set] = service.buildResultSets({
+        runId: 96,
+        ...scope,
+        intent: intent('customer'),
+        adapterMetadata: {
+          mappingOutputs: {
+            customerRanking: [
+              { entityType: 'customer', entityKey: '1', mention: '刘婉清' },
+              { entityType: 'customer', entityKey: '2', mention: '高美琳' },
+            ],
+          },
+        },
+      });
+
+      const expectedRank = question.includes('二') || question.includes('2') ? 2 : 1;
+      expect(service.resolveReference({ question, resultSets: [set!], scope })).toMatchObject({
+        kind: 'resolved',
+        reference: { rank: expectedRank },
+      });
+    },
+  );
+
+  it.each(['第一个怎么召回', '把第一位客户召回来', '给排名第一的写召回话术'])(
+    'BQ1924 resolves the first governed customer reference: %s',
+    (question) => {
+      const [set] = service.buildResultSets({
+        runId: 196,
+        ...scope,
+        adapterMetadata: {
+          mappingOutputs: {
+            resultRows: [
+              { customerId: 101, customerName: '刘婉清' },
+              { customerId: 102, customerName: '高美琳' },
+            ],
+          },
+        },
+      });
+
+      expect(service.resolveReference({ question, resultSets: [set!], scope })).toMatchObject({
+        kind: 'resolved',
+        reference: { entityType: 'customer', entityKey: '101', rank: 1 },
+      });
+    },
+  );
+
+  it('BQ1924 accepts a fully named customer instead of forcing an ordinal clarification', () => {
+    const [set] = service.buildResultSets({
+      runId: 197,
+      ...scope,
+      adapterMetadata: {
+        mappingOutputs: {
+          resultRows: [
+            { customerId: 101, customerName: '刘婉清' },
+            { customerId: 102, customerName: '高美琳' },
+          ],
+        },
+      },
+    });
+
+    expect(service.resolveReference({ question: '给高美琳写召回话术', resultSets: [set!], scope })).toMatchObject({
+      kind: 'resolved',
+      reference: { entityKey: '102', mention: '高美琳' },
+    });
+  });
+
+  it('infers product references from generic semantic result rows', () => {
+    const [set] = service.buildResultSets({
+      runId: 97,
+      ...scope,
+      intent: intent('product'),
+      adapterMetadata: {
+        observations: [
+          {
+            capabilityKey: 'inventory_risk_ranking',
+            capabilityVersion: 19,
+            data: {
+              metadata: {
+                mappingOutputs: {
+                  resultRows: [{ productId: 82, productName: '玻尿酸保湿精华', stock_risk_score: 13 }],
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    expect(set).toMatchObject({
+      outputKey: 'resultRows',
+      entityType: 'product',
+      items: [expect.objectContaining({ entityKey: '82', mention: '玻尿酸保湿精华' })],
+    });
+    expect(service.resolveReference({ question: '其中最急的先补多少', resultSets: [set!], scope })).toMatchObject({
+      kind: 'resolved',
+      reference: { entityKey: '82' },
+    });
+    const resolved = service.resolveReference({ question: '其中最急的先补多少', resultSets: [set!], scope });
+    expect(service.toConversationEntity(resolved!.reference!)).toMatchObject({
+      entityType: 'product',
+      entityKey: '82',
+      mention: '玻尿酸保湿精华',
+      source: 'conversation',
+    });
+  });
+
+  it.each(['其中最急的先补多少', '缺口最大的产品补多少', '优先级最高那个先采购多少'])(
+    'BQ1927 resolves the highest-priority governed product reference: %s',
+    (question) => {
+      const [set] = service.buildResultSets({
+        runId: 198,
+        ...scope,
+        adapterMetadata: {
+          mappingOutputs: {
+            resultRows: [
+              { productId: 82, productName: '玻尿酸保湿精华' },
+              { productId: 83, productName: '氨基酸洁面乳' },
+            ],
+          },
+        },
+      });
+
+      expect(service.resolveReference({ question, resultSets: [set!], scope })).toMatchObject({
+        kind: 'resolved',
+        reference: { entityKey: '82', rank: 1 },
+      });
+    },
+  );
+
+  it.each(['金额最高那个补多少合适', '临期金额最大的要补多少', '其中价值最高的产品补多少'])(
+    'BQ1930 keeps an empty governed product set terminal: %s',
+    (question) => {
+      const [set] = service.buildResultSets({
+        runId: 199,
+        ...scope,
+        intent: intent('product'),
+        adapterMetadata: { mappingOutputs: { expiringBatches: [] } },
+      });
+
+      expect(service.resolveReference({ question, resultSets: [set!], scope })).toMatchObject({
+        kind: 'empty',
+        set: { entityType: 'product', status: 'empty' },
+      });
+    },
+  );
+
+  it('BQ1930 resolves normally when the previous expiring set is not empty', () => {
+    const [set] = service.buildResultSets({
+      runId: 200,
+      ...scope,
+      adapterMetadata: {
+        mappingOutputs: { expiringBatches: [{ productId: 90, productName: '修护面膜' }] },
+      },
+    });
+
+    expect(service.resolveReference({ question: '金额最高那个补多少合适', resultSets: [set!], scope })).toMatchObject({
+      kind: 'resolved',
+      reference: { entityKey: '90' },
+    });
+  });
+
+  it('returns a type mismatch instead of binding a customer request to a staff result', () => {
+    const [set] = service.buildResultSets({
+      runId: 98,
+      ...scope,
+      intent: intent('beautician'),
+      adapterMetadata: {
+        mappingOutputs: { staffRanking: [{ entityType: 'beautician', entityKey: '41', mention: '唐伊' }] },
+      },
+    });
+
+    expect(service.resolveReference({ question: '第二个客户有什么注意事项', resultSets: [set!], scope })).toMatchObject(
+      {
+        kind: 'type_mismatch',
+        requestedEntityType: 'customer',
+        set: { entityType: 'beautician' },
+      },
+    );
+  });
+
+  it.each(['第二个客户有什么注意事项', '第 2 位客人有啥禁忌', '其中第二名客户要注意什么'])(
+    'BQ1948 never retypes a staff result set as customers: %s',
+    (question) => {
+      const [set] = service.buildResultSets({
+        runId: 201,
+        ...scope,
+        intent: intent('beautician'),
+        adapterMetadata: {
+          mappingOutputs: {
+            staffRanking: [
+              { entityType: 'beautician', entityKey: '41', mention: '唐伊' },
+              { entityType: 'beautician', entityKey: '42', mention: '沈晴' },
+            ],
+          },
+        },
+      });
+
+      expect(service.resolveReference({ question, resultSets: [set!], scope })).toMatchObject({
+        kind: 'type_mismatch',
+        requestedEntityType: 'customer',
+        set: { entityType: 'beautician' },
+      });
+    },
+  );
+
+  it('projects only bounded result references into the model compiler context', () => {
+    const [set] = service.buildResultSets({
+      runId: 99,
+      ...scope,
+      intent: intent('customer'),
+      adapterMetadata: {
+        mappingOutputs: {
+          customerRanking: Array.from({ length: 20 }, (_, index) => ({
+            entityType: 'customer',
+            entityKey: String(index + 1),
+            mention: `客户${index + 1}`,
+          })),
+        },
+      },
+    });
+    const projected = service.projectConversationSlotsForCompiler('第二个怎么召回', {
+      modelContext: { objective: '召回客户', resultSets: [set] },
+    });
+    const modelContext = projected.modelContext as { resultSets: Array<{ items: unknown[]; scope?: unknown }> };
+
+    expect(modelContext.resultSets[0]?.items).toHaveLength(8);
+    expect(modelContext.resultSets[0]).not.toHaveProperty('scope');
+  });
+
   it('does not silently bind a singular pronoun to the first item in a multi-result set', () => {
     const [set] = service.buildResultSets({
       runId: 94,
@@ -153,7 +384,7 @@ describe('BrainResultReferenceService', () => {
   });
 });
 
-function intent(entityType: 'beautician' | 'product'): BrainSemanticIntent {
+function intent(entityType: 'beautician' | 'product' | 'customer'): BrainSemanticIntent {
   return {
     schemaVersion: '1.0',
     objective: '测试结果引用',
