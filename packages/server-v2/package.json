@@ -139,6 +139,7 @@
     "brain:release:audit": "cross-env TS_NODE_PROJECT=tsconfig.agent-eval-scripts.json TS_NODE_TRANSPILE_ONLY=true node --loader ts-node/esm --experimental-specifier-resolution=node prisma/ami-brain-release-audit.ts",
     "brain:release:evaluation-create": "cross-env TS_NODE_PROJECT=tsconfig.agent-eval-scripts.json TS_NODE_TRANSPILE_ONLY=true node --loader ts-node/esm --experimental-specifier-resolution=node prisma/ami-brain-evaluation-release-create.ts",
     "brain:eval": "cross-env TS_NODE_PROJECT=tsconfig.agent-eval-scripts.json TS_NODE_TRANSPILE_ONLY=true node --loader ts-node/esm --experimental-specifier-resolution=node prisma/ami-brain-eval.ts",
+    "brain:eval:full-domain": "cross-env TS_NODE_PROJECT=tsconfig.agent-eval-scripts.json TS_NODE_TRANSPILE_ONLY=true node --loader ts-node/esm --experimental-specifier-resolution=node prisma/ami-brain-full-domain-eval.ts",
     "agent:eval": "jest agent-eval.service.spec.ts --runInBand",
     "agent:eval:conversation": "jest agent-eval.service.spec.ts --runInBand --testNamePattern=\"multi-turn conversation\"",
     "agent:eval:fixtures:backfill": "ts-node --esm prisma/agent-eval-fixture-backfill.ts",

@@ -160,6 +160,94 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     expect(result.metadata).toMatchObject({ mode: 'customer_recall' });
   });
 
+  it('uses only a server-verified customer result reference in a recall draft', async () => {
+    const skillRuntime = {
+      draftAppointmentReminder: jest.fn(),
+      draftCustomerRecall: jest.fn().mockReturnValue('您好，最近护理节奏可以衔接起来了。'),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'marketing_message_draft', intents: ['draft'] },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['marketing'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'marketing-reference-draft-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 11,
+      question: '第一个怎么召回',
+      answerShape: 'draft',
+      args: {
+        objective: '生成第一个客户的召回草稿',
+        entities: [
+          {
+            entityType: 'customer',
+            entityKey: '101',
+            mention: '刘婉清',
+            source: 'conversation',
+            confidence: 1,
+          },
+        ],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(result.answer).toContain('针对上轮选中的客户 刘婉清');
+    expect(result.answer).toContain('最近护理节奏可以衔接起来了');
+    expect(result.metadata).toMatchObject({
+      deliveryStatus: 'draft_only',
+      resolvedResultRef: { entityType: 'customer', entityKey: '101', mention: '刘婉清' },
+    });
+    expect(result.suggestedActions).toBeUndefined();
+  });
+
+  it('rejects an unverified customer entity in a marketing draft', async () => {
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      { draftCustomerRecall: jest.fn() } as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    await expect(
+      executor.execute({
+        card: { ...storeCard(), key: 'marketing_message_draft', intents: ['draft'] },
+        context: {
+          userId: 9,
+          storeId: 6,
+          visibleStoreIds: [6],
+          roles: ['marketing'],
+          permissions: ['*'],
+          deniedPermissions: [],
+          requestId: 'marketing-unverified-reference-test',
+          timezone: 'Asia/Shanghai',
+        },
+        runId: 12,
+        question: '召回刘婉清',
+        answerShape: 'draft',
+        args: {
+          objective: '生成客户召回草稿',
+          entities: [{ entityType: 'customer', entityKey: '101', mention: '刘婉清', source: 'user' }],
+          metrics: [],
+          dimensions: [],
+          filters: [],
+          orderBy: [],
+        },
+      }),
+    ).rejects.toThrow('domain_entity_filter_args_unsupported:marketing_message_draft');
+  });
+
   it('answers the largest completed order without expanding into the full operations overview', async () => {
     const skillRuntime = {
       buildManagerOperationsAnalysis: jest.fn().mockResolvedValue(
@@ -1807,6 +1895,82 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     );
   });
 
+  it('scopes procurement advice to the server-verified product reference', async () => {
+    const skillRuntime = {
+      buildInventoryProcurementAnalysis: jest.fn().mockResolvedValue({
+        suggestions: [
+          {
+            productId: 82,
+            productName: '玻尿酸保湿精华',
+            currentStock: 3,
+            safetyStock: 15,
+            suggestedQty: 12,
+            supplierName: '供应商A',
+          },
+          {
+            productId: 83,
+            productName: '氨基酸洁面乳',
+            currentStock: 1,
+            safetyStock: 10,
+            suggestedQty: 9,
+          },
+        ],
+        suppliers: [{ id: 1 }],
+        recentOrders: [],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'inventory_procurement_advice', intents: ['recommendation'] },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'inventory-reference-advice-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 55,
+      question: '其中最急的先补多少',
+      answerShape: 'diagnosis',
+      args: {
+        objective: '计算上轮选中商品的补货建议',
+        entities: [
+          {
+            entityType: 'product',
+            entityKey: '82',
+            mention: '玻尿酸保湿精华',
+            source: 'conversation',
+            confidence: 1,
+          },
+        ],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(skillRuntime.buildInventoryProcurementAnalysis).toHaveBeenCalledWith({
+      storeId: 6,
+      keyword: '玻尿酸保湿精华',
+    });
+    expect(result.answer).toContain('玻尿酸保湿精华');
+    expect(result.answer).toContain('建议采购 12');
+    expect(result.answer).not.toContain('氨基酸洁面乳');
+    expect(result.metadata).toMatchObject({
+      suggestionCount: 1,
+      resolvedResultRef: { entityType: 'product', entityKey: '82', mention: '玻尿酸保湿精华' },
+    });
+  });
+
   it('returns governed expiry handling guidance plus the current expiry facts', async () => {
     const skillRuntime = {
       composeInventoryDisposalAdvice: jest.fn().mockReturnValue('临期产品处理建议：先复核批次；已过期不得继续使用。'),
@@ -1814,9 +1978,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         stockoutSkuCount: 0,
         expiringStockValue: 300,
         lowStockProducts: [],
-        expiringProducts: [
-          { productId: 1, name: '修护面膜', stock: 3, expiryDate: '2026-08-01', estimatedValue: 300 },
-        ],
+        expiringProducts: [{ productId: 1, name: '修护面膜', stock: 3, expiryDate: '2026-08-01', estimatedValue: 300 }],
       }),
       buildInventoryDetailAnalysis: jest.fn().mockResolvedValue({ totalSku: 1, totalStockValue: 300, products: [] }),
       buildInventoryProcurementAnalysis: jest.fn().mockResolvedValue({ suggestions: [], suppliers: [] }),
@@ -3621,18 +3783,16 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         bomCoveredReservationCount: 2,
         bomMissingProjects: [],
       }),
-      buildBeauticianPersonalPerformance: jest
-        .fn()
-        .mockResolvedValue({
-          beauticianName: '沈晴',
-          serviceCount: 2,
-          completedCount: 0,
-          revenueAmount: 0,
-          commissionAmount: 0,
-          repeatCustomerCount: 0,
-          uniqueCustomerCount: 2,
-          projectRanking: [],
-        }),
+      buildBeauticianPersonalPerformance: jest.fn().mockResolvedValue({
+        beauticianName: '沈晴',
+        serviceCount: 2,
+        completedCount: 0,
+        revenueAmount: 0,
+        commissionAmount: 0,
+        repeatCustomerCount: 0,
+        uniqueCustomerCount: 2,
+        projectRanking: [],
+      }),
     };
     const executor = new BrainDomainServiceCapabilityExecutor(
       skillRuntime as never,
@@ -3966,10 +4126,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
 
   it('compares refund amount with the previous month instead of paid revenue', async () => {
     const skillRuntime = {
-      buildFinanceRiskSummary: jest
-        .fn()
-        .mockResolvedValueOnce(finance(520, 4))
-        .mockResolvedValueOnce(finance(300, 2)),
+      buildFinanceRiskSummary: jest.fn().mockResolvedValueOnce(finance(520, 4)).mockResolvedValueOnce(finance(300, 2)),
     };
     const executor = new BrainDomainServiceCapabilityExecutor(
       skillRuntime as never,
@@ -3994,7 +4151,10 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       answerShape: 'comparison',
       args: {
         objective: '比较本月和上月退款',
-        comparisonTarget: { type: 'time', timeRange: { preset: 'last_month', label: '上月', timezone: 'Asia/Shanghai' } },
+        comparisonTarget: {
+          type: 'time',
+          timeRange: { preset: 'last_month', label: '上月', timezone: 'Asia/Shanghai' },
+        },
         entities: [],
         metrics: [],
         dimensions: [],
@@ -4035,7 +4195,13 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         generatedAt: '2026-07-19T00:00:00.000Z',
         forecastStart: '2026-10-01',
         forecastEnd: '2026-12-30',
-        backtest: { status: 'available', evaluationDays: 31, meanAbsoluteError: 20, weightedAbsolutePercentageError: 0.18, accuracyRate: 0.82 },
+        backtest: {
+          status: 'available',
+          evaluationDays: 31,
+          meanAbsoluteError: 20,
+          weightedAbsolutePercentageError: 0.18,
+          accuracyRate: 0.82,
+        },
         methodology: 'test',
         limitations: ['结算覆盖不足。'],
       }),
@@ -4069,7 +4235,10 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     expect(result.answer).toContain('回测准确度 82.0%');
     expect(result.answer).toContain('不是经营承诺值');
     expect(result.blocks).toEqual(
-      expect.arrayContaining([expect.objectContaining({ kind: 'diagnosis' }), expect.objectContaining({ kind: 'limitations' })]),
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'diagnosis' }),
+        expect.objectContaining({ kind: 'limitations' }),
+      ]),
     );
     expect(result.metadata).toMatchObject({ answerScope: 'manager_revenue_forecast_backtested' });
   });
@@ -4100,12 +4269,22 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         upperBound: null,
         confidence: 0.294,
         confidenceLabel: 'low',
-        backtest: { status: 'available', evaluationDays: 19, meanAbsoluteError: 4355, weightedAbsolutePercentageError: 3.05, accuracyRate: 0 },
+        backtest: {
+          status: 'available',
+          evaluationDays: 19,
+          meanAbsoluteError: 4355,
+          weightedAbsolutePercentageError: 3.05,
+          accuracyRate: 0,
+        },
         methodology: 'test',
         limitations: ['历史回测误差 305.0%，不能输出预测金额。'],
       }),
     };
-    const executor = new BrainDomainServiceCapabilityExecutor(skillRuntime as never, {} as never, new BrainTimeRangeParserService());
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
 
     const result = await executor.execute({
       card: storeCard(),
