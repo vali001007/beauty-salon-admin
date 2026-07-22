@@ -20,6 +20,10 @@ function formatMessageTime(timestamp: number) {
   return date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
 }
 
+export function isAmiBrainConversation(record: TerminalConversationRecord) {
+  return record.messages.length > 0 && record.messages.every((message) => message.runtime === "ami_brain");
+}
+
 export function ConversationHistory({
   currentRole,
   operatorId,
@@ -44,12 +48,13 @@ export function ConversationHistory({
     getTerminalConversationHistory({
       days: 30,
       page: 1,
-      pageSize: 30,
+      pageSize: 100,
+      role: currentRole,
       ...(operatorId ? { operatorId } : {}),
     })
       .then((response) => {
         if (!mounted) return;
-        setRecords(response.items);
+        setRecords(response.items.filter(isAmiBrainConversation));
       })
       .catch((err) => {
         if (!mounted) return;
@@ -61,13 +66,17 @@ export function ConversationHistory({
     return () => {
       mounted = false;
     };
-  }, [operatorId]);
+  }, [currentRole, operatorId]);
 
   const openRecord = async (record: TerminalConversationRecord) => {
     setDetailLoading(true);
     setError(null);
     try {
       const detail = await getTerminalConversationDetail(record.id);
+      if (!isAmiBrainConversation(detail)) {
+        setError("该历史记录来自已退役的 Agent 版本，智能终端不再展示");
+        return;
+      }
       setSelected(detail);
     } catch (err) {
       setError(err instanceof Error ? err.message : "对话详情加载失败");

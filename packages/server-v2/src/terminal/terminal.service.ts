@@ -126,7 +126,11 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
-    if (process.env.NODE_ENV === 'test' || process.env.TERMINAL_AUTOMATION_SCHEDULER === 'disabled') return;
+    const configured = process.env.TERMINAL_AUTOMATION_SCHEDULER;
+    const schedulerEnabled = configured == null
+      ? process.env.NODE_ENV === 'production'
+      : configured === 'enabled';
+    if (process.env.NODE_ENV === 'test' || !schedulerEnabled) return;
     this.automationScheduler = setInterval(() => {
       void this.runDueTerminalAutomations().catch((error) => {
         console.warn('Ami Core terminal automation due scan failed', error);
@@ -2494,6 +2498,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         timestamp: Number.isFinite(item.timestamp) ? item.timestamp : Date.now(),
         type: item.type,
         title: item.title,
+        runtime: item.runtime,
       }));
     const messageCount = Math.max(0, dto.messageCount ?? messages.length);
 

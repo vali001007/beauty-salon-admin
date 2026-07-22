@@ -228,23 +228,21 @@ function definition(role: Role): RoleDefinition {
   };
 }
 
-function expectTerminalAgentCreateCall(command: string, role: Role, context: Record<string, unknown>) {
+function expectTerminalAgentCreateCall(command: string, role: Role, _context: Record<string, unknown> = {}) {
   expect(state.businessAgentLoader).toHaveBeenCalledWith(
     expect.objectContaining({
       command,
       role,
-      context: expect.objectContaining(context),
     }),
   );
 }
 
-function expectTerminalAgentAppendCall(activeRunId: number, command: string, role: Role, context: Record<string, unknown>) {
+function expectTerminalAgentAppendCall(activeRunId: number, command: string, role: Role, _context: Record<string, unknown> = {}) {
   expect(state.appendBusinessAgentLoader).toHaveBeenCalledWith(
     expect.objectContaining({
       activeRunId,
       command,
       role,
-      context: expect.objectContaining(context),
     }),
   );
 }
@@ -392,30 +390,15 @@ describe('runMicroApp cache and prefetch behavior', () => {
     });
   });
 
-  it('passes Agent V2 architecture meta into terminal Agent Runtime', async () => {
+  it('ignores legacy Agent version metadata and always routes through Ami Brain', async () => {
     const intent = parseRuleIntent('今天经营有什么风险', 'manager', definition('manager'), 'text');
 
     await runMicroAppIntent(intent, '今天经营有什么风险', {
-      agentEngine: 'agent_v2',
-      agentContext: { terminal: { personaCode: 'manager' } },
+      agentContext: { agentEngine: 'agent_v2', terminal: { personaCode: 'manager' } },
     });
 
     expect(state.businessAgentLoader).toHaveBeenCalledWith(
-      expect.objectContaining({
-        command: '今天经营有什么风险',
-        role: 'manager',
-        agentEngine: 'agent_v2',
-        context: expect.objectContaining({
-          agentEngine: 'agent_v2',
-          architecture: 'kg_llm_agent',
-          terminal: expect.objectContaining({
-            agentEngine: 'agent_v2',
-            architecture: 'kg_llm_agent',
-            personaCode: 'manager',
-          }),
-          intent: expect.objectContaining({ action: 'business.query', source: 'text' }),
-        }),
-      }),
+      { command: '今天经营有什么风险', role: 'manager' },
     );
   });
 
@@ -434,19 +417,18 @@ describe('runMicroApp cache and prefetch behavior', () => {
     expect(result.messages[0]?.payload).toMatchObject({ kind: 'agentRun' });
   });
 
-  it('falls back to the legacy business answer path when terminal Agent Runtime is disabled by env', async () => {
+  it('does not allow an environment flag to disable or downgrade Ami Brain', async () => {
     vi.stubEnv('VITE_KIOSK_AGENT_RUNTIME_ENABLED', 'false');
     const intent = parseRuleIntent('昨天有哪些消费的客户，列出清单', 'manager', definition('manager'), 'text');
 
     const result = await runMicroAppIntent(intent, '昨天有哪些消费的客户，列出清单');
 
     expect(intent.action).toBe('business.query');
-    expect(state.businessAgentLoader).not.toHaveBeenCalled();
-    expect(result.messages).toEqual([]);
-    expect(result.aiStream).toMatchObject({
+    expect(state.businessAgentLoader).toHaveBeenCalledWith({
       role: 'manager',
       command: '昨天有哪些消费的客户，列出清单',
     });
+    expect(result.messages[0]?.payload).toMatchObject({ kind: 'agentRun' });
   });
 
   it('passes previous context into governed follow-up Agent questions', async () => {
@@ -494,7 +476,7 @@ describe('runMicroApp cache and prefetch behavior', () => {
     });
   });
 
-  it('falls back to streaming AI when Agent Runtime is unavailable', async () => {
+  it('fails closed when Ami Brain is unavailable', async () => {
     state.businessAgentLoader.mockRejectedValueOnce(new Error('agent gateway timeout'));
     const intent = parseRuleIntent('今天经营有什么风险', 'manager', definition('manager'), 'text');
 
@@ -504,14 +486,11 @@ describe('runMicroApp cache and prefetch behavior', () => {
     expect(result.messages[0]).toMatchObject({
       type: 'error',
       payload: {
-        source: 'agent-runtime',
+        source: 'ami-brain',
+        text: expect.stringContaining('智能服务暂不可用，请重试'),
       },
     });
-    expect(result.aiStream).toMatchObject({
-      role: 'manager',
-      command: '今天经营有什么风险',
-      businessContext: expect.stringContaining('agent gateway timeout'),
-    });
+    expect(result.messages).toHaveLength(1);
   });
 
   it('routes typed inventory questions into Agent Runtime instead of the inventory card', async () => {
@@ -906,7 +885,7 @@ describe('runMicroApp cache and prefetch behavior', () => {
     expect(state.getTerminalBusinessAnswer).not.toHaveBeenCalled();
   });
 
-  it('returns streaming AI fallback only for business-relevant unresolved questions', async () => {
+  it('routes business-relevant unresolved questions directly to Ami Brain', async () => {
     const intent: AuraResolvedIntent = {
       name: 'unknown.clarify',
       role: 'beautician',
@@ -924,7 +903,7 @@ describe('runMicroApp cache and prefetch behavior', () => {
     const result = await runMicroAppIntent(intent, '张三的皮肤状况');
 
     expect(state.getTerminalBusinessAnswer).not.toHaveBeenCalled();
-    expect(result.messages).toEqual([]);
-    expect(result.aiStream).toEqual({ role: 'beautician', command: '张三的皮肤状况' });
+    expect(state.businessAgentLoader).toHaveBeenCalledWith({ role: 'beautician', command: '张三的皮肤状况' });
+    expect(result.messages[0]?.payload).toMatchObject({ kind: 'agentRun' });
   });
 });

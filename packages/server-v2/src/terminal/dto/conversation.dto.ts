@@ -17,6 +17,7 @@ import { PaginationDto } from '../../common/dto/pagination.dto.js';
 
 const TERMINAL_CONVERSATION_ROLES = ['manager', 'reception', 'beautician'] as const;
 const TERMINAL_CONVERSATION_MESSAGE_ROLES = ['user', 'assistant', 'system'] as const;
+const TERMINAL_CONVERSATION_RUNTIMES = ['ami_brain'] as const;
 
 export class TerminalConversationMessageDto {
   @ApiProperty({ enum: TERMINAL_CONVERSATION_MESSAGE_ROLES })
@@ -43,6 +44,11 @@ export class TerminalConversationMessageDto {
   @IsString()
   @MaxLength(80)
   title?: string;
+
+  @ApiPropertyOptional({ enum: TERMINAL_CONVERSATION_RUNTIMES })
+  @IsOptional()
+  @IsIn(TERMINAL_CONVERSATION_RUNTIMES)
+  runtime?: (typeof TERMINAL_CONVERSATION_RUNTIMES)[number];
 }
 
 export class SaveTerminalConversationDto {

@@ -4,6 +4,7 @@ import type { Message, Role } from "../types";
 import { clearConversation } from "./auraCoreService";
 
 const ARCHIVE_CHECK_INTERVAL_MS = 60_000;
+export const TERMINAL_CONVERSATION_RUNTIME = "ami_brain" as const;
 
 function getDateKey(date = new Date()) {
   const year = date.getFullYear();
@@ -41,6 +42,7 @@ export function toConversationMessages(messages: Message[]): TerminalConversatio
         timestamp: message.timestamp.getTime(),
         type: message.type,
         title: message.title,
+        runtime: TERMINAL_CONVERSATION_RUNTIME,
       });
       return items;
     }, []);
