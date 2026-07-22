@@ -1,4 +1,5 @@
-import type { Role } from '@/types';
+import type { Permission, Role } from '@/types';
+import { PERMISSION_CATALOG } from '@/config/permissions';
 import apiClient from '../client';
 import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
 
@@ -62,6 +63,21 @@ function toRolePayload(data: Partial<Role>) {
 export async function realGetRoles(): Promise<Role[]> {
   const roles = await apiClient.get<unknown, ApiRole[]>('/roles');
   return roles.map(normalizeRole);
+}
+
+type ApiPermissionCatalogItem = Permission & { riskLevel?: Permission['riskLevel'] };
+
+export async function realGetPermissionCatalog(): Promise<Permission[]> {
+  const response = await apiClient.get<unknown, { items?: ApiPermissionCatalogItem[] }>('/roles/permission-catalog');
+  const localMetadata = new Map(PERMISSION_CATALOG.map((permission) => [permission.code, permission]));
+  return (response.items ?? []).map((permission) => ({
+    ...permission,
+    ...localMetadata.get(permission.code),
+    code: permission.code,
+    platform: permission.platform,
+    type: permission.type,
+    riskLevel: permission.riskLevel,
+  }));
 }
 
 export async function realCreateRole(data: Omit<Role, 'id'>): Promise<Role> {

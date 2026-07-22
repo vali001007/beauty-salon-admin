@@ -47,14 +47,30 @@ export class AllExceptionsFilter implements ExceptionFilter {
   }
 }
 
-function isDatabaseUnavailable(exception: unknown) {
+function isDatabaseUnavailable(exception: unknown): boolean {
   if (!exception || typeof exception !== 'object') return false;
-  const error = exception as { code?: unknown; message?: unknown; cause?: unknown };
-  const code = String(error.code ?? '');
-  const message = String(error.message ?? '');
+  const error = exception as {
+    code?: unknown;
+    message?: unknown;
+    originalCode?: unknown;
+    originalMessage?: unknown;
+    cause?: unknown;
+    meta?: unknown;
+  };
+  const code = String(error.code ?? error.originalCode ?? '');
+  const message = String(error.message ?? error.originalMessage ?? '');
 
-  if (code === 'P1001' || code === 'P1017') return true;
-  if (message.includes("Can't reach database server") || message.includes('DatabaseNotReachable')) return true;
+  if (code === 'P1001' || code === 'P1017' || code === 'EMAXCONNSESSION') return true;
+  if (
+    message.includes("Can't reach database server") ||
+    message.includes('DatabaseNotReachable') ||
+    message.includes('EMAXCONNSESSION') ||
+    message.includes('max clients reached in session mode') ||
+    message.includes('too many clients already') ||
+    message.includes('timeout exceeded when trying to connect')
+  ) {
+    return true;
+  }
 
-  return isDatabaseUnavailable(error.cause);
+  return isDatabaseUnavailable(error.cause) || isDatabaseUnavailable(error.meta);
 }

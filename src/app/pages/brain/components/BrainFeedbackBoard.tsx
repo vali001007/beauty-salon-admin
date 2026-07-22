@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
-import { getBrainGovernanceDashboard, listBrainFeedback } from '@/api/brain';
+import {
+  getBrainGovernanceDashboard,
+  isBrainGovernanceReadCancelled,
+  listBrainFeedback,
+} from '@/api/brain';
 
 interface Dashboard {
   runCount?: number;
@@ -28,7 +32,11 @@ export function BrainFeedbackBoard() {
       setDashboard(metrics as Dashboard);
       const items = list && typeof list === 'object' ? (list as { items?: unknown }).items : undefined;
       setFeedback(Array.isArray(items) ? items as Feedback[] : []);
-    } catch (error) { toast.error(error instanceof Error ? error.message : '反馈指标加载失败'); }
+    } catch (error) {
+      if (!isBrainGovernanceReadCancelled(error)) {
+        toast.error(error instanceof Error ? error.message : '反馈指标加载失败');
+      }
+    }
   }
   useEffect(() => { void load(); }, []);
   const metrics = [

@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Filter, KeyRound, MonitorSmartphone, Shield, Smartphone, Terminal } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/UI';
-import type { PermissionPlatform, PermissionType } from '@/types';
-import { PERMISSION_CATALOG, PLATFORMS } from '@/config/permissions';
+import type { Permission, PermissionPlatform, PermissionType } from '@/types';
+import { PLATFORMS } from '@/config/permissions';
+import { getPermissionCatalog } from '@/api/role';
+import { toast } from 'sonner';
 
 const PLATFORM_LABELS: Record<PermissionPlatform, string> = {
   core: 'Ami_Core',
@@ -24,30 +26,49 @@ const PLATFORM_ICONS: Record<PermissionPlatform, typeof Shield> = {
 };
 
 export function PermissionManagement() {
+  const [permissionCatalog, setPermissionCatalog] = useState<Permission[]>([]);
+  const [loading, setLoading] = useState(true);
   const [platformFilter, setPlatformFilter] = useState<'all' | PermissionPlatform>('all');
   const [moduleFilter, setModuleFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState<'all' | PermissionType>('all');
 
-  const modules = useMemo(() => Array.from(new Set(PERMISSION_CATALOG.map((item) => item.module))), []);
+  useEffect(() => {
+    let active = true;
+    void getPermissionCatalog()
+      .then((items) => {
+        if (active) setPermissionCatalog(items);
+      })
+      .catch((error) => {
+        if (active) toast.error(error instanceof Error ? error.message : '权限目录加载失败');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const modules = useMemo(() => Array.from(new Set(permissionCatalog.map((item) => item.module))), [permissionCatalog]);
 
   const filteredPermissions = useMemo(() => {
-    return PERMISSION_CATALOG.filter((permission) => {
+    return permissionCatalog.filter((permission) => {
       if (platformFilter !== 'all' && permission.platform !== platformFilter) return false;
       if (moduleFilter !== 'all' && permission.module !== moduleFilter) return false;
       if (typeFilter !== 'all' && permission.type !== typeFilter) return false;
       return true;
     });
-  }, [moduleFilter, platformFilter, typeFilter]);
+  }, [moduleFilter, permissionCatalog, platformFilter, typeFilter]);
 
   const stats = useMemo(() => {
     return {
-      total: PERMISSION_CATALOG.length,
-      menu: PERMISSION_CATALOG.filter((permission) => permission.type === 'menu').length,
-      operation: PERMISSION_CATALOG.filter((permission) => permission.type === 'operation').length,
-      action: PERMISSION_CATALOG.filter((permission) => permission.type === 'action').length,
-      api: PERMISSION_CATALOG.filter((permission) => permission.type === 'api').length,
+      total: permissionCatalog.length,
+      menu: permissionCatalog.filter((permission) => permission.type === 'menu').length,
+      operation: permissionCatalog.filter((permission) => permission.type === 'operation').length,
+      action: permissionCatalog.filter((permission) => permission.type === 'action').length,
+      api: permissionCatalog.filter((permission) => permission.type === 'api').length,
     };
-  }, []);
+  }, [permissionCatalog]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -116,6 +137,9 @@ export function PermissionManagement() {
           </TableRow>
         </TableHeader>
         <TableBody>
+          {loading && (
+            <TableRow><TableCell colSpan={7} className="py-10 text-center text-gray-500">正在读取后端统一权限目录...</TableCell></TableRow>
+          )}
           {filteredPermissions.map((permission) => {
             const Icon = PLATFORM_ICONS[permission.platform];
             return (
@@ -151,7 +175,7 @@ export function PermissionManagement() {
               </TableRow>
             );
           })}
-          {filteredPermissions.length === 0 && (
+          {!loading && filteredPermissions.length === 0 && (
             <TableRow>
               <TableCell colSpan={7} className="text-center text-gray-400 py-10">
                 <KeyRound className="w-8 h-8 mx-auto mb-2" />

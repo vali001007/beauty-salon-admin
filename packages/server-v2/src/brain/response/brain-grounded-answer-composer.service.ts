@@ -32,9 +32,11 @@ export class BrainGroundedAnswerComposerService {
         else if (block) blocks.push(block);
       }
       const observationBlocks = blocks.slice(blockCountBeforeObservation);
-      const onlyEmptyCollections = observationBlocks.length > 0 && observationBlocks.every(
-        (block) => (block.kind === 'ranking' || block.kind === 'table') && block.rows.length === 0,
-      );
+      const onlyEmptyCollections =
+        observationBlocks.length > 0 &&
+        observationBlocks.every(
+          (block) => (block.kind === 'ranking' || block.kind === 'table') && block.rows.length === 0,
+        );
       if (
         (blocks.length === blockCountBeforeObservation || (observation.status === 'no_data' && onlyEmptyCollections)) &&
         observation.summary.trim() &&
@@ -48,8 +50,11 @@ export class BrainGroundedAnswerComposerService {
     if (limitations.length) blocks.push({ kind: 'limitations', items: [...new Set(limitations)] });
     if (citations.length) blocks.push({ kind: 'evidence', citations });
 
-    const answer = blocks.map(renderBlockText).filter(Boolean).join('\n\n') ||
-      (input.completion.status === 'complete' ? '已完成经营任务，结构化结果见下方。' : '已返回可完成部分，未完成范围见下方。');
+    const answer =
+      blocks.map(renderBlockText).filter(Boolean).join('\n\n') ||
+      (input.completion.status === 'complete'
+        ? '已完成经营任务，结构化结果见下方。'
+        : '已返回可完成部分，未完成范围见下方。');
     const envelope: BrainResponseEnvelope = {
       answer,
       blocks,
@@ -75,16 +80,21 @@ export class BrainGroundedAnswerComposerService {
       status: answer.status === 'completed' ? 'completed' : 'failed',
       grounding: answer.grounding,
       summary: answer.answer,
-      data: { blocks: answer.blocks ?? [], metadata: answer.metadata ?? {}, suggestedActions: answer.suggestedActions ?? [] },
+      data: {
+        blocks: answer.blocks ?? [],
+        metadata: answer.metadata ?? {},
+        suggestedActions: answer.suggestedActions ?? [],
+      },
       citations: answer.citations,
       startedAt: new Date(0).toISOString(),
       completedAt: new Date(0).toISOString(),
     };
     return this.compose({
       observations: [observation],
-      completion: answer.status === 'completed'
-        ? { status: 'complete', missingCriteria: [] }
-        : { status: 'incomplete', missingCriteria: ['capability_failed'] },
+      completion:
+        answer.status === 'completed'
+          ? { status: 'complete', missingCriteria: [] }
+          : { status: 'incomplete', missingCriteria: ['capability_failed'] },
       intent,
     });
   }
@@ -130,9 +140,11 @@ function normalizeBlock(value: unknown, citationIds: string[], limitations: stri
   }
   if (block.kind === 'kpi') {
     const items = Array.isArray(block.items)
-      ? block.items.flatMap((item) => isRecord(item) && typeof item.label === 'string' && typeof item.value === 'string'
-        ? [{ label: item.label, value: item.value, ...(typeof item.hint === 'string' ? { hint: item.hint } : {}) }]
-        : [])
+      ? block.items.flatMap((item) =>
+          isRecord(item) && typeof item.label === 'string' && typeof item.value === 'string'
+            ? [{ label: item.label, value: item.value, ...(typeof item.hint === 'string' ? { hint: item.hint } : {}) }]
+            : [],
+        )
       : [];
     return items.length ? { kind: 'kpi', items, citationIds } : undefined;
   }
@@ -148,15 +160,22 @@ function normalizeBlock(value: unknown, citationIds: string[], limitations: stri
   if (block.kind === 'comparison') {
     const items = Array.isArray(block.items)
       ? block.items.flatMap((item) => {
-          if (!isRecord(item) || typeof item.label !== 'string' || typeof item.current !== 'string' || typeof item.previous !== 'string') {
+          if (
+            !isRecord(item) ||
+            typeof item.label !== 'string' ||
+            typeof item.current !== 'string' ||
+            typeof item.previous !== 'string'
+          ) {
             return [];
           }
-          return [{
-            label: item.label,
-            current: item.current,
-            previous: item.previous,
-            ...(typeof item.delta === 'string' ? { delta: item.delta } : {}),
-          }];
+          return [
+            {
+              label: item.label,
+              current: item.current,
+              previous: item.previous,
+              ...(typeof item.delta === 'string' ? { delta: item.delta } : {}),
+            },
+          ];
         })
       : [];
     return items.length ? { kind: 'comparison', items, citationIds } : undefined;
@@ -172,11 +191,13 @@ function normalizeBlock(value: unknown, citationIds: string[], limitations: stri
           ) {
             return [];
           }
-          return [{
-            title: item.title,
-            detail: item.detail,
-            severity: item.severity as 'info' | 'warning' | 'critical',
-          }];
+          return [
+            {
+              title: item.title,
+              detail: item.detail,
+              severity: item.severity as 'info' | 'warning' | 'critical',
+            },
+          ];
         })
       : [];
     return findings.length ? { kind: 'diagnosis', findings, citationIds } : undefined;
@@ -190,6 +211,19 @@ function normalizeBlock(value: unknown, citationIds: string[], limitations: stri
         )
       : [];
     return { kind: 'clarification', question: block.question, options };
+  }
+  if (block.kind === 'follow_up_questions') {
+    const questions = Array.isArray(block.questions)
+      ? block.questions.flatMap((item) =>
+          isRecord(item) &&
+          typeof item.id === 'string' &&
+          typeof item.label === 'string' &&
+          typeof item.value === 'string'
+            ? [{ id: item.id, label: item.label, value: item.value }]
+            : [],
+        )
+      : [];
+    return questions.length ? { kind: 'follow_up_questions', questions } : undefined;
   }
   if (block.kind === 'action_preview') {
     return { kind: 'action_preview', actions: Array.isArray(block.actions) ? block.actions : [] };
@@ -206,7 +240,9 @@ function normalizeBlock(value: unknown, citationIds: string[], limitations: stri
 function renderBlockText(block: BrainResponseBlock): string {
   if (block.kind === 'text') return block.text.trim();
   if (block.kind === 'kpi') {
-    return block.items.map((item) => `${item.label}：${item.value}${item.hint ? `（${item.hint}）` : ''}`).join('；') + '。';
+    return (
+      block.items.map((item) => `${item.label}：${item.value}${item.hint ? `（${item.hint}）` : ''}`).join('；') + '。'
+    );
   }
   if (block.kind === 'ranking') {
     if (!block.rows.length) return '排行：当前时间范围没有可排行的数据。';
@@ -217,25 +253,20 @@ function renderBlockText(block: BrainResponseBlock): string {
     return `明细：\n${block.rows.map((row, index) => `${index + 1}. ${renderRow(row, block.columns)}`).join('\n')}`;
   }
   if (block.kind === 'chart') {
-    return `${block.chartType === 'line' ? '趋势' : '分布'}数据：\n${block.rows
-      .map((row, index) => `${index + 1}. ${renderRow(row, [block.xKey, ...block.yKeys])}`)
-      .join('\n')}`;
+    return `${block.chartType === 'line' ? '趋势' : '分布'}数据：\n${block.rows.map((row, index) => `${index + 1}. ${renderRow(row, [block.xKey, ...block.yKeys])}`).join('\n')}`;
   }
   if (block.kind === 'comparison') {
-    return `对比：${block.items
-      .map((item) => `${item.label}，当前 ${item.current}，上一期 ${item.previous}${item.delta ? `，变化 ${item.delta}` : ''}`)
-      .join('；')}。`;
+    return `对比：${block.items.map((item) => `${item.label}，当前 ${item.current}，上一期 ${item.previous}${item.delta ? `，变化 ${item.delta}` : ''}`).join('；')}。`;
   }
   if (block.kind === 'diagnosis') {
     const severity = { info: '提示', warning: '预警', critical: '严重风险' } as const;
-    return `诊断：\n${block.findings
-      .map((item, index) => `${index + 1}. [${severity[item.severity]}] ${item.title}：${item.detail}`)
-      .join('\n')}`;
+    return `诊断：\n${block.findings.map((item, index) => `${index + 1}. [${severity[item.severity]}] ${item.title}：${item.detail}`).join('\n')}`;
   }
   if (block.kind === 'clarification') {
     const options = block.options.length ? ` 可选：${block.options.map((item) => item.label).join('、')}。` : '';
     return `需要确认：${block.question}${options}`;
   }
+  if (block.kind === 'follow_up_questions') return '';
   if (block.kind === 'action_preview') return `待确认操作：共 ${block.actions.length} 项，尚未执行。`;
   if (block.kind === 'limitations') {
     const label = block.items.every((item) => item.startsWith('no_data:')) ? '说明' : '未完成范围';
@@ -352,7 +383,17 @@ function renderColumnValue(key: string, value: unknown) {
   if (typeof value === 'boolean') return value ? '是' : '否';
   if (
     typeof value === 'number' &&
-    ['revenue', 'revenueAmount', 'commissionAmount', 'estimatedCost', 'amount', 'currentRevenue', 'previousRevenue', 'totalSpent', 'price'].includes(key)
+    [
+      'revenue',
+      'revenueAmount',
+      'commissionAmount',
+      'estimatedCost',
+      'amount',
+      'currentRevenue',
+      'previousRevenue',
+      'totalSpent',
+      'price',
+    ].includes(key)
   ) {
     return value.toFixed(2);
   }
@@ -368,5 +409,9 @@ function uniqueCitations(citations: BrainDomainAnswer['citations']) {
     return true;
   });
 }
-function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
-function stringArray(value: unknown) { return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []; }
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+function stringArray(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}

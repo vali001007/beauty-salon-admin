@@ -19,6 +19,7 @@ export interface TerminalConversationMessage {
   timestamp: number;
   type?: string;
   title?: string;
+  runtime?: 'ami_brain';
 }
 
 export interface TerminalConversationRecord {

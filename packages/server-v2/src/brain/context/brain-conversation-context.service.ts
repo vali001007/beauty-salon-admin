@@ -71,6 +71,7 @@ export interface BrainModelPendingClarification {
   missingSlots: string[];
   questions: string[];
   ambiguities: BrainSemanticAmbiguity[];
+  turnCount?: number;
 }
 
 export interface BrainModelConversationContextSnapshot {
@@ -319,6 +320,7 @@ export class BrainConversationContextService {
             pendingClarification: {
               missingSlots: [...input.pendingClarification.missingSlots],
               questions: [...input.pendingClarification.questions],
+              ...(input.pendingClarification.turnCount ? { turnCount: input.pendingClarification.turnCount } : {}),
               ambiguities: input.pendingClarification.ambiguities.map((ambiguity) => ({
                 ...ambiguity,
                 candidates: [...ambiguity.candidates],
@@ -474,6 +476,7 @@ export class BrainConversationContextService {
         ? {
             missingSlots: [...snapshot.pendingClarification.missingSlots],
             questions: [...snapshot.pendingClarification.questions],
+            ...(snapshot.pendingClarification.turnCount ? { turnCount: snapshot.pendingClarification.turnCount } : {}),
             ambiguities: snapshot.pendingClarification.ambiguities.map((ambiguity) => ({
               ...ambiguity,
               candidates: [...ambiguity.candidates],
@@ -775,7 +778,13 @@ export class BrainConversationContextService {
   private isModelPendingClarification(value: unknown): value is BrainModelPendingClarification {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
     const pending = value as Record<string, unknown>;
-    if (!this.hasOnlyKeys(pending, ['missingSlots', 'questions', 'ambiguities'])) return false;
+    if (!this.hasOnlyKeys(pending, ['missingSlots', 'questions', 'ambiguities', 'turnCount'])) return false;
+    if (
+      pending.turnCount !== undefined &&
+      (!Number.isInteger(pending.turnCount) || (pending.turnCount as number) < 1 || (pending.turnCount as number) > 2)
+    ) {
+      return false;
+    }
     if (!Array.isArray(pending.missingSlots) || !pending.missingSlots.every((slot) => this.isNonEmptyString(slot))) {
       return false;
     }

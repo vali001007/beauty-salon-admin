@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import {
   activateBrainRelease,
   createBrainRolloutSequence,
+  isBrainGovernanceReadCancelled,
   listBrainReleases,
   listBrainResourceVersions,
   listBrainCapabilityRegenerationJobs,
@@ -62,15 +63,18 @@ export function BrainReleaseCenter() {
 
   const load = useCallback(async () => {
     try {
-      const [versionResponse, releaseResponse, jobResponse] = await Promise.all([
-        listBrainResourceVersions({ status: 'draft' }),
-        listBrainReleases(),
-        listBrainCapabilityRegenerationJobs(),
-      ]);
+      const versionResponse = await listBrainResourceVersions({
+        status: 'draft',
+        includeSnapshot: false,
+        take: 100,
+      });
+      const releaseResponse = await listBrainReleases({ includeSnapshot: false, take: 30 });
+      const jobResponse = await listBrainCapabilityRegenerationJobs();
       setVersions((versionResponse.items ?? []).filter((item) => item.resourceType !== 'capability_change_request'));
       setReleases(releaseResponse.items ?? []);
       setJobs(jobResponse.items ?? []);
     } catch (error) {
+      if (isBrainGovernanceReadCancelled(error)) return;
       toast.error(error instanceof Error ? error.message : '发布数据加载失败');
     }
   }, []);
@@ -606,6 +610,7 @@ function BusinessField({ label, value }: { label: string; value: string }) {
 
 function summarizeRelease(release: BrainGovernanceRelease) {
   const items = release.items ?? [];
+  const itemCount = release.itemCount ?? items.length;
   const snapshots = items.map((item) => record(item.snapshot));
   const sideEffect = snapshots.some((snapshot) => snapshot.sideEffect === true || snapshot.readOnly === false);
   const roles = unique(snapshots.flatMap((snapshot) => strings(snapshot.allowedRoles)));
@@ -617,7 +622,7 @@ function summarizeRelease(release: BrainGovernanceRelease) {
     : sideEffect ? '发布后按风险确认' : '无需执行确认';
   return {
     description: snapshots.map((snapshot) => String(snapshot.description ?? '')).find(Boolean)
-      ?? `本次发布包含 ${items.length} 个能力版本。`,
+      ?? `本次发布包含 ${itemCount} 个能力版本。`,
     dataScope: sideEffect ? '读取并生成操作预览' : '只读',
     roles: roles.length ? roles.map(roleLabel).join('、') : '按权限自动收口',
     riskLevel,
@@ -625,7 +630,7 @@ function summarizeRelease(release: BrainGovernanceRelease) {
     testStatus: testsPassed ? '全部通过' : '等待评测门禁',
     impact: items.length
       ? items.map((item) => businessName(item.snapshot, item.resourceKey)).join('、')
-      : '尚未绑定能力版本',
+      : itemCount > 0 ? `包含 ${itemCount} 个能力版本` : '尚未绑定能力版本',
   };
 }
 

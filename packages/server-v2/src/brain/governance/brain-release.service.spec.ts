@@ -24,6 +24,36 @@ function passingEvalSummary(items: any[]) {
 }
 
 describe('BrainReleaseService', () => {
+  it('bounds the release history loaded by the governance console', async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      { id: 1, releaseKey: 'brain-r1', _count: { items: 54 } },
+    ]);
+    const service = new BrainReleaseService({ brainRelease: { findMany } } as never);
+
+    await expect(service.listReleases({ includeSnapshot: false, take: 30 })).resolves.toEqual([
+      expect.objectContaining({ id: 1, itemCount: 54, items: [] }),
+    ]);
+
+    expect(findMany).toHaveBeenCalledWith({
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        releaseKey: true,
+        scope: true,
+        rollout: true,
+        status: true,
+        previousReleaseId: true,
+        activatedAt: true,
+        rolledBackAt: true,
+        failureReason: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: { select: { items: true } },
+      },
+      take: 30,
+    });
+  });
+
   it('never activates an evaluation-only release into production', async () => {
     const release = {
       id: 21,
@@ -505,6 +535,40 @@ describe('BrainReleaseService', () => {
     });
     expect(Object.isFrozen(resolved.capabilityCandidates)).toBe(true);
     expect(Object.isFrozen(resolved.capabilityCandidates?.[0])).toBe(true);
+  });
+
+  it('resolves the governance runtime summary without loading release item snapshots', async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      {
+        id: 24,
+        releaseKey: 'brain-r2-canary',
+        status: 'active',
+        scope: 'role',
+        rollout: { mode: 'shadow', stage: 'canary_5', roleKeys: ['store_manager'] },
+        activatedAt: new Date('2026-07-21T12:00:00.000Z'),
+      },
+    ]);
+    const service = new BrainReleaseService({ brainRelease: { findMany } } as never);
+
+    await expect(
+      service.resolveRuntimeSummary({ storeId: 6, userId: 28, roleKey: 'store_manager' }),
+    ).resolves.toMatchObject({
+      mode: 'shadow',
+      declaredMode: 'shadow',
+      release: { id: 24, releaseKey: 'brain-r2-canary' },
+    });
+    expect(findMany).toHaveBeenCalledWith({
+      where: { status: 'active' },
+      orderBy: { activatedAt: 'desc' },
+      select: {
+        id: true,
+        releaseKey: true,
+        scope: true,
+        rollout: true,
+        status: true,
+        activatedAt: true,
+      },
+    });
   });
 
   it('rejects an explicitly supplied invalid evaluation release id without selecting the active release', async () => {

@@ -179,20 +179,23 @@ export class BrainChatService {
     return conversation;
   }
 
-  async listConversations(context: BrainRequestContext) {
+  async listConversations(context: BrainRequestContext, input: { page?: number; pageSize?: number } = {}) {
     this.assertBaseAccess(context);
+    const page = Math.max(1, Math.trunc(Number(input.page) || 1));
+    const pageSize = Math.min(50, Math.max(1, Math.trunc(Number(input.pageSize) || 10)));
     const where = { storeId: context.storeId, userId: context.userId, status: 'active', deletedAt: null };
     const [items, total] = await Promise.all([
       this.prisma.brainConversation.findMany({
         where,
         orderBy: { updatedAt: 'desc' },
-        take: 50,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
       }),
       this.prisma.brainConversation.count({ where }),
     ]);
 
     for (const conversation of items) this.rememberConversationAccess(context, conversation.id);
-    return { items, total, storeId: context.storeId };
+    return { items, total, page, pageSize, storeId: context.storeId };
   }
 
   private isEvaluationContext(context: BrainRequestContext): boolean {

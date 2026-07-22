@@ -1,7 +1,6 @@
 import type {
   createAutomationDraft,
   getAutomationTodaySummary,
-  getBusinessQueryAnswer,
   getBeauticianCustomerList,
   getBeauticianDashboard,
   getBeauticianScheduleFlow,
@@ -21,10 +20,10 @@ import type {
   getRegistrationFlow,
   getServiceRecordFlow,
   getStaffSchedules,
-  getTerminalBusinessAnswer,
 } from "../services/auraCoreService";
 import type { AgentRunResult } from "@/types/agent";
-import type { MessageType, Role } from "../types";
+import type { BusinessQueryResponse } from "@/types/businessQuery";
+import type { AiSuggestionData, MessageType } from "../types";
 
 export type AuraPayload =
   | { kind: "manager"; data: Awaited<ReturnType<typeof getManagerDashboard>> }
@@ -49,8 +48,8 @@ export type AuraPayload =
   | { kind: "automation"; data: Awaited<ReturnType<typeof createAutomationDraft>> }
   | { kind: "automationSummary"; data: Awaited<ReturnType<typeof getAutomationTodaySummary>> }
   | { kind: "agentRun"; data: AgentRunResult }
-  | { kind: "businessQuery"; data: Awaited<ReturnType<typeof getBusinessQueryAnswer>> }
-  | { kind: "ai"; data: Awaited<ReturnType<typeof getTerminalBusinessAnswer>> };
+  | { kind: "businessQuery"; data: BusinessQueryResponse }
+  | { kind: "ai"; data: AiSuggestionData };
 
 export interface MicroAppMessage {
   type: MessageType;
@@ -60,11 +59,6 @@ export interface MicroAppMessage {
 
 export interface MicroAppRunResult {
   messages: MicroAppMessage[];
-  aiStream?: {
-    role: Role;
-    command: string;
-    businessContext?: string;
-  };
   aiSummary?: string;
   aiCommand?: string;
   cacheMeta?: {

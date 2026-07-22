@@ -1,12 +1,14 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useNavigate } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BrainGovernanceCenter } from './BrainGovernanceCenter';
 
 const brainApi = vi.hoisted(() => ({
+  cancelBrainGovernanceReads: vi.fn(),
   listBrainTraces: vi.fn(),
   getBrainTrace: vi.fn(),
+  listBrainRoleProfiles: vi.fn(),
   listBrainSkills: vi.fn(),
   listBrainResourceVersions: vi.fn(),
   getBrainGovernanceRuntimeConfig: vi.fn(),
@@ -42,11 +44,23 @@ const capabilitySnapshot = {
   tests: { contract: 'passed', security: 'passed', eval: 'passed' },
 };
 
-function renderCenter() {
+function renderCenter(path = '/brain-governance/planning') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[path]}>
       <BrainGovernanceCenter />
     </MemoryRouter>,
+  );
+}
+
+function GovernanceNavigationHarness() {
+  const navigate = useNavigate();
+
+  return (
+    <>
+      <button type="button" onClick={() => navigate('/brain-governance/planning')}>转到模型规划</button>
+      <button type="button" onClick={() => navigate('/brain-governance/roles')}>转到角色治理</button>
+      <BrainGovernanceCenter />
+    </>
   );
 }
 
@@ -61,6 +75,7 @@ describe('BrainGovernanceCenter', () => {
       items: [{ id: 77, status: 'completed', input: { message: '明天下午空档补齐' }, createdAt: '2026-07-13T08:00:00.000Z' }],
       total: 1,
     });
+    brainApi.listBrainRoleProfiles.mockResolvedValue({ items: [] });
     brainApi.getBrainTrace.mockResolvedValue({
       id: 77,
       status: 'completed',
@@ -176,18 +191,28 @@ describe('BrainGovernanceCenter', () => {
     });
   });
 
-  it('renders the model planning workspace alongside existing governance areas', () => {
-    renderCenter();
+  it('cancels reads from the previous module before switching governance routes', async () => {
+    render(
+      <MemoryRouter initialEntries={['/brain-governance/planning']}>
+        <GovernanceNavigationHarness />
+      </MemoryRouter>,
+    );
 
-    expect(screen.getByRole('button', { name: '会话追踪' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '模型规划' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '评测中心' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '发布中心' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: '转到角色治理' }));
+
+    expect(brainApi.cancelBrainGovernanceReads).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the route-selected workspace without the duplicate local tab navigation', () => {
+    renderCenter('/brain-governance/planning');
+
+    expect(screen.queryByText('Ami Brain 治理中心')).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Ami Brain 治理工作区' })).not.toBeInTheDocument();
+    expect(screen.getByText('模型运行配置')).toBeInTheDocument();
   });
 
   it('shows intent versions, runtime config, capability cards, candidates, DAG, observations and completion', async () => {
-    renderCenter();
-    await userEvent.click(screen.getByRole('button', { name: '模型规划' }));
+    renderCenter('/brain-governance/planning');
 
     expect(await screen.findByText('语义意图版本')).toBeInTheDocument();
     expect(screen.getByText('模型运行配置')).toBeInTheDocument();
@@ -204,8 +229,7 @@ describe('BrainGovernanceCenter', () => {
   });
 
   it('uses a business approval card with approve, modify and reject as the only draft commands', async () => {
-    renderCenter();
-    await userEvent.click(screen.getByRole('button', { name: '发布中心' }));
+    renderCenter('/brain-governance/release');
 
     expect(await screen.findByText('读取商品销售明细并按销量排序')).toBeInTheDocument();
     expect(screen.getByText('只读')).toBeInTheDocument();
@@ -231,8 +255,7 @@ describe('BrainGovernanceCenter', () => {
         { id: 99, resourceType: 'capability_change_request', resourceKey: 'regeneration.secret', version: 1, status: 'draft', snapshot: { name: '不应展示的变更请求' } },
       ],
     });
-    renderCenter();
-    await userEvent.click(screen.getByRole('button', { name: '发布中心' }));
+    renderCenter('/brain-governance/release');
 
     expect((await screen.findAllByText('商品销售排行')).length).toBeGreaterThan(0);
     expect(screen.queryByText('不应展示的变更请求')).not.toBeInTheDocument();
@@ -268,8 +291,7 @@ describe('BrainGovernanceCenter', () => {
       .mockResolvedValueOnce({ items: [queued] })
       .mockResolvedValueOnce({ items: [completed] });
 
-    renderCenter();
-    await user.click(screen.getByRole('button', { name: '发布中心' }));
+    renderCenter('/brain-governance/release');
     await waitFor(() => expect(brainApi.listBrainCapabilityRegenerationJobs).toHaveBeenCalled());
     expect(await screen.findByText('等待自动再生成')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '批准发布' })).toBeDisabled();
@@ -300,8 +322,7 @@ describe('BrainGovernanceCenter', () => {
         generatedResourceVersionIds: [],
       }],
     });
-    renderCenter();
-    await userEvent.click(screen.getByRole('button', { name: '发布中心' }));
+    renderCenter('/brain-governance/release');
 
     await waitFor(() => expect(brainApi.listBrainCapabilityRegenerationJobs).toHaveBeenCalled());
     expect(await screen.findByText('runtime_redaction_policy_unavailable')).toBeInTheDocument();
@@ -319,8 +340,7 @@ describe('BrainGovernanceCenter', () => {
       errorMessage: '无法唯一确定需要修改的能力。', retryable: false, nextAction: 'modify_requirement',
       generatedResourceVersionIds: [], availableAt: null, leasedAt: null, completedAt: null, createdAt: null, updatedAt: null,
     }] });
-    renderCenter();
-    await userEvent.click(screen.getByRole('button', { name: '发布中心' }));
+    renderCenter('/brain-governance/release');
 
     expect(await screen.findByText('无法唯一确定需要修改的能力。')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '重新排队' })).not.toBeInTheDocument();
@@ -335,8 +355,7 @@ describe('BrainGovernanceCenter', () => {
       errorMessage: '业务口径修改待审批。', retryable: false, nextAction: 'complete_business_definition',
       generatedResourceVersionIds: [], availableAt: null, leasedAt: null, completedAt: null, createdAt: null, updatedAt: null,
     }] });
-    renderCenter();
-    await userEvent.click(screen.getByRole('button', { name: '发布中心' }));
+    renderCenter('/brain-governance/release');
 
     expect(await screen.findByRole('button', { name: '去业务口径中心' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '重新排队' })).not.toBeInTheDocument();

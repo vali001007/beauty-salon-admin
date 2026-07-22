@@ -5672,12 +5672,13 @@ describe('BrainChatService', () => {
     expect(prisma.brainConversation.findMany).toHaveBeenCalledWith({
       where: { storeId: 2, userId: 9, status: 'active', deletedAt: null },
       orderBy: { updatedAt: 'desc' },
-      take: 50,
+      skip: 0,
+      take: 10,
     });
     expect(prisma.brainConversation.count).toHaveBeenCalledWith({
       where: { storeId: 2, userId: 9, status: 'active', deletedAt: null },
     });
-    expect(listed).toEqual({ items: [], total: 0, storeId: 2 });
+    expect(listed).toEqual({ items: [], total: 0, page: 1, pageSize: 10, storeId: 2 });
   });
 
   it('persists user and assistant messages, records a run, and returns a cited answer', async () => {

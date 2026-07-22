@@ -1,6 +1,5 @@
 import type { AuraResolvedIntent } from '../intent/intentTypes';
 import type { BusinessQueryContext } from '@/types/businessQuery';
-import type { AgentRunResult } from '@/types/agent';
 import { OFF_TOPIC_REPLY, isBusinessRelevant } from '../intent/relevanceGuard';
 import {
   getBeauticianDashboard,
@@ -24,7 +23,6 @@ import {
   getRegistrationFlow,
   getStaffSchedules,
   getServiceRecordFlow,
-  runBusinessAgent,
   updateAppointmentAction,
 } from '../services/auraCoreService';
 import {
@@ -35,8 +33,7 @@ import {
   type TerminalQueryKey,
   type TerminalQueryResult,
 } from '../services/terminalQueryClient';
-import { isTerminalAgentRuntimeEnabled, runTerminalAgentIntent, shouldUseTerminalAgentRuntime } from '../services/terminalAgentAdapter';
-import type { TerminalAgentEngine } from '../services/agentRuntimeService';
+import { runTerminalAgentIntent, shouldUseTerminalAgentRuntime } from '../services/terminalAgentAdapter';
 import type { MicroAppRunResult } from './microAppTypes';
 
 type CacheableMicroAppConfig<T> = {
@@ -49,7 +46,6 @@ type CacheableMicroAppConfig<T> = {
 type RunMicroAppIntentOptions = {
   businessQueryContext?: BusinessQueryContext;
   agentContext?: Record<string, unknown>;
-  agentEngine?: TerminalAgentEngine;
 };
 
 export function toTerminalDateKey(date: Date) {
@@ -376,33 +372,37 @@ export async function runMicroAppIntent(
       };
     }
 
-    return {
-      messages: [],
-      aiStream: { role: intent.role, command },
-    };
+    try {
+      return await runTerminalAgentIntent(intent, command, intent.role, options);
+    } catch (error) {
+      return {
+        messages: [
+          {
+            type: 'error',
+            payload: {
+              text: `智能服务暂不可用，请重试。原因：${formatAgentRuntimeError(error)}`,
+              source: 'ami-brain',
+            },
+          },
+        ],
+      };
+    }
   }
 
   if (shouldUseTerminalAgentRuntime(intent)) {
     try {
       return await runTerminalAgentIntent(intent, command, intent.role, options);
     } catch (error) {
-      const reason = formatAgentRuntimeError(error);
       return {
         messages: [
           {
             type: 'error',
             payload: {
-              text: `Agent Runtime 暂不可用，已切换到 Ami 智能问答兜底。原因：${reason}`,
-              source: 'agent-runtime',
+              text: `智能服务暂不可用，请重试。原因：${formatAgentRuntimeError(error)}`,
+              source: 'ami-brain',
             },
           },
         ],
-        aiStream: {
-          role: intent.role,
-          command,
-          businessContext: `Agent Runtime fallback: ${reason}`,
-        },
-        aiCommand: command,
       };
     }
   }
@@ -411,33 +411,6 @@ export async function runMicroAppIntent(
   if (cacheableConfig) {
     const result = await runCacheableMicroApp(cacheableConfig);
     return result.aiSummary ? { ...result, aiCommand: command } : result;
-  }
-
-  if (action === 'business.query') {
-    if (!isTerminalAgentRuntimeEnabled()) {
-      return {
-        messages: [],
-        aiStream: { role: intent.role, command },
-      };
-    }
-    const context = {
-      ...(options.agentContext ?? {}),
-      ...(options.agentEngine ? { agentEngine: options.agentEngine } : {}),
-      ...(options.agentEngine === 'agent_v2'
-        ? { architecture: 'kg_llm_agent' }
-        : options.agentEngine === 'agent_v3'
-          ? { architecture: 'agent_v3_text_to_sql', agentV3Mode: 'execute' }
-          : options.agentEngine === 'agent_v5'
-            ? { architecture: 'agent_v5_business_ontology_agent', agentV5Mode: 'execute', boundary: 'drafts_followups_and_approval_only' }
-          : options.agentEngine === 'agent_v4'
-            ? { architecture: 'agent_v4_lifecycle_business_agent', agentV4Mode: 'execute', boundary: 'drafts_and_approval_only' }
-        : {}),
-      ...(options.businessQueryContext ? { previousBusinessQuery: options.businessQueryContext } : {}),
-    };
-    const data = await runBusinessAgent(command, intent.role, context);
-    return {
-      messages: [{ type: 'dashboard', payload: { kind: 'agentRun', data: data as AgentRunResult } }],
-    };
   }
 
   if (action === 'customer.followup') {

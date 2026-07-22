@@ -95,6 +95,7 @@ export function mapBrainResponseBlocks(blocks: readonly BrainResponseBlockCompat
     if (block.kind === 'comparison') return [{ kind: 'table', caption: '对比结果', columns: ['项目', '当前', '上期', '变化'], rows: block.items.map((item) => [item.label, item.current, item.previous, item.delta ?? '-']) }];
     if (block.kind === 'diagnosis') return block.findings.map((item) => ({ kind: 'alert', level: item.severity === 'critical' ? 'critical' : item.severity === 'warning' ? 'warning' : 'info', message: `${item.title}：${item.detail}` }));
     if (block.kind === 'clarification') return [{ kind: 'clarification_card', title: '需要确认', question: block.question, options: block.options.map((item) => ({ label: item.label, value: typeof item.value === 'string' ? item.value : JSON.stringify(item.value), actionId: item.id })) }];
+    if (block.kind === 'follow_up_questions') return [{ kind: 'follow_up_chips', suggestions: block.questions.map((item) => item.value || item.label) }];
     if (block.kind === 'limitations') return [{ kind: 'data_gap', title: '未完成范围', message: block.items.join('；'), missingData: block.items }];
     if (block.kind === 'evidence') return [{ kind: 'evidence_panel', sources: block.citations.map((item) => item.label ?? item.sourceId), metricDefinition: block.citations.map((item) => item.definition).filter(Boolean).join('；') || 'Ami Core 业务定义' }];
     if (block.kind === 'action_preview') {

@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { BrainCapabilityCandidate } from '../capability/brain-capability.types.js';
 
@@ -14,6 +13,11 @@ type BrainSkillRegistryRow = Record<string, unknown> & {
   riskLevel: unknown;
 };
 
+type BrainSkillSummaryRow = Record<string, unknown> & {
+  skillKey: string;
+  version: number;
+};
+
 @Injectable()
 export class BrainSkillRegistryService {
   constructor(private readonly prisma: PrismaService) {}
@@ -22,56 +26,66 @@ export class BrainSkillRegistryService {
     return this.listLatestEnabledSkills();
   }
 
-  async listLatestEnabledSkills(): Promise<BrainSkillRegistryRow[]> {
-    return this.db().$transaction(
-      async (tx: any) => {
-        const latestVersions = await tx.brainSkillRegistry.groupBy({
-          by: ['skillKey'],
-          where: { enabled: true },
-          _max: { version: true },
-        });
-        const selectors = latestVersions.flatMap((item: { skillKey: string; _max?: { version?: number | null } }) => {
-          const version = item._max?.version;
-          return version == null ? [] : [{ skillKey: item.skillKey, version }];
-        });
-        if (selectors.length === 0) return [];
-
-        return tx.brainSkillRegistry.findMany({
-          where: { enabled: true, OR: selectors },
-          orderBy: { skillKey: 'asc' },
-        });
+  async listEnabledSkillSummaries(): Promise<BrainSkillSummaryRow[]> {
+    const rows = await this.db().brainSkillRegistry.findMany({
+      where: { enabled: true },
+      orderBy: [{ skillKey: 'asc' }, { version: 'desc' }],
+      select: {
+        id: true,
+        skillKey: true,
+        name: true,
+        description: true,
+        type: true,
+        domains: true,
+        intents: true,
+        permissions: true,
+        allowedRoles: true,
+        readOnly: true,
+        sideEffect: true,
+        riskLevel: true,
+        requiresConfirmation: true,
+        idempotency: true,
+        timeoutMs: true,
+        grounding: true,
+        definitionRefs: true,
+        enabled: true,
+        version: true,
+        updatedAt: true,
       },
-      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
-    );
+    }) as BrainSkillSummaryRow[];
+    return this.latestBySkillKey(rows);
+  }
+
+  async listLatestEnabledSkills(): Promise<BrainSkillRegistryRow[]> {
+    return this.listLatestRows({ enabled: true });
   }
 
   async listLatestEnabledCapabilityCandidates(): Promise<BrainCapabilityCandidate[]> {
-    return this.db().$transaction(
-      async (tx: any) => {
-        const latestVersions = await tx.brainSkillRegistry.groupBy({
-          by: ['skillKey'],
-          where: { enabled: true, sourceFingerprint: { not: null } },
-          _max: { version: true },
-        });
-        const selectors = latestVersions.flatMap((item: { skillKey: string; _max?: { version?: number | null } }) => {
-          const version = item._max?.version;
-          return version == null ? [] : [{ skillKey: item.skillKey, version }];
-        });
-        if (!selectors.length) return [];
-        const rows = await tx.brainSkillRegistry.findMany({
-          where: { enabled: true, sourceFingerprint: { not: null }, OR: selectors },
-          orderBy: { skillKey: 'asc' },
-        });
-        return rows.map((row: any) => this.toCapabilityCandidate(row));
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
-    );
+    const rows = await this.listLatestRows({ enabled: true, sourceFingerprint: { not: null } });
+    return rows.map((row) => this.toCapabilityCandidate(row));
   }
 
   findEnabledSkill(skillKey: string) {
     return this.db().brainSkillRegistry.findFirst({
       where: { skillKey, enabled: true },
       orderBy: { version: 'desc' },
+    });
+  }
+
+  private async listLatestRows(where: Record<string, unknown>): Promise<BrainSkillRegistryRow[]> {
+    const rows = await this.db().brainSkillRegistry.findMany({
+      where,
+      orderBy: [{ skillKey: 'asc' }, { version: 'desc' }],
+    });
+    return this.latestBySkillKey(rows);
+  }
+
+  private latestBySkillKey<T extends { skillKey: string }>(rows: T[]): T[] {
+    const seen = new Set<string>();
+    return rows.filter((row) => {
+      if (seen.has(row.skillKey)) return false;
+      seen.add(row.skillKey);
+      return true;
     });
   }
 

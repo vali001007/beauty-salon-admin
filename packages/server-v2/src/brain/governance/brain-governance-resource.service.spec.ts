@@ -1,6 +1,381 @@
 import { BrainGovernanceResourceService } from './brain-governance-resource.service.js';
 
 describe('BrainGovernanceResourceService', () => {
+  it('builds a semantic graph only from published definitions and their declared models', async () => {
+    const service = new BrainGovernanceResourceService({
+      businessDefinition: {
+        findMany: jest.fn().mockResolvedValue([
+          { definitionKey: 'entity.customer', kind: 'entity', name: 'Customer', status: 'active', currentPublishedVersion: { version: 1, payload: { model: 'Customer', aliases: ['客户'] } } },
+          { definitionKey: 'entity.product_order', kind: 'entity', name: 'ProductOrder', status: 'active', currentPublishedVersion: { version: 1, payload: { model: 'ProductOrder', aliases: ['订单'] } } },
+          { definitionKey: 'relation.product_order.customer', kind: 'relation', name: '订单客户', status: 'active', currentPublishedVersion: { version: 1, payload: { fromModel: 'ProductOrder', toModel: 'Customer' } } },
+          { definitionKey: 'metric.paid_amount', kind: 'metric', name: '实收金额', status: 'active', currentPublishedVersion: { version: 2, payload: { sourceTables: ['ProductOrder'], aliases: ['实收'] } } },
+        ]),
+      },
+    } as never);
+
+    const graph = await service.getSemanticGraph();
+
+    expect(graph.summary).toMatchObject({ entities: 2, relations: 1, metrics: 1, tables: 2 });
+    expect(graph.nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'entity.customer', label: '客户', kind: 'entity' }),
+      expect.objectContaining({ id: 'metric.paid_amount', kind: 'metric', version: 2 }),
+      expect.objectContaining({ id: 'table:ProductOrder', kind: 'table' }),
+    ]));
+    expect(graph.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: 'entity.product_order', target: 'relation.product_order.customer', kind: 'relation_from' }),
+      expect.objectContaining({ source: 'relation.product_order.customer', target: 'entity.customer', kind: 'relation_to' }),
+      expect.objectContaining({ source: 'metric.paid_amount', target: 'entity.product_order', kind: 'metric_entity' }),
+    ]));
+  });
+
+  it('builds a lightweight semantic summary with governed metadata and real 30-day hit rate', async () => {
+    const queryRaw = jest
+      .fn()
+      .mockResolvedValueOnce([{
+        id: 14,
+        resourceKey: 'card',
+        name: '会员卡',
+        version: 2,
+        sourceStatus: 'active',
+        sourceDescription: null,
+        sourceMetadata: { table: 'MemberCard' },
+        sourceFuzzyTerms: ['卡项', '储值卡'],
+        definitionId: 81,
+        definitionKey: 'card',
+        definitionStatus: 'active',
+        currentPublishedVersionId: 91,
+        definitionVersionId: 91,
+        definitionLifecycleStatus: 'published',
+        definitionPayload: { description: '会员持有的储值与次卡账户', aliases: ['会员卡', '卡账户'] },
+        updatedAt: new Date('2026-07-21T10:00:00.000Z'),
+        historyCount: 2,
+      }])
+      .mockResolvedValueOnce([{ definitionKey: 'card', hitCount: 3 }]);
+    const service = new BrainGovernanceResourceService({
+      $queryRaw: queryRaw,
+      brainRun: { count: jest.fn().mockResolvedValue(12) },
+      businessDefinition: { findMany: jest.fn().mockResolvedValue([]) },
+    } as never);
+
+    await expect(
+      service.listSemanticGovernanceSummaries({ resourceType: 'ontology_entity', storeId: 2 }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: 14,
+        resourceKey: 'card',
+        semanticDescription: '会员持有的储值与次卡账户',
+        dataTables: ['MemberCard'],
+        fuzzyTerms: ['卡项', '储值卡', '会员卡', '卡账户'],
+        hitCount: 3,
+        sampleCount: 12,
+        hitRate: 0.25,
+        enabled: true,
+        managed: true,
+        historyCount: 2,
+      }),
+    ]);
+
+    expect(queryRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows no semantic hit rate when the store has no completed run sample', async () => {
+    const queryRaw = jest
+      .fn()
+      .mockResolvedValueOnce([{
+        id: 15,
+        resourceKey: 'bom',
+        name: 'BOM',
+        version: 1,
+        sourceStatus: 'active',
+        sourceDescription: null,
+        sourceMetadata: { strategy: 'semantic_layer_mapping_required' },
+        sourceFuzzyTerms: [],
+        definitionId: null,
+        definitionKey: null,
+        definitionStatus: null,
+        currentPublishedVersionId: null,
+        definitionVersionId: null,
+        definitionLifecycleStatus: null,
+        definitionPayload: null,
+        updatedAt: new Date('2026-07-21T10:00:00.000Z'),
+        historyCount: 1,
+      }])
+      .mockResolvedValueOnce([]);
+    const service = new BrainGovernanceResourceService({
+      $queryRaw: queryRaw,
+      brainRun: { count: jest.fn().mockResolvedValue(0) },
+      businessDefinition: { findMany: jest.fn().mockResolvedValue([]) },
+    } as never);
+
+    const result = await service.listSemanticGovernanceSummaries({
+      resourceType: 'ontology_entity',
+      storeId: 2,
+    });
+
+    expect(result[0]).toMatchObject({ hitRate: null, hitCount: 0, sampleCount: 0, managed: false });
+  });
+
+  it('uses published business definitions as the governed semantic source and hides duplicate legacy rows', async () => {
+    const queryRaw = jest
+      .fn()
+      .mockResolvedValueOnce([{
+        id: 14,
+        resourceKey: 'customer',
+        name: '客户旧投影',
+        version: 1,
+        sourceStatus: 'active',
+        sourceDescription: null,
+        sourceMetadata: {},
+        sourceFuzzyTerms: ['客户'],
+        definitionId: null,
+        definitionKey: null,
+        definitionStatus: null,
+        currentPublishedVersionId: null,
+        definitionVersionId: null,
+        definitionLifecycleStatus: null,
+        definitionPayload: null,
+        updatedAt: new Date('2026-07-20T10:00:00.000Z'),
+        historyCount: 1,
+      }])
+      .mockResolvedValueOnce([{ definitionKey: 'entity.customer', hitCount: 4 }]);
+    const service = new BrainGovernanceResourceService({
+      $queryRaw: queryRaw,
+      brainRun: { count: jest.fn().mockResolvedValue(10) },
+      businessDefinition: {
+        findMany: jest.fn().mockResolvedValue([{
+          id: 43,
+          definitionKey: 'entity.customer',
+          name: 'Customer',
+          status: 'active',
+          currentPublishedVersionId: 43,
+          updatedAt: new Date('2026-07-21T10:00:00.000Z'),
+          currentPublishedVersion: {
+            id: 43,
+            version: 1,
+            payload: { model: 'Customer', aliases: ['客户'] },
+            lifecycleStatus: 'published',
+            publishedAt: new Date('2026-07-21T10:00:00.000Z'),
+            createdAt: new Date('2026-07-21T09:00:00.000Z'),
+          },
+          _count: { versions: 1 },
+        }]),
+      },
+    } as never);
+
+    const result = await service.listSemanticGovernanceSummaries({
+      resourceType: 'ontology_entity',
+      storeId: 2,
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      id: 43,
+      resourceKey: 'entity.customer',
+      dataTables: ['Customer'],
+      fuzzyTerms: ['客户'],
+      hitCount: 4,
+      hitRate: 0.4,
+      managed: true,
+      enabled: true,
+    });
+  });
+
+  it('loads semantic history without calculating run statistics', async () => {
+    const queryRaw = jest.fn().mockResolvedValue([{
+      id: 33,
+      resourceKey: 'paid_amount',
+      name: '实收金额',
+      version: 3,
+      sourceStatus: 'active',
+      sourceDescription: '支付成功后的实收金额',
+      sourceMetadata: ['Order'],
+      sourceFuzzyTerms: [],
+      definitionId: 41,
+      definitionKey: 'paid_amount',
+      definitionStatus: 'active',
+      currentPublishedVersionId: 51,
+      definitionVersionId: 51,
+      definitionLifecycleStatus: 'published',
+      definitionPayload: { aliases: ['实收'] },
+      updatedAt: new Date('2026-07-21T10:00:00.000Z'),
+      historyCount: 3,
+    }]);
+    const service = new BrainGovernanceResourceService({
+      $queryRaw: queryRaw,
+      businessDefinition: { findUnique: jest.fn().mockResolvedValue(null) },
+    } as never);
+
+    await expect(service.listSemanticGovernanceHistory({
+      resourceType: 'metric',
+      resourceKey: 'paid_amount',
+    })).resolves.toEqual([
+      expect.objectContaining({ id: 33, version: 3, dataTables: ['Order'], fuzzyTerms: ['实收'] }),
+    ]);
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('toggles the current published business definition instead of mutating a legacy projection', async () => {
+    const update = jest.fn().mockResolvedValue({
+      id: 41,
+      definitionKey: 'paid_amount',
+      kind: 'metric',
+      name: '实收金额',
+      status: 'archived',
+      currentPublishedVersionId: 51,
+      updatedAt: new Date('2026-07-21T10:00:00.000Z'),
+    });
+    const service = new BrainGovernanceResourceService({
+      businessDefinition: {
+        findUnique: jest.fn().mockResolvedValue({ id: 41, currentPublishedVersionId: 51 }),
+        update,
+      },
+      businessDefinitionVersion: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 51,
+          definitionId: 41,
+          lifecycleStatus: 'published',
+          definition: { currentPublishedVersionId: 51 },
+        }),
+      },
+    } as never);
+
+    await expect(service.setPublishedSemanticEnabled({
+      resourceType: 'metric',
+      resourceKey: 'paid_amount',
+      enabled: false,
+    })).resolves.toMatchObject({ status: 'archived', enabled: false });
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 41 },
+      data: { status: 'archived' },
+    }));
+  });
+
+  it('rejects semantic toggles for ungoverned legacy projections', async () => {
+    const update = jest.fn();
+    const service = new BrainGovernanceResourceService({
+      businessDefinition: { findUnique: jest.fn().mockResolvedValue(null), update },
+    } as never);
+
+    await expect(service.setPublishedSemanticEnabled({
+      resourceType: 'ontology_entity',
+      resourceKey: 'card',
+      enabled: false,
+    })).rejects.toThrow('semantic_enable_requires_governed_published_version');
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('loads one lightweight latest row per skill for the governance table', async () => {
+    const rows = [{
+      versionId: 1053,
+      skillId: 1053,
+      skillKey: 'appointment_gap_list',
+      name: '预约空档查询',
+      description: '查询指定日期的预约空档',
+      domains: ['reservation', 'staff'],
+      definitionRefs: [
+        { definitionKey: 'entity.reservation' },
+        { definitionKey: 'entity.beautician' },
+        { definitionKey: 'metric.appointment_count' },
+        { definitionKey: 'dimension.beauticianName' },
+      ],
+      version: 17,
+      status: 'draft',
+      activeVersionId: 986,
+      activeVersion: 15,
+      enabled: true,
+      historyCount: 17,
+      updatedAt: new Date('2026-07-21T05:33:51.889Z'),
+    }];
+    const queryRaw = jest.fn().mockResolvedValue(rows);
+    const service = new BrainGovernanceResourceService({ $queryRaw: queryRaw } as never);
+
+    await expect(service.listSkillGovernanceSummaries({ take: 100 })).resolves.toEqual([{
+      versionId: 1053,
+      skillId: 1053,
+      skillKey: 'appointment_gap_list',
+      name: '预约空档查询',
+      description: '查询指定日期的预约空档',
+      version: 17,
+      status: 'draft',
+      activeVersionId: 986,
+      activeVersion: 15,
+      enabled: true,
+      historyCount: 17,
+      updatedAt: new Date('2026-07-21T05:33:51.889Z'),
+      domains: ['reservation', 'staff'],
+      entities: ['reservation', 'beautician'],
+      metrics: ['appointment_count'],
+    }]);
+
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('loads bounded version history for one skill key', async () => {
+    const queryRaw = jest.fn().mockResolvedValue([{ versionId: 1053, version: 17 }]);
+    const service = new BrainGovernanceResourceService({ $queryRaw: queryRaw } as never);
+
+    await expect(
+      service.listSkillGovernanceHistory({ skillKey: 'appointment_gap_list', take: 500 }),
+    ).resolves.toEqual([{ versionId: 1053, version: 17 }]);
+
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('toggles only the already published skill source row', async () => {
+    const tx = {
+      brainResourceVersion: {
+        findFirst: jest.fn().mockResolvedValue({ id: 986, version: 15, sourceResourceId: 986 }),
+      },
+      brainSkillRegistry: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        update: jest.fn().mockResolvedValue({
+          id: 986,
+          skillKey: 'appointment_gap_list',
+          name: '预约空档查询',
+          version: 15,
+          enabled: true,
+          updatedAt: new Date('2026-07-21T05:33:51.889Z'),
+        }),
+      },
+    };
+    const service = new BrainGovernanceResourceService({
+      $transaction: jest.fn((operation) => operation(tx)),
+    } as never);
+
+    await expect(
+      service.setPublishedSkillEnabled({ skillKey: 'appointment_gap_list', enabled: true }),
+    ).resolves.toMatchObject({ enabled: true, activeVersionId: 986, activeVersion: 15 });
+
+    expect(tx.brainResourceVersion.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ status: 'active', resourceKey: 'appointment_gap_list' }),
+    }));
+    expect(tx.brainSkillRegistry.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 986 },
+      data: { enabled: true },
+    }));
+  });
+
+  it('supports lightweight version lists without loading JSON snapshots', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const service = new BrainGovernanceResourceService({
+      brainResourceVersion: { findMany },
+    } as never);
+
+    await service.listVersions({ includeSnapshot: false, take: 100 });
+
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      take: 100,
+      select: {
+        id: true,
+        resourceType: true,
+        resourceKey: true,
+        version: true,
+        status: true,
+        createdAt: true,
+      },
+    }));
+  });
+
   it.each([
     [
       'metric',

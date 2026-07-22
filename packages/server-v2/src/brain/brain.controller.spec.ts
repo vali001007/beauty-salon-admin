@@ -1,6 +1,7 @@
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { PermissionsGuard } from '../common/guards/permissions.guard.js';
+import { PERMISSIONS_KEY } from '../common/decorators/permissions.decorator.js';
 import { BrainController } from './brain.controller.js';
 import { BrainContextService } from './context/brain-context.service.js';
 
@@ -38,6 +39,20 @@ describe('BrainController', () => {
     expect(guards).toEqual(expect.arrayContaining([JwtAuthGuard, PermissionsGuard]));
   });
 
+  it('exposes the runtime eval catalog to Ami Brain users without granting governance access', () => {
+    const runtimePermissions = Reflect.getMetadata(
+      PERMISSIONS_KEY,
+      BrainController.prototype.listRuntimeEvalQuestionCatalog,
+    );
+    const governancePermissions = Reflect.getMetadata(
+      PERMISSIONS_KEY,
+      BrainController.prototype.listEvalQuestionCatalog,
+    );
+
+    expect(runtimePermissions).toEqual(['core:brain:use']);
+    expect(governancePermissions).toEqual(['core:brain-governance:view']);
+  });
+
   it('creates a conversation through the real chat service with injected store context', async () => {
     chatService.createConversation.mockResolvedValue({ id: 42, title: '晨会经营复盘', storeId: 2 });
 
@@ -46,6 +61,26 @@ describe('BrainController', () => {
     expect(response).toEqual({ id: 42, title: '晨会经营复盘', storeId: 2 });
     expect(chatService.createConversation).toHaveBeenCalledWith(expect.objectContaining({ storeId: 2, userId: 9 }), {
       title: '晨会经营复盘',
+    });
+  });
+
+  it('forwards bounded conversation pagination to the chat service', async () => {
+    chatService.listConversations.mockResolvedValue({
+      items: [],
+      total: 24,
+      page: 2,
+      pageSize: 10,
+      storeId: 2,
+    });
+
+    await expect(controller.listConversations(request, '2', '10')).resolves.toMatchObject({
+      total: 24,
+      page: 2,
+      pageSize: 10,
+    });
+    expect(chatService.listConversations).toHaveBeenCalledWith(expect.objectContaining({ storeId: 2, userId: 9 }), {
+      page: 2,
+      pageSize: 10,
     });
   });
 
@@ -221,6 +256,43 @@ describe('BrainController', () => {
     );
   }
 
+  function controllerWithFeedbackService(feedbackService: unknown) {
+    return new BrainController(
+      contextService,
+      chatService as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      feedbackService as never,
+    );
+  }
+
+  it('lists the current user feedback issues with bounded pagination', async () => {
+    const feedbackService = {
+      listUserIssues: jest.fn().mockResolvedValue({ items: [], total: 0, page: 2, pageSize: 10, storeId: 2 }),
+    };
+    const feedbackController = controllerWithFeedbackService(feedbackService);
+
+    await expect(feedbackController.listFeedbackIssues(request, '2', '10')).resolves.toMatchObject({
+      items: [],
+      page: 2,
+      pageSize: 10,
+      storeId: 2,
+    });
+    expect(feedbackService.listUserIssues).toHaveBeenCalledWith({
+      storeId: 2,
+      userId: 9,
+      page: 2,
+      pageSize: 10,
+    });
+  });
+
   it('executes confirmed actions with current user, store and permission context', async () => {
     const actionConfirmationService = {
       confirmAndExecute: jest.fn().mockResolvedValue({
@@ -306,23 +378,27 @@ describe('BrainController', () => {
 
   it('lists persisted action statuses for the current run, user and store', async () => {
     const actionConfirmationService = {
-      listExecutionStatuses: jest.fn().mockResolvedValue([
-        { actionId: 'act_1', executionId: 31, status: 'succeeded', receipt: { businessObjectId: 88 } },
-      ]),
+      listExecutionStatuses: jest
+        .fn()
+        .mockResolvedValue([
+          { actionId: 'act_1', executionId: 31, status: 'succeeded', receipt: { businessObjectId: 88 } },
+        ]),
     };
     const actionController = controllerWithActionService(actionConfirmationService);
 
     await expect(actionController.listRunActionStatuses(request, '5')).resolves.toEqual({
       runId: 5,
       storeId: 2,
-      items: [{
-        actionId: 'act_1',
-        executionId: 31,
-        status: 'succeeded',
-        receipt: { businessObjectId: 88 },
-        runId: 5,
-        storeId: 2,
-      }],
+      items: [
+        {
+          actionId: 'act_1',
+          executionId: 31,
+          status: 'succeeded',
+          receipt: { businessObjectId: 88 },
+          runId: 5,
+          storeId: 2,
+        },
+      ],
     });
     expect(actionConfirmationService.listExecutionStatuses).toHaveBeenCalledWith({
       runId: 5,
@@ -337,6 +413,109 @@ describe('BrainController', () => {
     await expect(controller.listRoleProfiles()).resolves.toMatchObject({ items: [] });
     await expect(controller.listSkills()).resolves.toMatchObject({ items: [] });
     await expect(controller.listInspectionRules()).resolves.toMatchObject({ items: [] });
+  });
+
+  it('exposes skill summaries, history and the published-version runtime switch', async () => {
+    const governanceResourceService = {
+      listSkillGovernanceSummaries: jest.fn().mockResolvedValue([{ skillKey: 'appointment_gap_list' }]),
+      listSkillGovernanceHistory: jest.fn().mockResolvedValue([{ skillKey: 'appointment_gap_list', version: 17 }]),
+      setPublishedSkillEnabled: jest.fn().mockResolvedValue({ skillKey: 'appointment_gap_list', enabled: false }),
+    };
+    const skillController = new BrainController(
+      contextService,
+      chatService as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      governanceResourceService as never,
+    );
+
+    await expect(skillController.listSkillGovernanceSummaries('50')).resolves.toMatchObject({
+      items: [{ skillKey: 'appointment_gap_list' }],
+    });
+    await expect(skillController.listSkillGovernanceHistory('appointment_gap_list', '20')).resolves.toMatchObject({
+      items: [{ version: 17 }],
+    });
+    await expect(
+      skillController.setPublishedSkillEnabled('appointment_gap_list', { enabled: false }),
+    ).resolves.toMatchObject({ enabled: false });
+
+    expect(governanceResourceService.listSkillGovernanceSummaries).toHaveBeenCalledWith({ take: 50 });
+    expect(governanceResourceService.listSkillGovernanceHistory).toHaveBeenCalledWith({
+      skillKey: 'appointment_gap_list',
+      take: 20,
+    });
+    expect(governanceResourceService.setPublishedSkillEnabled).toHaveBeenCalledWith({
+      skillKey: 'appointment_gap_list',
+      enabled: false,
+    });
+  });
+
+  it('exposes store-scoped semantic summaries, history and the governed runtime switch', async () => {
+    const governanceResourceService = {
+      listSemanticGovernanceSummaries: jest.fn().mockResolvedValue([{ resourceKey: 'card', hitRate: 0.25 }]),
+      listSemanticGovernanceHistory: jest.fn().mockResolvedValue([{ resourceKey: 'card', version: 2 }]),
+      setPublishedSemanticEnabled: jest.fn().mockResolvedValue({ definitionKey: 'card', enabled: false }),
+      getSemanticGraph: jest
+        .fn()
+        .mockResolvedValue({ nodes: [{ id: 'entity.customer' }], edges: [], summary: { entities: 1 } }),
+    };
+    const semanticController = new BrainController(
+      contextService,
+      chatService as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      governanceResourceService as never,
+    );
+
+    await expect(semanticController.listSemanticGovernanceSummaries(request, 'entities', '50')).resolves.toMatchObject({
+      items: [{ resourceKey: 'card', hitRate: 0.25 }],
+    });
+    await expect(semanticController.listSemanticGovernanceHistory('entities', 'card', '20')).resolves.toMatchObject({
+      items: [{ resourceKey: 'card', version: 2 }],
+    });
+    await expect(
+      semanticController.setPublishedSemanticEnabled('entities', 'card', { enabled: false }),
+    ).resolves.toMatchObject({ enabled: false });
+    await expect(semanticController.getSemanticGraph()).resolves.toMatchObject({
+      nodes: [{ id: 'entity.customer' }],
+    });
+
+    expect(governanceResourceService.listSemanticGovernanceSummaries).toHaveBeenCalledWith({
+      resourceType: 'ontology_entity',
+      storeId: 2,
+      take: 50,
+    });
+    expect(governanceResourceService.listSemanticGovernanceHistory).toHaveBeenCalledWith({
+      resourceType: 'ontology_entity',
+      resourceKey: 'card',
+      take: 20,
+    });
+    expect(governanceResourceService.setPublishedSemanticEnabled).toHaveBeenCalledWith({
+      resourceType: 'ontology_entity',
+      resourceKey: 'card',
+      enabled: false,
+    });
+    expect(governanceResourceService.getSemanticGraph).toHaveBeenCalledTimes(1);
   });
 
   it('runs and manages store-scoped inspection findings', async () => {
@@ -429,11 +608,13 @@ describe('BrainController', () => {
       findingId: 21,
       policy: { autoExecute: false },
     });
-    await expect(inspectionController.decideInspectionRepair(request, '21', {
-      decision: 'modify',
-      modifications: { safetyStock: 12 },
-      note: '按 7 天用量调整',
-    })).resolves.toMatchObject({ findingId: 21, status: 'in_progress' });
+    await expect(
+      inspectionController.decideInspectionRepair(request, '21', {
+        decision: 'modify',
+        modifications: { safetyStock: 12 },
+        note: '按 7 天用量调整',
+      }),
+    ).resolves.toMatchObject({ findingId: 21, status: 'in_progress' });
     expect(repairPreviewService.getPreview).toHaveBeenCalledWith({ storeId: 2, findingId: 21 });
     expect(repairPreviewService.recordDecision).toHaveBeenCalledWith({
       storeId: 2,
@@ -493,6 +674,7 @@ describe('BrainController', () => {
   it('exposes real eval, release and feedback governance endpoints', async () => {
     const evalService = {
       createEvalRun: jest.fn().mockResolvedValue({ id: 51, status: 'queued', caseCount: 1 }),
+      listQuestionCatalog: jest.fn().mockReturnValue({ items: [{ questionId: 'qb-1' }], total: 650 }),
     };
     const releaseService = {
       createRelease: jest.fn().mockResolvedValue({ id: 61, releaseKey: 'brain-mvp-v1', status: 'draft', createdBy: 9 }),
@@ -523,9 +705,29 @@ describe('BrainController', () => {
       id: 61,
       status: 'draft',
     });
+    expect(governanceController.listEvalQuestionCatalog('2', '50', '营业额', '经营概览', 'passed')).toMatchObject({
+      total: 650,
+    });
+    expect(governanceController.listRuntimeEvalQuestionCatalog('1', '10', 'qb-1')).toMatchObject({
+      total: 650,
+    });
     expect(evalService.createEvalRun).toHaveBeenCalledWith(
       expect.objectContaining({ storeId: 2, userId: 9, releaseId: 61 }),
     );
+    expect(evalService.listQuestionCatalog).toHaveBeenCalledWith({
+      page: 2,
+      pageSize: 50,
+      search: '营业额',
+      questionType: '经营概览',
+      status: 'passed',
+    });
+    expect(evalService.listQuestionCatalog).toHaveBeenCalledWith({
+      page: 1,
+      pageSize: 10,
+      search: 'qb-1',
+      questionType: undefined,
+      status: undefined,
+    });
     expect(releaseService.createRelease).toHaveBeenCalledWith(
       expect.objectContaining({ releaseKey: 'brain-mvp-v1', resourceVersionIds: [11], createdBy: 9 }),
     );
@@ -544,7 +746,7 @@ describe('BrainController', () => {
       }),
       rejectRelease: jest.fn().mockResolvedValue({ id: 61, status: 'archived' }),
       rollbackToRules: jest.fn().mockResolvedValue({ id: 60, status: 'active' }),
-      resolveRuntimeMode: jest.fn().mockResolvedValue({
+      resolveRuntimeSummary: jest.fn().mockResolvedValue({
         mode: 'shadow',
         release: { id: 60, releaseKey: 'brain-r1-shadow', rollout: { userPercentage: 100 } },
       }),
@@ -608,7 +810,11 @@ describe('BrainController', () => {
       governanceController.submitReleaseModification(request, '61', { requirement: '实收公式要排除退款' }),
     ).resolves.toMatchObject({ requestType: 'business_definition' });
 
-    expect(releaseService.resolveRuntimeMode).toHaveBeenCalledWith({ storeId: 2, userId: 9, roleKey: 'store_manager' });
+    expect(releaseService.resolveRuntimeSummary).toHaveBeenCalledWith({
+      storeId: 2,
+      userId: 9,
+      roleKey: 'store_manager',
+    });
     expect(releaseService.createRolloutSequence).toHaveBeenCalledWith({
       releaseKey: 'brain-r1',
       resourceVersionIds: [11],

@@ -3,6 +3,34 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { AsyncLocalStorage } from 'node:async_hooks';
 
+export interface DatabasePoolConfig {
+  max: number;
+  idleTimeoutMillis: number;
+  connectionTimeoutMillis: number;
+}
+
+export function resolveDatabasePoolConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): DatabasePoolConfig {
+  const defaultPoolMax = env.NODE_ENV === 'production' ? 5 : 2;
+
+  return {
+    max: readPositiveInteger(env.DATABASE_POOL_MAX, defaultPoolMax),
+    idleTimeoutMillis: readPositiveInteger(env.DATABASE_IDLE_TIMEOUT_MS, 10000),
+    connectionTimeoutMillis: readPositiveInteger(
+      env.DATABASE_CONNECTION_TIMEOUT_MS,
+      10000,
+    ),
+  };
+}
+
+function readPositiveInteger(value: string | undefined, fallback: number): number {
+  if (value === undefined || value.trim() === '') return fallback;
+
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   private static readonly queryCounter = new AsyncLocalStorage<{ count: number }>();
@@ -10,9 +38,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   constructor() {
     const adapter = new PrismaPg({
       connectionString: process.env.DATABASE_URL!,
-      max: Number(process.env.DATABASE_POOL_MAX || 5),
-      idleTimeoutMillis: Number(process.env.DATABASE_IDLE_TIMEOUT_MS || 10000),
-      connectionTimeoutMillis: Number(process.env.DATABASE_CONNECTION_TIMEOUT_MS || 10000),
+      ...resolveDatabasePoolConfig(),
     });
     super({ adapter, log: [{ emit: 'event', level: 'query' }] });
     (this as any).$on('query', () => {

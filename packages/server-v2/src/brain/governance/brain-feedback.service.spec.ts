@@ -435,3 +435,92 @@ describe('BrainFeedbackService semantic correction safety', () => {
     expect(prisma.brainFeedback.create).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('BrainFeedbackService governance reads', () => {
+  it('returns only the current user and store needs-improvement feedback with its original run content', async () => {
+    const prisma = {
+      brainFeedback: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 31, runId: 77, status: 'open', createdAt: new Date('2026-07-22T01:00:00.000Z') },
+        ]),
+        count: jest.fn().mockResolvedValue(1),
+      },
+      brainRun: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 77,
+            conversationId: 42,
+            status: 'completed',
+            input: { message: '本周营业额' },
+            output: { answer: '当前能力未返回营业额。' },
+          },
+        ]),
+      },
+    };
+    const service = new BrainFeedbackService(prisma as never, {} as never);
+
+    await expect(
+      service.listUserIssues({ storeId: 6, userId: 9, page: 2, pageSize: 10 }),
+    ).resolves.toMatchObject({
+      items: [
+        {
+          feedbackId: 31,
+          runId: 77,
+          conversationId: 42,
+          question: '本周营业额',
+          answer: '当前能力未返回营业额。',
+        },
+      ],
+      total: 1,
+      page: 2,
+      pageSize: 10,
+      storeId: 6,
+    });
+    expect(prisma.brainFeedback.findMany).toHaveBeenCalledWith({
+      where: { storeId: 6, userId: 9, rating: 'needs_improvement' },
+      orderBy: { createdAt: 'desc' },
+      skip: 10,
+      take: 10,
+      select: { id: true, runId: true, status: true, createdAt: true },
+    });
+    expect(prisma.brainRun.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: [77] }, storeId: 6, userId: 9 },
+      }),
+    );
+  });
+
+  it('uses bounded lightweight reads for dashboard metrics', async () => {
+    const prisma = {
+      brainRun: { findMany: jest.fn().mockResolvedValue([{ status: 'completed', latencyMs: 120 }]) },
+      brainFeedback: { findMany: jest.fn().mockResolvedValue([{ rating: 'helpful' }]) },
+      brainActionExecution: { findMany: jest.fn().mockResolvedValue([{ status: 'succeeded' }]) },
+      brainInspectionFinding: { findMany: jest.fn().mockResolvedValue([{ status: 'closed', disposition: 'adopted', feedback: null }]) },
+      brainEvalRun: { findFirst: jest.fn().mockResolvedValue({ summary: { canRelease: true } }) },
+    };
+    const service = new BrainFeedbackService(prisma as never, {} as never);
+
+    await expect(service.getDashboard({ storeId: 6 })).resolves.toMatchObject({
+      runCount: 1,
+      helpfulRate: 1,
+      actionSuccessRate: 1,
+      latestEvalSummary: { canRelease: true },
+    });
+    expect(prisma.brainRun.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      select: { status: true, latencyMs: true },
+      take: 1000,
+    }));
+    expect(prisma.brainEvalRun.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      select: { summary: true },
+    }));
+  });
+
+  it('bounds the feedback list shown by the management console', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const service = new BrainFeedbackService({ brainFeedback: { findMany } } as never, {} as never);
+
+    await service.listFeedback({ storeId: 6 });
+
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 100 }));
+  });
+});

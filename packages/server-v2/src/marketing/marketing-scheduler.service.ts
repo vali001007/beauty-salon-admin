@@ -9,6 +9,9 @@ import { MarketingFeatureFlagsService } from './marketing-feature-flags.service.
 
 @Injectable()
 export class MarketingSchedulerService {
+  private recommendationRefreshRunning = false;
+  private dailyPredictionRunning = false;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly marketingService: MarketingService,
@@ -20,22 +23,61 @@ export class MarketingSchedulerService {
 
   @Cron('* * * * *', { timeZone: 'Asia/Shanghai' })
   runScheduledStrategies() {
+    if (!this.schedulerEnabled()) return { skipped: true, reason: 'scheduler_disabled' };
     return this.runDueStrategies(new Date());
   }
 
   @Cron('15 2 * * *', { timeZone: 'Asia/Shanghai' })
+  async runScheduledDailyPredictions() {
+    if (!this.schedulerEnabled() || this.dailyPredictionRunning) {
+      return { skipped: true, reason: this.dailyPredictionRunning ? 'already_running' : 'scheduler_disabled' };
+    }
+    this.dailyPredictionRunning = true;
+    try {
+      return await this.runDailyPredictions();
+    } finally {
+      this.dailyPredictionRunning = false;
+    }
+  }
+
   async runDailyPredictions() {
     const stores = await this.findActiveStores();
-    return Promise.allSettled(stores.map(async (store) => {
-      await this.predictionRunService.runForStore(store.id);
-      return this.recommendationOrchestrator.refreshForStore(store.id);
-    }));
+    const results: PromiseSettledResult<unknown>[] = [];
+    for (const store of stores) {
+      try {
+        await this.predictionRunService.runForStore(store.id);
+        results.push({ status: 'fulfilled', value: await this.recommendationOrchestrator.refreshForStore(store.id) });
+      } catch (reason) {
+        results.push({ status: 'rejected', reason });
+      }
+    }
+    return results;
   }
 
   @Cron('*/5 * * * *', { timeZone: 'Asia/Shanghai' })
+  async runScheduledRecommendationRefresh() {
+    if (!this.schedulerEnabled() || this.recommendationRefreshRunning) {
+      return { skipped: true, reason: this.recommendationRefreshRunning ? 'already_running' : 'scheduler_disabled' };
+    }
+    this.recommendationRefreshRunning = true;
+    try {
+      return await this.refreshRecommendationInstances();
+    } finally {
+      this.recommendationRefreshRunning = false;
+    }
+  }
+
   async refreshRecommendationInstances() {
     const stores = await this.findActiveStores();
-    return Promise.allSettled(stores.map((store) => this.recommendationOrchestrator.refreshForStore(store.id)));
+    const results: PromiseSettledResult<unknown>[] = [];
+    for (const store of stores) {
+      try {
+        results.push({ status: 'fulfilled', value: await this.recommendationOrchestrator.refreshForStore(store.id) });
+      } catch (reason) {
+        results.push({ status: 'rejected', reason });
+      }
+    }
+    return results;
   }
 
   async runDueStrategies(now: Date) {
@@ -71,5 +113,10 @@ export class MarketingSchedulerService {
       where: { deletedAt: null, status: 'active' },
       select: { id: true },
     });
+  }
+
+  private schedulerEnabled() {
+    const configured = process.env.MARKETING_SCHEDULER_ENABLED;
+    return configured == null ? process.env.NODE_ENV === 'production' : configured === 'true';
   }
 }

@@ -26,6 +26,7 @@ export interface Permission {
   module: string;
   platform: PermissionPlatform;
   description: string;
+  riskLevel?: 'low' | 'medium' | 'high' | 'critical';
   legacyCodes?: string[];
   children?: Permission[];
 }
