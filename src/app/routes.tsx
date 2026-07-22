@@ -11,6 +11,8 @@ import { RouteErrorPage } from './pages/RouteErrorPage';
 const LoginPage = lazyWithRetry(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })), 'LoginPage');
 const RegisterPage = lazyWithRetry(() => import('./pages/RegisterPage').then(m => ({ default: m.RegisterPage })), 'RegisterPage');
 const Dashboard = lazyWithRetry(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })), 'Dashboard');
+const StoreMetricsOverview = lazyWithRetry(() => import('./pages/store-metrics/StoreMetricsOverview').then(m => ({ default: m.StoreMetricsOverview })), 'StoreMetricsOverview');
+const StoreMetricTargets = lazyWithRetry(() => import('./pages/store-metrics/StoreMetricTargets').then(m => ({ default: m.StoreMetricTargets })), 'StoreMetricTargets');
 const AskDataWorkbench = lazyWithRetry(() => import('./pages/ask-data/AskDataWorkbench').then(m => ({ default: m.AskDataWorkbench })), 'AskDataWorkbench');
 const BrainWorkspace = lazyWithRetry(() => import('./pages/brain/BrainWorkspace').then(m => ({ default: m.BrainWorkspace })), 'BrainWorkspace');
 const BrainGovernanceCenter = lazyWithRetry(() => import('./pages/brain/BrainGovernanceCenter').then(m => ({ default: m.BrainGovernanceCenter })), 'BrainGovernanceCenter');
@@ -150,6 +152,8 @@ export const router = createBrowserRouter([
       { path: 'dashboard', element: withSuspense(Dashboard) },
       { path: 'ask-data', element: withGuard('core:dashboard:view', AskDataWorkbench) },
       { path: 'brain', element: withGuard('core:brain:use', BrainWorkspace) },
+      { path: 'store-operations/metrics', element: withGuard('core:store-metrics:view', StoreMetricsOverview) },
+      { path: 'store-operations/metrics/targets', element: withGuard('core:store-metrics:target:view', StoreMetricTargets) },
 
       // Customers
       { path: 'customers/data', element: withGuard('core:customer:view', CustomerData) },

@@ -355,6 +355,8 @@ export class CardsService {
     operatorId?: number;
     beauticianId?: number;
     deviceId?: number;
+    reservationId?: number;
+    serviceTaskId?: number;
     remark?: string;
     idempotencyKey?: string;
   }) {
@@ -509,6 +511,8 @@ export class CardsService {
           operatorId: data.operatorId,
           beauticianId: beautician?.id,
           deviceId: data.deviceId,
+          reservationId: data.reservationId,
+          serviceTaskId: data.serviceTaskId,
         },
       });
 
