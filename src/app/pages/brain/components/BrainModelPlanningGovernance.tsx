@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import {
   getBrainGovernanceRuntimeConfig,
   getBrainTrace,
+  isBrainGovernanceReadCancelled,
   listBrainResourceVersions,
   listBrainSkills,
   listBrainTraces,
@@ -38,9 +39,11 @@ export function BrainModelPlanningGovernance() {
   const loadOverview = useCallback(async () => {
     setLoading(true);
     try {
-      const [skillResponse, versionResponse, traceResponse, runtimeResponse] = await Promise.all([
-        listBrainSkills(),
-        listBrainResourceVersions(),
+      const [skillResponse, versionResponse] = await Promise.all([
+        listBrainSkills({ summary: true }),
+        listBrainResourceVersions({ includeSnapshot: false, take: 100 }),
+      ]);
+      const [traceResponse, runtimeResponse] = await Promise.all([
         listBrainTraces(),
         getBrainGovernanceRuntimeConfig(),
       ]);
@@ -50,6 +53,7 @@ export function BrainModelPlanningGovernance() {
       setRuntime(runtimeResponse);
       setSelectedRunId((current) => current ?? traceResponse.items?.[0]?.id ?? null);
     } catch (error) {
+      if (isBrainGovernanceReadCancelled(error)) return;
       toast.error(error instanceof Error ? error.message : '模型规划治理数据加载失败');
     } finally {
       setLoading(false);
@@ -71,7 +75,9 @@ export function BrainModelPlanningGovernance() {
         if (active) setTrace(result);
       })
       .catch((error) => {
-        if (active) toast.error(error instanceof Error ? error.message : '运行轨迹加载失败');
+        if (active && !isBrainGovernanceReadCancelled(error)) {
+          toast.error(error instanceof Error ? error.message : '运行轨迹加载失败');
+        }
       });
     return () => {
       active = false;

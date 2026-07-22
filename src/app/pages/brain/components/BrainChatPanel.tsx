@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bot, Loader2, MessageSquarePlus, Send, UserRound } from 'lucide-react';
-import type { BrainMessage, BrainRoleKey } from '@/types/brain';
+import { Activity, Bot, Loader2, MessageSquarePlus, Send, UserRound } from 'lucide-react';
+import type { BrainGuidanceSelection, BrainMessage, BrainRoleKey } from '@/types/brain';
 import { BrainResponseRenderer } from './BrainResponseRenderer';
 
 const roleOptions: Array<{ value: BrainRoleKey | ''; label: string }> = [
@@ -17,10 +17,12 @@ const roleOptions: Array<{ value: BrainRoleKey | ''; label: string }> = [
 interface BrainChatPanelProps {
   conversationId: number | null;
   messages: BrainMessage[];
+  selectedRunId?: number;
   loadingMessages: boolean;
   sending: boolean;
+  prefillRequest?: { key: string; message: string };
   onCreateConversation: () => void;
-  onSend: (message: string, roleHint?: BrainRoleKey) => Promise<void>;
+  onSend: (message: string, roleHint?: BrainRoleKey, guidanceSelection?: BrainGuidanceSelection) => Promise<void>;
   onSelectAssistant: (message: BrainMessage) => void;
 }
 
@@ -33,8 +35,10 @@ function formatTime(value: string) {
 export function BrainChatPanel({
   conversationId,
   messages,
+  selectedRunId,
   loadingMessages,
   sending,
+  prefillRequest,
   onCreateConversation,
   onSend,
   onSelectAssistant,
@@ -42,10 +46,24 @@ export function BrainChatPanel({
   const [message, setMessage] = useState('');
   const [roleHint, setRoleHint] = useState<BrainRoleKey | ''>('');
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const latestMessage = messages[messages.length - 1];
+  const interactiveAssistantId = latestMessage?.role === 'assistant' ? latestMessage.id : null;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'end' });
   }, [messages, sending]);
+
+  useEffect(() => {
+    if (!selectedRunId) return;
+    const target = scrollRef.current?.querySelector<HTMLElement>(`[data-run-id="${selectedRunId}"]`);
+    target?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+  }, [messages, selectedRunId]);
+
+  useEffect(() => {
+    if (!prefillRequest?.message) return;
+    setMessage(prefillRequest.message);
+  }, [prefillRequest?.key, prefillRequest?.message]);
 
   async function submit() {
     const text = message.trim();
@@ -55,10 +73,15 @@ export function BrainChatPanel({
   }
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col bg-background">
-      <header className="flex min-h-16 items-center justify-between gap-3 border-b border-border px-4 py-3 lg:px-6">
+    <main
+      data-testid="brain-chat-panel"
+      className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background"
+    >
+      <header className="flex min-h-16 shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3 lg:px-6">
         <div className="min-w-0">
-          <div className="truncate text-sm font-semibold text-foreground">{conversationId ? `会话 #${conversationId}` : '开始新的经营对话'}</div>
+          <div className="truncate text-sm font-semibold text-foreground">
+            {conversationId ? `会话 #${conversationId}` : '开始新的经营对话'}
+          </div>
           <div className="mt-0.5 text-xs text-muted-foreground">回答使用当前门店权限与真实业务数据</div>
         </div>
         <button
@@ -71,7 +94,7 @@ export function BrainChatPanel({
         </button>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 lg:px-8">
+      <div ref={scrollRef} data-testid="brain-message-scroll" className="min-h-0 flex-1 overflow-y-auto px-4 py-5 lg:px-8">
         {loadingMessages ? (
           <div className="flex h-full min-h-48 items-center justify-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -89,13 +112,12 @@ export function BrainChatPanel({
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
             {messages.map((item) => {
               const assistant = item.role === 'assistant';
+              const interactive = assistant && item.id === interactiveAssistantId && item.id > 0 && !sending;
               return (
-                <button
+                <div
                   key={item.id}
-                  type="button"
+                  data-run-id={assistant && item.metadata?.runId ? item.metadata.runId : undefined}
                   className={`flex w-full items-start gap-3 text-left ${assistant ? '' : 'flex-row-reverse'}`}
-                  onClick={() => assistant && onSelectAssistant(item)}
-                  disabled={!assistant}
                 >
                   <span
                     className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${
@@ -104,24 +126,47 @@ export function BrainChatPanel({
                   >
                     {assistant ? <Bot className="h-4 w-4" /> : <UserRound className="h-4 w-4" />}
                   </span>
-                  <span
+                  <div
                     className={`min-w-0 max-w-[85%] rounded-md border px-4 py-3 text-sm leading-6 ${
                       assistant
-                        ? 'border-border bg-background text-foreground hover:border-primary/40'
+                        ? `border-border bg-background text-foreground ${item.metadata?.runId === selectedRunId ? 'ring-2 ring-destructive/40' : ''}`
                         : 'border-primary bg-primary text-primary-foreground'
                     }`}
                   >
                     {assistant ? (
-                      <BrainResponseRenderer blocks={item.metadata?.blocks} fallback={item.content} />
+                      <BrainResponseRenderer
+                        blocks={item.metadata?.blocks}
+                        fallback={item.content}
+                        interactive={interactive}
+                        sending={sending}
+                        sourceRunId={item.metadata?.runId}
+                        onGuidanceSelect={({ value, kind, sourceRunId, optionId }) =>
+                          void onSend(value, roleHint || undefined, { kind, sourceRunId, optionId })
+                        }
+                      />
                     ) : (
                       <span className="whitespace-pre-wrap break-words">{item.content}</span>
                     )}
-                    <span className={`mt-2 block text-xs ${assistant ? 'text-muted-foreground' : 'text-primary-foreground/70'}`}>
-                      {formatTime(item.createdAt)}
-                      {assistant && item.metadata?.adapterKey ? ` · ${item.metadata.adapterKey}` : ''}
-                    </span>
-                  </span>
-                </button>
+                    <div
+                      className={`mt-2 flex items-center justify-between gap-3 text-xs ${assistant ? 'text-muted-foreground' : 'text-primary-foreground/70'}`}
+                    >
+                      <span>
+                        {formatTime(item.createdAt)}
+                        {assistant && item.metadata?.adapterKey ? ` · ${item.metadata.adapterKey}` : ''}
+                      </span>
+                      {assistant && item.metadata?.runId ? (
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                          onClick={() => onSelectAssistant(item)}
+                        >
+                          <Activity className="h-3.5 w-3.5" />
+                          查看运行轨迹
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
               );
             })}
             {sending ? (
@@ -140,7 +185,7 @@ export function BrainChatPanel({
         <div ref={bottomRef} />
       </div>
 
-      <div className="border-t border-border bg-background p-4 lg:px-8">
+      <div data-testid="brain-composer" className="shrink-0 border-t border-border bg-background p-4 lg:px-8">
         <div className="mx-auto max-w-3xl">
           <textarea
             className="min-h-24 w-full resize-y rounded-md border border-input bg-background p-3 text-sm outline-none transition focus:border-primary"

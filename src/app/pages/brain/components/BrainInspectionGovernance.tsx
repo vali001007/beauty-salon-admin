@@ -5,6 +5,7 @@ import {
   createBrainInspectionRule,
   decideBrainInspectionRepair,
   getBrainInspectionRepairPreview,
+  isBrainGovernanceReadCancelled,
   listBrainInspectionFindings,
   listBrainInspectionRules,
   runBrainInspection,
@@ -43,6 +44,7 @@ export function BrainInspectionGovernance() {
     try {
       setFindings(findingsFrom(await listBrainInspectionFindings()));
     } catch (error) {
+      if (isBrainGovernanceReadCancelled(error)) return;
       toast.error(error instanceof Error ? error.message : '巡检发现加载失败');
     } finally {
       setLoading(false);
@@ -69,6 +71,7 @@ export function BrainInspectionGovernance() {
     try {
       setPreview(await getBrainInspectionRepairPreview(id));
     } catch (error) {
+      if (isBrainGovernanceReadCancelled(error)) return;
       toast.error(error instanceof Error ? error.message : '修复预览加载失败');
     } finally {
       setLoadingPreviewId(null);

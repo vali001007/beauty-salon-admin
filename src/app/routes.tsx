@@ -6,6 +6,7 @@ import { PermissionGuard } from './components/PermissionGuard';
 import { lazyWithRetry } from './components/LazyRetry';
 import { PageSkeleton } from '@/app/components/ui/loading-skeleton';
 import { RouteErrorPage } from './pages/RouteErrorPage';
+import { BRAIN_GOVERNANCE_SECTIONS, DEFAULT_BRAIN_GOVERNANCE_PATH } from './pages/brain/brainGovernanceNavigation';
 
 // Lazy-loaded page components
 const LoginPage = lazyWithRetry(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })), 'LoginPage');
@@ -259,7 +260,11 @@ export const router = createBrowserRouter([
       { path: 'system/agent-governance/feedback', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
       { path: 'system/agent-governance/debug', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
       { path: 'system/agent-capabilities', element: withGuard('core:agent-governance:view', AgentCapabilityCenter) },
-      { path: 'brain-governance', element: withGuard('core:brain-governance:view', BrainGovernanceCenter) },
+      { path: 'brain-governance', element: <Navigate to={DEFAULT_BRAIN_GOVERNANCE_PATH} replace /> },
+      ...BRAIN_GOVERNANCE_SECTIONS.map((section) => ({
+        path: section.path.slice(1),
+        element: withGuard('core:brain-governance:view', BrainGovernanceCenter),
+      })),
 
       // AI 智能体工作台
       { path: 'ami-agent', element: withGuard('core:agent:view', AmiAgentWorkspace) },

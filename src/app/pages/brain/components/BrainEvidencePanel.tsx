@@ -1,4 +1,4 @@
-import { CheckCircle2, Database, GitBranch, Loader2, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { CheckCircle2, ChevronDown, Database, GitBranch, Loader2, ThumbsDown, ThumbsUp } from 'lucide-react';
 import type {
   BrainActionPreview as BrainActionPreviewType,
   BrainActionDecisionResponse,
@@ -21,8 +21,124 @@ interface BrainEvidencePanelProps {
   onFeedback: (runId: number, rating: string) => void;
 }
 
+const EVENT_LABELS: Record<string, string> = {
+  cognition_rules: '规则认知',
+  role_intent_route: '角色与意图路由',
+  cognition_model: '模型认知',
+  cognition_diff: '认知差异',
+  memory_recall: '记忆召回',
+  semantic_query: '语义查询',
+};
+
+interface TraceTokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  provider?: string;
+  model?: string;
+}
+
 function eventLabel(event: BrainRunEvent) {
-  return event.stepKey.replace(/^skill_/, '').replaceAll('_', ' ');
+  return EVENT_LABELS[event.stepKey] ?? event.stepKey.replace(/^skill_/, '').replaceAll('_', ' ');
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function numericValue(record: Record<string, unknown>, keys: string[]): number | undefined {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+  }
+  return undefined;
+}
+
+function findTokenUsage(value: unknown): TraceTokenUsage | null {
+  const queue: unknown[] = [value];
+  const visited = new Set<object>();
+
+  while (queue.length) {
+    const candidate = queue.shift();
+    if (!candidate || typeof candidate !== 'object') continue;
+    if (visited.has(candidate)) continue;
+    visited.add(candidate);
+
+    if (Array.isArray(candidate)) {
+      queue.push(...candidate);
+      continue;
+    }
+
+    const record = candidate as Record<string, unknown>;
+    const inputTokens = numericValue(record, ['inputTokens', 'promptTokens', 'input_tokens', 'prompt_tokens']);
+    const outputTokens = numericValue(record, ['outputTokens', 'completionTokens', 'output_tokens', 'completion_tokens']);
+    const totalTokens = numericValue(record, ['totalTokens', 'total_tokens']);
+    if (inputTokens !== undefined || outputTokens !== undefined || totalTokens !== undefined) {
+      const normalizedInput = inputTokens ?? 0;
+      const normalizedOutput = outputTokens ?? 0;
+      return {
+        inputTokens: normalizedInput,
+        outputTokens: normalizedOutput,
+        totalTokens: totalTokens ?? normalizedInput + normalizedOutput,
+        ...(typeof record.provider === 'string' ? { provider: record.provider } : {}),
+        ...(typeof record.model === 'string' ? { model: record.model } : {}),
+      };
+    }
+    queue.push(...Object.values(record));
+  }
+
+  return null;
+}
+
+function isModelEvent(event: BrainRunEvent) {
+  if (event.stepKey.includes('model') || event.layer.includes('model')) return true;
+  const output = asRecord(event.output);
+  return Boolean(output && (typeof output.provider === 'string' || typeof output.model === 'string'));
+}
+
+function formatDuration(milliseconds: number) {
+  if (milliseconds < 1000) return `${Math.round(milliseconds)} ms`;
+  return `${(milliseconds / 1000).toFixed(milliseconds < 10000 ? 2 : 1)} s`;
+}
+
+function eventDuration(event: BrainRunEvent, index: number, events: BrainRunEvent[]) {
+  if (event.durationMs != null && Number.isFinite(event.durationMs)) {
+    return {
+      text: formatDuration(event.durationMs),
+      estimated: event.durationSource === 'timeline_estimate',
+    };
+  }
+  if (event.latencyMs != null && Number.isFinite(event.latencyMs)) {
+    return { text: formatDuration(event.latencyMs), estimated: false };
+  }
+  if (index > 0) {
+    const previousTimestamp = Date.parse(events[index - 1].createdAt);
+    const currentTimestamp = Date.parse(event.createdAt);
+    if (Number.isFinite(previousTimestamp) && Number.isFinite(currentTimestamp) && currentTimestamp >= previousTimestamp) {
+      return { text: formatDuration(currentTimestamp - previousTimestamp), estimated: true };
+    }
+  }
+  return { text: '未记录', estimated: false };
+}
+
+function jsonSnapshot(value: unknown) {
+  if (value == null) return '未记录';
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function TraceSnapshot({ label, value }: { label: string; value: unknown }) {
+  return (
+    <div>
+      <div className="mb-1 text-[11px] font-medium text-foreground">{label}</div>
+      <pre className="max-h-52 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted/60 p-2 text-[11px] leading-4 text-muted-foreground">
+        {jsonSnapshot(value)}
+      </pre>
+    </div>
+  );
 }
 
 function isConfirmableAction(value: unknown): value is BrainActionPreviewType {
@@ -124,18 +240,52 @@ export function BrainEvidencePanel({
                     加载 Trace
                   </div>
                 ) : events.length ? (
-                  events.map((event) => (
-                    <div key={event.id} className="flex items-start gap-2 text-xs">
-                      <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${event.status === 'completed' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                      <span className="min-w-0">
-                        <span className="block break-words font-medium text-foreground">{eventLabel(event)}</span>
-                        <span className="text-muted-foreground">
-                          {event.layer}
-                          {event.latencyMs != null ? ` · ${event.latencyMs}ms` : ''}
-                        </span>
-                      </span>
-                    </div>
-                  ))
+                  events.map((event, index) => {
+                    const usage = findTokenUsage(event.output) ?? findTokenUsage(event.input);
+                    const duration = eventDuration(event, index, events);
+                    return (
+                      <details key={event.id} className="group rounded-md border border-border bg-background text-xs">
+                        <summary className="flex cursor-pointer list-none items-start gap-2 p-2.5 marker:hidden">
+                          <span
+                            className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
+                              event.status === 'completed' ? 'bg-emerald-500' : event.status === 'failed' ? 'bg-destructive' : 'bg-amber-500'
+                            }`}
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block break-words font-medium text-foreground">{eventLabel(event)}</span>
+                            <span className="mt-0.5 block text-muted-foreground">{event.layer}</span>
+                            <span className="mt-2 grid grid-cols-2 gap-1 text-[11px] text-muted-foreground">
+                              <span title={usage ? `输入 ${usage.inputTokens} / 输出 ${usage.outputTokens}` : undefined}>
+                                Token {usage ? usage.totalTokens.toLocaleString('zh-CN') : isModelEvent(event) ? '未记录' : '0（非模型）'}
+                              </span>
+                              <span title={duration.estimated ? '由运行开始时间与相邻步骤时间估算，不等同于精确执行耗时' : undefined}>
+                                {duration.estimated ? '阶段间隔' : '耗时'} {duration.text}
+                              </span>
+                            </span>
+                          </span>
+                          <ChevronDown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+                        </summary>
+                        <div className="space-y-3 border-t border-border px-2.5 py-3">
+                          {usage ? (
+                            <div className="rounded-md bg-muted/40 p-2 text-[11px] leading-5 text-muted-foreground">
+                              <div>
+                                Token：输入 {usage.inputTokens.toLocaleString('zh-CN')} · 输出 {usage.outputTokens.toLocaleString('zh-CN')} · 总计{' '}
+                                {usage.totalTokens.toLocaleString('zh-CN')}
+                              </div>
+                              {usage.provider || usage.model ? (
+                                <div>
+                                  模型：{[usage.provider, usage.model].filter(Boolean).join(' / ')}
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
+                          <TraceSnapshot label="输入" value={event.input} />
+                          <TraceSnapshot label="输出" value={event.output} />
+                          {event.error ? <TraceSnapshot label="错误" value={event.error} /> : null}
+                        </div>
+                      </details>
+                    );
+                  })
                 ) : (
                   <div className="text-xs text-muted-foreground">当前运行没有可展示步骤。</div>
                 )}

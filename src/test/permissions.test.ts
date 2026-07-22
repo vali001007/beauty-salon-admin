@@ -56,6 +56,40 @@ describe('permission catalog helpers', () => {
     expect(hasPermission(ROLE_PERMISSIONS.cashier, 'core:brain-governance:view')).toBe(false);
   });
 
+  it('promotes Brain governance to a first-level menu with route-backed second-level modules', () => {
+    type RouteLike = { path?: string; children?: RouteLike[] };
+
+    const brainGovernanceMenu = MENU_ITEMS.find((menu) => menu.path === '/brain-governance');
+    const workbenchMenu = MENU_ITEMS.find((menu) => menu.path === '/dashboard');
+    const systemMenu = MENU_ITEMS.find((menu) => menu.path === '/system');
+    const rootRoute = (router.routes as RouteLike[]).find((route) => route.path === '/');
+    const routePaths = new Set(rootRoute?.children?.map((route) => `/${route.path}`) ?? []);
+
+    expect(brainGovernanceMenu?.title).toBe('Brain 治理中心');
+    expect(brainGovernanceMenu?.children.map((child) => child.title)).toEqual([
+      'Ami Brain',
+      '模型规划',
+      '语义治理',
+      '角色治理',
+      '技能治理',
+      '记忆治理',
+      '巡检治理',
+      '评测中心',
+      '发布中心',
+      '反馈指标',
+    ]);
+    expect(brainGovernanceMenu?.children[0]).toMatchObject({
+      path: '/brain',
+      permission: 'core:brain:use',
+    });
+    expect(brainGovernanceMenu?.children.slice(1).every((child) => child.permission === 'core:brain-governance:view')).toBe(true);
+    expect(brainGovernanceMenu?.children.every((child) => routePaths.has(child.path))).toBe(true);
+    expect(workbenchMenu?.children.some((child) => child.path === '/brain')).toBe(false);
+    expect(brainGovernanceMenu?.children.some((child) => child.path === '/brain-governance/trace')).toBe(false);
+    expect(systemMenu?.children.some((child) => child.path.startsWith('/brain-governance'))).toBe(false);
+    expect(routePaths.has('/brain-governance')).toBe(true);
+  });
+
   it('registers financial and supply-platform permission codes', () => {
     const codes = PERMISSION_CATALOG.map((permission) => permission.code);
 

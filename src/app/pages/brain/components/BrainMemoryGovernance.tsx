@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import { ArchiveRestore, Edit3, Loader2, RefreshCw, Save, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { correctBrainMemory, deleteBrainMemory, listBrainMemories, restoreBrainMemory } from '@/api/brain';
+import {
+  correctBrainMemory,
+  deleteBrainMemory,
+  isBrainGovernanceReadCancelled,
+  listBrainMemories,
+  restoreBrainMemory,
+} from '@/api/brain';
 import type { BrainMemoryRecord } from '@/types/brain';
 
 function dateText(value?: string | null) {
@@ -23,6 +29,7 @@ export function BrainMemoryGovernance() {
       const response = await listBrainMemories();
       setItems(response.items);
     } catch (error) {
+      if (isBrainGovernanceReadCancelled(error)) return;
       toast.error(error instanceof Error ? error.message : '记忆列表加载失败');
     } finally {
       setLoading(false);

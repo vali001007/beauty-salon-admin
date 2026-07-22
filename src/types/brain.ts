@@ -66,6 +66,13 @@ export interface BrainChatRequest {
   message: string;
   roleHint?: BrainRoleKey;
   timezone: string;
+  guidanceSelection?: BrainGuidanceSelection;
+}
+
+export interface BrainGuidanceSelection {
+  kind: 'clarification' | 'follow_up';
+  sourceRunId: number;
+  optionId: string;
 }
 
 export interface BrainCitation {
@@ -80,10 +87,26 @@ export type BrainResponseBlock =
   | { kind: 'kpi'; items: Array<{ label: string; value: string; hint?: string }>; citationIds?: string[] }
   | { kind: 'ranking'; rows: Array<Record<string, unknown>>; columns: string[]; citationIds?: string[] }
   | { kind: 'table'; rows: Array<Record<string, unknown>>; columns: string[]; citationIds?: string[] }
-  | { kind: 'chart'; chartType: 'bar' | 'line'; rows: Array<Record<string, unknown>>; xKey: string; yKeys: string[]; citationIds?: string[] }
-  | { kind: 'comparison'; items: Array<{ label: string; current: string; previous: string; delta?: string }>; citationIds?: string[] }
-  | { kind: 'diagnosis'; findings: Array<{ title: string; detail: string; severity: 'info' | 'warning' | 'critical' }>; citationIds?: string[] }
+  | {
+      kind: 'chart';
+      chartType: 'bar' | 'line';
+      rows: Array<Record<string, unknown>>;
+      xKey: string;
+      yKeys: string[];
+      citationIds?: string[];
+    }
+  | {
+      kind: 'comparison';
+      items: Array<{ label: string; current: string; previous: string; delta?: string }>;
+      citationIds?: string[];
+    }
+  | {
+      kind: 'diagnosis';
+      findings: Array<{ title: string; detail: string; severity: 'info' | 'warning' | 'critical' }>;
+      citationIds?: string[];
+    }
   | { kind: 'clarification'; question: string; options: Array<{ id: string; label: string; value: unknown }> }
+  | { kind: 'follow_up_questions'; questions: Array<{ id: string; label: string; value: string }> }
   | { kind: 'action_preview'; actions: unknown[] }
   | { kind: 'limitations'; items: string[] }
   | { kind: 'evidence'; citations: BrainCitation[] };
@@ -112,6 +135,8 @@ export interface BrainConversation {
 export interface BrainConversationListResponse {
   items: BrainConversation[];
   total: number;
+  page: number;
+  pageSize: number;
   storeId: number;
 }
 
@@ -119,6 +144,7 @@ export interface BrainMessageMetadata {
   requestId?: string;
   timezone?: string;
   roleHint?: BrainRoleKey;
+  guidanceSelection?: BrainGuidanceSelection;
   runId?: number;
   status?: BrainRunStatus;
   streamPhase?: string;
@@ -156,6 +182,8 @@ export interface BrainRunEvent {
   output?: Record<string, unknown> | null;
   status: string;
   latencyMs?: number | null;
+  durationMs?: number | null;
+  durationSource?: 'recorded' | 'timeline_estimate' | 'unavailable';
   error?: Record<string, unknown> | null;
   createdAt: string;
 }
@@ -204,6 +232,25 @@ export interface BrainFeedbackResponse {
   storeId: number;
   rating: string;
   status?: string;
+}
+
+export interface BrainFeedbackIssue {
+  feedbackId: number;
+  runId: number;
+  conversationId: number | null;
+  question: string;
+  answer: string;
+  feedbackStatus: string;
+  runStatus: string;
+  createdAt: string;
+}
+
+export interface BrainFeedbackIssueListResponse {
+  items: BrainFeedbackIssue[];
+  total: number;
+  page: number;
+  pageSize: number;
+  storeId: number;
 }
 
 export type BrainMemoryType = 'working' | 'session' | 'episodic' | 'semantic' | 'procedural';
@@ -339,6 +386,258 @@ export interface BrainGovernanceSkill {
   [key: string]: unknown;
 }
 
+export interface BrainSkillGovernanceSummary {
+  versionId: number;
+  skillId: number | null;
+  skillKey: string;
+  name: string;
+  description: string;
+  version: number;
+  status: string;
+  updatedAt: string;
+  activeVersionId: number | null;
+  activeVersion: number | null;
+  enabled: boolean;
+  historyCount: number;
+  managed: boolean;
+  domains: string[];
+  entities: string[];
+  metrics: string[];
+}
+
+export interface BrainSkillGovernanceHistoryItem {
+  versionId: number;
+  skillId: number | null;
+  skillKey: string;
+  name: string;
+  description: string;
+  version: number;
+  status: string;
+  enabled: boolean;
+  type: string | null;
+  riskLevel: string | null;
+  permissions: string[] | null;
+  updatedAt: string;
+  activatedAt: string | null;
+  archivedAt: string | null;
+}
+
+export interface BrainSkillGovernanceSummaryListResponse {
+  items: BrainSkillGovernanceSummary[];
+}
+
+export interface BrainSkillGovernanceHistoryListResponse {
+  items: BrainSkillGovernanceHistoryItem[];
+}
+
+export type BrainSemanticGovernanceResource = 'metrics' | 'entities' | 'relations';
+
+export interface BrainSemanticGovernanceSummary {
+  id: number;
+  resourceType: 'metric' | 'ontology_entity' | 'ontology_relation';
+  resourceKey: string;
+  name: string;
+  version: number;
+  status: string;
+  semanticDescription: string;
+  dataTables: string[];
+  fuzzyTerms: string[];
+  hitCount: number;
+  sampleCount: number;
+  hitRate: number | null;
+  updatedAt: string;
+  managed: boolean;
+  enabled: boolean;
+  definitionId: number | null;
+  definitionKey: string | null;
+  definitionVersionId: number | null;
+  historyCount: number;
+}
+
+export type BrainSemanticGovernanceHistoryItem = Omit<
+  BrainSemanticGovernanceSummary,
+  'hitCount' | 'sampleCount' | 'hitRate' | 'historyCount'
+>;
+
+export interface BrainSemanticGovernanceSummaryListResponse {
+  items: BrainSemanticGovernanceSummary[];
+}
+
+export interface BrainSemanticGovernanceHistoryListResponse {
+  items: BrainSemanticGovernanceHistoryItem[];
+}
+
+export interface BrainSemanticGraphNode {
+  id: string;
+  key: string;
+  label: string;
+  kind: 'entity' | 'relation' | 'metric' | 'table';
+  status: string;
+  version: number | null;
+  description: string;
+  dataTables: string[];
+  fuzzyTerms: string[];
+}
+
+export interface BrainSemanticGraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  kind: 'relation_from' | 'relation_to' | 'metric_entity' | 'backed_by';
+  label: string;
+}
+
+export interface BrainSemanticGraphResponse {
+  nodes: BrainSemanticGraphNode[];
+  edges: BrainSemanticGraphEdge[];
+  summary: {
+    entities: number;
+    relations: number;
+    metrics: number;
+    tables: number;
+    edges: number;
+  };
+}
+
+export interface BrainEvalCatalogBase {
+  questionId: string;
+  question: string;
+  questionType: string;
+  intentType: string;
+  persona: string;
+  passed: boolean | null;
+  status: string;
+  hitRate: number | null;
+  runId: number | null;
+  failureReason: string | null;
+  diagnosis: string;
+  improvementSuggestion: string;
+}
+
+export interface BrainEvalCatalogItem extends BrainEvalCatalogBase {
+  averageLatencyMs: number | null;
+}
+
+export interface BrainEvalCatalogLayerResult {
+  layer: string;
+  passed: boolean | null;
+  score: number | null;
+  checked: number | null;
+  failures: string[];
+}
+
+export interface BrainEvalCatalogTestHistoryItem {
+  releaseId: number | null;
+  generatedAt: string | null;
+  runId: number | null;
+  status: string;
+  brainStatus: string | null;
+  passed: boolean | null;
+  latencyMs: number | null;
+  answer: string;
+  graderReason: string | null;
+  expectedIntent: string | null;
+  actualIntent: string | null;
+  expectedShape: string | null;
+  actualShape: string | null;
+  capabilityKeys: string[];
+  citations: Array<{ sourceType: string; sourceId: string; label: string }>;
+  layers: BrainEvalCatalogLayerResult[];
+}
+
+export interface BrainEvalCatalogDetail extends BrainEvalCatalogBase {
+  semanticKeys: string[];
+  dataTables: string[];
+  testHistory: BrainEvalCatalogTestHistoryItem[];
+}
+
+export interface BrainEvalCatalogResponse {
+  metadata: {
+    generatedAt: string;
+    sourceGeneratedAt: string | null;
+    releaseId: number | null;
+    storeId: number | null;
+    total: number;
+    passed: number;
+    failed: number;
+    unavailable: number;
+    passRate: number | null;
+    averageHitRate: number | null;
+    sourceQuestionFile: string;
+    sourceResultFile: string;
+  } | null;
+  types: Array<{ value: string; count: number }>;
+  items: BrainEvalCatalogItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface BrainEvalSuite {
+  id: number | null;
+  suiteKey: string;
+  suiteLabel: string;
+  stage: string;
+  status: string;
+  caseCount: number;
+  passedCount: number;
+  failedCount: number;
+  deterministicPassRate: number | null;
+  judgePassRate: number | null;
+  manualReview: number | null;
+  averageLatencyMs: number | null;
+  p95LatencyMs: number | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  createdAt: string;
+}
+
+export interface BrainFullDomainEvalCatalogParams {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  domain?: string;
+  role?: string;
+  type?: string;
+  difficulty?: string;
+  deterministic?: 'passed' | 'failed';
+  judge?: 'pass' | 'fail' | 'insufficient_evidence';
+}
+
+export interface BrainFullDomainEvalCatalogItem {
+  questionId: string;
+  question: string;
+  questionType: string;
+  domain: string;
+  role: string;
+  difficulty: string;
+  expectedTarget: string;
+  diagnosis: string;
+  improvementSuggestion: string;
+  deterministicPassed: boolean;
+  judgeVerdict: string;
+  judgeReason: string | null;
+  latencyMs: number | null;
+  failureCluster: string | null;
+  answer?: string;
+  citations?: unknown;
+  deterministicGrade?: unknown;
+  llmJudge?: unknown;
+  notes?: string;
+  turns?: string[];
+  completedTurns?: number;
+  error?: unknown;
+}
+
+export interface BrainFullDomainEvalCatalogResponse {
+  run: Record<string, unknown>;
+  filters: { domains: string[]; roles: string[]; types: string[]; difficulties: string[] };
+  total: number;
+  page: number;
+  pageSize: number;
+  items: BrainFullDomainEvalCatalogItem[];
+}
+
 export interface BrainGovernanceResourceVersion {
   id: number;
   resourceType: string;
@@ -367,6 +666,7 @@ export interface BrainGovernanceRelease {
   previousReleaseId?: number | null;
   failureReason?: string | null;
   items?: BrainGovernanceReleaseItem[];
+  itemCount?: number;
   createdAt: string;
   activatedAt?: string | null;
   rolledBackAt?: string | null;
@@ -423,12 +723,18 @@ export type BrainReleaseModificationResponse =
       status: 'blocked';
       redirectTo: string;
       draft: Record<string, unknown> | null;
-      request: Pick<BrainGovernanceResourceVersion, 'id' | 'resourceType' | 'resourceKey' | 'version' | 'status' | 'createdAt'>;
+      request: Pick<
+        BrainGovernanceResourceVersion,
+        'id' | 'resourceType' | 'resourceKey' | 'version' | 'status' | 'createdAt'
+      >;
       job: BrainCapabilityRegenerationJob;
     }
   | {
       requestType: 'capability_regeneration';
       status: BrainCapabilityRegenerationJobStatus;
-      request: Pick<BrainGovernanceResourceVersion, 'id' | 'resourceType' | 'resourceKey' | 'version' | 'status' | 'createdAt'>;
+      request: Pick<
+        BrainGovernanceResourceVersion,
+        'id' | 'resourceType' | 'resourceKey' | 'version' | 'status' | 'createdAt'
+      >;
       job: BrainCapabilityRegenerationJob;
     };

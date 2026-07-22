@@ -14,6 +14,7 @@ import { twMerge } from 'tailwind-merge';
 import { useAuthStore } from '../../stores/authStore';
 import { StoreSwitcher } from './StoreSwitcher';
 import { hasPermission } from '@/config/permissions';
+import { BRAIN_GOVERNANCE_SECTIONS } from '@/app/pages/brain/brainGovernanceNavigation';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -34,6 +35,18 @@ type MenuItem = {
   children: MenuChild[];
 };
 
+const BRAIN_GOVERNANCE_ICONS: Record<(typeof BRAIN_GOVERNANCE_SECTIONS)[number]['key'], LucideIcon> = {
+  planning: BrainCircuit,
+  semantic: Database,
+  roles: Users,
+  skills: Sparkles,
+  memory: BookOpen,
+  inspection: CheckCircle2,
+  eval: ClipboardList,
+  release: Zap,
+  feedback: MessageSquareWarning,
+};
+
 export const MENU_ITEMS: MenuItem[] = [
   {
     title: '工作台',
@@ -42,7 +55,6 @@ export const MENU_ITEMS: MenuItem[] = [
     children: [
       { title: '我的工作台', path: '/dashboard', icon: LayoutGrid, permission: 'core:dashboard:view' },
       { title: '智能问数', path: '/ask-data', icon: Database, permission: 'core:dashboard:view' },
-      { title: 'Ami Brain', path: '/brain', icon: BrainCircuit, permission: 'core:brain:use' },
       { title: 'AI 智能体', path: '/ami-agent', icon: Sparkles, permission: 'core:agent:view' },
     ],
   },
@@ -154,6 +166,20 @@ export const MENU_ITEMS: MenuItem[] = [
     ],
   },
   {
+    title: 'Brain 治理中心',
+    icon: ShieldCheck,
+    path: '/brain-governance',
+    children: [
+      { title: 'Ami Brain', path: '/brain', icon: BrainCircuit, permission: 'core:brain:use' },
+      ...BRAIN_GOVERNANCE_SECTIONS.map((section) => ({
+        title: section.label,
+        path: section.path,
+        icon: BRAIN_GOVERNANCE_ICONS[section.key],
+        permission: 'core:brain-governance:view',
+      })),
+    ],
+  },
+  {
     title: '系统设置',
     icon: Settings,
     path: '/system',
@@ -166,7 +192,6 @@ export const MENU_ITEMS: MenuItem[] = [
       { title: '平台收入报表', path: '/finance/platform-revenue', icon: BarChart3, permission: 'core:platform-revenue:view' },
       { title: '业务口径中心', path: '/system/business-definitions', icon: BookKey, permission: 'core:system:view' },
       { title: 'AI 治理中心', path: '/system/agent-governance', icon: ShieldCheck, permission: 'core:agent-governance:view' },
-      { title: 'Brain 治理中心', path: '/brain-governance', icon: ShieldCheck, permission: 'core:brain-governance:view' },
     ],
   },
 ];
@@ -183,6 +208,7 @@ export function Layout() {
     '/finance': true,
     '/supply-platform': true,
     '/industry': true,
+    '/brain-governance': true,
     '/system': true,
   });
   const location = useLocation();
@@ -316,8 +342,8 @@ export function Layout() {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto p-6 bg-background/70">
-          <div className="bg-card rounded-xl border border-border shadow-sm min-h-full p-6">
+        <main className={cn('flex-1 min-h-0 p-6 bg-background/70', location.pathname === '/brain' ? 'overflow-hidden' : 'overflow-auto')}>
+          <div className={cn('bg-card rounded-xl border border-border shadow-sm min-h-full p-6', location.pathname === '/brain' && 'h-full min-h-0 overflow-hidden')}>
             <Outlet />
           </div>
         </main>
