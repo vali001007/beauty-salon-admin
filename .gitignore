@@ -1,4 +1,5 @@
 node_modules/
+packages/server-v2/generated/store-metrics-client/
 dist/
 **/dist-release-pilot/
 coverage/

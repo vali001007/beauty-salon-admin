@@ -1,4 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { STORE_METRIC_KEYS } from '../../../store-metrics/store-metric-definitions.js';
+import { StoreMetricsService } from '../../../store-metrics/store-metrics.service.js';
 import type { BrainDateRange } from '../../cognition/brain-time-range-parser.service.js';
 import { BrainTimeRangeParserService } from '../../cognition/brain-time-range-parser.service.js';
 import { BrainSkillRuntimeService } from '../../skills/brain-skill-runtime.service.js';
@@ -14,6 +16,7 @@ export class BrainStoreManagerDomainAdapter implements BrainDomainAdapter {
   constructor(
     private readonly skillRuntime: BrainSkillRuntimeService,
     private readonly timeRangeParser: BrainTimeRangeParserService,
+    @Optional() private readonly storeMetrics?: StoreMetricsService,
   ) {}
 
   canHandle(plan: BrainDomainAdapterExecution['plan']) {
@@ -23,6 +26,34 @@ export class BrainStoreManagerDomainAdapter implements BrainDomainAdapter {
   async execute(input: BrainDomainAdapterExecution): Promise<BrainDomainAnswer | undefined> {
     const message = input.dto.message;
     const range = this.resolveRange(message);
+    if (this.storeMetrics && /(实收|经营收入|毛利率|首次到店|首次成交|30\s*天.*复购|现场再预约|爽约率|工时利用率|工时产值|会员续费率|目标完成率|十二项|12\s*项)/.test(message)) {
+      const overview = await this.storeMetrics.getOverview(input.context.storeId, this.dateKey(range.endDate));
+      const requested = overview.metrics.filter((metric) => this.metricRequested(message, metric.key));
+      const metrics = requested.length ? requested : overview.metrics;
+      const lines = metrics.map((metric) => {
+        const value = metric.value === null
+          ? '不可计算'
+          : metric.unit === 'percent'
+            ? formatBrainPercent(metric.value)
+            : formatBrainMoney(metric.value);
+        return `${metric.name} ${value}（分子 ${metric.numerator ?? '-'}，分母 ${metric.denominator ?? '-'}，样本 ${metric.sampleCount}，质量 ${metric.quality.status}${metric.quality.reasons.length ? `：${metric.quality.reasons.join('、')}` : ''}）`;
+      });
+      return {
+        status: 'completed',
+        answer: `${overview.scope.storeName} ${overview.scope.date} 指标口径（定义版本 v1）：\n${lines.join('\n')}\n历史缺少显式业务关系时仅作只读估算，不会回写正式关系。`,
+        citations: metrics.map((metric) => ({ sourceType: 'metric', sourceId: metric.key, label: metric.name, definition: `v${metric.definitionVersion}` })),
+        grounding: 'metric_query',
+        metadata: {
+          adapterKey: this.key,
+          storeId: overview.scope.storeId,
+          storeName: overview.scope.storeName,
+          date: overview.scope.date,
+          timezone: overview.scope.timezone,
+          generatedAt: overview.generatedAt,
+          evidence: metrics.map((metric) => ({ key: metric.key, numerator: metric.numerator, denominator: metric.denominator, sampleCount: metric.sampleCount, quality: metric.quality })),
+        },
+      };
+    }
     if (/预测.*(?:营业额|营收|收入)|下个季度.*(?:营业额|营收|收入)/.test(message)) {
       const forecast = await this.skillRuntime.buildManagerRevenueForecastBaseline({
         storeId: input.context.storeId,
@@ -205,5 +236,27 @@ export class BrainStoreManagerDomainAdapter implements BrainDomainAdapter {
   private resolveRange(message: string): BrainDateRange {
     const parsed = this.timeRangeParser.parse(message);
     return parsed.range ?? defaultBrainDateRange();
+  }
+
+  private dateKey(date: Date) {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+  }
+
+  private metricRequested(message: string, key: string) {
+    const patterns: Record<string, RegExp> = {
+      [STORE_METRIC_KEYS.paidRevenue]: /实收/,
+      [STORE_METRIC_KEYS.operatingRevenue]: /经营收入|营业收入/,
+      [STORE_METRIC_KEYS.grossMarginRate]: /毛利率/,
+      [STORE_METRIC_KEYS.firstVisitArrivalRate]: /首次到店/,
+      [STORE_METRIC_KEYS.firstVisitConversionRate]: /首次成交/,
+      [STORE_METRIC_KEYS.newCustomer30dRepurchaseRate]: /30\s*天.*复购/,
+      [STORE_METRIC_KEYS.checkoutRebookingRate]: /现场再预约/,
+      [STORE_METRIC_KEYS.noShowRate]: /爽约率/,
+      [STORE_METRIC_KEYS.serviceTimeUtilizationRate]: /工时利用率/,
+      [STORE_METRIC_KEYS.revenuePerServiceHour]: /工时产值/,
+      [STORE_METRIC_KEYS.memberRenewalRate]: /会员续费率/,
+      [STORE_METRIC_KEYS.monthlyTargetCompletionRate]: /目标完成率/,
+    };
+    return patterns[key]?.test(message) ?? false;
   }
 }

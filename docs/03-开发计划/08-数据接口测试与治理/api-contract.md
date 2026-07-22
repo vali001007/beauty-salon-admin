@@ -564,6 +564,22 @@ AI Gateway 环境变量：
 - `POST /orders/product/:id/refund`：按明细提交 `requestId`、`refundMode`、数量、净额和原因；`return_and_refund` 恢复原商品批次或冲销原项目耗材，`refund_only` 不改库存。
 - `POST /orders/checkout-groups/:checkoutGroupNo/refund`：同一收银组按真实拆分订单提交退款，整组在一个事务内成功或回滚。
 - 订单状态新增 `partially_refunded`。重复 `requestId` 返回第一次结果，超额退款和库存追溯歧义的退款退货请求会被拒绝。
+# 门店经营指标 API（v1）
+
+> 2026-07-15 新增。统一前缀 `/api/store-metrics`，请求需携带 Bearer Token 和 `X-Store-Id`；服务端同时校验 JWT 可访问门店列表。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/store-metrics/overview` | `core:store-metrics:view` | 十二项指标总览与经营动作 |
+| GET | `/store-metrics/trends` | `core:store-metrics:view` | 版本化历史快照趋势 |
+| GET | `/store-metrics/:metricKey/drilldown` | `core:store-metrics:drilldown` | 指标事实下钻 |
+| GET | `/store-metrics/definitions` | `core:store-metrics:view` | 指标定义与数据来源 |
+| GET | `/store-metrics/quality` | `core:store-metrics:quality:view` | 非完整指标及缺失原因 |
+| GET | `/store-metrics/targets` | `core:store-metrics:target:view` | 目标列表 |
+| POST | `/store-metrics/targets` | `core:store-metrics:target:edit` | 创建目标 |
+| PUT | `/store-metrics/targets/:id` | `core:store-metrics:target:edit` | 更新目标 |
+
+总览指标统一字段：`key`、`name`、`value`、`unit`、`numerator`、`denominator`、`sampleCount`、`target`、`quality`、`definitionVersion`、`updatedAt`、`drilldownPath`。分母为零或事实不足时 `value` 为 `null`，禁止返回伪 0%。
 
 # 智能推荐实例、统一采纳与效果事实接口（2026-07-13）
 

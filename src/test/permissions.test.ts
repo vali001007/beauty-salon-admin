@@ -56,6 +56,21 @@ describe('permission catalog helpers', () => {
     expect(hasPermission(ROLE_PERMISSIONS.cashier, 'core:brain-governance:view')).toBe(false);
   });
 
+  it('registers the store metrics page and grants the full manager workflow', () => {
+    const codes = PERMISSION_CATALOG.map((permission) => permission.code);
+    const workbench = MENU_ITEMS.find((menu) => menu.path === '/dashboard');
+
+    expect(codes).toEqual(expect.arrayContaining([
+      'core:store-metrics:view',
+      'core:store-metrics:drilldown',
+      'core:store-metrics:target:view',
+      'core:store-metrics:target:edit',
+      'core:store-metrics:quality:view',
+    ]));
+    expect(ROLE_PERMISSIONS.store_manager).toEqual(expect.arrayContaining(codes.filter((code) => code.startsWith('core:store-metrics:'))));
+    expect(workbench?.children.find((child) => child.path === '/store-operations/metrics')).toMatchObject({ permission: 'core:store-metrics:view' });
+  });
+
   it('registers financial and supply-platform permission codes', () => {
     const codes = PERMISSION_CATALOG.map((permission) => permission.code);
 

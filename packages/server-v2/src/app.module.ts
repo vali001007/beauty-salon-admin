@@ -39,6 +39,7 @@ import { AgentV4Module } from './agent-v4/agent-v4.module.js';
 import { AgentV5Module } from './agent-v5/agent-v5.module.js';
 import { OperationProfitModule } from './operation-profit/operation-profit.module.js';
 import { FinanceMetricsModule } from './finance-metrics/finance-metrics.module.js';
+import { StoreMetricsModule } from './store-metrics/store-metrics.module.js';
 import { BusinessDefinitionModule } from './semantic-data/business-definition.module.js';
 import { CsrfMiddleware } from './common/middleware/csrf.middleware.js';
 
@@ -81,6 +82,7 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware.js';
     AgentV4Module,
     AgentV5Module,
     FinanceMetricsModule,
+    StoreMetricsModule,
     BusinessDefinitionModule,
     OperationProfitModule,
     BomModule,

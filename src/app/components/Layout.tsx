@@ -1,7 +1,7 @@
-﻿import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
-import { 
-  Users, Store, ShoppingBag, FileText, 
+import {
+  Users, Store, ShoppingBag, FileText,
   ChevronDown, ChevronRight, Menu, UserCircle, LogOut,
   MessageSquare, MessageSquareWarning, Calendar, ClipboardList, Scissors, Star, LayoutGrid, User,
   Package, PackagePlus, AlertTriangle, ShoppingCart, Megaphone, Home,
@@ -41,6 +41,7 @@ export const MENU_ITEMS: MenuItem[] = [
     path: '/dashboard',
     children: [
       { title: '我的工作台', path: '/dashboard', icon: LayoutGrid, permission: 'core:dashboard:view' },
+      { title: '门店经营指标', path: '/store-operations/metrics', icon: TrendingUp, permission: 'core:store-metrics:view' },
       { title: '智能问数', path: '/ask-data', icon: Database, permission: 'core:dashboard:view' },
       { title: 'Ami Brain', path: '/brain', icon: BrainCircuit, permission: 'core:brain:use' },
       { title: 'AI 智能体', path: '/ami-agent', icon: Sparkles, permission: 'core:agent:view' },
@@ -238,7 +239,7 @@ export function Layout() {
           </div>
           <span className="text-foreground font-semibold text-lg tracking-wide">Ami_Core</span>
         </div>
-        
+
         <div className="py-4 flex-1 overflow-y-auto">
           {filteredMenuItems.map((menu) => (
             <div key={menu.path} className="mb-2">
@@ -256,7 +257,7 @@ export function Layout() {
                   <ChevronRight className="w-4 h-4" />
                 )}
               </button>
-              
+
               {openMenus[menu.path] && (
                 <div className="flex flex-col">
                   {menu.children.map((child) => {
@@ -299,7 +300,7 @@ export function Layout() {
             </div>
             <StoreSwitcher />
           </div>
-          
+
           <div className="flex items-center gap-3">
             <span className="text-foreground/80">{user?.name ?? '用户'}</span>
             <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground shadow-sm">

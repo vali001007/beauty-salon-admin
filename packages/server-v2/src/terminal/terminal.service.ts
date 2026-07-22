@@ -5176,7 +5176,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       ...dto,
       storeId,
       status: 'pending',
-      bookingSource: 'ami_aura_lite',
+      bookingSource: dto.bookingSource ?? 'ami_aura_lite',
       allowCreateCustomer: !dto.customerId,
       allowDefaultProject: !dto.projectId && !dto.projectName,
     });
