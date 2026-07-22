@@ -22,6 +22,8 @@ import {
 import type { BrainEvaluationReleaseSnapshot } from './brain-evaluation-release-snapshot.js';
 import { isBrainProviderUnavailableOutput } from '../eval/brain-eval-infrastructure-status.js';
 import { BrainTimeBoundaryGraderService } from '../eval/brain-time-boundary-grader.service.js';
+import evalCatalogSnapshot from '../eval/generated/ami-brain-650-eval-catalog.js';
+import type { BrainEvalCatalogDetail, BrainEvalCatalogItem } from '../eval/brain-eval-catalog.types.js';
 
 interface RuntimeBrainEvalCase {
   id?: number;
@@ -64,6 +66,153 @@ export class BrainEvalService {
       failed,
       canRelease: results.length > 0 && providerUnavailable === 0 && failed === 0,
     };
+  }
+
+  listQuestionCatalog(input?: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    questionType?: string;
+    status?: 'passed' | 'failed' | 'unavailable';
+  }) {
+    const page = Math.max(1, Number(input?.page) || 1);
+    const pageSize = Math.max(10, Math.min(100, Number(input?.pageSize) || 50));
+    const search = String(input?.search ?? '').trim().toLocaleLowerCase('zh-CN');
+    const questionType = String(input?.questionType ?? '').trim();
+    const status = input?.status;
+    const allItems = evalCatalogSnapshot.items;
+    const types = [...new Set(allItems.map((item) => item.questionType))]
+      .sort((left, right) => left.localeCompare(right, 'zh-CN'))
+      .map((value) => ({ value, count: allItems.filter((item) => item.questionType === value).length }));
+    const filtered = allItems.filter((item) => {
+      if (questionType && item.questionType !== questionType) return false;
+      if (status === 'passed' && item.passed !== true) return false;
+      if (status === 'failed' && item.passed !== false) return false;
+      if (status === 'unavailable' && item.passed !== null) return false;
+      if (!search) return true;
+      return [
+        item.questionId,
+        item.question,
+        item.questionType,
+        item.intentType,
+        item.persona,
+        ...item.semanticKeys,
+        ...item.dataTables,
+        item.diagnosis,
+        item.improvementSuggestion,
+      ].some((value) => value.toLocaleLowerCase('zh-CN').includes(search));
+    });
+    const offset = (page - 1) * pageSize;
+    return {
+      metadata: evalCatalogSnapshot.metadata,
+      types,
+      items: filtered.slice(offset, offset + pageSize).map(toEvalCatalogSummary),
+      total: filtered.length,
+      page,
+      pageSize,
+    };
+  }
+
+  getQuestionCatalogDetail(questionId: string): BrainEvalCatalogDetail {
+    const normalized = String(questionId ?? '').trim();
+    const item = evalCatalogSnapshot.items.find((candidate) => candidate.questionId === normalized);
+    if (!item) throw new BadRequestException('brain_eval_catalog_question_not_found');
+    return item;
+  }
+
+  async listEvaluationSuites(input: { storeId: number }) {
+    const fullRuns = await this.prisma.brainEvalRun.findMany({
+      where: { storeId: input.storeId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, status: true, caseCount: true, passedCount: true, failedCount: true, startedAt: true, finishedAt: true, createdAt: true, summary: true },
+    });
+    const runs = fullRuns
+      .map((run) => ({ run, summary: this.record(run.summary) }))
+      .filter(({ summary }) => summary.suiteKey === 'ami_brain_full_domain_2000')
+      .map(({ run, summary }) => ({
+        id: run.id,
+        suiteKey: 'ami_brain_full_domain_2000',
+        suiteLabel: String(summary.suiteLabel ?? 'Ami Brain 全领域实测 2000'),
+        stage: String(summary.stage ?? 'full'),
+        status: run.status,
+        caseCount: run.caseCount,
+        passedCount: run.passedCount,
+        failedCount: run.failedCount,
+        deterministicPassRate: this.numberValue(summary.deterministicPassRate),
+        judgePassRate: this.numberValue(summary.judgePassRate),
+        manualReview: this.numberValue(summary.manualReview),
+        averageLatencyMs: this.numberValue(summary.averageLatencyMs),
+        p95LatencyMs: this.numberValue(summary.p95LatencyMs),
+        startedAt: run.startedAt,
+        finishedAt: run.finishedAt,
+        createdAt: run.createdAt,
+      }));
+    return {
+      items: [
+        {
+          id: null,
+          suiteKey: 'ami_brain_release_362_baseline_650',
+          suiteLabel: '650 题 Release #362 基线',
+          stage: 'baseline',
+          status: 'completed',
+          caseCount: evalCatalogSnapshot.metadata.total,
+          passedCount: evalCatalogSnapshot.metadata.passed,
+          failedCount: evalCatalogSnapshot.metadata.failed,
+          deterministicPassRate: evalCatalogSnapshot.metadata.passRate,
+          judgePassRate: null,
+          manualReview: null,
+          averageLatencyMs: null,
+          p95LatencyMs: null,
+          createdAt: evalCatalogSnapshot.metadata.generatedAt,
+        },
+        ...runs,
+      ],
+    };
+  }
+
+  async listFullDomainSuiteResults(input: {
+    storeId: number;
+    evalRunId: number;
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    domain?: string;
+    role?: string;
+    type?: string;
+    difficulty?: string;
+    deterministic?: 'passed' | 'failed';
+    judge?: 'pass' | 'fail' | 'insufficient_evidence';
+  }) {
+    const run = await this.prisma.brainEvalRun.findFirst({ where: { id: input.evalRunId, storeId: input.storeId }, select: { id: true, summary: true } });
+    if (!run || this.record(run.summary).suiteKey !== 'ami_brain_full_domain_2000') throw new BadRequestException('brain_full_domain_eval_run_not_found');
+    const all = await this.prisma.brainEvalResult.findMany({ where: { evalRunId: run.id }, orderBy: { caseKey: 'asc' } });
+    const search = String(input.search ?? '').trim().toLocaleLowerCase('zh-CN');
+    const filtered = all.filter((row) => {
+      const meta = this.record(row.metadata);
+      const judge = this.record(row.llmJudge);
+      if (input.domain && meta.domain !== input.domain) return false;
+      if (input.role && meta.role !== input.role) return false;
+      if (input.type && meta.type !== input.type) return false;
+      if (input.difficulty && meta.difficulty !== input.difficulty) return false;
+      if (input.deterministic === 'passed' && !row.deterministicPassed) return false;
+      if (input.deterministic === 'failed' && row.deterministicPassed) return false;
+      if (input.judge && judge.verdict !== input.judge) return false;
+      return !search || [row.caseKey, row.question, meta.domain, meta.role, meta.type, meta.expectedTarget].some((value) => String(value ?? '').toLocaleLowerCase('zh-CN').includes(search));
+    });
+    const values = (key: string) => [...new Set(all.map((row) => String(this.record(row.metadata)[key] ?? '')).filter(Boolean))].sort();
+    const page = Math.max(1, input.page ?? 1); const pageSize = Math.max(10, Math.min(100, input.pageSize ?? 50)); const offset = (page - 1) * pageSize;
+    return {
+      run: { id: run.id, ...this.record(run.summary) },
+      filters: { domains: values('domain'), roles: values('role'), types: values('type'), difficulties: values('difficulty') },
+      total: filtered.length, page, pageSize,
+      items: filtered.slice(offset, offset + pageSize).map((row) => this.toFullDomainCatalogItem(row)),
+    };
+  }
+
+  async getFullDomainSuiteResult(input: { storeId: number; evalRunId: number; caseKey: string }) {
+    const row = await this.prisma.brainEvalResult.findFirst({ where: { evalRunId: input.evalRunId, caseKey: input.caseKey, evalRun: { storeId: input.storeId } } });
+    if (!row) throw new BadRequestException('brain_full_domain_eval_result_not_found');
+    return this.toFullDomainCatalogItem(row, true);
   }
 
   async createEvalRun(input: {
@@ -442,7 +591,21 @@ export class BrainEvalService {
     return this.prisma.brainEvalRun.findMany({
       where: { storeId: input.storeId },
       orderBy: { createdAt: 'desc' },
-      take: 100,
+      take: 50,
+      select: {
+        id: true,
+        releaseId: true,
+        storeId: true,
+        roleKey: true,
+        modelVersion: true,
+        status: true,
+        caseCount: true,
+        passedCount: true,
+        failedCount: true,
+        startedAt: true,
+        finishedAt: true,
+        createdAt: true,
+      },
     });
   }
 
@@ -722,6 +885,52 @@ export class BrainEvalService {
     return gradeBrainEvalExecution(brainStatus, observationsValue, completionValue);
   }
 
+  private numberValue(value: unknown): number | null {
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  }
+
+  private toFullDomainCatalogItem(row: {
+    caseKey: string;
+    roleKey: string | null;
+    question: string;
+    answer: string;
+    citations: unknown;
+    deterministicGrade: unknown;
+    deterministicPassed: boolean;
+    llmJudge: unknown;
+    latencyMs: number | null;
+    failureCluster: string | null;
+    error: unknown;
+    metadata: unknown;
+  }, detail = false) {
+    const meta = this.record(row.metadata);
+    const grade = this.record(row.deterministicGrade);
+    const judge = this.record(row.llmJudge);
+    const item = {
+      questionId: row.caseKey,
+      question: row.question,
+      questionType: String(meta.type ?? 'unknown'),
+      domain: String(meta.domain ?? 'unknown'),
+      role: String(meta.role ?? row.roleKey ?? 'unknown'),
+      difficulty: String(meta.difficulty ?? 'unknown'),
+      expectedTarget: String(meta.expectedTarget ?? ''),
+      diagnosis: row.deterministicPassed
+        ? '确定性门禁通过。'
+        : `确定性门禁失败：${row.failureCluster ?? 'unknown'}`,
+      improvementSuggestion: row.deterministicPassed
+        ? '保持当前能力并持续回归监控。'
+        : '按失败簇定位意图、权限、动作安全、澄清、多轮或依据链路后再回归。',
+      deterministicPassed: row.deterministicPassed,
+      judgeVerdict: typeof judge.verdict === 'string' ? judge.verdict : 'insufficient_evidence',
+      judgeReason: typeof judge.reason === 'string' ? judge.reason : null,
+      latencyMs: row.latencyMs,
+      failureCluster: row.failureCluster,
+    };
+    return detail
+      ? { ...item, answer: row.answer, citations: row.citations, deterministicGrade: grade, llmJudge: judge, notes: String(meta.notes ?? ''), turns: meta.turns ?? [], completedTurns: meta.completedTurns ?? 0, error: row.error }
+      : item;
+  }
+
   private toJson(value: unknown): Prisma.InputJsonValue {
     return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
   }
@@ -858,6 +1067,30 @@ function projectedEvalCases(definitions: unknown[]): RuntimeBrainEvalCase[] {
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function toEvalCatalogSummary(detail: BrainEvalCatalogDetail): BrainEvalCatalogItem {
+  return {
+    questionId: detail.questionId,
+    question: detail.question,
+    questionType: detail.questionType,
+    intentType: detail.intentType,
+    persona: detail.persona,
+    passed: detail.passed,
+    status: detail.status,
+    hitRate: detail.hitRate,
+    runId: detail.runId,
+    failureReason: detail.failureReason,
+    diagnosis: detail.diagnosis,
+    improvementSuggestion: detail.improvementSuggestion,
+    averageLatencyMs: averageLatencyMs(detail.testHistory.map((result) => result.latencyMs)),
+  };
+}
+
+function averageLatencyMs(values: Array<number | null>): number | null {
+  const recorded = values.filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+  if (!recorded.length) return null;
+  return Math.round(recorded.reduce((sum, value) => sum + value, 0) / recorded.length);
 }
 
 function nonEmptyString(value: unknown): string | undefined {

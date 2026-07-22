@@ -98,6 +98,15 @@ export class BrainReleaseService {
       : { mode: undefined, declaredMode: undefined, release, capabilityCandidates };
   }
 
+  async resolveRuntimeSummary(input: { storeId: number; userId: number; roleKey: string }) {
+    const release = await this.selectReleaseSummary(input);
+    const declaredMode = release ? this.record(release.rollout).mode : undefined;
+    const mode = declaredMode === 'rules' || declaredMode === 'shadow' || declaredMode === 'model'
+      ? declaredMode
+      : undefined;
+    return { mode, declaredMode: mode, release };
+  }
+
   async freezeEvaluationRelease(releaseId: number): Promise<BrainEvaluationReleaseSnapshot> {
     const release = await this.selectEvaluationRelease(releaseId);
     const declaredMode = this.record(release.rollout).mode;
@@ -368,11 +377,37 @@ export class BrainReleaseService {
     });
   }
 
-  listReleases() {
+  async listReleases(input?: { includeSnapshot?: boolean; take?: number }) {
+    const take = Math.max(1, Math.min(100, Number(input?.take) || 30));
+    if (input?.includeSnapshot === false) {
+      const releases = await this.requirePrisma().brainRelease.findMany({
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          releaseKey: true,
+          scope: true,
+          rollout: true,
+          status: true,
+          previousReleaseId: true,
+          activatedAt: true,
+          rolledBackAt: true,
+          failureReason: true,
+          createdAt: true,
+          updatedAt: true,
+          _count: { select: { items: true } },
+        },
+        take,
+      });
+      return releases.map(({ _count, ...release }) => ({
+        ...release,
+        itemCount: _count.items,
+        items: [],
+      }));
+    }
     return this.requirePrisma().brainRelease.findMany({
       orderBy: { createdAt: 'desc' },
       include: { items: true },
-      take: 100,
+      take,
     });
   }
 
@@ -381,6 +416,22 @@ export class BrainReleaseService {
       where: { status: 'active' },
       orderBy: { activatedAt: 'desc' },
       include: { items: true },
+    });
+    return releases.find((release) => this.matchesRollout(release.scope, this.record(release.rollout), input)) ?? null;
+  }
+
+  private async selectReleaseSummary(input: { storeId: number; userId: number; roleKey: string }) {
+    const releases = await this.requirePrisma().brainRelease.findMany({
+      where: { status: 'active' },
+      orderBy: { activatedAt: 'desc' },
+      select: {
+        id: true,
+        releaseKey: true,
+        scope: true,
+        rollout: true,
+        status: true,
+        activatedAt: true,
+      },
     });
     return releases.find((release) => this.matchesRollout(release.scope, this.record(release.rollout), input)) ?? null;
   }

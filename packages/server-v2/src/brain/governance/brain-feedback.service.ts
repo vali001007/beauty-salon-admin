@@ -69,23 +69,100 @@ export class BrainFeedbackService {
     return this.prisma.brainFeedback.findMany({
       where: { storeId: input.storeId },
       orderBy: { createdAt: 'desc' },
-      take: 200,
+      take: 100,
     });
   }
 
-  async getDashboard(input: { storeId: number }) {
-    const [runs, feedback, actions, findings, latestEval] = await Promise.all([
-      this.prisma.brainRun.findMany({
-        where: { storeId: input.storeId },
-        select: { status: true, latencyMs: true, cost: true },
+  async listUserIssues(input: { storeId: number; userId: number; page?: number; pageSize?: number }) {
+    const page = Math.max(1, Math.trunc(Number(input.page) || 1));
+    const pageSize = Math.min(50, Math.max(1, Math.trunc(Number(input.pageSize) || 10)));
+    const where = {
+      storeId: input.storeId,
+      userId: input.userId,
+      rating: 'needs_improvement',
+    };
+    const [feedback, total] = await Promise.all([
+      this.prisma.brainFeedback.findMany({
+        where,
         orderBy: { createdAt: 'desc' },
-        take: 1000,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true,
+          runId: true,
+          status: true,
+          createdAt: true,
+        },
       }),
-      this.prisma.brainFeedback.findMany({ where: { storeId: input.storeId }, select: { rating: true, status: true } }),
-      this.prisma.brainActionExecution.findMany({ where: { storeId: input.storeId }, select: { status: true } }),
-      this.prisma.brainInspectionFinding.findMany({ where: { storeId: input.storeId }, select: { status: true, feedback: true, disposition: true } }),
-      this.prisma.brainEvalRun.findFirst({ where: { storeId: input.storeId, status: 'completed' }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.brainFeedback.count({ where }),
     ]);
+    const runIds = [...new Set(feedback.map((item) => item.runId))];
+    const runs = runIds.length
+      ? await this.prisma.brainRun.findMany({
+          where: {
+            id: { in: runIds },
+            storeId: input.storeId,
+            userId: input.userId,
+          },
+          select: {
+            id: true,
+            conversationId: true,
+            status: true,
+            input: true,
+            output: true,
+          },
+        })
+      : [];
+    const runsById = new Map(runs.map((run) => [run.id, run]));
+
+    return {
+      items: feedback.map((item) => {
+        const run = runsById.get(item.runId);
+        return {
+          feedbackId: item.id,
+          runId: item.runId,
+          conversationId: run?.conversationId ?? null,
+          question: readRunQuestion(run?.input) ?? '原问题未记录',
+          answer: readRunAnswer(run?.output) ?? '原回答未记录',
+          feedbackStatus: item.status,
+          runStatus: run?.status ?? 'unavailable',
+          createdAt: item.createdAt,
+        };
+      }),
+      total,
+      page,
+      pageSize,
+      storeId: input.storeId,
+    };
+  }
+
+  async getDashboard(input: { storeId: number }) {
+    const runs = await this.prisma.brainRun.findMany({
+      where: { storeId: input.storeId },
+      select: { status: true, latencyMs: true },
+      orderBy: { createdAt: 'desc' },
+      take: 1000,
+    });
+    const feedback = await this.prisma.brainFeedback.findMany({
+      where: { storeId: input.storeId },
+      select: { rating: true },
+      take: 1000,
+    });
+    const actions = await this.prisma.brainActionExecution.findMany({
+      where: { storeId: input.storeId },
+      select: { status: true },
+      take: 1000,
+    });
+    const findings = await this.prisma.brainInspectionFinding.findMany({
+      where: { storeId: input.storeId },
+      select: { status: true, feedback: true, disposition: true },
+      take: 1000,
+    });
+    const latestEval = await this.prisma.brainEvalRun.findFirst({
+      where: { storeId: input.storeId, status: 'completed' },
+      orderBy: { createdAt: 'desc' },
+      select: { summary: true },
+    });
     const latencies = runs.map((run) => run.latencyMs).filter((value): value is number => value != null).sort((a, b) => a - b);
     const p95Index = latencies.length ? Math.min(latencies.length - 1, Math.ceil(latencies.length * 0.95) - 1) : -1;
     const actionSucceeded = actions.filter((action) => action.status === 'succeeded').length;
@@ -138,6 +215,12 @@ function readRunQuestion(value: unknown): string | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   const message = (value as Record<string, unknown>).message;
   return typeof message === 'string' ? message : undefined;
+}
+
+function readRunAnswer(value: unknown): string | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const answer = (value as Record<string, unknown>).answer;
+  return typeof answer === 'string' ? answer : undefined;
 }
 
 type RunDefinitionRef = {

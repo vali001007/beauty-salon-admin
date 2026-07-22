@@ -27,14 +27,19 @@ export class BrainTraceService {
   }
 
   async listTraces(input: { storeId: number }) {
-    const [items, total] = await Promise.all([
-      this.prisma.brainRun.findMany({
-        where: { storeId: input.storeId },
-        orderBy: { id: 'desc' },
-        take: 50,
-      }),
-      this.prisma.brainRun.count({ where: { storeId: input.storeId } }),
-    ]);
+    const items = await this.prisma.brainRun.findMany({
+      where: { storeId: input.storeId },
+      orderBy: { id: 'desc' },
+      take: 50,
+      select: {
+        id: true,
+        status: true,
+        input: true,
+        latencyMs: true,
+        createdAt: true,
+      },
+    });
+    const total = await this.prisma.brainRun.count({ where: { storeId: input.storeId } });
 
     return { items, total };
   }

@@ -141,7 +141,7 @@ export class BrainInspectionService {
     return this.prisma.brainInspectionFinding.findMany({
       where: { storeId: input.storeId, ...(input.status ? { status: input.status } : {}) },
       orderBy: [{ status: 'asc' }, { severity: 'desc' }, { lastDetectedAt: 'desc' }],
-      take: 200,
+      take: 100,
     });
   }
 
