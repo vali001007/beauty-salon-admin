@@ -58,7 +58,7 @@ describe('SalesOutboundTab', () => {
           operatorName: undefined,
         }),
       ],
-      data: [
+       data: [
         movement(),
         movement({
           id: 2,
@@ -70,7 +70,7 @@ describe('SalesOutboundTab', () => {
           afterStock: null,
           operatorName: undefined,
         }),
-      ],
+       ],
       total: 2,
       page: 1,
       pageSize: 100,
@@ -127,7 +127,7 @@ describe('SalesOutboundTab', () => {
           occurredAt: '2026-07-10T09:30:00.000Z',
         }),
       ],
-      data: [
+       data: [
         movement(),
         movement({
           id: 2,
@@ -138,7 +138,7 @@ describe('SalesOutboundTab', () => {
           sourceNo: 'PO502',
           occurredAt: '2026-07-10T09:30:00.000Z',
         }),
-      ],
+       ],
       total: 2,
       page: 1,
       pageSize: 100,

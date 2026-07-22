@@ -247,6 +247,168 @@ describe('CustomerAppService promotion attribution', () => {
     expect(factService.recordFact).not.toHaveBeenCalled();
   });
 
+  it('lists only notifications delivered to the current customer and store', async () => {
+    prisma.marketingInAppNotification.findMany.mockResolvedValue([
+      {
+        id: 51,
+        storeId: 1,
+        customerId: 10,
+        title: '护理提醒',
+        content: '您的护理权益即将到期',
+        status: 'delivered',
+        deliveredAt: new Date('2026-07-14T08:00:00.000Z'),
+        openedAt: null,
+        createdAt: new Date('2026-07-14T08:00:00.000Z'),
+      },
+    ]);
+    prisma.marketingInAppNotification.count
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(1);
+
+    const result = await service.getMyNotifications(user, { page: 1, pageSize: 20 });
+
+    expect(prisma.marketingInAppNotification.findMany).toHaveBeenCalledWith({
+      where: { storeId: 1, customerId: 10, status: { in: ['delivered', 'opened', 'clicked', 'converted'] } },
+      orderBy: { createdAt: 'desc' },
+      skip: 0,
+      take: 20,
+    });
+    expect(result).toEqual(expect.objectContaining({
+      total: 1,
+      unreadCount: 1,
+      page: 1,
+      pageSize: 20,
+      items: [expect.objectContaining({ id: 51, status: 'delivered' })],
+    }));
+  });
+
+  it('opens a notification only inside the authenticated customer scope', async () => {
+    const factService = { recordFact: jest.fn().mockResolvedValue({ id: 901 }) };
+    service = new CustomerAppService(
+      prisma as any,
+      {} as any,
+      {} as any,
+      factService as any,
+      { effectFactWrite: true } as any,
+    );
+    prisma.marketingInAppNotification.updateMany.mockResolvedValue({ count: 1 });
+    prisma.marketingInAppNotification.findFirst
+      .mockResolvedValueOnce({
+        id: 51,
+        deliveryJobId: 71,
+        storeId: 1,
+        customerId: 10,
+        title: '护理提醒',
+        content: '您的护理权益即将到期',
+        status: 'delivered',
+        deliveredAt: new Date('2026-07-14T08:00:00.000Z'),
+        openedAt: null,
+        createdAt: new Date('2026-07-14T08:00:00.000Z'),
+      })
+      .mockResolvedValueOnce({
+        id: 51,
+        deliveryJobId: 71,
+        storeId: 1,
+        customerId: 10,
+        title: '护理提醒',
+        content: '您的护理权益即将到期',
+        status: 'opened',
+        deliveredAt: new Date('2026-07-14T08:00:00.000Z'),
+        openedAt: new Date('2026-07-14T09:00:00.000Z'),
+        createdAt: new Date('2026-07-14T08:00:00.000Z'),
+      });
+    prisma.marketingDeliveryJob.findFirst.mockResolvedValue({
+      id: 71,
+      storeId: 1,
+      customerId: 10,
+      strategyId: 81,
+      executionId: 91,
+      touchId: 101,
+      channel: 'in_app',
+      strategy: {
+        recommendationInstanceId: 'recommendation-instance-1',
+        adoptionId: 111,
+        actions: [{ promotionId: 31 }],
+      },
+    });
+    prisma.marketingAutomationTouch.updateMany.mockResolvedValue({ count: 1 });
+
+    const result = await service.openMyNotification(user, 51);
+
+    expect(prisma.marketingInAppNotification.findFirst).toHaveBeenNthCalledWith(1, {
+      where: {
+        id: 51,
+        storeId: 1,
+        customerId: 10,
+        status: { in: ['delivered', 'opened', 'clicked', 'converted'] },
+      },
+    });
+    expect(prisma.marketingInAppNotification.updateMany).toHaveBeenCalledWith({
+      where: { id: 51, storeId: 1, customerId: 10, status: 'delivered' },
+      data: { status: 'opened', openedAt: expect.any(Date) },
+    });
+    expect(prisma.marketingDeliveryJob.findFirst).toHaveBeenCalledWith({
+      where: { id: 71, storeId: 1, customerId: 10, channel: 'in_app' },
+      include: { strategy: { select: { recommendationInstanceId: true, adoptionId: true, actions: true } } },
+    });
+    expect(prisma.marketingAutomationTouch.updateMany).toHaveBeenCalledWith({
+      where: { id: 101, status: { in: ['sent', 'delivered'] } },
+      data: { status: 'opened' },
+    });
+    expect(factService.recordFact).toHaveBeenCalledWith(expect.objectContaining({
+      storeId: 1,
+      factType: 'open',
+      metricSource: 'actual',
+      sourceSystem: 'customer_app_in_app_notification',
+      sourceEventId: 'notification:51',
+      countValue: 1,
+      dimensions: {
+        recommendationInstanceId: 'recommendation-instance-1',
+        adoptionId: 111,
+        strategyId: 81,
+        executionId: 91,
+        touchId: 101,
+        deliveryJobId: 71,
+        promotionId: 31,
+        customerId: 10,
+        channel: 'in_app',
+      },
+      metadata: { status: 'opened', notificationId: 51 },
+      occurredAt: expect.any(Date),
+    }));
+    expect(result).toEqual(expect.objectContaining({ id: 51, status: 'opened' }));
+  });
+
+  it('does not emit duplicate open effects when a notification was already opened', async () => {
+    const factService = { recordFact: jest.fn() };
+    service = new CustomerAppService(
+      prisma as any,
+      {} as any,
+      {} as any,
+      factService as any,
+      { effectFactWrite: true } as any,
+    );
+    prisma.marketingInAppNotification.findFirst.mockResolvedValue({
+      id: 51,
+      deliveryJobId: 71,
+      storeId: 1,
+      customerId: 10,
+      title: '护理提醒',
+      content: '您的护理权益即将到期',
+      status: 'opened',
+      deliveredAt: new Date('2026-07-14T08:00:00.000Z'),
+      openedAt: new Date('2026-07-14T09:00:00.000Z'),
+      createdAt: new Date('2026-07-14T08:00:00.000Z'),
+    });
+
+    await service.openMyNotification(user, 51);
+
+    expect(prisma.marketingInAppNotification.updateMany).not.toHaveBeenCalled();
+    expect(prisma.marketingDeliveryJob.findFirst).not.toHaveBeenCalled();
+    expect(prisma.marketingAutomationTouch.updateMany).not.toHaveBeenCalled();
+    expect(factService.recordFact).not.toHaveBeenCalled();
+  });
+
   it('creates an H5 guest token without using wechat login code', async () => {
     const signAsync = jest.fn().mockResolvedValue('signed-h5-token');
     service = new CustomerAppService(prisma as any, { signAsync } as any, {} as any);
