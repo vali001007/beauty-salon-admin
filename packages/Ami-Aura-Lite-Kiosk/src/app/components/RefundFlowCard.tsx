@@ -34,6 +34,9 @@ export function RefundFlowCard({
   const [selectedOrder, setSelectedOrder] = useState<RefundOrderOption | null>(null);
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("客户申请退款");
+  const [sessionRequestId, setSessionRequestId] = useState("");
+  const [refundMode, setRefundMode] = useState<'refund_only' | 'return_and_refund'>('refund_only');
+  const [selectedItems, setSelectedItems] = useState<Record<number, boolean>>({});
   const [searchKeyword, setSearchKeyword] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -41,7 +44,10 @@ export function RefundFlowCard({
   const orders = safeArray(data.orders);
   const todayKey = getTodayKey(data);
   const refundAmount = Math.max(0, Number(amount) || 0);
-  const canSubmit = Boolean(selectedOrder && refundAmount > 0 && refundAmount <= (selectedOrder?.refundableAmount ?? 0));
+  const selectedRefundItems = useMemo(() => safeArray(selectedOrder?.items).filter((item) => selectedItems[item.orderItemId]).map((item) => ({ orderItemId: item.orderItemId, quantity: item.remainingRefundableQuantity, refundAmount: item.remainingRefundableAmount })), [selectedItems, selectedOrder]);
+  const isCardOrder = String(selectedOrder?.orderKind) === 'card';
+  const calculatedAmount = isCardOrder ? refundAmount : selectedRefundItems.reduce((sum, item) => sum + Number(item.refundAmount ?? 0), 0);
+  const canSubmit = Boolean(selectedOrder && calculatedAmount > 0 && calculatedAmount <= (selectedOrder?.refundableAmount ?? 0) && (isCardOrder || selectedRefundItems.length));
 
   const todayOrders = useMemo(
     () => orders.filter((order) => dateOnly(order.createdAt) === todayKey),
@@ -72,6 +78,9 @@ export function RefundFlowCard({
     setSelectedOrder(order);
     setAmount(String(order.refundableAmount));
     setReason("客户申请退款");
+    setSessionRequestId(globalThis.crypto?.randomUUID?.() ?? `refund-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+    setRefundMode('refund_only');
+    setSelectedItems({});
     setSearchKeyword(`${order.customerName || "散客"} · ${order.orderNo}`);
     setDropdownOpen(false);
     setStep(2);
@@ -90,8 +99,11 @@ export function RefundFlowCard({
       await onConfirm({
         orderId: selectedOrder.id,
         orderKind: selectedOrder.orderKind,
-        amount: refundAmount,
+        amount: calculatedAmount,
         reason: reason.trim() || "客户申请退款",
+        requestId: sessionRequestId || globalThis.crypto?.randomUUID?.() || `refund-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        refundMode,
+        items: selectedRefundItems,
       });
       setStep(3);
     } catch (err) {
@@ -227,10 +239,16 @@ export function RefundFlowCard({
         <div className="grid gap-5">
           <div className="rounded-2xl bg-[#2D1B69] p-5 text-white">
             <div className="text-sm text-white/70">{selectedOrder?.customerName} · {selectedOrder?.orderNo}</div>
-            <div className="mt-4 text-3xl font-bold">{money(refundAmount)}</div>
+            <div className="mt-4 text-3xl font-bold">{money(calculatedAmount)}</div>
             <div className="mt-2 text-sm text-white/60">可退金额 {money(selectedOrder?.refundableAmount ?? 0)}</div>
           </div>
-          <label className="grid gap-2">
+          {!isCardOrder ? <div className="grid gap-3">
+            <div className="text-sm font-medium text-[#6F6678]">退款方式</div>
+            <label className="flex items-center gap-2 rounded-xl border border-black/10 p-3"><input aria-label="仅退款不退货" type="radio" checked={refundMode === 'refund_only'} onChange={() => setRefundMode('refund_only')} /><span>仅退款不退货</span></label>
+            <label className="flex items-center gap-2 rounded-xl border border-black/10 p-3"><input aria-label="退款退货" type="radio" checked={refundMode === 'return_and_refund'} disabled={!selectedOrder?.allowedModes?.includes('return_and_refund')} onChange={() => setRefundMode('return_and_refund')} /><span>退款退货（商品入库 / 项目耗材冲销）</span></label>
+            <div className="text-sm font-medium text-[#6F6678]">退款明细</div>
+            {safeArray(selectedOrder?.items).map((item) => <label key={item.orderItemId} className="flex items-center justify-between gap-3 rounded-xl border border-black/10 p-3"><span className="flex items-center gap-2"><input aria-label={`选择${item.name}`} type="checkbox" checked={Boolean(selectedItems[item.orderItemId])} onChange={(event) => setSelectedItems((state) => ({ ...state, [item.orderItemId]: event.target.checked }))} />{item.name}</span><span className="text-xs text-[#6F6678]">{item.remainingRefundableQuantity} · {money(item.remainingRefundableAmount)}</span></label>)}
+          </div> : <label className="grid gap-2">
             <span className="text-sm font-medium text-[#6F6678]">退款金额</span>
             <input
               value={amount}
@@ -241,7 +259,7 @@ export function RefundFlowCard({
               step="0.01"
               className="h-12 rounded-xl border border-black/10 px-4 outline-none focus:border-[#C9956C]"
             />
-          </label>
+          </label>}
           <label className="grid gap-2">
             <span className="text-sm font-medium text-[#6F6678]">退款原因</span>
             <textarea

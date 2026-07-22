@@ -4262,16 +4262,14 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     }
 
     const ordersService = this.ordersService ?? new OrdersService(this.prisma, this.commissionService, this.discountAllocationService);
-    const createdOrders: any[] = [];
-    for (const [index, group] of itemGroups.entries()) {
-      const summary = groupSummaries[index];
-      const payments = groupPayments[index] ?? [];
-      const orderPayMethod = payments[0]?.paymentMethod ?? paymentMethod;
-      const orderNo =
-        itemGroups.length > 1
-          ? `${checkoutGroupNo}-${this.getCheckoutOrderKindSuffix(group.kind)}`
-          : checkoutGroupNo;
-      const groupOrder = await ordersService.createProductOrder({
+    const createdOrders: any[] = await this.prisma.$transaction(async (tx) => {
+      const transactionOrders: any[] = [];
+      for (const [index, group] of itemGroups.entries()) {
+        const summary = groupSummaries[index];
+        const payments = groupPayments[index] ?? [];
+        const orderPayMethod = payments[0]?.paymentMethod ?? paymentMethod;
+        const orderNo = itemGroups.length > 1 ? `${checkoutGroupNo}-${this.getCheckoutOrderKindSuffix(group.kind)}` : checkoutGroupNo;
+        const groupOrder = await ordersService.createProductOrder({
         orderNo,
         checkoutGroupNo,
         orderKind: group.kind,
@@ -4303,9 +4301,11 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
         remark: dto.remark,
         skipDailySettlementRefresh: true,
         dailySettlementSource: 'terminal_checkout',
-      });
-      createdOrders.push(groupOrder);
-    }
+        }, tx);
+        transactionOrders.push(groupOrder);
+      }
+      return transactionOrders;
+    }, { timeout: 30000 });
     const result = { order: createdOrders[0], orders: createdOrders, customer, customerName, customerPhone, checkoutGroupNo };
     for (const order of result.orders) {
       this.scheduleCheckoutPostCommitTasks({

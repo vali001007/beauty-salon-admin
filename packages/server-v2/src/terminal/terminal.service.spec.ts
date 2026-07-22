@@ -1556,7 +1556,7 @@ describe('TerminalService automation', () => {
       status: 'completed',
       preAllocatedDiscount: true,
       items: [expect.objectContaining({ itemType: 'project', itemId: 101, beauticianId: 2 })],
-    }));
+    }), expect.anything());
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(prisma.cashierShift.findFirst).toHaveBeenCalledWith({
       where: { storeId: 1, deviceId: 99, status: 'open' },
@@ -1678,10 +1678,28 @@ describe('TerminalService automation', () => {
       source: 'terminal',
       preAllocatedDiscount: true,
       items: [expect.objectContaining({ itemType: 'product', itemId: 301, quantity: 3 })],
-    }));
+    }), expect.anything());
     expect(prisma.product.update).not.toHaveBeenCalled();
     expect(prisma.stockMovement.create).not.toHaveBeenCalled();
     expect(terminalDashboardCache.invalidate).toHaveBeenCalledWith(1, ['role', 'manager', 'inventory-alerts']);
+  });
+
+  it('creates every mixed checkout split order inside one outer transaction', async () => {
+    const transactionClient = { token: 'checkout-tx' };
+    prisma.$transaction = jest.fn(async (callback: any) => callback(transactionClient));
+    jest.spyOn(service as any, 'ensureOpenCashierShift').mockResolvedValue(undefined);
+    jest.spyOn(service as any, 'getStore').mockResolvedValue({ id: 1, name: 'Store A' });
+    jest.spyOn(service as any, 'resolveOrderItemBeauticianIds').mockImplementation(async (_storeId: number, items: any[]) => items);
+    jest.spyOn(service as any, 'resolveOrderItemNames').mockImplementation(async (items: any[]) => items);
+    jest.spyOn(service as any, 'scheduleCheckoutPostCommitTasks').mockImplementation(() => undefined);
+    const createProductOrder = jest.fn().mockResolvedValueOnce({ id: 1, orderNo: 'PO-S', orderKind: 'project', netAmount: 100, customerName: '客户' }).mockResolvedValueOnce({ id: 2, orderNo: 'PO-G', orderKind: 'product', netAmount: 50, customerName: '客户' });
+    (service as any).ordersService = { createProductOrder };
+
+    await service.checkout(1, { customerName: '客户', payMethod: 'wechat', items: [{ itemType: 'project', itemId: 101, name: '护理', quantity: 1, unitPrice: 100 }, { itemType: 'product', itemId: 201, name: '精华', quantity: 1, unitPrice: 50 }] } as any, 9);
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(createProductOrder).toHaveBeenNthCalledWith(1, expect.any(Object), transactionClient);
+    expect(createProductOrder).toHaveBeenNthCalledWith(2, expect.any(Object), transactionClient);
   });
 
   it('accepts cashier item beauticianName and resolves it to beauticianId', async () => {
@@ -1802,7 +1820,7 @@ describe('TerminalService automation', () => {
     expect(createProductOrder).toHaveBeenCalledWith(expect.objectContaining({
       preAllocatedDiscount: true,
       items: [expect.objectContaining({ itemType: 'project', itemId: 101, beauticianId: 2 })],
-    }));
+    }), expect.anything());
     expect(commissionService.calculateOrderCommissions).not.toHaveBeenCalled();
   });
 
