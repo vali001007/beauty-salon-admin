@@ -57,6 +57,7 @@ import { TermNormalizerService } from './cognition/term-normalizer.service.js';
 import { BrainContextService } from './context/brain-context.service.js';
 import { BrainConversationContextService } from './context/brain-conversation-context.service.js';
 import { BrainResultReferenceService } from './context/brain-result-reference.service.js';
+import { BrainIntentCompletenessPolicyService } from './cognition/brain-intent-completeness-policy.service.js';
 import { BrainCustomerFactResolverService } from './domain/brain-customer-fact-resolver.service.js';
 import { BrainActionTargetResolverService } from './domain/brain-action-target-resolver.service.js';
 import {
@@ -158,6 +159,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BrainContextService,
     BrainConversationContextService,
     BrainResultReferenceService,
+    BrainIntentCompletenessPolicyService,
     BrainChatService,
     BrainRoleIntentRouterService,
     BrainDomainAdapterRegistryService,
@@ -323,6 +325,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BrainContextService,
     BrainConversationContextService,
     BrainResultReferenceService,
+    BrainIntentCompletenessPolicyService,
     BrainChatService,
     BrainRoleIntentRouterService,
     BrainDomainAdapterRegistryService,

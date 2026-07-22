@@ -38,6 +38,7 @@ import type { BrainDomainRole } from './domain/brain-domain-adapter.types.js';
 import { BrainRuntimeConfigService } from './config/brain-runtime-config.service.js';
 import { BrainSemanticIntentCompilerService } from './cognition/brain-semantic-intent-compiler.service.js';
 import { BrainSemanticIntentValidatorService } from './cognition/brain-semantic-intent-validator.service.js';
+import { BrainIntentCompletenessPolicyService } from './cognition/brain-intent-completeness-policy.service.js';
 import { BrainOntologyRuntimeService } from './cognition/brain-ontology-runtime.service.js';
 import { BRAIN_SEMANTIC_ANSWER_SHAPES, BRAIN_SEMANTIC_INTENTS } from './cognition/brain-semantic-intent.types.js';
 import type { BrainDefinitionRef, BrainSemanticIntent } from './cognition/brain-semantic-intent.types.js';
@@ -161,6 +162,7 @@ export class BrainChatService {
     private readonly releaseService?: BrainReleaseService,
     @Optional() private readonly semanticEvidence?: BusinessSemanticEvidenceService,
     @Optional() private readonly untrustedActionClaimGuard?: BrainUntrustedActionClaimGuardService,
+    @Optional() private readonly intentCompleteness?: BrainIntentCompletenessPolicyService,
   ) {}
 
   async createConversation(context: BrainRequestContext, dto: CreateBrainConversationDto) {
@@ -283,7 +285,11 @@ export class BrainChatService {
               },
             },
           };
-          await this.recordMemoryInstructionTrace(run.id, memoryInstruction.action, memoryInstruction.memories.map((memory) => memory.id));
+          await this.recordMemoryInstructionTrace(
+            run.id,
+            memoryInstruction.action,
+            memoryInstruction.memories.map((memory) => memory.id),
+          );
         }
       } catch (error) {
         await this.traceService.recordStep({
@@ -991,7 +997,9 @@ export class BrainChatService {
         evaluationReleaseId: context.governanceEvalReleaseId,
       });
       const mode =
-        resolved.mode === 'rules' || resolved.mode === 'shadow' || resolved.mode === 'model' ? resolved.mode : undefined;
+        resolved.mode === 'rules' || resolved.mode === 'shadow' || resolved.mode === 'model'
+          ? resolved.mode
+          : undefined;
       if (!resolved.release || !mode) return { failureCode: 'PRODUCTION_BASELINE_UNAVAILABLE' };
       if (mode === 'rules') return { failureCode: 'PRODUCTION_BASELINE_INVALID' };
       if (!resolved.capabilityCandidates?.length) return { failureCode: 'PRODUCTION_BASELINE_INVALID' };
@@ -1067,7 +1075,11 @@ export class BrainChatService {
         adapterMetadata: {
           unsupportedReason: currentBackendGap.unsupportedReason,
           scope: 'current_management_backend',
-          completion: { status: 'incomplete', missingCriteria: [currentBackendGap.unsupportedReason], recoverable: false },
+          completion: {
+            status: 'incomplete',
+            missingCriteria: [currentBackendGap.unsupportedReason],
+            recoverable: false,
+          },
         },
         modelMetadata,
       };
@@ -1203,6 +1215,27 @@ export class BrainChatService {
       context: input.context,
       conversationSlots: this.modelConversationSlots(input.conversationSlots),
     });
+    const referencePreflight = this.answerFromConversationReferencePreflight({
+      question: input.dto.message,
+      conversationSlots: verifiedConversationSlots,
+      modelMetadata,
+    });
+    if (referencePreflight) {
+      await this.recordModelTrace({
+        runId: input.runId,
+        stepKey: 'model_result_reference_preflight',
+        layer: 'memory',
+        status: 'completed',
+        output: this.toJsonValue({
+          decisionCode: referencePreflight.adapterMetadata?.decisionCode ?? 'RESULT_REFERENCE_PREFLIGHT',
+        }),
+      });
+      return referencePreflight;
+    }
+    const compilerConversationSlots = this.resultReferenceService.projectConversationSlotsForCompiler(
+      input.dto.message,
+      verifiedConversationSlots,
+    );
     const compilerInput = {
       question: input.dto.message,
       deadlineAt: input.deadlineAt,
@@ -1210,7 +1243,7 @@ export class BrainChatService {
       timezone: this.normalizeShadowTimezone(input.dto.timezone ?? input.context.timezone),
       role: roleContext?.role ?? this.modelRoleFromContext(input.context),
       roleContext,
-      conversationSlots: this.withModelCatalogMetadata(verifiedConversationSlots, snapshot, cards),
+      conversationSlots: this.withModelCatalogMetadata(compilerConversationSlots, snapshot, cards),
       ontologySnapshot: snapshot,
       ontologyCandidates: this.modelOntologyCandidates(snapshot),
       metricRefs: snapshot.metrics.map((metric) => this.modelDefinitionRef('metric', metric)),
@@ -1342,6 +1375,14 @@ export class BrainChatService {
       question: input.dto.message,
       conversationSlots: compilerInput.conversationSlots,
     });
+    enrichedIntent =
+      this.intentCompleteness?.assess({
+        intent: enrichedIntent,
+        question: input.dto.message,
+        snapshot,
+        catalogAmbiguous: catalogDiscovery.status === 'clarify',
+        conversationSlots: compilerInput.conversationSlots,
+      }) ?? enrichedIntent;
     await this.recordModelTrace({
       runId: input.runId,
       stepKey: 'model_intent_normalized',
@@ -1373,7 +1414,11 @@ export class BrainChatService {
       });
       return this.modelFailure('MODEL_INTENT_INVALID', this.modelMetadata('validate', modelMetadata));
     }
-    if (validation.status !== 'valid' && this.shouldRepairModelIntent(validation)) {
+    if (
+      enrichedIntent.intent !== 'clarify' &&
+      validation.status !== 'valid' &&
+      this.shouldRepairModelIntent(validation)
+    ) {
       await this.recordModelTrace({
         runId: input.runId,
         stepKey: 'model_intent_validation_retry',
@@ -1447,6 +1492,14 @@ export class BrainChatService {
           question: input.dto.message,
           conversationSlots: compilerInput.conversationSlots,
         });
+        repairedIntent =
+          this.intentCompleteness?.assess({
+            intent: repairedIntent,
+            question: input.dto.message,
+            snapshot,
+            catalogAmbiguous: catalogDiscovery.status === 'clarify',
+            conversationSlots: compilerInput.conversationSlots,
+          }) ?? repairedIntent;
         const repairedValidation = this.semanticIntentValidator!.validate(
           repairedIntent,
           governedValidationScope,
@@ -2215,7 +2268,9 @@ export class BrainChatService {
         ],
       };
     }
-    if (input.intent.intent !== 'action' || explicitSideEffect) return input.intent;
+    if (input.intent.intent !== 'action' || explicitSideEffect) {
+      return input.intent;
+    }
     const candidates = input.cards
       .filter(
         (card) =>
@@ -2276,7 +2331,9 @@ export class BrainChatService {
     return (
       /^(?:(?:帮我|请|直接|立即|马上|替我|给我|能不能|可以|是否可以)\s*)?(?:再\s*)?(?:创建|新建|修改|更新|改约|取消预约|核销|扣次|退款|发送|群发|发放|发布|保存|记录|提交|下单|采购|安排预约|完成服务|开始服务|结束服务|(?:加|安排|插入|塞)(?:一个|一位)?(?:客人|客户))/.test(
         normalized,
-      ) || /^(?:给|向).{0,20}发(?:个|一条)?.{0,12}(?:通知|消息|短信)/.test(normalized)
+      ) ||
+      /^(?:帮我|请|替我|给我|能不能|可以|是否可以)\s*(?:约|预约)(?:一下|一个|一位)?/.test(normalized) ||
+      /^(?:给|向).{0,20}发(?:个|一条)?.{0,12}(?:通知|消息|短信)/.test(normalized)
     );
   }
 
@@ -2460,11 +2517,9 @@ export class BrainChatService {
       }));
     const entities = [
       ...input.intent.entities,
-      ...(
-        input.intent.entities.length === 0 && ['list', 'ranking'].includes(input.intent.answerShape)
-          ? governedEntities
-          : []
-      ),
+      ...(input.intent.entities.length === 0 && ['list', 'ranking'].includes(input.intent.answerShape)
+        ? governedEntities
+        : []),
     ]
       .sort((left, right) => right.confidence - left.confidence)
       .filter((entity, index, values) => {
@@ -2861,6 +2916,106 @@ export class BrainChatService {
         `对象来自上轮受控结果引用 ${resolved.reference.refId}：${resolved.reference.mention}。`,
       ],
     };
+  }
+
+  private answerFromConversationReferencePreflight(input: {
+    question: string;
+    conversationSlots: Record<string, unknown>;
+    modelMetadata: BrainModelMetadata;
+  }): BrainChatAnswer | undefined {
+    const resultSets = this.modelContextResultSets(input.conversationSlots);
+    if (!resultSets.length && this.resultReferenceService.requiresPriorResultSelection(input.question)) {
+      const requestedEntityType = this.resultReferenceService.requestedReferenceEntityType(input.question) ?? 'entity';
+      const requestedLabel = this.modelEntityTypeLabel(requestedEntityType);
+      const question = `上轮没有返回可供选择的${requestedLabel}列表，无法继续绑定“第几个”或“最好那个”。请先查询对应${requestedLabel}列表，或直接说明具体名称。`;
+      return {
+        status: 'completed',
+        answer: question,
+        citations: [],
+        suggestedActions: [],
+        blocks: [{ kind: 'clarification', question, options: [] }],
+        grounding: 'none',
+        adapterMetadata: {
+          decisionCode: 'result_reference_source_set_missing_clarification_required',
+          requestedEntityType,
+          completion: { status: 'partial', missingCriteria: ['resultRef'], recoverable: true },
+        },
+        modelMetadata: input.modelMetadata,
+      };
+    }
+    if (!this.resultReferenceService.isFollowUpReferenceQuestion(input.question, resultSets)) return undefined;
+    const resolved = this.resultReferenceService.resolveReference({ question: input.question, resultSets });
+    if (!resolved || resolved.kind === 'resolved' || resolved.kind === 'set') return undefined;
+
+    const citation = {
+      sourceType: 'brain_run',
+      sourceId: String(resolved.set.sourceRunId),
+      label: '上轮受控查询结果',
+    };
+    if (resolved.kind === 'empty') {
+      const answer = `上轮查询结果中没有匹配的${this.modelEntityTypeLabel(resolved.set.entityType)}，因此无法继续选择“最高”“最急”或指定序号的对象。Ami Brain 不会改用其他库存、客户或指标代替。`;
+      return {
+        status: 'completed',
+        answer,
+        citations: [citation],
+        suggestedActions: [],
+        blocks: [
+          { kind: 'text', text: answer, citationIds: [citation.sourceId] },
+          { kind: 'limitations', items: ['上轮结果集为空，本轮没有生成建议、草稿或动作预览。'] },
+        ],
+        grounding: 'db_skill',
+        adapterMetadata: {
+          decisionCode: 'result_reference_empty_terminal',
+          sourceResultSet: resolved.set,
+          completion: { status: 'complete', missingCriteria: [], recoverable: false },
+        },
+        modelMetadata: input.modelMetadata,
+      };
+    }
+
+    const requestedLabel = this.modelEntityTypeLabel(resolved.requestedEntityType ?? 'entity');
+    const availableLabel = this.modelEntityTypeLabel(resolved.set.entityType);
+    const question =
+      resolved.kind === 'type_mismatch'
+        ? `上轮返回的是${availableLabel}结果，不是${requestedLabel}列表，无法从中选择你说的对象。请明确要查询的${requestedLabel}或重新获取对应列表。`
+        : `上轮结果中有多个可选${availableLabel}，当前指代无法唯一绑定。请补充名称或明确序号后再继续。`;
+    const options = resolved.set.items.slice(0, 5).map((item) => ({
+      id: item.refId,
+      label: `第 ${item.rank} 项：${item.mention}`,
+      value: item.mention,
+    }));
+    return {
+      status: 'completed',
+      answer: question,
+      citations: [citation],
+      suggestedActions: [],
+      blocks: [{ kind: 'clarification', question, options }],
+      grounding: 'db_skill',
+      adapterMetadata: {
+        decisionCode:
+          resolved.kind === 'type_mismatch'
+            ? 'result_reference_type_mismatch_clarification_required'
+            : 'result_reference_ambiguity_clarification_required',
+        sourceResultSet: resolved.set,
+        completion: { status: 'partial', missingCriteria: ['resultRef'], recoverable: true },
+      },
+      modelMetadata: input.modelMetadata,
+    };
+  }
+
+  private modelEntityTypeLabel(entityType: string): string {
+    return (
+      (
+        {
+          customer: '客户',
+          beautician: '员工',
+          product: '商品',
+          reservation: '预约',
+          project: '项目',
+          marketing_strategy: '营销策略',
+        } as Record<string, string>
+      )[entityType] ?? '业务对象'
+    );
   }
 
   private answerFromConversationResultReference(input: {
@@ -4200,16 +4355,23 @@ export class BrainChatService {
 
   private isStandaloneMemoryInstruction(message: string) {
     const normalized = message.replace(/\s+/g, ' ').trim();
-    return /^(?:请记住|帮我记住|记住这条|以后|今后|设为默认|作为默认|忘记|不要再记|删除.*记忆|清除.*偏好|取消.*默认|你记得我什么|你都记得什么|查看我的记忆|列出我的记忆|我的偏好是什么|记住了什么)/.test(normalized);
+    return /^(?:请记住|帮我记住|记住这条|以后|今后|设为默认|作为默认|忘记|不要再记|删除.*记忆|清除.*偏好|取消.*默认|你记得我什么|你都记得什么|查看我的记忆|列出我的记忆|我的偏好是什么|记住了什么)/.test(
+      normalized,
+    );
   }
 
   private canManageStoreMemory(context: BrainRequestContext) {
     const permission = 'core:brain-governance:manage';
-    return !context.deniedPermissions.includes(permission) &&
-      (context.permissions.includes('*') || context.permissions.includes(permission));
+    return (
+      !context.deniedPermissions.includes(permission) &&
+      (context.permissions.includes('*') || context.permissions.includes(permission))
+    );
   }
 
-  private memoryInstructionCitations(memories: Awaited<ReturnType<BrainMemoryService['retrieveRelevant']>>, runId: number) {
+  private memoryInstructionCitations(
+    memories: Awaited<ReturnType<BrainMemoryService['retrieveRelevant']>>,
+    runId: number,
+  ) {
     return memories
       .filter((memory) => !memory.deletedAt)
       .map((memory) => ({

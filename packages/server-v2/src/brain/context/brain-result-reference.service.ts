@@ -22,7 +22,14 @@ export interface BrainResultReferenceScope {
   storeId: number;
 }
 
-export type BrainResultReferenceResolutionKind = 'resolved' | 'set' | 'empty' | 'ambiguous';
+export type BrainResultReferenceResolutionKind = 'resolved' | 'set' | 'empty' | 'ambiguous' | 'type_mismatch';
+
+export interface BrainConversationReferenceDecision {
+  kind: BrainResultReferenceResolutionKind;
+  set: BrainModelResultSet;
+  reference?: BrainModelResultReference;
+  requestedEntityType?: string;
+}
 
 export interface BrainModelResultSet {
   setId: string;
@@ -70,7 +77,7 @@ export class BrainResultReferenceService {
     for (const source of sources) {
       for (const [outputKey, value] of Object.entries(source.mappingOutputs)) {
         if (!Array.isArray(value)) continue;
-        const entityType = this.inferEntityType(outputKey, value);
+        const entityType = this.inferEntityType(outputKey, value, input.intent);
         if (!entityType) continue;
         const definitionRef = this.entityDefinitionRef(input.intent, entityType);
         const items = value.slice(0, MAX_RESULT_ITEMS).flatMap((item, index) => {
@@ -115,13 +122,7 @@ export class BrainResultReferenceService {
     question: string;
     resultSets: readonly BrainModelResultSet[];
     scope?: BrainResultReferenceScope;
-  }):
-    | {
-        kind: BrainResultReferenceResolutionKind;
-        set: BrainModelResultSet;
-        reference?: BrainModelResultReference;
-      }
-    | undefined {
+  }): BrainConversationReferenceDecision | undefined {
     const active = input.resultSets
       .filter((set) => this.isFresh(set.createdAt) && (!input.scope || this.isScopedTo(set, input.scope)))
       .sort((left, right) => right.sourceRunId - left.sourceRunId);
@@ -131,7 +132,9 @@ export class BrainResultReferenceService {
       ? active.filter((set) => this.entityTypesMatch(set.entityType, requestedType))
       : active;
     const selectedSet = candidates[0];
-    if (!selectedSet) return undefined;
+    if (!selectedSet) {
+      return requestedType ? { kind: 'type_mismatch', set: active[0]!, requestedEntityType: requestedType } : undefined;
+    }
     if (selectedSet.status === 'empty') return { kind: 'empty', set: selectedSet };
 
     const ordinal = this.requestedRank(input.question);
@@ -179,24 +182,72 @@ export class BrainResultReferenceService {
   }
 
   toConversationEntity(reference: BrainModelResultReference): BrainSemanticEntityReference | undefined {
-    if (!reference.definitionRef) return undefined;
     return {
       entityType: reference.entityType,
       entityKey: reference.entityKey,
       mention: reference.mention,
       source: 'conversation',
-      definitionRef: { ...reference.definitionRef },
+      ...(reference.definitionRef ? { definitionRef: { ...reference.definitionRef } } : {}),
       confidence: 1,
     };
   }
 
   isFollowUpReferenceQuestion(question: string, resultSets: readonly BrainModelResultSet[] = []) {
     return (
-      /(?:第一名|排名第|最高|最好|最多|最少|她|他|她们|他们|它|它们|这些|其中|上轮|刚才|前面|消化掉|搭配什么活动)/.test(
+      /(?:第\s*(?:\d+|一|二|三|四|五|六|七|八|九|十)\s*(?:个|位|项|名)|排名第|最高|最大|最好|最急|最优先|最多|最少|她|他|她们|他们|它|它们|这些|其中|上轮|刚才|前面|消化掉|搭配什么活动|跟.+比(?:呢)?)/.test(
         question,
       ) ||
       resultSets.some((set) => set.items.some((item) => item.mention.length >= 2 && question.includes(item.mention)))
     );
+  }
+
+  requestedReferenceEntityType(question: string): string | undefined {
+    return this.requestedEntityType(question);
+  }
+
+  requiresPriorResultSelection(question: string): boolean {
+    return Boolean(
+      this.requestedEntityType(question) &&
+      /(?:第\s*(?:\d+|一|二|三|四|五|六|七|八|九|十)|最(?:高|大|好|急|优先|多|少)|其中|那个)/.test(question),
+    );
+  }
+
+  projectConversationSlotsForCompiler(
+    question: string,
+    conversationSlots: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const modelContext = this.record(conversationSlots.modelContext);
+    const resultSets = Array.isArray(modelContext.resultSets)
+      ? modelContext.resultSets.filter((set): set is BrainModelResultSet => isBrainModelResultSet(set))
+      : [];
+    if (!resultSets.length) return conversationSlots;
+
+    const requestedType = this.requestedEntityType(question);
+    const ordered = [...resultSets].sort((left, right) => right.sourceRunId - left.sourceRunId);
+    const relevant = requestedType
+      ? ordered.filter((set) => this.entityTypesMatch(set.entityType, requestedType))
+      : ordered;
+    const selected = (relevant.length ? relevant : ordered).slice(0, 2).map((set) => {
+      const requestedRank = this.requestedRank(question);
+      const items = set.items.filter((item, index) => index < 8 || item.rank === requestedRank).slice(0, 10);
+      return {
+        setId: set.setId,
+        sourceRunId: set.sourceRunId,
+        outputKey: set.outputKey,
+        entityType: set.entityType,
+        status: set.status,
+        count: set.count,
+        items: items.map((item) => ({
+          refId: item.refId,
+          entityType: item.entityType,
+          entityKey: item.entityKey,
+          mention: item.mention,
+          rank: item.rank,
+          ...(item.definitionRef ? { definitionRef: { ...item.definitionRef } } : {}),
+        })),
+      };
+    });
+    return { ...conversationSlots, modelContext: { ...modelContext, resultSets: selected } };
   }
 
   private mappingOutputSources(
@@ -237,6 +288,7 @@ export class BrainResultReferenceService {
       `${entityType}Id`,
       entityType === 'beautician' ? 'staffId' : '',
       entityType === 'beautician' ? 'beauticianId' : '',
+      entityType === 'marketing_strategy' ? 'strategyId' : '',
       'id',
     ].filter(Boolean);
     const labelKeys = [
@@ -246,6 +298,7 @@ export class BrainResultReferenceService {
       entityType === 'beautician' ? 'staff' : '',
       entityType === 'beautician' ? 'staffName' : '',
       entityType === 'beautician' ? 'beauticianName' : '',
+      entityType === 'marketing_strategy' ? 'strategyName' : '',
       'name',
     ].filter(Boolean);
     const entityKey = this.firstScalar(item, idKeys);
@@ -254,16 +307,25 @@ export class BrainResultReferenceService {
     return { entityKey, mention };
   }
 
-  private inferEntityType(outputKey: string, values: unknown[]): string | undefined {
+  private inferEntityType(outputKey: string, values: unknown[], intent?: BrainSemanticIntent): string | undefined {
     const first = values.find((value) => value && typeof value === 'object' && !Array.isArray(value));
-    const explicit = first ? this.record(first).entityType : undefined;
+    const firstRecord = first ? this.record(first) : {};
+    const explicit = firstRecord.entityType;
     if (typeof explicit === 'string' && explicit.trim()) return this.normalizeEntityType(explicit);
+    if ('productId' in firstRecord || 'productName' in firstRecord) return 'product';
+    if ('customerId' in firstRecord || 'customerName' in firstRecord) return 'customer';
+    if ('beauticianId' in firstRecord || 'staffId' in firstRecord || 'staff' in firstRecord) return 'beautician';
+    if ('strategyId' in firstRecord || 'strategyName' in firstRecord) return 'marketing_strategy';
     const normalized = outputKey.toLowerCase();
     if (/customer|member|client/.test(normalized)) return 'customer';
     if (/staff|beautician|employee/.test(normalized)) return 'beautician';
     if (/product|batch|stock|inventory/.test(normalized)) return 'product';
     if (/project|service/.test(normalized)) return 'project';
     if (/reservation|appointment/.test(normalized)) return 'reservation';
+    const intentTypes = [
+      ...new Set((intent?.entities ?? []).map((entity) => this.normalizeEntityType(entity.entityType))),
+    ];
+    if (intentTypes.length === 1) return intentTypes[0];
     return undefined;
   }
 
@@ -276,6 +338,10 @@ export class BrainResultReferenceService {
   }
 
   private requestedEntityType(question: string): string | undefined {
+    if (/(?:策略|营销方案|活动方案)/.test(question)) return 'marketing_strategy';
+    if (/(?:客户|客人|会员)/.test(question)) return 'customer';
+    if (/(?:商品|产品|库存|批次)/.test(question)) return 'product';
+    if (/(?:员工|美容师)/.test(question)) return 'beautician';
     if (
       /(?:员工|美容师|业绩第一|第一名).*(?:通知|消息|鼓励)|(?:通知|消息|鼓励).*(?:员工|美容师|第一名)/.test(question)
     ) {
@@ -297,14 +363,14 @@ export class BrainResultReferenceService {
   }
 
   private requestedRank(question: string): number | undefined {
-    const match = question.match(/(?:第|排名第)\s*(\d+|一|二|三|四|五|六|七|八|九|十)\s*名?/);
+    const match = question.match(/(?:第|排名第)\s*(\d+|一|二|三|四|五|六|七|八|九|十)\s*(?:个|位|项|名)?/);
     if (!match) return undefined;
     const chinese: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
     return chinese[match[1]!] ?? Math.max(1, Number(match[1]) || 1);
   }
 
   private requestsTopResult(question: string) {
-    return /(?:第一名|最高|最好|最多|最少|冠军|榜首)/.test(question);
+    return /(?:第一名|最高|最大|最好|最急|最优先|最多|最少|冠军|榜首)/.test(question);
   }
 
   private requestsWholeSet(question: string) {
@@ -312,7 +378,7 @@ export class BrainResultReferenceService {
   }
 
   private usesSingularReference(question: string) {
-    return /(?:给她|给他|给它|她发|他发|它做|这个|那个|该员工|该客户|该商品)/.test(question);
+    return /(?:给她|给他|给它|帮她|帮他|她发|他发|它做|这个|那个|该员工|该客户|该商品)/.test(question);
   }
 
   private entityTypesMatch(left: string, right: string) {
@@ -323,6 +389,7 @@ export class BrainResultReferenceService {
     const normalized = value.trim().toLowerCase();
     if (['staff', 'employee', 'beautician'].includes(normalized)) return 'beautician';
     if (['member', 'client', 'customer'].includes(normalized)) return 'customer';
+    if (['strategy', 'marketing_strategy', 'campaign'].includes(normalized)) return 'marketing_strategy';
     return normalized;
   }
 
