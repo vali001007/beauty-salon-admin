@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { resolve } from 'node:path';
 import { Module } from '@nestjs/common';
@@ -661,7 +662,8 @@ function currentSourceCommit() {
 
 async function readProductionHealth(url: string) {
   const payload = await new Promise<string>((resolve, reject) => {
-    const request = httpsRequest(url, { family: 4, timeout: 30000 }, (response) => {
+    const requestFn = new URL(url).protocol === 'http:' ? httpRequest : httpsRequest;
+    const request = requestFn(url, { family: 4, timeout: 30000 }, (response) => {
       const chunks: Buffer[] = [];
       response.on('data', (chunk: Buffer) => chunks.push(chunk));
       response.on('end', () => {
