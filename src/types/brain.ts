@@ -363,6 +363,20 @@ export interface BrainGovernanceRuntimeConfigResponse {
     stage: string | null;
     userPercentage: number | null;
   };
+  catalogValidation: {
+    valid: boolean;
+    capabilityCount: number;
+    cardCount: number;
+    issueCount: number;
+    issues: Array<{
+      capabilityKey: string;
+      capabilityVersion: number;
+      code: string;
+      message: string;
+      field?: string;
+      value?: string;
+    }>;
+  } | null;
 }
 
 export interface BrainGovernanceSkill {

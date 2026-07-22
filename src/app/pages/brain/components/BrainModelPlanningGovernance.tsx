@@ -150,6 +150,29 @@ export function BrainModelPlanningGovernance() {
         />
       </div>
 
+      {runtime?.catalogValidation ? (
+        <div className={`mb-5 rounded-lg border p-4 ${runtime.catalogValidation.valid ? 'border-emerald-200 bg-emerald-50' : 'border-red-300 bg-red-50'}`}>
+          <div className="flex items-center gap-2 font-medium">
+            {runtime.catalogValidation.valid ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <XCircle className="h-4 w-4 text-red-600" />}
+            能力目录{runtime.catalogValidation.valid ? '校验通过' : '校验失败'}
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {runtime.catalogValidation.capabilityCount} 个能力，{runtime.catalogValidation.cardCount} 个有效卡片，{runtime.catalogValidation.issueCount} 个问题。
+          </p>
+          {!runtime.catalogValidation.valid ? (
+            <div className="mt-3 space-y-2 text-sm text-red-700">
+              {runtime.catalogValidation.issues.slice(0, 10).map((issue, index) => (
+                <div key={`${issue.capabilityKey}-${issue.code}-${index}`} className="rounded border border-red-200 bg-white/70 px-3 py-2">
+                  <span className="font-medium">{issue.capabilityKey} v{issue.capabilityVersion}</span>
+                  <span className="ml-2 font-mono text-xs">{issue.code}</span>
+                  {issue.value ? <span className="ml-2">{issue.value}</span> : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="grid min-w-0 gap-5 xl:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="min-w-0 border-t border-border pt-4 xl:border-r xl:border-t-0 xl:pr-5 xl:pt-0">
           <label htmlFor="brain-trace-select" className="text-sm font-medium">选择运行</label>

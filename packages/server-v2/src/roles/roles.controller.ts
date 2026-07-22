@@ -7,10 +7,11 @@ import { CreateRoleDto } from './dto/create-role.dto.js';
 import { UpdateRoleDto } from './dto/update-role.dto.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { Permissions } from '../common/decorators/permissions.decorator.js';
+import { PermissionsGuard } from '../common/guards/permissions.guard.js';
 
 @ApiTags('Roles')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('roles')
 export class RolesController {
   constructor(private rolesService: RolesService) {}
@@ -20,6 +21,13 @@ export class RolesController {
   @ApiOperation({ summary: '获取角色列表' })
   findAll() {
     return this.rolesService.findAll();
+  }
+
+  @Get('permission-catalog')
+  @Permissions('core:system:permissions')
+  @ApiOperation({ summary: '获取后端统一权限目录' })
+  listPermissionCatalog() {
+    return this.rolesService.listPermissionCatalog();
   }
 
   @Get(':id')

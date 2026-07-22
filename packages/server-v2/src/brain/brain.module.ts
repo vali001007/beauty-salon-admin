@@ -255,7 +255,6 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BrainSemanticQueryEngineService,
     {
       provide: BRAIN_REGISTERED_PERMISSION_CODES,
-      inject: [PrismaService],
       useFactory: loadRegisteredBrainPermissionCodes,
     },
     BrainCapabilityCatalogService,

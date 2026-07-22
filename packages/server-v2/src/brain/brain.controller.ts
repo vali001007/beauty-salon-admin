@@ -827,6 +827,9 @@ export class BrainController {
       release?.rollout && typeof release.rollout === 'object' && !Array.isArray(release.rollout)
         ? (release.rollout as Record<string, unknown>)
         : {};
+    const catalogValidation = release?.id && this.releaseService && typeof this.releaseService.validateReleaseCatalog === 'function'
+      ? await this.releaseService.validateReleaseCatalog(release.id)
+      : null;
 
     return {
       configured,
@@ -837,6 +840,7 @@ export class BrainController {
         stage: typeof rollout.stage === 'string' ? rollout.stage : null,
         userPercentage: Number.isFinite(Number(rollout.userPercentage)) ? Number(rollout.userPercentage) : null,
       },
+      catalogValidation,
     };
   }
 
