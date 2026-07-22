@@ -1,10 +1,22 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { formatBusinessDate, toBusinessDateOnly } from '../common/utils/business-time.js';
+import { CustomerWaitingService } from './customer-waiting.service.js';
+import {
+  buildReservationCreationFingerprint,
+  buildReservationIdempotencyKey,
+  normalizeReservationBookingSource,
+} from './reservation-idempotency.js';
+
+export interface ReservationCreateResult {
+  reservation: { id: number; storeId: number; [key: string]: unknown };
+  replayed: boolean;
+}
 
 @Injectable()
 export class ReservationsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private readonly customerWaiting: CustomerWaitingService) {}
 
   async findPaginated(query: {
     page?: number;
@@ -68,7 +80,7 @@ export class ReservationsService {
         orderBy: scope === 'future'
           ? [{ date: 'asc' }, { startTime: 'asc' }, { id: 'asc' }]
           : [{ date: 'desc' }, { startTime: 'desc' }, { id: 'desc' }],
-        include: { store: true, customer: true, project: true, beautician: true },
+        include: { store: true, customer: true, project: true, beautician: true, waitingEpisodes: { where: { status: 'waiting' }, take: 1, orderBy: { startedAt: 'desc' } } },
       }),
       this.prisma.reservation.count({ where }),
     ]);
@@ -77,15 +89,58 @@ export class ReservationsService {
   }
 
   async create(data: any) {
-    const createData = await this.buildCreateData(data);
-    const created = await this.prisma.reservation.create({ data: createData });
-    return this.findById(created.id);
+    return (await this.createIdempotent(data)).reservation;
+  }
+
+  async recoverIdempotentCreate(data: any): Promise<ReservationCreateResult | undefined> {
+    const storeId = Number(data.storeId);
+    if (!storeId) throw new BadRequestException('请选择预约门店');
+    const bookingSource = normalizeReservationBookingSource(data.bookingSource);
+    const idempotencyKey = buildReservationIdempotencyKey(storeId, bookingSource, data.idempotencyKey);
+    const creationFingerprint = buildReservationCreationFingerprint({ ...data, storeId, bookingSource });
+    if (!idempotencyKey) return undefined;
+    const existing = await this.prisma.reservation.findUnique({
+      where: { idempotencyKey },
+      include: this.reservationInclude(),
+    });
+    if (!existing) return undefined;
+    this.assertIdempotentReservationMatches(existing, bookingSource, creationFingerprint);
+    return { reservation: this.mapReservation(existing), replayed: true };
+  }
+
+  async createIdempotent(data: any): Promise<ReservationCreateResult> {
+    const storeId = Number(data.storeId);
+    if (!storeId) throw new BadRequestException('请选择预约门店');
+    const bookingSource = normalizeReservationBookingSource(data.bookingSource);
+    const idempotencyKey = buildReservationIdempotencyKey(storeId, bookingSource, data.idempotencyKey);
+    const creationFingerprint = buildReservationCreationFingerprint({ ...data, storeId, bookingSource });
+
+    return this.prisma.$transaction(async (tx) => {
+      if (idempotencyKey) {
+        await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${idempotencyKey}, 0))`);
+        const existing = await tx.reservation.findUnique({
+          where: { idempotencyKey },
+          include: this.reservationInclude(),
+        });
+        if (existing) {
+          this.assertIdempotentReservationMatches(existing, bookingSource, creationFingerprint);
+          return { reservation: this.mapReservation(existing), replayed: true };
+        }
+      }
+
+      const createData = await this.buildCreateData({ ...data, storeId }, tx);
+      const created = await tx.reservation.create({
+        data: { ...createData, bookingSource, idempotencyKey, creationFingerprint },
+        include: this.reservationInclude(),
+      });
+      return { reservation: this.mapReservation(created), replayed: false };
+    });
   }
 
   async findById(id: number) {
     const reservation = await this.prisma.reservation.findUnique({
       where: { id },
-      include: { store: true, customer: true, project: true, beautician: true },
+      include: { store: true, customer: true, project: true, beautician: true, waitingEpisodes: { where: { status: 'waiting' }, take: 1, orderBy: { startedAt: 'desc' } } },
     });
     if (!reservation) throw new NotFoundException('预约不存在');
     return this.mapReservation(reservation);
@@ -98,7 +153,7 @@ export class ReservationsService {
     const updated = await this.prisma.reservation.update({
       where: { id },
       data: updateData,
-      include: { store: true, customer: true, project: true, beautician: true },
+      include: { store: true, customer: true, project: true, beautician: true, waitingEpisodes: { where: { status: 'waiting' }, take: 1, orderBy: { startedAt: 'desc' } } },
     });
     return this.mapReservation(updated);
   }
@@ -115,15 +170,17 @@ export class ReservationsService {
     return this.mapReservation(updated);
   }
 
-  async checkIn(id: number) {
-    const reservation = await this.prisma.reservation.findUnique({ where: { id } });
+  async checkIn(id: number, storeId?: number, userId?: number) {
+    const reservation = await this.prisma.reservation.findFirst({ where: { id, ...(storeId ? { storeId } : {}) } });
     if (!reservation) throw new NotFoundException('预约不存在');
     if (!['pending', 'confirmed'].includes(this.getEffectiveStatus(reservation))) throw new BadRequestException('当前预约状态不能到店');
-    return this.prisma.reservation.update({
+    const updated = await this.prisma.reservation.update({
       where: { id },
       data: { status: 'checked_in', checkedInAt: new Date() },
       include: { store: true, customer: true, project: true, beautician: true },
-    }).then((item) => this.mapReservation(item));
+    });
+    await this.customerWaiting.startForReservation(updated.storeId, userId, updated.id, undefined, 'reservation_check_in');
+    return this.findById(updated.id);
   }
 
   async cancel(id: number, reason?: string) {
@@ -174,27 +231,49 @@ export class ReservationsService {
     return updateData;
   }
 
-  private async buildCreateData(data: any) {
+  private async buildCreateData(data: any, db: Prisma.TransactionClient | PrismaService = this.prisma) {
     const storeId = Number(data.storeId);
-    const customerId = Number(data.customerId);
-    const projectId = Number(data.projectId);
     if (!storeId) throw new BadRequestException('请选择预约门店');
-    if (!customerId) throw new BadRequestException('请选择预约客户');
-    if (!projectId) throw new BadRequestException('请选择预约项目');
 
     const appointmentTime = data.appointmentTime || data.date;
     const appointment = new Date(appointmentTime);
     if (Number.isNaN(appointment.getTime())) throw new BadRequestException('预约时间无效');
 
-    const project = await this.prisma.project.findFirst({ where: { id: projectId, storeId, deletedAt: null } });
-    if (!project) throw new BadRequestException('预约项目不属于当前门店');
-    const customer = await this.prisma.customer.findFirst({ where: { id: customerId, storeId, deletedAt: null } });
+    let customer = data.customerId
+      ? await db.customer.findFirst({ where: { id: Number(data.customerId), storeId, deletedAt: null } })
+      : null;
+    if (!customer && data.allowCreateCustomer) {
+      customer = await db.customer.create({
+        data: {
+          storeId,
+          name: String(data.customerName || '新客户'),
+          phone: String(data.customerPhone || ''),
+          gender: '女',
+          source: normalizeReservationBookingSource(data.bookingSource),
+        },
+      });
+    }
     if (!customer) throw new BadRequestException('预约客户不属于当前门店');
+
+    let project = data.projectId
+      ? await db.project.findFirst({ where: { id: Number(data.projectId), storeId, deletedAt: null } })
+      : data.projectName
+        ? await db.project.findFirst({ where: { storeId, name: { contains: String(data.projectName) }, deletedAt: null } })
+        : null;
+    if (!project && data.allowDefaultProject) {
+      project = await db.project.findFirst({ where: { storeId, deletedAt: null, status: 'active' } });
+    }
+    if (!project) throw new BadRequestException('预约项目不属于当前门店');
 
     let beauticianId: number | null = data.beauticianId ? Number(data.beauticianId) : null;
     if (beauticianId) {
-      const beautician = await this.prisma.beautician.findFirst({ where: { id: beauticianId, storeId } });
+      const beautician = await db.beautician.findFirst({ where: { id: beauticianId, storeId } });
       if (!beautician) throw new BadRequestException('预约美容师不属于当前门店');
+    } else if (data.beauticianName) {
+      const beautician = await db.beautician.findFirst({
+        where: { storeId, name: { contains: String(data.beauticianName) }, status: 'active' },
+      });
+      beauticianId = beautician?.id ?? null;
     }
 
     const duration = Number(data.duration || project.duration || 60);
@@ -203,8 +282,8 @@ export class ReservationsService {
 
     return {
       storeId,
-      customerId,
-      projectId,
+      customerId: customer.id,
+      projectId: project.id,
       beauticianId,
       date: appointment,
       startTime: data.startTime || appointment.toTimeString().slice(0, 5),
@@ -259,10 +338,31 @@ export class ReservationsService {
       time: reservation.startTime || '',
       duration: projectDuration,
       status: this.getEffectiveStatus(reservation),
+      bookingSource: reservation.bookingSource || 'manual',
       remark: reservation.remark ?? '',
       createTime: createdAt,
       createdAt,
       checkedInAt: this.toIso(reservation.checkedInAt) || undefined,
+      waitingEpisodeId: reservation.waitingEpisodes?.[0]?.id ?? undefined,
+      waitingStartedAt: this.toIso(reservation.waitingEpisodes?.[0]?.startedAt) || undefined,
     };
+  }
+
+  private reservationInclude() {
+    return {
+      store: true,
+      customer: true,
+      project: true,
+      beautician: true,
+      waitingEpisodes: { where: { status: 'waiting' }, take: 1, orderBy: { startedAt: 'desc' as const } },
+    };
+  }
+
+  private assertIdempotentReservationMatches(existing: any, bookingSource: string, creationFingerprint: string) {
+    const mismatch =
+      normalizeReservationBookingSource(existing.bookingSource) !== bookingSource ||
+      typeof existing.creationFingerprint !== 'string' ||
+      existing.creationFingerprint !== creationFingerprint;
+    if (mismatch) throw new ConflictException('幂等键已用于另一笔预约，请核对原预约记录');
   }
 }

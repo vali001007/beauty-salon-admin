@@ -62,7 +62,12 @@ export interface SupplyQuote {
   validTo?: string | null;
 }
 
-export type SupplyCatalogPurchasableStatus = 'not_mapped' | 'mapped_no_quote' | 'quote_unavailable' | 'available' | string;
+export type SupplyCatalogPurchasableStatus =
+  | 'not_mapped'
+  | 'mapped_no_quote'
+  | 'quote_unavailable'
+  | 'available'
+  | string;
 
 export interface SupplyCatalogMapping {
   id: number;
@@ -225,6 +230,7 @@ export interface CreateSupplyCatalogMappingPayload {
 export type UpdateSupplyCatalogMappingPayload = Partial<CreateSupplyCatalogMappingPayload>;
 
 export interface CreateProcurementOrderPayload {
+  idempotencyKey?: string;
   storeId: number;
   supplierId: number;
   expectedArrivalDate?: string;
@@ -240,6 +246,7 @@ export interface CreateProcurementOrderPayload {
 }
 
 export interface CreateProcurementOrdersFromReplenishmentPayload {
+  idempotencyKey?: string;
   storeId: number;
   expectedArrivalDate?: string;
   sourceNo?: string;
@@ -268,6 +275,7 @@ export interface CreateSupplierShipmentPayload {
 }
 
 export interface ReceiveProcurementOrderPayload {
+  idempotencyKey?: string;
   items: Array<{
     shipmentItemId: number;
     productId?: number;
@@ -277,5 +285,10 @@ export interface ReceiveProcurementOrderPayload {
 }
 
 export type GetProcurementOrders = (
-  params: PaginationParams & { storeId?: number; supplierId?: number; status?: ProcurementOrderStatus | string; keyword?: string },
+  params: PaginationParams & {
+    storeId?: number;
+    supplierId?: number;
+    status?: ProcurementOrderStatus | string;
+    keyword?: string;
+  },
 ) => Promise<PaginatedResponse<ProcurementOrder>>;

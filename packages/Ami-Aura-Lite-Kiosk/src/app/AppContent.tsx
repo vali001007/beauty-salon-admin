@@ -39,7 +39,6 @@ import {
   confirmRecharge,
   confirmRefund,
   confirmRegistration,
-  approveBusinessAgentAction,
   createAutomationDraft,
   enableAutomationDraft,
   enableAutomationStrategyFromSummary,
@@ -48,7 +47,6 @@ import {
   markAutomationTouchFollowedUp,
   pauseAutomationStrategyFromSummary,
   previewAutomationDraft,
-  rejectBusinessAgentAction,
   runAutomationStrategyOnceFromSummary,
   submitServiceRecord,
   getAppointments,
@@ -62,8 +60,6 @@ import {
   getRoleDefinition,
   clearConversation,
   getConversationScopeForOperator,
-  getTerminalBusinessAnswer,
-  getTerminalBusinessAnswerStream,
   loadAuraBootstrap,
   readAuraStartupCache,
   setActiveTerminalOperator,
@@ -71,7 +67,11 @@ import {
   switchAuraStore,
   writeAuraStartupCache,
 } from "./services/auraCoreService";
-import { recordTerminalAmiAiAudit, submitTerminalAgentFeedback } from "./services/agentRuntimeService";
+import {
+  decideTerminalBrainAction,
+  parseTerminalBrainAction,
+  submitTerminalAgentFeedback,
+} from "./services/agentRuntimeService";
 import { buildTerminalFactContext } from "./services/terminalFactContext";
 import {
   getDefaultTerminalPersona,
@@ -90,7 +90,6 @@ import {
   buildUnsupportedInternalActionResult,
   businessQueryActionToCommand,
   isInternalActionCode,
-  parseAgentApprovalAction,
   resolveTerminalActionResult,
 } from "./intent/actionCommands";
 import { resolveCommandIntent, shouldDisplayUserCommand } from "./intent/intentRouter";
@@ -141,7 +140,6 @@ import type { AuraBootstrap } from "../../../../src/types/aura";
 
 type LoadingPayload = { kind: "agentThinking" };
 type Payload = AuraPayload | LoadingPayload;
-type TerminalAgentEngine = "agent_v1" | "agent_v2" | "agent_v3" | "agent_v4" | "agent_v5";
 
 const FIXED_FLOW_MESSAGE_TYPES = new Set<MessageType>([
   "cardVerification",
@@ -154,19 +152,7 @@ const FIXED_FLOW_MESSAGE_TYPES = new Set<MessageType>([
 ]);
 
 const PERSONA_REFRESH_INTERVAL_MS = 60_000;
-const TERMINAL_AGENT_ENGINE_STORAGE_KEY = "ami.aura.agent.runtimeMode";
-
-function resolveTerminalAgentEngine(value: string | null | undefined): TerminalAgentEngine {
-  if (value === "agent_v5") return "agent_v5";
-  if (value === "agent_v4") return "agent_v4";
-  if (value === "agent_v3") return "agent_v3";
-  return value === "agent_v2" ? "agent_v2" : "agent_v1";
-}
-
-function getStoredTerminalAgentEngine(): TerminalAgentEngine {
-  if (typeof window === "undefined") return "agent_v1";
-  return resolveTerminalAgentEngine(window.localStorage.getItem(TERMINAL_AGENT_ENGINE_STORAGE_KEY));
-}
+const LEGACY_TERMINAL_AGENT_ENGINE_STORAGE_KEY = "ami.aura.agent.runtimeMode";
 
 function createMessage(
   type: MessageType,
@@ -666,7 +652,6 @@ export default function AppContent() {
   const [showLogin, setShowLogin] = useState(false);
   const [currentRole, setCurrentRole] = useState<Role>("reception");
   const [activePersonaCode, setActivePersonaCode] = useState<TerminalAgentPersonaCode>(getDefaultTerminalPersona("reception"));
-  const [agentEngine, setAgentEngine] = useState<TerminalAgentEngine>(getStoredTerminalAgentEngine);
   const [agentPersonas, setAgentPersonas] = useState<AgentPersonaSummary[]>(BUILTIN_AGENT_PERSONAS);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
@@ -716,7 +701,6 @@ export default function AppContent() {
   const messagesRef = useRef<Message[]>(combinedMessages);
   const currentRoleRef = useRef<Role>(currentRole);
   const activePersonaCodeRef = useRef<TerminalAgentPersonaCode>(activePersonaCode);
-  const agentEngineRef = useRef<TerminalAgentEngine>(agentEngine);
   const currentOperatorIdRef = useRef<number | null>(currentOperatorId);
   const conversationEpochRef = useRef(0);
   const refreshAgentPersonas = useCallback(async (isActive: () => boolean = () => true) => {
@@ -743,8 +727,12 @@ export default function AppContent() {
   }, [activePersonaCode]);
 
   useEffect(() => {
-    agentEngineRef.current = agentEngine;
-  }, [agentEngine]);
+    try {
+      window.localStorage.removeItem(LEGACY_TERMINAL_AGENT_ENGINE_STORAGE_KEY);
+    } catch {
+      // Storage can be blocked on hardened kiosk devices; the legacy value is never read.
+    }
+  }, []);
 
   useEffect(() => {
     currentOperatorIdRef.current = currentOperatorId;
@@ -795,26 +783,6 @@ export default function AppContent() {
     setMessages([]);
     clearAgentMessages();
   }, [clearAgentMessages]);
-
-  const handleAgentEngineChange = useCallback(
-    (nextEngine: TerminalAgentEngine) => {
-      if (nextEngine === agentEngineRef.current) return;
-      agentEngineRef.current = nextEngine;
-      setAgentEngine(nextEngine);
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(TERMINAL_AGENT_ENGINE_STORAGE_KEY, nextEngine);
-      }
-      advanceConversationEpoch();
-      clearAllMessages();
-      setConversationContext(createConversationContext(currentRoleRef.current, undefined));
-      setLoading(false);
-      setAgentLoading(false);
-      setSuppressBlockingLoading(false);
-      setLoadingText("正在接入 Ami_Core");
-      setError(null);
-    },
-    [clearAllMessages, setAgentLoading],
-  );
 
   const appendMessage = (message: Message, epoch = getConversationEpoch(), stream: "flow" | "agent" = "flow") => {
     if (!isConversationEpochActive(epoch)) return;
@@ -871,105 +839,6 @@ export default function AppContent() {
         if (!isConversationEpochActive(epoch)) return;
         setError(err instanceof Error ? err.message : "后台刷新失败，已显示上次数据");
       });
-  };
-
-  const appendStreamingAiAnswer = async (
-    stream: NonNullable<MicroAppRunResult["aiStream"]>,
-    epoch = getConversationEpoch(),
-    targetStream: "flow" | "agent" = "flow",
-  ) => {
-    if (!isConversationEpochActive(epoch)) return;
-    const baseData: AiSuggestionData = {
-      title: "Ami 智能问答",
-      text: "",
-      source: "Ami AI",
-    };
-    const aiMessage = createMessage("ai", { kind: "ai", data: baseData });
-    let text = "";
-    const startedAt = Date.now();
-    const setTargetMessages = targetStream === "agent" ? setAgentMessages : setMessages;
-    setTargetMessages((prev) => (isConversationEpochActive(epoch) ? [...prev, aiMessage] : prev));
-
-    try {
-      for await (const chunk of getTerminalBusinessAnswerStream(stream)) {
-        if (!isConversationEpochActive(epoch)) return;
-        text += chunk;
-        setTargetMessages((prev) =>
-          isConversationEpochActive(epoch)
-            ? prev.map((message) =>
-                message.id === aiMessage.id
-                  ? {
-                      ...message,
-                      payload: {
-                        kind: "ai",
-                        data: {
-                          ...baseData,
-                          text,
-                        },
-                      },
-                    }
-                  : message,
-              )
-            : prev,
-        );
-      }
-    } catch (err) {
-      if (!isConversationEpochActive(epoch)) return;
-      setTargetMessages((prev) =>
-        isConversationEpochActive(epoch)
-          ? prev.map((message) =>
-              message.id === aiMessage.id
-                ? {
-                    ...message,
-                    payload: {
-                      kind: "ai",
-                      data: {
-                        ...baseData,
-                        text: err instanceof Error ? err.message : "AI 回复暂不可用，请稍后重试。",
-                      },
-                    },
-                  }
-                : message,
-            )
-            : prev,
-      );
-    }
-    if (!isConversationEpochActive(epoch) || !text.trim()) return;
-    try {
-      const fallbackReason = stream.businessContext?.startsWith("Agent Runtime fallback:")
-        ? stream.businessContext.replace("Agent Runtime fallback:", "").trim()
-        : null;
-      const audit = await recordTerminalAmiAiAudit({
-        role: stream.role,
-        command: stream.command,
-        answer: text,
-        businessContext: stream.businessContext,
-        fallbackReason,
-        latencyMs: Date.now() - startedAt,
-      });
-      if (!isConversationEpochActive(epoch)) return;
-      setTargetMessages((prev) =>
-        isConversationEpochActive(epoch)
-          ? prev.map((message) =>
-              message.id === aiMessage.id
-                ? {
-                    ...message,
-                    payload: {
-                      kind: "ai",
-                      data: {
-                        ...baseData,
-                        text,
-                        runId: audit.runId,
-                      },
-                    },
-                  }
-                : message,
-            )
-          : prev,
-      );
-    } catch (error) {
-      console.warn("Ami AI audit record failed", error);
-    }
   };
 
   const schedulePrefetch = (role: Role, roles: Role[] = availableRoles) => {
@@ -1459,28 +1328,6 @@ export default function AppContent() {
     setLoadingText(intent.loadingLabel);
     setError(null);
 
-    const appendAiHint = async (businessSummary: string, aiCommand = command) => {
-      try {
-        const data = await getTerminalBusinessAnswer({ role: currentRole, command: aiCommand, businessContext: businessSummary });
-        if (!isConversationEpochActive(epoch)) return;
-        appendMessage(createMessage("ai", { kind: "ai", data }), epoch, targetStream);
-      } catch {
-        if (!isConversationEpochActive(epoch)) return;
-        appendMessage(
-          createMessage("ai", {
-            kind: "ai",
-            data: {
-              title: "Ami 建议",
-              text: "Ami 建议暂不可用，业务数据已正常返回。",
-              source: "Ami AI",
-            },
-          }),
-          epoch,
-          targetStream,
-        );
-      }
-    };
-
     let loadingMessageShown = false;
     let loadingTimer: number | null = null;
 
@@ -1497,39 +1344,28 @@ export default function AppContent() {
       }
 
       const selectedPersonaCode = activePersonaCodeRef.current;
-      const selectedAgentEngine = agentEngineRef.current;
-      const agentEngineMeta = selectedAgentEngine === "agent_v2"
-        ? { architecture: "kg_llm_agent" }
-        : selectedAgentEngine === "agent_v3"
-          ? { architecture: "agent_v3_text_to_sql", agentV3Mode: "execute" }
-          : selectedAgentEngine === "agent_v5"
-            ? { architecture: "agent_v5_business_ontology_agent", agentV5Mode: "execute", boundary: "drafts_followups_and_approval_only" }
-          : selectedAgentEngine === "agent_v4"
-            ? { architecture: "agent_v4_lifecycle_business_agent", agentV4Mode: "execute", boundary: "drafts_and_approval_only" }
-            : {};
       const terminalFacts = buildTerminalFactContext(messagesRef.current, {
         store: bootstrap?.currentStore ?? session?.store ?? null,
         operator: bootstrap?.currentUser ?? session?.user ?? null,
         device: {
           entrypoint: "terminal:kiosk",
           role: currentRoleRef.current,
-          agentEngine: selectedAgentEngine,
-          ...agentEngineMeta,
+          agentEngine: "ami_brain",
+          architecture: "ami_brain",
           ...(showPersonaSwitcher ? { personaCode: selectedPersonaCode } : {}),
         },
       });
 
       const result = await runMicroAppIntent(intent, command, {
-        agentEngine: selectedAgentEngine,
         agentContext: {
           ...(getLatestAgentContext() ?? {}),
-          agentEngine: selectedAgentEngine,
-          ...agentEngineMeta,
+          agentEngine: "ami_brain",
+          architecture: "ami_brain",
           ...(extraAgentContext ?? {}),
           terminalFacts,
           terminal: {
-            agentEngine: selectedAgentEngine,
-            ...agentEngineMeta,
+            agentEngine: "ami_brain",
+            architecture: "ami_brain",
             ...(showPersonaSwitcher ? { personaCode: selectedPersonaCode } : {}),
           },
         },
@@ -1549,12 +1385,6 @@ export default function AppContent() {
         replaceFixedFlowCards: source === "quick_action",
         stream: targetStream,
       });
-      if (result.aiStream) {
-        await appendStreamingAiAnswer(result.aiStream, epoch, targetStream);
-      }
-      if (result.aiSummary && (source === "text" || source === "voice")) {
-        await appendAiHint(result.aiSummary, result.aiCommand);
-      }
     } catch (err) {
       if (!isConversationEpochActive(epoch)) return;
       if (loadingTimer !== null) {
@@ -1616,40 +1446,6 @@ export default function AppContent() {
     appendMessage(createMessage("operation", { kind: "operation", data }), epoch);
   };
 
-  const handleAgentApprovalApprove = async (approvalId: number) => {
-    const epoch = getConversationEpoch();
-    setLoading(true);
-    setLoadingText("正在执行已确认的 Agent 动作");
-    try {
-      const data = await approveBusinessAgentAction(approvalId, currentRoleRef.current, "终端人工确认执行");
-      appendMessage(createMessage("dashboard", { kind: "agentRun", data }, "Agent 动作已执行"), epoch);
-    } catch (err) {
-      appendMessage(createMessage("error", { text: err instanceof Error ? err.message : "Agent 动作执行失败", source: "agent" }), epoch);
-    } finally {
-      if (isConversationEpochActive(epoch)) {
-        setLoading(false);
-        setLoadingText("");
-      }
-    }
-  };
-
-  const handleAgentApprovalReject = async (approvalId: number) => {
-    const epoch = getConversationEpoch();
-    setLoading(true);
-    setLoadingText("正在拒绝 Agent 动作");
-    try {
-      const data = await rejectBusinessAgentAction(approvalId, currentRoleRef.current, "终端人工拒绝执行");
-      appendMessage(createMessage("dashboard", { kind: "agentRun", data }, "Agent 动作已拒绝"), epoch);
-    } catch (err) {
-      appendMessage(createMessage("error", { text: err instanceof Error ? err.message : "Agent 动作拒绝失败", source: "agent" }), epoch);
-    } finally {
-      if (isConversationEpochActive(epoch)) {
-        setLoading(false);
-        setLoadingText("");
-      }
-    }
-  };
-
   const handleAgentFeedback = async (runId: number, adopted: boolean, feedbackContext?: AgentFeedbackContext) => {
     await submitTerminalAgentFeedback({ runId, adopted, feedbackContext });
   };
@@ -1680,18 +1476,21 @@ export default function AppContent() {
 
   const handleBusinessQueryAction = (action: string, label?: string) => handleStructuredAction(action, businessQueryActionToCommand, label);
   const handleAgentResultAction = async (action: string, label?: string) => {
-    if (action.startsWith("agent-v5:clarification:")) {
-      const selection = action.split(":").slice(2).join(":");
-      await handleCommand(label?.trim() || selection, "system", { agentV5ClarificationSelection: selection });
-      return;
-    }
-    const approvalAction = parseAgentApprovalAction(action);
-    if (approvalAction?.decision === "approve") {
-      await handleAgentApprovalApprove(approvalAction.approvalId);
-      return;
-    }
-    if (approvalAction?.decision === "reject") {
-      await handleAgentApprovalReject(approvalAction.approvalId);
+    if (parseTerminalBrainAction(action)) {
+      const epoch = getConversationEpoch();
+      setLoading(true);
+      setLoadingText(action.endsWith(":cancel") ? "正在取消 Ami Brain 动作" : "正在执行 Ami Brain 动作");
+      try {
+        const data = await decideTerminalBrainAction(action);
+        appendMessage(createMessage("dashboard", { kind: "agentRun", data }, "Ami Brain 动作回执"), epoch);
+      } catch (err) {
+        appendMessage(createMessage("error", { text: err instanceof Error ? err.message : "Ami Brain 动作处理失败", source: "agent" }), epoch);
+      } finally {
+        if (isConversationEpochActive(epoch)) {
+          setLoading(false);
+          setLoadingText("");
+        }
+      }
       return;
     }
     await handleStructuredAction(action, agentActionToCommand, label);
@@ -1715,12 +1514,10 @@ export default function AppContent() {
         currentRole={currentRole}
         currentUserId={currentOperatorId}
         availableUsers={availableUsers}
-        agentEngine={agentEngine}
         switchingStore={switchingStore}
         switchingUser={switchingUser}
         onStoreChange={handleStoreChange}
         onUserChange={handleUserChange}
-        onAgentEngineChange={handleAgentEngineChange}
         onHistory={() => setShowConversationHistory(true)}
         onLock={handleLock}
         onFingerprint={() => loadRoleHome(currentRole, { bootstrapForCache: bootstrap, epoch: getConversationEpoch() })}
@@ -1919,8 +1716,6 @@ export default function AppContent() {
                       feedbackContext={feedbackContext}
                       onCommand={(suggestion) => handleCommand(suggestion, "text")}
                       onAction={handleAgentResultAction}
-                      onApprove={handleAgentApprovalApprove}
-                      onReject={handleAgentApprovalReject}
                       onFeedback={handleAgentFeedback}
                     />
                   </div>

@@ -1,0 +1,2089 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-17T10:22:53.440Z",
+    "startedAt": "2026-07-17T10:21:35.073Z",
+    "finishedAt": "2026-07-17T10:22:53.440Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\agent-eval-questions.md",
+    "questionCount": 12,
+    "actualRunCount": 12,
+    "actualTurnCount": 12,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "releaseId": 287,
+    "releaseSnapshot": {
+      "releaseFingerprint": "eaf8548ff35f7ee08a5ff5ca73da2fe9f410a42143a9a3be57c3411ab269bf77",
+      "declaredMode": "shadow",
+      "resourceVersionIds": [
+        231,
+        236,
+        240,
+        242,
+        244,
+        245,
+        246,
+        248,
+        249,
+        250,
+        251,
+        253,
+        254,
+        256,
+        257,
+        260,
+        261,
+        262,
+        263
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview",
+        "customer_facts",
+        "customer_follow_up_draft",
+        "finance_payment_breakdown",
+        "finance_risk_overview",
+        "front_desk_operations_overview",
+        "gap_fill_touch_preview",
+        "inventory_operations_overview",
+        "inventory_procurement_advice",
+        "manager_staff_overview",
+        "marketing_customer_segment",
+        "marketing_growth_overview",
+        "marketing_message_draft",
+        "marketing_touch_draft",
+        "product_sales_ranking",
+        "project_service_ranking",
+        "reservation_action_preview",
+        "reservation_list",
+        "store_operations_overview"
+      ]
+    },
+    "candidateSkillsEnabledForEval": true,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "permissionSource": "active_backend_role_catalog_plus_candidate_minimum_permissions",
+    "evaluationRoleKeys": [
+      "store_manager"
+    ],
+    "permissionCatalogRoleKeys": [
+      "ami_demo_full_beautician",
+      "ami_demo_full_cashier",
+      "ami_demo_full_manager",
+      "beautician",
+      "cashier",
+      "store_manager",
+      "super_admin"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。",
+      "provider_unavailable": "模型供应商不可用，单列为评测基础设施失败，不进入产品可用率分母。",
+      "sixLayerGate": "意图、工具、计划、执行、完成度、答案六层必须全部通过；确定性失败不可被 LLM Judge 覆盖。"
+    }
+  },
+  "summary": {
+    "total": 12,
+    "evaluableTotal": 12,
+    "providerUnavailableCount": 0,
+    "legacyUsableWithCitation": 7,
+    "legacyUsableRate": 0.5833333333333334,
+    "trueUsable": 10,
+    "trueUsableRate": 0.8333333333333334,
+    "observedTrueUsableRate": 0.8333333333333334,
+    "conversationGate": {
+      "scenarioCount": 0,
+      "passedScenarioCount": 0,
+      "turnCount": 12,
+      "passedTurnCount": 10
+    },
+    "byStatus": [
+      {
+        "key": "usable_exact",
+        "total": 10,
+        "evaluableTotal": 10,
+        "usable": 10,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "unsupported_intent",
+        "total": 2,
+        "evaluableTotal": 2,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 2,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "manager",
+        "total": 12,
+        "evaluableTotal": 12,
+        "usable": 10,
+        "usableRate": 0.8333333333333334,
+        "metricFailed": 0,
+        "unsupportedIntent": 2,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "客户管理",
+        "total": 6,
+        "evaluableTotal": 6,
+        "usable": 5,
+        "usableRate": 0.8333333333333334,
+        "metricFailed": 0,
+        "unsupportedIntent": 1,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "经营概览",
+        "total": 3,
+        "evaluableTotal": 3,
+        "usable": 3,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "员工管理",
+        "total": 3,
+        "evaluableTotal": 3,
+        "usable": 2,
+        "usableRate": 0.6666666666666666,
+        "metricFailed": 0,
+        "unsupportedIntent": 1,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [
+      {
+        "reason": "intent:intent_mismatch",
+        "count": 1
+      },
+      {
+        "reason": "tool:capability_any_of_missing:customer_facts|manager_staff_overview|marketing_customer_segment|marketing_growth_overview|store_operations_overview",
+        "count": 1
+      }
+    ],
+    "securityGate": {
+      "permissionBypassCount": 0,
+      "crossStoreReadCount": 0,
+      "roleHintBypassCount": 0,
+      "fakeActionConfirmationCount": 0
+    },
+    "grounding": {
+      "metricQueryCount": 0,
+      "dbSkillCount": 10,
+      "templateSkillCount": 0,
+      "previewActionCount": 0,
+      "noneCount": 2
+    },
+    "adapterDistribution": [
+      {
+        "reason": "none",
+        "count": 12
+      }
+    ],
+    "domainDistribution": [
+      {
+        "reason": "customer",
+        "count": 8
+      },
+      {
+        "reason": "beautician",
+        "count": 3
+      },
+      {
+        "reason": "finance",
+        "count": 3
+      },
+      {
+        "reason": "payment",
+        "count": 3
+      },
+      {
+        "reason": "staff",
+        "count": 3
+      },
+      {
+        "reason": "operating_cost",
+        "count": 2
+      },
+      {
+        "reason": "product_order",
+        "count": 2
+      },
+      {
+        "reason": "refund",
+        "count": 2
+      },
+      {
+        "reason": "reservation",
+        "count": 2
+      },
+      {
+        "reason": "marketing",
+        "count": 1
+      },
+      {
+        "reason": "payment_record",
+        "count": 1
+      }
+    ],
+    "capabilityDistribution": [
+      {
+        "reason": "customer_facts",
+        "count": 5
+      },
+      {
+        "reason": "manager_staff_overview",
+        "count": 3
+      },
+      {
+        "reason": "finance_risk_overview",
+        "count": 2
+      },
+      {
+        "reason": "finance_payment_breakdown",
+        "count": 1
+      },
+      {
+        "reason": "none",
+        "count": 1
+      }
+    ],
+    "executionPathDistribution": [
+      {
+        "reason": "exact_contract_fast_path",
+        "count": 9
+      },
+      {
+        "reason": "model_primary",
+        "count": 3
+      }
+    ],
+    "sixLayer": {
+      "intent": {
+        "total": 12,
+        "passed": 11,
+        "passRate": 0.9166666666666666,
+        "averageScore": 0.9583333333333334
+      },
+      "tool": {
+        "total": 12,
+        "passed": 11,
+        "passRate": 0.9166666666666666,
+        "averageScore": 0.9166666666666666
+      },
+      "plan": {
+        "total": 12,
+        "passed": 11,
+        "passRate": 0.9166666666666666,
+        "averageScore": 0.9722222222222222
+      },
+      "execution": {
+        "total": 12,
+        "passed": 12,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "completion": {
+        "total": 12,
+        "passed": 11,
+        "passRate": 0.9166666666666666,
+        "averageScore": 0.9444444444444445
+      },
+      "answer": {
+        "total": 12,
+        "passed": 10,
+        "passRate": 0.8333333333333334,
+        "averageScore": 0.8333333333333334
+      }
+    },
+    "latency": {
+      "avgMs": 6425,
+      "p95Ms": 26843,
+      "maxMs": 26843
+    },
+    "baselineComparison": {
+      "baselinePath": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-eval-run-2026-07-10\\ami-brain-eval-results-2026-07-10.json",
+      "rows": [
+        {
+          "metric": "旧口径可用率",
+          "baseline": "15.5%",
+          "current": "58.3%"
+        },
+        {
+          "metric": "真实可用率",
+          "baseline": "3.7%",
+          "current": "83.3%"
+        },
+        {
+          "metric": "假阳性数",
+          "baseline": "77",
+          "current": "0"
+        },
+        {
+          "metric": "时间误退化全量数",
+          "baseline": "12",
+          "current": "0"
+        },
+        {
+          "metric": "文案/操作误命中指标数",
+          "baseline": "21",
+          "current": "0"
+        }
+      ]
+    }
+  },
+  "records": [
+    {
+      "questionId": "qb-manager-business-overview-010",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 10,
+      "persona": "manager",
+      "question": "今天退款有几笔，金额多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 5017,
+      "conversationId": 23426,
+      "runId": 23396,
+      "answer": "退款金额：0.00 元；退款笔数：0 笔。\n\n未完成范围：当前请求包含多个独立已发布指标，本次分别展示，不将其自动合成未发布的派生指标。\n\n数据依据：业务定义：退款金额；业务定义：退款笔数；退款、优惠与毛利风险。",
+      "citations": [
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.refund_amount@1",
+          "label": "业务定义：退款金额"
+        },
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.refund_count@2",
+          "label": "业务定义：退款笔数"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "finance_risk_summary",
+          "label": "退款、优惠与毛利风险"
+        }
+      ],
+      "domains": [
+        "finance",
+        "operating_cost",
+        "payment",
+        "product_order",
+        "refund"
+      ],
+      "capabilityKeys": [
+        "finance_risk_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "metric_query",
+        "actualIntent": "metric_query",
+        "expectedShape": "scalar_metric",
+        "actualShape": "scalar_metric",
+        "expectedMetric": "refund_amount",
+        "actualMetric": "refund_amount",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [
+          "refund"
+        ],
+        "entities": [],
+        "metrics": [
+          "refund_amount"
+        ],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "finance_risk_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "refund_amount"
+        ],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [
+          "refund"
+        ],
+        "capabilityKeys": [
+          "finance_risk_overview"
+        ],
+        "unresolved": [
+          "metric:refund_count",
+          "entity:order"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "qb-manager-business-overview-016",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 16,
+      "persona": "manager",
+      "question": "今天折扣优惠送出去多少钱",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2151,
+      "conversationId": 23427,
+      "runId": 23397,
+      "answer": "优惠金额：0.00 元。\n\n数据依据：业务定义：优惠金额；退款、优惠与毛利风险。",
+      "citations": [
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.discount_amount@2",
+          "label": "业务定义：优惠金额"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "finance_risk_summary",
+          "label": "退款、优惠与毛利风险"
+        }
+      ],
+      "domains": [
+        "finance",
+        "operating_cost",
+        "payment",
+        "product_order",
+        "refund"
+      ],
+      "capabilityKeys": [
+        "finance_risk_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "metric_query",
+        "actualIntent": "metric_query",
+        "expectedShape": "scalar_metric",
+        "actualShape": "scalar_metric",
+        "expectedMetric": "discount_amount",
+        "actualMetric": "discount_amount",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "answerShape": "scalar",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_facts",
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "front_desk_operations_overview",
+          "inventory_operations_overview",
+          "inventory_procurement_advice",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "reservation_list",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_facts",
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "front_desk_operations_overview",
+          "inventory_operations_overview",
+          "inventory_procurement_advice",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "reservation_list",
+          "store_operations_overview"
+        ],
+        "unresolved": [
+          "metric:discount_amount"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 2,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "qb-manager-business-overview-019",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 19,
+      "persona": "manager",
+      "question": "今天现金收了多少，微信支付宝各多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 12230,
+      "conversationId": 23428,
+      "runId": 23398,
+      "answer": "排行：\n1. 支付方式=现金，金额=0.00，笔数=0\n2. 支付方式=微信，金额=0.00，笔数=0\n3. 支付方式=支付宝，金额=0.00，笔数=0\n\n数据依据：财务支付方式拆分；业务定义：实收金额。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "capability_finance_payment_breakdown",
+          "label": "财务支付方式拆分"
+        },
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.paid_amount@8",
+          "label": "业务定义：实收金额"
+        }
+      ],
+      "domains": [
+        "finance",
+        "payment",
+        "payment_record"
+      ],
+      "capabilityKeys": [
+        "finance_payment_breakdown"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "ranking",
+        "expectedShape": "list",
+        "actualShape": "ranking",
+        "expectedMetric": "paid_revenue",
+        "actualMetric": "paid_amount",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [
+          "finance"
+        ],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [
+          "paymentMethod"
+        ],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [
+          "paymentMethod"
+        ],
+        "entityKeys": [],
+        "domainKeys": [
+          "finance"
+        ],
+        "capabilityKeys": [
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": [
+          "entity:order"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "qb-manager-customer-management-022",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 22,
+      "persona": "manager",
+      "question": "上个月新来了多少新客，转化了多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 26843,
+      "conversationId": 23429,
+      "runId": 23399,
+      "answer": "为了准确处理，请一次确认：请补充对比周期或对象；用户询问“转化了多少”，但未明确新客转化的具体目标对象或转化事件？",
+      "citations": [],
+      "domains": [
+        "customer",
+        "marketing"
+      ],
+      "capabilityKeys": [],
+      "grounding": "none",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "validate",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "clarify",
+        "expectedShape": "non_metric",
+        "actualShape": "clarification",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_any_of_missing:customer_facts|manager_staff_overview|marketing_customer_segment|marketing_growth_overview|store_operations_overview"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": false,
+          "score": 0.6666666666666666,
+          "checked": 3,
+          "failures": [
+            "plan_nodes_below:1"
+          ],
+          "deterministicFailure": true
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0.3333333333333333,
+          "checked": 3,
+          "failures": [
+            "completion_status:partial",
+            "completion_grounding_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "unsupported_intent"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "tool:capability_any_of_missing:customer_facts|manager_staff_overview|marketing_customer_segment|marketing_growth_overview|store_operations_overview"
+    },
+    {
+      "questionId": "qb-manager-customer-management-029",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 29,
+      "persona": "manager",
+      "question": "我们的老客回头率大概是多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1985,
+      "conversationId": 23430,
+      "runId": 23400,
+      "answer": "客户复购率：26.8%；有效消费客户：250 人；复购客户：67 人。\n\n数据依据：业务定义：客户复购率；客户有效消费与复购统计。",
+      "citations": [
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.repurchase_rate",
+          "label": "业务定义：客户复购率"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "customer_retention_summary",
+          "label": "客户有效消费与复购统计"
+        }
+      ],
+      "domains": [
+        "customer"
+      ],
+      "capabilityKeys": [
+        "customer_facts"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "metric_query",
+        "actualIntent": "metric_query",
+        "expectedShape": "scalar_metric",
+        "actualShape": "scalar_metric",
+        "expectedMetric": "repurchase_rate",
+        "actualMetric": "repurchase_rate",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "qb-manager-customer-management-031",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 31,
+      "persona": "manager",
+      "question": "帮我找一下三个月没来消费的客户",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2731,
+      "conversationId": 23431,
+      "runId": 23401,
+      "answer": "90 天未到店客户名单：共 265 人，展示前 10 人。\n1. 吴梦瑶：累计消费 141561.00 元，到店 147 次，最近到店 2026-04-17\n2. 王晓雯：累计消费 129289.00 元，到店 109 次，最近到店 2026-04-17\n3. 何静怡：累计消费 101212.00 元，到店 61 次，最近到店 2026-04-18\n4. 周静怡：累计消费 62871.00 元，到店 85 次，最近到店 2026-04-18\n5. 马美琳：累计消费 58622.00 元，到店 47 次，最近到店 2026-04-18\n6. 罗紫萱：累计消费 57448.00 元，到店 76 次，最近到店 2026-04-17\n7. 林心怡：累计消费 54404.00 元，到店 57 次，最近到店 2026-04-17\n8. 马欣怡：累计消费 51043.00 元，到店 173 次，最近到店 2025-10-25\n9. 杨若兰：累计消费 42242.00 元，到店 77 次，最近到店 2025-12-24\n10. 胡静怡：累计消费 37739.00 元，到店 46 次，最近到店 2025-12-09\n\n数据依据：客户精确事实查询。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "capability_customer_facts",
+          "label": "客户精确事实查询"
+        }
+      ],
+      "domains": [
+        "customer"
+      ],
+      "capabilityKeys": [
+        "customer_facts"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": [
+          "entity:order"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-customer-management-032",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 32,
+      "persona": "manager",
+      "question": "哪些客户消费了钱但很少用次卡",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2679,
+      "conversationId": 23432,
+      "runId": 23402,
+      "answer": "明细：\n1. 客户=马美琳，cardName=焕肤清洁 12 次卡，usedTimes=0，totalTimes=12，remainingTimes=10，usageRate=0，累计消费=196626.00\n2. 客户=刘思琪，cardName=补水护理 10 次卡，usedTimes=0，totalTimes=10，remainingTimes=8，usageRate=0，累计消费=193085.00\n3. 客户=林雨薇，cardName=抗衰管理 6 次卡，usedTimes=0，totalTimes=6，remainingTimes=3，usageRate=0，累计消费=192673.00\n4. 客户=王雅婷，cardName=综合养护 20 次卡，usedTimes=0，totalTimes=20，remainingTimes=16，usageRate=0，累计消费=190532.00\n5. 客户=马佳慧，cardName=补水护理 10 次卡，usedTimes=0，totalTimes=10，remainingTimes=10，usageRate=0，累计消费=189115.00\n6. 客户=刘婉清，cardName=敏感修护 8 次卡，usedTimes=0，totalTimes=8，remainingTimes=7，usageRate=0，累计消费=186301.00\n7. 客户=高美琳，cardName=敏感修护 8 次卡，usedTimes=0，totalTimes=8，remainingTimes=6，usageRate=0，累计消费=186059.00\n8. 客户=高美琳，cardName=焕肤清洁 12 次卡，usedTimes=0，totalTimes=12，remainingTimes=10，usageRate=0，累计消费=186059.00\n9. 客户=何思琪，cardName=焕肤清洁 12 次卡，usedTimes=0，totalTimes=12，remainingTimes=10，usageRate=0，累计消费=184887.00\n10. 客户=何思琪，cardName=综合养护 20 次卡，usedTimes=0，totalTimes=20，remainingTimes=20，usageRate=0，累计消费=184887.00\n\n数据依据：客户次卡开卡与核销事实。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "customer_card_usage_facts",
+          "label": "客户次卡开卡与核销事实"
+        }
+      ],
+      "domains": [
+        "customer"
+      ],
+      "capabilityKeys": [
+        "customer_facts"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "card_liability",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [
+          "customer"
+        ],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [
+          "customerName"
+        ],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [
+          "customerName"
+        ],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [
+          "customer"
+        ],
+        "capabilityKeys": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": [
+          "entity:order",
+          "entity:customer_card"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-customer-management-034",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 34,
+      "persona": "manager",
+      "question": "我们有多少客户开了次卡但从来不来消费",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2899,
+      "conversationId": 23433,
+      "runId": 23403,
+      "answer": "开卡未核销：324 人次卡。\n\n明细：\n1. 客户=徐诗涵，cardName=抗衰管理 6 次卡，remainingTimes=5，totalTimes=6，累计消费=3680.00\n2. 客户=林伟明，cardName=焕肤清洁 12 次卡，remainingTimes=12，totalTimes=12，累计消费=17278.00\n3. 客户=黄思琪，cardName=敏感修护 8 次卡，remainingTimes=6，totalTimes=8，累计消费=15999.00\n4. 客户=徐思琪，cardName=焕肤清洁 12 次卡，remainingTimes=11，totalTimes=12，累计消费=19610.00\n5. 客户=何语嫣，cardName=抗衰管理 6 次卡，remainingTimes=4，totalTimes=6，累计消费=1221.00\n6. 客户=赵若兰，cardName=抗衰管理 6 次卡，remainingTimes=6，totalTimes=6，累计消费=47776.00\n7. 客户=周语嫣，cardName=综合养护 20 次卡，remainingTimes=17，totalTimes=20，累计消费=16823.00\n8. 客户=吴美琳，cardName=补水护理 10 次卡，remainingTimes=10，totalTimes=10，累计消费=941.00\n9. 客户=高晓雯，cardName=抗衰管理 6 次卡，remainingTimes=5，totalTimes=6，累计消费=961.00\n10. 客户=王晓雯，cardName=敏感修护 8 次卡，remainingTimes=7，totalTimes=8，累计消费=129289.00\n\n数据依据：客户次卡开卡与核销事实。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "customer_card_usage_facts",
+          "label": "客户次卡开卡与核销事实"
+        }
+      ],
+      "domains": [
+        "customer"
+      ],
+      "capabilityKeys": [
+        "customer_facts"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "card_liability",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": [
+          "entity:order",
+          "entity:customer_card"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-customer-management-039",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 39,
+      "persona": "manager",
+      "question": "老客户平均多久回来一次",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2652,
+      "conversationId": 23434,
+      "runId": 23404,
+      "answer": "平均回访间隔：13.0 天（154 个相邻消费间隔）。\n\n数据依据：业务定义：客户平均回访间隔；客户有效消费间隔统计。",
+      "citations": [
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.average_return_interval_days",
+          "label": "业务定义：客户平均回访间隔"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "customer_retention_summary",
+          "label": "客户有效消费间隔统计"
+        }
+      ],
+      "domains": [
+        "customer"
+      ],
+      "capabilityKeys": [
+        "customer_facts"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "metric_query",
+        "actualIntent": "metric_query",
+        "expectedShape": "scalar_metric",
+        "actualShape": "scalar_metric",
+        "expectedMetric": "average_return_interval_days",
+        "actualMetric": "average_return_interval_days",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "qb-manager-staff-management-043",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "员工管理",
+      "sourceIndex": 43,
+      "persona": "manager",
+      "question": "谁的客户复购率最高",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2387,
+      "conversationId": 23435,
+      "runId": 23405,
+      "answer": "排行：\n1. 员工=顾然，customerRepurchaseRate=0，复购客户数=0，服务客户数=0\n2. 员工=沈晴，customerRepurchaseRate=0，复购客户数=0，服务客户数=0\n3. 员工=宋乔，customerRepurchaseRate=0，复购客户数=0，服务客户数=0\n4. 员工=唐伊，customerRepurchaseRate=0，复购客户数=0，服务客户数=0\n\n数据依据：业务定义：员工客户复购率；员工服务、客户、业绩与提成分析；员工排班忙闲与可用空档。",
+      "citations": [
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.staff_customer_repurchase_rate@2",
+          "label": "业务定义：员工客户复购率"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "manager_staff_analysis",
+          "label": "员工服务、客户、业绩与提成分析"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "reception_operations_snapshot",
+          "label": "员工排班忙闲与可用空档"
+        }
+      ],
+      "domains": [
+        "beautician",
+        "customer",
+        "reservation",
+        "staff"
+      ],
+      "capabilityKeys": [
+        "manager_staff_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "ranking",
+        "actualIntent": "ranking",
+        "expectedShape": "ranking",
+        "actualShape": "ranking",
+        "expectedMetric": "staff_customer_repurchase_rate",
+        "actualMetric": "staff_customer_repurchase_rate",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "ranking",
+        "answerShape": "ranking",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer",
+          "beautician"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": [
+          "metric:staff_customer_repurchase_rate",
+          "dimension:beautician"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 2,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "qb-manager-staff-management-045",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "员工管理",
+      "sourceIndex": 45,
+      "persona": "manager",
+      "question": "这个月提成最高的是谁，大概多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2076,
+      "conversationId": 23436,
+      "runId": 23406,
+      "answer": "排行：\n1. 员工=宋乔，提成金额=604.81\n2. 员工=顾然，提成金额=473.12\n3. 员工=唐伊，提成金额=339.96\n4. 员工=沈晴，提成金额=316.45\n\n数据依据：业务定义：员工提成金额；员工服务、客户、业绩与提成分析；员工排班忙闲与可用空档。",
+      "citations": [
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.staff_commission_amount@2",
+          "label": "业务定义：员工提成金额"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "manager_staff_analysis",
+          "label": "员工服务、客户、业绩与提成分析"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "reception_operations_snapshot",
+          "label": "员工排班忙闲与可用空档"
+        }
+      ],
+      "domains": [
+        "beautician",
+        "customer",
+        "reservation",
+        "staff"
+      ],
+      "capabilityKeys": [
+        "manager_staff_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "ranking",
+        "actualIntent": "ranking",
+        "expectedShape": "ranking",
+        "actualShape": "ranking",
+        "expectedMetric": "staff_commission_amount",
+        "actualMetric": "staff_commission_amount",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "ranking",
+        "answerShape": "ranking",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "manager_staff_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "beautician"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "manager_staff_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": [
+          "metric:staff_commission_amount",
+          "dimension:beautician"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 2,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "qb-manager-staff-management-048",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "员工管理",
+      "sourceIndex": 48,
+      "persona": "manager",
+      "question": "哪个美容师的客诉最多，最近有没有",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 13444,
+      "conversationId": 23437,
+      "runId": 23407,
+      "answer": "当前后台没有客户投诉、差评或满意度事实闭环，无法按美容师统计或排行。Ami Brain 不会用服务量、业绩或综合表现分替代客诉指标。",
+      "citations": [],
+      "domains": [
+        "beautician",
+        "staff"
+      ],
+      "capabilityKeys": [
+        "manager_staff_overview"
+      ],
+      "grounding": "none",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "ranking",
+        "actualIntent": "unknown",
+        "expectedShape": "ranking",
+        "actualShape": "ranking",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "ranking",
+        "answerShape": "ranking",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": false,
+        "requiresComplete": false,
+        "capabilityAnyOf": [
+          "manager_staff_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "beautician"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "manager_staff_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": [
+          "dimension:beautician"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0.5,
+          "checked": 2,
+          "failures": [
+            "intent_mismatch"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "unsupported_intent"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "intent:intent_mismatch"
+    }
+  ]
+}

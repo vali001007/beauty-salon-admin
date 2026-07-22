@@ -1,0 +1,44 @@
+{
+  "status": "passed",
+  "databaseWritePerformed": true,
+  "target": {
+    "host": "127.0.0.1",
+    "port": 55439,
+    "database": "ami_brain_supply_r237"
+  },
+  "evidence": {
+    "batchSupplierOrderCount": 2,
+    "concurrentBatchReplayDetected": true,
+    "lostResponseBatchReplayDetected": true,
+    "mismatchedBatchRejected": true,
+    "receiptCount": 2,
+    "stockBatchCount": 2,
+    "stockMovementCount": 2,
+    "finalStocks": [
+      {
+        "productId": 1,
+        "currentStock": 12
+      },
+      {
+        "productId": 2,
+        "currentStock": 13
+      }
+    ],
+    "receiptEvidence": [
+      {
+        "orderId": 1,
+        "mode": "same_key_replay",
+        "mismatchedReceiptRejected": true
+      },
+      {
+        "orderId": 2,
+        "mode": "different_key_race",
+        "outcomes": [
+          "fulfilled",
+          "rejected"
+        ]
+      }
+    ],
+    "rawIdempotencyKeysPersisted": false
+  }
+}

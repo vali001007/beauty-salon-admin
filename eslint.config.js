@@ -30,6 +30,7 @@ export default [
         TextEncoder: 'readonly',
         URL: 'readonly',
         URLSearchParams: 'readonly',
+        Event: 'readonly',
         Node: 'readonly',
         MouseEvent: 'readonly',
         KeyboardEvent: 'readonly',
@@ -56,6 +57,22 @@ export default [
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
       'no-console': ['warn', { allow: ['warn', 'error'] }],
+    },
+  },
+  {
+    files: ['src/**/*.test.{ts,tsx}', 'src/**/*.spec.{ts,tsx}'],
+    languageOptions: {
+      globals: {
+        describe: 'readonly',
+        it: 'readonly',
+        test: 'readonly',
+        expect: 'readonly',
+        vi: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+      },
     },
   },
 ];

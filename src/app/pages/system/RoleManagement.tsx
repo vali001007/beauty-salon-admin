@@ -2,15 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { Edit, Loader2, Plus, Shield, Users } from 'lucide-react';
 import { Button, Input } from '../../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
-import type { ApprovalScopeValue, DataScopeValue, FieldScopeValue, PermissionPlatform, Role } from '@/types';
-import { createRole, getRoles, updateRole } from '@/api/role';
+import type { ApprovalScopeValue, DataScopeValue, FieldScopeValue, Permission, PermissionPlatform, Role } from '@/types';
+import { createRole, getPermissionCatalog, getRoles, updateRole } from '@/api/role';
 import {
   createDefaultRole,
   DEFAULT_APPROVAL_SCOPES,
   DEFAULT_DATA_SCOPES,
   DEFAULT_FIELD_SCOPES,
   DEFAULT_PLATFORM_SCOPES,
-  PERMISSION_CATALOG,
   normalizePermissions,
 } from '@/config/permissions';
 import { toast } from 'sonner';
@@ -121,6 +120,7 @@ function createBlankRole(): Role {
 
 export function RoleManagement() {
   const [roles, setRoles] = useState<Role[]>([]);
+  const [permissionCatalog, setPermissionCatalog] = useState<Permission[]>([]);
   const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [activeSection, setActiveSection] = useState<'permissions' | 'data' | 'fields' | 'approval'>('permissions');
@@ -130,22 +130,23 @@ export function RoleManagement() {
   const selectedRole = roles.find((role) => role.id === selectedRoleId) ?? roles[0] ?? null;
 
   const groupedPermissions = useMemo(() => {
-    return PERMISSION_CATALOG.reduce<Record<string, typeof PERMISSION_CATALOG>>((acc, permission) => {
+    return permissionCatalog.reduce<Record<string, Permission[]>>((acc, permission) => {
       const key = `${PLATFORM_LABELS[permission.platform]} / ${permission.module}`;
       acc[key] = acc[key] ?? [];
       acc[key].push(permission);
       return acc;
     }, {});
-  }, []);
+  }, [permissionCatalog]);
 
   const loadRoles = async () => {
     setLoading(true);
     try {
-      const data = await getRoles();
+      const [data, catalog] = await Promise.all([getRoles(), getPermissionCatalog()]);
       setRoles(data);
+      setPermissionCatalog(catalog);
       setSelectedRoleId((current) => current ?? data[0]?.id ?? null);
-    } catch {
-      toast.error('加载角色失败');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '加载角色或权限目录失败');
     } finally {
       setLoading(false);
     }

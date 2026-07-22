@@ -7,11 +7,10 @@
     "typecheck": "tsc --noEmit",
     "check:no-mock": "node scripts/check-no-local-mock.mjs",
     "build": "tsc --noEmit && vite build",
-    "dev": "vite",
-    "predev": "node ../../scripts/dev-local.mjs --check-only --quiet --full-command \"npm.cmd --prefix packages/Ami-Aura-Lite-Kiosk run dev:full\"",
+    "dev": "node ../../scripts/dev-local.mjs --web-cwd packages/Ami-Aura-Lite-Kiosk --web-script dev:web --web-port 5175 --web-label \"Ami Aura Lite\" --full-command \"npm.cmd --prefix packages/Ami-Aura-Lite-Kiosk run dev\"",
     "dev:web": "vite",
     "dev:doctor": "node ../../scripts/dev-local.mjs --check-only --full-command \"npm.cmd --prefix packages/Ami-Aura-Lite-Kiosk run dev:full\"",
-    "dev:full": "node ../../scripts/dev-local.mjs --web-cwd packages/Ami-Aura-Lite-Kiosk --web-script dev:web --web-port 5175 --web-label \"Ami Aura Lite\" --full-command \"npm.cmd --prefix packages/Ami-Aura-Lite-Kiosk run dev:full\""
+    "dev:full": "npm run dev"
   },
   "dependencies": {
     "@ami/agent-core": "file:../agent-core",

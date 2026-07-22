@@ -51,6 +51,7 @@ export interface PrepaidLiabilityQuery extends PaginationParams {
   riskOnly?: boolean;
   type?: 'all' | 'card' | 'balance';
   keyword?: string;
+  asOfDate?: string;
 }
 
 export interface BeauticianPerformanceQuery extends OperationProfitQuery {
@@ -151,6 +152,48 @@ export interface OperationProfitOverview {
   trend: OperationProfitTrendPoint[];
   alerts: OperationAlert[];
   dataQuality: DataQuality;
+  readiness: {
+    status: 'ready' | 'blocked' | 'unavailable';
+    publishable: boolean;
+    blockers: Array<{ code: string; count: number; amount?: number; actionPath: string }>;
+    warnings: Array<{ code: string; count: number }>;
+  };
+}
+
+export interface MonthlyProfitClose {
+  id: number;
+  storeId: number;
+  periodMonth: string;
+  version: number;
+  operatingRevenue: number;
+  materialCost: number;
+  productCost: number;
+  commissionCost: number;
+  operatingCost: number;
+  grossProfit: number;
+  operatingProfit: number;
+  dataQuality: DataQuality & { readiness?: OperationProfitOverview['readiness'] };
+  status: 'draft' | 'confirmed' | 'reopened';
+  confirmedBy?: number;
+  confirmedAt?: string;
+  reopenReason?: string;
+}
+
+export interface MemberLiabilitySnapshot {
+  id: number;
+  storeId: number;
+  snapshotDate: string;
+  version: number;
+  cashContractLiability: number;
+  giftObligation: number;
+  cardLiability: number;
+  remainingTimes: number;
+  additions: number;
+  releases: number;
+  refunds: number;
+  expirations: number;
+  adjustments: number;
+  status: 'draft' | 'confirmed';
 }
 
 export interface ProjectMarginRow {

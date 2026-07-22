@@ -1,9 +1,20 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { TerminalDashboardCacheService } from '../terminal/terminal-dashboard-cache.service.js';
 import { CommissionService } from '../commission/commission.service.js';
 import { formatBusinessDate } from '../common/utils/business-time.js';
 import { SupplyPlatformService } from '../supply-platform/supply-platform.service.js';
+import {
+  buildPurchaseOrderCreationFingerprint,
+  buildPurchaseOrderIdempotencyKey,
+  normalizePurchaseOrderSource,
+} from './purchase-order-idempotency.js';
+
+export type PurchaseOrderCreateResult = {
+  purchaseOrder: any;
+  replayed: boolean;
+};
 
 @Injectable()
 export class InventoryService {
@@ -747,6 +758,43 @@ export class InventoryService {
   }
 
   async createPurchaseOrder(data: any) {
+    return (await this.createPurchaseOrderIdempotent(data)).purchaseOrder;
+  }
+
+  async recoverIdempotentPurchaseOrder(data: any): Promise<PurchaseOrderCreateResult | undefined> {
+    const source = normalizePurchaseOrderSource(data.source);
+    const idempotencyKey = buildPurchaseOrderIdempotencyKey(data.storeId, source, data.idempotencyKey);
+    if (!idempotencyKey) return undefined;
+    const creationFingerprint = buildPurchaseOrderCreationFingerprint({ ...data, source });
+    const existing = await this.prisma.purchaseOrder.findUnique({ where: { idempotencyKey } });
+    if (!existing) return undefined;
+    this.assertPurchaseOrderIdempotency(existing, creationFingerprint);
+    return { purchaseOrder: this.mapPurchaseOrder(existing), replayed: true };
+  }
+
+  async createPurchaseOrderIdempotent(data: any): Promise<PurchaseOrderCreateResult> {
+    const source = normalizePurchaseOrderSource(data.source);
+    const idempotencyKey = buildPurchaseOrderIdempotencyKey(data.storeId, source, data.idempotencyKey);
+    const creationFingerprint = buildPurchaseOrderCreationFingerprint({ ...data, source });
+    if (!idempotencyKey) {
+      return { purchaseOrder: await this.createPurchaseOrderRecord({ ...data, source }, this.prisma), replayed: false };
+    }
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${idempotencyKey}, 0))`);
+      const existing = await tx.purchaseOrder.findUnique({ where: { idempotencyKey } });
+      if (existing) {
+        this.assertPurchaseOrderIdempotency(existing, creationFingerprint);
+        return { purchaseOrder: this.mapPurchaseOrder(existing), replayed: true };
+      }
+      const purchaseOrder = await this.createPurchaseOrderRecord(
+        { ...data, source, idempotencyKey, creationFingerprint },
+        tx,
+      );
+      return { purchaseOrder, replayed: false };
+    });
+  }
+
+  private async createPurchaseOrderRecord(data: any, tx: Prisma.TransactionClient | PrismaService) {
     const orderNo = `PUR${Date.now()}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
     const items: Array<{
       id: number;
@@ -772,16 +820,26 @@ export class InventoryService {
       };
     });
     if (!items.length) throw new BadRequestException('采购单至少需要一条明细');
+    const storeId = Number(data.storeId);
+    if (Number.isInteger(storeId) && storeId > 0) {
+      const productIds = [...new Set(items.map((item) => item.productId).filter((value): value is number => Number.isInteger(value) && Number(value) > 0))];
+      if (productIds.length) {
+        const matched = await tx.product.count({ where: { id: { in: productIds }, storeId, deletedAt: null } });
+        if (matched !== productIds.length) throw new BadRequestException('采购商品不存在或不属于当前门店');
+      }
+    }
     const totalAmount = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
     const payload = {
       items,
       storeId: data.storeId ? Number(data.storeId) : undefined,
       storeName: data.storeName ?? '全部门店',
       expectedDate: data.expectedDate ?? '',
-      source: data.source ?? 'manual',
+      source: normalizePurchaseOrderSource(data.source),
     };
-    const order = await this.prisma.purchaseOrder.create({
+    const order = await tx.purchaseOrder.create({
       data: {
+        idempotencyKey: data.idempotencyKey,
+        creationFingerprint: data.creationFingerprint,
         orderNo,
         supplier: data.supplier,
         totalAmount,
@@ -798,6 +856,12 @@ export class InventoryService {
       expectedDate: payload.expectedDate,
       items,
     };
+  }
+
+  private assertPurchaseOrderIdempotency(existing: any, creationFingerprint: string) {
+    if (typeof existing.creationFingerprint !== 'string' || existing.creationFingerprint !== creationFingerprint) {
+      throw new ConflictException('幂等键已用于另一张采购单，请核对原采购单记录');
+    }
   }
 
   async updatePurchaseOrderStatus(id: number, data: { status?: string }) {

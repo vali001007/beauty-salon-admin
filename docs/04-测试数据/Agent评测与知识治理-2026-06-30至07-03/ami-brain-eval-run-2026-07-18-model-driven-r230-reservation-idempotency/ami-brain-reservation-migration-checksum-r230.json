@@ -1,0 +1,6 @@
+{
+  "migration": "20260718203000_reservation_creation_idempotency",
+  "localChecksum": "616a8cebbcfb412ecc64d8fba4a6e1d80ee4acd07a62a2da5bc5d88f34649c02",
+  "databaseChecksum": "616a8cebbcfb412ecc64d8fba4a6e1d80ee4acd07a62a2da5bc5d88f34649c02",
+  "matches": true
+}

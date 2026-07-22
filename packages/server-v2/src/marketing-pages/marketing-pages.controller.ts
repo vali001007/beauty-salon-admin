@@ -1,4 +1,17 @@
-import { Body, Controller, Get, Headers, Param, ParseIntPipe, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Param,
+  ParseIntPipe,
+  Post,
+  Put,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import type { Request } from 'express';
@@ -21,6 +34,12 @@ import { MarketingPagesService } from './marketing-pages.service.js';
 export class MarketingPagesController {
   constructor(private readonly marketingPagesService: MarketingPagesService) {}
 
+  private requireStoreId(storeId?: string) {
+    const parsed = Number(storeId);
+    if (!Number.isInteger(parsed) || parsed <= 0) throw new BadRequestException('X-Store-Id is required');
+    return parsed;
+  }
+
   @Get('marketing/pages')
   @Permissions('core:marketing:view')
   @ApiOperation({ summary: '分页获取营销页面' })
@@ -39,7 +58,7 @@ export class MarketingPagesController {
       keyword,
       status,
       sourceType,
-      storeId: storeId ? Number(storeId) : headerStoreId ? Number(headerStoreId) : undefined,
+      storeId: this.requireStoreId(headerStoreId),
     });
   }
 
@@ -48,25 +67,25 @@ export class MarketingPagesController {
   @ApiOperation({ summary: '营销页面归因汇总' })
   getAttributionSummary(
     @Headers('x-store-id') storeId?: string,
-    @Query('storeId') queryStoreId?: string,
+    @Query('storeId') _queryStoreId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
-    return this.marketingPagesService.getAttributionSummary(
-      queryStoreId ? Number(queryStoreId) : storeId ? Number(storeId) : undefined,
-      startDate,
-      endDate,
-    );
+    return this.marketingPagesService.getAttributionSummary(this.requireStoreId(storeId), startDate, endDate);
   }
 
   @Post('marketing/pages')
   @Permissions('core:marketing:create')
   @ApiOperation({ summary: '创建营销页面草稿' })
-  createPage(@Body() dto: CreateMarketingPageDto, @CurrentUser('id') userId?: number, @Headers('x-store-id') storeId?: string) {
+  createPage(
+    @Body() dto: CreateMarketingPageDto,
+    @CurrentUser('id') userId?: number,
+    @Headers('x-store-id') storeId?: string,
+  ) {
     return this.marketingPagesService.createPage(
       {
         ...dto,
-        storeId: dto.storeId ?? (storeId ? Number(storeId) : undefined),
+        storeId: this.requireStoreId(storeId),
       },
       userId,
     );
@@ -75,64 +94,76 @@ export class MarketingPagesController {
   @Get('marketing/pages/:id')
   @Permissions('core:marketing:view')
   @ApiOperation({ summary: '获取营销页面详情' })
-  getPage(@Param('id', ParseIntPipe) id: number) {
-    return this.marketingPagesService.getPage(id);
+  getPage(@Param('id', ParseIntPipe) id: number, @Headers('x-store-id') storeId?: string) {
+    return this.marketingPagesService.getPage(id, this.requireStoreId(storeId));
   }
 
   @Put('marketing/pages/:id')
   @Permissions('core:marketing:update')
   @ApiOperation({ summary: '更新营销页面' })
-  updatePage(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateMarketingPageDto) {
-    return this.marketingPagesService.updatePage(id, dto);
+  updatePage(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateMarketingPageDto,
+    @Headers('x-store-id') storeId?: string,
+  ) {
+    return this.marketingPagesService.updatePage(id, dto, this.requireStoreId(storeId));
   }
 
   @Post('marketing/pages/:id/publish')
   @Permissions('core:marketing:update')
   @ApiOperation({ summary: '发布营销页面' })
-  publishPage(@Param('id', ParseIntPipe) id: number, @CurrentUser('id') userId?: number) {
-    return this.marketingPagesService.publishPage(id, userId);
+  publishPage(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser('id') userId?: number,
+    @Headers('x-store-id') storeId?: string,
+  ) {
+    return this.marketingPagesService.publishPage(id, this.requireStoreId(storeId), userId);
   }
 
   @Post('marketing/pages/:id/offline')
   @Permissions('core:marketing:update')
   @ApiOperation({ summary: '下线营销页面' })
-  offlinePage(@Param('id', ParseIntPipe) id: number) {
-    return this.marketingPagesService.offlinePage(id);
+  offlinePage(@Param('id', ParseIntPipe) id: number, @Headers('x-store-id') storeId?: string) {
+    return this.marketingPagesService.offlinePage(id, this.requireStoreId(storeId));
   }
 
   @Post('marketing/pages/:id/duplicate')
   @Permissions('core:marketing:create')
   @ApiOperation({ summary: '复制营销页面' })
-  duplicatePage(@Param('id', ParseIntPipe) id: number, @CurrentUser('id') userId?: number) {
-    return this.marketingPagesService.duplicatePage(id, userId);
+  duplicatePage(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser('id') userId?: number,
+    @Headers('x-store-id') storeId?: string,
+  ) {
+    return this.marketingPagesService.duplicatePage(id, this.requireStoreId(storeId), userId);
   }
 
   @Get('marketing/pages/:id/effects')
   @Permissions('core:marketing:analytics')
   @ApiOperation({ summary: '获取营销页面效果统计' })
-  getPageEffects(@Param('id', ParseIntPipe) id: number) {
-    return this.marketingPagesService.getPageEffects(id);
+  getPageEffects(@Param('id', ParseIntPipe) id: number, @Headers('x-store-id') storeId?: string) {
+    return this.marketingPagesService.getPageEffects(id, this.requireStoreId(storeId));
   }
 
   @Get('marketing/pages/:id/attribution')
   @Permissions('core:marketing:analytics')
   @ApiOperation({ summary: '获取营销页面归因统计' })
-  getPageAttribution(@Param('id', ParseIntPipe) id: number) {
-    return this.marketingPagesService.getPageAttribution(id);
+  getPageAttribution(@Param('id', ParseIntPipe) id: number, @Headers('x-store-id') storeId?: string) {
+    return this.marketingPagesService.getPageAttribution(id, this.requireStoreId(storeId));
   }
 
   @Get('marketing/pages/:id/events')
   @Permissions('core:marketing:analytics')
   @ApiOperation({ summary: '获取营销页面事件明细' })
-  getPageEvents(@Param('id', ParseIntPipe) id: number) {
-    return this.marketingPagesService.getPageEvents(id);
+  getPageEvents(@Param('id', ParseIntPipe) id: number, @Headers('x-store-id') storeId?: string) {
+    return this.marketingPagesService.getPageEvents(id, this.requireStoreId(storeId));
   }
 
   @Get('marketing/pages/:id/leads')
   @Permissions('core:marketing:view')
   @ApiOperation({ summary: '获取营销页面线索' })
-  getPageLeads(@Param('id', ParseIntPipe) id: number) {
-    return this.marketingPagesService.getPageLeads(id);
+  getPageLeads(@Param('id', ParseIntPipe) id: number, @Headers('x-store-id') storeId?: string) {
+    return this.marketingPagesService.getPageLeads(id, this.requireStoreId(storeId));
   }
 
   @Public()

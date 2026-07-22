@@ -378,7 +378,7 @@ export class AgentV4OrchestratorService {
         }] as AuraResponseBlock[],
       };
     }
-    const submitted = await this.marketingService.submitLifecycleBusinessPlanActions(planId, {
+    const submitted = await this.marketingService.submitLifecycleBusinessPlanActions(planId, input.actor.storeId, {
       sourceAgentCode: AGENT_V4_CODE,
       sourceRunId: Number(input.run.id),
       sourceEntrypoint: input.actor.entrypoint,

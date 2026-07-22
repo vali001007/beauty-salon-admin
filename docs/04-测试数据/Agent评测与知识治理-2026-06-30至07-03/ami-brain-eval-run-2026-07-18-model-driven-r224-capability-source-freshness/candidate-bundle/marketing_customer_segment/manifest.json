@@ -1,0 +1,154 @@
+{
+  "key": "marketing_customer_segment",
+  "version": 1,
+  "sourceFingerprint": "ef7f756616082dc302c503a24fd83b9d05a56a4950a39d2d88c59f30285cf922",
+  "name": "营销客户分群摘要",
+  "description": "基于当前门店客户、订单、项目类型、优惠和客户卡事实，返回营销分群摘要或消费分层、优惠敏感、基础项目未升单、疗程续购等具体客户名单。",
+  "domains": [
+    "customer",
+    "project"
+  ],
+  "intents": [
+    "diagnosis",
+    "query"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "comparisonTarget": {
+        "type": "object"
+      },
+      "dimensions": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "entities": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "filters": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "limit": {
+        "type": "number"
+      },
+      "metrics": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "objective": {
+        "type": "string"
+      },
+      "orderBy": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "time": {
+        "type": "object"
+      }
+    },
+    "required": [
+      "dimensions",
+      "entities",
+      "filters",
+      "metrics",
+      "objective",
+      "orderBy"
+    ],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object"
+  },
+  "requiredPermissions": [
+    "core:brain:use",
+    "core:marketing:analytics"
+  ],
+  "allowedRoles": [
+    "marketing",
+    "store_manager"
+  ],
+  "readOnly": true,
+  "sideEffect": false,
+  "riskLevel": "low",
+  "requiresConfirmation": false,
+  "idempotency": "not_applicable",
+  "timeoutMs": 10000,
+  "grounding": "domain_service",
+  "examples": [
+    "帮我把客户按消费金额分一下层",
+    "帮我找一下只做过基础项目没有升单的客户",
+    "本月客户可以分成哪些营销人群",
+    "疗程快结束的客户有多少，适合推续购",
+    "新客中哪些人最有潜力转成长期客户",
+    "有没有客户对某个项目特别感兴趣但还没办卡",
+    "有没有客户对优惠很敏感，老是等打折才来",
+    "VIP 和沉睡客户分别有多少人"
+  ],
+  "negativeExamples": [
+    "查看其他门店的客户分群",
+    "查询未处理客户投诉",
+    "判断会员权益使用后的满意度",
+    "直接给沉睡客户群发消息"
+  ],
+  "synonyms": [
+    "沉睡客户分层",
+    "基础项目未升单客户",
+    "客户分群",
+    "疗程续购客户",
+    "项目兴趣未办卡",
+    "消费金额分层",
+    "新客长期潜力",
+    "营销客群",
+    "优惠敏感客户",
+    "VIP客户分层"
+  ],
+  "successSchema": {
+    "type": "object"
+  },
+  "definitionRefs": [
+    {
+      "definitionId": 69,
+      "versionId": 94,
+      "definitionKey": "dimension.customerId",
+      "version": 1,
+      "definitionFingerprint": "0bac6349d738a5e74a79d7c27a98ed72bf5e6dec319d7bffda34271e29008b15",
+      "sourceFingerprint": "154b940352b28b0827428928ffc5952e50fc09c833a3a444d479212ab04ad9f8"
+    },
+    {
+      "definitionId": 70,
+      "versionId": 95,
+      "definitionKey": "dimension.customerName",
+      "version": 1,
+      "definitionFingerprint": "16a020e1a509f25f3deb238be8a9c4f8a590659f8981783ed9257d9efa07e380",
+      "sourceFingerprint": "60b2f2c792c620d0da511234bb53d533b180c1870b6e2b5b486b8b57a32cb09d"
+    },
+    {
+      "definitionId": 43,
+      "versionId": 43,
+      "definitionKey": "entity.customer",
+      "version": 1,
+      "definitionFingerprint": "e2a455e1bb6fca496a965db988e5547f4bee98a5e43f4c0daf9a04777a0e908e",
+      "sourceFingerprint": "528c308346ae2b37db26eae2c35397fd02d981182ceb30d2378fb588e294ce04"
+    },
+    {
+      "definitionId": 48,
+      "versionId": 48,
+      "definitionKey": "entity.project",
+      "version": 1,
+      "definitionFingerprint": "172e39f445a03511fe7d3505d45373b62726a3136265c01800f415a4cdd53e95",
+      "sourceFingerprint": "85490c6c5cc1803b078f7d264cccd7f021ed7759412f83025c771f8c5240bf4f"
+    }
+  ]
+}

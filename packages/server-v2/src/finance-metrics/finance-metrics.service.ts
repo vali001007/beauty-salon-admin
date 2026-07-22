@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { formatBusinessDate } from '../common/utils/business-time.js';
 import { QueryFinanceDailyMetricsDto } from './dto.js';
+import { FinanceRecognitionService } from '../finance-recognition/finance-recognition.service.js';
 import type {
   FinanceDailyMetric,
   FinanceDailyMetricResponse,
@@ -13,6 +14,7 @@ import type {
   FinanceMetricMissingReason,
   FinanceMetricPaymentBreakdown,
   FinanceMetricSummary,
+  FinanceReadiness,
 } from './finance-metrics.types.js';
 
 type DateRange = { from: Date; to: Date; dateFrom: string; dateTo: string };
@@ -21,6 +23,7 @@ type DailyAccumulator = Omit<FinanceDailyMetric, 'dataQuality'> & {
   costQualityReasons: Set<FinanceMetricCostQualityReason>;
   costQualityItems: FinanceMetricCostQualityItem[];
   customerIds: Set<number>;
+  orderIds: Set<number>;
 };
 
 type ProjectBomInfo = {
@@ -33,6 +36,7 @@ type CostResolution = {
   source: string;
   sourceNo?: string;
   sourceId?: number;
+  occurredAt?: Date;
 };
 
 type CostMovementIndex = {
@@ -47,23 +51,28 @@ const PREPAID_ORDER_ITEM_TYPES = new Set(['recharge', 'member_recharge', 'balanc
 
 @Injectable()
 export class FinanceMetricsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly recognition: FinanceRecognitionService;
+
+  constructor(private readonly prisma: PrismaService, recognition?: FinanceRecognitionService) {
+    this.recognition = recognition ?? new FinanceRecognitionService(prisma);
+  }
 
   async getDailyMetrics(query: QueryFinanceDailyMetricsDto, storeHeader?: string): Promise<FinanceDailyMetricResponse> {
     const storeId = this.asOptionalStoreId(query.storeId ?? storeHeader);
     const range = this.parseDateRange(query.dateFrom, query.dateTo);
-    return this.buildDailyMetrics(range, storeId);
+    return this.buildDailyMetrics(range, storeId, query.mode ?? 'live');
   }
 
   async getDailyMetricForStoreDate(storeIdInput: number | string | undefined, dateInput: string | Date) {
     const storeId = this.asStoreId(storeIdInput);
     const date = this.dateKey(dateInput);
     const range = this.parseDateRange(date, date);
-    const result = await this.buildDailyMetrics(range, storeId);
+    const result = await this.buildDailyMetrics(range, storeId, 'live');
     return result.items[0] ?? this.finalizeDay(this.createEmptyDay(date, storeId), new Map());
   }
 
-  private async buildDailyMetrics(range: DateRange, storeId?: number): Promise<FinanceDailyMetricResponse> {
+  private async buildDailyMetrics(range: DateRange, storeId?: number, mode: 'live' | 'confirmed' = 'live'): Promise<FinanceDailyMetricResponse> {
+    if (mode === 'confirmed') return this.buildConfirmedDailyMetrics(range, storeId);
     const [
       orders,
       payments,
@@ -102,10 +111,94 @@ export class FinanceMetricsService {
     for (const usage of cardUsages) this.applyCardUsage(days, usage, cardUnitValueByName, projectBomById, movementIndex);
     this.applyCommissionCost(days, commissionRecords);
 
+    const allCustomerIds = new Set<number>();
+    for (const day of days.values()) for (const customerId of day.customerIds) allCustomerIds.add(customerId);
     const items = Array.from(days.values())
       .sort((a, b) => a.date.localeCompare(b.date))
       .map((item) => this.finalizeDay(item, storeById));
-    return { items, total: items.length, summary: this.buildSummary(items, range) };
+    const summary = this.buildSummary(items, range, allCustomerIds);
+    const readiness = this.readiness(summary);
+    return {
+      items,
+      total: items.length,
+      summary,
+      mode,
+      recognitionBasis: 'finance_recognition_v1',
+      readiness,
+    };
+  }
+
+  private async buildConfirmedDailyMetrics(range: DateRange, storeId?: number): Promise<FinanceDailyMetricResponse> {
+    const snapshots = await this.prisma.dailySettlementSnapshot.findMany({
+      where: {
+        ...(storeId ? { storeId } : {}),
+        settleDate: {
+          gte: new Date(`${range.dateFrom}T00:00:00.000Z`),
+          lte: new Date(`${range.dateTo}T23:59:59.999Z`),
+        },
+        supersededAt: null,
+      },
+      include: { store: { select: { id: true, name: true } } },
+      orderBy: [{ settleDate: 'asc' }, { version: 'desc' }],
+    });
+    const latestByStoreDate = new Map<string, any>();
+    for (const snapshot of snapshots) {
+      const key = `${snapshot.storeId}:${this.dateKey(snapshot.settleDate)}`;
+      if (!latestByStoreDate.has(key)) latestByStoreDate.set(key, snapshot);
+    }
+    const items = Array.from(latestByStoreDate.values()).map((snapshot: any) => {
+      const payload = snapshot.snapshot ?? {};
+      const operatingRevenue = this.toNumber(snapshot.totalRevenue);
+      const cashIncome = this.toNumber(snapshot.cashRevenue) + this.toNumber(snapshot.wechatRevenue) + this.toNumber(snapshot.alipayRevenue) + this.toNumber(snapshot.cardRevenue);
+      const customerCount = this.toNumber(payload.customerCount);
+      const orderCount = this.toNumber(payload.orderCount);
+      const productCost = this.toNumber(payload.productCost ?? payload.summary?.productCost);
+      const missingReasons = new Set<FinanceMetricMissingReason>(payload.dataQuality?.missingReasons ?? []);
+      return {
+        date: this.dateKey(snapshot.settleDate),
+        storeId: snapshot.storeId,
+        storeName: snapshot.store?.name,
+        operatingRevenue,
+        cashIncome,
+        paymentBreakdown: {
+          cash: this.toNumber(snapshot.cashRevenue),
+          wechat: this.toNumber(snapshot.wechatRevenue),
+          alipay: this.toNumber(snapshot.alipayRevenue),
+          card: this.toNumber(snapshot.cardRevenue),
+          total: cashIncome,
+        },
+        prepaidAmount: this.toNumber(payload.prepaidIncome ?? payload.prepaidAmount ?? snapshot.rechargeIncome),
+        memberBalanceDeductCash: this.toNumber(payload.memberBalanceCashDeduct),
+        memberBalanceDeductGift: this.toNumber(payload.memberBalanceGiftDeduct),
+        memberBalanceDeductTotal: this.toNumber(payload.memberBalanceCashDeduct) + this.toNumber(payload.memberBalanceGiftDeduct),
+        cardUsageRecognized: this.toNumber(payload.cardUsageRevenue),
+        refundAmount: this.toNumber(snapshot.refundAmount),
+        materialCost: this.toNumber(snapshot.materialCost),
+        materialCostActual: this.toNumber(snapshot.materialCost),
+        materialCostEstimated: 0,
+        materialCostMissing: 0,
+        productCost,
+        productCostActual: productCost,
+        productCostEstimated: 0,
+        productCostMissing: 0,
+        commissionCost: this.toNumber(snapshot.commissionTotal),
+        grossProfit: this.toNumber(snapshot.grossProfit),
+        grossMargin: this.toNumber(snapshot.grossMargin) > 1 ? this.toNumber(snapshot.grossMargin) / 100 : this.toNumber(snapshot.grossMargin),
+        orderCount,
+        customerCount,
+        avgTicket: customerCount > 0 ? this.round(operatingRevenue / customerCount) : 0,
+        avgOrderAmount: orderCount > 0 ? this.round(operatingRevenue / orderCount) : 0,
+        avgCustomerSpend: customerCount > 0 ? this.round(operatingRevenue / customerCount) : 0,
+        dataQuality: payload.dataQuality ?? this.dataQuality(missingReasons, operatingRevenue),
+        costQuality: payload.costQuality ?? { status: missingReasons.size ? 'mixed' : 'complete', reasons: Array.from(missingReasons), items: [] },
+      } as FinanceDailyMetric;
+    });
+    const liveRecognition = await this.buildDailyMetrics(range, storeId, 'live');
+    const summary = this.buildSummary(items, range, new Set());
+    summary.customerCount = liveRecognition.summary.customerCount;
+    summary.avgTicket = summary.customerCount > 0 ? this.round(summary.operatingRevenue / summary.customerCount) : 0;
+    summary.avgCustomerSpend = summary.avgTicket;
+    return { items, total: items.length, summary, mode: 'confirmed', recognitionBasis: 'daily_settlement_snapshot_v1', readiness: this.readiness(summary) };
   }
 
   private parseDateRange(dateFromInput?: string, dateToInput?: string): DateRange {
@@ -202,11 +295,14 @@ export class FinanceMetricsService {
       orderCount: 0,
       customerCount: 0,
       avgTicket: 0,
+      avgOrderAmount: 0,
+      avgCustomerSpend: 0,
       costQuality: { status: 'complete', reasons: [], items: [] },
       missingReasons: new Set<FinanceMetricMissingReason>(),
       costQualityReasons: new Set<FinanceMetricCostQualityReason>(),
       costQualityItems: [],
       customerIds: new Set<number>(),
+      orderIds: new Set<number>(),
     };
   }
 
@@ -281,10 +377,27 @@ export class FinanceMetricsService {
     return this.prisma.productOrder.findMany({
       where: {
         ...(storeId ? { storeId } : {}),
-        createdAt: { gte: range.from, lte: range.to },
-        OR: [
-          { status: { in: PAID_ORDER_STATUSES } },
-          { paymentRecords: { some: { status: 'success' } } },
+        AND: [
+          {
+            OR: [
+              { createdAt: { gte: range.from, lte: range.to } },
+              { orderItems: { some: { recognizedAt: { gte: range.from, lte: range.to } } } },
+              {
+                paymentRecords: {
+                  some: {
+                    status: 'success',
+                    OR: [{ paidAt: { gte: range.from, lte: range.to } }, { paidAt: null, createdAt: { gte: range.from, lte: range.to } }],
+                  },
+                },
+              },
+            ],
+          },
+          {
+            OR: [
+              { status: { in: PAID_ORDER_STATUSES } },
+              { paymentRecords: { some: { status: 'success' } } },
+            ],
+          },
         ],
       },
       include: {
@@ -314,7 +427,10 @@ export class FinanceMetricsService {
         refundedAt: { gte: range.from, lte: range.to },
         order: { ...(storeId ? { storeId } : {}) },
       },
-      include: { order: { include: { orderItems: true, store: { select: { id: true, name: true } } } } },
+      include: {
+        items: { include: { orderItem: true, stockMovements: true } },
+        order: { include: { orderItems: true, store: { select: { id: true, name: true } } } },
+      },
     });
   }
 
@@ -460,6 +576,7 @@ export class FinanceMetricsService {
         source: String(movement.costSource || 'batch_snapshot'),
         sourceNo: movement.sourceNo,
         sourceId: movement.sourceId ? Number(movement.sourceId) : undefined,
+        occurredAt: movement.occurredAt ? new Date(movement.occurredAt) : undefined,
       };
     }
     const productCost = this.toNumber(movement.product?.costPrice);
@@ -469,6 +586,7 @@ export class FinanceMetricsService {
         source: 'product_master_estimate',
         sourceNo: movement.sourceNo,
         sourceId: movement.sourceId ? Number(movement.sourceId) : undefined,
+        occurredAt: movement.occurredAt ? new Date(movement.occurredAt) : undefined,
       };
     }
     return {
@@ -476,6 +594,7 @@ export class FinanceMetricsService {
       source: 'missing_cost',
       sourceNo: movement.sourceNo,
       sourceId: movement.sourceId ? Number(movement.sourceId) : undefined,
+      occurredAt: movement.occurredAt ? new Date(movement.occurredAt) : undefined,
     };
   }
 
@@ -487,6 +606,7 @@ export class FinanceMetricsService {
     }
     current.amount += value.amount;
     if (current.source !== value.source) current.source = 'mixed';
+    if (value.occurredAt && (!current.occurredAt || value.occurredAt < current.occurredAt)) current.occurredAt = value.occurredAt;
   }
 
   private buildCostMovementIndex(movements: any[], projectBomById: Map<number, ProjectBomInfo>): CostMovementIndex {
@@ -587,19 +707,26 @@ export class FinanceMetricsService {
     projectBomById: Map<number, ProjectBomInfo>,
     movementIndex: CostMovementIndex,
   ) {
-    const date = this.dateKey(order.createdAt);
-    const day = this.ensureDay(days, date, order.storeId);
-    day.orderCount += 1;
-    if (order.customerId) day.customerIds.add(Number(order.customerId));
     for (const item of order.orderItems ?? []) {
       const amount = this.itemNetAmount(item);
+      const productId = Number(item.itemId);
+      const productMovement = this.isProductItem(item.itemType) ? movementIndex.productByOrderProduct.get(`${order.id}:${productId}`) : undefined;
+      const recognition = this.recognition.resolveOrderItemRecognizedAt({
+        item,
+        order,
+        stockMovement: productMovement?.occurredAt ? { occurredAt: productMovement.occurredAt } : undefined,
+      });
+      const day = this.ensureDay(days, this.dateKey(recognition.recognizedAt), order.storeId);
       if (this.isServiceItem(item.itemType)) {
+        day.orderIds.add(Number(order.id));
+        if (order.customerId) day.customerIds.add(Number(order.customerId));
         day.operatingRevenue += amount;
         const projectId = Number(item.itemId);
         const actualCost = movementIndex.serviceByOrderProject.get(`${order.id}:${projectId}`);
         if (actualCost && actualCost.amount > 0 && actualCost.source !== 'product_master_estimate') {
-          day.materialCostActual += actualCost.amount;
-          day.materialCost += actualCost.amount;
+          const costDay = this.ensureDay(days, this.dateKey(actualCost.occurredAt ?? recognition.recognizedAt), order.storeId);
+          costDay.materialCostActual += actualCost.amount;
+          costDay.materialCost += actualCost.amount;
         } else if (actualCost && actualCost.amount > 0) {
           day.materialCostEstimated += actualCost.amount;
           day.materialCost += actualCost.amount;
@@ -637,13 +764,15 @@ export class FinanceMetricsService {
           }
         }
       } else if (this.isProductItem(item.itemType)) {
+        day.orderIds.add(Number(order.id));
+        if (order.customerId) day.customerIds.add(Number(order.customerId));
         day.operatingRevenue += amount;
-        const productId = Number(item.itemId);
-        const movementCost = movementIndex.productByOrderProduct.get(`${order.id}:${productId}`);
+        const movementCost = productMovement;
         const productCost = movementCost && movementCost.amount > 0 ? movementCost : this.resolveProductItemCost(item, productCostById);
         if (productCost.amount > 0 && ['batch_snapshot', 'order_snapshot', 'mixed'].includes(productCost.source)) {
-          day.productCostActual += productCost.amount;
-          day.productCost += productCost.amount;
+          const costDay = this.ensureDay(days, this.dateKey(productCost.occurredAt ?? recognition.recognizedAt), order.storeId);
+          costDay.productCostActual += productCost.amount;
+          costDay.productCost += productCost.amount;
         } else if (productCost.amount > 0) {
           day.productCostEstimated += productCost.amount;
           day.productCost += productCost.amount;
@@ -677,7 +806,25 @@ export class FinanceMetricsService {
     const day = this.ensureDay(days, date, refund.order?.storeId);
     const amount = this.toNumber(refund.amount);
     day.refundAmount += amount;
-    day.operatingRevenue -= this.getRefundOperatingShare(refund);
+    const facts = this.recognition.buildRefundFacts(refund);
+    const exactOperatingFacts = facts.filter((fact) => fact.factType === 'operating_revenue');
+    const exactPrepaidFacts = facts.filter((fact) => fact.factType === 'prepaid_addition');
+    if (exactOperatingFacts.length || exactPrepaidFacts.length) {
+      for (const fact of exactOperatingFacts) this.ensureDay(days, fact.businessDate, fact.storeId).operatingRevenue += fact.amount;
+      for (const fact of exactPrepaidFacts) this.ensureDay(days, fact.businessDate, fact.storeId).prepaidAmount += fact.amount;
+    } else {
+      day.operatingRevenue -= this.getRefundOperatingShare(refund);
+    }
+    for (const fact of this.recognition.buildRefundCostReversalFacts(refund)) {
+      const costDay = this.ensureDay(days, fact.businessDate, fact.storeId);
+      if (fact.factType === 'product_cost') {
+        costDay.productCost += fact.amount;
+        costDay.productCostActual += fact.amount;
+      } else if (fact.factType === 'material_cost') {
+        costDay.materialCost += fact.amount;
+        costDay.materialCostActual += fact.amount;
+      }
+    }
   }
 
   private applyMemberBalanceDeduct(days: Map<string, DailyAccumulator>, tx: any) {
@@ -760,6 +907,7 @@ export class FinanceMetricsService {
 
   private finalizeDay(day: DailyAccumulator, storeById: Map<number, string>): FinanceDailyMetric {
     day.customerCount = day.customerIds.size;
+    day.orderCount = day.orderIds.size;
     if (day.operatingRevenue > 0 && day.commissionCost <= 0) {
       this.addCostIssue(day, { type: 'commission', amount: day.operatingRevenue, reason: 'missing_commission' });
     }
@@ -795,6 +943,8 @@ export class FinanceMetricsService {
       grossProfit: this.round(grossProfit),
       grossMargin: this.round(grossMargin, 4),
       avgTicket: day.customerCount > 0 ? this.round(day.operatingRevenue / day.customerCount) : 0,
+      avgOrderAmount: day.orderCount > 0 ? this.round(day.operatingRevenue / day.orderCount) : 0,
+      avgCustomerSpend: day.customerCount > 0 ? this.round(day.operatingRevenue / day.customerCount) : 0,
       dataQuality: this.dataQuality(day.missingReasons, day.operatingRevenue),
       costQuality: this.costQuality(day),
     };
@@ -802,6 +952,7 @@ export class FinanceMetricsService {
     delete (finalized as any).costQualityReasons;
     delete (finalized as any).costQualityItems;
     delete (finalized as any).customerIds;
+    delete (finalized as any).orderIds;
     return finalized;
   }
 
@@ -841,7 +992,25 @@ export class FinanceMetricsService {
     };
   }
 
-  private buildSummary(items: FinanceDailyMetric[], range: DateRange): FinanceMetricSummary {
+  private readiness(summary: FinanceMetricSummary): FinanceReadiness {
+    if (summary.operatingRevenue <= 0) return { status: 'unavailable', publishable: false, blockers: [], warnings: [] };
+    const actions: Record<string, string> = {
+      missing_bom: '/inventory/consumption',
+      missing_batch_cost: '/inventory/stock',
+      missing_cost: '/finance/profit',
+      missing_commission: '/finance/staff-commission',
+      missing_actual_consumption: '/inventory/consumption',
+    };
+    const blockers = summary.dataQuality.missingReasons
+      .filter((reason) => ['missing_bom', 'missing_batch_cost', 'missing_cost', 'missing_commission'].includes(reason))
+      .map((code) => ({ code, count: summary.costQuality.items.filter((item) => item.reason === code).length || 1, actionPath: actions[code] ?? '/finance/profit' }));
+    const warnings = summary.dataQuality.missingReasons
+      .filter((reason) => !blockers.some((item) => item.code === reason))
+      .map((code) => ({ code, count: summary.costQuality.items.filter((item) => item.reason === code).length || 1 }));
+    return { status: blockers.length ? 'blocked' : 'ready', publishable: blockers.length === 0, blockers, warnings };
+  }
+
+  private buildSummary(items: FinanceDailyMetric[], range: DateRange, customerIds = new Set<number>()): FinanceMetricSummary {
     const summary = items.reduce(
       (sum, item) => {
         sum.operatingRevenue += item.operatingRevenue;
@@ -894,6 +1063,8 @@ export class FinanceMetricsService {
         commissionCost: 0,
         orderCount: 0,
         customerCount: 0,
+        avgOrderAmount: 0,
+        avgCustomerSpend: 0,
         missingReasons: new Set<FinanceMetricMissingReason>(),
         costQualityReasons: new Set<FinanceMetricCostQualityReason>(),
         costQualityItems: [] as FinanceMetricCostQualityItem[],
@@ -930,8 +1101,10 @@ export class FinanceMetricsService {
       grossProfit: this.round(grossProfit),
       grossMargin: summary.operatingRevenue > 0 ? this.round(grossProfit / summary.operatingRevenue, 4) : 0,
       orderCount: summary.orderCount,
-      customerCount: summary.customerCount,
-      avgTicket: summary.customerCount > 0 ? this.round(summary.operatingRevenue / summary.customerCount) : 0,
+      customerCount: customerIds.size || summary.customerCount,
+      avgTicket: (customerIds.size || summary.customerCount) > 0 ? this.round(summary.operatingRevenue / (customerIds.size || summary.customerCount)) : 0,
+      avgOrderAmount: summary.orderCount > 0 ? this.round(summary.operatingRevenue / summary.orderCount) : 0,
+      avgCustomerSpend: (customerIds.size || summary.customerCount) > 0 ? this.round(summary.operatingRevenue / (customerIds.size || summary.customerCount)) : 0,
       dataQuality: this.dataQuality(summary.missingReasons, summary.operatingRevenue),
       costQuality: this.costQuality({
         ...(summary as any),
@@ -941,11 +1114,14 @@ export class FinanceMetricsService {
         grossProfit: 0,
         grossMargin: 0,
         avgTicket: 0,
+        avgOrderAmount: 0,
+        avgCustomerSpend: 0,
         paymentBreakdown: summary.paymentBreakdown,
         costQuality: { status: 'complete', reasons: [], items: [] },
         costQualityReasons: summary.costQualityReasons,
         costQualityItems: summary.costQualityItems,
         customerIds: new Set<number>(),
+        orderIds: new Set<number>(),
       }),
     };
   }

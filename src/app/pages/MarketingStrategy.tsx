@@ -13,6 +13,8 @@ import { buildMarketingPageUrl, normalizeMarketingShareUrl } from '@/config/mark
 import { toast } from 'sonner';
 import type { MarketingActivity, MarketingPage, UnifiedMarketingEffectItem } from '@/types';
 import type { ActivityPageSchema } from '@/types/ai';
+import type { MarketingActivityStatus } from '@/types/marketing';
+import { getMarketingActivityStatusLabel } from '@/utils/marketingStatus';
 
 function formatActivityDate(value?: string) {
   if (!value) return '';
@@ -75,7 +77,7 @@ export function MarketingStrategy() {
   const [searchParams] = useSearchParams();
   const focusedActivityId = Number(searchParams.get('focusActivityId') || 0);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [activityStatusFilter, setActivityStatusFilter] = useState('进行中');
+  const [activityStatusFilter, setActivityStatusFilter] = useState<MarketingActivityStatus>('active');
   const [activities, setActivities] = useState<MarketingActivity[]>([]);
   const [activityPageData, setActivityPageData] = useState<ActivityPageData | null>(null);
   const [detailActivity, setDetailActivity] = useState<MarketingActivity | null>(null);
@@ -124,9 +126,9 @@ export function MarketingStrategy() {
 
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
-      case '进行中': return 'bg-green-500 text-white';
-      case '即将开始': return 'bg-yellow-500 text-white';
-      case '已结束': return 'bg-gray-400 text-white';
+      case 'active': return 'bg-green-500 text-white';
+      case 'scheduled': return 'bg-yellow-500 text-white';
+      case 'ended': return 'bg-gray-400 text-white';
       default: return 'bg-gray-100 text-gray-600';
     }
   };
@@ -171,7 +173,7 @@ export function MarketingStrategy() {
 
       {/* 状态筛选标签 */}
       <div className="flex items-center gap-2">
-        {(['进行中', '即将开始', '已结束', '草稿'] as const).map((status) => {
+        {(['active', 'scheduled', 'ended', 'draft', 'cancelled'] as const).map((status) => {
           const count = activities.filter(a => a.status === status).length;
           return (
             <button
@@ -183,7 +185,7 @@ export function MarketingStrategy() {
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              {status} ({count})
+              {getMarketingActivityStatusLabel(status)} ({count})
             </button>
           );
         })}
@@ -281,7 +283,7 @@ export function MarketingStrategy() {
         {filteredActivities.length === 0 && (
           <div className="col-span-2 flex flex-col items-center justify-center py-16 text-gray-400">
             <Calendar className="w-12 h-12 mb-3" />
-            <p className="text-sm">暂无{activityStatusFilter}的活动</p>
+            <p className="text-sm">暂无{getMarketingActivityStatusLabel(activityStatusFilter)}的活动</p>
           </div>
         )}
       </div>

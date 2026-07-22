@@ -19,6 +19,7 @@ export interface TerminalConversationMessage {
   timestamp: number;
   type?: string;
   title?: string;
+  runtime?: 'ami_brain';
 }
 
 export interface TerminalConversationRecord {
@@ -674,6 +675,7 @@ export interface TerminalCardUsageRecord {
 }
 
 export interface TerminalReservationCreateRequest {
+  idempotencyKey?: string;
   customerId?: number;
   customerName: string;
   customerPhone: string;
@@ -1096,10 +1098,13 @@ export interface TerminalRecommendationEventRequest {
 }
 
 export interface TerminalFollowUpTaskCreateRequest {
+  idempotencyKey?: string;
   customerId: number;
   customerIds?: number[];
   assignments?: TerminalFollowUpTaskAssignment[];
   recommendationId?: number;
+  recommendationInstanceId?: string;
+  adoptionId?: number;
   sourceRecommendationKey?: string;
   source?: string;
   triggerType?: string;
@@ -1136,6 +1141,8 @@ export interface TerminalFollowUpTask {
   customerPhone?: string;
   customerMemberLevel?: string;
   recommendationId?: number;
+  recommendationInstanceId?: string;
+  adoptionId?: number;
   sourceRecommendationKey?: string;
   source?: string;
   triggerType?: string;
@@ -1182,6 +1189,7 @@ export interface TerminalFollowUpTaskQuery {
   operatorId?: number;
   customerId?: number;
   recommendationId?: number;
+  recommendationInstanceId?: string;
   keyword?: string;
 }
 

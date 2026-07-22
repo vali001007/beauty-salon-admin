@@ -92,6 +92,15 @@ const mocks = vi.hoisted(() => {
     createAgentRun: vi.fn(async (): Promise<any> => ({ runId: 1, status: "success" })),
     createAgentV4Run: vi.fn(async (): Promise<any> => ({ runId: 4, status: "success" })),
     createAgentV5Run: vi.fn(async (): Promise<any> => ({ runId: 5, status: "success" })),
+    createBrainConversation: vi.fn(async (): Promise<any> => ({ id: 16 })),
+    sendBrainMessage: vi.fn(async (): Promise<any> => ({
+      conversationId: 16,
+      runId: 1,
+      status: "completed",
+      answer: "今日经营正常",
+      citations: [],
+      suggestedActions: [],
+    })),
     rejectAgentApproval: vi.fn(async (): Promise<any> => ({ id: 1, status: "rejected" })),
     submitAgentFeedback: vi.fn(async (): Promise<any> => undefined),
     getProjects: vi.fn(async (): Promise<any[]> => []),
@@ -146,6 +155,12 @@ vi.mock("@/api", () => {
     createAgentV3Run: unusedApi,
     createAgentV4Run: mocks.api.createAgentV4Run,
     createAgentV5Run: mocks.api.createAgentV5Run,
+    createBrainConversation: mocks.api.createBrainConversation,
+    sendBrainMessage: mocks.api.sendBrainMessage,
+    getBrainRunContext: unusedApi,
+    createBrainFeedback: unusedApi,
+    confirmBrainAction: unusedApi,
+    rejectBrainAction: unusedApi,
     rejectAgentApproval: mocks.api.rejectAgentApproval,
     submitAgentFeedback: mocks.api.submitAgentFeedback,
     getTerminalBeauticianCommission: unusedApi,
@@ -229,6 +244,15 @@ async function resetMockState() {
   mocks.api.approveAgentApproval.mockResolvedValue({ id: 1, status: "approved" });
   mocks.api.appendAgentMessage.mockResolvedValue({ runId: 1, status: "success" });
   mocks.api.createAgentRun.mockResolvedValue({ runId: 1, status: "success" });
+  mocks.api.createBrainConversation.mockResolvedValue({ id: 16 });
+  mocks.api.sendBrainMessage.mockResolvedValue({
+    conversationId: 16,
+    runId: 1,
+    status: "completed",
+    answer: "今日经营正常",
+    citations: [],
+    suggestedActions: [],
+  });
   mocks.api.rejectAgentApproval.mockResolvedValue({ id: 1, status: "rejected" });
   mocks.api.submitAgentFeedback.mockResolvedValue(undefined);
   mocks.api.getTerminalCardVerificationContext.mockResolvedValue({ customers: [], storeName: mocks.store.name, generatedAt: "2026-06-11T09:00:00.000Z" });
@@ -337,32 +361,6 @@ describe("auraCoreService auth repair", () => {
     expect(mocks.api.getTerminalBootstrap).toHaveBeenCalledTimes(2);
   });
 
-  it("repairs auth and retries agent runs once when runtime device token expires", async () => {
-    window.localStorage.setItem("token", "expired-token");
-    mocks.authState.token = "expired-token";
-    mocks.authState.user = mocks.user;
-    mocks.authState.isAuthenticated = true;
-    const authError = Object.assign(new Error("设备令牌无效或已过期"), {
-      payload: { status: 401, message: "设备令牌无效或已过期" },
-    });
-    mocks.api.createAgentRun
-      .mockImplementationOnce(async () => {
-        window.localStorage.removeItem("token");
-        throw authError;
-      })
-      .mockResolvedValueOnce({ runId: 2, status: "success" });
-
-    const auraService = await getService();
-    const result = await auraService.runBusinessAgent("近期表现较好的员工", "manager");
-
-    expect(result).toMatchObject({ runId: 2, status: "success" });
-    expect(mocks.authState.login).toHaveBeenCalledTimes(1);
-    expect(mocks.api.createAgentRun).toHaveBeenCalledTimes(2);
-    expect(mocks.api.createAgentRun).toHaveBeenNthCalledWith(1, expect.objectContaining({ operatorId: null }));
-    expect(mocks.api.createAgentRun).toHaveBeenNthCalledWith(2, expect.objectContaining({ operatorId: null }));
-    expect(window.localStorage.getItem("token")).toBe("fresh-token");
-  });
-
   it("logs in before terminal runtime agent runs when the token is missing", async () => {
     window.localStorage.removeItem("token");
     mocks.authState.token = null;
@@ -373,45 +371,16 @@ describe("auraCoreService auth repair", () => {
     const result = await runtimeService.createTerminalAgentRun({
       command: "今天经营有什么风险",
       role: "manager",
-      sourceAction: "business.query",
-      source: "text",
     });
 
-    expect(result).toMatchObject({ runId: 1, status: "success" });
+    expect(result).toMatchObject({ runId: 1, status: "completed" });
     expect(mocks.authState.login).toHaveBeenCalledTimes(1);
-    expect(mocks.api.createAgentRun).toHaveBeenCalledTimes(1);
+    expect(mocks.api.createBrainConversation).toHaveBeenCalledTimes(1);
+    expect(mocks.api.sendBrainMessage).toHaveBeenCalledTimes(1);
     expect(window.localStorage.getItem("token")).toBe("fresh-token");
   });
 
-  it("routes terminal runtime agent_v4 runs to Agent V4 API with lifecycle context", async () => {
-    window.localStorage.setItem("token", "fresh-token");
-    mocks.authState.token = "fresh-token";
-    mocks.authState.user = mocks.user;
-    mocks.authState.isAuthenticated = true;
-
-    const runtimeService = await import("./agentRuntimeService");
-    const result = await runtimeService.createTerminalAgentRun({
-      command: "生成本周经营计划",
-      role: "manager",
-      agentEngine: "agent_v4",
-      sourceAction: "business.query",
-      source: "text",
-    });
-
-    expect(result).toMatchObject({ runId: 4, status: "success" });
-    expect(mocks.api.createAgentV4Run).toHaveBeenCalledWith(expect.objectContaining({
-      message: "生成本周经营计划",
-      context: expect.objectContaining({
-        agentEngine: "agent_v4",
-        architecture: "agent_v4_lifecycle_business_agent",
-        agentV4Mode: "execute",
-        boundary: "drafts_and_approval_only",
-      }),
-    }));
-    expect(mocks.api.createAgentRun).not.toHaveBeenCalled();
-  });
-
-  it("routes terminal runtime agent_v5 runs to Agent V5 API with full-business ontology context", async () => {
+  it("keeps Ami Brain as the only terminal runtime", async () => {
     window.localStorage.setItem("token", "fresh-token");
     mocks.authState.token = "fresh-token";
     mocks.authState.user = mocks.user;
@@ -421,49 +390,14 @@ describe("auraCoreService auth repair", () => {
     const result = await runtimeService.createTerminalAgentRun({
       command: "今天店里情况怎么样",
       role: "manager",
-      agentEngine: "agent_v5",
-      sourceAction: "business.query",
-      source: "text",
     });
 
-    expect(result).toMatchObject({ runId: 5, status: "success" });
-    expect(mocks.api.createAgentV5Run).toHaveBeenCalledWith(expect.objectContaining({
-      message: "今天店里情况怎么样",
-      context: expect.objectContaining({
-        agentEngine: "agent_v5",
-        architecture: "agent_v5_business_ontology_agent",
-        agentV5Mode: "execute",
-        boundary: "drafts_followups_and_approval_only",
-      }),
-    }));
-    expect(mocks.api.createAgentV4Run).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ runId: 1, status: "completed" });
+    expect(mocks.api.createBrainConversation).toHaveBeenCalledTimes(1);
+    expect(mocks.api.sendBrainMessage).toHaveBeenCalledTimes(1);
     expect(mocks.api.createAgentRun).not.toHaveBeenCalled();
-  });
-
-  it("repairs auth and retries business query once when runtime device token expires", async () => {
-    window.localStorage.setItem("token", "expired-token");
-    mocks.authState.token = "expired-token";
-    mocks.authState.user = mocks.user;
-    mocks.authState.isAuthenticated = true;
-    const authError = Object.assign(new Error("缺少设备认证令牌"), {
-      payload: { status: 401, message: "缺少设备认证令牌" },
-    });
-    mocks.api.askBusinessQuery
-      .mockImplementationOnce(async () => {
-        window.localStorage.removeItem("token");
-        throw authError;
-      })
-      .mockResolvedValueOnce({ status: "success", title: "Ami 问数", summary: "已恢复" });
-
-    const auraService = await getService();
-    const result = await auraService.getBusinessQueryAnswer("最近销量好的商品有哪些", "manager");
-
-    expect(result).toMatchObject({ status: "success", summary: "已恢复" });
-    expect(mocks.authState.login).toHaveBeenCalledTimes(1);
-    expect(mocks.api.askBusinessQuery).toHaveBeenCalledTimes(2);
-    expect(mocks.api.askBusinessQuery).toHaveBeenNthCalledWith(1, expect.objectContaining({ operatorId: null }));
-    expect(mocks.api.askBusinessQuery).toHaveBeenNthCalledWith(2, expect.objectContaining({ operatorId: null }));
-    expect(window.localStorage.getItem("token")).toBe("fresh-token");
+    expect(mocks.api.createAgentV4Run).not.toHaveBeenCalled();
+    expect(mocks.api.createAgentV5Run).not.toHaveBeenCalled();
   });
 
   it("repairs auth and retries cashier payment once when the terminal token is missing", async () => {
@@ -539,48 +473,6 @@ describe("auraCoreService auth repair", () => {
 
     auraService.setConversationScope(otherOperatorScope);
     expect(auraService.getConversationMessages().map((message) => message.content)).toEqual(["另一个店长的问题"]);
-  });
-
-  it("sends the current role when deciding Agent approvals", async () => {
-    window.localStorage.setItem("token", "valid-token");
-    mocks.authState.token = "valid-token";
-    mocks.authState.user = mocks.user;
-    mocks.authState.isAuthenticated = true;
-
-    const auraService = await getService();
-    await auraService.approveBusinessAgentAction(301, "beautician", "本人确认");
-    await auraService.rejectBusinessAgentAction(302, "reception", "前台拒绝");
-
-    expect(mocks.api.approveAgentApproval).toHaveBeenCalledWith(301, {
-      role: "beautician",
-      operatorId: null,
-      comment: "本人确认",
-    });
-    expect(mocks.api.rejectAgentApproval).toHaveBeenCalledWith(302, {
-      role: "reception",
-      operatorId: null,
-      comment: "前台拒绝",
-    });
-  });
-
-  it("sends the selected terminal operator to Agent and business query requests", async () => {
-    window.localStorage.setItem("token", "valid-token");
-    mocks.authState.token = "valid-token";
-    mocks.authState.user = mocks.user;
-    mocks.authState.isAuthenticated = true;
-
-    const auraService = await getService();
-    auraService.setActiveTerminalOperator(31, "beautician");
-
-    await auraService.runBusinessAgent("我的表现怎么样", "beautician");
-    await auraService.getBusinessQueryAnswer("我的表现怎么样", "beautician");
-    await auraService.approveBusinessAgentAction(301, "beautician", "本人确认");
-    await auraService.rejectBusinessAgentAction(302, "beautician", "本人拒绝");
-
-    expect(mocks.api.createAgentRun).toHaveBeenCalledWith(expect.objectContaining({ role: "beautician", operatorId: 31 }));
-    expect(mocks.api.askBusinessQuery).toHaveBeenCalledWith(expect.objectContaining({ role: "beautician", operatorId: 31 }));
-    expect(mocks.api.approveAgentApproval).toHaveBeenCalledWith(301, expect.objectContaining({ role: "beautician", operatorId: 31 }));
-    expect(mocks.api.rejectAgentApproval).toHaveBeenCalledWith(302, expect.objectContaining({ role: "beautician", operatorId: 31 }));
   });
 
   it("loads card verification details from terminal customer APIs", async () => {

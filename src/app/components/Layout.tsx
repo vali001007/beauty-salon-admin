@@ -1,12 +1,12 @@
-﻿import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
-import { 
-  Users, Store, ShoppingBag, FileText, 
+import {
+  Users, Store, ShoppingBag, FileText,
   ChevronDown, ChevronRight, Menu, UserCircle, LogOut,
-  MessageSquare, Calendar, ClipboardList, Scissors, Star, LayoutGrid, User,
+  MessageSquare, MessageSquareWarning, Calendar, ClipboardList, Scissors, Star, LayoutGrid, User,
   Package, PackagePlus, AlertTriangle, ShoppingCart, Megaphone, Home,
   Settings, Shield, Lock, Building2, Monitor, WalletCards, BarChart3, Sparkles, Zap, TrendingUp,
-  Database, BookOpen, CheckCircle2, ShieldCheck, BrainCircuit,
+  Database, BookOpen, BookKey, CheckCircle2, ShieldCheck, BrainCircuit,
   type LucideIcon,
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
@@ -14,6 +14,7 @@ import { twMerge } from 'tailwind-merge';
 import { useAuthStore } from '../../stores/authStore';
 import { StoreSwitcher } from './StoreSwitcher';
 import { hasPermission } from '@/config/permissions';
+import { BRAIN_GOVERNANCE_SECTIONS } from '@/app/pages/brain/brainGovernanceNavigation';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -34,6 +35,18 @@ type MenuItem = {
   children: MenuChild[];
 };
 
+const BRAIN_GOVERNANCE_ICONS: Record<(typeof BRAIN_GOVERNANCE_SECTIONS)[number]['key'], LucideIcon> = {
+  planning: BrainCircuit,
+  semantic: Database,
+  roles: Users,
+  skills: Sparkles,
+  memory: BookOpen,
+  inspection: CheckCircle2,
+  eval: ClipboardList,
+  release: Zap,
+  feedback: MessageSquareWarning,
+};
+
 export const MENU_ITEMS: MenuItem[] = [
   {
     title: '工作台',
@@ -41,7 +54,8 @@ export const MENU_ITEMS: MenuItem[] = [
     path: '/dashboard',
     children: [
       { title: '我的工作台', path: '/dashboard', icon: LayoutGrid, permission: 'core:dashboard:view' },
-      { title: 'Ami Brain', path: '/brain', icon: BrainCircuit, permission: 'core:brain:use' },
+      { title: '门店经营指标', path: '/store-operations/metrics', icon: TrendingUp, permission: 'core:store-metrics:view' },
+      { title: '智能问数', path: '/ask-data', icon: Database, permission: 'core:dashboard:view' },
       { title: 'AI 智能体', path: '/ami-agent', icon: Sparkles, permission: 'core:agent:view' },
     ],
   },
@@ -51,6 +65,7 @@ export const MENU_ITEMS: MenuItem[] = [
     path: '/customers',
     children: [
       { title: '客户数据', path: '/customers/data', icon: LayoutGrid, permission: 'core:customer:view' },
+      { title: '客户反馈', path: '/customers/feedback', icon: MessageSquareWarning, permission: 'core:customer:view' },
       { title: '客户画像', path: '/customers/profile', icon: User, permission: 'core:customer:profile' },
       { title: '智能邀约', path: '/customers/script', icon: MessageSquare, permission: 'core:customer:script' },
     ],
@@ -61,9 +76,9 @@ export const MENU_ITEMS: MenuItem[] = [
     path: '/customer-marketing',
     children: [
       { title: '营销工作台', path: '/customer-marketing/workbench', icon: Sparkles, permission: 'core:marketing:view' },
-      { title: '智能推荐', path: '/customer-marketing/intelligent-recommendation', icon: Star, permission: 'core:marketing:recommend' },
+      { title: '智能推荐', path: '/customer-marketing/intelligent-recommendation', icon: Star, permission: 'core:marketing:view' },
       { title: '活动列表', path: '/customer-marketing/activity-management', icon: ClipboardList, permission: 'core:marketing:view' },
-      { title: '自动触达', path: '/customer-marketing/automation', icon: Zap, permission: 'core:marketing:template' },
+      { title: '自动触达', path: '/customer-marketing/automation', icon: Zap, permission: 'core:marketing:view' },
       { title: '推广资产', path: '/customer-marketing/assets', icon: Megaphone, permission: 'core:marketing:view' },
       { title: '数据复盘', path: '/customer-marketing/effect-analysis', icon: BarChart3, permission: 'core:marketing:analytics' },
     ],
@@ -152,6 +167,20 @@ export const MENU_ITEMS: MenuItem[] = [
     ],
   },
   {
+    title: 'Brain 治理中心',
+    icon: ShieldCheck,
+    path: '/brain-governance',
+    children: [
+      { title: 'Ami Brain', path: '/brain', icon: BrainCircuit, permission: 'core:brain:use' },
+      ...BRAIN_GOVERNANCE_SECTIONS.map((section) => ({
+        title: section.label,
+        path: section.path,
+        icon: BRAIN_GOVERNANCE_ICONS[section.key],
+        permission: 'core:brain-governance:view',
+      })),
+    ],
+  },
+  {
     title: '系统设置',
     icon: Settings,
     path: '/system',
@@ -162,8 +191,8 @@ export const MENU_ITEMS: MenuItem[] = [
       { title: '门店管理', path: '/system/stores', icon: Building2, permission: 'core:system:stores' },
       { title: '终端设备', path: '/system/devices', icon: Monitor, permission: 'core:system:stores' },
       { title: '平台收入报表', path: '/finance/platform-revenue', icon: BarChart3, permission: 'core:platform-revenue:view' },
+      { title: '业务口径中心', path: '/system/business-definitions', icon: BookKey, permission: 'core:system:view' },
       { title: 'AI 治理中心', path: '/system/agent-governance', icon: ShieldCheck, permission: 'core:agent-governance:view' },
-      { title: 'Brain 治理中心', path: '/brain-governance', icon: ShieldCheck, permission: 'core:brain-governance:view' },
     ],
   },
 ];
@@ -180,6 +209,7 @@ export function Layout() {
     '/finance': true,
     '/supply-platform': true,
     '/industry': true,
+    '/brain-governance': true,
     '/system': true,
   });
   const location = useLocation();
@@ -235,7 +265,7 @@ export function Layout() {
           </div>
           <span className="text-foreground font-semibold text-lg tracking-wide">Ami_Core</span>
         </div>
-        
+
         <div className="py-4 flex-1 overflow-y-auto">
           {filteredMenuItems.map((menu) => (
             <div key={menu.path} className="mb-2">
@@ -253,7 +283,7 @@ export function Layout() {
                   <ChevronRight className="w-4 h-4" />
                 )}
               </button>
-              
+
               {openMenus[menu.path] && (
                 <div className="flex flex-col">
                   {menu.children.map((child) => {
@@ -296,7 +326,7 @@ export function Layout() {
             </div>
             <StoreSwitcher />
           </div>
-          
+
           <div className="flex items-center gap-3">
             <span className="text-foreground/80">{user?.name ?? '用户'}</span>
             <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground shadow-sm">
@@ -313,8 +343,8 @@ export function Layout() {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto p-6 bg-background/70">
-          <div className="bg-card rounded-xl border border-border shadow-sm min-h-full p-6">
+        <main className={cn('flex-1 min-h-0 p-6 bg-background/70', location.pathname === '/brain' ? 'overflow-hidden' : 'overflow-auto')}>
+          <div className={cn('bg-card rounded-xl border border-border shadow-sm min-h-full p-6', location.pathname === '/brain' && 'h-full min-h-0 overflow-hidden')}>
             <Outlet />
           </div>
         </main>

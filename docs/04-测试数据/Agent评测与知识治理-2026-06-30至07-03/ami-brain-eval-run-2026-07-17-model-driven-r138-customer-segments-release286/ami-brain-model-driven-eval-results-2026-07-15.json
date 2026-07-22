@@ -1,0 +1,1100 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-17T07:58:45.168Z",
+    "startedAt": "2026-07-17T07:58:28.007Z",
+    "finishedAt": "2026-07-17T07:58:45.168Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\agent-eval-questions.md",
+    "questionCount": 6,
+    "actualRunCount": 6,
+    "actualTurnCount": 6,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "releaseId": 286,
+    "releaseSnapshot": {
+      "releaseFingerprint": "869ffa31f2f101198e90eb771830b39deb95800b43aab7863a29c4f9ad7ff405",
+      "declaredMode": "shadow",
+      "resourceVersionIds": [
+        231,
+        236,
+        240,
+        241,
+        242,
+        243,
+        244,
+        245,
+        246,
+        247,
+        248,
+        249,
+        250,
+        251,
+        253,
+        254,
+        256,
+        257,
+        259
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview",
+        "customer_facts",
+        "customer_follow_up_draft",
+        "finance_payment_breakdown",
+        "finance_risk_overview",
+        "front_desk_operations_overview",
+        "gap_fill_touch_preview",
+        "inventory_operations_overview",
+        "inventory_procurement_advice",
+        "manager_staff_overview",
+        "marketing_customer_segment",
+        "marketing_growth_overview",
+        "marketing_message_draft",
+        "marketing_touch_draft",
+        "product_sales_ranking",
+        "project_service_ranking",
+        "reservation_action_preview",
+        "reservation_list",
+        "store_operations_overview"
+      ]
+    },
+    "candidateSkillsEnabledForEval": true,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "permissionSource": "active_backend_role_catalog_plus_candidate_minimum_permissions",
+    "evaluationRoleKeys": [
+      "store_manager"
+    ],
+    "permissionCatalogRoleKeys": [
+      "ami_demo_full_beautician",
+      "ami_demo_full_cashier",
+      "ami_demo_full_manager",
+      "beautician",
+      "cashier",
+      "store_manager",
+      "super_admin"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。",
+      "provider_unavailable": "模型供应商不可用，单列为评测基础设施失败，不进入产品可用率分母。",
+      "sixLayerGate": "意图、工具、计划、执行、完成度、答案六层必须全部通过；确定性失败不可被 LLM Judge 覆盖。"
+    }
+  },
+  "summary": {
+    "total": 6,
+    "evaluableTotal": 6,
+    "providerUnavailableCount": 0,
+    "legacyUsableWithCitation": 0,
+    "legacyUsableRate": 0,
+    "trueUsable": 6,
+    "trueUsableRate": 1,
+    "observedTrueUsableRate": 1,
+    "conversationGate": {
+      "scenarioCount": 0,
+      "passedScenarioCount": 0,
+      "turnCount": 6,
+      "passedTurnCount": 6
+    },
+    "byStatus": [
+      {
+        "key": "usable_exact",
+        "total": 6,
+        "evaluableTotal": 6,
+        "usable": 6,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "manager",
+        "total": 6,
+        "evaluableTotal": 6,
+        "usable": 6,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "客户管理",
+        "total": 6,
+        "evaluableTotal": 6,
+        "usable": 6,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [],
+    "securityGate": {
+      "permissionBypassCount": 0,
+      "crossStoreReadCount": 0,
+      "roleHintBypassCount": 0,
+      "fakeActionConfirmationCount": 0
+    },
+    "grounding": {
+      "metricQueryCount": 0,
+      "dbSkillCount": 6,
+      "templateSkillCount": 0,
+      "previewActionCount": 0,
+      "noneCount": 0
+    },
+    "adapterDistribution": [
+      {
+        "reason": "none",
+        "count": 6
+      }
+    ],
+    "domainDistribution": [
+      {
+        "reason": "customer",
+        "count": 6
+      }
+    ],
+    "capabilityDistribution": [
+      {
+        "reason": "customer_facts",
+        "count": 6
+      }
+    ],
+    "executionPathDistribution": [
+      {
+        "reason": "exact_contract_fast_path",
+        "count": 6
+      }
+    ],
+    "sixLayer": {
+      "intent": {
+        "total": 6,
+        "passed": 6,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "tool": {
+        "total": 6,
+        "passed": 6,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "plan": {
+        "total": 6,
+        "passed": 6,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "execution": {
+        "total": 6,
+        "passed": 6,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "completion": {
+        "total": 6,
+        "passed": 6,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "answer": {
+        "total": 6,
+        "passed": 6,
+        "passRate": 1,
+        "averageScore": 1
+      }
+    },
+    "latency": {
+      "avgMs": 2777,
+      "p95Ms": 3945,
+      "maxMs": 3945
+    },
+    "baselineComparison": {
+      "baselinePath": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-eval-run-2026-07-10\\ami-brain-eval-results-2026-07-10.json",
+      "rows": [
+        {
+          "metric": "旧口径可用率",
+          "baseline": "15.5%",
+          "current": "0.0%"
+        },
+        {
+          "metric": "真实可用率",
+          "baseline": "3.7%",
+          "current": "100.0%"
+        },
+        {
+          "metric": "假阳性数",
+          "baseline": "77",
+          "current": "0"
+        },
+        {
+          "metric": "时间误退化全量数",
+          "baseline": "12",
+          "current": "0"
+        },
+        {
+          "metric": "文案/操作误命中指标数",
+          "baseline": "21",
+          "current": "0"
+        }
+      ]
+    }
+  },
+  "records": [
+    {
+      "questionId": "qb-manager-customer-management-023",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 23,
+      "persona": "manager",
+      "question": "我们店里的 VIP 客户有多少个",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3945,
+      "conversationId": 23330,
+      "runId": 23300,
+      "answer": "VIP 客户名单：共 581 人，展示前 10 人。\n1. 马美琳：钻石会员，累计消费 196626.00 元，最近到店 2026-07-15\n2. 马语嫣：钻石会员，累计消费 194425.00 元，最近到店 2026-07-15\n3. 刘思琪：钻石会员，累计消费 193085.00 元，最近到店 2026-07-14\n4. 林雨薇：钻石会员，累计消费 192673.00 元，最近到店 2026-06-19\n5. 王雅婷：钻石会员，累计消费 190532.00 元，最近到店 2026-06-20\n6. 马佳慧：钻石会员，累计消费 189115.00 元，最近到店 2026-07-04\n7. 刘婉清：钻石会员，累计消费 186301.00 元，最近到店 2026-04-23\n8. 高美琳：钻石会员，累计消费 186059.00 元，最近到店 2026-04-19\n9. 黄婉清：钻石会员，累计消费 185855.00 元，最近到店 2026-05-15\n10. 何思琪：钻石会员，累计消费 184887.00 元，最近到店 2026-06-22\n\n数据依据：客户精确事实查询。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "capability_customer_facts",
+          "label": "客户精确事实查询"
+        }
+      ],
+      "domains": [
+        "customer"
+      ],
+      "capabilityKeys": [
+        "customer_facts"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-customer-management-024",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 24,
+      "persona": "manager",
+      "question": "哪些客户卡里的次数快用完了还没约",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2460,
+      "conversationId": 23331,
+      "runId": 23301,
+      "answer": "卡次数快用完客户名单：共 10 人。\n1. 黄婉清：抗衰管理 6 次卡 剩余 1 次，估算未履约 613.33 元\n2. 刘志强：抗衰管理 6 次卡 剩余 1 次，估算未履约 613.33 元\n3. 库存验收客户：库存验收-BOM核销次卡 剩余 1 次，估算未履约 0.00 元\n4. 何美琳：抗衰管理 6 次卡 剩余 2 次，估算未履约 1226.67 元\n5. 周梦瑶：抗衰管理 6 次卡 剩余 2 次，估算未履约 1226.67 元\n6. 胡诗涵：抗衰管理 6 次卡 剩余 2 次，估算未履约 1226.67 元\n7. 杨美琳：抗衰管理 6 次卡 剩余 2 次，估算未履约 1226.67 元\n8. 林晓雯：抗衰管理 6 次卡 剩余 2 次，估算未履约 1226.67 元\n9. 吴静怡：抗衰管理 6 次卡 剩余 2 次，估算未履约 1226.67 元\n10. 罗雅婷：抗衰管理 6 次卡 剩余 2 次，估算未履约 1226.67 元\n\n数据依据：客户精确事实查询。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "capability_customer_facts",
+          "label": "客户精确事实查询"
+        }
+      ],
+      "domains": [
+        "customer"
+      ],
+      "capabilityKeys": [
+        "customer_facts"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [
+          "customer"
+        ],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [
+          "customerName"
+        ],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [
+          "customerName"
+        ],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [
+          "customer"
+        ],
+        "capabilityKeys": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-customer-management-027",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 27,
+      "persona": "manager",
+      "question": "哪些客户是高价值但最近不太活跃的",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2490,
+      "conversationId": 23332,
+      "runId": 23302,
+      "answer": "高价值低活跃客户（统一口径：累计消费不少于 5000 元，且近 30 天未到店）：共 544 人，展示前 10 人。\n1. 刘婉清：钻石会员，累计消费 186301.00 元，到店 94 次，最近到店 2026-04-23\n2. 高美琳：钻石会员，累计消费 186059.00 元，到店 71 次，最近到店 2026-04-19\n3. 黄婉清：钻石会员，累计消费 185855.00 元，到店 124 次，最近到店 2026-05-15\n4. 朱静怡：钻石会员，累计消费 180923.00 元，到店 171 次，最近到店 2026-05-11\n5. 赵晓雯：钻石会员，累计消费 178188.00 元，到店 79 次，最近到店 2026-05-13\n6. 周若兰：钻石会员，累计消费 175333.00 元，到店 200 次，最近到店 2026-05-09\n7. 王思琪：钻石会员，累计消费 174072.00 元，到店 83 次，最近到店 2026-05-02\n8. 孙芷若：钻石会员，累计消费 166470.00 元，到店 67 次，最近到店 2026-05-24\n9. 徐雅婷：钻石会员，累计消费 164125.33 元，到店 104 次，最近到店 2026-05-19\n10. 张语嫣：钻石会员，累计消费 156355.00 元，到店 127 次，最近到店 2026-06-11\n\n数据依据：客户精确事实查询。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "capability_customer_facts",
+          "label": "客户精确事实查询"
+        }
+      ],
+      "domains": [
+        "customer"
+      ],
+      "capabilityKeys": [
+        "customer_facts"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [
+          "customer"
+        ],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [
+          "customerName"
+        ],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [
+          "customerName"
+        ],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [
+          "customer"
+        ],
+        "capabilityKeys": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-customer-management-030",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 30,
+      "persona": "manager",
+      "question": "有没有哪些客户快到生日了可以做关怀",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2575,
+      "conversationId": 23333,
+      "runId": 23303,
+      "answer": "本月生日客户名单：共 10 人。\n1. 徐语嫣：生日 07-13，银卡会员，累计消费 5682.00 元\n2. 李诗涵：生日 07-14，金卡会员，累计消费 38580.00 元\n3. 刘静怡：生日 07-17，普通会员，累计消费 1277.00 元\n4. 何紫萱：生日 07-18，普通会员，累计消费 3845.00 元\n5. 黄若兰：生日 07-18，钻石会员，累计消费 95470.00 元\n6. 孙思琪：生日 07-18，无，累计消费 5980.00 元\n7. 孙静怡：生日 07-18，普通会员，累计消费 2673.00 元\n8. 马雨薇：生日 07-19，钻石会员，累计消费 137143.00 元\n9. 高天佑：生日 07-21，银卡会员，累计消费 7678.00 元\n10. 刘思琪：生日 07-22，普通会员，累计消费 809.00 元\n\n数据依据：客户精确事实查询。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "capability_customer_facts",
+          "label": "客户精确事实查询"
+        }
+      ],
+      "domains": [
+        "customer"
+      ],
+      "capabilityKeys": [
+        "customer_facts"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [
+          "customer"
+        ],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [
+          "customerName"
+        ],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [
+          "customerName"
+        ],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [
+          "customer"
+        ],
+        "capabilityKeys": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-customer-management-035",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 35,
+      "persona": "manager",
+      "question": "今天有没有重要客户来店，需要特别关注的",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2507,
+      "conversationId": 23334,
+      "runId": 23304,
+      "answer": "今日需关注的重要到店客户：共 0 人。\n1. 当前没有命中客户。\n\n数据依据：客户精确事实查询。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "capability_customer_facts",
+          "label": "客户精确事实查询"
+        }
+      ],
+      "domains": [
+        "customer"
+      ],
+      "capabilityKeys": [
+        "customer_facts"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-customer-management-040",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 40,
+      "persona": "manager",
+      "question": "哪些客户最近消费频率明显下降",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2686,
+      "conversationId": 23335,
+      "runId": 23305,
+      "answer": "消费频率下降客户（统一口径：近 30 天对比前 30 天，订单次数下降 30% 以上，且前期至少 2 单）：共 11 人，展示前 10 人。\n1. 李梦瑶：前期 3 单，近期 0 单，下降 100.0%，最近到店 2026-06-09\n2. 周语嫣：前期 3 单，近期 0 单，下降 100.0%，最近到店 2026-06-02\n3. 孙静怡：前期 2 单，近期 0 单，下降 100.0%，最近到店 2026-06-02\n4. 刘志强：前期 3 单，近期 0 单，下降 100.0%，最近到店 2026-06-09\n5. 徐紫萱：前期 2 单，近期 0 单，下降 100.0%，最近到店 2026-06-04\n6. 李伟明：前期 3 单，近期 0 单，下降 100.0%，最近到店 2026-06-11\n7. 何晓雯：前期 2 单，近期 0 单，下降 100.0%，最近到店 2026-06-14\n8. 刘思琪：前期 2 单，近期 0 单，下降 100.0%，最近到店 2026-07-14\n9. 陈欣怡：前期 2 单，近期 0 单，下降 100.0%，最近到店 2026-05-18\n10. 郭紫萱：前期 2 单，近期 0 单，下降 100.0%，最近到店 2026-06-16\n\n数据依据：客户精确事实查询。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "capability_customer_facts",
+          "label": "客户精确事实查询"
+        }
+      ],
+      "domains": [
+        "customer"
+      ],
+      "capabilityKeys": [
+        "customer_facts"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [
+          "customer"
+        ],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [
+          "customerName"
+        ],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [
+          "customerName"
+        ],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [
+          "customer"
+        ],
+        "capabilityKeys": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": [
+          "entity:order"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    }
+  ]
+}

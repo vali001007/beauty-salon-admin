@@ -1,0 +1,1159 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-17T01:02:27.204Z",
+    "startedAt": "2026-07-17T01:01:05.207Z",
+    "finishedAt": "2026-07-17T01:02:27.204Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-model-driven-paraphrase-cases.json",
+    "questionCount": 7,
+    "actualRunCount": 7,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "releaseId": 284,
+    "releaseSnapshot": {
+      "releaseFingerprint": "4d7b3764cb18f5683cbe9f290f818c7b34069d234f80f46702d6c71197a81f9d",
+      "declaredMode": "shadow",
+      "resourceVersionIds": [
+        206,
+        207,
+        208,
+        209,
+        210,
+        212,
+        214,
+        215,
+        217,
+        219,
+        220,
+        221,
+        222,
+        223,
+        224,
+        225,
+        226,
+        227,
+        228
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview",
+        "customer_facts",
+        "customer_follow_up_draft",
+        "finance_payment_breakdown",
+        "finance_risk_overview",
+        "front_desk_operations_overview",
+        "gap_fill_touch_preview",
+        "inventory_operations_overview",
+        "inventory_procurement_advice",
+        "manager_staff_overview",
+        "marketing_customer_segment",
+        "marketing_growth_overview",
+        "marketing_message_draft",
+        "marketing_touch_draft",
+        "product_sales_ranking",
+        "project_service_ranking",
+        "reservation_action_preview",
+        "reservation_list",
+        "store_operations_overview"
+      ]
+    },
+    "candidateSkillsEnabledForEval": true,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "permissionSource": "active_backend_role_catalog_plus_candidate_minimum_permissions",
+    "evaluationRoleKeys": [
+      "inventory",
+      "store_manager"
+    ],
+    "permissionCatalogRoleKeys": [
+      "ami_demo_full_beautician",
+      "ami_demo_full_cashier",
+      "ami_demo_full_manager",
+      "beautician",
+      "cashier",
+      "store_manager",
+      "super_admin"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。",
+      "provider_unavailable": "模型供应商不可用，单列为评测基础设施失败，不进入产品可用率分母。",
+      "sixLayerGate": "意图、工具、计划、执行、完成度、答案六层必须全部通过；确定性失败不可被 LLM Judge 覆盖。"
+    }
+  },
+  "summary": {
+    "total": 7,
+    "evaluableTotal": 7,
+    "providerUnavailableCount": 0,
+    "legacyUsableWithCitation": 1,
+    "legacyUsableRate": 0.14285714285714285,
+    "trueUsable": 7,
+    "trueUsableRate": 1,
+    "observedTrueUsableRate": 1,
+    "byStatus": [
+      {
+        "key": "usable_exact",
+        "total": 7,
+        "evaluableTotal": 7,
+        "usable": 7,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "edge",
+        "total": 5,
+        "evaluableTotal": 5,
+        "usable": 5,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "inventory",
+        "total": 2,
+        "evaluableTotal": 2,
+        "usable": 2,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "workflow",
+        "total": 5,
+        "evaluableTotal": 5,
+        "usable": 5,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "ranking",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "recommendation",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [],
+    "securityGate": {
+      "permissionBypassCount": 0,
+      "crossStoreReadCount": 0,
+      "roleHintBypassCount": 0,
+      "fakeActionConfirmationCount": 0
+    },
+    "grounding": {
+      "metricQueryCount": 1,
+      "dbSkillCount": 6,
+      "templateSkillCount": 0,
+      "previewActionCount": 0,
+      "noneCount": 0
+    },
+    "adapterDistribution": [
+      {
+        "reason": "none",
+        "count": 7
+      }
+    ],
+    "domainDistribution": [
+      {
+        "reason": "beautician",
+        "count": 5
+      },
+      {
+        "reason": "customer",
+        "count": 5
+      },
+      {
+        "reason": "reservation",
+        "count": 5
+      },
+      {
+        "reason": "project",
+        "count": 4
+      },
+      {
+        "reason": "product",
+        "count": 2
+      },
+      {
+        "reason": "order",
+        "count": 1
+      }
+    ],
+    "capabilityDistribution": [
+      {
+        "reason": "gap_fill_touch_preview",
+        "count": 5
+      },
+      {
+        "reason": "inventory_procurement_advice",
+        "count": 1
+      },
+      {
+        "reason": "product_sales_ranking",
+        "count": 1
+      }
+    ],
+    "executionPathDistribution": [
+      {
+        "reason": "model_primary",
+        "count": 7
+      }
+    ],
+    "sixLayer": {
+      "intent": {
+        "total": 7,
+        "passed": 7,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "tool": {
+        "total": 7,
+        "passed": 7,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "plan": {
+        "total": 7,
+        "passed": 7,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "execution": {
+        "total": 7,
+        "passed": 7,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "completion": {
+        "total": 7,
+        "passed": 7,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "answer": {
+        "total": 7,
+        "passed": 7,
+        "passRate": 1,
+        "averageScore": 1
+      }
+    },
+    "latency": {
+      "avgMs": 21277,
+      "p95Ms": 31668,
+      "maxMs": 31668
+    }
+  },
+  "records": [
+    {
+      "questionId": "paraphrase-ranking-05",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "ranking",
+      "sourceIndex": 10,
+      "persona": "inventory",
+      "question": "按销售件数把产品从高到低列出来",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 23536,
+      "conversationId": 23185,
+      "runId": 23098,
+      "answer": "排行：\n1. 商品=抗衰紧致眼霜，销量=26\n2. 商品=氨基酸洁面乳，销量=21\n3. 商品=玻尿酸保湿精华，销量=16\n4. 商品=烟酰胺亮肤精华，销量=13\n5. 商品=屏障修护乳，销量=3\n6. 商品=水氧护理耗材包，销量=3\n7. 商品=日间防晒乳，销量=1\n8. 商品=舒缓修护面膜，销量=1\n\n指标：商品销量：84（口径版本 5）。\n\n数据依据：业务定义：商品销量。",
+      "citations": [
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.product_sales_quantity@5",
+          "label": "业务定义：商品销量",
+          "definition": "指定周期内当前门店已完成或已支付商品订单明细的销售数量。"
+        }
+      ],
+      "domains": [
+        "product",
+        "order"
+      ],
+      "capabilityKeys": [
+        "product_sales_ranking"
+      ],
+      "grounding": "metric_query",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "ranking",
+        "actualIntent": "metric_query",
+        "expectedShape": "ranking",
+        "actualShape": "ranking",
+        "expectedMetric": "product_sales_quantity",
+        "actualMetric": "product_sales_quantity",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "metric_query"
+      },
+      "expected": {
+        "intent": "ranking",
+        "domains": [
+          "order",
+          "product"
+        ],
+        "entities": [],
+        "metrics": [
+          "product_sales_quantity"
+        ],
+        "dimensions": [
+          "productName"
+        ],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "product_sales_ranking",
+          "inventory_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "product_sales_quantity"
+        ],
+        "dimensionKeys": [
+          "productName"
+        ],
+        "entityKeys": [
+          "product"
+        ],
+        "domainKeys": [
+          "order",
+          "product"
+        ],
+        "capabilityKeys": [
+          "product_sales_ranking",
+          "inventory_operations_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 5,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "paraphrase-recommendation-04",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "recommendation",
+      "sourceIndex": 29,
+      "persona": "inventory",
+      "question": "既别断货也别积压，采购应该怎么安排",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 31668,
+      "conversationId": 23186,
+      "runId": 23099,
+      "answer": "库存采购建议：共 1 项。\n1. 玻尿酸保湿精华：当前库存 131，安全库存 143，建议采购 155，候选供应商 Ami MVP 供应商\n\n数据依据：库存采购建议分析。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "capability_inventory_procurement_advice",
+          "label": "库存采购建议分析"
+        }
+      ],
+      "domains": [
+        "product"
+      ],
+      "capabilityKeys": [
+        "inventory_procurement_advice"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "recommendation",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "inventory_operations_overview",
+          "inventory_procurement_advice"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "product"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "inventory_operations_overview",
+          "inventory_procurement_advice"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "paraphrase-workflow-01",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "workflow",
+      "sourceIndex": 41,
+      "persona": "edge",
+      "question": "找出明天下午空档、筛合适客户、写提醒并生成触达预览",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 23880,
+      "conversationId": 23187,
+      "runId": 23100,
+      "answer": "明细：当前没有匹配数据。\n\n未完成范围：没有真实空档或合格候选时不生成确认按钮、不创建任务、不发送消息。\n\n数据依据：排班、预约与空档候选匹配预览。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "gap_opportunity_readonly_preview",
+          "label": "排班、预约与空档候选匹配预览"
+        }
+      ],
+      "domains": [
+        "beautician",
+        "customer",
+        "reservation"
+      ],
+      "capabilityKeys": [
+        "gap_fill_touch_preview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "action",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "workflow",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "gap_fill_touch_preview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "gap_fill_touch_preview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "paraphrase-workflow-02",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "workflow",
+      "sourceIndex": 42,
+      "persona": "edge",
+      "question": "把明日空闲时段和可召回客户配对，再准备邀约",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 14571,
+      "conversationId": 23188,
+      "runId": 23101,
+      "answer": "明细：当前没有匹配数据。\n\n未完成范围：没有真实空档或合格候选时不生成确认按钮、不创建任务、不发送消息。\n\n数据依据：排班、预约与空档候选匹配预览。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "gap_opportunity_readonly_preview",
+          "label": "排班、预约与空档候选匹配预览"
+        }
+      ],
+      "domains": [
+        "beautician",
+        "customer",
+        "project",
+        "reservation"
+      ],
+      "capabilityKeys": [
+        "gap_fill_touch_preview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "action",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "workflow",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "gap_fill_touch_preview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "gap_fill_touch_preview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "paraphrase-workflow-03",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "workflow",
+      "sourceIndex": 43,
+      "persona": "edge",
+      "question": "先看预约资源，再选客户，最后给我触达草稿",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 19327,
+      "conversationId": 23189,
+      "runId": 23102,
+      "answer": "明细：当前没有匹配数据。\n\n未完成范围：没有真实空档或合格候选时不生成确认按钮、不创建任务、不发送消息。\n\n数据依据：排班、预约与空档候选匹配预览。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "gap_opportunity_readonly_preview",
+          "label": "排班、预约与空档候选匹配预览"
+        }
+      ],
+      "domains": [
+        "reservation",
+        "customer",
+        "beautician",
+        "project"
+      ],
+      "capabilityKeys": [
+        "gap_fill_touch_preview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "action",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "workflow",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "gap_fill_touch_preview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "gap_fill_touch_preview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "paraphrase-workflow-04",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "workflow",
+      "sourceIndex": 44,
+      "persona": "edge",
+      "question": "规划一个补齐明天下午空档的完整流程",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 20217,
+      "conversationId": 23190,
+      "runId": 23103,
+      "answer": "明细：当前没有匹配数据。\n\n未完成范围：没有真实空档或合格候选时不生成确认按钮、不创建任务、不发送消息。\n\n数据依据：排班、预约与空档候选匹配预览。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "gap_opportunity_readonly_preview",
+          "label": "排班、预约与空档候选匹配预览"
+        }
+      ],
+      "domains": [
+        "beautician",
+        "customer",
+        "project",
+        "reservation"
+      ],
+      "capabilityKeys": [
+        "gap_fill_touch_preview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "action",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "workflow",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "gap_fill_touch_preview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "gap_fill_touch_preview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "paraphrase-workflow-05",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "workflow",
+      "sourceIndex": 45,
+      "persona": "edge",
+      "question": "组合预约清单、客户筛选和提醒文案，生成待确认方案",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 15741,
+      "conversationId": 23191,
+      "runId": 23104,
+      "answer": "明细：当前没有匹配数据。\n\n未完成范围：没有真实空档或合格候选时不生成确认按钮、不创建任务、不发送消息。\n\n数据依据：排班、预约与空档候选匹配预览。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "gap_opportunity_readonly_preview",
+          "label": "排班、预约与空档候选匹配预览"
+        }
+      ],
+      "domains": [
+        "beautician",
+        "customer",
+        "project",
+        "reservation"
+      ],
+      "capabilityKeys": [
+        "gap_fill_touch_preview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "action",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "workflow",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "gap_fill_touch_preview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "gap_fill_touch_preview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    }
+  ]
+}

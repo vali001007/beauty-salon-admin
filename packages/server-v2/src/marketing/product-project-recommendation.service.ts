@@ -1,4 +1,4 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CustomerMarketingProfileService } from './customer-marketing-profile.service.js';
@@ -13,6 +13,7 @@ type ProductProjectRecommendationType =
 type RecommendationBuildOptions = {
   type?: string;
   limit?: number;
+  matchPromotion?: boolean;
 };
 
 type SnapshotContext = { run: any | null; snapshots: SnapshotWithCustomer[] };
@@ -66,7 +67,8 @@ export class ProductProjectRecommendationService {
     return id >= PRODUCT_PROJECT_RECOMMENDATION_MIN_ID && id <= PRODUCT_PROJECT_RECOMMENDATION_MAX_ID;
   }
 
-  async getCards(storeId?: number, options: RecommendationBuildOptions = {}) {
+  async getCards(storeId: number, options: RecommendationBuildOptions = {}) {
+    if (!storeId) throw new BadRequestException('storeId is required');
     const snapshotsContext = await this.getLatestSnapshots(storeId);
     const requestedTypes = this.parseTypes(options.type);
     const shouldBuild = (types: string[]) => !requestedTypes.length || types.some((type) => requestedTypes.includes(type));
@@ -77,10 +79,10 @@ export class ProductProjectRecommendationService {
       shouldBuild(['project_cycle_due', 'care_cycle']) ? this.buildProjectCycleDueCards(storeId, snapshotsContext) : Promise.resolve([]),
     ]);
 
-    const enrichedCards = await this.enrichCardsWithPromotions(
-      [...expiryCards, ...idleCapacityCards, ...replenishmentCards, ...projectCycleCards],
-      storeId,
-    );
+    const baseCards = [...expiryCards, ...idleCapacityCards, ...replenishmentCards, ...projectCycleCards];
+    const enrichedCards = options.matchPromotion === false
+      ? baseCards
+      : await this.enrichCardsWithPromotions(baseCards, storeId);
     const eligibleCards = await this.applyAudienceExclusionsToCards(enrichedCards, storeId);
 
     return eligibleCards
@@ -89,7 +91,8 @@ export class ProductProjectRecommendationService {
       .slice(0, Math.max(1, Math.min(50, Number(options.limit ?? 20))));
   }
 
-  async getAudience(recommendationId: number, storeId?: number) {
+  async getAudience(recommendationId: number, storeId: number) {
+    if (!storeId) throw new BadRequestException('storeId is required');
     const cards = await this.getCards(storeId);
     const card = cards.find((item) => item.id === recommendationId);
     if (!card) return [];
@@ -98,7 +101,7 @@ export class ProductProjectRecommendationService {
     if (!customerIds.length) return [];
 
     const customers = await this.prisma.customer.findMany({
-      where: { id: { in: customerIds }, ...(storeId ? { storeId } : {}) },
+      where: { id: { in: customerIds }, storeId },
       include: { store: { select: { name: true } } },
       orderBy: { id: 'asc' },
     });
@@ -125,7 +128,7 @@ export class ProductProjectRecommendationService {
 
   private async filterRecommendationAudienceProfiles<T extends { customerId?: number }>(
     profiles: T[],
-    options: { storeId?: number } = {},
+    options: { storeId: number },
   ) {
     const customerIds = [...new Set(profiles.map((profile) => Number(profile.customerId)).filter((id) => Number.isFinite(id) && id > 0))];
     if (!customerIds.length) return profiles;
@@ -135,7 +138,7 @@ export class ProductProjectRecommendationService {
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const startOfToday = new Date(now);
     startOfToday.setHours(0, 0, 0, 0);
-    const storeWhere = options.storeId ? { storeId: options.storeId } : {};
+    const storeWhere = { storeId: options.storeId };
     const excludedCustomerIds = new Set<number>();
     const touchEventPattern = /push|sms|touch|message|coupon_claimed|promotion_claimed|promotion_sent|marketing|follow_up/i;
 
@@ -197,13 +200,13 @@ export class ProductProjectRecommendationService {
 
   private async enrichRecommendationAudienceAssignees<T extends { customerId?: number }>(
     profiles: T[],
-    storeId?: number,
+    storeId: number,
     assigneeRole = 'consultant',
   ) {
     const customerIds = [...new Set(profiles.map((profile) => Number(profile.customerId)).filter((id) => Number.isFinite(id) && id > 0))];
     if (!customerIds.length) return profiles;
 
-    const storeWhere = storeId ? { storeId } : {};
+    const storeWhere = { storeId };
     const beauticianUserSelect = {
       id: true,
       name: true,
@@ -245,7 +248,7 @@ export class ProductProjectRecommendationService {
           user: {
             status: 'active',
             deletedAt: null,
-            ...(storeId ? { stores: { some: { storeId } } } : {}),
+            stores: { some: { storeId } },
           },
         },
         select: beauticianSelect,
@@ -256,7 +259,7 @@ export class ProductProjectRecommendationService {
         where: {
           deletedAt: null,
           status: 'active',
-          ...(storeId ? { stores: { some: { storeId } } } : {}),
+          stores: { some: { storeId } },
         },
         include: { roles: { include: { role: true } } },
         orderBy: { id: 'asc' },
@@ -267,7 +270,7 @@ export class ProductProjectRecommendationService {
     const getSystemUserFromBeautician = (beautician: any) => {
       const user = beautician?.user;
       if (!user || user.status !== 'active' || user.deletedAt) return null;
-      if (storeId && !user.stores?.some((store: any) => Number(store.storeId) === Number(storeId))) return null;
+      if (!user.stores?.some((store: any) => Number(store.storeId) === Number(storeId))) return null;
       return user;
     };
     const getUserDisplayName = (user: any) => user?.name || user?.username || '系统用户';
@@ -356,14 +359,14 @@ export class ProductProjectRecommendationService {
     }
   }
 
-  private async buildProductExpiryCards(storeId?: number, snapshotsContext?: SnapshotContext) {
+  private async buildProductExpiryCards(storeId: number, snapshotsContext?: SnapshotContext) {
     const now = new Date();
     const sixtyDaysLater = new Date(now.getTime() + 60 * DAY_MS);
     const batches = await this.prisma.stockBatch.findMany({
       where: {
         expiryDate: { lte: sixtyDaysLater, gte: now },
         stock: { gt: 0 },
-        product: { deletedAt: null, status: 'active', ...(storeId ? { storeId } : {}) },
+        product: { deletedAt: null, status: 'active', storeId },
       },
       include: {
         product: {
@@ -503,14 +506,14 @@ export class ProductProjectRecommendationService {
     return cards.sort((a, b) => b.matchScore - a.matchScore).slice(0, 3);
   }
 
-  private async buildIdleCapacityCards(storeId?: number, snapshotsContext?: SnapshotContext) {
+  private async buildIdleCapacityCards(storeId: number, snapshotsContext?: SnapshotContext) {
     const now = new Date();
     const sevenDaysLater = new Date(now.getTime() + 7 * DAY_MS);
     const schedules = await this.prisma.schedule.findMany({
       where: {
         date: { gte: this.startOfDay(now), lte: sevenDaysLater },
         status: { in: ['available', 'active', 'normal', '可预约', '空闲'] },
-        ...(storeId ? { storeId } : {}),
+        storeId,
       },
       include: { beautician: { include: { projectSkills: { include: { project: { include: { type: true } } } } } } },
       orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
@@ -522,7 +525,7 @@ export class ProductProjectRecommendationService {
       where: {
         date: { gte: this.startOfDay(now), lte: sevenDaysLater },
         status: { notIn: ['cancelled', 'canceled', '已取消'] },
-        ...(storeId ? { storeId } : {}),
+        storeId,
       },
       select: { id: true, customerId: true, projectId: true, beauticianId: true, date: true, startTime: true, endTime: true, status: true },
     });
@@ -644,7 +647,7 @@ export class ProductProjectRecommendationService {
     return cards.sort((a, b) => b.capacitySnapshot.idleMinutes - a.capacitySnapshot.idleMinutes).slice(0, 3);
   }
 
-  private async buildProductReplenishmentCards(storeId?: number, snapshotsContext?: SnapshotContext) {
+  private async buildProductReplenishmentCards(storeId: number, snapshotsContext?: SnapshotContext) {
     const now = new Date();
     const lookbackDate = new Date(now.getTime() - 150 * DAY_MS);
     const orderItems = await this.prisma.orderItem.findMany({
@@ -655,7 +658,7 @@ export class ProductProjectRecommendationService {
           createdAt: { gte: lookbackDate },
           status: { notIn: ['cancelled', 'canceled', 'refunded', '已取消'] },
           customerId: { not: null },
-          ...(storeId ? { storeId } : {}),
+          storeId,
         },
       },
       include: {
@@ -668,7 +671,7 @@ export class ProductProjectRecommendationService {
 
     const productIds = [...new Set(orderItems.map((item: any) => Number(item.itemId)).filter(Boolean))];
     const products = await this.prisma.product.findMany({
-      where: { id: { in: productIds }, deletedAt: null, status: 'active', ...(storeId ? { storeId } : {}) },
+      where: { id: { in: productIds }, deletedAt: null, status: 'active', storeId },
       include: { category: true },
     });
     const productMap = new Map(products.map((product: any) => [Number(product.id), product]));
@@ -770,7 +773,7 @@ export class ProductProjectRecommendationService {
     return cards;
   }
 
-  private async buildProjectCycleDueCards(storeId?: number, snapshotsContext?: SnapshotContext) {
+  private async buildProjectCycleDueCards(storeId: number, snapshotsContext?: SnapshotContext) {
     const now = new Date();
     const lookbackDate = new Date(now.getTime() - 180 * DAY_MS);
     const projectItems = await this.prisma.orderItem.findMany({
@@ -781,7 +784,7 @@ export class ProductProjectRecommendationService {
           createdAt: { gte: lookbackDate },
           status: { notIn: ['cancelled', 'canceled', 'refunded', '已取消'] },
           customerId: { not: null },
-          ...(storeId ? { storeId } : {}),
+          storeId,
         },
       },
       include: {
@@ -794,7 +797,7 @@ export class ProductProjectRecommendationService {
 
     const projectIds = [...new Set(projectItems.map((item: any) => Number(item.itemId)).filter(Boolean))];
     const projects = await this.prisma.project.findMany({
-      where: { id: { in: projectIds }, deletedAt: null, status: 'active', ...(storeId ? { storeId } : {}) },
+      where: { id: { in: projectIds }, deletedAt: null, status: 'active', storeId },
       include: { type: true },
     });
     const projectMap = new Map(projects.map((project: any) => [Number(project.id), project]));
@@ -818,7 +821,7 @@ export class ProductProjectRecommendationService {
             customerId: { in: customerIds },
             date: { gte: now },
             status: { notIn: ['cancelled', 'canceled', '已取消'] },
-            ...(storeId ? { storeId } : {}),
+            storeId,
           },
           select: { customerId: true, projectId: true },
         })
@@ -992,7 +995,7 @@ export class ProductProjectRecommendationService {
     };
   }
 
-  private async applyAudienceExclusionsToCards(cards: any[], storeId?: number) {
+  private async applyAudienceExclusionsToCards(cards: any[], storeId: number) {
     return Promise.all(cards.map(async (card) => {
       const originalCustomerIds = this.uniqueNumbers(card.targetCustomerIds ?? []);
       if (!originalCustomerIds.length) return card;
@@ -1031,7 +1034,7 @@ export class ProductProjectRecommendationService {
     return text;
   }
 
-  private async enrichCardsWithPromotions(cards: any[], storeId?: number) {
+  private async enrichCardsWithPromotions(cards: any[], storeId: number) {
     if (!cards.length) return cards;
     const promotions = await this.getRecommendationPromotions(storeId);
     const allCustomerIds = this.uniqueNumbers(cards.flatMap((card) => card.targetCustomerIds ?? [])).slice(0, 80);
@@ -1152,7 +1155,7 @@ export class ProductProjectRecommendationService {
     };
   }
 
-  private async buildRecommendationProfileContext(storeId: number | undefined, customerIds?: number[]) {
+  private async buildRecommendationProfileContext(storeId: number, customerIds?: number[]) {
     const normalizedIds = this.uniqueNumbers(customerIds ?? []).slice(0, 80);
     if (!this.customerMarketingProfileService || !normalizedIds.length) {
       return {
@@ -1204,8 +1207,8 @@ export class ProductProjectRecommendationService {
     }
   }
 
-  private async getRecommendationPromotions(storeId?: number) {
-    const cacheKey = String(storeId ?? 'all');
+  private async getRecommendationPromotions(storeId: number) {
+    const cacheKey = String(storeId);
     const cached = this.recommendationPromotionCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) return cached.items;
 
@@ -1489,15 +1492,15 @@ export class ProductProjectRecommendationService {
       .map(([tag]) => tag);
   }
 
-  private async getLatestSnapshots(storeId?: number): Promise<{ run: any | null; snapshots: SnapshotWithCustomer[] }> {
+  private async getLatestSnapshots(storeId: number): Promise<{ run: any | null; snapshots: SnapshotWithCustomer[] }> {
     const run = await this.prisma.predictionRun.findFirst({
-      where: { ...(storeId ? { storeId } : {}), status: 'completed' },
+      where: { storeId, status: 'completed' },
       orderBy: [{ finishedAt: 'desc' }, { startedAt: 'desc' }],
     });
     if (!run) return { run: null, snapshots: [] };
 
     const snapshots = await this.prisma.customerPredictionSnapshot.findMany({
-      where: { runId: run.id, ...(storeId ? { storeId } : {}) },
+      where: { runId: run.id, storeId },
       select: {
         customerId: true,
         churnScore: true,
@@ -1515,7 +1518,7 @@ export class ProductProjectRecommendationService {
     return { run, snapshots };
   }
 
-  private async getProductSalesQuantity(productIds: number[], since: Date, storeId?: number) {
+  private async getProductSalesQuantity(productIds: number[], since: Date, storeId: number) {
     const result = new Map<number, number>();
     if (!productIds.length) return result;
     const items = await this.prisma.orderItem.findMany({
@@ -1525,7 +1528,7 @@ export class ProductProjectRecommendationService {
         order: {
           createdAt: { gte: since },
           status: { notIn: ['cancelled', 'canceled', 'refunded', '已取消'] },
-          ...(storeId ? { storeId } : {}),
+          storeId,
         },
       },
       select: { itemId: true, quantity: true },
@@ -1537,7 +1540,7 @@ export class ProductProjectRecommendationService {
     return result;
   }
 
-  private async getProjectCapacityByProject(projectIds: number[], storeId: number | undefined, now: Date) {
+  private async getProjectCapacityByProject(projectIds: number[], storeId: number, now: Date) {
     const result = new Map<number, any>();
     if (!projectIds.length) return result;
 
@@ -1546,7 +1549,7 @@ export class ProductProjectRecommendationService {
       where: {
         date: { gte: this.startOfDay(now), lte: sevenDaysLater },
         status: { in: ['available', 'active', 'normal', '可预约', '空闲'] },
-        ...(storeId ? { storeId } : {}),
+        storeId,
       },
       include: { beautician: { include: { projectSkills: { where: { projectId: { in: projectIds } } } } } },
       orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
@@ -1559,7 +1562,7 @@ export class ProductProjectRecommendationService {
         projectId: { in: projectIds },
         date: { gte: this.startOfDay(now), lte: sevenDaysLater },
         status: { notIn: ['cancelled', 'canceled', '已取消'] },
-        ...(storeId ? { storeId } : {}),
+        storeId,
       },
       select: { projectId: true, beauticianId: true, date: true, startTime: true, endTime: true },
     });

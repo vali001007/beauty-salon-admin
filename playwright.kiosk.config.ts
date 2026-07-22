@@ -18,7 +18,7 @@ export default defineConfig({
   },
   webServer: shouldStartWebServer
     ? {
-        command: `${npmCommand} --prefix packages/Ami-Aura-Lite-Kiosk run dev -- --host ${e2eHost} --port ${e2ePort} --strictPort`,
+        command: `${npmCommand} --prefix packages/Ami-Aura-Lite-Kiosk run dev:web -- --host ${e2eHost} --port ${e2ePort} --strictPort`,
         url: e2eBaseURL,
         reuseExistingServer: false,
         timeout: 90_000,

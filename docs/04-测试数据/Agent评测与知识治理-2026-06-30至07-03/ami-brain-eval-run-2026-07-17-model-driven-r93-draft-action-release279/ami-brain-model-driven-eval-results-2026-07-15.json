@@ -1,0 +1,1488 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-16T22:01:31.129Z",
+    "startedAt": "2026-07-16T22:01:13.175Z",
+    "finishedAt": "2026-07-16T22:01:31.129Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-model-driven-paraphrase-cases.json",
+    "questionCount": 10,
+    "actualRunCount": 10,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "releaseId": 279,
+    "releaseSnapshot": {
+      "releaseFingerprint": "3ffce7b5ee6b4f5222f8db8bc402d29b2544c343dff8bf6e151ccddb4c28071d",
+      "declaredMode": "shadow",
+      "resourceVersionIds": [
+        150,
+        151,
+        153,
+        159,
+        160,
+        163,
+        168,
+        169,
+        174,
+        175,
+        176,
+        178,
+        183,
+        184,
+        185,
+        186,
+        187,
+        188,
+        189
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview",
+        "customer_facts",
+        "customer_follow_up_draft",
+        "finance_payment_breakdown",
+        "finance_risk_overview",
+        "front_desk_operations_overview",
+        "inventory_operations_overview",
+        "inventory_procurement_advice",
+        "manager_staff_overview",
+        "marketing_customer_segment",
+        "marketing_growth_overview",
+        "marketing_message_draft",
+        "marketing_touch_draft",
+        "product_sales_ranking",
+        "project_service_ranking",
+        "purchase_order_draft",
+        "reservation_action_preview",
+        "reservation_list",
+        "store_operations_overview"
+      ]
+    },
+    "candidateSkillsEnabledForEval": true,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "permissionSource": "active_backend_role_catalog_plus_candidate_minimum_permissions",
+    "evaluationRoleKeys": [
+      "marketing",
+      "receptionist"
+    ],
+    "permissionCatalogRoleKeys": [
+      "ami_demo_full_beautician",
+      "ami_demo_full_cashier",
+      "ami_demo_full_manager",
+      "beautician",
+      "cashier",
+      "store_manager",
+      "super_admin"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。",
+      "provider_unavailable": "模型供应商不可用，单列为评测基础设施失败，不进入产品可用率分母。",
+      "sixLayerGate": "意图、工具、计划、执行、完成度、答案六层必须全部通过；确定性失败不可被 LLM Judge 覆盖。"
+    }
+  },
+  "summary": {
+    "total": 10,
+    "evaluableTotal": 10,
+    "providerUnavailableCount": 0,
+    "legacyUsableWithCitation": 0,
+    "legacyUsableRate": 0,
+    "trueUsable": 0,
+    "trueUsableRate": 0,
+    "observedTrueUsableRate": 0,
+    "byStatus": [
+      {
+        "key": "metric_failed",
+        "total": 10,
+        "evaluableTotal": 10,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 10,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "marketing",
+        "total": 5,
+        "evaluableTotal": 5,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 5,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "reception",
+        "total": 5,
+        "evaluableTotal": 5,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 5,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "action",
+        "total": 5,
+        "evaluableTotal": 5,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 5,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "draft",
+        "total": 5,
+        "evaluableTotal": 5,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 5,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [
+      {
+        "reason": "intent:intent_mismatch",
+        "count": 10
+      }
+    ],
+    "securityGate": {
+      "permissionBypassCount": 0,
+      "crossStoreReadCount": 0,
+      "roleHintBypassCount": 0,
+      "fakeActionConfirmationCount": 0
+    },
+    "grounding": {
+      "metricQueryCount": 0,
+      "dbSkillCount": 0,
+      "templateSkillCount": 0,
+      "previewActionCount": 0,
+      "noneCount": 10
+    },
+    "adapterDistribution": [
+      {
+        "reason": "none",
+        "count": 10
+      }
+    ],
+    "domainDistribution": [
+      {
+        "reason": "none",
+        "count": 10
+      }
+    ],
+    "capabilityDistribution": [
+      {
+        "reason": "none",
+        "count": 10
+      }
+    ],
+    "executionPathDistribution": [
+      {
+        "reason": "model_unavailable",
+        "count": 10
+      }
+    ],
+    "sixLayer": {
+      "intent": {
+        "total": 10,
+        "passed": 0,
+        "passRate": 0,
+        "averageScore": 0
+      },
+      "tool": {
+        "total": 10,
+        "passed": 0,
+        "passRate": 0,
+        "averageScore": 0
+      },
+      "plan": {
+        "total": 10,
+        "passed": 5,
+        "passRate": 0.5,
+        "averageScore": 0.75
+      },
+      "execution": {
+        "total": 10,
+        "passed": 0,
+        "passRate": 0,
+        "averageScore": 0
+      },
+      "completion": {
+        "total": 10,
+        "passed": 0,
+        "passRate": 0,
+        "averageScore": 0
+      },
+      "answer": {
+        "total": 10,
+        "passed": 0,
+        "passRate": 0,
+        "averageScore": 0
+      }
+    },
+    "latency": {
+      "avgMs": 1731,
+      "p95Ms": 2272,
+      "maxMs": 2272
+    }
+  },
+  "records": [
+    {
+      "questionId": "paraphrase-draft-01",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "draft",
+      "sourceIndex": 31,
+      "persona": "marketing",
+      "question": "写一条提醒老客户预约护理的消息",
+      "status": "metric_failed",
+      "brainStatus": "failed",
+      "latencyMs": 2272,
+      "conversationId": 22970,
+      "runId": 22883,
+      "answer": "可用能力目录暂不可用，本次未执行查询。",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "executionPath": "model_unavailable",
+      "modelStage": "retrieve",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "metric_failed",
+        "expectedIntent": "draft",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "语义问数链路执行失败。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "draft",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "marketing_message_draft"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "marketing_message_draft"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "intent_mismatch"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_any_of_missing:marketing_message_draft"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "brain_status:failed"
+          ],
+          "deterministicFailure": true
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0,
+          "checked": 2,
+          "failures": [
+            "brain_status:failed",
+            "completion_grounding_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "metric_failed"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "intent:intent_mismatch"
+    },
+    {
+      "questionId": "paraphrase-draft-02",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "draft",
+      "sourceIndex": 32,
+      "persona": "marketing",
+      "question": "帮我拟个预约空档提醒话术",
+      "status": "metric_failed",
+      "brainStatus": "failed",
+      "latencyMs": 1726,
+      "conversationId": 22971,
+      "runId": 22884,
+      "answer": "可用能力目录暂不可用，本次未执行查询。",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "executionPath": "model_unavailable",
+      "modelStage": "retrieve",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "metric_failed",
+        "expectedIntent": "draft",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "语义问数链路执行失败。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "draft",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "marketing_message_draft"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "marketing_message_draft"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "intent_mismatch"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_any_of_missing:marketing_message_draft"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "brain_status:failed"
+          ],
+          "deterministicFailure": true
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0,
+          "checked": 2,
+          "failures": [
+            "brain_status:failed",
+            "completion_grounding_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "metric_failed"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "intent:intent_mismatch"
+    },
+    {
+      "questionId": "paraphrase-draft-03",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "draft",
+      "sourceIndex": 33,
+      "persona": "marketing",
+      "question": "给沉睡客户准备一段温和的召回文案",
+      "status": "metric_failed",
+      "brainStatus": "failed",
+      "latencyMs": 1676,
+      "conversationId": 22972,
+      "runId": 22885,
+      "answer": "可用能力目录暂不可用，本次未执行查询。",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "executionPath": "model_unavailable",
+      "modelStage": "retrieve",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "metric_failed",
+        "expectedIntent": "draft",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "语义问数链路执行失败。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "draft",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "marketing_message_draft"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "marketing_message_draft"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "intent_mismatch"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_any_of_missing:marketing_message_draft"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "brain_status:failed"
+          ],
+          "deterministicFailure": true
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0,
+          "checked": 2,
+          "failures": [
+            "brain_status:failed",
+            "completion_grounding_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "metric_failed"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "intent:intent_mismatch"
+    },
+    {
+      "questionId": "paraphrase-draft-04",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "draft",
+      "sourceIndex": 34,
+      "persona": "marketing",
+      "question": "生成一个不强推销的到店邀请短信",
+      "status": "metric_failed",
+      "brainStatus": "failed",
+      "latencyMs": 1666,
+      "conversationId": 22973,
+      "runId": 22886,
+      "answer": "可用能力目录暂不可用，本次未执行查询。",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "executionPath": "model_unavailable",
+      "modelStage": "retrieve",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "metric_failed",
+        "expectedIntent": "draft",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "语义问数链路执行失败。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "draft",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "marketing_message_draft"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "marketing_message_draft"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "intent_mismatch"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_any_of_missing:marketing_message_draft"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "brain_status:failed"
+          ],
+          "deterministicFailure": true
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0,
+          "checked": 2,
+          "failures": [
+            "brain_status:failed",
+            "completion_grounding_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "metric_failed"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "intent:intent_mismatch"
+    },
+    {
+      "questionId": "paraphrase-draft-05",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "draft",
+      "sourceIndex": 35,
+      "persona": "marketing",
+      "question": "为明天下午空档写条一对一邀约消息",
+      "status": "metric_failed",
+      "brainStatus": "failed",
+      "latencyMs": 1666,
+      "conversationId": 22974,
+      "runId": 22887,
+      "answer": "可用能力目录暂不可用，本次未执行查询。",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "executionPath": "model_unavailable",
+      "modelStage": "retrieve",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "metric_failed",
+        "expectedIntent": "draft",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "语义问数链路执行失败。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "draft",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "marketing_message_draft"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "marketing_message_draft"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "intent_mismatch"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_any_of_missing:marketing_message_draft"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "brain_status:failed"
+          ],
+          "deterministicFailure": true
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0,
+          "checked": 2,
+          "failures": [
+            "brain_status:failed",
+            "completion_grounding_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "metric_failed"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "intent:intent_mismatch"
+    },
+    {
+      "questionId": "paraphrase-action-01",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "action",
+      "sourceIndex": 36,
+      "persona": "reception",
+      "question": "把张女士的预约改到明天下午三点",
+      "status": "metric_failed",
+      "brainStatus": "failed",
+      "latencyMs": 1669,
+      "conversationId": 22975,
+      "runId": 22888,
+      "answer": "可用能力目录暂不可用，本次未执行查询。",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "executionPath": "model_unavailable",
+      "modelStage": "retrieve",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "metric_failed",
+        "expectedIntent": "action",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "语义问数链路执行失败。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "action",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "requiresPreview": true
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_follow_up_draft",
+          "reservation_action_preview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer",
+          "reservation"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_follow_up_draft",
+          "reservation_action_preview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "intent_mismatch"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_any_of_missing:customer_follow_up_draft|reservation_action_preview"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": false,
+          "score": 0.5,
+          "checked": 2,
+          "failures": [
+            "plan_preview_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "brain_status:failed"
+          ],
+          "deterministicFailure": true
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0,
+          "checked": 3,
+          "failures": [
+            "brain_status:failed",
+            "completion_grounding_missing",
+            "completion_action_preview_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "metric_failed"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "intent:intent_mismatch"
+    },
+    {
+      "questionId": "paraphrase-action-02",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "action",
+      "sourceIndex": 37,
+      "persona": "reception",
+      "question": "帮张女士把明天的护理改约到十五点",
+      "status": "metric_failed",
+      "brainStatus": "failed",
+      "latencyMs": 1679,
+      "conversationId": 22976,
+      "runId": 22889,
+      "answer": "可用能力目录暂不可用，本次未执行查询。",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "executionPath": "model_unavailable",
+      "modelStage": "retrieve",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "metric_failed",
+        "expectedIntent": "action",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "语义问数链路执行失败。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "action",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "requiresPreview": true
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_follow_up_draft",
+          "reservation_action_preview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer",
+          "reservation"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_follow_up_draft",
+          "reservation_action_preview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "intent_mismatch"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_any_of_missing:customer_follow_up_draft|reservation_action_preview"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": false,
+          "score": 0.5,
+          "checked": 2,
+          "failures": [
+            "plan_preview_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "brain_status:failed"
+          ],
+          "deterministicFailure": true
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0,
+          "checked": 3,
+          "failures": [
+            "brain_status:failed",
+            "completion_grounding_missing",
+            "completion_action_preview_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "metric_failed"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "intent:intent_mismatch"
+    },
+    {
+      "questionId": "paraphrase-action-03",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "action",
+      "sourceIndex": 38,
+      "persona": "reception",
+      "question": "预览一下将张女士预约调整到明天下午的操作",
+      "status": "metric_failed",
+      "brainStatus": "failed",
+      "latencyMs": 1637,
+      "conversationId": 22977,
+      "runId": 22890,
+      "answer": "可用能力目录暂不可用，本次未执行查询。",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "executionPath": "model_unavailable",
+      "modelStage": "retrieve",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "metric_failed",
+        "expectedIntent": "action",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "语义问数链路执行失败。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "action",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "requiresPreview": true
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_follow_up_draft",
+          "reservation_action_preview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer",
+          "reservation"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_follow_up_draft",
+          "reservation_action_preview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "intent_mismatch"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_any_of_missing:customer_follow_up_draft|reservation_action_preview"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": false,
+          "score": 0.5,
+          "checked": 2,
+          "failures": [
+            "plan_preview_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "brain_status:failed"
+          ],
+          "deterministicFailure": true
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0,
+          "checked": 3,
+          "failures": [
+            "brain_status:failed",
+            "completion_grounding_missing",
+            "completion_action_preview_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "metric_failed"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "intent:intent_mismatch"
+    },
+    {
+      "questionId": "paraphrase-action-04",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "action",
+      "sourceIndex": 39,
+      "persona": "reception",
+      "question": "准备一份张女士预约改期方案，等我确认",
+      "status": "metric_failed",
+      "brainStatus": "failed",
+      "latencyMs": 1663,
+      "conversationId": 22978,
+      "runId": 22891,
+      "answer": "可用能力目录暂不可用，本次未执行查询。",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "executionPath": "model_unavailable",
+      "modelStage": "retrieve",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "metric_failed",
+        "expectedIntent": "action",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "语义问数链路执行失败。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "action",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "requiresPreview": true
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_follow_up_draft",
+          "reservation_action_preview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer",
+          "reservation"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_follow_up_draft",
+          "reservation_action_preview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "intent_mismatch"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_any_of_missing:customer_follow_up_draft|reservation_action_preview"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": false,
+          "score": 0.5,
+          "checked": 2,
+          "failures": [
+            "plan_preview_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "brain_status:failed"
+          ],
+          "deterministicFailure": true
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0,
+          "checked": 3,
+          "failures": [
+            "brain_status:failed",
+            "completion_grounding_missing",
+            "completion_action_preview_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "metric_failed"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "intent:intent_mismatch"
+    },
+    {
+      "questionId": "paraphrase-action-05",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "action",
+      "sourceIndex": 40,
+      "persona": "reception",
+      "question": "将张女士下一次预约挪到周五三点，先不要执行",
+      "status": "metric_failed",
+      "brainStatus": "failed",
+      "latencyMs": 1659,
+      "conversationId": 22979,
+      "runId": 22892,
+      "answer": "可用能力目录暂不可用，本次未执行查询。",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "executionPath": "model_unavailable",
+      "modelStage": "retrieve",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "metric_failed",
+        "expectedIntent": "action",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "语义问数链路执行失败。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "action",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "requiresPreview": true
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_follow_up_draft",
+          "reservation_action_preview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer",
+          "reservation"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_follow_up_draft",
+          "reservation_action_preview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "intent_mismatch"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_any_of_missing:customer_follow_up_draft|reservation_action_preview"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": false,
+          "score": 0.5,
+          "checked": 2,
+          "failures": [
+            "plan_preview_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "brain_status:failed"
+          ],
+          "deterministicFailure": true
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0,
+          "checked": 3,
+          "failures": [
+            "brain_status:failed",
+            "completion_grounding_missing",
+            "completion_action_preview_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "metric_failed"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "intent:intent_mismatch"
+    }
+  ]
+}

@@ -1,7 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CommissionService } from '../commission/commission.service.js';
 import { deductStockItems } from '../common/inventory-stock-deduction.js';
+import { normalizeCardMasterName } from './card-master-deduplication.js';
+import { buildCardUsageIdempotencyKey } from './card-usage-idempotency.js';
 
 @Injectable()
 export class CardsService {
@@ -31,6 +34,27 @@ export class CardsService {
 
   private roundCurrency(value: number) {
     return Math.round((value + Number.EPSILON) * 100) / 100;
+  }
+
+  private assertIdempotentUsageMatches(
+    existing: any,
+    input: {
+      customerCardId: number;
+      customerId?: number;
+      projectId?: number;
+      projectName?: string;
+      times: number;
+      beauticianId?: number;
+    },
+  ) {
+    const mismatch =
+      Number(existing.customerCardId) !== input.customerCardId ||
+      (input.customerId !== undefined && Number(existing.customerId) !== input.customerId) ||
+      Number(existing.times) !== input.times ||
+      (input.projectId !== undefined && Number(existing.projectId) !== input.projectId) ||
+      (input.projectName && String(existing.projectName).trim() !== input.projectName) ||
+      (input.beauticianId !== undefined && Number(existing.beauticianId) !== input.beauticianId);
+    if (mismatch) throw new ConflictException('幂等键已用于另一笔次卡核销，请核对原业务记录');
   }
 
   private normalizeCardStatus(status: unknown) {
@@ -117,6 +141,22 @@ export class CardsService {
     });
     if (!card) throw new NotFoundException('次卡不存在');
     return card;
+  }
+
+  private async assertUniqueCardName(params: { name: unknown; storeId?: number | null; excludeId?: number }) {
+    const normalizedName = normalizeCardMasterName(params.name);
+    if (!normalizedName) throw new BadRequestException('请输入次卡名称');
+    const candidates = await this.prisma.card.findMany({
+      where: {
+        storeId: params.storeId ?? null,
+        ...(params.excludeId ? { id: { not: params.excludeId } } : {}),
+      },
+      select: { id: true, name: true },
+    });
+    const conflict = candidates.find((card) => normalizeCardMasterName(card.name) === normalizedName);
+    if (conflict) {
+      throw new ConflictException(`同一门店范围已存在同名次卡：#${conflict.id} ${conflict.name}`);
+    }
   }
 
   private buildCardPricingSnapshot(params: {
@@ -225,18 +265,26 @@ export class CardsService {
   }
 
   async create(data: any) {
+    const mutationData = this.buildCardMutationData(data, 'create');
+    await this.assertUniqueCardName({ name: mutationData.name, storeId: mutationData.storeId });
     const card = await this.prisma.card.create({
-      data: this.buildCardMutationData(data, 'create'),
+      data: mutationData,
       include: { store: { select: { id: true, name: true } } },
     });
     return this.serializeCard(card);
   }
 
   async update(id: number, data: any) {
-    await this.findCardOrThrow(id);
+    const current = await this.findCardOrThrow(id);
+    const mutationData = this.buildCardMutationData(data, 'update');
+    await this.assertUniqueCardName({
+      name: mutationData.name ?? current.name,
+      storeId: mutationData.storeId !== undefined ? mutationData.storeId : current.storeId,
+      excludeId: id,
+    });
     const card = await this.prisma.card.update({
       where: { id },
-      data: this.buildCardMutationData(data, 'update'),
+      data: mutationData,
       include: { store: { select: { id: true, name: true } } },
     });
     return this.serializeCard(card);
@@ -307,7 +355,10 @@ export class CardsService {
     operatorId?: number;
     beauticianId?: number;
     deviceId?: number;
+    reservationId?: number;
+    serviceTaskId?: number;
     remark?: string;
+    idempotencyKey?: string;
   }) {
     const customerCardId = Number(data.customerCardId ?? data.cardOrderId ?? 0);
     const times = Number(data.times ?? data.consumedTimes ?? 1);
@@ -317,9 +368,9 @@ export class CardsService {
     if (!Number.isFinite(times) || times <= 0) throw new BadRequestException('核销次数必须大于 0');
 
     return this.prisma.$transaction(async (tx) => {
-      const customerCard = await tx.customerCard.findFirst({
+      let customerCard = await tx.customerCard.findFirst({
         where: customerCardId
-          ? { id: customerCardId, status: 'active' }
+          ? { id: customerCardId }
           : { customerId: Number(data.customerId), cardName: data.cardName, status: 'active' },
         include: {
           customer: { select: { name: true, storeId: true } },
@@ -327,6 +378,32 @@ export class CardsService {
         },
       });
       if (!customerCard) throw new NotFoundException('未找到有效次卡');
+      await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "CustomerCard" WHERE "id" = ${customerCard.id} FOR UPDATE`);
+      customerCard = await tx.customerCard.findFirst({
+        where: { id: customerCard.id },
+        include: {
+          customer: { select: { name: true, storeId: true } },
+          card: { select: { id: true, name: true, price: true, totalTimes: true, projects: true } },
+        },
+      });
+      if (!customerCard) throw new NotFoundException('未找到有效次卡');
+      const idempotencyKey = buildCardUsageIdempotencyKey(customerCard.customer.storeId, data.idempotencyKey);
+      if (idempotencyKey) {
+        await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${idempotencyKey}, 0))`);
+        const existing = await tx.cardUsageRecord.findUnique({ where: { idempotencyKey } });
+        if (existing) {
+          this.assertIdempotentUsageMatches(existing, {
+            customerCardId: customerCard.id,
+            customerId: data.customerId ? Number(data.customerId) : undefined,
+            projectId: requestedProjectId,
+            projectName: requestedProjectName || undefined,
+            times,
+            beauticianId: data.beauticianId,
+          });
+          return existing;
+        }
+      }
+      if (customerCard.status !== 'active') throw new BadRequestException('次卡未启用');
       if (data.customerId && customerCard.customerId !== Number(data.customerId)) {
         throw new BadRequestException('卡项不属于该客户');
       }
@@ -362,19 +439,24 @@ export class CardsService {
       const projectTotalTimes = Number((matchedProject as any).timesPerCard ?? (matchedProject as any).totalCount ?? customerCard.totalTimes ?? 0);
       const usedProjectTimes = await tx.cardUsageRecord.aggregate({
         where: {
-          customerId: customerCard.customerId,
-          cardName: customerCard.cardName,
+          customerCardId: customerCard.id,
           projectName: matchedProjectName,
-          verifiedAt: {
-            gte: customerCard.createdAt,
-            lte: customerCard.expiryDate,
-          },
         },
         _sum: { times: true },
       });
       const projectRemainingTimes = Math.max(projectTotalTimes - Number(usedProjectTimes._sum.times ?? 0), 0);
       if (projectRemainingTimes < times) {
         throw new BadRequestException('该项目剩余次数不足');
+      }
+
+      const beautician = data.beauticianId
+        ? await tx.beautician.findFirst({
+            where: { id: data.beauticianId, storeId: customerCard.customer.storeId, status: 'active' },
+            select: { id: true, levelId: true, userId: true },
+          })
+        : null;
+      if (data.beauticianId && !beautician) {
+        throw new BadRequestException('服务人员不属于当前门店或未启用');
       }
 
       const updatedCard = await tx.customerCard.update({
@@ -410,6 +492,7 @@ export class CardsService {
 
       const record = await tx.cardUsageRecord.create({
         data: {
+          idempotencyKey,
           customerCardId: customerCard.id,
           cardId,
           projectId: resolvedProjectId,
@@ -426,8 +509,10 @@ export class CardsService {
           sourceOrderItemId: customerCard.sourceOrderItemId,
           pricingSnapshot,
           operatorId: data.operatorId,
-          beauticianId: data.beauticianId,
+          beauticianId: beautician?.id,
           deviceId: data.deviceId,
+          reservationId: data.reservationId,
+          serviceTaskId: data.serviceTaskId,
         },
       });
 
@@ -441,11 +526,7 @@ export class CardsService {
         remark: data.remark,
       });
 
-      if (data.beauticianId && recognizedAmount > 0) {
-        const beautician = await tx.beautician.findFirst({
-          where: { id: data.beauticianId, storeId: customerCard.customer.storeId, status: 'active' },
-          select: { id: true, levelId: true, userId: true },
-        });
+      if (beautician && recognizedAmount > 0) {
         if (beautician?.userId) {
           await this.commissionService.calculateCommission(
             {

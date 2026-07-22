@@ -1,0 +1,294 @@
+
+> ami-core-api@1.0.0 brain:migration:preflight
+> cross-env TS_NODE_PROJECT=tsconfig.agent-eval-scripts.json TS_NODE_TRANSPILE_ONLY=true node --loader ts-node/esm --experimental-specifier-resolution=node prisma/ami-brain-pending-migration-preflight.ts
+
+(node:15664) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+--import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("ts-node/esm", pathToFileURL("./"));'
+(Use `node --trace-warnings ...` to show where the warning was created)
+◇ injected env (50) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+(node:15664) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+{
+  "status": "ready",
+  "databaseWritePerformed": false,
+  "generatedAt": "2026-07-18T05:58:25.825Z",
+  "migrations": [
+    {
+      "migrationName": "20260717130000_store_manager_supply_manage_permission",
+      "status": "ready",
+      "directApplyAllowed": true,
+      "summary": "有效的 store_manager 已满足授予已注册供应链管理权限的条件。",
+      "checks": [
+        {
+          "key": "migration_history",
+          "status": "pass",
+          "message": "该迁移仍待应用，未发现失败或回滚记录。",
+          "evidence": {
+            "status": "pending"
+          }
+        },
+        {
+          "key": "role_schema",
+          "status": "pass",
+          "message": "Role 表及迁移所需字段齐全。",
+          "evidence": {
+            "tableExists": true,
+            "missingColumns": []
+          }
+        },
+        {
+          "key": "store_manager_role",
+          "status": "pass",
+          "message": "有效的 store_manager 角色存在。",
+          "evidence": {
+            "exists": true,
+            "status": "active"
+          }
+        },
+        {
+          "key": "permission_effect",
+          "status": "pass",
+          "message": "store_manager 尚未获得 core:supply:manage。",
+          "evidence": {
+            "hasPermission": false
+          }
+        }
+      ],
+      "risks": [
+        "执行后会扩大 store_manager 对受治理供应链操作的授权范围。"
+      ],
+      "rollbackBoundary": "回滚必须通过受治理的角色管理从 store_manager 移除 core:supply:manage。"
+    },
+    {
+      "migrationName": "20260717220000_customer_service_feedback_core",
+      "status": "ready",
+      "directApplyAllowed": true,
+      "summary": "依赖表齐全，未发现客户反馈 schema 冲突。",
+      "checks": [
+        {
+          "key": "migration_history",
+          "status": "pass",
+          "message": "该迁移仍待应用，未发现失败或回滚记录。",
+          "evidence": {
+            "status": "pending"
+          }
+        },
+        {
+          "key": "foreign_key_dependencies",
+          "status": "pass",
+          "message": "Store 与 Customer 依赖表齐全。",
+          "evidence": {
+            "Store": true,
+            "Customer": true,
+            "Reservation": true
+          }
+        },
+        {
+          "key": "target_table",
+          "status": "pass",
+          "message": "customer_service_feedback 尚不存在，不会发生 CREATE TABLE 冲突。",
+          "evidence": {
+            "tableExists": false
+          }
+        },
+        {
+          "key": "target_schema_contract",
+          "status": "pass",
+          "message": "待迁移项将创建完整 schema 合同。",
+          "evidence": {
+            "missingColumns": [
+              "id",
+              "storeId",
+              "customerId",
+              "serviceTaskId",
+              "reservationId",
+              "orderId",
+              "beauticianId",
+              "projectId",
+              "feedbackType",
+              "rating",
+              "category",
+              "severity",
+              "content",
+              "sourceChannel",
+              "status",
+              "assignedUserId",
+              "handledByUserId",
+              "resolutionNote",
+              "occurredAt",
+              "handledAt",
+              "resolvedAt",
+              "createdBy",
+              "createdAt",
+              "updatedAt"
+            ],
+            "missingConstraints": [
+              "customer_service_feedback_pkey",
+              "customer_service_feedback_rating_check",
+              "customer_service_feedback_type_check",
+              "customer_service_feedback_severity_check",
+              "customer_service_feedback_status_check",
+              "customer_service_feedback_storeId_fkey",
+              "customer_service_feedback_customerId_fkey"
+            ],
+            "missingIndexes": [
+              "customer_service_feedback_storeId_occurredAt_idx",
+              "customer_service_feedback_storeId_feedbackType_status_idx",
+              "customer_service_feedback_storeId_rating_idx",
+              "customer_service_feedback_customerId_occurredAt_idx",
+              "customer_service_feedback_beauticianId_occurredAt_idx",
+              "customer_service_feedback_serviceTaskId_idx",
+              "customer_service_feedback_reservationId_idx",
+              "customer_service_feedback_orderId_idx"
+            ]
+          }
+        }
+      ],
+      "risks": [
+        "迁移将创建一张业务事实表和 8 个索引，应在受控发布窗口执行。"
+      ],
+      "rollbackBoundary": "生产数据采集前可删除新表回滚；产生业务数据后必须先备份并走受审查迁移。"
+    },
+    {
+      "migrationName": "20260717233000_customer_waiting_episode_core",
+      "status": "ready",
+      "directApplyAllowed": true,
+      "summary": "依赖表齐全，未发现等待事实 schema 冲突。",
+      "checks": [
+        {
+          "key": "migration_history",
+          "status": "pass",
+          "message": "该迁移仍待应用，未发现失败或回滚记录。",
+          "evidence": {
+            "status": "pending"
+          }
+        },
+        {
+          "key": "waiting_dependencies",
+          "status": "pass",
+          "message": "Store、Customer 与 Reservation 依赖表齐全。",
+          "evidence": {
+            "Store": true,
+            "Customer": true,
+            "Reservation": true
+          }
+        },
+        {
+          "key": "waiting_target_table",
+          "status": "pass",
+          "message": "customer_waiting_episode 尚不存在，不会发生 CREATE TABLE 冲突。",
+          "evidence": {
+            "tableExists": false
+          }
+        },
+        {
+          "key": "waiting_schema_contract",
+          "status": "pass",
+          "message": "待迁移项将创建完整等待事实 schema 合同。",
+          "evidence": {
+            "missingColumns": [
+              "id",
+              "storeId",
+              "customerId",
+              "reservationId",
+              "status",
+              "outcome",
+              "leaveReasonCode",
+              "leaveReasonNote",
+              "expectedWaitMinutes",
+              "actualWaitMinutes",
+              "startedAt",
+              "endedAt",
+              "sourceChannel",
+              "recordedByUserId",
+              "createdAt",
+              "updatedAt"
+            ],
+            "missingConstraints": [
+              "customer_waiting_episode_pkey",
+              "customer_waiting_episode_status_check",
+              "customer_waiting_episode_outcome_check",
+              "customer_waiting_episode_reason_check",
+              "customer_waiting_episode_expected_minutes_check",
+              "customer_waiting_episode_actual_minutes_check",
+              "customer_waiting_episode_end_check",
+              "customer_waiting_episode_storeId_fkey",
+              "customer_waiting_episode_customerId_fkey",
+              "customer_waiting_episode_reservationId_fkey"
+            ],
+            "missingIndexes": [
+              "customer_waiting_episode_active_reservation_key",
+              "customer_waiting_episode_storeId_startedAt_idx",
+              "customer_waiting_episode_storeId_status_startedAt_idx",
+              "customer_waiting_episode_storeId_outcome_leaveReasonCode_startedAt_idx",
+              "customer_waiting_episode_reservationId_status_idx",
+              "customer_waiting_episode_customerId_startedAt_idx"
+            ]
+          }
+        }
+      ],
+      "risks": [
+        "迁移将创建客户等待业务事实、原因约束和预约级活动等待唯一索引。"
+      ],
+      "rollbackBoundary": "产生真实等待数据前可删表回滚；产生业务数据后必须先备份并走受审查迁移。"
+    },
+    {
+      "migrationName": "20260718153000_beautician_brain_self_permissions",
+      "status": "ready",
+      "directApplyAllowed": true,
+      "summary": "有效的 beautician 角色已满足授予本人范围 Ami Brain 权限的条件。",
+      "checks": [
+        {
+          "key": "migration_history",
+          "status": "pass",
+          "message": "该迁移仍待应用，未发现失败或回滚记录。",
+          "evidence": {
+            "status": "pending"
+          }
+        },
+        {
+          "key": "role_schema",
+          "status": "pass",
+          "message": "Role 表及迁移所需字段齐全。",
+          "evidence": {
+            "tableExists": true,
+            "missingColumns": []
+          }
+        },
+        {
+          "key": "beautician_role",
+          "status": "pass",
+          "message": "有效的 beautician 角色存在。",
+          "evidence": {
+            "exists": true,
+            "status": "active"
+          }
+        },
+        {
+          "key": "permission_effect",
+          "status": "pass",
+          "message": "beautician 仍缺少 core:brain:use、core:brain:beautician-view。",
+          "evidence": {
+            "missingPermissions": [
+              "core:brain:use",
+              "core:brain:beautician-view"
+            ]
+          }
+        }
+      ],
+      "risks": [
+        "执行后美容师可访问 Ami Brain，但能力执行仍受当前门店、登录账号绑定美容师身份和能力声明共同限制。"
+      ],
+      "rollbackBoundary": "回滚必须通过受治理的角色管理移除 core:brain:use、core:brain:beautician-view、core:store:reservations。"
+    }
+  ],
+  "approval": {
+    "decisionRequired": true,
+    "allowedDecisions": [
+      "approve",
+      "modify",
+      "reject"
+    ],
+    "summary": "4 条待迁移项通过只读预检，可以进入执行审批。"
+  }
+}

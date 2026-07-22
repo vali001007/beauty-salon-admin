@@ -1,0 +1,17 @@
+{
+  "cases": [
+    {
+      "id": "marketing-strategy-execution-preview",
+      "intent": "action",
+      "input": "执行自动触达策略 AMI-DEMO-FULL 沉睡客户唤醒策略",
+      "expected": {
+        "capabilityKeys": [
+          "marketing_strategy_execute_preview"
+        ],
+        "answerShape": "action_preview",
+        "requiresConfirmation": true,
+        "brainStatus": "completed"
+      }
+    }
+  ]
+}

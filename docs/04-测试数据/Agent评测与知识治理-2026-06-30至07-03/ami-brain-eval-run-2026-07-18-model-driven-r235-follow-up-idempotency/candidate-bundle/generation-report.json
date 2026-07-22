@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-18T11:23:26.237Z",
+  "policy": "synthetic_contract_only",
+  "productionReady": false,
+  "ready": 0,
+  "syntheticContracts": 2,
+  "blocked": 0,
+  "gateReports": [
+    {
+      "capabilityKey": "customer_follow_up_draft",
+      "proposalFingerprint": "652b76119e450d704b66e8b85cf15944853440a77d9f3b6d35cd4d70e255088a",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    },
+    {
+      "capabilityKey": "marketing_touch_draft",
+      "proposalFingerprint": "886753512e3d49f7471484bcc703f1f9e611dbee9050eddb988197fed89b2729",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    }
+  ],
+  "blockedItems": [],
+  "branchProposals": []
+}

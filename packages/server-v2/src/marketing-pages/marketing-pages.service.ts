@@ -1,7 +1,12 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { formatBusinessDate } from '../common/utils/business-time.js';
+import { MarketingEffectFactService } from '../marketing/attribution/marketing-effect-fact.service.js';
+import {
+  isMarketingFeatureEnabledForStore,
+  MarketingFeatureFlagsService,
+} from '../marketing/marketing-feature-flags.service.js';
 
 type PageQuery = {
   page?: number;
@@ -139,7 +144,11 @@ type PageEffectSummary = {
 
 @Injectable()
 export class MarketingPagesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly factService?: MarketingEffectFactService,
+    @Optional() private readonly featureFlags?: MarketingFeatureFlagsService,
+  ) {}
 
   private get pageDelegate() {
     return (this.prisma as any).marketingPage;
@@ -159,6 +168,14 @@ export class MarketingPagesService {
 
   private get attributionDelegate() {
     return (this.prisma as any).marketingPageAttribution ?? { findMany: async () => [] };
+  }
+
+  private assertStoreId(storeId?: number) {
+    const parsed = Number(storeId);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      throw new BadRequestException('X-Store-Id is required');
+    }
+    return parsed;
   }
 
   private getShareBaseUrl() {
@@ -300,7 +317,10 @@ export class MarketingPagesService {
   }
 
   private createSlug(sourceType: string, sourceId?: string | number) {
-    const source = String(sourceType || 'page').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const source = String(sourceType || 'page')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
     const idPart = this.normalizeSourceId(sourceId) ?? Date.now().toString(36);
     const suffix = randomBytes(4).toString('hex');
     return `mp-${source || 'page'}-${String(idPart).replace(/[^a-zA-Z0-9_-]+/g, '-')}-${suffix}`;
@@ -452,8 +472,9 @@ export class MarketingPagesService {
     return { items: enrichedItems, data: enrichedItems, total, page, pageSize };
   }
 
-  async getPage(id: number) {
-    const page = await this.pageDelegate.findUnique({ where: { id } });
+  async getPage(id: number, storeId: number) {
+    const scopedStoreId = this.assertStoreId(storeId);
+    const page = await this.pageDelegate.findFirst({ where: { id, storeId: scopedStoreId } });
     if (!page) throw new NotFoundException('营销页面不存在');
     return this.withNormalizedShareUrl(page);
   }
@@ -462,12 +483,20 @@ export class MarketingPagesService {
     if (!dto.title?.trim()) throw new BadRequestException('页面标题不能为空');
     if (!dto.sourceType?.trim()) throw new BadRequestException('来源类型不能为空');
     if (!dto.pageSchema) throw new BadRequestException('页面 Schema 不能为空');
+    const storeId = this.assertStoreId(dto.storeId);
+    if (dto.activityId) {
+      const activity = await this.prisma.marketingActivity.findFirst({
+        where: { id: Number(dto.activityId), storeId },
+        select: { id: true },
+      });
+      if (!activity) throw new BadRequestException('营销活动不存在或不属于当前门店');
+    }
     const slug = dto.slug || this.createSlug(dto.sourceType, dto.sourceId);
     const shareUrl = this.buildShareUrl(slug);
 
     return this.pageDelegate.create({
       data: {
-        ...this.normalizePageData(dto),
+        ...this.normalizePageData({ ...dto, storeId }),
         slug,
         status: 'draft',
         shareUrl,
@@ -477,16 +506,25 @@ export class MarketingPagesService {
     });
   }
 
-  async updatePage(id: number, dto: Partial<MarketingPageDto>) {
-    await this.getPage(id);
+  async updatePage(id: number, dto: Partial<MarketingPageDto>, storeId: number) {
+    const scopedStoreId = this.assertStoreId(storeId);
+    await this.getPage(id, scopedStoreId);
+    const { storeId: _clientStoreId, ...scopedDto } = dto;
+    if (scopedDto.activityId) {
+      const activity = await this.prisma.marketingActivity.findFirst({
+        where: { id: Number(scopedDto.activityId), storeId: scopedStoreId },
+        select: { id: true },
+      });
+      if (!activity) throw new BadRequestException('营销活动不存在或不属于当前门店');
+    }
     return this.pageDelegate.update({
       where: { id },
-      data: this.normalizePageData(dto),
+      data: this.normalizePageData(scopedDto),
     });
   }
 
-  async publishPage(id: number, userId?: number) {
-    const page = await this.getPage(id);
+  async publishPage(id: number, storeId: number, userId?: number) {
+    const page = await this.getPage(id, storeId);
     const latest = await this.versionDelegate.findFirst({
       where: { pageId: id },
       orderBy: { version: 'desc' },
@@ -516,16 +554,16 @@ export class MarketingPagesService {
     });
   }
 
-  async offlinePage(id: number) {
-    await this.getPage(id);
+  async offlinePage(id: number, storeId: number) {
+    await this.getPage(id, storeId);
     return this.pageDelegate.update({
       where: { id },
       data: { status: 'offline', offlineAt: new Date() },
     });
   }
 
-  async duplicatePage(id: number, userId?: number) {
-    const page = await this.getPage(id);
+  async duplicatePage(id: number, storeId: number, userId?: number) {
+    const page = await this.getPage(id, storeId);
     const slug = this.createSlug(page.sourceType, page.sourceId);
     return this.pageDelegate.create({
       data: {
@@ -579,7 +617,7 @@ export class MarketingPagesService {
     const page = await this.getPublishedPageRecord(slug);
     const eventType = dto.eventType || 'view';
     if (!EVENT_TYPES.has(eventType)) throw new BadRequestException('不支持的事件类型');
-    await this.eventDelegate.create({
+    const event = await this.eventDelegate.create({
       data: {
         pageId: page.id,
         storeId: page.storeId,
@@ -599,10 +637,16 @@ export class MarketingPagesService {
         occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : new Date(),
       },
     });
+    await this.recordPageEventFact(page, event);
     return { ok: true };
   }
 
-  private async assertLeadNotDuplicated(pageId: number, phone: string, dto: PublicLeadDto, requestMeta: RequestMeta = {}) {
+  private async assertLeadNotDuplicated(
+    pageId: number,
+    phone: string,
+    dto: PublicLeadDto,
+    requestMeta: RequestMeta = {},
+  ) {
     const since = new Date(Date.now() - 10 * 60 * 1000);
     const duplicateFilters: any[] = [{ phone }];
     if (dto.sessionId) {
@@ -651,8 +695,9 @@ export class MarketingPagesService {
       throw new BadRequestException('手机号格式不正确');
     }
     const ipHash = await this.assertLeadNotDuplicated(page.id, phone, dto, requestMeta);
-    const matchedCustomerId =
-      dto.customerId ? Number(dto.customerId) : await this.matchCustomerIdByPhone(phone, page.storeId);
+    const matchedCustomerId = dto.customerId
+      ? Number(dto.customerId)
+      : await this.matchCustomerIdByPhone(phone, page.storeId);
     const attributionMetadata = {
       ...(dto.openId ? { openId: dto.openId } : {}),
       ...(dto.referrer ? { referrer: dto.referrer } : {}),
@@ -680,7 +725,7 @@ export class MarketingPagesService {
         },
       },
     });
-    await this.eventDelegate.create({
+    const event = await this.eventDelegate.create({
       data: {
         pageId: page.id,
         storeId: page.storeId,
@@ -699,15 +744,98 @@ export class MarketingPagesService {
         metadataJson: { leadId: lead.id, intentType: lead.intentType },
       },
     });
+    await this.recordPageLeadFacts(page, lead, event);
     return { ok: true, intentType: lead.intentType };
+  }
+
+  private async recordPageEventFact(page: any, event: any) {
+    if (
+      !page.storeId ||
+      !isMarketingFeatureEnabledForStore(this.featureFlags, 'effectFactWrite', Number(page.storeId)) ||
+      !this.factService ||
+      !event?.id
+    )
+      return;
+    const factType = event.eventType === 'view' ? 'exposure' : event.eventType === 'click_cta' ? 'click' : null;
+    if (!factType) return;
+    try {
+      await this.factService.recordFact({
+        storeId: Number(page.storeId),
+        factType,
+        metricSource: 'actual',
+        sourceSystem: 'marketing_page_event',
+        sourceEventId: `event:${event.id}`,
+        countValue: 1,
+        dimensions: this.pageFactDimensions(page, event.customerId, event.channel),
+        occurredAt: event.occurredAt ?? new Date(),
+      });
+    } catch {
+      // Effect facts are dual-write data and cannot break the public page interaction.
+    }
+  }
+
+  private async recordPageLeadFacts(page: any, lead: any, event: any) {
+    if (
+      !page.storeId ||
+      !isMarketingFeatureEnabledForStore(this.featureFlags, 'effectFactWrite', Number(page.storeId)) ||
+      !this.factService ||
+      !lead?.id
+    )
+      return;
+    const dimensions = this.pageFactDimensions(page, lead.customerId, lead.channel);
+    try {
+      await this.factService.recordFact({
+        storeId: Number(page.storeId),
+        factType: 'lead',
+        metricSource: 'actual',
+        sourceSystem: 'marketing_page_lead',
+        sourceEventId: `lead:${lead.id}`,
+        countValue: 1,
+        dimensions,
+        occurredAt: lead.createdAt ?? event?.occurredAt ?? new Date(),
+      });
+      if (lead.intentType === 'book') {
+        await this.factService.recordFact({
+          storeId: Number(page.storeId),
+          factType: 'conversion',
+          metricSource: 'actual',
+          sourceSystem: 'marketing_page_lead',
+          sourceEventId: `lead:${lead.id}`,
+          countValue: 1,
+          dimensions,
+          occurredAt: lead.createdAt ?? event?.occurredAt ?? new Date(),
+        });
+      }
+    } catch {
+      // Effect facts are dual-write data and cannot break lead submission.
+    }
+  }
+
+  private pageFactDimensions(page: any, customerId?: number | null, channel?: string | null) {
+    return {
+      recommendationInstanceId: page.recommendationInstanceId ?? null,
+      adoptionId: page.adoptionId ?? null,
+      activityId: page.activityId ?? null,
+      pageId: page.id,
+      promotionId: this.pagePromotionId(page.snapshotJson),
+      customerId: customerId ?? null,
+      channel: channel ?? 'marketing_page',
+    };
+  }
+
+  private pagePromotionId(snapshot: unknown) {
+    if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return null;
+    const value = snapshot as Record<string, any>;
+    const id = Number(value.primaryPromotionId ?? value.offer?.promotionId ?? value.selectedPromotion?.promotionId);
+    return Number.isInteger(id) && id > 0 ? id : null;
   }
 
   submitBooking(slug: string, dto: PublicLeadDto, requestMeta: RequestMeta = {}) {
     return this.submitLead(slug, { ...dto, intentType: 'book' }, requestMeta);
   }
 
-  async getPageEffects(id: number) {
-    await this.getPage(id);
+  async getPageEffects(id: number, storeId: number) {
+    await this.getPage(id, storeId);
     const [events, leads, attributions] = await Promise.all([
       this.eventDelegate.findMany({ where: { pageId: id }, orderBy: { occurredAt: 'asc' } }),
       this.leadDelegate.findMany({ where: { pageId: id }, orderBy: { createdAt: 'desc' } }),
@@ -715,17 +843,29 @@ export class MarketingPagesService {
     ]);
     const uniqueSessions = new Set(events.map((event: any) => event.sessionId || `event-${event.id}`));
     const byType = (type: string) => events.filter((event: any) => event.eventType === type).length;
-    const channelMap = new Map<string, { channel: string; pv: number; uvSessions: Set<string>; leadCount: number; bookingCount: number }>();
+    const channelMap = new Map<
+      string,
+      { channel: string; pv: number; uvSessions: Set<string>; leadCount: number; bookingCount: number }
+    >();
     for (const event of events) {
       const channel = event.channel || 'direct';
-      const stats = channelMap.get(channel) ?? { channel, pv: 0, uvSessions: new Set<string>(), leadCount: 0, bookingCount: 0 };
+      const stats = channelMap.get(channel) ?? {
+        channel,
+        pv: 0,
+        uvSessions: new Set<string>(),
+        leadCount: 0,
+        bookingCount: 0,
+      };
       if (event.eventType === 'view') stats.pv += 1;
       stats.uvSessions.add(event.sessionId || `event-${event.id}`);
       if (event.eventType === 'lead_submit') stats.leadCount += 1;
       if (event.eventType === 'book') stats.bookingCount += 1;
       channelMap.set(channel, stats);
     }
-    const dailyMap = new Map<string, { date: string; pv: number; uvSessions: Set<string>; leadCount: number; bookingCount: number }>();
+    const dailyMap = new Map<
+      string,
+      { date: string; pv: number; uvSessions: Set<string>; leadCount: number; bookingCount: number }
+    >();
     for (const event of events) {
       const date = formatBusinessDate(event.occurredAt);
       const stats = dailyMap.get(date) ?? { date, pv: 0, uvSessions: new Set<string>(), leadCount: 0, bookingCount: 0 };
@@ -739,7 +879,10 @@ export class MarketingPagesService {
     const pv = byType('view');
     const leadCount = leads.length;
     const bookingLeadCount = leads.filter((lead: any) => lead.intentType === 'book').length;
-    const attributedRevenue = attributions.reduce((sum: number, item: any) => sum + Number(item.attributedRevenue || 0), 0);
+    const attributedRevenue = attributions.reduce(
+      (sum: number, item: any) => sum + Number(item.attributedRevenue || 0),
+      0,
+    );
     return {
       pageId: id,
       pv,
@@ -768,27 +911,24 @@ export class MarketingPagesService {
     };
   }
 
-  async getPageEvents(id: number) {
-    await this.getPage(id);
+  async getPageEvents(id: number, storeId: number) {
+    await this.getPage(id, storeId);
     return this.eventDelegate.findMany({ where: { pageId: id }, orderBy: { occurredAt: 'desc' }, take: 200 });
   }
 
-  async getPageLeads(id: number) {
-    await this.getPage(id);
+  async getPageLeads(id: number, storeId: number) {
+    await this.getPage(id, storeId);
     return this.leadDelegate.findMany({ where: { pageId: id }, orderBy: { createdAt: 'desc' }, take: 200 });
   }
 
-  async getPageAttribution(pageId: number) {
-    await this.getPage(pageId);
+  async getPageAttribution(pageId: number, storeId: number) {
+    await this.getPage(pageId, storeId);
     const attributions = await this.attributionDelegate.findMany({
       where: { pageId },
       orderBy: { convertedAt: 'desc' },
       take: 100,
     });
-    const totalRevenue = attributions.reduce(
-      (sum: number, item: any) => sum + Number(item.attributedRevenue || 0),
-      0,
-    );
+    const totalRevenue = attributions.reduce((sum: number, item: any) => sum + Number(item.attributedRevenue || 0), 0);
 
     return {
       pageId,
@@ -809,11 +949,8 @@ export class MarketingPagesService {
     };
   }
 
-  async getAttributionSummary(storeId?: number, startDate?: string, endDate?: string) {
-    const where: any = {};
-    if (storeId) {
-      where.page = { storeId };
-    }
+  async getAttributionSummary(storeId: number, startDate?: string, endDate?: string) {
+    const where: any = { page: { storeId: this.assertStoreId(storeId) } };
     if (startDate || endDate) {
       where.convertedAt = {};
       if (startDate) where.convertedAt.gte = new Date(startDate);

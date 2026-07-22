@@ -1,0 +1,312 @@
+{
+  "generatedAt": "2026-07-18T18:00:50.677Z",
+  "status": "ready",
+  "databaseWritePerformed": false,
+  "targetLabel": "shared-development-post-migration",
+  "target": {
+    "protocol": "postgresql",
+    "host": "aws-1-ap-northeast-1.pooler.supabase.com",
+    "port": "5432",
+    "database": "postgres",
+    "schema": "public",
+    "version": "PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 15.2.0, 64-bit"
+  },
+  "inventory": {
+    "count": 105,
+    "first": "20260530030751_init",
+    "latest": "20260718234500_supply_platform_idempotency",
+    "rawChainHash": "c51678f6c6aff16e8b41185fe82f0c0aa5989f4956dda627907135b5f10e41f2",
+    "canonicalLfChainHash": "79af533298126ef1c87bd48e5382910c532fed2306793289614506acd8c873b5"
+  },
+  "history": {
+    "migrationTableExists": true,
+    "appliedCount": 105,
+    "pending": [],
+    "checksumMismatches": [],
+    "checksumMismatchDetails": [],
+    "lineEndingVariants": [
+      {
+        "migration": "20260530030751_init",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260531093000_prediction_snapshots",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260601093000_activity_page_schema",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260601120000_data_governance_closure",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260601153000_customer_balance_ledger",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260601170000_product_project_images",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260602143000_product_sales_fields",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260607023000_marketing_pages",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260607093000_ai_audit_safety_blocked",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260607113000_marketing_page_attribution",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260607150000_add_product_order_source",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260607163000_terminal_device_peripherals",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260608090000_add_commission_tables",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260608110000_smart_scheduling_models",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260608130000_cashier_shift_daily_settlement",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260608150000_ami_performance_models",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260608170000_supply_chain_suppliers",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260608183000_schedule_smart_run_trace",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260608190000_supplier_settlements",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260608203000_terminal_conversations",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260608213000_add_store_shift_required",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260608220000_ami_glow_customer_app",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260609120000_marketing_rule_templates",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260610193000_terminal_conversation_operator_scope",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260615100000_beautician_user_binding",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260615113000_terminal_follow_up_tasks",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260615143000_promotion_asset_library",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260616093000_marketing_activity_promotion_link",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260616133000_marketing_recommendation_snapshot",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260616170000_agent_runtime",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260619093000_operation_profit",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260619110000_commission_rule_user",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260619113000_commission_staff_user",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260619124500_customer_card_operator",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260619131500_operation_profit_query_indexes",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260620143000_card_usage_operator",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260621020000_order_discount_allocation",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260621033000_industry_data_platform",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260621043000_supply_platform_mvp",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260621052000_supply_supplier_user_scope",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260622235916_split_mixed_checkout_orders",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260623001000_fix_non_sale_order_amounts_after_split",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260623013000_backfill_card_recharge_order_amounts",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260623014000_backfill_non_sale_order_kind",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260623023000_card_usage_profit_sources",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260623024500_backfill_card_usage_profit_sources",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260623162000_card_sale_options_scope",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260625000000_add_agent_persona_rendered_block_feedback",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260626093000_commission_rule_assignments",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260626123000_agent_memory_archive",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260626160000_agent_automation_engine",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260628093000_commission_settlement_records",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260629102000_product_sku_store_scope",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260629153000_one_click_smart_scheduling",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260630110000_gap_opportunity_v15",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260630143000_project_care_cycle_course",
+        "recordedAs": "lf"
+      },
+      {
+        "migration": "20260710190000_ami_brain_independent_namespace",
+        "recordedAs": "lf"
+      }
+    ],
+    "failedOrRolledBack": [],
+    "unexpected": [],
+    "duplicateHistory": [
+      {
+        "migration": "20260602195000_marketing_recommendation_card_upgrade",
+        "records": 2
+      },
+      {
+        "migration": "20260708090000_customer_lifecycle_ontology_p0",
+        "records": 2
+      }
+    ],
+    "approvedChecksumExceptions": [
+      {
+        "migration": "20260602195000_marketing_recommendation_card_upgrade",
+        "recordedChecksum": "48dc375828409eed4b2c4dc169e72d4b8eed64de4f0b8cce1caa3e2450b50ee8",
+        "approvedAt": "2026-07-19",
+        "approvalScope": "cloud database migration publication",
+        "reason": "The recorded SQL sources are not present in branches, tags, reflogs or sibling checkouts. Their required structures were verified in the target database. Preserve the database history and allow only these exact recorded checksums."
+      },
+      {
+        "migration": "20260619121500_member_card_operator",
+        "recordedChecksum": "fd2e73c49118fae56c9e75314b90e742cd04e351737f272ed2c4a4c3e222fb41",
+        "approvedAt": "2026-07-19",
+        "approvalScope": "cloud database migration publication",
+        "reason": "The recorded SQL sources are not present in branches, tags, reflogs or sibling checkouts. Their required structures were verified in the target database. Preserve the database history and allow only these exact recorded checksums."
+      },
+      {
+        "migration": "20260620152000_project_display_fields",
+        "recordedChecksum": "c1d3b1f99b89bf7b8acf2fefe7ca675beabf914458ecb4ec2fba0e47593eb7fb",
+        "approvedAt": "2026-07-19",
+        "approvalScope": "cloud database migration publication",
+        "reason": "The recorded SQL sources are not present in branches, tags, reflogs or sibling checkouts. Their required structures were verified in the target database. Preserve the database history and allow only these exact recorded checksums."
+      },
+      {
+        "migration": "20260707120000_agent_v3_text_to_sql",
+        "recordedChecksum": "6261d23ef88536654558115d93c17c02ed54d2aaab723f337c000bbc9ed94264",
+        "approvedAt": "2026-07-19",
+        "approvalScope": "cloud database migration publication",
+        "reason": "The recorded SQL sources are not present in branches, tags, reflogs or sibling checkouts. Their required structures were verified in the target database. Preserve the database history and allow only these exact recorded checksums."
+      }
+    ],
+    "checksumExceptionManifest": {
+      "version": 1,
+      "targetMatched": true,
+      "path": "prisma/migration-checksum-exceptions.json"
+    }
+  },
+  "structure": {
+    "agentV3SemanticViewCount": 40,
+    "missingTables": [],
+    "missingColumns": [],
+    "missingIndexes": []
+  },
+  "blockers": []
+}

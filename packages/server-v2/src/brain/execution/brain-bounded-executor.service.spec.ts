@@ -1,0 +1,203 @@
+import { ForbiddenException } from '@nestjs/common';
+import { BrainCapabilityArgsValidatorService } from '../capability/brain-capability-args-validator.service.js';
+import type { BrainCapabilityCard } from '../capability/brain-capability.types.js';
+import { BrainExecutionPlanValidatorService } from '../planning/brain-execution-plan-validator.service.js';
+import type { BrainExecutionPlan } from '../planning/brain-execution-plan.schema.js';
+import { BrainBoundedExecutorService } from './brain-bounded-executor.service.js';
+import { BrainCompletionVerifierService } from './brain-completion-verifier.service.js';
+import { BrainExecutionBudgetService } from './brain-execution-budget.service.js';
+import { BrainObservationService } from './brain-observation.service.js';
+
+const context = { userId: 9, storeId: 6, visibleStoreIds: [6], roles: ['store_manager'], permissions: ['core:test'], deniedPermissions: [], requestId: 'r1', timezone: 'Asia/Shanghai' };
+const intent = { schemaVersion: '1.0', objective: 'workflow', domains: ['test'], intent: 'workflow', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'diagnosis', successCriteria: [], ambiguities: [], missingSlots: [], assumptions: [], confidence: 0.9, decisionSummary: 'workflow' } as any;
+
+describe('BrainBoundedExecutorService', () => {
+  it('runs independent read-only nodes in parallel and maps only structured observation data', async () => {
+    let active = 0;
+    let maxActive = 0;
+    const execute = jest.fn(async ({ card, args }: any) => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      active -= 1;
+      if (card.key === 'customers') {
+        return answer({ metadata: { mappingOutputs: { customerIds: ['customer:1'] } } });
+      }
+      if (card.key === 'draft') {
+        expect(args.entities).toEqual(['customer:1']);
+      }
+      return answer();
+    });
+    const cards = [card('customers'), card('schedule'), card('draft', { inputSchema: { type: 'object', additionalProperties: false, properties: { entities: { type: 'array' } } } })];
+    const plan: BrainExecutionPlan = {
+      schemaVersion: '1.0', planId: 'parallel', objective: 'workflow', replanCount: 0, budgetMs: 10_000,
+      nodes: [
+        node('customers', cards[0]),
+        node('schedule', cards[1]),
+        { ...node('draft', cards[2], ['customers', 'schedule']), inputMappings: [{ fromNodeId: 'customers', sourcePath: '$.data.customerIds', targetPath: '$.entities' }] },
+      ],
+    };
+    const result = await executor(execute).execute({ plan, topK: ranked(cards), context: context as any, runId: 1, question: 'workflow', intent });
+
+    expect(maxActive).toBe(2);
+    expect(result.status).toBe('completed');
+    expect(execute).toHaveBeenCalledTimes(3);
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({ answerShape: 'diagnosis' }));
+  });
+
+  it('stops on rejected observations without asking the replanner', async () => {
+    const replanner = { replan: jest.fn() };
+    const service = executor(jest.fn().mockRejectedValue(new ForbiddenException('permission_denied')), replanner);
+    const capability = card('facts');
+    const result = await service.execute({ plan: singlePlan(capability), topK: ranked([capability]), context: context as any, runId: 1, question: 'facts', intent });
+
+    expect(result.status).toBe('rejected');
+    expect(replanner.replan).not.toHaveBeenCalled();
+  });
+
+  it('allows one bounded replan for a failed node and then completes', async () => {
+    const capability = card('facts');
+    const firstPlan = singlePlan(capability);
+    const secondPlan = { ...firstPlan, planId: 'p2', replanCount: 1 };
+    const execute = jest.fn().mockRejectedValueOnce(new Error('temporary_failure')).mockResolvedValueOnce(answer());
+    const replanner = { replan: jest.fn().mockResolvedValue({ status: 'planned', plan: secondPlan }) };
+    const result = await executor(execute, replanner).execute({ plan: firstPlan, topK: ranked([capability]), context: context as any, runId: 1, question: 'facts', intent });
+
+    expect(result.status).toBe('completed');
+    expect(result.replanCount).toBe(1);
+    expect(replanner.replan).toHaveBeenCalledTimes(1);
+    expect(replanner.replan).toHaveBeenCalledWith(expect.objectContaining({ deadlineAt: expect.any(Number) }));
+  });
+
+  it('replans a missing declared mapping value instead of rejecting the workflow', async () => {
+    const source = card('source');
+    const target = card('target', {
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: { entities: { type: 'array' } },
+      },
+    });
+    const firstPlan: BrainExecutionPlan = {
+      schemaVersion: '1.0', planId: 'mapping-missing', objective: 'workflow', replanCount: 0, budgetMs: 10_000,
+      nodes: [
+        node('source', source),
+        {
+          ...node('target', target, ['source']),
+          inputMappings: [{ fromNodeId: 'source', sourcePath: '$.data.customerIds', targetPath: '$.entities' }],
+        },
+      ],
+    };
+    const repairedPlan: BrainExecutionPlan = {
+      ...firstPlan,
+      planId: 'mapping-repaired',
+      replanCount: 1,
+      nodes: [node('source', source), node('target', target, ['source'])],
+    };
+    const execute = jest.fn().mockResolvedValue(answer());
+    const replanner = { replan: jest.fn().mockResolvedValue({ status: 'planned', plan: repairedPlan }) };
+
+    const result = await executor(execute, replanner).execute({
+      plan: firstPlan,
+      topK: ranked([source, target]),
+      context: context as any,
+      runId: 1,
+      question: 'workflow',
+      intent,
+    });
+
+    expect(result.status).toBe('completed');
+    expect(result.replanCount).toBe(1);
+    expect(replanner.replan).toHaveBeenCalledWith(expect.objectContaining({
+      reasons: ['planner_mapping_contract_unresolved:target'],
+    }));
+    expect(execute).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns safe partial observations when mapping recovery is unavailable', async () => {
+    const source = card('source');
+    const target = card('target');
+    const plan: BrainExecutionPlan = {
+      schemaVersion: '1.0', planId: 'mapping-partial', objective: 'workflow', replanCount: 0, budgetMs: 10_000,
+      nodes: [
+        node('source', source),
+        {
+          ...node('target', target, ['source']),
+          inputMappings: [{ fromNodeId: 'source', sourcePath: '$.data.customerIds', targetPath: '$.entities' }],
+        },
+      ],
+    };
+
+    const result = await executor(jest.fn().mockResolvedValue(answer())).execute({
+      plan,
+      topK: ranked([source, target]),
+      context: context as any,
+      runId: 1,
+      question: 'workflow',
+      intent,
+    });
+
+    expect(result.status).toBe('partial');
+    expect(result.completion).toMatchObject({
+      status: 'incomplete',
+      missingCriteria: ['planner_mapping_contract_unresolved:target'],
+    });
+    expect(result.observations).toEqual([
+      expect.objectContaining({ nodeId: 'source', status: 'completed' }),
+      expect.objectContaining({
+        nodeId: 'target',
+        status: 'failed',
+        errorCode: 'brain_planner_mapping_contract_unresolved',
+      }),
+    ]);
+  });
+
+  it('does not replan after a capability timeout exhausts the execution budget', async () => {
+    jest.useFakeTimers();
+    try {
+      const capability = card('facts', { timeoutMs: 100 });
+      const plan = { ...singlePlan(capability), budgetMs: 100 };
+      const replanner = { replan: jest.fn() };
+      const service = executor(jest.fn(() => new Promise(() => undefined)), replanner);
+
+      const pending = service.execute({
+        plan,
+        topK: ranked([capability]),
+        context: context as any,
+        runId: 1,
+        question: 'facts',
+        intent,
+      });
+      await jest.advanceTimersByTimeAsync(100);
+      const result = await pending;
+
+      expect(result.status).toBe('partial');
+      expect(result.replanCount).toBe(0);
+      expect(result.observations).toEqual([
+        expect.objectContaining({ status: 'failed', errorCode: 'brain_capability_execution_timeout' }),
+      ]);
+      expect(replanner.replan).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});
+
+function executor(execute: jest.Mock, replanner?: any) {
+  const budget = new BrainExecutionBudgetService();
+  return new BrainBoundedExecutorService(
+    { execute } as any,
+    new BrainExecutionPlanValidatorService(new BrainCapabilityArgsValidatorService(), budget),
+    budget,
+    new BrainObservationService(),
+    new BrainCompletionVerifierService(),
+    replanner,
+  );
+}
+function card(key: string, overrides: Partial<BrainCapabilityCard> = {}): BrainCapabilityCard {
+  return { key, version: 1, name: key, description: key, domains: ['test'], intents: ['workflow'], inputSchema: { type: 'object' }, outputSchema: {}, requiredPermissions: ['core:test'], allowedRoles: [], readOnly: true, sideEffect: false, riskLevel: 'low', requiresConfirmation: false, idempotency: 'not_applicable', timeoutMs: 1000, grounding: 'domain_service', examples: [], sourceFingerprint: 'a'.repeat(64), definitionRefs: [], synonyms: [], negativeExamples: [], successSchema: {}, ...overrides };
+}
+function node(id: string, capability: BrainCapabilityCard, dependsOn: string[] = []) { return { id, capabilityKey: capability.key, capabilityVersion: 1, dependsOn, previewOnly: false, args: {} }; }
+function singlePlan(capability: BrainCapabilityCard): BrainExecutionPlan { return { schemaVersion: '1.0', planId: 'p1', objective: 'facts', replanCount: 0, budgetMs: 10_000, nodes: [node('facts', capability)] }; }
+function ranked(cards: BrainCapabilityCard[]) { return cards.map((card) => ({ card, score: 0.9, matchedFields: ['name'] })); }
+function answer(overrides: Record<string, unknown> = {}) { return { status: 'completed', answer: 'ok', citations: [{ sourceType: 'db', sourceId: '1' }], grounding: 'db_skill', ...overrides }; }

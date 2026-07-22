@@ -15,8 +15,13 @@ jobs:
         with:
           node-version: 22
           cache: 'npm'
+      - name: Verify runtime baseline
+        run: |
+          node -e "if (Number(process.versions.node.split('.')[0]) !== 22) process.exit(1)"
+          npm --version | grep -E '^10\.'
       - run: npm ci
       - run: npm run lint
+      - run: npm run typecheck:test
       - run: npm run build
       - run: npm run test
 

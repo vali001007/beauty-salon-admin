@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-18T09:31:10.027Z",
+  "summary": {
+    "total": 29,
+    "draft": 29,
+    "blocked": 0,
+    "explicit": 29
+  },
+  "capability": {
+    "key": "reservation_action_preview",
+    "status": "draft",
+    "explicit": true,
+    "sourceFingerprint": "bc33ff5e4cbbb82d7cecc7391ea5ece3ebb48bcb330953364ffd32e17f870dd0",
+    "requiredPermissions": [
+      "core:brain:use",
+      "core:store:reservations"
+    ],
+    "allowedRoles": [
+      "receptionist",
+      "store_manager"
+    ],
+    "readOnly": false,
+    "sideEffect": true,
+    "riskLevel": "high",
+    "requiresConfirmation": true,
+    "idempotency": "required",
+    "description": "解析当前门店内的客户、预约、项目与目标时间，生成预约创建、改期或取消的待确认预览。解析不到唯一目标时返回具体追问，确认前不写入业务数据。创建预约确认后使用业务表级幂等键，同键重放返回原预约回执，不创建重复预约。"
+  }
+}

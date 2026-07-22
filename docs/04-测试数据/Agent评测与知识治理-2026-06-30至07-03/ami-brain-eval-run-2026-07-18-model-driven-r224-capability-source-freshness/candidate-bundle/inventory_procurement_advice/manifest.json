@@ -1,0 +1,140 @@
+{
+  "key": "inventory_procurement_advice",
+  "version": 1,
+  "sourceFingerprint": "81a92f1b7e6dd2b30ebb642b0197de775e82eb9dc10e040de900b9df899d6dab",
+  "name": "库存采购建议",
+  "description": "基于当前库存、安全库存、最小采购量、供应映射和有效报价生成只读采购建议；数据质量不足时返回限制，不创建采购单。",
+  "domains": [
+    "product"
+  ],
+  "intents": [
+    "query",
+    "recommendation"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "comparisonTarget": {
+        "type": "object"
+      },
+      "dimensions": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "entities": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "filters": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "limit": {
+        "type": "number"
+      },
+      "metrics": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "objective": {
+        "type": "string"
+      },
+      "orderBy": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "time": {
+        "type": "object"
+      }
+    },
+    "required": [
+      "dimensions",
+      "entities",
+      "filters",
+      "metrics",
+      "objective",
+      "orderBy"
+    ],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object"
+  },
+  "requiredPermissions": [
+    "core:brain:use",
+    "core:inventory:stock"
+  ],
+  "allowedRoles": [
+    "inventory",
+    "store_manager"
+  ],
+  "readOnly": true,
+  "sideEffect": false,
+  "riskLevel": "low",
+  "requiresConfirmation": false,
+  "idempotency": "not_applicable",
+  "timeoutMs": 10000,
+  "grounding": "domain_service",
+  "examples": [
+    "给我一份当前库存采购建议",
+    "哪些商品需要补货，建议采购多少",
+    "最近采购了什么，花了多少钱"
+  ],
+  "negativeExamples": [
+    "修改商品安全库存",
+    "直接创建并提交采购单"
+  ],
+  "synonyms": [
+    "补货建议",
+    "采购建议",
+    "采购清单",
+    "库存补货"
+  ],
+  "successSchema": {
+    "type": "object"
+  },
+  "definitionRefs": [
+    {
+      "definitionId": 62,
+      "versionId": 86,
+      "definitionKey": "dimension.productId",
+      "version": 4,
+      "definitionFingerprint": "4d9a3fad9016266ce2d53b7918451fc7d59561ca9709c00aa7651fb0c94e1c44",
+      "sourceFingerprint": "c0600c2fc5b00ef24998ff9bfe43f592b7abc2ee6639eecf87e7ce0bbdd11a09"
+    },
+    {
+      "definitionId": 63,
+      "versionId": 87,
+      "definitionKey": "dimension.productName",
+      "version": 4,
+      "definitionFingerprint": "3763314bbf11490f648063e6aff9484e67e909244e7490998a2dee53f9b91ce8",
+      "sourceFingerprint": "eaaead760358988ed3c2300f05bb52ca00d9b86aada695854723296a416ba24e"
+    },
+    {
+      "definitionId": 46,
+      "versionId": 46,
+      "definitionKey": "entity.product",
+      "version": 1,
+      "definitionFingerprint": "f14dde84b29d3b4e424eb485096f9d50837922a5730ce65c34882838234187ef",
+      "sourceFingerprint": "b45a6f8262a31cc1d94620ea1a1f34ba8baf1b472ec8b6d11cec11d75abe2e8f"
+    },
+    {
+      "definitionId": 61,
+      "versionId": 113,
+      "definitionKey": "metric.stock_risk_score",
+      "version": 6,
+      "definitionFingerprint": "231941250ed10711cfdbfc0db6bf60a26173c5dac8b1aac563c2c1cbf4451cdb",
+      "sourceFingerprint": "c54cf5652561af614bbd8b745377d9d71913f863ac8f6eb978c597addeebe413"
+    }
+  ]
+}

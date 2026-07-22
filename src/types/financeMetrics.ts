@@ -69,6 +69,8 @@ export interface FinanceDailyMetric {
   orderCount: number;
   customerCount: number;
   avgTicket: number;
+  avgOrderAmount: number;
+  avgCustomerSpend: number;
   dataQuality: FinanceMetricDataQuality;
 }
 
@@ -78,6 +80,9 @@ export interface FinanceMetricSummary extends Omit<FinanceDailyMetric, 'date' | 
 }
 
 export interface FinanceMetricResponse {
+  mode: 'live' | 'confirmed';
+  recognitionBasis: string;
+  readiness: FinanceReadiness;
   summary: FinanceMetricSummary;
   items: FinanceDailyMetric[];
   total: number;
@@ -87,4 +92,12 @@ export interface FinanceMetricQuery {
   storeId?: number;
   dateFrom?: string;
   dateTo?: string;
+  mode?: 'live' | 'confirmed';
+}
+
+export interface FinanceReadiness {
+  status: 'ready' | 'blocked' | 'unavailable';
+  publishable: boolean;
+  blockers: Array<{ code: string; count: number; amount?: number; actionPath: string }>;
+  warnings: Array<{ code: string; count: number }>;
 }

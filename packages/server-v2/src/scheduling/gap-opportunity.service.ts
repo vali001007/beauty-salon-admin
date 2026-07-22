@@ -51,6 +51,15 @@ type BenefitDraftOptions = {
   channel?: string;
 };
 
+export type GapOpportunityPreviewOptions = {
+  storeId?: number;
+  startDate?: Date | string;
+  endDate?: Date | string;
+  opportunityLimit?: number;
+  candidateLimit?: number;
+  channel?: string;
+};
+
 @Injectable()
 export class GapOpportunityService {
   constructor(
@@ -85,6 +94,69 @@ export class GapOpportunityService {
       }
       throw error;
     }
+  }
+
+  async preview(options: GapOpportunityPreviewOptions) {
+    const storeId = this.requireStoreId(options.storeId);
+    const startDate = options.startDate ? this.formatDate(options.startDate) : this.addDays(this.formatDate(new Date()), 1);
+    const inclusiveEndDate = options.endDate ? this.formatDate(options.endDate) : startDate;
+    const endDateExclusive = this.addDays(inclusiveEndDate, 1);
+    const opportunityLimit = Math.max(1, Math.min(5, Number(options.opportunityLimit ?? 3)));
+    const candidateLimit = Math.max(1, Math.min(5, Number(options.candidateLimit ?? DEFAULT_CANDIDATE_LIMIT)));
+    const opportunities = (await this.computeOpportunities(storeId, startDate, endDateExclusive))
+      .sort((left, right) => right.score - left.score || left.date.getTime() - right.date.getTime() || left.startTime.localeCompare(right.startTime))
+      .slice(0, opportunityLimit);
+    const ranked = await Promise.all(
+      opportunities.map((opportunity) => this.rankCandidates(opportunity, {
+        limit: candidateLimit,
+        channel: options.channel,
+      })),
+    );
+    const customerIds = [...new Set(ranked.flat().map((item) => Number(item.customerId)).filter(Boolean))];
+    const projectIds = [...new Set(ranked.flat().map((item) => Number(item.projectId)).filter(Boolean))];
+    const [customers, projects] = await Promise.all([
+      customerIds.length
+        ? this.prisma.customer.findMany({
+            where: { storeId, id: { in: customerIds }, deletedAt: null },
+            select: { id: true, name: true, phone: true },
+          })
+        : [],
+      projectIds.length
+        ? this.prisma.project.findMany({
+            where: { storeId, id: { in: projectIds }, deletedAt: null },
+            select: { id: true, name: true, price: true },
+          })
+        : [],
+    ]);
+    const customersById = new Map(customers.map((item) => [item.id, item]));
+    const projectsById = new Map(projects.map((item) => [item.id, item]));
+    const previews = opportunities.map((opportunity, opportunityIndex) => {
+      const candidates = ranked[opportunityIndex]!.map((candidate, candidateIndex) => ({
+        ...candidate,
+        id: -(opportunityIndex * candidateLimit + candidateIndex + 1),
+        customer: customersById.get(Number(candidate.customerId)),
+        project: projectsById.get(Number(candidate.projectId)),
+        status: 'preview',
+      }));
+      return this.mapOpportunity({
+        ...opportunity,
+        id: -(opportunityIndex + 1),
+        source: 'brain_readonly_preview',
+        gapType: 'available_capacity',
+        status: 'preview',
+        candidateCount: candidates.length,
+        expectedFillRate: candidates[0]?.expectedFillRate ?? 0,
+        candidates,
+      });
+    });
+    return {
+      startDate,
+      endDate: inclusiveEndDate,
+      generatedAt: new Date().toISOString(),
+      persisted: false,
+      opportunities: previews,
+      summary: this.buildSummary(previews),
+    };
   }
 
   async refreshCandidates(opportunityId: number, storeId: number | undefined, options: CandidateOptions = {}) {
@@ -234,11 +306,48 @@ export class GapOpportunityService {
   }
 
   private async generateWeekOpportunities(storeId: number, weekStart: string, weekEnd: string) {
+    const opportunities = await this.computeOpportunities(storeId, weekStart, weekEnd);
+    for (const opportunity of opportunities) {
+      const { payload, ...data } = opportunity;
+      const saved = await this.opportunityDelegate().upsert({
+        where: {
+          storeId_date_startTime_endTime: {
+            storeId,
+            date: opportunity.date,
+            startTime: opportunity.startTime,
+            endTime: opportunity.endTime,
+          },
+        },
+        create: { ...data, payload, lastGeneratedAt: new Date() },
+        update: {
+          beauticianIds: opportunity.beauticianIds,
+          projectIds: opportunity.projectIds,
+          durationMinutes: opportunity.durationMinutes,
+          capacity: opportunity.capacity,
+          bookedCount: opportunity.bookedCount,
+          availableCapacity: opportunity.availableCapacity,
+          score: opportunity.score,
+          estimatedRevenue: opportunity.estimatedRevenue,
+          status: 'open',
+          expiresAt: opportunity.expiresAt,
+          payload,
+          lastGeneratedAt: new Date(),
+        },
+      });
+      await this.recordEvent(saved.id, storeId, 'opportunity_generated', {
+        capacity: opportunity.capacity,
+        bookedCount: opportunity.bookedCount,
+        availableCapacity: opportunity.availableCapacity,
+      });
+    }
+  }
+
+  private async computeOpportunities(storeId: number, rangeStart: string, rangeEndExclusive: string) {
     const [schedules, reservations, timeOffs, projects]: any[] = await Promise.all([
       this.prisma.schedule.findMany({
         where: {
           storeId,
-          date: { gte: new Date(weekStart), lt: new Date(weekEnd) },
+          date: { gte: new Date(rangeStart), lt: new Date(rangeEndExclusive) },
           status: { in: WORKING_SCHEDULE_STATUSES },
         },
         select: { beauticianId: true, date: true, startTime: true, endTime: true, status: true },
@@ -246,13 +355,13 @@ export class GapOpportunityService {
       this.prisma.reservation.findMany({
         where: {
           storeId,
-          date: { gte: new Date(weekStart), lt: new Date(weekEnd) },
+          date: { gte: new Date(rangeStart), lt: new Date(rangeEndExclusive) },
           status: { in: ACTIVE_RESERVATION_STATUSES },
         },
         select: { id: true, beauticianId: true, date: true, startTime: true, endTime: true, projectId: true },
       }),
       (this.prisma as any).beauticianTimeOff?.findMany?.({
-        where: { storeId, date: { gte: new Date(weekStart), lt: new Date(weekEnd) }, status: 'approved' },
+        where: { storeId, date: { gte: new Date(rangeStart), lt: new Date(rangeEndExclusive) }, status: 'approved' },
         select: { beauticianId: true, date: true, startTime: true, endTime: true },
       }) ?? Promise.resolve([]),
       this.prisma.project.findMany({
@@ -264,6 +373,7 @@ export class GapOpportunityService {
     const projectIds = projects.map((item: any) => item.id);
     const averageRevenue = this.average(projects.map((item: any) => this.toNumber(item.price)));
     const bySlot = new Map<string, any[]>();
+    const opportunities: any[] = [];
 
     for (const schedule of schedules) {
       const date = this.formatDate(schedule.date);
@@ -288,44 +398,29 @@ export class GapOpportunityService {
 
       const durationMinutes = this.minutesBetween(startTime, endTime);
       const score = Math.min(100, availableCapacity * 30 + Math.max(0, 48 - this.hoursUntil(this.combineDateTime(date, startTime))));
-      const saved = await this.opportunityDelegate().upsert({
-        where: { storeId_date_startTime_endTime: { storeId, date: new Date(date), startTime, endTime } },
-        create: {
-          storeId,
-          date: new Date(date),
-          startTime,
-          endTime,
-          beauticianIds: slotSchedules.map((item) => item.beauticianId),
-          projectIds,
-          durationMinutes,
-          capacity,
-          bookedCount,
-          availableCapacity,
-          score,
-          estimatedRevenue: averageRevenue * availableCapacity,
-          expectedFillRate: 0,
-          status: 'open',
-          expiresAt: this.combineDateTime(date, startTime),
-          payload: { generatedFrom: 'Schedule+Reservation', reservationIds: overlappingReservations.map((item: any) => item.id) },
-          lastGeneratedAt: new Date(),
-        },
-        update: {
-          beauticianIds: slotSchedules.map((item) => item.beauticianId),
-          projectIds,
-          durationMinutes,
-          capacity,
-          bookedCount,
-          availableCapacity,
-          score,
-          estimatedRevenue: averageRevenue * availableCapacity,
-          status: 'open',
-          expiresAt: this.combineDateTime(date, startTime),
-          payload: { generatedFrom: 'Schedule+Reservation', reservationIds: overlappingReservations.map((item: any) => item.id) },
-          lastGeneratedAt: new Date(),
+      opportunities.push({
+        storeId,
+        date: new Date(date),
+        startTime,
+        endTime,
+        beauticianIds: slotSchedules.map((item) => item.beauticianId),
+        projectIds,
+        durationMinutes,
+        capacity,
+        bookedCount,
+        availableCapacity,
+        score,
+        estimatedRevenue: averageRevenue * availableCapacity,
+        expectedFillRate: 0,
+        status: 'open',
+        expiresAt: this.combineDateTime(date, startTime),
+        payload: {
+          generatedFrom: 'Schedule+Reservation',
+          reservationIds: overlappingReservations.map((item: any) => item.id),
         },
       });
-      await this.recordEvent(saved.id, storeId, 'opportunity_generated', { capacity, bookedCount, availableCapacity });
     }
+    return opportunities;
   }
 
   private async rankCandidates(opportunity: any, options: CandidateOptions & { limit: number }) {
@@ -567,7 +662,7 @@ export class GapOpportunityService {
       opportunityId: item.opportunityId,
       customerId: item.customerId,
       customerName: item.customer?.name,
-      customerPhone: item.customer?.phone,
+      customerPhone: this.maskPhone(item.customer?.phone),
       projectId: item.projectId,
       projectName: item.project?.name,
       followUpTaskId: item.followUpTaskId,
@@ -624,6 +719,11 @@ export class GapOpportunityService {
     const customerName = customer?.name ?? '您好';
     const projectText = project?.name ? `做${project.name}` : '安排护理';
     return `${customerName}，${this.formatDate(opportunity.date)} ${opportunity.startTime}-${opportunity.endTime} 门店刚好有一个${projectText}空档，是否帮您预留？本消息仅为确认草稿，当前不会自动发送。`;
+  }
+
+  private maskPhone(value: unknown) {
+    const phone = String(value ?? '').replace(/\D/g, '');
+    return phone.length >= 4 ? `***${phone.slice(-4)}` : undefined;
   }
 
   private opportunityDelegate() {

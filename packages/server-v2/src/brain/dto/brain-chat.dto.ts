@@ -1,10 +1,27 @@
-import { IsIn, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsIn, IsInt, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator';
+import type { BrainResponseBlock } from '../response/brain-response.types.js';
+
+export type BrainChatResponseBlockDto = BrainResponseBlock;
 
 export class CreateBrainConversationDto {
   @IsOptional()
   @IsString()
   @MaxLength(80)
   title?: string;
+}
+
+export class BrainGuidanceSelectionDto {
+  @IsIn(['clarification', 'follow_up'])
+  kind!: 'clarification' | 'follow_up';
+
+  @IsInt()
+  @Min(1)
+  sourceRunId!: number;
+
+  @IsString()
+  @MaxLength(160)
+  optionId!: string;
 }
 
 export class SendBrainMessageDto {
@@ -19,6 +36,11 @@ export class SendBrainMessageDto {
   @IsOptional()
   @IsString()
   timezone?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => BrainGuidanceSelectionDto)
+  guidanceSelection?: BrainGuidanceSelectionDto;
 }
 
 export class ConfirmBrainActionDto {

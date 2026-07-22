@@ -1,6 +1,8 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { ServiceTaskStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { STORE_METRIC_KEYS } from '../store-metrics/store-metric-definitions.js';
+import { StoreMetricsService } from '../store-metrics/store-metrics.service.js';
 import type {
   AdminWorkbenchRole,
   DashboardWorkbenchContext,
@@ -55,7 +57,7 @@ type CommonStats = {
 
 @Injectable()
 export class DashboardService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private readonly storeMetrics: StoreMetricsService) {}
 
   async getOverview(storeId?: number) {
     const scopedStore = storeId
@@ -70,7 +72,11 @@ export class DashboardService {
       },
     });
     const ranges = this.getDateRanges();
-    const stats = await this.collectCommonStats(context, ranges);
+    const [stats, unifiedMetrics] = await Promise.all([
+      this.collectCommonStats(context, ranges),
+      storeId ? this.storeMetrics.getOverview(storeId).catch(() => null) : Promise.resolve(null),
+    ]);
+    const unifiedPaidRevenue = unifiedMetrics?.metrics.find((item) => item.key === STORE_METRIC_KEYS.paidRevenue);
 
     return {
       scope: {
@@ -87,7 +93,14 @@ export class DashboardService {
           'primary',
           '/customers/data',
         ),
-        this.overviewMetric('income', '今日收入', this.formatMoney(stats.todayIncome), stats.incomeHint, 'rose', '/orders/products'),
+        this.overviewMetric(
+          'income',
+          '今日实收',
+          this.formatMoney(unifiedPaidRevenue?.value ?? stats.todayIncome),
+          unifiedPaidRevenue ? `统一支付/退款口径 · ${unifiedPaidRevenue.quality.status}` : stats.incomeHint,
+          'rose',
+          '/store-operations/metrics',
+        ),
         this.overviewMetric(
           'inventory',
           '库存预警',
@@ -175,11 +188,23 @@ export class DashboardService {
 
   private async buildStoreManagerWorkbench(context: DashboardWorkbenchContext): Promise<WorkbenchOverview> {
     const ranges = this.getDateRanges();
-    const stats = await this.collectCommonStats(context, ranges);
+    const [stats, unifiedMetrics] = await Promise.all([
+      this.collectCommonStats(context, ranges),
+      context.scope.storeId ? this.storeMetrics.getOverview(context.scope.storeId).catch(() => null) : Promise.resolve(null),
+    ]);
+    const paidRevenue = unifiedMetrics?.metrics.find((item) => item.key === STORE_METRIC_KEYS.paidRevenue);
     return this.finalizeWorkbench(
       context,
       [
-        this.metric('incomeToday', '今日收入', this.formatMoney(stats.todayIncome), stats.incomeHint, 'rose', '/orders/products', 'core:order:products'),
+        this.metric(
+          'incomeToday',
+          '今日实收',
+          this.formatMoney(paidRevenue?.value ?? stats.todayIncome),
+          paidRevenue ? `统一支付/退款口径 · ${paidRevenue.quality.status}` : stats.incomeHint,
+          'rose',
+          '/store-operations/metrics',
+          'core:store-metrics:view',
+        ),
         this.metric(
           'todayReservations',
           '今日预约',

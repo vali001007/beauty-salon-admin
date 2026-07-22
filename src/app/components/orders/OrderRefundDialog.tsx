@@ -26,8 +26,8 @@ export function OrderRefundDialog({ orderId, open, onOpenChange, onSuccess }: Pr
   const [selected, setSelected] = useState<Record<number, boolean>>({});
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [reason, setReason] = useState('客户申请退款');
-  const [sessionRequestId, setSessionRequestId] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sessionRequestId, setSessionRequestId] = useState('');
 
   useEffect(() => {
     if (!open || !orderId) return;

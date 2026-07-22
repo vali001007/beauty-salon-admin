@@ -254,7 +254,9 @@ function normalizeSettlement(item: ApiSupplySettlement): SupplySettlement {
   };
 }
 
-export async function realGetSupplySuppliers(params: { page?: number; pageSize?: number; keyword?: string; status?: string } = {}) {
+export async function realGetSupplySuppliers(
+  params: { page?: number; pageSize?: number; keyword?: string; status?: string } = {},
+) {
   const response = await apiClient.get<unknown, unknown>('/supply-platform/suppliers', { params });
   return normalizePaginatedResponse<ApiSupplySupplier, SupplySupplier>(response, (item) => normalizeSupplier(item)!);
 }
@@ -276,7 +278,16 @@ export async function realCreateSupplierQualification(data: CreateSupplierQualif
   return apiClient.post<unknown, unknown>('/supply-platform/supplier-qualifications', data);
 }
 
-export async function realGetSupplySkus(params: { page?: number; pageSize?: number; supplierId?: number; keyword?: string; status?: string; auditStatus?: string } = {}) {
+export async function realGetSupplySkus(
+  params: {
+    page?: number;
+    pageSize?: number;
+    supplierId?: number;
+    keyword?: string;
+    status?: string;
+    auditStatus?: string;
+  } = {},
+) {
   const response = await apiClient.get<unknown, unknown>('/supply-platform/skus', { params });
   return normalizePaginatedResponse<ApiSupplySku, SupplySku>(response, normalizeSku);
 }
@@ -286,7 +297,10 @@ export async function realCreateSupplySku(data: CreateSupplySkuPayload): Promise
   return normalizeSku(response);
 }
 
-export async function realAuditSupplySku(id: number, data: { auditStatus: string; status?: string; rejectReason?: string }): Promise<SupplySku> {
+export async function realAuditSupplySku(
+  id: number,
+  data: { auditStatus: string; status?: string; rejectReason?: string },
+): Promise<SupplySku> {
   const response = await apiClient.patch<unknown, ApiSupplySku>(`/supply-platform/skus/${id}/audit`, data);
   return normalizeSku(response);
 }
@@ -302,7 +316,12 @@ export async function realGetSupplyQuotes(params: {
   availableOnly?: boolean;
 }) {
   const response = await apiClient.get<unknown, unknown>('/supply-platform/quotes', {
-    params: { ...params, availableOnly: params.availableOnly ? 'true' : undefined, page: params.page ?? 1, pageSize: params.pageSize ?? 200 },
+    params: {
+      ...params,
+      availableOnly: params.availableOnly ? 'true' : undefined,
+      page: params.page ?? 1,
+      pageSize: params.pageSize ?? 200,
+    },
   });
   return normalizePaginatedResponse<ApiSupplyQuote, SupplyQuote>(response, normalizeQuote);
 }
@@ -312,33 +331,46 @@ export async function realCreateSupplyQuote(data: CreateSupplyQuotePayload): Pro
   return normalizeQuote(response);
 }
 
-export async function realAuditSupplyQuote(id: number, data: { auditStatus: string; status?: string; rejectReason?: string }): Promise<SupplyQuote> {
+export async function realAuditSupplyQuote(
+  id: number,
+  data: { auditStatus: string; status?: string; rejectReason?: string },
+): Promise<SupplyQuote> {
   const response = await apiClient.patch<unknown, ApiSupplyQuote>(`/supply-platform/quotes/${id}/audit`, data);
   return normalizeQuote(response);
 }
 
-export async function realGetSupplyCatalogMappings(params: {
-  page?: number;
-  pageSize?: number;
-  productId?: number;
-  storeId?: number;
-  supplySkuId?: number;
-  standardProductTemplateId?: number;
-  mappingStatus?: string;
-  keyword?: string;
-  purchasableStatus?: string;
-} = {}) {
+export async function realGetSupplyCatalogMappings(
+  params: {
+    page?: number;
+    pageSize?: number;
+    productId?: number;
+    storeId?: number;
+    supplySkuId?: number;
+    standardProductTemplateId?: number;
+    mappingStatus?: string;
+    keyword?: string;
+    purchasableStatus?: string;
+  } = {},
+) {
   const response = await apiClient.get<unknown, unknown>('/supply-platform/catalog-mappings', { params });
   return normalizePaginatedResponse<ApiSupplyCatalogMapping, SupplyCatalogMapping>(response, normalizeCatalogMapping);
 }
 
-export async function realCreateSupplyCatalogMapping(data: CreateSupplyCatalogMappingPayload): Promise<SupplyCatalogMapping> {
+export async function realCreateSupplyCatalogMapping(
+  data: CreateSupplyCatalogMappingPayload,
+): Promise<SupplyCatalogMapping> {
   const response = await apiClient.post<unknown, ApiSupplyCatalogMapping>('/supply-platform/catalog-mappings', data);
   return normalizeCatalogMapping(response);
 }
 
-export async function realUpdateSupplyCatalogMapping(id: number, data: UpdateSupplyCatalogMappingPayload): Promise<SupplyCatalogMapping> {
-  const response = await apiClient.patch<unknown, ApiSupplyCatalogMapping>(`/supply-platform/catalog-mappings/${id}`, data);
+export async function realUpdateSupplyCatalogMapping(
+  id: number,
+  data: UpdateSupplyCatalogMappingPayload,
+): Promise<SupplyCatalogMapping> {
+  const response = await apiClient.patch<unknown, ApiSupplyCatalogMapping>(
+    `/supply-platform/catalog-mappings/${id}`,
+    data,
+  );
   return normalizeCatalogMapping(response);
 }
 
@@ -353,36 +385,79 @@ export async function realGetProcurementOrder(id: number): Promise<ProcurementOr
 }
 
 export async function realCreateProcurementOrder(data: CreateProcurementOrderPayload): Promise<ProcurementOrder> {
-  const response = await apiClient.post<unknown, ApiProcurementOrder>('/supply-platform/procurement/orders', data);
+  const idempotencyKey =
+    data.idempotencyKey ??
+    globalThis.crypto?.randomUUID?.() ??
+    `procurement-order-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const response = await apiClient.post<unknown, ApiProcurementOrder>(
+    '/supply-platform/procurement/orders',
+    { ...data, idempotencyKey },
+    { headers: { 'Idempotency-Key': idempotencyKey } },
+  );
   return normalizeOrder(response);
 }
 
-export async function realCreateProcurementOrdersFromReplenishment(data: CreateProcurementOrdersFromReplenishmentPayload): Promise<ProcurementOrder[]> {
-  const response = await apiClient.post<unknown, unknown>('/supply-platform/procurement-orders/from-replenishment', data);
+export async function realCreateProcurementOrdersFromReplenishment(
+  data: CreateProcurementOrdersFromReplenishmentPayload,
+): Promise<ProcurementOrder[]> {
+  const idempotencyKey =
+    data.idempotencyKey ??
+    globalThis.crypto?.randomUUID?.() ??
+    `procurement-batch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const response = await apiClient.post<unknown, unknown>(
+    '/supply-platform/procurement-orders/from-replenishment',
+    { ...data, idempotencyKey },
+    { headers: { 'Idempotency-Key': idempotencyKey } },
+  );
   return normalizePaginatedResponse<ApiProcurementOrder, ProcurementOrder>(response, normalizeOrder).items;
 }
 
 export async function realUpdateProcurementOrderStatus(id: number, status: string): Promise<ProcurementOrder> {
-  const response = await apiClient.patch<unknown, ApiProcurementOrder>(`/supply-platform/procurement/orders/${id}/status`, { status });
+  const response = await apiClient.patch<unknown, ApiProcurementOrder>(
+    `/supply-platform/procurement/orders/${id}/status`,
+    { status },
+  );
   return normalizeOrder(response);
 }
 
-export async function realCreateSupplierShipment(id: number, data: CreateSupplierShipmentPayload): Promise<SupplierShipment> {
-  const response = await apiClient.post<unknown, ApiSupplierShipment>(`/supply-platform/procurement/orders/${id}/shipments`, data);
+export async function realCreateSupplierShipment(
+  id: number,
+  data: CreateSupplierShipmentPayload,
+): Promise<SupplierShipment> {
+  const response = await apiClient.post<unknown, ApiSupplierShipment>(
+    `/supply-platform/procurement/orders/${id}/shipments`,
+    data,
+  );
   return normalizeShipment(response);
 }
 
-export async function realReceiveProcurementOrder(id: number, data: ReceiveProcurementOrderPayload): Promise<ProcurementOrder> {
-  const response = await apiClient.post<unknown, ApiProcurementOrder>(`/supply-platform/procurement/orders/${id}/receipts`, data);
+export async function realReceiveProcurementOrder(
+  id: number,
+  data: ReceiveProcurementOrderPayload,
+): Promise<ProcurementOrder> {
+  const idempotencyKey =
+    data.idempotencyKey ??
+    globalThis.crypto?.randomUUID?.() ??
+    `procurement-receipt-${id}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const response = await apiClient.post<unknown, ApiProcurementOrder>(
+    `/supply-platform/procurement/orders/${id}/receipts`,
+    { ...data, idempotencyKey },
+    { headers: { 'Idempotency-Key': idempotencyKey } },
+  );
   return normalizeOrder(response);
 }
 
-export async function realGetSupplySettlements(params: { page?: number; pageSize?: number; supplierId?: number; status?: string } = {}) {
+export async function realGetSupplySettlements(
+  params: { page?: number; pageSize?: number; supplierId?: number; status?: string } = {},
+) {
   const response = await apiClient.get<unknown, unknown>('/supply-platform/settlements', { params });
   return normalizePaginatedResponse<ApiSupplySettlement, SupplySettlement>(response, normalizeSettlement);
 }
 
-export async function realGenerateSupplySettlement(data: { settleMonth: string; supplierId?: number }): Promise<SupplySettlement> {
+export async function realGenerateSupplySettlement(data: {
+  settleMonth: string;
+  supplierId?: number;
+}): Promise<SupplySettlement> {
   const response = await apiClient.post<unknown, ApiSupplySettlement>('/supply-platform/settlements/generate', data);
   return normalizeSettlement(response);
 }

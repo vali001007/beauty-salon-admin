@@ -118,6 +118,15 @@ describe('BusinessTaskPreParserService', () => {
     expect(result.task.metrics).toContain('revenue');
   });
 
+  it('keeps paid amount and net revenue as separate business metrics', () => {
+    const paid = service.parse({ message: '今天实收多少', role: 'manager' });
+    const net = service.parse({ message: '今天净收入多少', role: 'manager' });
+
+    expect(paid.task.metrics).toContain('paid_amount');
+    expect(paid.task.metrics).not.toContain('net_revenue');
+    expect(net.task.metrics).toContain('net_revenue');
+  });
+
   it('recognizes time plus KPI shorthand phrases as queries', () => {
     const cases = [
       { message: '这个月营业额', preset: 'this_month', metrics: ['revenue'] },
@@ -232,12 +241,12 @@ describe('BusinessTaskPreParserService', () => {
       phoneMasked: '138****1234',
     });
     expect(result.task.entities).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ type: 'customer', value: '马美琳', confidence: 0.86 }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ type: 'customer', value: '马美琳', confidence: 0.86 })]),
     );
     expect(result.task.timeRange).toMatchObject({ preset: 'yesterday', label: '昨天' });
-    expect(result.warnings).toEqual(expect.arrayContaining(['已使用上一轮当前关注客户补齐查询条件', '已沿用上一轮时间范围']));
+    expect(result.warnings).toEqual(
+      expect.arrayContaining(['已使用上一轮当前关注客户补齐查询条件', '已沿用上一轮时间范围']),
+    );
   });
 
   it('recovers the previous focused customer from previousResult context', () => {
@@ -258,9 +267,7 @@ describe('BusinessTaskPreParserService', () => {
 
     expect(result.task.filters).toMatchObject({ customerId: 502, customerName: '林晓雯' });
     expect(result.task.entities).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ type: 'customer', value: '林晓雯' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ type: 'customer', value: '林晓雯' })]),
     );
     expect(result.task.outputIntent).toBe('show_table');
   });
@@ -315,7 +322,9 @@ describe('BusinessTaskPreParserService', () => {
         expect.objectContaining({ customerId: 502, customerName: '林晓雯', paidAmountText: '¥980' }),
       ],
     });
-    expect(result.warnings).toEqual(expect.arrayContaining(['已将追问限定在上一轮消费客户清单范围内', '已沿用上一轮时间范围']));
+    expect(result.warnings).toEqual(
+      expect.arrayContaining(['已将追问限定在上一轮消费客户清单范围内', '已沿用上一轮时间范围']),
+    );
   });
 
   it('applies conversation focus for marketing activity follow-up questions', () => {

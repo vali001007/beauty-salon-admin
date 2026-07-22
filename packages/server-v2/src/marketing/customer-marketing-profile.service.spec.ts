@@ -31,6 +31,11 @@ describe('CustomerMarketingProfileService', () => {
     service = new CustomerMarketingProfileService(prisma);
   });
 
+  it('rejects profile aggregation without a store boundary', async () => {
+    await expect(service.buildProfiles(undefined as any, [1])).rejects.toThrow('storeId is required');
+    expect(prisma.customer.findMany).not.toHaveBeenCalled();
+  });
+
   it('should build explainable multi-dimensional tags from customer data', async () => {
     prisma.customer.findMany.mockResolvedValue([
       {

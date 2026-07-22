@@ -1,0 +1,668 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-18T10:35:41.376Z",
+  "policy": "synthetic_contract_only",
+  "productionReady": false,
+  "scanSummary": {
+    "total": 1,
+    "draft": 1,
+    "blocked": 0,
+    "explicit": 1
+  },
+  "result": {
+    "proposals": [
+      {
+        "status": "synthetic_contract_only",
+        "capabilityKey": "purchase_order_draft",
+        "sourceFingerprint": "6111121abf97d6b6a59b1899db7da9dcd2779f41dccabdb47f09bbc115faac07",
+        "proposalFingerprint": "3d6b986bdc2d0773b89e4918eff193f6cf12703f17eb0b65fb918327585b1437",
+        "businessDefinitions": [
+          {
+            "definitionId": 1,
+            "versionId": 10001,
+            "definitionKey": "entity.product",
+            "version": 1,
+            "definitionFingerprint": "f06a2649389210fad7c1d7bdec3a66061fdb1982f5e2b769589a7795d1dc804a",
+            "sourceFingerprint": "f94577faf32d474c51215e6dd6de730bcbe8b40f6b3c19fbc12f23c9d2e41d5f"
+          }
+        ],
+        "manifest": {
+          "key": "purchase_order_draft",
+          "version": 1,
+          "sourceFingerprint": "6111121abf97d6b6a59b1899db7da9dcd2779f41dccabdb47f09bbc115faac07",
+          "name": "采购单预览",
+          "description": "基于当前门店库存与商品目标生成待确认采购单预览，缺少唯一商品或采购数量时返回具体追问；确认后通过采购业务表级强幂等合同创建并支持安全重放。",
+          "domains": [
+            "fixture"
+          ],
+          "intents": [
+            "action"
+          ],
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "comparisonTarget": {
+                "type": "object"
+              },
+              "dimensions": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "entities": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "filters": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "limit": {
+                "type": "number"
+              },
+              "metrics": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "objective": {
+                "type": "string"
+              },
+              "orderBy": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "time": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "dimensions",
+              "entities",
+              "filters",
+              "metrics",
+              "objective",
+              "orderBy"
+            ],
+            "additionalProperties": false
+          },
+          "outputSchema": {
+            "type": "object"
+          },
+          "requiredPermissions": [
+            "core:brain:use",
+            "core:supply:manage"
+          ],
+          "allowedRoles": [
+            "inventory",
+            "store_manager"
+          ],
+          "readOnly": false,
+          "sideEffect": true,
+          "riskLevel": "high",
+          "requiresConfirmation": true,
+          "idempotency": "required",
+          "timeoutMs": 10000,
+          "grounding": "preview_action",
+          "examples": [
+            "根据补货建议准备采购单预览",
+            "为指定商品生成采购草稿"
+          ],
+          "negativeExamples": [
+            "查询低库存商品名单",
+            "使用查看权限创建采购单",
+            "直接提交采购单"
+          ],
+          "synonyms": [
+            "补货单预览",
+            "采购单草稿",
+            "采购方案待确认"
+          ],
+          "successSchema": {
+            "type": "object"
+          },
+          "definitionRefs": [
+            {
+              "definitionId": 1,
+              "versionId": 10001,
+              "definitionKey": "entity.product",
+              "version": 1,
+              "definitionFingerprint": "f06a2649389210fad7c1d7bdec3a66061fdb1982f5e2b769589a7795d1dc804a",
+              "sourceFingerprint": "f94577faf32d474c51215e6dd6de730bcbe8b40f6b3c19fbc12f23c9d2e41d5f"
+            }
+          ]
+        },
+        "languageCandidates": {
+          "description": "基于当前门店库存与商品目标生成待确认采购单预览，缺少唯一商品或采购数量时返回具体追问；确认后通过采购业务表级强幂等合同创建并支持安全重放。",
+          "positiveExamples": [
+            "根据补货建议准备采购单预览",
+            "为指定商品生成采购草稿"
+          ],
+          "negativeExamples": [
+            "查询低库存商品名单",
+            "使用查看权限创建采购单",
+            "直接提交采购单"
+          ],
+          "synonyms": [
+            "补货单预览",
+            "采购单草稿",
+            "采购方案待确认"
+          ],
+          "successSchema": {
+            "type": "object"
+          },
+          "riskExplanation": "Deterministic fixture: read-only proposal with fixed scanner evidence."
+        },
+        "executorBinding": {
+          "schemaVersion": 1,
+          "capabilityKey": "purchase_order_draft",
+          "sourceFingerprint": "6111121abf97d6b6a59b1899db7da9dcd2779f41dccabdb47f09bbc115faac07",
+          "target": {
+            "kind": "service",
+            "className": "BrainActionCapabilityExecutor",
+            "methodName": "purchaseOrderDraft",
+            "sourcePath": "packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts",
+            "exportedClass": true,
+            "methodAccess": "public",
+            "parameterCount": 2,
+            "parameterTypes": [
+              "BrainCapabilityToolArgs",
+              "BrainCapabilityExecutionInput"
+            ],
+            "returnType": "unknown"
+          },
+          "generatedSourcePath": "packages/server-v2/src/brain/capability/generated/purchase_order_draft/binding.ts",
+          "targetImportPath": "../../executors/brain-action-capability.executor.js",
+          "requiredPermissions": [
+            "core:brain:use",
+            "core:supply:manage"
+          ],
+          "storeScope": "required",
+          "requiresConfirmation": true,
+          "idempotency": "required",
+          "readOnly": false,
+          "sideEffect": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "comparisonTarget": {
+                "type": "object"
+              },
+              "dimensions": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "entities": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "filters": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "limit": {
+                "type": "number"
+              },
+              "metrics": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "objective": {
+                "type": "string"
+              },
+              "orderBy": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "time": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "dimensions",
+              "entities",
+              "filters",
+              "metrics",
+              "objective",
+              "orderBy"
+            ],
+            "additionalProperties": false
+          },
+          "outputSchema": {
+            "type": "object"
+          },
+          "bindingFingerprint": "9e5d254073ec17be264bf4e9b760c7e8f358c62d209ca45fd9ca289c1411ec96"
+        },
+        "bindingSource": "import type { BrainActionCapabilityExecutor } from \"../../executors/brain-action-capability.executor.js\";\nimport { assertGeneratedCapabilityArgs } from '../../brain-generated-capability-binding.js';\n\nexport interface GeneratedCapabilityArgs {\n  readonly [key: string]: unknown;\n  readonly \"comparisonTarget\"?: Record<string, unknown>;\n  readonly \"dimensions\": Array<Record<string, unknown>>;\n  readonly \"entities\": Array<Record<string, unknown>>;\n  readonly \"filters\": Array<Record<string, unknown>>;\n  readonly \"limit\"?: number;\n  readonly \"metrics\": Array<Record<string, unknown>>;\n  readonly \"objective\": string;\n  readonly \"orderBy\": Array<Record<string, unknown>>;\n  readonly \"time\"?: Record<string, unknown>;\n}\n\ntype TargetMethod = Pick<BrainActionCapabilityExecutor, 'purchaseOrderDraft'>['purchaseOrderDraft'];\n\nexport interface GeneratedCapabilityExecutionContextProvider {\n  current(): Parameters<TargetMethod>[1];\n}\n\nexport const GENERATED_CAPABILITY_BINDING = Object.freeze({\n  \"schemaVersion\": 1,\n  \"capabilityKey\": \"purchase_order_draft\",\n  \"sourceFingerprint\": \"6111121abf97d6b6a59b1899db7da9dcd2779f41dccabdb47f09bbc115faac07\",\n  \"target\": {\n    \"kind\": \"service\",\n    \"className\": \"BrainActionCapabilityExecutor\",\n    \"methodName\": \"purchaseOrderDraft\",\n    \"sourcePath\": \"packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts\",\n    \"exportedClass\": true,\n    \"methodAccess\": \"public\",\n    \"parameterCount\": 2,\n    \"parameterTypes\": [\n      \"BrainCapabilityToolArgs\",\n      \"BrainCapabilityExecutionInput\"\n    ],\n    \"returnType\": \"unknown\"\n  },\n  \"generatedSourcePath\": \"packages/server-v2/src/brain/capability/generated/purchase_order_draft/binding.ts\",\n  \"targetImportPath\": \"../../executors/brain-action-capability.executor.js\",\n  \"requiredPermissions\": [\n    \"core:brain:use\",\n    \"core:supply:manage\"\n  ],\n  \"storeScope\": \"required\",\n  \"requiresConfirmation\": true,\n  \"idempotency\": \"required\",\n  \"readOnly\": false,\n  \"sideEffect\": true,\n  \"inputSchema\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"comparisonTarget\": {\n        \"type\": \"object\"\n      },\n      \"dimensions\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"entities\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"filters\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"limit\": {\n        \"type\": \"number\"\n      },\n      \"metrics\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"objective\": {\n        \"type\": \"string\"\n      },\n      \"orderBy\": {\n        \"type\": \"array\",\n        \"items\": {\n          \"type\": \"object\"\n        }\n      },\n      \"time\": {\n        \"type\": \"object\"\n      }\n    },\n    \"required\": [\n      \"dimensions\",\n      \"entities\",\n      \"filters\",\n      \"metrics\",\n      \"objective\",\n      \"orderBy\"\n    ],\n    \"additionalProperties\": false\n  },\n  \"outputSchema\": {\n    \"type\": \"object\"\n  },\n  \"bindingFingerprint\": \"9e5d254073ec17be264bf4e9b760c7e8f358c62d209ca45fd9ca289c1411ec96\"\n} as const);\n\nexport class PurchaseOrderDraftGeneratedCapabilityBinding {\n  constructor(private readonly target: Pick<BrainActionCapabilityExecutor, 'purchaseOrderDraft'>, private readonly contextProvider: GeneratedCapabilityExecutionContextProvider) {}\n\n  execute(args: GeneratedCapabilityArgs): ReturnType<TargetMethod> {\n    assertGeneratedCapabilityArgs(GENERATED_CAPABILITY_BINDING.inputSchema, args);\n    return this.target.purchaseOrderDraft(args, this.contextProvider.current());\n  }\n}\n",
+        "contractArtifact": {
+          "manifest": {
+            "key": "purchase_order_draft",
+            "version": 1,
+            "sourceFingerprint": "6111121abf97d6b6a59b1899db7da9dcd2779f41dccabdb47f09bbc115faac07",
+            "name": "采购单预览",
+            "description": "基于当前门店库存与商品目标生成待确认采购单预览，缺少唯一商品或采购数量时返回具体追问；确认后通过采购业务表级强幂等合同创建并支持安全重放。",
+            "domains": [
+              "fixture"
+            ],
+            "intents": [
+              "action"
+            ],
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "comparisonTarget": {
+                  "type": "object"
+                },
+                "dimensions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "entities": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "filters": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "limit": {
+                  "type": "number"
+                },
+                "metrics": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "objective": {
+                  "type": "string"
+                },
+                "orderBy": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "time": {
+                  "type": "object"
+                }
+              },
+              "required": [
+                "dimensions",
+                "entities",
+                "filters",
+                "metrics",
+                "objective",
+                "orderBy"
+              ],
+              "additionalProperties": false
+            },
+            "outputSchema": {
+              "type": "object"
+            },
+            "requiredPermissions": [
+              "core:brain:use",
+              "core:supply:manage"
+            ],
+            "allowedRoles": [
+              "inventory",
+              "store_manager"
+            ],
+            "readOnly": false,
+            "sideEffect": true,
+            "riskLevel": "high",
+            "requiresConfirmation": true,
+            "idempotency": "required",
+            "timeoutMs": 10000,
+            "grounding": "preview_action",
+            "examples": [
+              "根据补货建议准备采购单预览",
+              "为指定商品生成采购草稿"
+            ],
+            "negativeExamples": [
+              "查询低库存商品名单",
+              "使用查看权限创建采购单",
+              "直接提交采购单"
+            ],
+            "synonyms": [
+              "补货单预览",
+              "采购单草稿",
+              "采购方案待确认"
+            ],
+            "successSchema": {
+              "type": "object"
+            },
+            "definitionRefs": [
+              {
+                "definitionId": 1,
+                "versionId": 10001,
+                "definitionKey": "entity.product",
+                "version": 1,
+                "definitionFingerprint": "f06a2649389210fad7c1d7bdec3a66061fdb1982f5e2b769589a7795d1dc804a",
+                "sourceFingerprint": "f94577faf32d474c51215e6dd6de730bcbe8b40f6b3c19fbc12f23c9d2e41d5f"
+              }
+            ]
+          },
+          "scanEvidence": {
+            "capabilityKey": "purchase_order_draft",
+            "sourceFingerprint": "6111121abf97d6b6a59b1899db7da9dcd2779f41dccabdb47f09bbc115faac07",
+            "requiredPermissions": [
+              "core:brain:use",
+              "core:supply:manage"
+            ],
+            "storeScope": "required",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "comparisonTarget": {
+                  "type": "object"
+                },
+                "dimensions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "entities": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "filters": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "limit": {
+                  "type": "number"
+                },
+                "metrics": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "objective": {
+                  "type": "string"
+                },
+                "orderBy": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                },
+                "time": {
+                  "type": "object"
+                }
+              },
+              "required": [
+                "dimensions",
+                "entities",
+                "filters",
+                "metrics",
+                "objective",
+                "orderBy"
+              ],
+              "additionalProperties": false
+            },
+            "outputSchema": {
+              "type": "object"
+            },
+            "executorBinding": {
+              "schemaVersion": 1,
+              "capabilityKey": "purchase_order_draft",
+              "sourceFingerprint": "6111121abf97d6b6a59b1899db7da9dcd2779f41dccabdb47f09bbc115faac07",
+              "target": {
+                "kind": "service",
+                "className": "BrainActionCapabilityExecutor",
+                "methodName": "purchaseOrderDraft",
+                "sourcePath": "packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts",
+                "exportedClass": true,
+                "methodAccess": "public",
+                "parameterCount": 2,
+                "parameterTypes": [
+                  "BrainCapabilityToolArgs",
+                  "BrainCapabilityExecutionInput"
+                ],
+                "returnType": "unknown"
+              },
+              "generatedSourcePath": "packages/server-v2/src/brain/capability/generated/purchase_order_draft/binding.ts",
+              "targetImportPath": "../../executors/brain-action-capability.executor.js",
+              "requiredPermissions": [
+                "core:brain:use",
+                "core:supply:manage"
+              ],
+              "storeScope": "required",
+              "requiresConfirmation": true,
+              "idempotency": "required",
+              "readOnly": false,
+              "sideEffect": true,
+              "inputSchema": {
+                "type": "object",
+                "properties": {
+                  "comparisonTarget": {
+                    "type": "object"
+                  },
+                  "dimensions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "entities": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "filters": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "limit": {
+                    "type": "number"
+                  },
+                  "metrics": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "objective": {
+                    "type": "string"
+                  },
+                  "orderBy": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "time": {
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "dimensions",
+                  "entities",
+                  "filters",
+                  "metrics",
+                  "objective",
+                  "orderBy"
+                ],
+                "additionalProperties": false
+              },
+              "outputSchema": {
+                "type": "object"
+              },
+              "bindingFingerprint": "9e5d254073ec17be264bf4e9b760c7e8f358c62d209ca45fd9ca289c1411ec96"
+            }
+          },
+          "proposal": {
+            "capabilityKey": "purchase_order_draft",
+            "sourceFingerprint": "6111121abf97d6b6a59b1899db7da9dcd2779f41dccabdb47f09bbc115faac07",
+            "businessDefinitions": [
+              {
+                "definitionId": 1,
+                "versionId": 10001,
+                "definitionKey": "entity.product",
+                "version": 1,
+                "definitionFingerprint": "f06a2649389210fad7c1d7bdec3a66061fdb1982f5e2b769589a7795d1dc804a",
+                "sourceFingerprint": "f94577faf32d474c51215e6dd6de730bcbe8b40f6b3c19fbc12f23c9d2e41d5f"
+              }
+            ],
+            "storeScope": "required",
+            "executorBinding": {
+              "schemaVersion": 1,
+              "capabilityKey": "purchase_order_draft",
+              "sourceFingerprint": "6111121abf97d6b6a59b1899db7da9dcd2779f41dccabdb47f09bbc115faac07",
+              "target": {
+                "kind": "service",
+                "className": "BrainActionCapabilityExecutor",
+                "methodName": "purchaseOrderDraft",
+                "sourcePath": "packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts",
+                "exportedClass": true,
+                "methodAccess": "public",
+                "parameterCount": 2,
+                "parameterTypes": [
+                  "BrainCapabilityToolArgs",
+                  "BrainCapabilityExecutionInput"
+                ],
+                "returnType": "unknown"
+              },
+              "generatedSourcePath": "packages/server-v2/src/brain/capability/generated/purchase_order_draft/binding.ts",
+              "targetImportPath": "../../executors/brain-action-capability.executor.js",
+              "requiredPermissions": [
+                "core:brain:use",
+                "core:supply:manage"
+              ],
+              "storeScope": "required",
+              "requiresConfirmation": true,
+              "idempotency": "required",
+              "readOnly": false,
+              "sideEffect": true,
+              "inputSchema": {
+                "type": "object",
+                "properties": {
+                  "comparisonTarget": {
+                    "type": "object"
+                  },
+                  "dimensions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "entities": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "filters": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "limit": {
+                    "type": "number"
+                  },
+                  "metrics": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "objective": {
+                    "type": "string"
+                  },
+                  "orderBy": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "time": {
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "dimensions",
+                  "entities",
+                  "filters",
+                  "metrics",
+                  "objective",
+                  "orderBy"
+                ],
+                "additionalProperties": false
+              },
+              "outputSchema": {
+                "type": "object"
+              },
+              "bindingFingerprint": "9e5d254073ec17be264bf4e9b760c7e8f358c62d209ca45fd9ca289c1411ec96"
+            }
+          }
+        },
+        "contractTestSource": "import { GENERATED_CAPABILITY_BINDING } from './binding.js';\n\nexport function assertGeneratedBindingContract(): void {\n  if (GENERATED_CAPABILITY_BINDING.capabilityKey !== \"purchase_order_draft\") {\n    throw new Error('generated_binding_capability_key_mismatch');\n  }\n  if (GENERATED_CAPABILITY_BINDING.sourceFingerprint !== \"6111121abf97d6b6a59b1899db7da9dcd2779f41dccabdb47f09bbc115faac07\") {\n    throw new Error('generated_binding_source_fingerprint_mismatch');\n  }\n  if (GENERATED_CAPABILITY_BINDING.bindingFingerprint !== \"9e5d254073ec17be264bf4e9b760c7e8f358c62d209ca45fd9ca289c1411ec96\") {\n    throw new Error('generated_binding_fingerprint_mismatch');\n  }\n  if (GENERATED_CAPABILITY_BINDING.target.kind !== \"service\" ||\n      GENERATED_CAPABILITY_BINDING.target.className !== \"BrainActionCapabilityExecutor\" ||\n      GENERATED_CAPABILITY_BINDING.target.methodName !== \"purchaseOrderDraft\" ||\n      GENERATED_CAPABILITY_BINDING.target.sourcePath !== \"packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts\") {\n    throw new Error('generated_binding_target_mismatch');\n  }\n}\n\nassertGeneratedBindingContract();\n",
+        "gateReport": {
+          "passed": true,
+          "gates": [
+            {
+              "gate": "compile",
+              "passed": true,
+              "reasons": [],
+              "remediation": []
+            },
+            {
+              "gate": "contract",
+              "passed": true,
+              "reasons": [],
+              "remediation": []
+            },
+            {
+              "gate": "security",
+              "passed": true,
+              "reasons": [],
+              "remediation": []
+            },
+            {
+              "gate": "test",
+              "passed": true,
+              "reasons": [],
+              "remediation": []
+            }
+          ]
+        }
+      }
+    ],
+    "blocked": []
+  }
+}

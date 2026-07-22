@@ -183,7 +183,7 @@ describe('AgentV4OrchestratorService', () => {
       context: { agentEngine: 'agent_v4' },
     });
 
-    expect(marketing.submitLifecycleBusinessPlanActions).toHaveBeenCalledWith(31, expect.objectContaining({
+    expect(marketing.submitLifecycleBusinessPlanActions).toHaveBeenCalledWith(31, 1, expect.objectContaining({
       sourceAgentCode: 'agent_v4',
       sourceRunId: 401,
       sourceEntrypoint: 'ami-agent:auto',

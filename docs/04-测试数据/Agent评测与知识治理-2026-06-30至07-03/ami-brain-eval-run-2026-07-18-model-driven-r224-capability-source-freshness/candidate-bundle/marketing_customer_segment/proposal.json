@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "policy": "published_registry_gate",
+  "productionReady": true,
+  "proposalStatus": "ready",
+  "capabilityKey": "marketing_customer_segment",
+  "sourceFingerprint": "ef7f756616082dc302c503a24fd83b9d05a56a4950a39d2d88c59f30285cf922",
+  "proposalFingerprint": "3cce0742f9de636cc824fd69a5480042f8822f12e997a11cd312793bf2ed225b",
+  "bindingFingerprint": "378caeba580dd34a56d5eab9cbb0c45d676bffecba0f00deaa503799cd691ece",
+  "executorBinding": {
+    "schemaVersion": 1,
+    "capabilityKey": "marketing_customer_segment",
+    "sourceFingerprint": "ef7f756616082dc302c503a24fd83b9d05a56a4950a39d2d88c59f30285cf922",
+    "target": {
+      "kind": "service",
+      "className": "BrainDomainServiceCapabilityExecutor",
+      "methodName": "marketingCustomerSegment",
+      "sourcePath": "packages/server-v2/src/brain/capability/executors/brain-domain-service-capability.executor.ts",
+      "exportedClass": true,
+      "methodAccess": "public",
+      "parameterCount": 2,
+      "parameterTypes": [
+        "BrainCapabilityToolArgs",
+        "BrainCapabilityExecutionInput"
+      ],
+      "returnType": "unknown"
+    },
+    "generatedSourcePath": "packages/server-v2/src/brain/capability/generated/marketing_customer_segment/binding.ts",
+    "targetImportPath": "../../executors/brain-domain-service-capability.executor.js",
+    "requiredPermissions": [
+      "core:brain:use",
+      "core:marketing:analytics"
+    ],
+    "storeScope": "required",
+    "requiresConfirmation": false,
+    "idempotency": "not_applicable",
+    "readOnly": true,
+    "sideEffect": false,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "comparisonTarget": {
+          "type": "object"
+        },
+        "dimensions": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "entities": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "filters": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "limit": {
+          "type": "number"
+        },
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "objective": {
+          "type": "string"
+        },
+        "orderBy": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "time": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "dimensions",
+        "entities",
+        "filters",
+        "metrics",
+        "objective",
+        "orderBy"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "bindingFingerprint": "378caeba580dd34a56d5eab9cbb0c45d676bffecba0f00deaa503799cd691ece"
+  },
+  "businessDefinitions": [
+    {
+      "definitionId": 69,
+      "versionId": 94,
+      "definitionKey": "dimension.customerId",
+      "version": 1,
+      "definitionFingerprint": "0bac6349d738a5e74a79d7c27a98ed72bf5e6dec319d7bffda34271e29008b15",
+      "sourceFingerprint": "154b940352b28b0827428928ffc5952e50fc09c833a3a444d479212ab04ad9f8"
+    },
+    {
+      "definitionId": 70,
+      "versionId": 95,
+      "definitionKey": "dimension.customerName",
+      "version": 1,
+      "definitionFingerprint": "16a020e1a509f25f3deb238be8a9c4f8a590659f8981783ed9257d9efa07e380",
+      "sourceFingerprint": "60b2f2c792c620d0da511234bb53d533b180c1870b6e2b5b486b8b57a32cb09d"
+    },
+    {
+      "definitionId": 43,
+      "versionId": 43,
+      "definitionKey": "entity.customer",
+      "version": 1,
+      "definitionFingerprint": "e2a455e1bb6fca496a965db988e5547f4bee98a5e43f4c0daf9a04777a0e908e",
+      "sourceFingerprint": "528c308346ae2b37db26eae2c35397fd02d981182ceb30d2378fb588e294ce04"
+    },
+    {
+      "definitionId": 48,
+      "versionId": 48,
+      "definitionKey": "entity.project",
+      "version": 1,
+      "definitionFingerprint": "172e39f445a03511fe7d3505d45373b62726a3136265c01800f415a4cdd53e95",
+      "sourceFingerprint": "85490c6c5cc1803b078f7d264cccd7f021ed7759412f83025c771f8c5240bf4f"
+    }
+  ],
+  "artifacts": {
+    "manifest": "manifest.json",
+    "binding": "binding.ts",
+    "contractTest": "contract.spec.ts",
+    "gateReport": "gate-report.json"
+  }
+}

@@ -9,6 +9,9 @@ import {
   getProjects,
   getReservationById,
   getReservationsPaginated,
+  markCustomerWaitingLeft,
+  markCustomerWaitingServed,
+  startCustomerWaiting,
   updateReservation,
 } from '@/api/project';
 import { getBeauticians } from '@/api/beautician';
@@ -38,6 +41,8 @@ interface Reservation {
   customerPhone?: string;
   remark?: string;
   sourceLabel?: string;
+  waitingEpisodeId?: number;
+  waitingStartedAt?: string;
 }
 
 interface ReservationFormState {
@@ -540,6 +545,44 @@ export function ProjectReservation() {
     void runReservationAction(id, () => cancelReservation(id, reason), '预约已取消');
   };
 
+  const handleStartWaiting = (id: string) => {
+    const minutes = Number(window.prompt('预计等待分钟数（可选）', '15') || '0');
+    void runReservationAction(
+      id,
+      () => startCustomerWaiting(id, Number.isFinite(minutes) && minutes >= 0 ? minutes : undefined),
+      '等待记录已开始',
+    );
+  };
+
+  const handleStartService = (reservation: Reservation) => {
+    if (!reservation.waitingEpisodeId) return;
+    void runReservationAction(
+      reservation.id,
+      () => markCustomerWaitingServed(reservation.waitingEpisodeId!),
+      '等待已结束，客户开始服务',
+    );
+  };
+
+  const handleWaitingLeave = (reservation: Reservation) => {
+    if (!reservation.waitingEpisodeId) return;
+    const reason = window.prompt('离店原因：等待过久 / 时间冲突 / 个人原因 / 服务不可用 / 其他', '等待过久');
+    if (reason === null) return;
+    const reasonCode = reason.includes('等待')
+      ? 'wait_too_long'
+      : reason.includes('时间')
+        ? 'schedule_conflict'
+        : reason.includes('服务')
+          ? 'service_unavailable'
+          : reason.includes('个人')
+            ? 'personal_reason'
+            : 'other';
+    void runReservationAction(
+      reservation.id,
+      () => markCustomerWaitingLeft(reservation.waitingEpisodeId!, { reasonCode, reasonNote: reason }),
+      '客户离店原因已记录',
+    );
+  };
+
   const handleSaveEdit = async () => {
     if (!editingReservation) return;
     try {
@@ -759,6 +802,33 @@ export function ProjectReservation() {
                           >
                             到店
                           </button>
+                        )}
+                        {reservation.status === 'checked_in' && !reservation.waitingEpisodeId && (
+                          <button
+                            className="text-amber-600 hover:text-amber-700"
+                            onClick={() => handleStartWaiting(reservation.id)}
+                            disabled={actionLoadingId === reservation.id}
+                          >
+                            开始等待
+                          </button>
+                        )}
+                        {reservation.status === 'checked_in' && reservation.waitingEpisodeId && (
+                          <>
+                            <button
+                              className="text-green-600 hover:text-green-700"
+                              onClick={() => handleStartService(reservation)}
+                              disabled={actionLoadingId === reservation.id}
+                            >
+                              开始服务
+                            </button>
+                            <button
+                              className="text-red-500 hover:text-red-600"
+                              onClick={() => handleWaitingLeave(reservation)}
+                              disabled={actionLoadingId === reservation.id}
+                            >
+                              离店
+                            </button>
+                          </>
                         )}
                         {['pending', 'confirmed', 'checked_in'].includes(reservation.status) && (
                           <button

@@ -122,6 +122,9 @@ describe('AgentController', () => {
       user: {
         findFirst: jest.fn(),
       },
+      beautician: {
+        findFirst: jest.fn(),
+      },
       agentRun: {
         findMany: jest.fn().mockResolvedValue([]),
         findFirst: jest.fn(),
@@ -762,7 +765,12 @@ describe('AgentController', () => {
       warnings: [],
     });
 
-    const result = await controller.previewQueryPlan(1, {
+    const result = await controller.previewQueryPlan({
+      storeId: 1,
+      userId: 7,
+      permissions: ['*'],
+      availableRoles: ['manager'],
+    }, {
       message: '最近七天收银趋势',
       role: 'manager',
       operatorId: 7,
@@ -775,15 +783,79 @@ describe('AgentController', () => {
     });
     expect(queryPlanner.plan).toHaveBeenCalledWith({
       task,
-      role: 'manager',
-      storeId: 1,
-      operatorId: 7,
+      actor: {
+        principalType: 'user',
+        userId: 7,
+        storeId: 1,
+        role: 'manager',
+        permissions: ['*'],
+      },
       capabilityId: 'revenue_diagnosis',
     });
     expect(result.queryPlan).toMatchObject({
       queryId: 'sq_test',
       dimensions: ['date'],
     });
+  });
+
+  it('does not trust DTO role or operatorId for semantic query authorization', async () => {
+    const task = {
+      taskType: 'ranking',
+      domain: 'staff',
+      objective: '我的业绩排行',
+      metrics: ['staff_performance_score'],
+      filters: {},
+      missingSlots: [],
+      confidence: 0.9,
+    };
+    prisma.beautician.findFirst.mockResolvedValue({ id: 17 });
+    businessTaskCompiler.compile.mockResolvedValue({
+      task,
+      validation: { warnings: [] },
+      capabilityMatches: [{ capabilityId: 'staff_performance_ranking', reason: 'staff', toolPlan: [] }],
+      semanticSqlCandidate: { fallbackCapability: 'staff_performance_ranking' },
+    });
+    queryPlanner.plan.mockReturnValue({ plan: { queryId: 'sq_self' }, warnings: [] });
+
+    await (controller as any).previewQueryPlan(
+      {
+        storeId: 1,
+        userId: 9,
+        roles: ['beautician'],
+        permissions: ['core:beautician-performance:view'],
+        availableRoles: ['beautician'],
+      },
+      { message: '我的业绩排行', role: 'manager', operatorId: 999 },
+    );
+
+    expect(businessTaskCompiler.compile).toHaveBeenCalledWith({
+      message: '我的业绩排行',
+      role: 'beautician',
+      context: undefined,
+    });
+    expect(queryPlanner.plan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actor: expect.objectContaining({
+          userId: 9,
+          storeId: 1,
+          role: 'beautician',
+          beauticianId: 17,
+        }),
+      }),
+    );
+    expect(prisma.user.findFirst).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: 999 }) }),
+    );
+  });
+
+  it('rejects a device-only principal even when DTO role claims manager', async () => {
+    await expect(
+      (controller as any).previewQueryPlan(
+        { storeId: 1, id: 88, deviceCode: 'AURA-88' },
+        { message: '今天实收多少', role: 'manager' },
+      ),
+    ).rejects.toThrow('semantic_query_user_principal_required');
+    expect(businessTaskCompiler.compile).not.toHaveBeenCalled();
   });
 
   it('executes unified semantic query and returns composed user-facing response', async () => {
@@ -817,7 +889,10 @@ describe('AgentController', () => {
     semanticQueryExecutor.execute.mockResolvedValue(semanticResult);
     responseComposer.compose.mockReturnValue({ title: '收银收入', overview: { conclusion: '今天实收 ¥300。' }, details: [], nextActions: [] });
 
-    const result = await controller.executeSemanticQuery(1, { message: '今天收银多少', role: 'manager', operatorId: 7 });
+    const result = await controller.executeSemanticQuery(
+      { storeId: 1, userId: 7, permissions: ['*'], availableRoles: ['manager'] },
+      { message: '今天收银多少', role: 'manager', operatorId: 7 },
+    );
 
     expect(semanticQueryExecutor.execute).toHaveBeenCalledWith(plan);
     expect(responseComposer.compose).toHaveBeenCalledWith(semanticResult);

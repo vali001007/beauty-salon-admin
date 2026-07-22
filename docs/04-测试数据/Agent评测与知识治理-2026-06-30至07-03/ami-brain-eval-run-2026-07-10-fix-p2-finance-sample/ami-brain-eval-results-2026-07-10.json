@@ -1,0 +1,1252 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-10T18:44:44.806Z",
+    "startedAt": "2026-07-10T18:43:44.974Z",
+    "finishedAt": "2026-07-10T18:44:44.806Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\agent-eval-questions.md",
+    "questionCount": 40,
+    "actualRunCount": 40,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "evaluatorPermissions": [
+      "*"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。"
+    }
+  },
+  "summary": {
+    "total": 40,
+    "legacyUsableWithCitation": 4,
+    "legacyUsableRate": 0.1,
+    "trueUsable": 10,
+    "trueUsableRate": 0.25,
+    "byStatus": [
+      {
+        "key": "unsupported_intent",
+        "total": 30,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 30,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "usable_exact",
+        "total": 10,
+        "usable": 10,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "finance",
+        "total": 40,
+        "usable": 10,
+        "usableRate": 0.25,
+        "metricFailed": 0,
+        "unsupportedIntent": 30,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "收入与对账",
+        "total": 25,
+        "usable": 6,
+        "usableRate": 0.24,
+        "metricFailed": 0,
+        "unsupportedIntent": 19,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "成本与毛利",
+        "total": 15,
+        "usable": 4,
+        "usableRate": 0.26666666666666666,
+        "metricFailed": 0,
+        "unsupportedIntent": 11,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [
+      {
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "count": 30
+      }
+    ],
+    "latency": {
+      "avgMs": 1496,
+      "p95Ms": 1777,
+      "maxMs": 2439
+    },
+    "baselineComparison": {
+      "baselinePath": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-eval-run-2026-07-10\\ami-brain-eval-results-2026-07-10.json",
+      "rows": [
+        {
+          "metric": "旧口径可用率",
+          "baseline": "15.5%",
+          "current": "10.0%"
+        },
+        {
+          "metric": "真实可用率",
+          "baseline": "7.8%",
+          "current": "25.0%"
+        },
+        {
+          "metric": "假阳性数",
+          "baseline": "50",
+          "current": "0"
+        },
+        {
+          "metric": "时间误退化全量数",
+          "baseline": "12",
+          "current": "0"
+        },
+        {
+          "metric": "文案/操作误命中指标数",
+          "baseline": "21",
+          "current": "0"
+        }
+      ]
+    }
+  },
+  "records": [
+    {
+      "questionId": "qb-finance-income-reconcile-001",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 1,
+      "persona": "finance",
+      "question": "今天收了多少钱",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1727,
+      "conversationId": 3697,
+      "runId": 3697,
+      "answer": "实收流水为 0.00 元。",
+      "citations": [
+        {
+          "sourceType": "metric",
+          "sourceId": "paid_revenue",
+          "label": "实收流水",
+          "definition": "当前门店订单实收金额汇总，退款口径由后续指标版本细化"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "metric_query",
+        "expectedShape": "scalar_metric",
+        "actualShape": "scalar_metric",
+        "actualMetric": "paid_revenue",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true
+      },
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-002",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 2,
+      "persona": "finance",
+      "question": "这个月营业额是多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1684,
+      "conversationId": 3699,
+      "runId": 3699,
+      "answer": "实收流水为 19907.10 元。",
+      "citations": [
+        {
+          "sourceType": "metric",
+          "sourceId": "paid_revenue",
+          "label": "实收流水",
+          "definition": "当前门店订单实收金额汇总，退款口径由后续指标版本细化"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "metric_query",
+        "expectedShape": "scalar_metric",
+        "actualShape": "scalar_metric",
+        "actualMetric": "paid_revenue",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true
+      },
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-003",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 3,
+      "persona": "finance",
+      "question": "昨天的日结做了没，结果怎么样",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1355,
+      "conversationId": 3702,
+      "runId": 3702,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-004",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 4,
+      "persona": "finance",
+      "question": "帮我做一个今天的收入汇总",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1347,
+      "conversationId": 3704,
+      "runId": 3704,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "paid_revenue",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-005",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 5,
+      "persona": "finance",
+      "question": "今天现金、微信、支付宝各收了多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1728,
+      "conversationId": 3707,
+      "runId": 3707,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-006",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 6,
+      "persona": "finance",
+      "question": "这周每天的收入情况给我看一下",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1347,
+      "conversationId": 3710,
+      "runId": 3710,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "paid_revenue",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-007",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 7,
+      "persona": "finance",
+      "question": "今天的收入和预期差多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1335,
+      "conversationId": 3713,
+      "runId": 3713,
+      "answer": "这个问题需要对比时间口径（对比时间）。当前独立版 Ami Brain 尚未接入该对比区间，不会返回单期或全量数值。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "comparison",
+        "actualIntent": "unknown",
+        "expectedShape": "comparison",
+        "actualShape": "non_metric",
+        "expectedMetric": "paid_revenue",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-008",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 8,
+      "persona": "finance",
+      "question": "这个月比上个月多了还是少了",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1342,
+      "conversationId": 3715,
+      "runId": 3715,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "comparison",
+        "actualIntent": "unknown",
+        "expectedShape": "comparison",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-009",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 9,
+      "persona": "finance",
+      "question": "帮我核对一下今天的收款和系统记录是否一致",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2409,
+      "conversationId": 3718,
+      "runId": 3718,
+      "answer": "财务风险摘要：退款 0 笔，金额 0.00 元；优惠 0.00 元；毛利率 0.0%。风险：当前未发现明确财务预警。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_risk_summary",
+          "label": "财务风险摘要"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-010",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 10,
+      "persona": "finance",
+      "question": "今天有没有漏收或者多收的情况",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1691,
+      "conversationId": 3721,
+      "runId": 3721,
+      "answer": "财务风险摘要：退款 0 笔，金额 0.00 元；优惠 0.00 元；毛利率 0.0%。风险：当前未发现明确财务预警。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_risk_summary",
+          "label": "财务风险摘要"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-011",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 11,
+      "persona": "finance",
+      "question": "这个月储值收款有多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1364,
+      "conversationId": 3724,
+      "runId": 3724,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "paid_revenue",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-012",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 12,
+      "persona": "finance",
+      "question": "帮我看一下最近三个月的收入趋势",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1350,
+      "conversationId": 3727,
+      "runId": 3727,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "paid_revenue",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-013",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 13,
+      "persona": "finance",
+      "question": "今天项目收入和产品销售各多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1354,
+      "conversationId": 3730,
+      "runId": 3730,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "paid_revenue",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-014",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 14,
+      "persona": "finance",
+      "question": "这个月有没有大额异常收款",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1698,
+      "conversationId": 3733,
+      "runId": 3733,
+      "answer": "财务风险摘要：退款 2 笔，金额 1120.00 元；优惠 917.90 元；毛利率 56.9%。风险：退款金额 1120.00 元，需要复核原因。；优惠金额 917.90 元，需要确认授权来源。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_risk_summary",
+          "label": "财务风险摘要"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-015",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 15,
+      "persona": "finance",
+      "question": "帮我查一下某个日期的收款记录",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1352,
+      "conversationId": 3736,
+      "runId": 3736,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "paid_revenue",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-016",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 16,
+      "persona": "finance",
+      "question": "这个月次卡销售了多少金额",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1359,
+      "conversationId": 3738,
+      "runId": 3738,
+      "answer": "储值卡消耗和充值流水尚未接入真实口径，Ami Brain 不会用会员卡负债替代回答。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "card_liability",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-017",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 17,
+      "persona": "finance",
+      "question": "有没有收款没有对应服务记录的情况",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1350,
+      "conversationId": 3741,
+      "runId": 3741,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "paid_revenue",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-018",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 18,
+      "persona": "finance",
+      "question": "今天所有员工的收款加起来多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1688,
+      "conversationId": 3744,
+      "runId": 3744,
+      "answer": "实收流水为 0.00 元。",
+      "citations": [
+        {
+          "sourceType": "metric",
+          "sourceId": "paid_revenue",
+          "label": "实收流水",
+          "definition": "当前门店订单实收金额汇总，退款口径由后续指标版本细化"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "metric_query",
+        "actualIntent": "metric_query",
+        "expectedShape": "scalar_metric",
+        "actualShape": "scalar_metric",
+        "expectedMetric": "paid_revenue",
+        "actualMetric": "paid_revenue",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true
+      },
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-019",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 19,
+      "persona": "finance",
+      "question": "帮我看一下今天不同支付渠道的手续费",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1352,
+      "conversationId": 3747,
+      "runId": 3747,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-020",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 20,
+      "persona": "finance",
+      "question": "这个月到账的钱和开单的钱差多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1353,
+      "conversationId": 3749,
+      "runId": 3749,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "action",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-021",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 21,
+      "persona": "finance",
+      "question": "有没有客人预付了但还没使用的金额",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1359,
+      "conversationId": 3752,
+      "runId": 3753,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-022",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 22,
+      "persona": "finance",
+      "question": "帮我统计一下这个月每个项目的收入占比",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1348,
+      "conversationId": 3755,
+      "runId": 3755,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "paid_revenue",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-023",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 23,
+      "persona": "finance",
+      "question": "今天的日均客单价是多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1369,
+      "conversationId": 3758,
+      "runId": 3758,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-024",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 24,
+      "persona": "finance",
+      "question": "这个月哪天收入最高，原因是什么",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1360,
+      "conversationId": 3761,
+      "runId": 3761,
+      "answer": "当前独立版 Ami Brain 尚未接入经营诊断技能，不会用单个指标替代原因分析。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-income-reconcile-025",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "收入与对账",
+      "sourceIndex": 25,
+      "persona": "finance",
+      "question": "帮我出一份这周的收入明细报表",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1385,
+      "conversationId": 3763,
+      "runId": 3763,
+      "answer": "这个问题需要名单或明细口径。当前独立版 Ami Brain 不会用全店单值替代客户/项目列表。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "paid_revenue",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-cost-margin-026",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "成本与毛利",
+      "sourceIndex": 26,
+      "persona": "finance",
+      "question": "这个月的毛利率是多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1695,
+      "conversationId": 3766,
+      "runId": 3766,
+      "answer": "毛利率为 56.9%。",
+      "citations": [
+        {
+          "sourceType": "metric",
+          "sourceId": "gross_margin_rate",
+          "label": "毛利率",
+          "definition": "当前门店经营利润模块沉淀的毛利率口径"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "metric_query",
+        "actualIntent": "metric_query",
+        "expectedShape": "scalar_metric",
+        "actualShape": "scalar_metric",
+        "expectedMetric": "gross_margin_rate",
+        "actualMetric": "gross_margin_rate",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true
+      },
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "qb-finance-cost-margin-027",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "成本与毛利",
+      "sourceIndex": 27,
+      "persona": "finance",
+      "question": "帮我看一下各项目的毛利情况",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1351,
+      "conversationId": 3769,
+      "runId": 3769,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "gross_margin",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-cost-margin-028",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "成本与毛利",
+      "sourceIndex": 28,
+      "persona": "finance",
+      "question": "哪个项目的成本最高",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1371,
+      "conversationId": 3771,
+      "runId": 3771,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "ranking",
+        "actualIntent": "unknown",
+        "expectedShape": "ranking",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-cost-margin-029",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "成本与毛利",
+      "sourceIndex": 29,
+      "persona": "finance",
+      "question": "这个月耗材成本占了多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1363,
+      "conversationId": 3774,
+      "runId": 3774,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-cost-margin-030",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "成本与毛利",
+      "sourceIndex": 30,
+      "persona": "finance",
+      "question": "员工提成这个月花了多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1350,
+      "conversationId": 3777,
+      "runId": 3777,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-cost-margin-031",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "成本与毛利",
+      "sourceIndex": 31,
+      "persona": "finance",
+      "question": "帮我算一下这个项目的实际毛利",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1361,
+      "conversationId": 3779,
+      "runId": 3779,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "gross_margin",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-cost-margin-032",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "成本与毛利",
+      "sourceIndex": 32,
+      "persona": "finance",
+      "question": "这个月运营成本有哪些，各多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1355,
+      "conversationId": 3782,
+      "runId": 3782,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-cost-margin-033",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "成本与毛利",
+      "sourceIndex": 33,
+      "persona": "finance",
+      "question": "有没有哪个项目的毛利异常低",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2439,
+      "conversationId": 3784,
+      "runId": 3784,
+      "answer": "财务风险摘要：退款 0 笔，金额 0.00 元；优惠 0.00 元；毛利率 0.0%。风险：当前未发现明确财务预警。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_risk_summary",
+          "label": "财务风险摘要"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-finance-cost-margin-034",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "成本与毛利",
+      "sourceIndex": 34,
+      "persona": "finance",
+      "question": "房租水电这个月花了多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1401,
+      "conversationId": 3788,
+      "runId": 3788,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-cost-margin-035",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "成本与毛利",
+      "sourceIndex": 35,
+      "persona": "finance",
+      "question": "帮我看一下固定成本和变动成本的占比",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1402,
+      "conversationId": 3791,
+      "runId": 3791,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "comparison",
+        "actualIntent": "unknown",
+        "expectedShape": "comparison",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-cost-margin-036",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "成本与毛利",
+      "sourceIndex": 36,
+      "persona": "finance",
+      "question": "这个月利润比上个月高还是低，为什么",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1423,
+      "conversationId": 3794,
+      "runId": 3794,
+      "answer": "当前独立版 Ami Brain 尚未接入经营诊断技能，不会用单个指标替代原因分析。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-cost-margin-037",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "成本与毛利",
+      "sourceIndex": 37,
+      "persona": "finance",
+      "question": "有没有成本项目异常增加的情况",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1777,
+      "conversationId": 3796,
+      "runId": 3796,
+      "answer": "财务风险摘要：退款 0 笔，金额 0.00 元；优惠 0.00 元；毛利率 0.0%。风险：当前未发现明确财务预警。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_risk_summary",
+          "label": "财务风险摘要"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-finance-cost-margin-038",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "成本与毛利",
+      "sourceIndex": 38,
+      "persona": "finance",
+      "question": "帮我看一下这个项目的定价合不合理",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1412,
+      "conversationId": 3800,
+      "runId": 3800,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-finance-cost-margin-039",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "成本与毛利",
+      "sourceIndex": 39,
+      "persona": "finance",
+      "question": "这个月打折优惠减少了多少收入",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1770,
+      "conversationId": 3803,
+      "runId": 3803,
+      "answer": "财务风险摘要：退款 2 笔，金额 1120.00 元；优惠 917.90 元；毛利率 56.9%。风险：退款金额 1120.00 元，需要复核原因。；优惠金额 917.90 元，需要确认授权来源。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_risk_summary",
+          "label": "财务风险摘要"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-finance-cost-margin-040",
+      "sourceSection": "六、财务风控 Agent",
+      "sourceCategory": "成本与毛利",
+      "sourceIndex": 40,
+      "persona": "finance",
+      "question": "员工工资加提成占总收入的比例是多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1349,
+      "conversationId": 3806,
+      "runId": 3806,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "paid_revenue",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    }
+  ]
+}

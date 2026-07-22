@@ -1,0 +1,58 @@
+{
+  "generatedAt": "2026-07-18T11:23:26.237Z",
+  "summary": {
+    "workspaceTotal": 29,
+    "selected": 2,
+    "blocked": 0,
+    "issues": 0
+  },
+  "capabilities": [
+    {
+      "key": "customer_follow_up_draft",
+      "name": "客户跟进任务预览",
+      "status": "draft",
+      "enabled": false,
+      "explicit": true,
+      "readOnly": false,
+      "sideEffect": true,
+      "riskLevel": "high",
+      "storeScope": "required",
+      "requiredPermissions": [
+        "core:brain:use",
+        "core:customer:view"
+      ],
+      "allowedRoles": [
+        "customer_service",
+        "receptionist",
+        "store_manager"
+      ],
+      "requiresConfirmation": true,
+      "idempotency": "required",
+      "sourceFingerprint": "4adfc82f58a84c38d9c646a512f9107db9286f17ed18af63bfcfab231757f241",
+      "issues": []
+    },
+    {
+      "key": "marketing_touch_draft",
+      "name": "单客户营销触达预览",
+      "status": "draft",
+      "enabled": false,
+      "explicit": true,
+      "readOnly": false,
+      "sideEffect": true,
+      "riskLevel": "high",
+      "storeScope": "required",
+      "requiredPermissions": [
+        "core:brain:use",
+        "core:marketing:create"
+      ],
+      "allowedRoles": [
+        "marketing",
+        "store_manager"
+      ],
+      "requiresConfirmation": true,
+      "idempotency": "required",
+      "sourceFingerprint": "1e35a43df127e2452e32aa91e409590d697f6f667ef5bddc76ac3c729b5d88eb",
+      "issues": []
+    }
+  ]
+}

@@ -1,0 +1,4585 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-11T13:11:43.201Z",
+    "startedAt": "2026-07-11T13:04:41.818Z",
+    "finishedAt": "2026-07-11T13:11:43.201Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\agent-eval-questions.md",
+    "questionCount": 100,
+    "actualRunCount": 100,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "evaluatorPermissions": [
+      "*"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。"
+    }
+  },
+  "summary": {
+    "total": 100,
+    "legacyUsableWithCitation": 0,
+    "legacyUsableRate": 0,
+    "trueUsable": 62,
+    "trueUsableRate": 0.62,
+    "byStatus": [
+      {
+        "key": "usable_exact",
+        "total": 61,
+        "usable": 61,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "unsupported_intent",
+        "total": 38,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 38,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "usable_partial",
+        "total": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "inventory",
+        "total": 100,
+        "usable": 62,
+        "usableRate": 0.62,
+        "metricFailed": 0,
+        "unsupportedIntent": 38,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "采购建议",
+        "total": 25,
+        "usable": 10,
+        "usableRate": 0.4,
+        "metricFailed": 0,
+        "unsupportedIntent": 15,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "库存查询与风险",
+        "total": 25,
+        "usable": 22,
+        "usableRate": 0.88,
+        "metricFailed": 0,
+        "unsupportedIntent": 3,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "临期与损耗",
+        "total": 20,
+        "usable": 13,
+        "usableRate": 0.65,
+        "metricFailed": 0,
+        "unsupportedIntent": 7,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "消耗分析",
+        "total": 20,
+        "usable": 13,
+        "usableRate": 0.65,
+        "metricFailed": 0,
+        "unsupportedIntent": 7,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "供应链协调",
+        "total": 10,
+        "usable": 4,
+        "usableRate": 0.4,
+        "metricFailed": 0,
+        "unsupportedIntent": 6,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [
+      {
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "count": 38
+      }
+    ],
+    "securityGate": {
+      "permissionBypassCount": 0,
+      "crossStoreReadCount": 0,
+      "roleHintBypassCount": 0,
+      "fakeActionConfirmationCount": 0
+    },
+    "grounding": {
+      "metricQueryCount": 0,
+      "dbSkillCount": 54,
+      "templateSkillCount": 8,
+      "previewActionCount": 0,
+      "noneCount": 38
+    },
+    "adapterDistribution": [
+      {
+        "reason": "inventory_procurement",
+        "count": 51
+      },
+      {
+        "reason": "none",
+        "count": 38
+      },
+      {
+        "reason": "finance_risk",
+        "count": 5
+      },
+      {
+        "reason": "front_desk",
+        "count": 4
+      },
+      {
+        "reason": "marketing_growth",
+        "count": 2
+      }
+    ],
+    "latency": {
+      "avgMs": 3919,
+      "p95Ms": 6095,
+      "maxMs": 9265
+    },
+    "baselineComparison": {
+      "baselinePath": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-eval-run-2026-07-10\\ami-brain-eval-results-2026-07-10.json",
+      "rows": [
+        {
+          "metric": "旧口径可用率",
+          "baseline": "15.5%",
+          "current": "0.0%"
+        },
+        {
+          "metric": "真实可用率",
+          "baseline": "3.8%",
+          "current": "62.0%"
+        },
+        {
+          "metric": "假阳性数",
+          "baseline": "76",
+          "current": "0"
+        },
+        {
+          "metric": "时间误退化全量数",
+          "baseline": "12",
+          "current": "0"
+        },
+        {
+          "metric": "文案/操作误命中指标数",
+          "baseline": "21",
+          "current": "0"
+        }
+      ]
+    }
+  },
+  "records": [
+    {
+      "questionId": "qb-inventory-inventory-query-risk-001",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 1,
+      "persona": "inventory",
+      "question": "现在哪些东西快没了",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 8909,
+      "conversationId": 15322,
+      "runId": 15320,
+      "answer": "低库存产品：\n1. 玻尿酸保湿精华：当前 133，安全库存 143。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-002",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 2,
+      "persona": "inventory",
+      "question": "帮我看一下库存整体情况",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 5530,
+      "conversationId": 15323,
+      "runId": 15321,
+      "answer": "库存明细：共 45 个 SKU，当前估算库存货值 269474.20 元。\n1. 玻尿酸保湿精华（AMI-DEMO-FULL-SKU-001）：库存 133，安全库存 143，本期入库 0、出库/消耗 0，货值 22344.00 元。\n2. 舒缓修护面膜（AMI-DEMO-FULL-SKU-002）：库存 202，安全库存 60，本期入库 0、出库/消耗 0，货值 17372.00 元。\n3. 氨基酸洁面乳（AMI-DEMO-FULL-SKU-003）：库存 164，安全库存 50，本期入库 0、出库/消耗 0，货值 9512.00 元。\n4. 烟酰胺亮肤精华（AMI-DEMO-FULL-SKU-004）：库存 163，安全库存 35，本期入库 0、出库/消耗 0，货值 30644.00 元。\n5. 抗衰紧致眼霜（AMI-DEMO-FULL-SKU-005）：库存 110，安全库存 28，本期入库 0、出库/消耗 0，货值 24200.00 元。\n6. 屏障修护乳（AMI-DEMO-FULL-SKU-006）：库存 136，安全库存 42，本期入库 0、出库/消耗 0，货值 18496.00 元。\n7. 水氧护理耗材包（AMI-DEMO-FULL-SKU-007）：库存 81，安全库存 24，本期入库 0、出库/消耗 0，货值 21060.00 元。\n8. 一次性护理巾（AMI-DEMO-FULL-SKU-008）：库存 277，安全库存 90，本期入库 0、出库/消耗 0，货值 8864.00 元。\n9. 胶原蛋白面膜（AMI-DEMO-FULL-SKU-009）：库存 124，安全库存 55，本期入库 0、出库/消耗 0，货值 13888.00 元。\n10. 清透防晒乳（AMI-DEMO-FULL-SKU-010）：库存 122，安全库存 45，本期入库 0、出库/消耗 0，货值 11224.00 元。\n11. 紧致颈霜（AMI-DEMO-FULL-SKU-011）：库存 67，安全库存 32，本期入库 0、出库/消耗 0，货值 9246.00 元。\n12. 舒缓精油（AMI-DEMO-FULL-SKU-012）：库存 92，安全库存 40，本期入库 0、出库/消耗 0，货值 8832.00 元。\n进出库记录：\n当前时间范围没有进出库记录。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_or_workflow_not_supported",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.8,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-003",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 3,
+      "persona": "inventory",
+      "question": "有没有什么产品只剩最后几瓶了",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 5287,
+      "conversationId": 15324,
+      "runId": 15322,
+      "answer": "低库存产品：\n1. 玻尿酸保湿精华：当前 133，安全库存 143。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "strong_inventory_list_phrase",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-004",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 4,
+      "persona": "inventory",
+      "question": "这个月用了多少洗面奶，还剩多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2449,
+      "conversationId": 15325,
+      "runId": 15323,
+      "answer": "库存明细：共 0 个 SKU，当前估算库存货值 0.00 元。\n当前门店没有找到匹配产品。\n进出库记录：\n当前时间范围没有进出库记录。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.8,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-005",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 5,
+      "persona": "inventory",
+      "question": "精华液现在库存还有多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3780,
+      "conversationId": 15326,
+      "runId": 15324,
+      "answer": "库存明细：共 2 个 SKU，当前估算库存货值 178.80 元。\n1. 补水精华液（IND-6-STD-SERUM-HYDRATING-001）：库存 36，安全库存 0，本期入库 0、出库/消耗 0，货值 126.00 元。\n2. 水氧护理精华液（IND-6-STD-OXYGEN-SOLUTION-001）：库存 44，安全库存 0，本期入库 0、出库/消耗 0，货值 52.80 元。\n进出库记录：\n当前时间范围没有进出库记录。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_or_workflow_not_supported",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.8,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-006",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 6,
+      "persona": "inventory",
+      "question": "帮我看一下所有低于安全库存的产品",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4202,
+      "conversationId": 15327,
+      "runId": 15325,
+      "answer": "低库存产品：\n1. 玻尿酸保湿精华：当前 133，安全库存 143。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_or_workflow_not_supported",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-007",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 7,
+      "persona": "inventory",
+      "question": "仓库里有多少货，大概值多少钱",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4871,
+      "conversationId": 15328,
+      "runId": 15326,
+      "answer": "库存明细：共 45 个 SKU，当前估算库存货值 269474.20 元。\n1. 玻尿酸保湿精华（AMI-DEMO-FULL-SKU-001）：库存 133，安全库存 143，本期入库 0、出库/消耗 0，货值 22344.00 元。\n2. 舒缓修护面膜（AMI-DEMO-FULL-SKU-002）：库存 202，安全库存 60，本期入库 0、出库/消耗 0，货值 17372.00 元。\n3. 氨基酸洁面乳（AMI-DEMO-FULL-SKU-003）：库存 164，安全库存 50，本期入库 0、出库/消耗 0，货值 9512.00 元。\n4. 烟酰胺亮肤精华（AMI-DEMO-FULL-SKU-004）：库存 163，安全库存 35，本期入库 0、出库/消耗 0，货值 30644.00 元。\n5. 抗衰紧致眼霜（AMI-DEMO-FULL-SKU-005）：库存 110，安全库存 28，本期入库 0、出库/消耗 0，货值 24200.00 元。\n6. 屏障修护乳（AMI-DEMO-FULL-SKU-006）：库存 136，安全库存 42，本期入库 0、出库/消耗 0，货值 18496.00 元。\n7. 水氧护理耗材包（AMI-DEMO-FULL-SKU-007）：库存 81，安全库存 24，本期入库 0、出库/消耗 0，货值 21060.00 元。\n8. 一次性护理巾（AMI-DEMO-FULL-SKU-008）：库存 277，安全库存 90，本期入库 0、出库/消耗 0，货值 8864.00 元。\n9. 胶原蛋白面膜（AMI-DEMO-FULL-SKU-009）：库存 124，安全库存 55，本期入库 0、出库/消耗 0，货值 13888.00 元。\n10. 清透防晒乳（AMI-DEMO-FULL-SKU-010）：库存 122，安全库存 45，本期入库 0、出库/消耗 0，货值 11224.00 元。\n11. 紧致颈霜（AMI-DEMO-FULL-SKU-011）：库存 67，安全库存 32，本期入库 0、出库/消耗 0，货值 9246.00 元。\n12. 舒缓精油（AMI-DEMO-FULL-SKU-012）：库存 92，安全库存 40，本期入库 0、出库/消耗 0，货值 8832.00 元。\n进出库记录：\n当前时间范围没有进出库记录。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.8,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-008",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 8,
+      "persona": "inventory",
+      "question": "哪些产品这周消耗特别快",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 6048,
+      "conversationId": 15329,
+      "runId": 15327,
+      "answer": "库存明细：共 45 个 SKU，当前估算库存货值 269474.20 元。\n1. 补水软膜粉（IND-6-STD-MASK-POWDER-001）：库存 150，安全库存 0，本期入库 0、出库/消耗 50，货值 52.50 元，预计覆盖 18 天。\n2. 亮肤软膜粉（IND-6-STD-MASK-BRIGHTENING-001）：库存 400，安全库存 0，本期入库 0、出库/消耗 25，货值 220.00 元，预计覆盖 96 天。\n3. 院装温和洁面乳（IND-6-STD-CLEANSER-PRO-001）：库存 160，安全库存 0，本期入库 0、出库/消耗 24，货值 72.00 元，预计覆盖 40 天。\n4. 射频仪器导入凝胶（IND-6-STD-GEL-RF-001）：库存 52，安全库存 0，本期入库 0、出库/消耗 14，货值 26.00 元，预计覆盖 22 天。\n5. 美容棉片（IND-6-STD-COTTON-PAD-001）：库存 57，安全库存 0，本期入库 0、出库/消耗 13，货值 6.84 元，预计覆盖 26 天。\n6. 补水精华液（IND-6-STD-SERUM-HYDRATING-001）：库存 36，安全库存 0，本期入库 0、出库/消耗 10，货值 126.00 元，预计覆盖 21 天。\n7. 一次性面巾（IND-6-STD-TOWEL-DISPOSABLE-001）：库存 16，安全库存 0，本期入库 0、出库/消耗 4，货值 14.40 元，预计覆盖 24 天。\n8. 淡斑亮肤精华（IND-6-STD-SPOT-BRIGHTENING-ESSENCE-001）：库存 52，安全库存 0，本期入库 0、出库/消耗 4，货值 457.60 元，预计覆盖 78 天。\n9. 胶原焕活安瓶（IND-6-STD-COLLAGEN-AMPOULE-001）：库存 45，安全库存 0，本期入库 0、出库/消耗 1，货值 990.00 元，预计覆盖 270 天。\n10. 水氧护理耗材包（AMI-DEMO-FULL-SKU-007）：库存 81，安全库存 24，本期入库 0、出库/消耗 1，货值 21060.00 元，预计覆盖 486 天。\n11. 抗衰紧致眼霜（AMI-DEMO-FULL-SKU-005）：库存 110，安全库存 28，本期入库 0、出库/消耗 1，货值 24200.00 元，预计覆盖 660 天。\n12. 舒缓修护面膜（AMI-DEMO-FULL-SKU-002）：库存 202，安全库存 60，本期入库 0、出库/消耗 1，货值 17372.00 元，预计覆盖 1212 天。\n进出库记录：\n1. 2026-07-08 03:41 美容棉片 service_consume -4\n2. 2026-07-08 03:41 一次性面巾 service_consume -1\n3. 2026-07-08 03:41 补水软膜粉 service_consume -25\n4. 2026-07-08 03:41 补水精华液 service_consume -3\n5. 2026-07-08 03:41 院装温和洁面乳 service_consume -5\n6. 2026-07-08 02:28 舒缓修护面膜 sale_out -1\n7. 2026-07-08 02:28 美容棉片 service_consume -4\n8. 2026-07-08 02:28 一次性面巾 service_consume -1\n9. 2026-07-08 02:28 补水软膜粉 service_consume -25\n10. 2026-07-08 02:28 补水精华液 service_consume -3",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-009",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 9,
+      "persona": "inventory",
+      "question": "现在缺货最紧急的是什么",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 5962,
+      "conversationId": 15330,
+      "runId": 15328,
+      "answer": "低库存产品：\n1. 玻尿酸保湿精华：当前 133，安全库存 143。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_or_priority_requires_list_shape",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-010",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 10,
+      "persona": "inventory",
+      "question": "有没有产品一直有但从来不用的",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2192,
+      "conversationId": 15331,
+      "runId": 15329,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-011",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 11,
+      "persona": "inventory",
+      "question": "这个月库存消耗和上个月比有没有异常",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4638,
+      "conversationId": 15332,
+      "runId": 15330,
+      "answer": "库存明细：共 45 个 SKU，当前估算库存货值 269474.20 元。\n1. 亮肤软膜粉（IND-6-STD-MASK-BRIGHTENING-001）：库存 400，安全库存 0，本期入库 500、出库/消耗 100，货值 220.00 元，预计覆盖 43 天。\n2. 水润柔肤水（AMI-DEMO-FULL-SKU-013）：库存 110，安全库存 55，本期入库 70、出库/消耗 70，货值 7920.00 元，预计覆盖 17 天。\n3. 补水软膜粉（IND-6-STD-MASK-POWDER-001）：库存 150，安全库存 0，本期入库 200、出库/消耗 50，货值 52.50 元，预计覆盖 33 天。\n4. 院装温和洁面乳（IND-6-STD-CLEANSER-PRO-001）：库存 160，安全库存 0，本期入库 184、出库/消耗 24，货值 72.00 元，预计覆盖 73 天。\n5. 射频仪器导入凝胶（IND-6-STD-GEL-RF-001）：库存 52，安全库存 0，本期入库 66、出库/消耗 14，货值 26.00 元，预计覆盖 40 天。\n6. 抗衰紧致眼霜（AMI-DEMO-FULL-SKU-005）：库存 110，安全库存 28，本期入库 26、出库/消耗 14，货值 24200.00 元，预计覆盖 86 天。\n7. 美容棉片（IND-6-STD-COTTON-PAD-001）：库存 57，安全库存 0，本期入库 70、出库/消耗 13，货值 6.84 元，预计覆盖 48 天。\n8. 烟酰胺亮肤精华（AMI-DEMO-FULL-SKU-004）：库存 163，安全库存 35，本期入库 0、出库/消耗 11，货值 30644.00 元，预计覆盖 163 天。\n9. 氨基酸洁面乳（AMI-DEMO-FULL-SKU-003）：库存 164，安全库存 50，本期入库 0、出库/消耗 11，货值 9512.00 元，预计覆盖 164 天。\n10. 补水精华液（IND-6-STD-SERUM-HYDRATING-001）：库存 36，安全库存 0，本期入库 46、出库/消耗 10，货值 126.00 元，预计覆盖 39 天。\n11. 一次性面巾（IND-6-STD-TOWEL-DISPOSABLE-001）：库存 16，安全库存 0，本期入库 22、出库/消耗 6，货值 14.40 元，预计覆盖 29 天。\n12. 淡斑亮肤精华（IND-6-STD-SPOT-BRIGHTENING-ESSENCE-001）：库存 52，安全库存 0，本期入库 56、出库/消耗 4，货值 457.60 元，预计覆盖 143 天。\n进出库记录：\n1. 2026-07-08 03:41 美容棉片 service_consume -4\n2. 2026-07-08 03:41 一次性面巾 service_consume -1\n3. 2026-07-08 03:41 补水软膜粉 service_consume -25\n4. 2026-07-08 03:41 补水精华液 service_consume -3\n5. 2026-07-08 03:41 院装温和洁面乳 service_consume -5\n6. 2026-07-08 02:28 舒缓修护面膜 sale_out -1\n7. 2026-07-08 02:28 美容棉片 service_consume -4\n8. 2026-07-08 02:28 一次性面巾 service_consume -1\n9. 2026-07-08 02:28 补水软膜粉 service_consume -25\n10. 2026-07-08 02:28 补水精华液 service_consume -3",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "diagnosis",
+        "reason": "diagnosis_requires_analysis_skill",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-012",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 12,
+      "persona": "inventory",
+      "question": "帮我看一下补水系列产品的库存",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3683,
+      "conversationId": 15333,
+      "runId": 15331,
+      "answer": "库存明细：共 2 个 SKU，当前估算库存货值 178.50 元。\n1. 补水精华液（IND-6-STD-SERUM-HYDRATING-001）：库存 36，安全库存 0，本期入库 0、出库/消耗 0，货值 126.00 元。\n2. 补水软膜粉（IND-6-STD-MASK-POWDER-001）：库存 150，安全库存 0，本期入库 0、出库/消耗 0，货值 52.50 元。\n进出库记录：\n当前时间范围没有进出库记录。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_or_workflow_not_supported",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.8,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-013",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 13,
+      "persona": "inventory",
+      "question": "我们的防晒产品还有多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3288,
+      "conversationId": 15334,
+      "runId": 15332,
+      "answer": "库存明细：共 2 个 SKU，当前估算库存货值 21117.10 元。\n1. 清透防晒乳（AMI-DEMO-FULL-SKU-010）：库存 122，安全库存 45，本期入库 0、出库/消耗 0，货值 11224.00 元。\n2. 日间防晒乳（IND-6-STD-RETAIL-SUNSCREEN-001）：库存 100.95，安全库存 0，本期入库 0、出库/消耗 0，货值 9893.10 元。\n进出库记录：\n当前时间范围没有进出库记录。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_or_workflow_not_supported",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.8,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-014",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 14,
+      "persona": "inventory",
+      "question": "服务用的一次性耗材还够用多久",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3120,
+      "conversationId": 15335,
+      "runId": 15333,
+      "answer": "库存明细：共 0 个 SKU，当前估算库存货值 0.00 元。\n当前门店没有找到匹配产品。\n进出库记录：\n当前时间范围没有进出库记录。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-015",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 15,
+      "persona": "inventory",
+      "question": "哪些产品的安全库存线设得不合理",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3474,
+      "conversationId": 15336,
+      "runId": 15334,
+      "answer": "低库存产品：\n1. 玻尿酸保湿精华：当前 133，安全库存 143。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_or_workflow_not_supported",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-016",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 16,
+      "persona": "inventory",
+      "question": "帮我查一下某个供应商上次送货的情况",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 3334,
+      "conversationId": 15337,
+      "runId": 15335,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-017",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 17,
+      "persona": "inventory",
+      "question": "这个月采购了多少钱的货",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2125,
+      "conversationId": 15338,
+      "runId": 15336,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-018",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 18,
+      "persona": "inventory",
+      "question": "有没有产品一直在消耗但一直没有采购",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 6576,
+      "conversationId": 15339,
+      "runId": 15337,
+      "answer": "采购与供应商分析：\n1. 玻尿酸保湿精华：当前 133，安全库存 143，建议采购 153；候选 Ami MVP 供应商，单价 12.00 元，预计 1836.00 元，交期约 3 天。\n2. 一次性护理巾：当前 277，安全库存 90，建议采购 30；候选 Ami 官方演示供应链，单价 32.00 元，预计 960.00 元。\n3. 烟酰胺亮肤精华：当前 163，安全库存 35，建议采购 25；候选 Ami 全量演示门店 核心耗材供应商，单价 188.00 元，预计 4700.00 元，交期约 9 天。\n4. 清洁棉片：当前 152，安全库存 75，建议采购 25；候选 Ami 官方演示供应链，单价 42.00 元，预计 1050.00 元。\n5. 仪器导入凝胶：当前 130，安全库存 65，建议采购 22；候选 Ami 官方演示供应链，单价 58.00 元，预计 1276.00 元。\n6. 舒缓修护面膜：当前 202，安全库存 60，建议采购 20；候选 Ami 全量演示门店 核心耗材供应商，单价 86.00 元，预计 1720.00 元，交期约 9 天。\n7. 氨基酸洁面乳：当前 164，安全库存 50，建议采购 20；候选 Ami 全量演示门店 核心耗材供应商，单价 58.00 元，预计 1160.00 元，交期约 4 天。\n8. 胶原蛋白面膜：当前 124，安全库存 55，建议采购 18；候选 Ami 官方演示供应链，单价 112.00 元，预计 2016.00 元。\n9. 水润柔肤水：当前 110，安全库存 55，建议采购 18；候选 Ami 官方演示供应链，单价 72.00 元，预计 1296.00 元。\n10. 滋养手膜：当前 108，安全库存 48，建议采购 16；候选 Ami 官方演示供应链，单价 56.00 元，预计 896.00 元。\n11. 清透防晒乳：当前 122，安全库存 45，建议采购 15；候选 Ami 官方演示供应链，单价 92.00 元，预计 1380.00 元。\n12. 舒压按摩膏：当前 92，安全库存 46，建议采购 15；候选 Ami 官方演示供应链，单价 76.00 元，预计 1140.00 元。\n最近采购：\n1. 2026-07-03 SP-MVP-1783038772440，Ami MVP 供应商，60.00 元，received。\n2. 2026-06-17 LEGACY-MVP-SUP-6-RECEIVED，Ami 全量演示门店 核心耗材供应商，5080.00 元，received。\n3. 2026-06-17 LEGACY-MVP-SUP-6-DELAYED，Ami 全量演示门店 核心耗材供应商，2304.00 元，pending_supplier_confirm。\n建议数量按“补到约 2 倍安全库存、最低采购量和报价 MOQ 取最大值”计算；提交采购前仍需人工确认库存占用和预算。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_procurement_analysis",
+          "label": "采购数量、报价与供应商分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-019",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 19,
+      "persona": "inventory",
+      "question": "现在门店和仓库的库存加起来有多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3810,
+      "conversationId": 15340,
+      "runId": 15338,
+      "answer": "库存明细：共 45 个 SKU，当前估算库存货值 269474.20 元。\n1. 玻尿酸保湿精华（AMI-DEMO-FULL-SKU-001）：库存 133，安全库存 143，本期入库 0、出库/消耗 0，货值 22344.00 元。\n2. 舒缓修护面膜（AMI-DEMO-FULL-SKU-002）：库存 202，安全库存 60，本期入库 0、出库/消耗 0，货值 17372.00 元。\n3. 氨基酸洁面乳（AMI-DEMO-FULL-SKU-003）：库存 164，安全库存 50，本期入库 0、出库/消耗 0，货值 9512.00 元。\n4. 烟酰胺亮肤精华（AMI-DEMO-FULL-SKU-004）：库存 163，安全库存 35，本期入库 0、出库/消耗 0，货值 30644.00 元。\n5. 抗衰紧致眼霜（AMI-DEMO-FULL-SKU-005）：库存 110，安全库存 28，本期入库 0、出库/消耗 0，货值 24200.00 元。\n6. 屏障修护乳（AMI-DEMO-FULL-SKU-006）：库存 136，安全库存 42，本期入库 0、出库/消耗 0，货值 18496.00 元。\n7. 水氧护理耗材包（AMI-DEMO-FULL-SKU-007）：库存 81，安全库存 24，本期入库 0、出库/消耗 0，货值 21060.00 元。\n8. 一次性护理巾（AMI-DEMO-FULL-SKU-008）：库存 277，安全库存 90，本期入库 0、出库/消耗 0，货值 8864.00 元。\n9. 胶原蛋白面膜（AMI-DEMO-FULL-SKU-009）：库存 124，安全库存 55，本期入库 0、出库/消耗 0，货值 13888.00 元。\n10. 清透防晒乳（AMI-DEMO-FULL-SKU-010）：库存 122，安全库存 45，本期入库 0、出库/消耗 0，货值 11224.00 元。\n11. 紧致颈霜（AMI-DEMO-FULL-SKU-011）：库存 67，安全库存 32，本期入库 0、出库/消耗 0，货值 9246.00 元。\n12. 舒缓精油（AMI-DEMO-FULL-SKU-012）：库存 92，安全库存 40，本期入库 0、出库/消耗 0，货值 8832.00 元。\n进出库记录：\n当前时间范围没有进出库记录。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_or_workflow_not_supported",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.8,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-020",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 20,
+      "persona": "inventory",
+      "question": "哪些产品的周转率最低",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4046,
+      "conversationId": 15341,
+      "runId": 15339,
+      "answer": "库存明细：共 45 个 SKU，当前估算库存货值 269474.20 元。\n1. 玻尿酸保湿精华（AMI-DEMO-FULL-SKU-001）：库存 133，安全库存 143，本期入库 0、出库/消耗 0，货值 22344.00 元。\n2. 舒缓修护面膜（AMI-DEMO-FULL-SKU-002）：库存 202，安全库存 60，本期入库 0、出库/消耗 0，货值 17372.00 元。\n3. 氨基酸洁面乳（AMI-DEMO-FULL-SKU-003）：库存 164，安全库存 50，本期入库 0、出库/消耗 0，货值 9512.00 元。\n4. 烟酰胺亮肤精华（AMI-DEMO-FULL-SKU-004）：库存 163，安全库存 35，本期入库 0、出库/消耗 0，货值 30644.00 元。\n5. 抗衰紧致眼霜（AMI-DEMO-FULL-SKU-005）：库存 110，安全库存 28，本期入库 0、出库/消耗 0，货值 24200.00 元。\n6. 屏障修护乳（AMI-DEMO-FULL-SKU-006）：库存 136，安全库存 42，本期入库 0、出库/消耗 0，货值 18496.00 元。\n7. 水氧护理耗材包（AMI-DEMO-FULL-SKU-007）：库存 81，安全库存 24，本期入库 0、出库/消耗 0，货值 21060.00 元。\n8. 一次性护理巾（AMI-DEMO-FULL-SKU-008）：库存 277，安全库存 90，本期入库 0、出库/消耗 0，货值 8864.00 元。\n9. 胶原蛋白面膜（AMI-DEMO-FULL-SKU-009）：库存 124，安全库存 55，本期入库 0、出库/消耗 0，货值 13888.00 元。\n10. 清透防晒乳（AMI-DEMO-FULL-SKU-010）：库存 122，安全库存 45，本期入库 0、出库/消耗 0，货值 11224.00 元。\n11. 紧致颈霜（AMI-DEMO-FULL-SKU-011）：库存 67，安全库存 32，本期入库 0、出库/消耗 0，货值 9246.00 元。\n12. 舒缓精油（AMI-DEMO-FULL-SKU-012）：库存 92，安全库存 40，本期入库 0、出库/消耗 0，货值 8832.00 元。\n进出库记录：\n当前时间范围没有进出库记录。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "ranking",
+        "actualIntent": "unknown",
+        "expectedShape": "ranking",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-021",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 21,
+      "persona": "inventory",
+      "question": "帮我统计一下这季度每个产品的用量",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 6095,
+      "conversationId": 15342,
+      "runId": 15340,
+      "answer": "库存明细：共 45 个 SKU，当前估算库存货值 269474.20 元。\n1. 玻尿酸保湿精华（AMI-DEMO-FULL-SKU-001）：库存 133，安全库存 143，本期入库 0、出库/消耗 0，货值 22344.00 元。\n2. 舒缓修护面膜（AMI-DEMO-FULL-SKU-002）：库存 202，安全库存 60，本期入库 0、出库/消耗 0，货值 17372.00 元。\n3. 氨基酸洁面乳（AMI-DEMO-FULL-SKU-003）：库存 164，安全库存 50，本期入库 0、出库/消耗 0，货值 9512.00 元。\n4. 烟酰胺亮肤精华（AMI-DEMO-FULL-SKU-004）：库存 163，安全库存 35，本期入库 0、出库/消耗 0，货值 30644.00 元。\n5. 抗衰紧致眼霜（AMI-DEMO-FULL-SKU-005）：库存 110，安全库存 28，本期入库 0、出库/消耗 0，货值 24200.00 元。\n6. 屏障修护乳（AMI-DEMO-FULL-SKU-006）：库存 136，安全库存 42，本期入库 0、出库/消耗 0，货值 18496.00 元。\n7. 水氧护理耗材包（AMI-DEMO-FULL-SKU-007）：库存 81，安全库存 24，本期入库 0、出库/消耗 0，货值 21060.00 元。\n8. 一次性护理巾（AMI-DEMO-FULL-SKU-008）：库存 277，安全库存 90，本期入库 0、出库/消耗 0，货值 8864.00 元。\n9. 胶原蛋白面膜（AMI-DEMO-FULL-SKU-009）：库存 124，安全库存 55，本期入库 0、出库/消耗 0，货值 13888.00 元。\n10. 清透防晒乳（AMI-DEMO-FULL-SKU-010）：库存 122，安全库存 45，本期入库 0、出库/消耗 0，货值 11224.00 元。\n11. 紧致颈霜（AMI-DEMO-FULL-SKU-011）：库存 67，安全库存 32，本期入库 0、出库/消耗 0，货值 9246.00 元。\n12. 舒缓精油（AMI-DEMO-FULL-SKU-012）：库存 92，安全库存 40，本期入库 0、出库/消耗 0，货值 8832.00 元。\n进出库记录：\n当前时间范围没有进出库记录。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-022",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 22,
+      "persona": "inventory",
+      "question": "有没有最近需求突然增加的产品",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4601,
+      "conversationId": 15343,
+      "runId": 15341,
+      "answer": "库存明细：共 45 个 SKU，当前估算库存货值 269474.20 元。\n1. 玻尿酸保湿精华（AMI-DEMO-FULL-SKU-001）：库存 133，安全库存 143，本期入库 0、出库/消耗 0，货值 22344.00 元。\n2. 舒缓修护面膜（AMI-DEMO-FULL-SKU-002）：库存 202，安全库存 60，本期入库 0、出库/消耗 0，货值 17372.00 元。\n3. 氨基酸洁面乳（AMI-DEMO-FULL-SKU-003）：库存 164，安全库存 50，本期入库 0、出库/消耗 0，货值 9512.00 元。\n4. 烟酰胺亮肤精华（AMI-DEMO-FULL-SKU-004）：库存 163，安全库存 35，本期入库 0、出库/消耗 0，货值 30644.00 元。\n5. 抗衰紧致眼霜（AMI-DEMO-FULL-SKU-005）：库存 110，安全库存 28，本期入库 0、出库/消耗 0，货值 24200.00 元。\n6. 屏障修护乳（AMI-DEMO-FULL-SKU-006）：库存 136，安全库存 42，本期入库 0、出库/消耗 0，货值 18496.00 元。\n7. 水氧护理耗材包（AMI-DEMO-FULL-SKU-007）：库存 81，安全库存 24，本期入库 0、出库/消耗 0，货值 21060.00 元。\n8. 一次性护理巾（AMI-DEMO-FULL-SKU-008）：库存 277，安全库存 90，本期入库 0、出库/消耗 0，货值 8864.00 元。\n9. 胶原蛋白面膜（AMI-DEMO-FULL-SKU-009）：库存 124，安全库存 55，本期入库 0、出库/消耗 0，货值 13888.00 元。\n10. 清透防晒乳（AMI-DEMO-FULL-SKU-010）：库存 122，安全库存 45，本期入库 0、出库/消耗 0，货值 11224.00 元。\n11. 紧致颈霜（AMI-DEMO-FULL-SKU-011）：库存 67，安全库存 32，本期入库 0、出库/消耗 0，货值 9246.00 元。\n12. 舒缓精油（AMI-DEMO-FULL-SKU-012）：库存 92，安全库存 40，本期入库 0、出库/消耗 0，货值 8832.00 元。\n进出库记录：\n当前时间范围没有进出库记录。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-023",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 23,
+      "persona": "inventory",
+      "question": "我们的理疗仪器耗材还够用多少次",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4036,
+      "conversationId": 15344,
+      "runId": 15342,
+      "answer": "库存明细：共 0 个 SKU，当前估算库存货值 0.00 元。\n当前门店没有找到匹配产品。\n进出库记录：\n当前时间范围没有进出库记录。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-024",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 24,
+      "persona": "inventory",
+      "question": "最贵的那几样耗材现在库存怎么样",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4319,
+      "conversationId": 15345,
+      "runId": 15343,
+      "answer": "低库存产品：\n1. 玻尿酸保湿精华：当前 133，安全库存 143。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-inventory-query-risk-025",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "库存查询与风险",
+      "sourceIndex": 25,
+      "persona": "inventory",
+      "question": "帮我看一下今天进出库的记录",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4487,
+      "conversationId": 15346,
+      "runId": 15344,
+      "answer": "库存明细：共 45 个 SKU，当前估算库存货值 269474.20 元。\n1. 玻尿酸保湿精华（AMI-DEMO-FULL-SKU-001）：库存 133，安全库存 143，本期入库 0、出库/消耗 0，货值 22344.00 元。\n2. 舒缓修护面膜（AMI-DEMO-FULL-SKU-002）：库存 202，安全库存 60，本期入库 0、出库/消耗 0，货值 17372.00 元。\n3. 氨基酸洁面乳（AMI-DEMO-FULL-SKU-003）：库存 164，安全库存 50，本期入库 0、出库/消耗 0，货值 9512.00 元。\n4. 烟酰胺亮肤精华（AMI-DEMO-FULL-SKU-004）：库存 163，安全库存 35，本期入库 0、出库/消耗 0，货值 30644.00 元。\n5. 抗衰紧致眼霜（AMI-DEMO-FULL-SKU-005）：库存 110，安全库存 28，本期入库 0、出库/消耗 0，货值 24200.00 元。\n6. 屏障修护乳（AMI-DEMO-FULL-SKU-006）：库存 136，安全库存 42，本期入库 0、出库/消耗 0，货值 18496.00 元。\n7. 水氧护理耗材包（AMI-DEMO-FULL-SKU-007）：库存 81，安全库存 24，本期入库 0、出库/消耗 0，货值 21060.00 元。\n8. 一次性护理巾（AMI-DEMO-FULL-SKU-008）：库存 277，安全库存 90，本期入库 0、出库/消耗 0，货值 8864.00 元。\n9. 胶原蛋白面膜（AMI-DEMO-FULL-SKU-009）：库存 124，安全库存 55，本期入库 0、出库/消耗 0，货值 13888.00 元。\n10. 清透防晒乳（AMI-DEMO-FULL-SKU-010）：库存 122，安全库存 45，本期入库 0、出库/消耗 0，货值 11224.00 元。\n11. 紧致颈霜（AMI-DEMO-FULL-SKU-011）：库存 67，安全库存 32，本期入库 0、出库/消耗 0，货值 9246.00 元。\n12. 舒缓精油（AMI-DEMO-FULL-SKU-012）：库存 92，安全库存 40，本期入库 0、出库/消耗 0，货值 8832.00 元。\n进出库记录：\n当前时间范围没有进出库记录。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.8,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-026",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 26,
+      "persona": "inventory",
+      "question": "哪些产品快过期了，还有多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4332,
+      "conversationId": 15347,
+      "runId": 15345,
+      "answer": "库存明细：共 45 个 SKU，当前估算库存货值 269474.20 元。\n1. 玻尿酸保湿精华（AMI-DEMO-FULL-SKU-001）：库存 133，安全库存 143，本期入库 0、出库/消耗 0，货值 22344.00 元。\n2. 舒缓修护面膜（AMI-DEMO-FULL-SKU-002）：库存 202，安全库存 60，本期入库 0、出库/消耗 0，货值 17372.00 元。\n3. 氨基酸洁面乳（AMI-DEMO-FULL-SKU-003）：库存 164，安全库存 50，本期入库 0、出库/消耗 0，货值 9512.00 元。\n4. 烟酰胺亮肤精华（AMI-DEMO-FULL-SKU-004）：库存 163，安全库存 35，本期入库 0、出库/消耗 0，货值 30644.00 元。\n5. 抗衰紧致眼霜（AMI-DEMO-FULL-SKU-005）：库存 110，安全库存 28，本期入库 0、出库/消耗 0，货值 24200.00 元。\n6. 屏障修护乳（AMI-DEMO-FULL-SKU-006）：库存 136，安全库存 42，本期入库 0、出库/消耗 0，货值 18496.00 元。\n7. 水氧护理耗材包（AMI-DEMO-FULL-SKU-007）：库存 81，安全库存 24，本期入库 0、出库/消耗 0，货值 21060.00 元。\n8. 一次性护理巾（AMI-DEMO-FULL-SKU-008）：库存 277，安全库存 90，本期入库 0、出库/消耗 0，货值 8864.00 元。\n9. 胶原蛋白面膜（AMI-DEMO-FULL-SKU-009）：库存 124，安全库存 55，本期入库 0、出库/消耗 0，货值 13888.00 元。\n10. 清透防晒乳（AMI-DEMO-FULL-SKU-010）：库存 122，安全库存 45，本期入库 0、出库/消耗 0，货值 11224.00 元。\n11. 紧致颈霜（AMI-DEMO-FULL-SKU-011）：库存 67，安全库存 32，本期入库 0、出库/消耗 0，货值 9246.00 元。\n12. 舒缓精油（AMI-DEMO-FULL-SKU-012）：库存 92，安全库存 40，本期入库 0、出库/消耗 0，货值 8832.00 元。\n进出库记录：\n当前时间范围没有进出库记录。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_or_workflow_not_supported",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-027",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 27,
+      "persona": "inventory",
+      "question": "帮我看一下30天内要过期的东西",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2894,
+      "conversationId": 15348,
+      "runId": 15346,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "non_metric",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-028",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 28,
+      "persona": "inventory",
+      "question": "有没有已经过期的产品还在用",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4862,
+      "conversationId": 15349,
+      "runId": 15347,
+      "answer": "临期/过期库存清单：\n1. 舒缓修护面膜：剩余 97，到期日 2026-07-05，估算货值 0.00 元。\n临期库存金额 0.00 元。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_or_workflow_not_supported",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-029",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 29,
+      "persona": "inventory",
+      "question": "这批快过期的产品怎么处理最合适",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3023,
+      "conversationId": 15350,
+      "runId": 15348,
+      "answer": "前台接待建议：\n1. 先确认客户诉求和身份。\n2. 再查看预约、消费或会员记录。\n3. 涉及金额、权益或争议时转交店长确认。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "front_desk_service_advice",
+          "label": "前台接待建议"
+        }
+      ],
+      "adapterKey": "front_desk",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "receptionist",
+        "domain": "front_desk",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "front_desk",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:store:reservations"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-030",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 30,
+      "persona": "inventory",
+      "question": "有没有办法在过期前把这些产品消耗掉",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 5268,
+      "conversationId": 15351,
+      "runId": 15349,
+      "answer": "库存明细：共 45 个 SKU，当前估算库存货值 269474.20 元。\n1. 玻尿酸保湿精华（AMI-DEMO-FULL-SKU-001）：库存 133，安全库存 143，本期入库 0、出库/消耗 0，货值 22344.00 元。\n2. 舒缓修护面膜（AMI-DEMO-FULL-SKU-002）：库存 202，安全库存 60，本期入库 0、出库/消耗 0，货值 17372.00 元。\n3. 氨基酸洁面乳（AMI-DEMO-FULL-SKU-003）：库存 164，安全库存 50，本期入库 0、出库/消耗 0，货值 9512.00 元。\n4. 烟酰胺亮肤精华（AMI-DEMO-FULL-SKU-004）：库存 163，安全库存 35，本期入库 0、出库/消耗 0，货值 30644.00 元。\n5. 抗衰紧致眼霜（AMI-DEMO-FULL-SKU-005）：库存 110，安全库存 28，本期入库 0、出库/消耗 0，货值 24200.00 元。\n6. 屏障修护乳（AMI-DEMO-FULL-SKU-006）：库存 136，安全库存 42，本期入库 0、出库/消耗 0，货值 18496.00 元。\n7. 水氧护理耗材包（AMI-DEMO-FULL-SKU-007）：库存 81，安全库存 24，本期入库 0、出库/消耗 0，货值 21060.00 元。\n8. 一次性护理巾（AMI-DEMO-FULL-SKU-008）：库存 277，安全库存 90，本期入库 0、出库/消耗 0，货值 8864.00 元。\n9. 胶原蛋白面膜（AMI-DEMO-FULL-SKU-009）：库存 124，安全库存 55，本期入库 0、出库/消耗 0，货值 13888.00 元。\n10. 清透防晒乳（AMI-DEMO-FULL-SKU-010）：库存 122，安全库存 45，本期入库 0、出库/消耗 0，货值 11224.00 元。\n11. 紧致颈霜（AMI-DEMO-FULL-SKU-011）：库存 67，安全库存 32，本期入库 0、出库/消耗 0，货值 9246.00 元。\n12. 舒缓精油（AMI-DEMO-FULL-SKU-012）：库存 92，安全库存 40，本期入库 0、出库/消耗 0，货值 8832.00 元。\n进出库记录：\n当前时间范围没有进出库记录。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-031",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 31,
+      "persona": "inventory",
+      "question": "我们一般临期产品是怎么处理的",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3535,
+      "conversationId": 15352,
+      "runId": 15350,
+      "answer": "前台接待建议：\n1. 先确认客户诉求和身份。\n2. 再查看预约、消费或会员记录。\n3. 涉及金额、权益或争议时转交店长确认。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "front_desk_service_advice",
+          "label": "前台接待建议"
+        }
+      ],
+      "adapterKey": "front_desk",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "receptionist",
+        "domain": "front_desk",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "front_desk",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:store:reservations"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-032",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 32,
+      "persona": "inventory",
+      "question": "这个月有没有因为过期而损耗的产品",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4885,
+      "conversationId": 15353,
+      "runId": 15351,
+      "answer": "临期/过期库存清单：\n1. 舒缓修护面膜：剩余 97，到期日 2026-07-05，估算货值 0.00 元。\n临期库存金额 0.00 元。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_or_workflow_not_supported",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-033",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 33,
+      "persona": "inventory",
+      "question": "哪些产品最容易过期，需要重点关注",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3010,
+      "conversationId": 15354,
+      "runId": 15352,
+      "answer": "临期/过期库存清单：\n1. 舒缓修护面膜：剩余 97，到期日 2026-07-05，估算货值 0.00 元。\n临期库存金额 0.00 元。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-034",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 34,
+      "persona": "inventory",
+      "question": "帮我制定一个临期产品的消化方案",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2278,
+      "conversationId": 15355,
+      "runId": 15353,
+      "answer": "临期产品处理建议：\n1. 先下架复核批次、开封状态和有效期，形成处理清单。\n2. 未过期且符合使用标准的产品，优先安排到适配项目中合规消耗。\n3. 已过期或状态异常的产品不得继续给客使用，按门店报损流程处理。\n4. 如需做促销消化，先确认毛利、库存数量和客户适配范围。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_disposal_advice",
+          "label": "临期过期处理建议"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-035",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 35,
+      "persona": "inventory",
+      "question": "进货太多导致积压的产品有哪些",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3191,
+      "conversationId": 15356,
+      "runId": 15354,
+      "answer": "低库存产品：\n1. 玻尿酸保湿精华：当前 133，安全库存 143。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-036",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 36,
+      "persona": "inventory",
+      "question": "有没有产品开了之后很长时间还没用完",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2682,
+      "conversationId": 15357,
+      "runId": 15355,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-037",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 37,
+      "persona": "inventory",
+      "question": "帮我计算一下这批临期货品的损失金额",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 3031,
+      "conversationId": 15358,
+      "runId": 15356,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "non_metric",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-038",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 38,
+      "persona": "inventory",
+      "question": "过期的护肤品怎么处理，有没有规定",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3025,
+      "conversationId": 15359,
+      "runId": 15357,
+      "answer": "前台接待建议：\n1. 先确认客户诉求和身份。\n2. 再查看预约、消费或会员记录。\n3. 涉及金额、权益或争议时转交店长确认。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "front_desk_service_advice",
+          "label": "前台接待建议"
+        }
+      ],
+      "adapterKey": "front_desk",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "receptionist",
+        "domain": "front_desk",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "front_desk",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:store:reservations"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-039",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 39,
+      "persona": "inventory",
+      "question": "最近有没有因为保存不当导致产品变质",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4190,
+      "conversationId": 15360,
+      "runId": 15358,
+      "answer": "低库存产品：\n1. 玻尿酸保湿精华：当前 133，安全库存 143。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "action",
+        "reason": "action_request_before_metric_keyword",
+        "grounding": "preview_action",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "action",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-040",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 40,
+      "persona": "inventory",
+      "question": "帮我查一下我们的库存损耗率高不高",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2562,
+      "conversationId": 15361,
+      "runId": 15359,
+      "answer": "库存明细、门店/仓库合计、安全库存和处置流程尚未接入真实口径，Ami Brain 不会用临期库存金额替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "list",
+        "reason": "inventory_detail_or_workflow_not_supported",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "list",
+        "unsupportedReason": "库存明细、门店/仓库合计、安全库存和处置流程尚未接入真实口径，Ami Brain 不会用临期库存金额替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-041",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 41,
+      "persona": "inventory",
+      "question": "有没有办法减少临期产品的出现",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2232,
+      "conversationId": 15362,
+      "runId": 15360,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-042",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 42,
+      "persona": "inventory",
+      "question": "我们每个月大概会损耗多少货值",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2607,
+      "conversationId": 15363,
+      "runId": 15361,
+      "answer": "库存明细、门店/仓库合计、安全库存和处置流程尚未接入真实口径，Ami Brain 不会用临期库存金额替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "list",
+        "reason": "inventory_detail_or_workflow_not_supported",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "list",
+        "unsupportedReason": "库存明细、门店/仓库合计、安全库存和处置流程尚未接入真实口径，Ami Brain 不会用临期库存金额替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-043",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 43,
+      "persona": "inventory",
+      "question": "有没有供应商可以接受临期产品退换货",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 3008,
+      "conversationId": 15364,
+      "runId": 15362,
+      "answer": "库存明细、门店/仓库合计、安全库存和处置流程尚未接入真实口径，Ami Brain 不会用临期库存金额替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "list",
+        "reason": "inventory_detail_or_workflow_not_supported",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "list",
+        "unsupportedReason": "库存明细、门店/仓库合计、安全库存和处置流程尚未接入真实口径，Ami Brain 不会用临期库存金额替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "list",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-044",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 44,
+      "persona": "inventory",
+      "question": "帮我算一下如果做促销可以消化多少临期货",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 6315,
+      "conversationId": 15365,
+      "runId": 15363,
+      "answer": "临期/过期库存清单：\n1. 舒缓修护面膜：剩余 97，到期日 2026-07-05，估算货值 0.00 元。\n临期库存金额 0.00 元。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-expiry-loss-045",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "临期与损耗",
+      "sourceIndex": 45,
+      "persona": "inventory",
+      "question": "临期产品的优惠力度给多少合理",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3880,
+      "conversationId": 15366,
+      "runId": 15364,
+      "answer": "临期产品处理建议：\n1. 先下架复核批次、开封状态和有效期，形成处理清单。\n2. 未过期且符合使用标准的产品，优先安排到适配项目中合规消耗。\n3. 已过期或状态异常的产品不得继续给客使用，按门店报损流程处理。\n4. 如需做促销消化，先确认毛利、库存数量和客户适配范围。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_disposal_advice",
+          "label": "临期过期处理建议"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_or_priority_requires_list_shape",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-046",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 46,
+      "persona": "inventory",
+      "question": "下次采购要买什么，给我列一个清单",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 7063,
+      "conversationId": 15367,
+      "runId": 15365,
+      "answer": "采购与供应商分析：\n1. 玻尿酸保湿精华：当前 133，安全库存 143，建议采购 153；候选 Ami MVP 供应商，单价 12.00 元，预计 1836.00 元，交期约 3 天。\n2. 一次性护理巾：当前 277，安全库存 90，建议采购 30；候选 Ami 官方演示供应链，单价 32.00 元，预计 960.00 元。\n3. 烟酰胺亮肤精华：当前 163，安全库存 35，建议采购 25；候选 Ami 全量演示门店 核心耗材供应商，单价 188.00 元，预计 4700.00 元，交期约 9 天。\n4. 清洁棉片：当前 152，安全库存 75，建议采购 25；候选 Ami 官方演示供应链，单价 42.00 元，预计 1050.00 元。\n5. 仪器导入凝胶：当前 130，安全库存 65，建议采购 22；候选 Ami 官方演示供应链，单价 58.00 元，预计 1276.00 元。\n6. 舒缓修护面膜：当前 202，安全库存 60，建议采购 20；候选 Ami 全量演示门店 核心耗材供应商，单价 86.00 元，预计 1720.00 元，交期约 9 天。\n7. 氨基酸洁面乳：当前 164，安全库存 50，建议采购 20；候选 Ami 全量演示门店 核心耗材供应商，单价 58.00 元，预计 1160.00 元，交期约 4 天。\n8. 胶原蛋白面膜：当前 124，安全库存 55，建议采购 18；候选 Ami 官方演示供应链，单价 112.00 元，预计 2016.00 元。\n9. 水润柔肤水：当前 110，安全库存 55，建议采购 18；候选 Ami 官方演示供应链，单价 72.00 元，预计 1296.00 元。\n10. 滋养手膜：当前 108，安全库存 48，建议采购 16；候选 Ami 官方演示供应链，单价 56.00 元，预计 896.00 元。\n11. 清透防晒乳：当前 122，安全库存 45，建议采购 15；候选 Ami 官方演示供应链，单价 92.00 元，预计 1380.00 元。\n12. 舒压按摩膏：当前 92，安全库存 46，建议采购 15；候选 Ami 官方演示供应链，单价 76.00 元，预计 1140.00 元。\n最近采购：\n1. 2026-07-03 SP-MVP-1783038772440，Ami MVP 供应商，60.00 元，received。\n2. 2026-06-17 LEGACY-MVP-SUP-6-RECEIVED，Ami 全量演示门店 核心耗材供应商，5080.00 元，received。\n3. 2026-06-17 LEGACY-MVP-SUP-6-DELAYED，Ami 全量演示门店 核心耗材供应商，2304.00 元，pending_supplier_confirm。\n建议数量按“补到约 2 倍安全库存、最低采购量和报价 MOQ 取最大值”计算；提交采购前仍需人工确认库存占用和预算。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_procurement_analysis",
+          "label": "采购数量、报价与供应商分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "strong_inventory_list_phrase",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-047",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 47,
+      "persona": "inventory",
+      "question": "这个月需要补多少基础护肤品",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 3704,
+      "conversationId": 15368,
+      "runId": 15366,
+      "answer": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-048",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 48,
+      "persona": "inventory",
+      "question": "哪些东西需要马上采购不能等了",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 9265,
+      "conversationId": 15369,
+      "runId": 15367,
+      "answer": "采购与供应商分析：\n1. 玻尿酸保湿精华：当前 133，安全库存 143，建议采购 153；候选 Ami MVP 供应商，单价 12.00 元，预计 1836.00 元，交期约 3 天。\n2. 一次性护理巾：当前 277，安全库存 90，建议采购 30；候选 Ami 官方演示供应链，单价 32.00 元，预计 960.00 元。\n3. 烟酰胺亮肤精华：当前 163，安全库存 35，建议采购 25；候选 Ami 全量演示门店 核心耗材供应商，单价 188.00 元，预计 4700.00 元，交期约 9 天。\n4. 清洁棉片：当前 152，安全库存 75，建议采购 25；候选 Ami 官方演示供应链，单价 42.00 元，预计 1050.00 元。\n5. 仪器导入凝胶：当前 130，安全库存 65，建议采购 22；候选 Ami 官方演示供应链，单价 58.00 元，预计 1276.00 元。\n6. 舒缓修护面膜：当前 202，安全库存 60，建议采购 20；候选 Ami 全量演示门店 核心耗材供应商，单价 86.00 元，预计 1720.00 元，交期约 9 天。\n7. 氨基酸洁面乳：当前 164，安全库存 50，建议采购 20；候选 Ami 全量演示门店 核心耗材供应商，单价 58.00 元，预计 1160.00 元，交期约 4 天。\n8. 胶原蛋白面膜：当前 124，安全库存 55，建议采购 18；候选 Ami 官方演示供应链，单价 112.00 元，预计 2016.00 元。\n9. 水润柔肤水：当前 110，安全库存 55，建议采购 18；候选 Ami 官方演示供应链，单价 72.00 元，预计 1296.00 元。\n10. 滋养手膜：当前 108，安全库存 48，建议采购 16；候选 Ami 官方演示供应链，单价 56.00 元，预计 896.00 元。\n11. 清透防晒乳：当前 122，安全库存 45，建议采购 15；候选 Ami 官方演示供应链，单价 92.00 元，预计 1380.00 元。\n12. 舒压按摩膏：当前 92，安全库存 46，建议采购 15；候选 Ami 官方演示供应链，单价 76.00 元，预计 1140.00 元。\n最近采购：\n1. 2026-07-03 SP-MVP-1783038772440，Ami MVP 供应商，60.00 元，received。\n2. 2026-06-17 LEGACY-MVP-SUP-6-RECEIVED，Ami 全量演示门店 核心耗材供应商，5080.00 元，received。\n3. 2026-06-17 LEGACY-MVP-SUP-6-DELAYED，Ami 全量演示门店 核心耗材供应商，2304.00 元，pending_supplier_confirm。\n建议数量按“补到约 2 倍安全库存、最低采购量和报价 MOQ 取最大值”计算；提交采购前仍需人工确认库存占用和预算。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_procurement_analysis",
+          "label": "采购数量、报价与供应商分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-049",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 49,
+      "persona": "inventory",
+      "question": "帮我看一下每个供应商上次报价",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2618,
+      "conversationId": 15370,
+      "runId": 15368,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-050",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 50,
+      "persona": "inventory",
+      "question": "我们常用的哪个供应商性价比最好",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 6087,
+      "conversationId": 15371,
+      "runId": 15369,
+      "answer": "采购与供应商分析：\n1. 玻尿酸保湿精华：当前 133，安全库存 143，建议采购 153；候选 Ami MVP 供应商，单价 12.00 元，预计 1836.00 元，交期约 3 天。\n2. 一次性护理巾：当前 277，安全库存 90，建议采购 30；候选 Ami 官方演示供应链，单价 32.00 元，预计 960.00 元。\n3. 烟酰胺亮肤精华：当前 163，安全库存 35，建议采购 25；候选 Ami 全量演示门店 核心耗材供应商，单价 188.00 元，预计 4700.00 元，交期约 9 天。\n4. 清洁棉片：当前 152，安全库存 75，建议采购 25；候选 Ami 官方演示供应链，单价 42.00 元，预计 1050.00 元。\n5. 仪器导入凝胶：当前 130，安全库存 65，建议采购 22；候选 Ami 官方演示供应链，单价 58.00 元，预计 1276.00 元。\n6. 舒缓修护面膜：当前 202，安全库存 60，建议采购 20；候选 Ami 全量演示门店 核心耗材供应商，单价 86.00 元，预计 1720.00 元，交期约 9 天。\n7. 氨基酸洁面乳：当前 164，安全库存 50，建议采购 20；候选 Ami 全量演示门店 核心耗材供应商，单价 58.00 元，预计 1160.00 元，交期约 4 天。\n8. 胶原蛋白面膜：当前 124，安全库存 55，建议采购 18；候选 Ami 官方演示供应链，单价 112.00 元，预计 2016.00 元。\n9. 水润柔肤水：当前 110，安全库存 55，建议采购 18；候选 Ami 官方演示供应链，单价 72.00 元，预计 1296.00 元。\n10. 滋养手膜：当前 108，安全库存 48，建议采购 16；候选 Ami 官方演示供应链，单价 56.00 元，预计 896.00 元。\n11. 清透防晒乳：当前 122，安全库存 45，建议采购 15；候选 Ami 官方演示供应链，单价 92.00 元，预计 1380.00 元。\n12. 舒压按摩膏：当前 92，安全库存 46，建议采购 15；候选 Ami 官方演示供应链，单价 76.00 元，预计 1140.00 元。\n最近采购：\n1. 2026-07-03 SP-MVP-1783038772440，Ami MVP 供应商，60.00 元，received。\n2. 2026-06-17 LEGACY-MVP-SUP-6-RECEIVED，Ami 全量演示门店 核心耗材供应商，5080.00 元，received。\n3. 2026-06-17 LEGACY-MVP-SUP-6-DELAYED，Ami 全量演示门店 核心耗材供应商，2304.00 元，pending_supplier_confirm。\n建议数量按“补到约 2 倍安全库存、最低采购量和报价 MOQ 取最大值”计算；提交采购前仍需人工确认库存占用和预算。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_procurement_analysis",
+          "label": "采购数量、报价与供应商分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "ranking",
+        "reason": "ranking_question_requires_grouped_shape",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "ranking",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "ranking",
+        "actualIntent": "unknown",
+        "expectedShape": "ranking",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-051",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 51,
+      "persona": "inventory",
+      "question": "帮我生成一份本月的采购计划",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3448,
+      "conversationId": 15372,
+      "runId": 15370,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-052",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 52,
+      "persona": "inventory",
+      "question": "这批补水精华买多少量比较合适",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 3698,
+      "conversationId": 15373,
+      "runId": 15371,
+      "answer": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-053",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 53,
+      "persona": "inventory",
+      "question": "有没有供应商最近有优惠活动",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2938,
+      "conversationId": 15374,
+      "runId": 15372,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-054",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 54,
+      "persona": "inventory",
+      "question": "帮我比较一下两个供应商的价格",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 3282,
+      "conversationId": 15375,
+      "runId": 15373,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-055",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 55,
+      "persona": "inventory",
+      "question": "帮我估算一下这次采购大概要花多少钱",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2974,
+      "conversationId": 15376,
+      "runId": 15374,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-056",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 56,
+      "persona": "inventory",
+      "question": "这个产品最近涨价了，要不要提前多备一些",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2540,
+      "conversationId": 15377,
+      "runId": 15375,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-057",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 57,
+      "persona": "inventory",
+      "question": "帮我看一下历史采购记录，我们一般一次买多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2927,
+      "conversationId": 15378,
+      "runId": 15376,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-058",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 58,
+      "persona": "inventory",
+      "question": "采购时有没有什么需要特别注意的资质问题",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2515,
+      "conversationId": 15379,
+      "runId": 15377,
+      "answer": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-059",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 59,
+      "persona": "inventory",
+      "question": "帮我生成一份发给供应商的询价单",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3109,
+      "conversationId": 15380,
+      "runId": 15378,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-060",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 60,
+      "persona": "inventory",
+      "question": "有没有国内供应商可以替代进口的",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2556,
+      "conversationId": 15381,
+      "runId": 15379,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-061",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 61,
+      "persona": "inventory",
+      "question": "这个月原材料价格有没有上涨趋势",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 3251,
+      "conversationId": 15382,
+      "runId": 15380,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-062",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 62,
+      "persona": "inventory",
+      "question": "节假日前要不要多备一些货",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 3682,
+      "conversationId": 15383,
+      "runId": 15381,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-063",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 63,
+      "persona": "inventory",
+      "question": "帮我看一下各品类的最低采购量要求",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 5754,
+      "conversationId": 15384,
+      "runId": 15382,
+      "answer": "采购与供应商分析：\n1. 玻尿酸保湿精华：当前 133，安全库存 143，建议采购 153；候选 Ami MVP 供应商，单价 12.00 元，预计 1836.00 元，交期约 3 天。\n2. 一次性护理巾：当前 277，安全库存 90，建议采购 30；候选 Ami 官方演示供应链，单价 32.00 元，预计 960.00 元。\n3. 烟酰胺亮肤精华：当前 163，安全库存 35，建议采购 25；候选 Ami 全量演示门店 核心耗材供应商，单价 188.00 元，预计 4700.00 元，交期约 9 天。\n4. 清洁棉片：当前 152，安全库存 75，建议采购 25；候选 Ami 官方演示供应链，单价 42.00 元，预计 1050.00 元。\n5. 仪器导入凝胶：当前 130，安全库存 65，建议采购 22；候选 Ami 官方演示供应链，单价 58.00 元，预计 1276.00 元。\n6. 舒缓修护面膜：当前 202，安全库存 60，建议采购 20；候选 Ami 全量演示门店 核心耗材供应商，单价 86.00 元，预计 1720.00 元，交期约 9 天。\n7. 氨基酸洁面乳：当前 164，安全库存 50，建议采购 20；候选 Ami 全量演示门店 核心耗材供应商，单价 58.00 元，预计 1160.00 元，交期约 4 天。\n8. 胶原蛋白面膜：当前 124，安全库存 55，建议采购 18；候选 Ami 官方演示供应链，单价 112.00 元，预计 2016.00 元。\n9. 水润柔肤水：当前 110，安全库存 55，建议采购 18；候选 Ami 官方演示供应链，单价 72.00 元，预计 1296.00 元。\n10. 滋养手膜：当前 108，安全库存 48，建议采购 16；候选 Ami 官方演示供应链，单价 56.00 元，预计 896.00 元。\n11. 清透防晒乳：当前 122，安全库存 45，建议采购 15；候选 Ami 官方演示供应链，单价 92.00 元，预计 1380.00 元。\n12. 舒压按摩膏：当前 92，安全库存 46，建议采购 15；候选 Ami 官方演示供应链，单价 76.00 元，预计 1140.00 元。\n最近采购：\n1. 2026-07-03 SP-MVP-1783038772440，Ami MVP 供应商，60.00 元，received。\n2. 2026-06-17 LEGACY-MVP-SUP-6-RECEIVED，Ami 全量演示门店 核心耗材供应商，5080.00 元，received。\n3. 2026-06-17 LEGACY-MVP-SUP-6-DELAYED，Ami 全量演示门店 核心耗材供应商，2304.00 元，pending_supplier_confirm。\n建议数量按“补到约 2 倍安全库存、最低采购量和报价 MOQ 取最大值”计算；提交采购前仍需人工确认库存占用和预算。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_procurement_analysis",
+          "label": "采购数量、报价与供应商分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "ranking",
+        "reason": "ranking_question_requires_grouped_shape",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "ranking",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "ranking",
+        "actualIntent": "unknown",
+        "expectedShape": "ranking",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-064",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 64,
+      "persona": "inventory",
+      "question": "我们和供应商的账期是怎么约定的",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4586,
+      "conversationId": 15385,
+      "runId": 15383,
+      "answer": "采购与供应商分析：\n1. 玻尿酸保湿精华：当前 133，安全库存 143，建议采购 153；候选 Ami MVP 供应商，单价 12.00 元，预计 1836.00 元，交期约 3 天。\n2. 一次性护理巾：当前 277，安全库存 90，建议采购 30；候选 Ami 官方演示供应链，单价 32.00 元，预计 960.00 元。\n3. 烟酰胺亮肤精华：当前 163，安全库存 35，建议采购 25；候选 Ami 全量演示门店 核心耗材供应商，单价 188.00 元，预计 4700.00 元，交期约 9 天。\n4. 清洁棉片：当前 152，安全库存 75，建议采购 25；候选 Ami 官方演示供应链，单价 42.00 元，预计 1050.00 元。\n5. 仪器导入凝胶：当前 130，安全库存 65，建议采购 22；候选 Ami 官方演示供应链，单价 58.00 元，预计 1276.00 元。\n6. 舒缓修护面膜：当前 202，安全库存 60，建议采购 20；候选 Ami 全量演示门店 核心耗材供应商，单价 86.00 元，预计 1720.00 元，交期约 9 天。\n7. 氨基酸洁面乳：当前 164，安全库存 50，建议采购 20；候选 Ami 全量演示门店 核心耗材供应商，单价 58.00 元，预计 1160.00 元，交期约 4 天。\n8. 胶原蛋白面膜：当前 124，安全库存 55，建议采购 18；候选 Ami 官方演示供应链，单价 112.00 元，预计 2016.00 元。\n9. 水润柔肤水：当前 110，安全库存 55，建议采购 18；候选 Ami 官方演示供应链，单价 72.00 元，预计 1296.00 元。\n10. 滋养手膜：当前 108，安全库存 48，建议采购 16；候选 Ami 官方演示供应链，单价 56.00 元，预计 896.00 元。\n11. 清透防晒乳：当前 122，安全库存 45，建议采购 15；候选 Ami 官方演示供应链，单价 92.00 元，预计 1380.00 元。\n12. 舒压按摩膏：当前 92，安全库存 46，建议采购 15；候选 Ami 官方演示供应链，单价 76.00 元，预计 1140.00 元。\n最近采购：\n1. 2026-07-03 SP-MVP-1783038772440，Ami MVP 供应商，60.00 元，received。\n2. 2026-06-17 LEGACY-MVP-SUP-6-RECEIVED，Ami 全量演示门店 核心耗材供应商，5080.00 元，received。\n3. 2026-06-17 LEGACY-MVP-SUP-6-DELAYED，Ami 全量演示门店 核心耗材供应商，2304.00 元，pending_supplier_confirm。\n建议数量按“补到约 2 倍安全库存、最低采购量和报价 MOQ 取最大值”计算；提交采购前仍需人工确认库存占用和预算。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_procurement_analysis",
+          "label": "采购数量、报价与供应商分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-065",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 65,
+      "persona": "inventory",
+      "question": "有没有哪个产品可以换个供应商降低成本",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 3093,
+      "conversationId": 15386,
+      "runId": 15384,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-066",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 66,
+      "persona": "inventory",
+      "question": "帮我核对一下这张采购单的数量和价格",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 5468,
+      "conversationId": 15387,
+      "runId": 15385,
+      "answer": "采购与供应商分析：\n1. 玻尿酸保湿精华：当前 133，安全库存 143，建议采购 153；候选 Ami MVP 供应商，单价 12.00 元，预计 1836.00 元，交期约 3 天。\n2. 一次性护理巾：当前 277，安全库存 90，建议采购 30；候选 Ami 官方演示供应链，单价 32.00 元，预计 960.00 元。\n3. 烟酰胺亮肤精华：当前 163，安全库存 35，建议采购 25；候选 Ami 全量演示门店 核心耗材供应商，单价 188.00 元，预计 4700.00 元，交期约 9 天。\n4. 清洁棉片：当前 152，安全库存 75，建议采购 25；候选 Ami 官方演示供应链，单价 42.00 元，预计 1050.00 元。\n5. 仪器导入凝胶：当前 130，安全库存 65，建议采购 22；候选 Ami 官方演示供应链，单价 58.00 元，预计 1276.00 元。\n6. 舒缓修护面膜：当前 202，安全库存 60，建议采购 20；候选 Ami 全量演示门店 核心耗材供应商，单价 86.00 元，预计 1720.00 元，交期约 9 天。\n7. 氨基酸洁面乳：当前 164，安全库存 50，建议采购 20；候选 Ami 全量演示门店 核心耗材供应商，单价 58.00 元，预计 1160.00 元，交期约 4 天。\n8. 胶原蛋白面膜：当前 124，安全库存 55，建议采购 18；候选 Ami 官方演示供应链，单价 112.00 元，预计 2016.00 元。\n9. 水润柔肤水：当前 110，安全库存 55，建议采购 18；候选 Ami 官方演示供应链，单价 72.00 元，预计 1296.00 元。\n10. 滋养手膜：当前 108，安全库存 48，建议采购 16；候选 Ami 官方演示供应链，单价 56.00 元，预计 896.00 元。\n11. 清透防晒乳：当前 122，安全库存 45，建议采购 15；候选 Ami 官方演示供应链，单价 92.00 元，预计 1380.00 元。\n12. 舒压按摩膏：当前 92，安全库存 46，建议采购 15；候选 Ami 官方演示供应链，单价 76.00 元，预计 1140.00 元。\n最近采购：\n1. 2026-07-03 SP-MVP-1783038772440，Ami MVP 供应商，60.00 元，received。\n2. 2026-06-17 LEGACY-MVP-SUP-6-RECEIVED，Ami 全量演示门店 核心耗材供应商，5080.00 元，received。\n3. 2026-06-17 LEGACY-MVP-SUP-6-DELAYED，Ami 全量演示门店 核心耗材供应商，2304.00 元，pending_supplier_confirm。\n建议数量按“补到约 2 倍安全库存、最低采购量和报价 MOQ 取最大值”计算；提交采购前仍需人工确认库存占用和预算。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_procurement_analysis",
+          "label": "采购数量、报价与供应商分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "diagnosis",
+        "reason": "finance_reconciliation_requires_detail_or_diagnosis",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-067",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 67,
+      "persona": "inventory",
+      "question": "最近有没有新的更好的供应商可以考虑",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 3663,
+      "conversationId": 15388,
+      "runId": 15386,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-068",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 68,
+      "persona": "inventory",
+      "question": "我们的库存周转目标是多少天，达到了吗",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4044,
+      "conversationId": 15389,
+      "runId": 15387,
+      "answer": "库存明细：共 45 个 SKU，当前估算库存货值 269474.20 元。\n1. 玻尿酸保湿精华（AMI-DEMO-FULL-SKU-001）：库存 133，安全库存 143，本期入库 0、出库/消耗 0，货值 22344.00 元。\n2. 舒缓修护面膜（AMI-DEMO-FULL-SKU-002）：库存 202，安全库存 60，本期入库 0、出库/消耗 0，货值 17372.00 元。\n3. 氨基酸洁面乳（AMI-DEMO-FULL-SKU-003）：库存 164，安全库存 50，本期入库 0、出库/消耗 0，货值 9512.00 元。\n4. 烟酰胺亮肤精华（AMI-DEMO-FULL-SKU-004）：库存 163，安全库存 35，本期入库 0、出库/消耗 0，货值 30644.00 元。\n5. 抗衰紧致眼霜（AMI-DEMO-FULL-SKU-005）：库存 110，安全库存 28，本期入库 0、出库/消耗 0，货值 24200.00 元。\n6. 屏障修护乳（AMI-DEMO-FULL-SKU-006）：库存 136，安全库存 42，本期入库 0、出库/消耗 0，货值 18496.00 元。\n7. 水氧护理耗材包（AMI-DEMO-FULL-SKU-007）：库存 81，安全库存 24，本期入库 0、出库/消耗 0，货值 21060.00 元。\n8. 一次性护理巾（AMI-DEMO-FULL-SKU-008）：库存 277，安全库存 90，本期入库 0、出库/消耗 0，货值 8864.00 元。\n9. 胶原蛋白面膜（AMI-DEMO-FULL-SKU-009）：库存 124，安全库存 55，本期入库 0、出库/消耗 0，货值 13888.00 元。\n10. 清透防晒乳（AMI-DEMO-FULL-SKU-010）：库存 122，安全库存 45，本期入库 0、出库/消耗 0，货值 11224.00 元。\n11. 紧致颈霜（AMI-DEMO-FULL-SKU-011）：库存 67，安全库存 32，本期入库 0、出库/消耗 0，货值 9246.00 元。\n12. 舒缓精油（AMI-DEMO-FULL-SKU-012）：库存 92，安全库存 40，本期入库 0、出库/消耗 0，货值 8832.00 元。\n进出库记录：\n当前时间范围没有进出库记录。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-069",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 69,
+      "persona": "inventory",
+      "question": "这批货什么时候能到，影响不影响使用",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 4106,
+      "conversationId": 15390,
+      "runId": 15388,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-purchase-suggestion-070",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "采购建议",
+      "sourceIndex": 70,
+      "persona": "inventory",
+      "question": "帮我设置一个当某产品低于安全库存就提醒我的规则",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4746,
+      "conversationId": 15391,
+      "runId": 15389,
+      "answer": "低库存产品：\n1. 玻尿酸保湿精华：当前 133，安全库存 143。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "action",
+        "reason": "action_request_before_metric_keyword",
+        "grounding": "preview_action",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-consumption-analysis-071",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "消耗分析",
+      "sourceIndex": 71,
+      "persona": "inventory",
+      "question": "这个月哪个项目消耗耗材最多",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4989,
+      "conversationId": 15392,
+      "runId": 15390,
+      "answer": "库存明细：共 45 个 SKU，当前估算库存货值 269474.20 元。\n1. 亮肤软膜粉（IND-6-STD-MASK-BRIGHTENING-001）：库存 400，安全库存 0，本期入库 500、出库/消耗 100，货值 220.00 元，预计覆盖 43 天。\n2. 水润柔肤水（AMI-DEMO-FULL-SKU-013）：库存 110，安全库存 55，本期入库 70、出库/消耗 70，货值 7920.00 元，预计覆盖 17 天。\n3. 补水软膜粉（IND-6-STD-MASK-POWDER-001）：库存 150，安全库存 0，本期入库 200、出库/消耗 50，货值 52.50 元，预计覆盖 33 天。\n4. 院装温和洁面乳（IND-6-STD-CLEANSER-PRO-001）：库存 160，安全库存 0，本期入库 184、出库/消耗 24，货值 72.00 元，预计覆盖 73 天。\n5. 射频仪器导入凝胶（IND-6-STD-GEL-RF-001）：库存 52，安全库存 0，本期入库 66、出库/消耗 14，货值 26.00 元，预计覆盖 40 天。\n6. 抗衰紧致眼霜（AMI-DEMO-FULL-SKU-005）：库存 110，安全库存 28，本期入库 26、出库/消耗 14，货值 24200.00 元，预计覆盖 86 天。\n7. 美容棉片（IND-6-STD-COTTON-PAD-001）：库存 57，安全库存 0，本期入库 70、出库/消耗 13，货值 6.84 元，预计覆盖 48 天。\n8. 烟酰胺亮肤精华（AMI-DEMO-FULL-SKU-004）：库存 163，安全库存 35，本期入库 0、出库/消耗 11，货值 30644.00 元，预计覆盖 163 天。\n9. 氨基酸洁面乳（AMI-DEMO-FULL-SKU-003）：库存 164，安全库存 50，本期入库 0、出库/消耗 11，货值 9512.00 元，预计覆盖 164 天。\n10. 补水精华液（IND-6-STD-SERUM-HYDRATING-001）：库存 36，安全库存 0，本期入库 46、出库/消耗 10，货值 126.00 元，预计覆盖 39 天。\n11. 一次性面巾（IND-6-STD-TOWEL-DISPOSABLE-001）：库存 16，安全库存 0，本期入库 22、出库/消耗 6，货值 14.40 元，预计覆盖 29 天。\n12. 淡斑亮肤精华（IND-6-STD-SPOT-BRIGHTENING-ESSENCE-001）：库存 52，安全库存 0，本期入库 56、出库/消耗 4，货值 457.60 元，预计覆盖 143 天。\n进出库记录：\n1. 2026-07-08 03:41 美容棉片 service_consume -4\n2. 2026-07-08 03:41 一次性面巾 service_consume -1\n3. 2026-07-08 03:41 补水软膜粉 service_consume -25\n4. 2026-07-08 03:41 补水精华液 service_consume -3\n5. 2026-07-08 03:41 院装温和洁面乳 service_consume -5\n6. 2026-07-08 02:28 舒缓修护面膜 sale_out -1\n7. 2026-07-08 02:28 美容棉片 service_consume -4\n8. 2026-07-08 02:28 一次性面巾 service_consume -1\n9. 2026-07-08 02:28 补水软膜粉 service_consume -25\n10. 2026-07-08 02:28 补水精华液 service_consume -3",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "ranking",
+        "reason": "ranking_question_requires_grouped_shape",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "ranking",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "ranking",
+        "actualIntent": "unknown",
+        "expectedShape": "ranking",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-consumption-analysis-072",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "消耗分析",
+      "sourceIndex": 72,
+      "persona": "inventory",
+      "question": "平均每个客人消耗多少耗材",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3017,
+      "conversationId": 15393,
+      "runId": 15391,
+      "answer": "库存明细：共 45 个 SKU，当前估算库存货值 269474.20 元。\n1. 玻尿酸保湿精华（AMI-DEMO-FULL-SKU-001）：库存 133，安全库存 143，本期入库 0、出库/消耗 0，货值 22344.00 元。\n2. 舒缓修护面膜（AMI-DEMO-FULL-SKU-002）：库存 202，安全库存 60，本期入库 0、出库/消耗 0，货值 17372.00 元。\n3. 氨基酸洁面乳（AMI-DEMO-FULL-SKU-003）：库存 164，安全库存 50，本期入库 0、出库/消耗 0，货值 9512.00 元。\n4. 烟酰胺亮肤精华（AMI-DEMO-FULL-SKU-004）：库存 163，安全库存 35，本期入库 0、出库/消耗 0，货值 30644.00 元。\n5. 抗衰紧致眼霜（AMI-DEMO-FULL-SKU-005）：库存 110，安全库存 28，本期入库 0、出库/消耗 0，货值 24200.00 元。\n6. 屏障修护乳（AMI-DEMO-FULL-SKU-006）：库存 136，安全库存 42，本期入库 0、出库/消耗 0，货值 18496.00 元。\n7. 水氧护理耗材包（AMI-DEMO-FULL-SKU-007）：库存 81，安全库存 24，本期入库 0、出库/消耗 0，货值 21060.00 元。\n8. 一次性护理巾（AMI-DEMO-FULL-SKU-008）：库存 277，安全库存 90，本期入库 0、出库/消耗 0，货值 8864.00 元。\n9. 胶原蛋白面膜（AMI-DEMO-FULL-SKU-009）：库存 124，安全库存 55，本期入库 0、出库/消耗 0，货值 13888.00 元。\n10. 清透防晒乳（AMI-DEMO-FULL-SKU-010）：库存 122，安全库存 45，本期入库 0、出库/消耗 0，货值 11224.00 元。\n11. 紧致颈霜（AMI-DEMO-FULL-SKU-011）：库存 67，安全库存 32，本期入库 0、出库/消耗 0，货值 9246.00 元。\n12. 舒缓精油（AMI-DEMO-FULL-SKU-012）：库存 92，安全库存 40，本期入库 0、出库/消耗 0，货值 8832.00 元。\n进出库记录：\n当前时间范围没有进出库记录。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-consumption-analysis-073",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "消耗分析",
+      "sourceIndex": 73,
+      "persona": "inventory",
+      "question": "这个项目的标准耗材用量是多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4015,
+      "conversationId": 15394,
+      "runId": 15392,
+      "answer": "库存明细：共 45 个 SKU，当前估算库存货值 269474.20 元。\n1. 玻尿酸保湿精华（AMI-DEMO-FULL-SKU-001）：库存 133，安全库存 143，本期入库 0、出库/消耗 0，货值 22344.00 元。\n2. 舒缓修护面膜（AMI-DEMO-FULL-SKU-002）：库存 202，安全库存 60，本期入库 0、出库/消耗 0，货值 17372.00 元。\n3. 氨基酸洁面乳（AMI-DEMO-FULL-SKU-003）：库存 164，安全库存 50，本期入库 0、出库/消耗 0，货值 9512.00 元。\n4. 烟酰胺亮肤精华（AMI-DEMO-FULL-SKU-004）：库存 163，安全库存 35，本期入库 0、出库/消耗 0，货值 30644.00 元。\n5. 抗衰紧致眼霜（AMI-DEMO-FULL-SKU-005）：库存 110，安全库存 28，本期入库 0、出库/消耗 0，货值 24200.00 元。\n6. 屏障修护乳（AMI-DEMO-FULL-SKU-006）：库存 136，安全库存 42，本期入库 0、出库/消耗 0，货值 18496.00 元。\n7. 水氧护理耗材包（AMI-DEMO-FULL-SKU-007）：库存 81，安全库存 24，本期入库 0、出库/消耗 0，货值 21060.00 元。\n8. 一次性护理巾（AMI-DEMO-FULL-SKU-008）：库存 277，安全库存 90，本期入库 0、出库/消耗 0，货值 8864.00 元。\n9. 胶原蛋白面膜（AMI-DEMO-FULL-SKU-009）：库存 124，安全库存 55，本期入库 0、出库/消耗 0，货值 13888.00 元。\n10. 清透防晒乳（AMI-DEMO-FULL-SKU-010）：库存 122，安全库存 45，本期入库 0、出库/消耗 0，货值 11224.00 元。\n11. 紧致颈霜（AMI-DEMO-FULL-SKU-011）：库存 67，安全库存 32，本期入库 0、出库/消耗 0，货值 9246.00 元。\n12. 舒缓精油（AMI-DEMO-FULL-SKU-012）：库存 92，安全库存 40，本期入库 0、出库/消耗 0，货值 8832.00 元。\n进出库记录：\n当前时间范围没有进出库记录。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-consumption-analysis-074",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "消耗分析",
+      "sourceIndex": 74,
+      "persona": "inventory",
+      "question": "有没有美容师用料比标准多很多的情况",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 3073,
+      "conversationId": 15395,
+      "runId": 15393,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-consumption-analysis-075",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "消耗分析",
+      "sourceIndex": 75,
+      "persona": "inventory",
+      "question": "这个月各项目的耗材成本各是多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4915,
+      "conversationId": 15396,
+      "runId": 15394,
+      "answer": "本月成本与负债分析：收入 19907.10 元，耗材成本 7443.96 元，提成 1145.87 元，经营费用 0.00 元，毛利 11317.27 元，毛利率 56.9%，卡项未履约负债 1068699.14 元。\n费用分类：暂无已录入经营费用。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_cost_liability_analysis",
+          "label": "财务成本、毛利与卡项负债分析"
+        }
+      ],
+      "adapterKey": "finance_risk",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "finance",
+        "domain": "finance_risk",
+        "intent": "list",
+        "reason": "finance_income_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "finance_risk",
+        "confidence": 0.65,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:finance:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-consumption-analysis-076",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "消耗分析",
+      "sourceIndex": 76,
+      "persona": "inventory",
+      "question": "帮我看一下耗材成本占服务收入的比例",
+      "status": "usable_partial",
+      "brainStatus": "completed",
+      "latencyMs": 3168,
+      "conversationId": 15397,
+      "runId": 15395,
+      "answer": "今天成本与负债分析：收入 0.00 元，耗材成本 0.00 元，提成 0.00 元，经营费用 0.00 元，毛利 0.00 元，毛利率 暂无结算数据，卡项未履约负债 1068699.14 元。\n费用分类：暂无已录入经营费用。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_cost_liability_analysis",
+          "label": "财务成本、毛利与卡项负债分析"
+        }
+      ],
+      "adapterKey": "finance_risk",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "finance",
+        "domain": "finance_risk",
+        "intent": "list",
+        "reason": "finance_income_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "finance_risk",
+        "confidence": 0.65,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:finance:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_partial",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "paid_revenue",
+        "reason": "数据库技能返回了请求数值，并附带了扩展业务明细。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-consumption-analysis-077",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "消耗分析",
+      "sourceIndex": 77,
+      "persona": "inventory",
+      "question": "有没有耗材被浪费或者使用不规范的情况",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2123,
+      "conversationId": 15398,
+      "runId": 15396,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-consumption-analysis-078",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "消耗分析",
+      "sourceIndex": 78,
+      "persona": "inventory",
+      "question": "这个季度耗材消耗和收入的对比怎么样",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3007,
+      "conversationId": 15399,
+      "runId": 15397,
+      "answer": "库存明细：共 45 个 SKU，当前估算库存货值 269474.20 元。\n1. 玻尿酸保湿精华（AMI-DEMO-FULL-SKU-001）：库存 133，安全库存 143，本期入库 0、出库/消耗 0，货值 22344.00 元。\n2. 舒缓修护面膜（AMI-DEMO-FULL-SKU-002）：库存 202，安全库存 60，本期入库 0、出库/消耗 0，货值 17372.00 元。\n3. 氨基酸洁面乳（AMI-DEMO-FULL-SKU-003）：库存 164，安全库存 50，本期入库 0、出库/消耗 0，货值 9512.00 元。\n4. 烟酰胺亮肤精华（AMI-DEMO-FULL-SKU-004）：库存 163，安全库存 35，本期入库 0、出库/消耗 0，货值 30644.00 元。\n5. 抗衰紧致眼霜（AMI-DEMO-FULL-SKU-005）：库存 110，安全库存 28，本期入库 0、出库/消耗 0，货值 24200.00 元。\n6. 屏障修护乳（AMI-DEMO-FULL-SKU-006）：库存 136，安全库存 42，本期入库 0、出库/消耗 0，货值 18496.00 元。\n7. 水氧护理耗材包（AMI-DEMO-FULL-SKU-007）：库存 81，安全库存 24，本期入库 0、出库/消耗 0，货值 21060.00 元。\n8. 一次性护理巾（AMI-DEMO-FULL-SKU-008）：库存 277，安全库存 90，本期入库 0、出库/消耗 0，货值 8864.00 元。\n9. 胶原蛋白面膜（AMI-DEMO-FULL-SKU-009）：库存 124，安全库存 55，本期入库 0、出库/消耗 0，货值 13888.00 元。\n10. 清透防晒乳（AMI-DEMO-FULL-SKU-010）：库存 122，安全库存 45，本期入库 0、出库/消耗 0，货值 11224.00 元。\n11. 紧致颈霜（AMI-DEMO-FULL-SKU-011）：库存 67，安全库存 32，本期入库 0、出库/消耗 0，货值 9246.00 元。\n12. 舒缓精油（AMI-DEMO-FULL-SKU-012）：库存 92，安全库存 40，本期入库 0、出库/消耗 0，货值 8832.00 元。\n进出库记录：\n当前时间范围没有进出库记录。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-consumption-analysis-079",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "消耗分析",
+      "sourceIndex": 79,
+      "persona": "inventory",
+      "question": "帮我分析一下哪个项目的耗材成本最高",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4612,
+      "conversationId": 15400,
+      "runId": 15398,
+      "answer": "今天成本与负债分析：收入 0.00 元，耗材成本 0.00 元，提成 0.00 元，经营费用 0.00 元，毛利 0.00 元，毛利率 暂无结算数据，卡项未履约负债 1068699.14 元。\n费用分类：暂无已录入经营费用。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_cost_liability_analysis",
+          "label": "财务成本、毛利与卡项负债分析"
+        }
+      ],
+      "adapterKey": "finance_risk",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "finance",
+        "domain": "finance_risk",
+        "intent": "diagnosis",
+        "reason": "diagnosis_requires_analysis_skill",
+        "grounding": "db_skill",
+        "adapterKey": "finance_risk",
+        "confidence": 0.65,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:finance:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-consumption-analysis-080",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "消耗分析",
+      "sourceIndex": 80,
+      "persona": "inventory",
+      "question": "如果接待量增加20%，库存够用吗",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2822,
+      "conversationId": 15401,
+      "runId": 15399,
+      "answer": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-consumption-analysis-081",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "消耗分析",
+      "sourceIndex": 81,
+      "persona": "inventory",
+      "question": "我们每天大概消耗多少清洁类耗材",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4394,
+      "conversationId": 15402,
+      "runId": 15400,
+      "answer": "库存明细：共 45 个 SKU，当前估算库存货值 269474.20 元。\n1. 玻尿酸保湿精华（AMI-DEMO-FULL-SKU-001）：库存 133，安全库存 143，本期入库 0、出库/消耗 0，货值 22344.00 元。\n2. 舒缓修护面膜（AMI-DEMO-FULL-SKU-002）：库存 202，安全库存 60，本期入库 0、出库/消耗 0，货值 17372.00 元。\n3. 氨基酸洁面乳（AMI-DEMO-FULL-SKU-003）：库存 164，安全库存 50，本期入库 0、出库/消耗 0，货值 9512.00 元。\n4. 烟酰胺亮肤精华（AMI-DEMO-FULL-SKU-004）：库存 163，安全库存 35，本期入库 0、出库/消耗 0，货值 30644.00 元。\n5. 抗衰紧致眼霜（AMI-DEMO-FULL-SKU-005）：库存 110，安全库存 28，本期入库 0、出库/消耗 0，货值 24200.00 元。\n6. 屏障修护乳（AMI-DEMO-FULL-SKU-006）：库存 136，安全库存 42，本期入库 0、出库/消耗 0，货值 18496.00 元。\n7. 水氧护理耗材包（AMI-DEMO-FULL-SKU-007）：库存 81，安全库存 24，本期入库 0、出库/消耗 0，货值 21060.00 元。\n8. 一次性护理巾（AMI-DEMO-FULL-SKU-008）：库存 277，安全库存 90，本期入库 0、出库/消耗 0，货值 8864.00 元。\n9. 胶原蛋白面膜（AMI-DEMO-FULL-SKU-009）：库存 124，安全库存 55，本期入库 0、出库/消耗 0，货值 13888.00 元。\n10. 清透防晒乳（AMI-DEMO-FULL-SKU-010）：库存 122，安全库存 45，本期入库 0、出库/消耗 0，货值 11224.00 元。\n11. 紧致颈霜（AMI-DEMO-FULL-SKU-011）：库存 67，安全库存 32，本期入库 0、出库/消耗 0，货值 9246.00 元。\n12. 舒缓精油（AMI-DEMO-FULL-SKU-012）：库存 92，安全库存 40，本期入库 0、出库/消耗 0，货值 8832.00 元。\n进出库记录：\n当前时间范围没有进出库记录。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-consumption-analysis-082",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "消耗分析",
+      "sourceIndex": 82,
+      "persona": "inventory",
+      "question": "最近消耗异常的产品有没有",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4421,
+      "conversationId": 15403,
+      "runId": 15401,
+      "answer": "库存明细：共 45 个 SKU，当前估算库存货值 269474.20 元。\n1. 玻尿酸保湿精华（AMI-DEMO-FULL-SKU-001）：库存 133，安全库存 143，本期入库 0、出库/消耗 0，货值 22344.00 元。\n2. 舒缓修护面膜（AMI-DEMO-FULL-SKU-002）：库存 202，安全库存 60，本期入库 0、出库/消耗 0，货值 17372.00 元。\n3. 氨基酸洁面乳（AMI-DEMO-FULL-SKU-003）：库存 164，安全库存 50，本期入库 0、出库/消耗 0，货值 9512.00 元。\n4. 烟酰胺亮肤精华（AMI-DEMO-FULL-SKU-004）：库存 163，安全库存 35，本期入库 0、出库/消耗 0，货值 30644.00 元。\n5. 抗衰紧致眼霜（AMI-DEMO-FULL-SKU-005）：库存 110，安全库存 28，本期入库 0、出库/消耗 0，货值 24200.00 元。\n6. 屏障修护乳（AMI-DEMO-FULL-SKU-006）：库存 136，安全库存 42，本期入库 0、出库/消耗 0，货值 18496.00 元。\n7. 水氧护理耗材包（AMI-DEMO-FULL-SKU-007）：库存 81，安全库存 24，本期入库 0、出库/消耗 0，货值 21060.00 元。\n8. 一次性护理巾（AMI-DEMO-FULL-SKU-008）：库存 277，安全库存 90，本期入库 0、出库/消耗 0，货值 8864.00 元。\n9. 胶原蛋白面膜（AMI-DEMO-FULL-SKU-009）：库存 124，安全库存 55，本期入库 0、出库/消耗 0，货值 13888.00 元。\n10. 清透防晒乳（AMI-DEMO-FULL-SKU-010）：库存 122，安全库存 45，本期入库 0、出库/消耗 0，货值 11224.00 元。\n11. 紧致颈霜（AMI-DEMO-FULL-SKU-011）：库存 67，安全库存 32，本期入库 0、出库/消耗 0，货值 9246.00 元。\n12. 舒缓精油（AMI-DEMO-FULL-SKU-012）：库存 92，安全库存 40，本期入库 0、出库/消耗 0，货值 8832.00 元。\n进出库记录：\n当前时间范围没有进出库记录。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "diagnosis",
+        "reason": "diagnosis_requires_analysis_skill",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-consumption-analysis-083",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "消耗分析",
+      "sourceIndex": 83,
+      "persona": "inventory",
+      "question": "帮我看一下这个项目的理论耗材和实际差多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 5330,
+      "conversationId": 15404,
+      "runId": 15402,
+      "answer": "低库存产品：\n1. 玻尿酸保湿精华：当前 133，安全库存 143。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "comparison",
+        "reason": "comparison_question_requires_comparison_shape",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "comparison",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "comparison",
+        "actualIntent": "diagnosis",
+        "expectedShape": "comparison",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-consumption-analysis-084",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "消耗分析",
+      "sourceIndex": 84,
+      "persona": "inventory",
+      "question": "有没有可以用替代品降低耗材成本的地方",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 5072,
+      "conversationId": 15405,
+      "runId": 15403,
+      "answer": "今天成本与负债分析：收入 0.00 元，耗材成本 0.00 元，提成 0.00 元，经营费用 0.00 元，毛利 0.00 元，毛利率 暂无结算数据，卡项未履约负债 1068699.14 元。\n费用分类：暂无已录入经营费用。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_cost_liability_analysis",
+          "label": "财务成本、毛利与卡项负债分析"
+        }
+      ],
+      "adapterKey": "finance_risk",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "finance",
+        "domain": "finance_risk",
+        "intent": "list",
+        "reason": "finance_income_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "finance_risk",
+        "confidence": 0.65,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:finance:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-consumption-analysis-085",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "消耗分析",
+      "sourceIndex": 85,
+      "persona": "inventory",
+      "question": "这个月每日平均耗材费用是多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 3799,
+      "conversationId": 15406,
+      "runId": 15404,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-consumption-analysis-086",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "消耗分析",
+      "sourceIndex": 86,
+      "persona": "inventory",
+      "question": "帮我统计一下做一个疗程全程需要多少耗材",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2834,
+      "conversationId": 15407,
+      "runId": 15405,
+      "answer": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-consumption-analysis-087",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "消耗分析",
+      "sourceIndex": 87,
+      "persona": "inventory",
+      "question": "哪种产品的成本控制空间最大",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2483,
+      "conversationId": 15408,
+      "runId": 15406,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-consumption-analysis-088",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "消耗分析",
+      "sourceIndex": 88,
+      "persona": "inventory",
+      "question": "有没有耗材使用没有按规范记录的情况",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2077,
+      "conversationId": 15409,
+      "runId": 15407,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-consumption-analysis-089",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "消耗分析",
+      "sourceIndex": 89,
+      "persona": "inventory",
+      "question": "帮我对比一下各美容师的耗材使用效率",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 5736,
+      "conversationId": 15410,
+      "runId": 15408,
+      "answer": "低库存产品：\n1. 玻尿酸保湿精华：当前 133，安全库存 143。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "comparison",
+        "reason": "comparison_question_requires_comparison_shape",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "comparison",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "comparison",
+        "actualIntent": "diagnosis",
+        "expectedShape": "comparison",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-consumption-analysis-090",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "消耗分析",
+      "sourceIndex": 90,
+      "persona": "inventory",
+      "question": "这个月的耗材成本比上个月高了多少，原因是什么",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4778,
+      "conversationId": 15411,
+      "runId": 15409,
+      "answer": "本月对比上月成本与负债分析：收入 19907.10 元，耗材成本 7443.96 元，提成 1145.87 元，经营费用 0.00 元，毛利 11317.27 元，毛利率 56.9%，卡项未履约负债 1068699.14 元。\n费用分类：暂无已录入经营费用。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_cost_liability_analysis",
+          "label": "财务成本、毛利与卡项负债分析"
+        }
+      ],
+      "adapterKey": "finance_risk",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "finance",
+        "domain": "finance_risk",
+        "intent": "diagnosis",
+        "reason": "diagnosis_requires_analysis_skill",
+        "grounding": "db_skill",
+        "adapterKey": "finance_risk",
+        "confidence": 0.65,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:finance:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-supply-coordination-091",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "供应链协调",
+      "sourceIndex": 91,
+      "persona": "inventory",
+      "question": "供应商说这批货要延期到货，我怎么安排",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4087,
+      "conversationId": 15412,
+      "runId": 15410,
+      "answer": "采购与供应商分析：\n1. 玻尿酸保湿精华：当前 133，安全库存 143，建议采购 153；候选 Ami MVP 供应商，单价 12.00 元，预计 1836.00 元，交期约 3 天。\n2. 一次性护理巾：当前 277，安全库存 90，建议采购 30；候选 Ami 官方演示供应链，单价 32.00 元，预计 960.00 元。\n3. 烟酰胺亮肤精华：当前 163，安全库存 35，建议采购 25；候选 Ami 全量演示门店 核心耗材供应商，单价 188.00 元，预计 4700.00 元，交期约 9 天。\n4. 清洁棉片：当前 152，安全库存 75，建议采购 25；候选 Ami 官方演示供应链，单价 42.00 元，预计 1050.00 元。\n5. 仪器导入凝胶：当前 130，安全库存 65，建议采购 22；候选 Ami 官方演示供应链，单价 58.00 元，预计 1276.00 元。\n6. 舒缓修护面膜：当前 202，安全库存 60，建议采购 20；候选 Ami 全量演示门店 核心耗材供应商，单价 86.00 元，预计 1720.00 元，交期约 9 天。\n7. 氨基酸洁面乳：当前 164，安全库存 50，建议采购 20；候选 Ami 全量演示门店 核心耗材供应商，单价 58.00 元，预计 1160.00 元，交期约 4 天。\n8. 胶原蛋白面膜：当前 124，安全库存 55，建议采购 18；候选 Ami 官方演示供应链，单价 112.00 元，预计 2016.00 元。\n9. 水润柔肤水：当前 110，安全库存 55，建议采购 18；候选 Ami 官方演示供应链，单价 72.00 元，预计 1296.00 元。\n10. 滋养手膜：当前 108，安全库存 48，建议采购 16；候选 Ami 官方演示供应链，单价 56.00 元，预计 896.00 元。\n11. 清透防晒乳：当前 122，安全库存 45，建议采购 15；候选 Ami 官方演示供应链，单价 92.00 元，预计 1380.00 元。\n12. 舒压按摩膏：当前 92，安全库存 46，建议采购 15；候选 Ami 官方演示供应链，单价 76.00 元，预计 1140.00 元。\n最近采购：\n1. 2026-07-03 SP-MVP-1783038772440，Ami MVP 供应商，60.00 元，received。\n2. 2026-06-17 LEGACY-MVP-SUP-6-RECEIVED，Ami 全量演示门店 核心耗材供应商，5080.00 元，received。\n3. 2026-06-17 LEGACY-MVP-SUP-6-DELAYED，Ami 全量演示门店 核心耗材供应商，2304.00 元，pending_supplier_confirm。\n建议数量按“补到约 2 倍安全库存、最低采购量和报价 MOQ 取最大值”计算；提交采购前仍需人工确认库存占用和预算。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_procurement_analysis",
+          "label": "采购数量、报价与供应商分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-supply-coordination-092",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "供应链协调",
+      "sourceIndex": 92,
+      "persona": "inventory",
+      "question": "这批新货到了，帮我记录入库",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2070,
+      "conversationId": 15413,
+      "runId": 15411,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-supply-coordination-093",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "供应链协调",
+      "sourceIndex": 93,
+      "persona": "inventory",
+      "question": "有货品到了但和采购单不符，怎么处理",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3062,
+      "conversationId": 15414,
+      "runId": 15412,
+      "answer": "前台接待建议：\n1. 先确认客户诉求和身份。\n2. 再查看预约、消费或会员记录。\n3. 涉及金额、权益或争议时转交店长确认。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "front_desk_service_advice",
+          "label": "前台接待建议"
+        }
+      ],
+      "adapterKey": "front_desk",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "receptionist",
+        "domain": "front_desk",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "front_desk",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:store:reservations"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-supply-coordination-094",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "供应链协调",
+      "sourceIndex": 94,
+      "persona": "inventory",
+      "question": "我们哪个供应商的交货最稳定",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2543,
+      "conversationId": 15415,
+      "runId": 15413,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-supply-coordination-095",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "供应链协调",
+      "sourceIndex": 95,
+      "persona": "inventory",
+      "question": "和供应商发生了纠纷，怎么记录和处理",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4196,
+      "conversationId": 15416,
+      "runId": 15414,
+      "answer": "采购与供应商分析：\n1. 玻尿酸保湿精华：当前 133，安全库存 143，建议采购 153；候选 Ami MVP 供应商，单价 12.00 元，预计 1836.00 元，交期约 3 天。\n2. 一次性护理巾：当前 277，安全库存 90，建议采购 30；候选 Ami 官方演示供应链，单价 32.00 元，预计 960.00 元。\n3. 烟酰胺亮肤精华：当前 163，安全库存 35，建议采购 25；候选 Ami 全量演示门店 核心耗材供应商，单价 188.00 元，预计 4700.00 元，交期约 9 天。\n4. 清洁棉片：当前 152，安全库存 75，建议采购 25；候选 Ami 官方演示供应链，单价 42.00 元，预计 1050.00 元。\n5. 仪器导入凝胶：当前 130，安全库存 65，建议采购 22；候选 Ami 官方演示供应链，单价 58.00 元，预计 1276.00 元。\n6. 舒缓修护面膜：当前 202，安全库存 60，建议采购 20；候选 Ami 全量演示门店 核心耗材供应商，单价 86.00 元，预计 1720.00 元，交期约 9 天。\n7. 氨基酸洁面乳：当前 164，安全库存 50，建议采购 20；候选 Ami 全量演示门店 核心耗材供应商，单价 58.00 元，预计 1160.00 元，交期约 4 天。\n8. 胶原蛋白面膜：当前 124，安全库存 55，建议采购 18；候选 Ami 官方演示供应链，单价 112.00 元，预计 2016.00 元。\n9. 水润柔肤水：当前 110，安全库存 55，建议采购 18；候选 Ami 官方演示供应链，单价 72.00 元，预计 1296.00 元。\n10. 滋养手膜：当前 108，安全库存 48，建议采购 16；候选 Ami 官方演示供应链，单价 56.00 元，预计 896.00 元。\n11. 清透防晒乳：当前 122，安全库存 45，建议采购 15；候选 Ami 官方演示供应链，单价 92.00 元，预计 1380.00 元。\n12. 舒压按摩膏：当前 92，安全库存 46，建议采购 15；候选 Ami 官方演示供应链，单价 76.00 元，预计 1140.00 元。\n最近采购：\n1. 2026-07-03 SP-MVP-1783038772440，Ami MVP 供应商，60.00 元，received。\n2. 2026-06-17 LEGACY-MVP-SUP-6-RECEIVED，Ami 全量演示门店 核心耗材供应商，5080.00 元，received。\n3. 2026-06-17 LEGACY-MVP-SUP-6-DELAYED，Ami 全量演示门店 核心耗材供应商，2304.00 元，pending_supplier_confirm。\n建议数量按“补到约 2 倍安全库存、最低采购量和报价 MOQ 取最大值”计算；提交采购前仍需人工确认库存占用和预算。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_procurement_analysis",
+          "label": "采购数量、报价与供应商分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-supply-coordination-096",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "供应链协调",
+      "sourceIndex": 96,
+      "persona": "inventory",
+      "question": "这批货的质检结果在哪里查",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2680,
+      "conversationId": 15417,
+      "runId": 15415,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-supply-coordination-097",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "供应链协调",
+      "sourceIndex": 97,
+      "persona": "inventory",
+      "question": "供应商给了一个新品，要不要试用",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2109,
+      "conversationId": 15418,
+      "runId": 15416,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-supply-coordination-098",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "供应链协调",
+      "sourceIndex": 98,
+      "persona": "inventory",
+      "question": "最近物流很慢，我们需要提前多少天下单",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 3802,
+      "conversationId": 15419,
+      "runId": 15417,
+      "answer": "当前独立版 Ami Brain 尚未接入操作执行技能，不会绕过确认流程直接执行动作。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "action",
+        "reason": "action_request_before_metric_keyword",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "当前独立版 Ami Brain 尚未接入操作执行技能，不会绕过确认流程直接执行动作。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "action",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-inventory-supply-coordination-099",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "供应链协调",
+      "sourceIndex": 99,
+      "persona": "inventory",
+      "question": "我们的主要供应商联系方式怎么找",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 5847,
+      "conversationId": 15420,
+      "runId": 15418,
+      "answer": "采购与供应商分析：\n1. 玻尿酸保湿精华：当前 133，安全库存 143，建议采购 153；候选 Ami MVP 供应商，单价 12.00 元，预计 1836.00 元，交期约 3 天。\n2. 一次性护理巾：当前 277，安全库存 90，建议采购 30；候选 Ami 官方演示供应链，单价 32.00 元，预计 960.00 元。\n3. 烟酰胺亮肤精华：当前 163，安全库存 35，建议采购 25；候选 Ami 全量演示门店 核心耗材供应商，单价 188.00 元，预计 4700.00 元，交期约 9 天。\n4. 清洁棉片：当前 152，安全库存 75，建议采购 25；候选 Ami 官方演示供应链，单价 42.00 元，预计 1050.00 元。\n5. 仪器导入凝胶：当前 130，安全库存 65，建议采购 22；候选 Ami 官方演示供应链，单价 58.00 元，预计 1276.00 元。\n6. 舒缓修护面膜：当前 202，安全库存 60，建议采购 20；候选 Ami 全量演示门店 核心耗材供应商，单价 86.00 元，预计 1720.00 元，交期约 9 天。\n7. 氨基酸洁面乳：当前 164，安全库存 50，建议采购 20；候选 Ami 全量演示门店 核心耗材供应商，单价 58.00 元，预计 1160.00 元，交期约 4 天。\n8. 胶原蛋白面膜：当前 124，安全库存 55，建议采购 18；候选 Ami 官方演示供应链，单价 112.00 元，预计 2016.00 元。\n9. 水润柔肤水：当前 110，安全库存 55，建议采购 18；候选 Ami 官方演示供应链，单价 72.00 元，预计 1296.00 元。\n10. 滋养手膜：当前 108，安全库存 48，建议采购 16；候选 Ami 官方演示供应链，单价 56.00 元，预计 896.00 元。\n11. 清透防晒乳：当前 122，安全库存 45，建议采购 15；候选 Ami 官方演示供应链，单价 92.00 元，预计 1380.00 元。\n12. 舒压按摩膏：当前 92，安全库存 46，建议采购 15；候选 Ami 官方演示供应链，单价 76.00 元，预计 1140.00 元。\n最近采购：\n1. 2026-07-03 SP-MVP-1783038772440，Ami MVP 供应商，60.00 元，received。\n2. 2026-06-17 LEGACY-MVP-SUP-6-RECEIVED，Ami 全量演示门店 核心耗材供应商，5080.00 元，received。\n3. 2026-06-17 LEGACY-MVP-SUP-6-DELAYED，Ami 全量演示门店 核心耗材供应商，2304.00 元，pending_supplier_confirm。\n建议数量按“补到约 2 倍安全库存、最低采购量和报价 MOQ 取最大值”计算；提交采购前仍需人工确认库存占用和预算。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_procurement_analysis",
+          "label": "采购数量、报价与供应商分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-inventory-supply-coordination-100",
+      "sourceSection": "五、库存采购 Agent",
+      "sourceCategory": "供应链协调",
+      "sourceIndex": 100,
+      "persona": "inventory",
+      "question": "帮我整理一下今年所有供应商的交易记录",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2099,
+      "conversationId": 15421,
+      "runId": 15419,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "inventory",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    }
+  ]
+}

@@ -49,6 +49,13 @@ export type FinanceMetricCostQuality = {
   items: FinanceMetricCostQualityItem[];
 };
 
+export type FinanceReadiness = {
+  status: 'ready' | 'blocked' | 'unavailable';
+  publishable: boolean;
+  blockers: Array<{ code: string; count: number; amount?: number; actionPath: string }>;
+  warnings: Array<{ code: string; count: number }>;
+};
+
 export type FinanceDailyMetric = {
   date: string;
   storeId?: number;
@@ -76,6 +83,8 @@ export type FinanceDailyMetric = {
   orderCount: number;
   customerCount: number;
   avgTicket: number;
+  avgOrderAmount: number;
+  avgCustomerSpend: number;
   dataQuality: FinanceMetricDataQuality;
   costQuality: FinanceMetricCostQuality;
 };
@@ -89,4 +98,7 @@ export type FinanceDailyMetricResponse = {
   summary: FinanceMetricSummary;
   items: FinanceDailyMetric[];
   total: number;
+  mode: 'live' | 'confirmed';
+  recognitionBasis: string;
+  readiness: FinanceReadiness;
 };

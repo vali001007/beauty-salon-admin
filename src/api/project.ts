@@ -17,6 +17,9 @@ import {
   realGetReservationsPaginated,
   realCreateReservation,
   realUpdateReservation,
+  realStartCustomerWaiting,
+  realMarkCustomerWaitingServed,
+  realMarkCustomerWaitingLeft,
 } from './real/project';
 
 export const getProjects: (params?: { keyword?: string; type?: string; status?: string; sellableOnly?: boolean }) => Promise<Project[]> =
@@ -76,3 +79,14 @@ export const checkInReservation: (id: string | number) => Promise<any> =
 
 export const cancelReservation: (id: string | number, reason?: string) => Promise<any> =
   realCancelReservation;
+
+export const startCustomerWaiting: (id: string | number, expectedWaitMinutes?: number) => Promise<any> =
+  realStartCustomerWaiting;
+
+export const markCustomerWaitingServed: (episodeId: string | number) => Promise<any> =
+  realMarkCustomerWaitingServed;
+
+export const markCustomerWaitingLeft: (
+  episodeId: string | number,
+  data: { reasonCode: string; reasonNote?: string },
+) => Promise<any> = realMarkCustomerWaitingLeft;

@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["src", "packages/agent-core", "src/vite-env.d.ts"],
+  "exclude": [
+    "src/test/**",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/**/*.spec.ts",
+    "src/**/*.spec.tsx",
+    "packages/agent-core/**/*.test.ts",
+    "packages/agent-core/**/*.test.tsx",
+    "packages/agent-core/**/*.spec.ts",
+    "packages/agent-core/**/*.spec.tsx"
+  ]
+}

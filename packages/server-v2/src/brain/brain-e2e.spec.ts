@@ -35,6 +35,7 @@ describe('Brain E2E acceptance scenarios', () => {
     expect(query.sql.toLowerCase()).toContain('select');
     expect(query.params).toContain(1);
     expect(query.citations[0]).toMatchObject({ sourceType: 'metric', sourceId: 'appointment_count' });
+    expect(query.sql).not.toMatch(/\b0::(float|int|numeric)\b/i);
   });
 
   it('returns clarification instead of guessing ambiguous entity', () => {

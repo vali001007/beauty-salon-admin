@@ -1,0 +1,132 @@
+{
+  "key": "reservation_action_preview",
+  "version": 1,
+  "sourceFingerprint": "bc33ff5e4cbbb82d7cecc7391ea5ece3ebb48bcb330953364ffd32e17f870dd0",
+  "name": "预约创建改期取消预览",
+  "description": "解析当前门店内的客户、预约、项目与目标时间，生成预约创建、改期或取消的待确认预览。解析不到唯一目标时返回具体追问，确认前不写入业务数据。创建预约确认后使用业务表级幂等键，同键重放返回原预约回执，不创建重复预约。",
+  "domains": [
+    "fixture"
+  ],
+  "intents": [
+    "action"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "comparisonTarget": {
+        "type": "object"
+      },
+      "dimensions": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "entities": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "filters": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "limit": {
+        "type": "number"
+      },
+      "metrics": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "objective": {
+        "type": "string"
+      },
+      "orderBy": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "time": {
+        "type": "object"
+      }
+    },
+    "required": [
+      "dimensions",
+      "entities",
+      "filters",
+      "metrics",
+      "objective",
+      "orderBy"
+    ],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object"
+  },
+  "requiredPermissions": [
+    "core:brain:use",
+    "core:store:reservations"
+  ],
+  "allowedRoles": [
+    "receptionist",
+    "store_manager"
+  ],
+  "readOnly": false,
+  "sideEffect": true,
+  "riskLevel": "high",
+  "requiresConfirmation": true,
+  "idempotency": "required",
+  "timeoutMs": 10000,
+  "grounding": "preview_action",
+  "examples": [
+    "把一位客户的预约改到明天下午三点",
+    "为指定客户准备一个新预约方案",
+    "预览取消指定客户下一次预约"
+  ],
+  "negativeExamples": [
+    "操作其他门店预约",
+    "直接执行改约不要确认",
+    "只查询明天预约清单"
+  ],
+  "synonyms": [
+    "创建预约预览",
+    "取消预约预览",
+    "预约改期预览",
+    "预约改约方案"
+  ],
+  "successSchema": {
+    "type": "object"
+  },
+  "definitionRefs": [
+    {
+      "definitionId": 1,
+      "versionId": 10001,
+      "definitionKey": "entity.customer",
+      "version": 1,
+      "definitionFingerprint": "b96274fa310225a9772f68489eacdd992f608740c23b5c548ae91300c8e4d239",
+      "sourceFingerprint": "7060e378d59a17556679b49f8c425deac02681d3df8193a7138ddb4981c3167d"
+    },
+    {
+      "definitionId": 2,
+      "versionId": 10002,
+      "definitionKey": "entity.project",
+      "version": 1,
+      "definitionFingerprint": "8c17625b461a6e6b0c7efe4a38c6da545cb3a4d98701d2fb851fa040e17f5777",
+      "sourceFingerprint": "d3bc8be9f2090628a8adbf1ce93c66f13a6a29dd9c883faa4a7d7d1cacb0d67c"
+    },
+    {
+      "definitionId": 3,
+      "versionId": 10003,
+      "definitionKey": "entity.reservation",
+      "version": 1,
+      "definitionFingerprint": "093fb57c46a988682f2bb1f4c323cfc61b84c8fdbffcdeaa6b7ab771c6bac513",
+      "sourceFingerprint": "2a4e8e954e21a7dde2fb2a09b816cde0c4bd2567223619c41f61db4f0c50e6a9"
+    }
+  ]
+}

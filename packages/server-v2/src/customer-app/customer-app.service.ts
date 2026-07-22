@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '@prisma/client';
 import { AiService } from '../ai/ai.service.js';
@@ -21,6 +21,9 @@ import {
   CustomerAppWechatLoginDto,
 } from './dto/index.js';
 import type { CustomerAppTokenPayload } from './types.js';
+import { MarketingEffectFactService } from '../marketing/attribution/marketing-effect-fact.service.js';
+import { isMarketingFeatureEnabledForStore, MarketingFeatureFlagsService } from '../marketing/marketing-feature-flags.service.js';
+import { ReservationsService } from '../reservations/reservations.service.js';
 
 @Injectable()
 export class CustomerAppService {
@@ -28,6 +31,9 @@ export class CustomerAppService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private aiService: AiService,
+    @Optional() private readonly factService?: MarketingEffectFactService,
+    @Optional() private readonly marketingFeatureFlags?: MarketingFeatureFlagsService,
+    @Optional() private readonly reservationsService?: ReservationsService,
   ) {}
 
   async h5Guest(dto: CustomerAppH5GuestDto) {
@@ -186,6 +192,70 @@ export class CustomerAppService {
         latestSkinTestAt: latestSkinTest?.createdAt.toISOString(),
       },
     };
+  }
+
+  async getMyNotifications(user: CustomerAppTokenPayload, query: CustomerAppPaginationDto) {
+    const customer = await this.requireCustomer(user.customerId, user.storeId);
+    const page = Math.max(1, Number(query.page ?? 1));
+    const pageSize = Math.max(1, Math.min(50, Number(query.pageSize ?? 20)));
+    const where = {
+      storeId: customer.storeId,
+      customerId: customer.id,
+      status: { in: ['delivered', 'opened', 'clicked', 'converted'] },
+    };
+    const [items, total, unreadCount] = await Promise.all([
+      this.prisma.marketingInAppNotification.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.marketingInAppNotification.count({ where }),
+      this.prisma.marketingInAppNotification.count({
+        where: { storeId: customer.storeId, customerId: customer.id, status: 'delivered' },
+      }),
+    ]);
+
+    return {
+      items: items.map((item) => this.mapMarketingNotification(item)),
+      total,
+      unreadCount,
+      page,
+      pageSize,
+    };
+  }
+
+  async openMyNotification(user: CustomerAppTokenPayload, id: number) {
+    const customer = await this.requireCustomer(user.customerId, user.storeId);
+    const notificationWhere = {
+      id,
+      storeId: customer.storeId,
+      customerId: customer.id,
+      status: { in: ['delivered', 'opened', 'clicked', 'converted'] },
+    };
+    const currentNotification = await this.prisma.marketingInAppNotification.findFirst({
+      where: notificationWhere,
+    });
+    if (!currentNotification) throw new NotFoundException('站内通知不存在');
+    if (currentNotification.status !== 'delivered') {
+      return this.mapMarketingNotification(currentNotification);
+    }
+
+    const openedAt = new Date();
+    const updateResult = await this.prisma.marketingInAppNotification.updateMany({
+      where: { id, storeId: customer.storeId, customerId: customer.id, status: 'delivered' },
+      data: { status: 'opened', openedAt },
+    });
+    if (updateResult.count > 0 && currentNotification.deliveryJobId) {
+      await this.propagateInAppNotificationOpen(currentNotification, customer, openedAt);
+    }
+    const notification = await this.prisma.marketingInAppNotification.findFirst({
+      where: {
+        ...notificationWhere,
+      },
+    });
+    if (!notification) throw new NotFoundException('站内通知不存在');
+    return this.mapMarketingNotification(notification);
   }
 
   async getHome(query: CustomerAppHomeQueryDto) {
@@ -424,6 +494,18 @@ export class CustomerAppService {
 
   async createReservation(user: CustomerAppTokenPayload, dto: CustomerAppCreateReservationDto) {
     const customer = await this.requireCustomer(user.customerId, dto.storeId);
+    const appointment = this.combineDateAndTime(dto.date, dto.startTime);
+    const bookingSource = dto.source === 'ami_glow_h5' ? 'ami_glow_h5' : 'ami_glow';
+    const reservationService = this.requireReservationsService();
+    const recovered = await reservationService.recoverIdempotentCreate({
+      ...dto,
+      storeId: dto.storeId,
+      customerId: customer.id,
+      appointmentTime: appointment,
+      bookingSource,
+    });
+    if (recovered) return recovered.reservation;
+
     if (dto.customerPhone && customer.phone !== dto.customerPhone) {
       await this.prisma.customer.update({
         where: { id: customer.id },
@@ -452,7 +534,6 @@ export class CustomerAppService {
     const selectedSlot = availability.slots.find((slot) => slot.startTime === dto.startTime);
     if (!selectedSlot?.available) throw new BadRequestException(selectedSlot?.reason || '该时段不可预约，请重新选择');
 
-    const appointment = this.combineDateAndTime(dto.date, dto.startTime);
     const endTime = dto.endTime || selectedSlot.endTime;
     const sourceLabel = dto.source === 'ami_glow_h5' || dto.channel?.includes('h5') ? 'Ami Glow H5' : 'Ami Glow';
     const remarkParts = [
@@ -462,52 +543,58 @@ export class CustomerAppService {
       dto.promotionId ? `活动ID：${dto.promotionId}` : undefined,
       dto.campaignId ? `Campaign：${dto.campaignId}` : undefined,
       dto.staffId ? `员工ID：${dto.staffId}` : undefined,
-      dto.idempotencyKey ? `幂等键：${dto.idempotencyKey}` : undefined,
     ].filter(Boolean);
 
-    const created = await this.prisma.reservation.create({
-      data: {
-        storeId: dto.storeId,
-        customerId: customer.id,
-        projectId: dto.projectId,
-        beauticianId: dto.beauticianId,
-        date: appointment,
-        startTime: dto.startTime,
-        endTime,
-        status: 'pending',
-        remark: remarkParts.join('；'),
-      },
-      include: { store: true, customer: true, project: true, beautician: true },
+    const created = await reservationService.createIdempotent({
+      storeId: dto.storeId,
+      customerId: customer.id,
+      projectId: dto.projectId,
+      beauticianId: dto.beauticianId,
+      appointmentTime: appointment,
+      startTime: dto.startTime,
+      endTime,
+      status: 'pending',
+      remark: remarkParts.join('；'),
+      bookingSource,
+      idempotencyKey: dto.idempotencyKey,
     });
+    const reservation = created.reservation as any;
 
-    await this.recordEvent(
-      { ...user, customerId: customer.id, storeId: dto.storeId },
-      {
-        eventType: 'miniapp_reservation_success',
-        storeId: dto.storeId,
-        channel: dto.channel,
-        source: dto.source,
-        targetType: 'project',
-        targetId: String(dto.projectId),
-        payload: { reservationId: created.id, promotionId: dto.promotionId },
-      },
-    );
-    if (dto.promotionId) {
+    if (!created.replayed) {
       await this.recordEvent(
         { ...user, customerId: customer.id, storeId: dto.storeId },
         {
-          eventType: 'promotion_reserved',
+          eventType: 'miniapp_reservation_success',
           storeId: dto.storeId,
           channel: dto.channel,
           source: dto.source,
-          targetType: 'promotion',
-          targetId: String(dto.promotionId),
-          payload: { reservationId: created.id, projectId: dto.projectId },
+          targetType: 'project',
+          targetId: String(dto.projectId),
+          payload: { reservationId: reservation.id, promotionId: dto.promotionId },
         },
       );
+      if (dto.promotionId) {
+        await this.recordEvent(
+          { ...user, customerId: customer.id, storeId: dto.storeId },
+          {
+            eventType: 'promotion_reserved',
+            storeId: dto.storeId,
+            channel: dto.channel,
+            source: dto.source,
+            targetType: 'promotion',
+            targetId: String(dto.promotionId),
+            payload: { reservationId: reservation.id, projectId: dto.projectId },
+          },
+        );
+      }
     }
 
-    return this.mapReservation(created);
+    return reservation;
+  }
+
+  private requireReservationsService() {
+    if (!this.reservationsService) throw new Error('reservations_service_unavailable');
+    return this.reservationsService;
   }
 
   async claimPromotion(user: CustomerAppTokenPayload, promotionId: number, dto: { storeId?: number; channel?: string; source?: string; sessionId?: string } = {}) {
@@ -812,7 +899,7 @@ export class CustomerAppService {
     const source = dto.source || 'ami_glow';
     if (storeId) {
       const metadataJson = this.buildEventMetadata(user, dto);
-      await this.prisma.customerAppEvent.create({
+      const event = await this.prisma.customerAppEvent.create({
         data: {
           storeId,
           customerId,
@@ -827,6 +914,7 @@ export class CustomerAppService {
           metadataJson,
         },
       });
+      await this.recordCustomerAppFact(event, dto, storeId, customerId);
       if (customerId) {
         await this.prisma.customerBehaviorEvent.create({
           data: {
@@ -842,6 +930,103 @@ export class CustomerAppService {
       }
     }
     return { ok: true };
+  }
+
+  private async recordCustomerAppFact(event: any, dto: CustomerAppEventDto, storeId: number, customerId?: number) {
+    if (
+      !isMarketingFeatureEnabledForStore(this.marketingFeatureFlags, 'effectFactWrite', storeId)
+      || !this.factService
+      || !event?.id
+    ) return;
+    const eventType = String(dto.eventType ?? '').toLowerCase();
+    const factType = eventType.includes('view')
+      ? 'open'
+      : /(claimed|reserved|click)/.test(eventType)
+        ? 'click'
+        : /(redeemed|used|verified|converted)/.test(eventType)
+          ? 'conversion'
+          : null;
+    if (!factType) return;
+    const metadata = dto.payload && typeof dto.payload === 'object' ? dto.payload as Record<string, any> : {};
+    const promotionId = dto.targetType === 'promotion' ? Number(dto.targetId) : Number(metadata.promotionId);
+    try {
+      await this.factService.recordFact({
+        storeId,
+        factType,
+        metricSource: 'actual',
+        sourceSystem: 'customer_app_event',
+        sourceEventId: `event:${event.id}`,
+        countValue: 1,
+        dimensions: {
+          recommendationInstanceId: metadata.recommendationInstanceId ?? null,
+          adoptionId: Number(metadata.adoptionId) || null,
+          promotionId: Number.isInteger(promotionId) && promotionId > 0 ? promotionId : null,
+          customerId: customerId ?? null,
+          channel: dto.channel ?? 'ami_glow',
+        },
+        occurredAt: event.occurredAt ?? event.createdAt ?? new Date(),
+      });
+    } catch {
+      // Customer interaction succeeds even when fact dual-write is temporarily unavailable.
+    }
+  }
+
+  private async propagateInAppNotificationOpen(notification: any, customer: any, openedAt: Date) {
+    try {
+      const deliveryJob = await this.prisma.marketingDeliveryJob.findFirst({
+        where: {
+          id: notification.deliveryJobId,
+          storeId: customer.storeId,
+          customerId: customer.id,
+          channel: 'in_app',
+        },
+        include: {
+          strategy: {
+            select: { recommendationInstanceId: true, adoptionId: true, actions: true },
+          },
+        },
+      });
+      if (!deliveryJob) return;
+      await this.prisma.marketingAutomationTouch.updateMany({
+        where: { id: deliveryJob.touchId, status: { in: ['sent', 'delivered'] } },
+        data: { status: 'opened' },
+      });
+      if (
+        !isMarketingFeatureEnabledForStore(this.marketingFeatureFlags, 'effectFactWrite', customer.storeId)
+        || !this.factService
+      ) return;
+      await this.factService.recordFact({
+        storeId: customer.storeId,
+        factType: 'open',
+        metricSource: 'actual',
+        sourceSystem: 'customer_app_in_app_notification',
+        sourceEventId: `notification:${notification.id}`,
+        countValue: 1,
+        dimensions: {
+          recommendationInstanceId: deliveryJob.strategy?.recommendationInstanceId ?? null,
+          adoptionId: deliveryJob.strategy?.adoptionId ?? null,
+          strategyId: deliveryJob.strategyId,
+          executionId: deliveryJob.executionId,
+          touchId: deliveryJob.touchId,
+          deliveryJobId: deliveryJob.id,
+          promotionId: this.promotionFromMarketingActions(deliveryJob.strategy?.actions),
+          customerId: customer.id,
+          channel: 'in_app',
+        },
+        metadata: { status: 'opened', notificationId: notification.id },
+        occurredAt: openedAt,
+      });
+    } catch {
+      // Notification state is authoritative; touch/fact dual-write is repaired asynchronously.
+    }
+  }
+
+  private promotionFromMarketingActions(actions: unknown) {
+    if (!Array.isArray(actions)) return null;
+    const promotionId = actions
+      .map((action: any) => Number(action?.promotionId))
+      .find((value) => Number.isInteger(value) && value > 0);
+    return promotionId ?? null;
   }
 
   async findAdminDisplayConfigs(query: CustomerAppAdminDisplayConfigQueryDto = {}) {
@@ -1297,6 +1482,18 @@ export class CustomerAppService {
       skinType: customer.healthProfile?.skinType ?? customer.skinType,
       skinStatus: customer.healthProfile?.skinStatus ?? customer.skinCondition,
       store: customer.store ? this.mapStore(customer.store) : undefined,
+    };
+  }
+
+  private mapMarketingNotification(notification: any) {
+    return {
+      id: notification.id,
+      title: notification.title,
+      content: notification.content,
+      status: notification.status,
+      deliveredAt: notification.deliveredAt?.toISOString?.() ?? notification.deliveredAt ?? null,
+      openedAt: notification.openedAt?.toISOString?.() ?? notification.openedAt ?? null,
+      createdAt: notification.createdAt?.toISOString?.() ?? notification.createdAt,
     };
   }
 

@@ -11,7 +11,7 @@ npm run dev:full
 
 管理端地址：`http://localhost:5173`，API 默认代理到 `http://127.0.0.1:8080/api`。
 
-`npm run dev:full` 会先确认本地 API 可用，再启动管理端前端；如果只运行 `npm run dev`，启动前会检查 API，避免登录时才出现 Vite `ECONNREFUSED` 代理错误。
+`npm run dev` 和 `npm run dev:full` 都会先确认本地 API 可用；如果 API 未启动，会自动拉起 `server-v2`，再启动管理端前端。前端运行期间也会持续检查 API 健康状态，后端掉线时自动重启，避免登录或页面刷新时才出现 Vite `ECONNREFUSED` 代理错误。
 
 智能终端本地联调使用：
 
@@ -22,7 +22,7 @@ npm run dev:kiosk
 npm --prefix packages/Ami-Aura-Lite-Kiosk run dev:full
 ```
 
-智能终端地址：`http://127.0.0.1:5175`。终端包内直接运行 `npm --prefix packages/Ami-Aura-Lite-Kiosk run dev` 时也会先检查 API；如果后端没有启动，会在启动前失败并提示使用 `dev:full`，避免页面运行后持续输出 `/api/* ECONNREFUSED`。
+智能终端地址：`http://127.0.0.1:5175`。终端包内直接运行 `npm --prefix packages/Ami-Aura-Lite-Kiosk run dev` 时也会自动托管后端，避免页面运行后持续输出 `/api/* ECONNREFUSED`。
 
 ## 默认账号
 

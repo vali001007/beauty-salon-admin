@@ -1,4 +1,5 @@
 export * from './customer';
+export * from './customer-feedback';
 export * from './customer-app';
 export * from './product';
 export * from './inventory';
@@ -37,9 +38,8 @@ export type {
   MemberCardRefundPayload,
   ProductOrderRefundPayload,
   OrderRefundMode,
-  RefundItem,
-  OrderRefundPreviewItem,
   OrderRefundPreview,
+  OrderRefundPreviewItem,
 } from './order';
 export * from './marketing';
 export * from './marketing-page';

@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-18T09:32:11.308Z",
+  "policy": "synthetic_contract_only",
+  "productionReady": false,
+  "ready": 0,
+  "syntheticContracts": 1,
+  "blocked": 0,
+  "gateReports": [
+    {
+      "capabilityKey": "reservation_action_preview",
+      "proposalFingerprint": "31806173e23e4ee76e5e68d32f736b5d7fc82dd2e098712f328745ee4257ae77",
+      "passed": true,
+      "gates": [
+        {
+          "gate": "compile",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "contract",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "security",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "reasons": [],
+          "remediation": []
+        }
+      ]
+    }
+  ],
+  "blockedItems": [],
+  "branchProposals": []
+}

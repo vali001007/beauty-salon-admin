@@ -5,6 +5,7 @@ import { CommissionController, TerminalCommissionController } from './commission
 import { CommissionService } from './commission.service.js';
 import { DeviceAuthGuard } from '../terminal/guards/device-auth.guard.js';
 import { FinanceMetricsModule } from '../finance-metrics/finance-metrics.module.js';
+import { FinanceReconciliationService } from './finance-reconciliation.service.js';
 
 @Module({
   imports: [
@@ -19,7 +20,12 @@ import { FinanceMetricsModule } from '../finance-metrics/finance-metrics.module.
     }),
   ],
   controllers: [CommissionController, TerminalCommissionController],
-  providers: [CommissionService, DeviceAuthGuard],
-  exports: [CommissionService],
+  providers: [
+    CommissionService,
+    FinanceReconciliationService,
+    { provide: 'FINANCE_RECONCILIATION_RUNNER', useExisting: FinanceReconciliationService },
+    DeviceAuthGuard,
+  ],
+  exports: [CommissionService, FinanceReconciliationService],
 })
 export class CommissionModule {}

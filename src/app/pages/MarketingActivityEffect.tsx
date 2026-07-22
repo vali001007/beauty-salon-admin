@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { getMarketingActivityById, getUnifiedMarketingEffects } from '@/api/marketing';
 import type { MarketingActivity, UnifiedMarketingEffectItem } from '@/types';
+import { getMarketingActivityStatusLabel } from '@/utils/marketingStatus';
 
 function formatActivityDate(value?: string) {
   if (!value) return '-';
@@ -33,6 +34,13 @@ function formatMoney(value?: number) {
   return `¥${Number(value ?? 0).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}`;
 }
 
+function metricSourceLabel(source?: 'actual' | 'predicted' | 'estimated') {
+  if (source === 'actual') return '真实';
+  if (source === 'predicted') return '预测';
+  if (source === 'estimated') return '估算';
+  return '基础字段（非实际效果）';
+}
+
 function parsePercent(value?: string) {
   const numeric = Number(String(value ?? '0').replace('%', ''));
   return Number.isFinite(numeric) ? numeric : 0;
@@ -44,13 +52,13 @@ function getActivityPromotionLabel(activity: MarketingActivity) {
 
 function getStatusBadgeClass(status: string) {
   switch (status) {
-    case '进行中':
+    case 'active':
       return 'bg-green-100 text-green-700';
-    case '即将开始':
+    case 'scheduled':
       return 'bg-yellow-100 text-yellow-700';
-    case '已结束':
+    case 'ended':
       return 'bg-gray-100 text-gray-600';
-    case '草稿':
+    case 'draft':
       return 'bg-slate-100 text-slate-600';
     default:
       return 'bg-blue-100 text-blue-700';
@@ -58,7 +66,7 @@ function getStatusBadgeClass(status: string) {
 }
 
 function getRemainingText(activity: MarketingActivity) {
-  if (activity.status !== '进行中') return activity.status;
+  if (activity.status !== 'active') return getMarketingActivityStatusLabel(activity.status);
   const endTime = new Date(activity.endDate).getTime();
   if (Number.isNaN(endTime)) return '进行中';
   const days = Math.max(0, Math.ceil((endTime - Date.now()) / 86400000));
@@ -217,6 +225,7 @@ export function MarketingActivityEffect() {
           <Eye className="mb-3 h-5 w-5 text-blue-600" />
           <div className="text-2xl font-bold text-blue-900">{metrics.exposureCount.toLocaleString()}</div>
           <div className="text-sm text-blue-600">浏览/曝光</div>
+          <div className="mt-1 text-xs text-blue-500">{metricSourceLabel(effectItem?.metrics?.exposure.source)}</div>
         </div>
         <div className="rounded-lg bg-purple-50 p-5">
           <MousePointerClick className="mb-3 h-5 w-5 text-purple-600" />
@@ -227,6 +236,7 @@ export function MarketingActivityEffect() {
           <Users className="mb-3 h-5 w-5 text-green-600" />
           <div className="text-2xl font-bold text-green-900">{metrics.participants.toLocaleString()}</div>
           <div className="text-sm text-green-600">参与人数</div>
+          <div className="mt-1 text-xs text-green-500">活动配置值（非实际转化）</div>
         </div>
         <div className="rounded-lg bg-orange-50 p-5">
           <Target className="mb-3 h-5 w-5 text-orange-600" />
@@ -237,6 +247,7 @@ export function MarketingActivityEffect() {
           <DollarSign className="mb-3 h-5 w-5 text-pink-600" />
           <div className="text-2xl font-bold text-pink-900">{formatMoney(metrics.revenue)}</div>
           <div className="text-sm text-pink-600">归因营收</div>
+          <div className="mt-1 text-xs text-pink-500">{metricSourceLabel(effectItem?.metrics?.revenue.source)}收入</div>
         </div>
       </div>
 
@@ -302,6 +313,7 @@ export function MarketingActivityEffect() {
             <div className="rounded-lg bg-gray-50 p-3">
               <div className="text-lg font-semibold text-gray-900">{formatMoney(metrics.cost)}</div>
               <div className="text-xs text-gray-500">投入成本</div>
+              <div className="mt-1 text-[11px] text-amber-600">{metricSourceLabel(effectItem?.metrics?.cost.source)}成本</div>
             </div>
             <div className="rounded-lg bg-gray-50 p-3">
               <div className="text-lg font-semibold text-gray-900">{metrics.roi}</div>

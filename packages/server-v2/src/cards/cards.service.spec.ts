@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { ConflictException } from '@nestjs/common';
 import { CardsService } from './cards.service';
 
 describe('CardsService inventory consumption', () => {
@@ -11,6 +13,8 @@ describe('CardsService inventory consumption', () => {
       calculateCommission: jest.fn(),
     };
     tx = {
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 66 }]),
+      $executeRaw: jest.fn().mockResolvedValue(1),
       customerCard: {
         findFirst: jest.fn().mockResolvedValue({
           id: 66,
@@ -18,6 +22,7 @@ describe('CardsService inventory consumption', () => {
           cardName: '补水护理 10 次卡',
           totalTimes: 10,
           remainingTimes: 5,
+          status: 'active',
           expiryDate: new Date('2026-12-31T00:00:00.000Z'),
           createdAt: new Date('2026-01-01T00:00:00.000Z'),
           paidAmount: 680,
@@ -32,6 +37,7 @@ describe('CardsService inventory consumption', () => {
         update: jest.fn().mockResolvedValue({ id: 66, remainingTimes: 4 }),
       },
       cardUsageRecord: {
+        findUnique: jest.fn().mockResolvedValue(null),
         aggregate: jest.fn().mockResolvedValue({ _sum: { times: 0 } }),
         create: jest.fn().mockResolvedValue({
           id: 88,
@@ -79,6 +85,8 @@ describe('CardsService inventory consumption', () => {
       where: { id: 66 },
       data: { remainingTimes: 4 },
     });
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(tx.cardUsageRecord.aggregate.mock.invocationCallOrder[0]);
     expect(tx.projectBomItem.findMany).toHaveBeenCalledWith({
       where: { projectId: 101 },
       select: { productId: true, standardQty: true },
@@ -126,6 +134,7 @@ describe('CardsService inventory consumption', () => {
       cardName: '补水护理 10 次卡',
       totalTimes: 10,
       remainingTimes: 5,
+      status: 'active',
       expiryDate: new Date('2026-12-31T00:00:00.000Z'),
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       paidAmount: 680,
@@ -160,11 +169,7 @@ describe('CardsService inventory consumption', () => {
       select: { id: true, name: true },
     });
     expect(tx.cardUsageRecord.aggregate).toHaveBeenCalledWith({
-      where: expect.objectContaining({
-        customerId: 10,
-        cardName: '补水护理 10 次卡',
-        projectName: '深层补水护理',
-      }),
+      where: { customerCardId: 66, projectName: '深层补水护理' },
       _sum: { times: true },
     });
     expect(tx.cardUsageRecord.create).toHaveBeenCalledWith({
@@ -240,6 +245,96 @@ describe('CardsService inventory consumption', () => {
       tx,
     );
   });
+
+  it('persists a store-scoped idempotency key on the first committed usage', async () => {
+    const expectedKey = createHash('sha256').update('card_usage:1:brain-action-71').digest('hex');
+
+    await service.verifyCardUsage({
+      customerCardId: 66,
+      projectName: '深层补水护理',
+      consumedTimes: 1,
+      operatorId: 7,
+      idempotencyKey: 'brain-action-71',
+    });
+
+    expect(tx.cardUsageRecord.findUnique).toHaveBeenCalledWith({ where: { idempotencyKey: expectedKey } });
+    expect(tx.cardUsageRecord.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ idempotencyKey: expectedKey }),
+    });
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns the committed usage for the same idempotency key without repeating side effects', async () => {
+    const existing = {
+      id: 88,
+      customerCardId: 66,
+      customerId: 10,
+      projectId: 101,
+      projectName: '深层补水护理',
+      times: 1,
+      beauticianId: 2,
+      remainingTimes: 4,
+    };
+    tx.cardUsageRecord.findUnique.mockResolvedValue(existing);
+
+    const result = await service.verifyCardUsage({
+      customerCardId: 66,
+      customerId: 10,
+      projectId: 101,
+      projectName: '深层补水护理',
+      consumedTimes: 1,
+      operatorId: 7,
+      beauticianId: 2,
+      idempotencyKey: 'brain-action-71',
+    });
+
+    expect(result).toBe(existing);
+    expect(tx.customerCard.update).not.toHaveBeenCalled();
+    expect(tx.cardUsageRecord.create).not.toHaveBeenCalled();
+    expect(tx.stockMovement.create).not.toHaveBeenCalled();
+    expect(commissionService.calculateCommission).not.toHaveBeenCalled();
+  });
+
+  it('rejects a reused idempotency key when the requested usage is different', async () => {
+    tx.cardUsageRecord.findUnique.mockResolvedValue({
+      id: 88,
+      customerCardId: 66,
+      customerId: 10,
+      projectId: 101,
+      projectName: '深层补水护理',
+      times: 1,
+      beauticianId: 2,
+    });
+
+    await expect(service.verifyCardUsage({
+      customerCardId: 66,
+      customerId: 10,
+      projectId: 101,
+      projectName: '深层补水护理',
+      consumedTimes: 2,
+      beauticianId: 2,
+      idempotencyKey: 'brain-action-71',
+    })).rejects.toThrow('幂等键已用于另一笔次卡核销');
+
+    expect(tx.customerCard.update).not.toHaveBeenCalled();
+    expect(tx.cardUsageRecord.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a beautician outside the card store before writing the usage record', async () => {
+    tx.beautician.findFirst.mockResolvedValue(null);
+
+    await expect(service.verifyCardUsage({
+      customerCardId: 66,
+      projectName: '深层补水护理',
+      consumedTimes: 1,
+      operatorId: 7,
+      beauticianId: 99,
+    })).rejects.toThrow('服务人员不属于当前门店或未启用');
+
+    expect(tx.cardUsageRecord.create).not.toHaveBeenCalled();
+    expect(tx.customerCard.update).not.toHaveBeenCalled();
+  });
 });
 
 describe('CardsService sale options', () => {
@@ -308,6 +403,7 @@ describe('CardsService sale options', () => {
   it('drops display-only fields when creating cards', async () => {
     const prisma: any = {
       card: {
+        findMany: jest.fn().mockResolvedValue([]),
         create: jest.fn().mockResolvedValue({
           id: 20,
           name: '抗衰管理 6 次卡',
@@ -347,5 +443,80 @@ describe('CardsService sale options', () => {
     });
     expect(data).not.toHaveProperty('type');
     expect(data).not.toHaveProperty('storeName');
+  });
+});
+
+describe('CardsService duplicate master-data guard', () => {
+  const cardRecord = (overrides: Record<string, unknown> = {}) => ({
+    id: 20,
+    name: '综合养护 20 次卡',
+    description: null,
+    totalTimes: 20,
+    price: 5980,
+    projects: [],
+    status: 'active',
+    storeId: 6,
+    validDays: 365,
+    sortOrder: 0,
+    createdAt: new Date('2026-06-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-06-01T00:00:00.000Z'),
+    store: { id: 6, name: 'Ami 全量演示门店' },
+    ...overrides,
+  });
+
+  it('rejects normalized duplicate names in the same store scope', async () => {
+    const prisma: any = {
+      card: {
+        findMany: jest.fn().mockResolvedValue([cardRecord({ id: 6 })]),
+        create: jest.fn(),
+      },
+    };
+    const service = new CardsService(prisma, { calculateCommission: jest.fn() } as any);
+
+    await expect(service.create({
+      name: '  综合养护   20 次卡  ',
+      storeId: 6,
+      totalTimes: 20,
+      price: 5980,
+      projects: [],
+    })).rejects.toEqual(expect.any(ConflictException));
+
+    expect(prisma.card.create).not.toHaveBeenCalled();
+  });
+
+  it('excludes the current card when checking an update', async () => {
+    const current = cardRecord({ id: 6 });
+    const prisma: any = {
+      card: {
+        findUnique: jest.fn().mockResolvedValue(current),
+        findMany: jest.fn().mockResolvedValue([]),
+        update: jest.fn().mockResolvedValue(current),
+      },
+    };
+    const service = new CardsService(prisma, { calculateCommission: jest.fn() } as any);
+
+    await expect(service.update(6, { name: '综合养护 20 次卡' })).resolves.toEqual(
+      expect.objectContaining({ id: 6 }),
+    );
+  });
+
+  it('allows the same normalized name in a different store scope', async () => {
+    const created = cardRecord({ id: 21, storeId: 7, store: { id: 7, name: '二号门店' } });
+    const prisma: any = {
+      card: {
+        findMany: jest.fn().mockResolvedValue([]),
+        create: jest.fn().mockResolvedValue(created),
+      },
+    };
+    const service = new CardsService(prisma, { calculateCommission: jest.fn() } as any);
+
+    await expect(service.create({
+      name: '综合养护 20 次卡',
+      storeId: 7,
+      totalTimes: 20,
+      price: 5980,
+      projects: [],
+    })).resolves.toEqual(expect.objectContaining({ id: 21, storeId: 7 }));
+    expect(prisma.card.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { storeId: 7 } }));
   });
 });

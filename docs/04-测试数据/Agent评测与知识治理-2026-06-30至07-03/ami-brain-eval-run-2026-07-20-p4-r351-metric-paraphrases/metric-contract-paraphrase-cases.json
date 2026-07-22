@@ -1,0 +1,92 @@
+{
+  "cases": [
+    {
+      "id": "average-order-value-per-order-wording",
+      "intent": "query",
+      "input": "今天每笔订单平均收了多少钱",
+      "expected": {
+        "domains": ["finance_risk"],
+        "metrics": ["average_order_value"],
+        "capabilityKeys": ["order_revenue_analysis"],
+        "answerShape": "scalar"
+      }
+    },
+    {
+      "id": "average-order-value-order-amount",
+      "intent": "query",
+      "input": "今天订单平均金额是多少",
+      "expected": {
+        "domains": ["finance_risk"],
+        "metrics": ["average_order_value"],
+        "capabilityKeys": ["order_revenue_analysis"],
+        "answerShape": "scalar"
+      }
+    },
+    {
+      "id": "average-order-value-direct",
+      "intent": "query",
+      "input": "算一下今天客单价",
+      "expected": {
+        "domains": ["finance_risk"],
+        "metrics": ["average_order_value"],
+        "capabilityKeys": ["order_revenue_analysis"],
+        "answerShape": "scalar"
+      }
+    },
+    {
+      "id": "average-order-value-month",
+      "intent": "query",
+      "input": "本月平均客单价是多少",
+      "expected": {
+        "domains": ["finance_risk"],
+        "metrics": ["average_order_value"],
+        "capabilityKeys": ["order_revenue_analysis"],
+        "answerShape": "scalar"
+      }
+    },
+    {
+      "id": "material-cost-rate-direct",
+      "intent": "query",
+      "input": "今天耗材成本率是多少",
+      "expected": {
+        "domains": ["inventory_procurement"],
+        "metrics": ["material_cost_rate"],
+        "capabilityKeys": ["finance_material_cost_summary"],
+        "answerShape": "scalar"
+      }
+    },
+    {
+      "id": "material-cost-rate-service-revenue",
+      "intent": "query",
+      "input": "物料成本占服务营收的比例是多少",
+      "expected": {
+        "domains": ["inventory_procurement"],
+        "metrics": ["material_cost_rate"],
+        "capabilityKeys": ["finance_material_cost_summary"],
+        "answerShape": "scalar"
+      }
+    },
+    {
+      "id": "material-cost-rate-division",
+      "intent": "query",
+      "input": "材料成本除以服务收入是多少",
+      "expected": {
+        "domains": ["inventory_procurement"],
+        "metrics": ["material_cost_rate"],
+        "capabilityKeys": ["finance_material_cost_summary"],
+        "answerShape": "scalar"
+      }
+    },
+    {
+      "id": "material-cost-rate-share",
+      "intent": "query",
+      "input": "帮我算耗材成本占收入的占比",
+      "expected": {
+        "domains": ["inventory_procurement"],
+        "metrics": ["material_cost_rate"],
+        "capabilityKeys": ["finance_material_cost_summary"],
+        "answerShape": "scalar"
+      }
+    }
+  ]
+}

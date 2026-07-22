@@ -67,6 +67,20 @@ export type Paginated<T> = {
   pageSize: number;
 };
 
+export type MarketingNotification = {
+  id: number;
+  title: string;
+  content: string;
+  status: 'delivered' | 'opened' | 'clicked' | 'converted';
+  deliveredAt?: string | null;
+  openedAt?: string | null;
+  createdAt: string;
+};
+
+export type MarketingNotificationPage = Paginated<MarketingNotification> & {
+  unreadCount: number;
+};
+
 export type CustomerProfile = {
   id: number;
   storeId: number;

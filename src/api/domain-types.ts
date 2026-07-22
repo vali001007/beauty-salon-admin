@@ -1,3 +1,5 @@
+import type { MarketingMetric } from '@/types/marketing';
+
 export interface ProjectType {
   id: number;
   name: string;
@@ -31,5 +33,8 @@ export interface StrategyEffectSummary {
   couponUsedRate: string;
   returnRate: string;
   revenue: number;
+  estimatedCost?: number;
+  revenueMetric?: MarketingMetric;
+  costMetric?: MarketingMetric;
   lastExecuted: string;
 }

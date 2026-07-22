@@ -386,7 +386,13 @@ export async function realQuickCreateTerminalCustomer(data: TerminalQuickCreateC
 }
 
 export async function realCreateTerminalReservation(data: TerminalReservationCreateRequest): Promise<TerminalReservation> {
-  return apiClient.post('/terminal/reservations', data);
+  const idempotencyKey =
+    data.idempotencyKey ?? globalThis.crypto?.randomUUID?.() ?? `aura-reservation-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return apiClient.post(
+    '/terminal/reservations',
+    { ...data, idempotencyKey },
+    { headers: { 'Idempotency-Key': idempotencyKey } },
+  );
 }
 
 export async function realGetTerminalReservations(params?: {
@@ -703,7 +709,12 @@ export async function realRecordTerminalRecommendationEvent(
 }
 
 export async function realCreateTerminalFollowUpTask(data: TerminalFollowUpTaskCreateRequest): Promise<TerminalFollowUpTask> {
-  return apiClient.post('/terminal/follow-up-tasks', data);
+  const idempotencyKey = data.idempotencyKey ?? globalThis.crypto?.randomUUID?.() ?? `follow-up-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return apiClient.post(
+    '/terminal/follow-up-tasks',
+    { ...data, idempotencyKey },
+    { headers: { 'Idempotency-Key': idempotencyKey } },
+  );
 }
 
 export async function realGetTerminalFollowUpTasks(
@@ -716,7 +727,8 @@ export async function realBatchCreateRecommendationFollowUpTasks(
   recommendationId: number,
   data: TerminalFollowUpTaskCreateRequest,
 ): Promise<TerminalFollowUpTaskBatchCreateResponse> {
-  return apiClient.post(`/marketing/recommendations/${recommendationId}/follow-up-tasks`, data);
+  const idempotencyKey = data.idempotencyKey ?? globalThis.crypto?.randomUUID?.() ?? `follow-up-batch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return apiClient.post(`/marketing/recommendations/${recommendationId}/follow-up-tasks`, { ...data, idempotencyKey });
 }
 
 export async function realGetMarketingFollowUpTasks(

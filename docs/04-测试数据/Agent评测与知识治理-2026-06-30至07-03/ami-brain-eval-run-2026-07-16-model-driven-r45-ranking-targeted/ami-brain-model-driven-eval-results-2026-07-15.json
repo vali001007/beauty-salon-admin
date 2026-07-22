@@ -1,0 +1,562 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-16T08:27:52.705Z",
+    "startedAt": "2026-07-16T08:27:26.187Z",
+    "finishedAt": "2026-07-16T08:27:52.705Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\agent-eval-questions.md",
+    "questionCount": 2,
+    "actualRunCount": 2,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "releaseId": 259,
+    "releaseSnapshot": {
+      "releaseFingerprint": "e79ff4f6403aa0e77bcce529f19142306a164c97c32df6802df6cc22b9043af3",
+      "declaredMode": "shadow",
+      "resourceVersionIds": [
+        150,
+        151,
+        152,
+        153,
+        158,
+        159,
+        160,
+        163,
+        168,
+        169,
+        170,
+        172,
+        173,
+        174
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview",
+        "customer_facts",
+        "finance_payment_breakdown",
+        "finance_risk_overview",
+        "front_desk_operations_overview",
+        "inventory_operations_overview",
+        "inventory_procurement_advice",
+        "manager_staff_overview",
+        "marketing_customer_segment",
+        "marketing_growth_overview",
+        "product_sales_ranking",
+        "project_service_ranking",
+        "reservation_list",
+        "store_operations_overview"
+      ]
+    },
+    "candidateSkillsEnabledForEval": true,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "permissionSource": "active_backend_role_catalog_plus_candidate_minimum_permissions",
+    "evaluationRoleKeys": [
+      "store_manager"
+    ],
+    "permissionCatalogRoleKeys": [
+      "ami_demo_full_beautician",
+      "ami_demo_full_cashier",
+      "ami_demo_full_manager",
+      "beautician",
+      "cashier",
+      "store_manager",
+      "super_admin"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。",
+      "provider_unavailable": "模型供应商不可用，单列为评测基础设施失败，不进入产品可用率分母。",
+      "sixLayerGate": "意图、工具、计划、执行、完成度、答案六层必须全部通过；确定性失败不可被 LLM Judge 覆盖。"
+    }
+  },
+  "summary": {
+    "total": 2,
+    "evaluableTotal": 2,
+    "providerUnavailableCount": 0,
+    "legacyUsableWithCitation": 1,
+    "legacyUsableRate": 0.5,
+    "trueUsable": 0,
+    "trueUsableRate": 0,
+    "observedTrueUsableRate": 0,
+    "byStatus": [
+      {
+        "key": "false_positive_granularity_mismatch",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "unsupported_intent",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 1,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "manager",
+        "total": 2,
+        "evaluableTotal": 2,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 1,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "经营概览",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "库存运营",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 1,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [
+      {
+        "reason": "answer:false_positive_granularity_mismatch",
+        "count": 1
+      },
+      {
+        "reason": "tool:capability_any_of_missing:product_sales_ranking|inventory_operations_overview|inventory_procurement_advice",
+        "count": 1
+      }
+    ],
+    "securityGate": {
+      "permissionBypassCount": 0,
+      "crossStoreReadCount": 0,
+      "roleHintBypassCount": 0,
+      "fakeActionConfirmationCount": 0
+    },
+    "grounding": {
+      "metricQueryCount": 0,
+      "dbSkillCount": 1,
+      "templateSkillCount": 0,
+      "previewActionCount": 0,
+      "noneCount": 1
+    },
+    "adapterDistribution": [
+      {
+        "reason": "none",
+        "count": 2
+      }
+    ],
+    "domainDistribution": [
+      {
+        "reason": "order",
+        "count": 2
+      },
+      {
+        "reason": "product",
+        "count": 1
+      },
+      {
+        "reason": "project",
+        "count": 1
+      }
+    ],
+    "capabilityDistribution": [
+      {
+        "reason": "none",
+        "count": 1
+      },
+      {
+        "reason": "project_service_ranking",
+        "count": 1
+      }
+    ],
+    "sixLayer": {
+      "intent": {
+        "total": 2,
+        "passed": 2,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "tool": {
+        "total": 2,
+        "passed": 1,
+        "passRate": 0.5,
+        "averageScore": 0.5
+      },
+      "plan": {
+        "total": 2,
+        "passed": 1,
+        "passRate": 0.5,
+        "averageScore": 0.8333333333333333
+      },
+      "execution": {
+        "total": 2,
+        "passed": 2,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "completion": {
+        "total": 2,
+        "passed": 1,
+        "passRate": 0.5,
+        "averageScore": 0.75
+      },
+      "answer": {
+        "total": 2,
+        "passed": 0,
+        "passRate": 0,
+        "averageScore": 0
+      }
+    },
+    "latency": {
+      "avgMs": 13171,
+      "p95Ms": 13579,
+      "maxMs": 13579
+    },
+    "baselineComparison": {
+      "baselinePath": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-eval-run-2026-07-10\\ami-brain-eval-results-2026-07-10.json",
+      "rows": [
+        {
+          "metric": "旧口径可用率",
+          "baseline": "15.5%",
+          "current": "50.0%"
+        },
+        {
+          "metric": "真实可用率",
+          "baseline": "3.7%",
+          "current": "0.0%"
+        },
+        {
+          "metric": "假阳性数",
+          "baseline": "77",
+          "current": "1"
+        },
+        {
+          "metric": "时间误退化全量数",
+          "baseline": "12",
+          "current": "0"
+        },
+        {
+          "metric": "文案/操作误命中指标数",
+          "baseline": "21",
+          "current": "0"
+        }
+      ]
+    }
+  },
+  "records": [
+    {
+      "questionId": "qb-manager-business-overview-014",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 14,
+      "persona": "manager",
+      "question": "今天哪个项目做得最多",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 13579,
+      "conversationId": 22131,
+      "runId": 22061,
+      "answer": "指标：项目服务次数：0（口径版本 6）。\n\n未完成范围：no_data:ranking。\n\n数据依据：业务定义：项目服务次数。",
+      "citations": [
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.project_service_count@6",
+          "label": "业务定义：项目服务次数",
+          "definition": "指定周期内当前门店已完成或已支付项目订单明细的服务数量；次卡核销另列口径。"
+        }
+      ],
+      "domains": [
+        "project",
+        "order"
+      ],
+      "capabilityKeys": [
+        "project_service_ranking"
+      ],
+      "grounding": "db_skill",
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "ranking",
+        "actualIntent": "metric_query",
+        "expectedShape": "ranking",
+        "actualShape": "scalar_metric",
+        "actualMetric": "project_service_count",
+        "reason": "用户问题要求排行、名单或对比粒度，但系统返回了单个全店指标。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "metric_query"
+      },
+      "expected": {
+        "intent": "ranking",
+        "domains": [
+          "project"
+        ],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [
+          "projectName"
+        ],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "project_service_ranking"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [
+          "projectName"
+        ],
+        "entityKeys": [
+          "project"
+        ],
+        "domainKeys": [
+          "project"
+        ],
+        "capabilityKeys": [
+          "project_service_ranking"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "false_positive_granularity_mismatch"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "usable_with_citation",
+      "failureReason": "answer:false_positive_granularity_mismatch"
+    },
+    {
+      "questionId": "qb-manager-inventory-ops-064",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "库存运营",
+      "sourceIndex": 64,
+      "persona": "manager",
+      "question": "最近卖得最好的产品是什么",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 12763,
+      "conversationId": 22132,
+      "runId": 22062,
+      "answer": "请补充业务对象、指标或时间范围。",
+      "citations": [],
+      "domains": [
+        "product",
+        "order"
+      ],
+      "capabilityKeys": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "product_sales_quantity",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [
+          "order",
+          "product"
+        ],
+        "entities": [],
+        "metrics": [
+          "product_sales_quantity"
+        ],
+        "dimensions": [
+          "productName"
+        ],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "product_sales_ranking",
+          "inventory_operations_overview",
+          "inventory_procurement_advice"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "product_sales_quantity"
+        ],
+        "dimensionKeys": [
+          "productName"
+        ],
+        "entityKeys": [
+          "product"
+        ],
+        "domainKeys": [
+          "order",
+          "product"
+        ],
+        "capabilityKeys": [
+          "product_sales_ranking",
+          "inventory_operations_overview",
+          "inventory_procurement_advice"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 5,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_any_of_missing:product_sales_ranking|inventory_operations_overview|inventory_procurement_advice"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": false,
+          "score": 0.6666666666666666,
+          "checked": 3,
+          "failures": [
+            "plan_nodes_below:1"
+          ],
+          "deterministicFailure": true
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0.5,
+          "checked": 2,
+          "failures": [
+            "completion_grounding_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "unsupported_intent"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "tool:capability_any_of_missing:product_sales_ranking|inventory_operations_overview|inventory_procurement_advice"
+    }
+  ]
+}

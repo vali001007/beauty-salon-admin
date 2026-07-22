@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-18T08:49:44.859Z",
+  "summary": {
+    "total": 29,
+    "draft": 29,
+    "blocked": 0,
+    "explicit": 29
+  },
+  "capability": {
+    "key": "card_usage_action_preview",
+    "status": "draft",
+    "explicit": true,
+    "sourceFingerprint": "10cc7b95a1f6c24ab7835f60e43c2de13178a0084dc3f8837f733994a4768052",
+    "requiredPermissions": [
+      "core:brain:use",
+      "core:order:card-usage"
+    ],
+    "allowedRoles": [
+      "receptionist",
+      "store_manager"
+    ],
+    "readOnly": false,
+    "sideEffect": true,
+    "riskLevel": "high",
+    "requiresConfirmation": true,
+    "idempotency": "required",
+    "description": "解析当前门店内的唯一客户、有效次卡、卡内项目、核销次数和服务美容师，生成关键风险待确认预览。确认后复用统一 CardsService 完成扣次、核销流水、耗材、收入和提成；同一幂等键可安全重放并返回原核销回执，不重复扣次、扣库存或计提成。"
+  }
+}

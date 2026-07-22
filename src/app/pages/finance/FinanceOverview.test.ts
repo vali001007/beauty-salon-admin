@@ -9,11 +9,11 @@ describe('buildFinanceOverviewAlerts', () => {
       dailySettlement: null,
       profitOverview: {
         dataQuality: { status: 'partial', detail: '缺少 3 条项目 BOM 成本' },
-      } as OperationProfitOverview,
+      } as unknown as OperationProfitOverview,
     });
 
     expect(alerts.map((item) => [item.title, item.to])).toEqual([
-      ['今日尚未生成日结', '/finance/reconciliation'],
+      ['今日尚未生成日结', '/finance/daily-settlement'],
       ['经营利润存在数据缺口', '/finance/profit'],
     ]);
     expect(alerts[1].detail).toBe('缺少 3 条项目 BOM 成本');
@@ -24,7 +24,7 @@ describe('buildFinanceOverviewAlerts', () => {
       dailySettlement: { status: 'confirmed' } as DailySettlement,
       profitOverview: {
         dataQuality: { status: 'complete' },
-      } as OperationProfitOverview,
+      } as unknown as OperationProfitOverview,
     });
 
     expect(alerts).toEqual([]);
@@ -35,10 +35,23 @@ describe('buildFinanceOverviewAlerts', () => {
       dailySettlement: null,
       profitOverview: {
         dataQuality: { status: 'partial', detail: '利润接口返回异常前的旧数据' },
-      } as OperationProfitOverview,
+      } as unknown as OperationProfitOverview,
       failedSections: ['dailySettlement', 'commissionSummary', 'profitOverview'],
     });
 
     expect(alerts).toEqual([]);
+  });
+
+  it('surfaces unresolved automatic close failures and blocking reconciliation issues', () => {
+    const alerts = buildFinanceOverviewAlerts({
+      dailySettlement: { status: 'confirmed' } as DailySettlement,
+      profitOverview: { dataQuality: { status: 'complete' } } as OperationProfitOverview,
+      reconciliationIssues: [
+        { id: 1, category: 'automation_failure', severity: 'high' },
+        { id: 2, category: 'data_integrity', severity: 'high' },
+      ] as any,
+    });
+
+    expect(alerts.map((item) => item.title)).toEqual(['自动对账任务失败', '日结存在阻断异常']);
   });
 });

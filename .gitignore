@@ -1,5 +1,7 @@
 node_modules/
+packages/server-v2/generated/store-metrics-client/
 dist/
+**/dist-release-pilot/
 coverage/
 **/coverage/
 test-results/
@@ -13,5 +15,7 @@ tmp/
 *.log
 *.tsbuildinfo
 .DS_Store
+outputs/*
+!outputs/README.md
 docs/02-产品设计/2_199拓客逻辑与拓客启动前期准备（新）.pptx
 docs/02-产品设计/02-营销增长与客户触达/2_199拓客逻辑与拓客启动前期准备（新）.pptx

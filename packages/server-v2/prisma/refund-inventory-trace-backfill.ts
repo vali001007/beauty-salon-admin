@@ -38,25 +38,12 @@ async function main() {
   console.log(JSON.stringify({ mode: apply ? 'apply' : 'dry-run', uniqueCandidates: candidates.length, ambiguousOrUnmatched: totalUnlinked - candidates.length }, null, 2));
 
   if (!apply) return;
-  const updated = await prisma.$executeRaw`
-    WITH candidates AS (
-      SELECT sm.id AS "movementId", MIN(oi.id)::int AS "orderItemId"
-      FROM "StockMovement" sm
-      JOIN "OrderItem" oi
-        ON oi."orderId" = sm."sourceId"
-       AND ((sm."movementType" = 'sale_out' AND oi."itemType" IN ('product', 'goods') AND oi."itemId" = sm."productId")
-         OR (sm."movementType" = 'service_consume' AND oi."itemType" IN ('project', 'service', 'service_project')))
-      WHERE sm."orderItemId" IS NULL
-        AND sm."movementType" IN ('sale_out', 'service_consume')
-      GROUP BY sm.id
-      HAVING COUNT(DISTINCT oi.id) = 1
-    )
-    UPDATE "StockMovement" sm
-    SET "orderItemId" = candidates."orderItemId"
-    FROM candidates
-    WHERE sm.id = candidates."movementId"
-  `;
-  console.log(`已回填 ${updated} 条唯一可追溯库存流水；歧义记录未修改。`);
+  await prisma.$transaction(
+    candidates.map((candidate) =>
+      prisma.stockMovement.update({ where: { id: candidate.movementId }, data: { orderItemId: candidate.orderItemId } }),
+    ),
+  );
+  console.log(`已回填 ${candidates.length} 条唯一可追溯库存流水；歧义记录未修改。`);
 }
 
 main()

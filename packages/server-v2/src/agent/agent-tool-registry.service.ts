@@ -4071,7 +4071,7 @@ export class AgentToolRegistryService {
         label: campaignName,
         reason: '来自 Ami 经营 Agent 的商品活动机会推荐，审批通过后创建草稿。',
       },
-    });
+    }, context.storeId);
 
     return {
       status: 'success',

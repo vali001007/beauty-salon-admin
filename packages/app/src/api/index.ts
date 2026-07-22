@@ -2,6 +2,7 @@ import apiClient from './client';
 
 export * from './agent';
 export * from './auth';
+export * from './brain';
 export * from './store';
 
 export const getCustomers = (params?: unknown) => apiClient.get('/customers', { params });

@@ -1,0 +1,371 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-16T05:57:26.570Z",
+    "startedAt": "2026-07-16T05:57:19.433Z",
+    "finishedAt": "2026-07-16T05:57:26.570Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\agent-eval-questions.md",
+    "questionCount": 1,
+    "actualRunCount": 1,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "releaseId": 234,
+    "releaseSnapshot": {
+      "releaseFingerprint": "8b047c0396de76dfa49212b460126f5f2f0cf75d0f79a9ccde58ada62802ab1d",
+      "declaredMode": "shadow",
+      "resourceVersionIds": [
+        150,
+        151,
+        152,
+        153,
+        158,
+        159,
+        160,
+        163,
+        164,
+        167,
+        168,
+        169
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview",
+        "customer_facts",
+        "finance_payment_breakdown",
+        "finance_risk_overview",
+        "front_desk_operations_overview",
+        "inventory_operations_overview",
+        "inventory_procurement_advice",
+        "manager_staff_overview",
+        "marketing_customer_segment",
+        "marketing_growth_overview",
+        "reservation_list",
+        "store_operations_overview"
+      ]
+    },
+    "candidateSkillsEnabledForEval": true,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "permissionSource": "active_backend_role_catalog_plus_candidate_minimum_permissions",
+    "evaluationRoleKeys": [
+      "store_manager"
+    ],
+    "permissionCatalogRoleKeys": [
+      "ami_demo_full_beautician",
+      "ami_demo_full_cashier",
+      "ami_demo_full_manager",
+      "beautician",
+      "cashier",
+      "store_manager",
+      "super_admin"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。",
+      "provider_unavailable": "模型供应商不可用，单列为评测基础设施失败，不进入产品可用率分母。",
+      "sixLayerGate": "意图、工具、计划、执行、完成度、答案六层必须全部通过；确定性失败不可被 LLM Judge 覆盖。"
+    }
+  },
+  "summary": {
+    "total": 1,
+    "evaluableTotal": 1,
+    "providerUnavailableCount": 0,
+    "legacyUsableWithCitation": 0,
+    "legacyUsableRate": 0,
+    "trueUsable": 1,
+    "trueUsableRate": 1,
+    "observedTrueUsableRate": 1,
+    "byStatus": [
+      {
+        "key": "usable_exact",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "manager",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "客户管理",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [],
+    "securityGate": {
+      "permissionBypassCount": 0,
+      "crossStoreReadCount": 0,
+      "roleHintBypassCount": 0,
+      "fakeActionConfirmationCount": 0
+    },
+    "grounding": {
+      "metricQueryCount": 0,
+      "dbSkillCount": 1,
+      "templateSkillCount": 0,
+      "previewActionCount": 0,
+      "noneCount": 0
+    },
+    "adapterDistribution": [
+      {
+        "reason": "none",
+        "count": 1
+      }
+    ],
+    "domainDistribution": [
+      {
+        "reason": "customer",
+        "count": 1
+      },
+      {
+        "reason": "marketing",
+        "count": 1
+      }
+    ],
+    "capabilityDistribution": [
+      {
+        "reason": "customer_facts",
+        "count": 1
+      }
+    ],
+    "sixLayer": {
+      "intent": {
+        "total": 1,
+        "passed": 1,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "tool": {
+        "total": 1,
+        "passed": 1,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "plan": {
+        "total": 1,
+        "passed": 1,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "execution": {
+        "total": 1,
+        "passed": 1,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "completion": {
+        "total": 1,
+        "passed": 1,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "answer": {
+        "total": 1,
+        "passed": 1,
+        "passRate": 1,
+        "averageScore": 1
+      }
+    },
+    "latency": {
+      "avgMs": 7039,
+      "p95Ms": 7039,
+      "maxMs": 7039
+    },
+    "baselineComparison": {
+      "baselinePath": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-eval-run-2026-07-10\\ami-brain-eval-results-2026-07-10.json",
+      "rows": [
+        {
+          "metric": "旧口径可用率",
+          "baseline": "15.5%",
+          "current": "0.0%"
+        },
+        {
+          "metric": "真实可用率",
+          "baseline": "3.7%",
+          "current": "100.0%"
+        },
+        {
+          "metric": "假阳性数",
+          "baseline": "77",
+          "current": "0"
+        },
+        {
+          "metric": "时间误退化全量数",
+          "baseline": "12",
+          "current": "0"
+        },
+        {
+          "metric": "文案/操作误命中指标数",
+          "baseline": "21",
+          "current": "0"
+        }
+      ]
+    }
+  },
+  "records": [
+    {
+      "questionId": "qb-manager-customer-management-038",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 38,
+      "persona": "manager",
+      "question": "这个月新客主要来自什么渠道",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 7039,
+      "conversationId": 21859,
+      "runId": 21794,
+      "answer": "新客总数：3 人；未记录渠道：0 人。\n\n排行：\n1. 客户来源=Ami Glow，新客数=2，占比=66.7%\n2. 客户来源=验收测试，新客数=1，占比=33.3%\n\n数据依据：客户档案新客来源分布。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "capability_customer_source_distribution",
+          "label": "客户档案新客来源分布"
+        }
+      ],
+      "domains": [
+        "customer",
+        "marketing"
+      ],
+      "capabilityKeys": [
+        "customer_facts"
+      ],
+      "grounding": "db_skill",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "ranking",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_facts",
+          "manager_staff_overview",
+          "marketing_customer_segment",
+          "marketing_growth_overview",
+          "store_operations_overview"
+        ],
+        "unresolved": [
+          "entity:marketing_activity"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    }
+  ]
+}

@@ -1,5 +1,7 @@
 import type { Config } from 'jest';
 
+process.env.TZ = 'Asia/Shanghai';
+
 const config: Config = {
   moduleFileExtensions: ['js', 'json', 'ts'],
   rootDir: 'src',

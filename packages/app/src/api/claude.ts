@@ -1,11 +1,13 @@
-import { createAgentRun } from '@/api'
-import type { AgentRunResult, AgentToolResult } from '@/types/agent'
+import { createBrainConversation, sendBrainMessage, type BrainChatResponse, type BrainResponseBlock, type BrainRoleKey } from '@/api'
+import { useAuthStore } from '@/stores/authStore'
+import { useStoreStore } from '@/stores/storeStore'
 
 export type Role = 'receptionist' | 'manager' | 'beautician'
 
 export interface Message {
   role: 'user' | 'assistant'
   content: string
+  blocks?: BrainResponseBlock[]
 }
 
 interface ReportRow {
@@ -56,85 +58,40 @@ export type BusinessResult =
   | { type: 'inventory_alert'; label: string; generatedAt: string; lowStock: StockSummary[]; expiring: ExpiringSummary[] }
   | { type: 'stock'; label: string; generatedAt: string; total: number; records: StockSummary[] }
 
-function mapRole(role: Role) {
-  return role === 'receptionist' ? 'reception' : role
+function mapRole(role: Role): BrainRoleKey {
+  return role === 'manager' ? 'store_manager' : role
 }
 
-function getToolLabel(result: AgentRunResult) {
-  const tool = result.plan?.toolPlan?.[0]?.tool
-  if (tool === 'marketing.opportunity.discover') return '商品活动机会'
-  if (tool === 'business.query.ask') return '经营问数'
-  if (tool === 'marketing.activity.draft') return '活动草稿审批'
-  return result.plan?.goal ?? '经营 Agent'
+function conversationStorageKey(role: Role) {
+  const userId = useAuthStore.getState().user?.id ?? 0
+  const storeId = useStoreStore.getState().currentStoreId ?? 0
+  return `ami-brain:mobile:${userId}:${storeId}:${role}`
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+async function createAndRememberConversation(role: Role) {
+  const conversation = await createBrainConversation('移动经营助手')
+  window.localStorage.setItem(conversationStorageKey(role), String(conversation.id))
+  return conversation.id
 }
 
-function getToolItems(toolResult: AgentToolResult) {
-  const data = isRecord(toolResult.data) ? toolResult.data : undefined
-  const items = data?.items
-  return Array.isArray(items) ? items.filter(isRecord) : []
+async function resolveConversation(role: Role) {
+  const cached = Number(window.localStorage.getItem(conversationStorageKey(role)))
+  return Number.isInteger(cached) && cached > 0 ? cached : createAndRememberConversation(role)
 }
 
-function formatValue(value: unknown) {
-  if (value === null || value === undefined || value === '') return '-'
-  if (typeof value === 'number') return Number.isInteger(value) ? String(value) : value.toFixed(2)
-  if (Array.isArray(value)) return value.map(String).join('、')
-  if (typeof value === 'object') return JSON.stringify(value)
-  return String(value)
-}
-
-function formatToolResult(result: AgentToolResult) {
-  const items = getToolItems(result)
-  const lines = [`### ${result.title}`, result.summary]
-
-  if (items.length) {
-    lines.push('')
-    lines.push(
-      ...items.slice(0, 5).map((item, index) => {
-        const title = String(item.productName ?? item.customerName ?? item.projectName ?? `结果 ${index + 1}`)
-        const fields = [
-          ['机会', item.opportunityType],
-          ['匹配分', item.fitScore],
-          ['库存', item.currentStock],
-          ['近30天销量', item.salesQuantity],
-          ['临期库存', item.expiringStock],
-          ['毛利率', item.marginRateText],
-          ['建议活动', item.suggestedCampaign],
-        ]
-          .filter(([, value]) => value !== undefined && value !== null && value !== '')
-          .map(([label, value]) => `${label}：${formatValue(value)}`)
-          .join('；')
-        const reason = item.reason ? `。依据：${String(item.reason)}` : ''
-        return `${index + 1}. ${title}${fields ? `：${fields}` : ''}${reason}`
-      }),
-    )
-  }
-
-  if (result.evidence) {
-    lines.push('')
-    lines.push(`数据依据：${result.evidence.source.join('、') || '未执行数据查询'}；口径：${result.evidence.metricDefinition}`)
-    if (result.evidence.dateRange) lines.push(`统计周期：${result.evidence.dateRange}`)
-  }
-
-  return lines.join('\n')
-}
-
-function formatAgentAnswer(result: AgentRunResult) {
+function formatBrainAnswer(result: BrainChatResponse) {
   const lines = [result.answer]
-  if (result.toolResults.length) {
+  if (result.citations.length) {
     lines.push('')
-    lines.push(...result.toolResults.map(formatToolResult))
+    lines.push(`数据依据：${result.citations.map((item) => item.label ?? item.sourceId).join('、')}`)
   }
-  if (result.approval) {
+  if (result.suggestedActions.length) {
     lines.push('')
-    lines.push(`当前进入人工确认：${result.approval.toolName}，风险等级 ${result.approval.riskLevel}，审批 #${result.approval.id}。`)
+    lines.push(...result.suggestedActions.map((action) => `待确认动作：${action.summary}（${action.riskLevel}）`))
   }
-  if (result.actions.length) {
+  if (result.clarification) {
     lines.push('')
-    lines.push(`可继续操作：${result.actions.map((item) => item.label).join('、')}`)
+    lines.push(result.clarification.question)
   }
   return lines.join('\n')
 }
@@ -145,22 +102,35 @@ export async function sendMessage(
   userMessage: string,
   onChunk: (chunk: string) => void,
   onToolCall?: (toolName: string) => void,
-  _onBusinessResult?: (result: BusinessResult) => void,
+  onStructuredResponse?: (result: BrainChatResponse) => void,
 ): Promise<Message[]> {
-  const previousMessages = history.slice(-6)
-  const result = await createAgentRun({
-    message: userMessage,
-    role: mapRole(userRole),
-    entrypoint: 'web_app',
-    context: previousMessages.length ? { previousMessages } : undefined,
-  })
+  void history
+  onToolCall?.('Ami Brain')
+  let conversationId = await resolveConversation(userRole)
+  let result: BrainChatResponse
+  try {
+    result = await sendBrainMessage(conversationId, {
+      message: userMessage,
+      roleHint: mapRole(userRole),
+      timezone: 'Asia/Shanghai',
+    })
+  } catch (error) {
+    const status = (error as Error & { payload?: { status?: number } }).payload?.status
+    if (status !== 404) throw error
+    conversationId = await createAndRememberConversation(userRole)
+    result = await sendBrainMessage(conversationId, {
+      message: userMessage,
+      roleHint: mapRole(userRole),
+      timezone: 'Asia/Shanghai',
+    })
+  }
 
-  onToolCall?.(getToolLabel(result))
-  const text = formatAgentAnswer(result)
+  const text = formatBrainAnswer(result)
+  onStructuredResponse?.(result)
   onChunk(text)
 
   return [
     { role: 'user', content: userMessage },
-    { role: 'assistant', content: text },
+    { role: 'assistant', content: text, blocks: result.blocks ?? [] },
   ]
 }

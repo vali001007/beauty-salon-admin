@@ -35,6 +35,42 @@ describe('permission catalog helpers', () => {
     expect(systemMenu?.children.some((child) => child.path === '/system/agent-capabilities')).toBe(false);
   });
 
+  it('registers Ami Brain runtime and governance permissions', () => {
+    const codes = PERMISSION_CATALOG.map((permission) => permission.code);
+
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        'core:brain:use',
+        'core:brain:execute',
+        'core:brain:sensitive:view',
+        'core:brain-governance:view',
+        'core:brain-governance:manage',
+      ]),
+    );
+    expect(hasPermission(ROLE_PERMISSIONS.store_manager, 'core:brain:use')).toBe(true);
+    expect(hasPermission(ROLE_PERMISSIONS.store_manager, 'core:brain:execute')).toBe(true);
+    expect(hasPermission(ROLE_PERMISSIONS.beautician, 'core:brain:use')).toBe(true);
+    expect(hasPermission(ROLE_PERMISSIONS.beautician, 'core:brain:beautician-view')).toBe(true);
+    expect(hasPermission(ROLE_PERMISSIONS.beautician, 'core:customer:view')).toBe(false);
+    expect(hasPermission(ROLE_PERMISSIONS.beautician, 'core:beautician-performance:view')).toBe(false);
+    expect(hasPermission(ROLE_PERMISSIONS.cashier, 'core:brain-governance:view')).toBe(false);
+  });
+
+  it('registers the store metrics page and grants the full manager workflow', () => {
+    const codes = PERMISSION_CATALOG.map((permission) => permission.code);
+    const workbench = MENU_ITEMS.find((menu) => menu.path === '/dashboard');
+
+    expect(codes).toEqual(expect.arrayContaining([
+      'core:store-metrics:view',
+      'core:store-metrics:drilldown',
+      'core:store-metrics:target:view',
+      'core:store-metrics:target:edit',
+      'core:store-metrics:quality:view',
+    ]));
+    expect(ROLE_PERMISSIONS.store_manager).toEqual(expect.arrayContaining(codes.filter((code) => code.startsWith('core:store-metrics:'))));
+    expect(workbench?.children.find((child) => child.path === '/store-operations/metrics')).toMatchObject({ permission: 'core:store-metrics:view' });
+  });
+
   it('registers financial and supply-platform permission codes', () => {
     const codes = PERMISSION_CATALOG.map((permission) => permission.code);
 
@@ -169,6 +205,30 @@ describe('permission catalog helpers', () => {
       expect(routePaths.has(child.path)).toBe(true);
     }
     expect(routePaths.has('/finance/platform-revenue')).toBe(true);
+  });
+
+  it('allows marketing viewers to open recommendations and automation while keeping mutations granular', () => {
+    type RouteLike = {
+      path?: string;
+      children?: RouteLike[];
+      handle?: { permission?: string };
+      element?: { props?: { permission?: string } };
+    };
+
+    const marketingMenu = MENU_ITEMS.find((menu) => menu.path === '/customer-marketing');
+    const rootRoute = (router.routes as RouteLike[]).find((route) => route.path === '/');
+    const guardedRoutes = new Map(
+      rootRoute?.children
+        ?.filter((route) => route.path?.startsWith('customer-marketing/'))
+        .map((route) => [`/${route.path}`, route.handle?.permission ?? route.element?.props?.permission]) ?? [],
+    );
+
+    expect(marketingMenu?.children.find((child) => child.path === '/customer-marketing/intelligent-recommendation'))
+      .toMatchObject({ permission: 'core:marketing:view' });
+    expect(marketingMenu?.children.find((child) => child.path === '/customer-marketing/automation'))
+      .toMatchObject({ permission: 'core:marketing:view' });
+    expect(guardedRoutes.get('/customer-marketing/intelligent-recommendation')).toBe('core:marketing:view');
+    expect(guardedRoutes.get('/customer-marketing/automation')).toBe('core:marketing:view');
   });
 
   it('keeps legacy operation profit routes available with their original permissions', () => {

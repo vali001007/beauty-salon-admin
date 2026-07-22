@@ -43,9 +43,9 @@ describe("conversationPersistence", () => {
     ]);
 
     expect(records).toEqual([
-      expect.objectContaining({ role: "user", content: "张三最近来过吗", type: "query", title: "用户指令" }),
-      expect.objectContaining({ role: "assistant", content: "张三上次到店是 6 月 1 日。", type: "ai", title: "Ami 智能问答" }),
-      expect.objectContaining({ role: "assistant", content: "请求失败", type: "error" }),
+      expect.objectContaining({ role: "user", content: "张三最近来过吗", type: "query", title: "用户指令", runtime: "ami_brain" }),
+      expect.objectContaining({ role: "assistant", content: "张三上次到店是 6 月 1 日。", type: "ai", title: "Ami 智能问答", runtime: "ami_brain" }),
+      expect.objectContaining({ role: "assistant", content: "请求失败", type: "error", runtime: "ami_brain" }),
     ]);
   });
 
@@ -63,8 +63,8 @@ describe("conversationPersistence", () => {
       role: "beautician",
       date: "2026-06-08",
       messages: [
-        expect.objectContaining({ role: "user", content: "他的卡还有几次" }),
-        expect.objectContaining({ role: "assistant", content: "还剩 3 次。" }),
+        expect.objectContaining({ role: "user", content: "他的卡还有几次", runtime: "ami_brain" }),
+        expect.objectContaining({ role: "assistant", content: "还剩 3 次。", runtime: "ami_brain" }),
       ],
       messageCount: 2,
     });
@@ -86,8 +86,8 @@ describe("conversationPersistence", () => {
       operatorId: 18,
       date: "2026-06-08",
       messages: [
-        expect.objectContaining({ role: "user", content: "今天最值得跟进的客户" }),
-        expect.objectContaining({ role: "assistant", content: "已返回 10 位客户。" }),
+        expect.objectContaining({ role: "user", content: "今天最值得跟进的客户", runtime: "ami_brain" }),
+        expect.objectContaining({ role: "assistant", content: "已返回 10 位客户。", runtime: "ami_brain" }),
       ],
       messageCount: 2,
     });
@@ -111,7 +111,7 @@ describe("conversationPersistence", () => {
     expect(saveTerminalConversation).toHaveBeenCalledWith({
       role: "reception",
       date: "2026-06-08",
-      messages: [expect.objectContaining({ role: "user", content: "查客户张三" })],
+      messages: [expect.objectContaining({ role: "user", content: "查客户张三", runtime: "ami_brain" })],
       messageCount: 1,
     });
     await vi.waitFor(() => expect(clearConversation).toHaveBeenCalledTimes(1));

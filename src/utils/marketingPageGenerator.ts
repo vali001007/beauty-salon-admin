@@ -585,7 +585,7 @@ export function buildMarketingActivityPayloadFromPageDraft(
     title: draft.title,
     description: draft.description,
     image: draft.posterImage || '',
-    status: publishStatus === 'published' ? '进行中' : '草稿',
+    status: publishStatus === 'published' ? 'active' : 'draft',
     participants: 0,
     conversion: '0%',
     startDate: draft.startDate,

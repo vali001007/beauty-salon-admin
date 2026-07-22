@@ -1,0 +1,67 @@
+{
+  "cases": [
+    {
+      "id": "service-record-own-task-explicit",
+      "intent": "action",
+      "input": "预览完成服务单 #493 并保存记录：敏感肌舒缓修护已完成，客户肤况稳定，无明显不适。",
+      "expected": {
+        "domains": ["beautician", "customer", "project"],
+        "entities": ["beautician", "customer", "project"],
+        "capabilityKeys": ["service_record_completion_preview"],
+        "answerShape": "action_preview",
+        "requiresConfirmation": true,
+        "brainStatus": "completed"
+      }
+    },
+    {
+      "id": "service-record-own-task-paraphrase",
+      "intent": "action",
+      "input": "服务单 #493 已做完，请先给我看保存服务记录的确认预览，备注客户过程舒适、结束后没有不良反应。",
+      "expected": {
+        "domains": ["beautician", "customer", "project"],
+        "entities": ["beautician", "customer", "project"],
+        "capabilityKeys": ["service_record_completion_preview"],
+        "answerShape": "action_preview",
+        "requiresConfirmation": true,
+        "brainStatus": "completed"
+      }
+    },
+    {
+      "id": "service-record-own-task-natural",
+      "intent": "action",
+      "input": "为服务单 #493 保存护理记录，先生成待确认方案：本次护理完成，皮肤状态稳定，客户反馈舒适。",
+      "expected": {
+        "domains": ["beautician", "customer", "project"],
+        "entities": ["beautician", "customer", "project"],
+        "capabilityKeys": ["service_record_completion_preview"],
+        "answerShape": "action_preview",
+        "requiresConfirmation": true,
+        "brainStatus": "completed"
+      }
+    },
+    {
+      "id": "service-record-cross-beautician-blocked",
+      "intent": "action",
+      "input": "预览完成服务单 #283 并保存记录：护理已完成，客户状态正常。",
+      "expected": {
+        "domains": ["beautician", "customer", "project"],
+        "capabilityKeys": ["service_record_completion_preview"],
+        "answerShape": "clarification",
+        "requiresConfirmation": false,
+        "brainStatus": "completed"
+      }
+    },
+    {
+      "id": "service-record-missing-task-blocked",
+      "intent": "action",
+      "input": "预览完成服务单 #999999 并保存记录：护理已完成，客户状态正常。",
+      "expected": {
+        "domains": ["beautician", "customer", "project"],
+        "capabilityKeys": ["service_record_completion_preview"],
+        "answerShape": "clarification",
+        "requiresConfirmation": false,
+        "brainStatus": "completed"
+      }
+    }
+  ]
+}

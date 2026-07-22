@@ -1,0 +1,455 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-21T05:51:41.846Z",
+    "startedAt": "2026-07-21T05:51:35.447Z",
+    "finishedAt": "2026-07-21T05:51:41.846Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin-ami-brain-p1\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\agent-eval-questions.md",
+    "questionCount": 1,
+    "actualRunCount": 1,
+    "actualTurnCount": 1,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "releaseId": 375,
+    "gate": null,
+    "releaseSnapshot": {
+      "releaseFingerprint": "0079912ed3c8fb52c329a9487e51224fbdc9bafdac56bcf1663e1e68a53f954c",
+      "declaredMode": "shadow",
+      "resourceVersionIds": [
+        1017,
+        1022,
+        1024,
+        1027,
+        1028,
+        1033,
+        1034,
+        1037,
+        1038,
+        1044,
+        1045,
+        1046,
+        1047,
+        1048,
+        1052,
+        1053,
+        1054,
+        1055,
+        1056,
+        1057,
+        1058,
+        1059,
+        1060,
+        1061,
+        1062,
+        1063,
+        1064,
+        1065,
+        1066,
+        1067,
+        1068,
+        1069,
+        1070,
+        1071,
+        1072,
+        1073,
+        1074,
+        1075,
+        1076,
+        1077
+      ],
+      "capabilityKeys": [
+        "appointment_gap_list",
+        "beautician_customer_card_progress",
+        "beautician_material_preparation",
+        "beautician_personal_performance",
+        "beautician_service_overview",
+        "card_usage_action_preview",
+        "customer_facts",
+        "customer_follow_up_draft",
+        "customer_priority_recommendation",
+        "customer_waiting_loss_overview",
+        "finance_material_cost_summary",
+        "finance_payment_breakdown",
+        "finance_risk_overview",
+        "finance_staff_refund_rate_boundary",
+        "finance_transaction_anomaly_review",
+        "front_desk_operations_overview",
+        "gap_fill_touch_preview",
+        "inventory_operations_overview",
+        "inventory_procurement_advice",
+        "inventory_receipt_discrepancy_guidance",
+        "inventory_risk_ranking",
+        "manager_staff_overview",
+        "marketing_automation_rule_preview",
+        "marketing_campaign_cost_attribution_review",
+        "marketing_campaign_plan",
+        "marketing_customer_segment",
+        "marketing_growth_overview",
+        "marketing_message_draft",
+        "marketing_strategy_execute_preview",
+        "marketing_touch_draft",
+        "order_revenue_analysis",
+        "product_sales_ranking",
+        "project_margin_analysis",
+        "project_material_consumption_analysis",
+        "project_service_ranking",
+        "purchase_order_draft",
+        "reservation_action_preview",
+        "reservation_list",
+        "staff_performance_ranking",
+        "store_operations_overview"
+      ]
+    },
+    "candidateSkillsEnabledForEval": true,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "permissionSource": "active_backend_role_catalog_plus_candidate_minimum_permissions",
+    "evaluationRoleKeys": [
+      "store_manager"
+    ],
+    "evaluationUserIds": {
+      "store_manager": 28
+    },
+    "permissionCatalogRoleKeys": [
+      "ami_demo_full_beautician",
+      "ami_demo_full_cashier",
+      "ami_demo_full_manager",
+      "beautician",
+      "cashier",
+      "store_manager",
+      "super_admin"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。",
+      "provider_unavailable": "模型供应商不可用，单列为评测基础设施失败，不进入产品可用率分母。",
+      "sixLayerGate": "意图、工具、计划、执行、完成度、答案六层必须全部通过；确定性失败不可被 LLM Judge 覆盖。"
+    }
+  },
+  "summary": {
+    "total": 1,
+    "evaluableTotal": 1,
+    "providerUnavailableCount": 0,
+    "legacyUsableWithCitation": 0,
+    "legacyUsableRate": 0,
+    "trueUsable": 1,
+    "trueUsableRate": 1,
+    "observedTrueUsableRate": 1,
+    "contractPassed": 1,
+    "contractPassRate": 1,
+    "expectedBoundaryPassed": 0,
+    "conversationGate": {
+      "scenarioCount": 0,
+      "passedScenarioCount": 0,
+      "contractPassedScenarioCount": 0,
+      "turnCount": 1,
+      "passedTurnCount": 1,
+      "contractPassedTurnCount": 1
+    },
+    "byStatus": [
+      {
+        "key": "usable_exact",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "edge",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "极限与压力测试",
+        "total": 1,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [],
+    "securityGate": {
+      "permissionBypassCount": 0,
+      "crossStoreReadCount": 0,
+      "roleHintBypassCount": 0,
+      "fakeActionConfirmationCount": 0
+    },
+    "grounding": {
+      "metricQueryCount": 0,
+      "dbSkillCount": 1,
+      "templateSkillCount": 0,
+      "previewActionCount": 0,
+      "noneCount": 0
+    },
+    "adapterDistribution": [
+      {
+        "reason": "none",
+        "count": 1
+      }
+    ],
+    "domainDistribution": [
+      {
+        "reason": "payment",
+        "count": 1
+      }
+    ],
+    "capabilityDistribution": [
+      {
+        "reason": "store_operations_overview",
+        "count": 1
+      }
+    ],
+    "executionPathDistribution": [
+      {
+        "reason": "exact_contract_fast_path",
+        "count": 1
+      }
+    ],
+    "sixLayer": {
+      "intent": {
+        "total": 1,
+        "passed": 1,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "tool": {
+        "total": 1,
+        "passed": 1,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "plan": {
+        "total": 1,
+        "passed": 1,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "execution": {
+        "total": 1,
+        "passed": 1,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "completion": {
+        "total": 1,
+        "passed": 1,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "answer": {
+        "total": 1,
+        "passed": 1,
+        "passRate": 1,
+        "averageScore": 1
+      }
+    },
+    "latency": {
+      "avgMs": 6276,
+      "p95Ms": 6276,
+      "maxMs": 6276
+    },
+    "baselineComparison": {
+      "baselinePath": "D:\\AI coding\\beauty-salon-admin-ami-brain-p1\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-eval-run-2026-07-10\\ami-brain-eval-results-2026-07-10.json",
+      "rows": [
+        {
+          "metric": "旧口径可用率",
+          "baseline": "15.5%",
+          "current": "0.0%"
+        },
+        {
+          "metric": "真实可用率",
+          "baseline": "2.6%",
+          "current": "100.0%"
+        },
+        {
+          "metric": "假阳性数",
+          "baseline": "84",
+          "current": "0"
+        },
+        {
+          "metric": "时间误退化全量数",
+          "baseline": "12",
+          "current": "0"
+        },
+        {
+          "metric": "文案/操作误命中指标数",
+          "baseline": "21",
+          "current": "0"
+        }
+      ]
+    }
+  },
+  "records": [
+    {
+      "questionId": "qb-edge-stress-047",
+      "sourceSection": "附：Edge Case 与多轮对话测试问题",
+      "sourceCategory": "极限与压力测试",
+      "sourceIndex": 47,
+      "persona": "edge",
+      "question": "帮我预测下个季度的营业额",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 6276,
+      "conversationId": 36162,
+      "runId": 36378,
+      "answer": "诊断：\n1. [预警] 预测证据不足：90 天窗口有 33 个营业日样本，覆盖率 36.7%，已确认且对账通过 42.4%。滚动回测 19 天，误差 305.0%，回测准确度 0.0%。\n\n未完成范围：90 天窗口有 33 个营业日样本，覆盖率 36.7%，已确认且对账通过 42.4%；滚动回测 19 天，误差 305.0%，回测准确度 0.0%；90 天窗口仅有 33 个营业日结算样本；结算日覆盖率仅 36.7%，缺失日期不按零营收处理；已确认且对账通过的样本占比仅 42.4%；发现 5 条重复营业日记录，已优先采用已确认且对账通过的版本；历史回测误差 305.0%，超过 100% 门禁，停止输出预测金额。\n\n数据依据：下季度营业额透明基线预测。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "store_manager_revenue_forecast_baseline",
+          "label": "下季度营业额透明基线预测"
+        }
+      ],
+      "domains": [
+        "payment"
+      ],
+      "capabilityKeys": [
+        "store_operations_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "paid_amount",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "diagnosis",
+        "answerShape": "diagnosis",
+        "domains": [
+          "payment"
+        ],
+        "entities": [],
+        "metrics": [
+          "paid_amount"
+        ],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "order_revenue_analysis",
+          "store_operations_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "paid_amount"
+        ],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [
+          "payment"
+        ],
+        "capabilityKeys": [
+          "finance_payment_breakdown",
+          "finance_risk_overview",
+          "order_revenue_analysis",
+          "store_operations_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 4,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "contractPassed": true,
+      "expectedBoundary": false,
+      "legacyStatus": "not_usable"
+    }
+  ]
+}

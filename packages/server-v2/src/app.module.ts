@@ -8,6 +8,7 @@ import { UsersModule } from './users/users.module.js';
 import { RolesModule } from './roles/roles.module.js';
 import { StoresModule } from './stores/stores.module.js';
 import { CustomersModule } from './customers/customers.module.js';
+import { CustomerFeedbackModule } from './customer-feedback/customer-feedback.module.js';
 import { ProductsModule } from './products/products.module.js';
 import { OrdersModule } from './orders/orders.module.js';
 import { CardsModule } from './cards/cards.module.js';
@@ -29,6 +30,7 @@ import { HealthModule } from './health/health.module.js';
 import { BomModule } from './bom/bom.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
 import { BusinessQueryModule } from './business-query/business-query.module.js';
+import { AskDataModule } from './ask-data/ask-data.module.js';
 import { BrainModule } from './brain/brain.module.js';
 import { AgentModule } from './agent/agent.module.js';
 import { AgentV2Module } from './agent-v2/agent-v2.module.js';
@@ -37,6 +39,8 @@ import { AgentV4Module } from './agent-v4/agent-v4.module.js';
 import { AgentV5Module } from './agent-v5/agent-v5.module.js';
 import { OperationProfitModule } from './operation-profit/operation-profit.module.js';
 import { FinanceMetricsModule } from './finance-metrics/finance-metrics.module.js';
+import { StoreMetricsModule } from './store-metrics/store-metrics.module.js';
+import { BusinessDefinitionModule } from './semantic-data/business-definition.module.js';
 import { CsrfMiddleware } from './common/middleware/csrf.middleware.js';
 
 @Module({
@@ -50,6 +54,7 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware.js';
     RolesModule,
     StoresModule,
     CustomersModule,
+    CustomerFeedbackModule,
     ProductsModule,
     OrdersModule,
     CardsModule,
@@ -69,6 +74,7 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware.js';
     CustomerAppModule,
     DashboardModule,
     BusinessQueryModule,
+    AskDataModule,
     BrainModule,
     AgentModule,
     AgentV2Module,
@@ -76,6 +82,8 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware.js';
     AgentV4Module,
     AgentV5Module,
     FinanceMetricsModule,
+    StoreMetricsModule,
+    BusinessDefinitionModule,
     OperationProfitModule,
     BomModule,
     HealthModule,

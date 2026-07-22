@@ -68,13 +68,13 @@ export class CardsController {
   @Permissions('core:order:card-usage')
   @ApiOperation({ summary: '次卡核销' })
   verifyUsage(@Body() dto: any, @CurrentUser('id') userId?: number) {
-    return this.cardsService.verifyCardUsage({ ...dto, operatorId: dto.operatorId ?? userId });
+    return this.cardsService.verifyCardUsage({ ...dto, operatorId: userId });
   }
 
   @Post('usage')
   @Permissions('core:order:card-usage')
   @ApiOperation({ summary: '次卡核销（兼容入口）' })
   createUsage(@Body() dto: any, @CurrentUser('id') userId?: number) {
-    return this.cardsService.verifyCardUsage({ ...dto, operatorId: dto.operatorId ?? userId });
+    return this.cardsService.verifyCardUsage({ ...dto, operatorId: userId });
   }
 }

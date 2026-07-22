@@ -6,9 +6,10 @@ import { OrderRefundService } from './refund/order-refund.service.js';
 import { RefundInventoryReversalService } from './refund/refund-inventory-reversal.service.js';
 import { CommissionModule } from '../commission/commission.module.js';
 import { CardsModule } from '../cards/cards.module.js';
+import { MarketingAttributionModule } from '../marketing/attribution/marketing-attribution.module.js';
 
 @Module({
-  imports: [CommissionModule, CardsModule],
+  imports: [CommissionModule, CardsModule, MarketingAttributionModule],
   controllers: [OrdersController],
   providers: [OrdersService, DiscountAllocationService, OrderRefundService, RefundInventoryReversalService],
   exports: [OrdersService, DiscountAllocationService, OrderRefundService, RefundInventoryReversalService],

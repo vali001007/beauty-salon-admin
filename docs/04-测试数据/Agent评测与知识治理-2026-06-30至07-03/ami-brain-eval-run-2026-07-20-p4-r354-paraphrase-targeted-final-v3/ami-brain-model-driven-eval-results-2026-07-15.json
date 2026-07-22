@@ -1,0 +1,894 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-20T09:25:12.569Z",
+    "startedAt": "2026-07-20T09:23:49.989Z",
+    "finishedAt": "2026-07-20T09:25:12.569Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-eval-run-2026-07-20-p4-r354-targeted-closure\\targeted-paraphrase-cases.json",
+    "questionCount": 4,
+    "actualRunCount": 4,
+    "actualTurnCount": 4,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "releaseId": 354,
+    "gate": null,
+    "releaseSnapshot": {
+      "releaseFingerprint": "33a32c3a6f1ab31259808949bbd7d4e8e90cb82397ec517179c0b23c9c79355f",
+      "declaredMode": "shadow",
+      "resourceVersionIds": [
+        837,
+        839,
+        841,
+        843,
+        846,
+        847,
+        849,
+        852,
+        855,
+        856,
+        860,
+        861,
+        864,
+        865,
+        867,
+        871,
+        872,
+        874,
+        875,
+        877,
+        878,
+        881,
+        882,
+        883,
+        884,
+        885,
+        886,
+        887,
+        888,
+        889,
+        890,
+        891,
+        892,
+        893,
+        894,
+        896,
+        897,
+        898,
+        899,
+        900
+      ],
+      "capabilityKeys": [
+        "appointment_gap_list",
+        "beautician_customer_card_progress",
+        "beautician_material_preparation",
+        "beautician_personal_performance",
+        "beautician_service_overview",
+        "card_usage_action_preview",
+        "customer_facts",
+        "customer_feedback_overview",
+        "customer_follow_up_draft",
+        "customer_priority_recommendation",
+        "customer_waiting_loss_overview",
+        "finance_material_cost_summary",
+        "finance_payment_breakdown",
+        "finance_risk_overview",
+        "finance_staff_refund_rate_boundary",
+        "finance_transaction_anomaly_review",
+        "front_desk_operations_overview",
+        "gap_fill_touch_preview",
+        "inventory_operations_overview",
+        "inventory_procurement_advice",
+        "inventory_receipt_discrepancy_guidance",
+        "inventory_risk_ranking",
+        "manager_staff_overview",
+        "marketing_automation_rule_preview",
+        "marketing_campaign_cost_attribution_review",
+        "marketing_campaign_plan",
+        "marketing_customer_segment",
+        "marketing_growth_overview",
+        "marketing_message_draft",
+        "marketing_strategy_execute_preview",
+        "marketing_touch_draft",
+        "order_revenue_analysis",
+        "product_sales_ranking",
+        "project_margin_analysis",
+        "project_material_consumption_analysis",
+        "project_service_ranking",
+        "reservation_action_preview",
+        "reservation_list",
+        "staff_performance_ranking",
+        "store_operations_overview"
+      ]
+    },
+    "candidateSkillsEnabledForEval": true,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "permissionSource": "active_backend_role_catalog_plus_candidate_minimum_permissions",
+    "evaluationRoleKeys": [
+      "store_manager"
+    ],
+    "evaluationUserIds": {
+      "store_manager": 28
+    },
+    "permissionCatalogRoleKeys": [
+      "ami_demo_full_beautician",
+      "ami_demo_full_cashier",
+      "ami_demo_full_manager",
+      "beautician",
+      "cashier",
+      "store_manager",
+      "super_admin"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。",
+      "provider_unavailable": "模型供应商不可用，单列为评测基础设施失败，不进入产品可用率分母。",
+      "sixLayerGate": "意图、工具、计划、执行、完成度、答案六层必须全部通过；确定性失败不可被 LLM Judge 覆盖。"
+    }
+  },
+  "summary": {
+    "total": 4,
+    "evaluableTotal": 3,
+    "providerUnavailableCount": 1,
+    "legacyUsableWithCitation": 2,
+    "legacyUsableRate": 0.6666666666666666,
+    "trueUsable": 3,
+    "trueUsableRate": 1,
+    "observedTrueUsableRate": 0.75,
+    "contractPassed": 3,
+    "contractPassRate": 1,
+    "expectedBoundaryPassed": 0,
+    "conversationGate": {
+      "scenarioCount": 0,
+      "passedScenarioCount": 0,
+      "contractPassedScenarioCount": 0,
+      "turnCount": 4,
+      "passedTurnCount": 3,
+      "contractPassedTurnCount": 3
+    },
+    "byStatus": [
+      {
+        "key": "usable_exact",
+        "total": 3,
+        "evaluableTotal": 3,
+        "usable": 3,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "provider_unavailable",
+        "total": 1,
+        "evaluableTotal": 0,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 1,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "manager",
+        "total": 4,
+        "evaluableTotal": 3,
+        "usable": 3,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 1,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "ranking",
+        "total": 2,
+        "evaluableTotal": 2,
+        "usable": 2,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "recommendation",
+        "total": 2,
+        "evaluableTotal": 1,
+        "usable": 1,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 1,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [],
+    "securityGate": {
+      "permissionBypassCount": 0,
+      "crossStoreReadCount": 0,
+      "roleHintBypassCount": 0,
+      "fakeActionConfirmationCount": 0
+    },
+    "grounding": {
+      "metricQueryCount": 0,
+      "dbSkillCount": 2,
+      "templateSkillCount": 0,
+      "previewActionCount": 1,
+      "noneCount": 0
+    },
+    "adapterDistribution": [
+      {
+        "reason": "none",
+        "count": 3
+      }
+    ],
+    "domainDistribution": [
+      {
+        "reason": "beautician",
+        "count": 2
+      },
+      {
+        "reason": "staff",
+        "count": 2
+      },
+      {
+        "reason": "customer",
+        "count": 1
+      },
+      {
+        "reason": "project",
+        "count": 1
+      }
+    ],
+    "capabilityDistribution": [
+      {
+        "reason": "manager_staff_overview",
+        "count": 2
+      },
+      {
+        "reason": "marketing_automation_rule_preview",
+        "count": 1
+      }
+    ],
+    "executionPathDistribution": [
+      {
+        "reason": "model_primary",
+        "count": 3
+      },
+      {
+        "reason": "model_unavailable",
+        "count": 1
+      }
+    ],
+    "sixLayer": {
+      "intent": {
+        "total": 3,
+        "passed": 3,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "tool": {
+        "total": 3,
+        "passed": 3,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "plan": {
+        "total": 3,
+        "passed": 3,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "execution": {
+        "total": 3,
+        "passed": 3,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "completion": {
+        "total": 3,
+        "passed": 3,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "answer": {
+        "total": 3,
+        "passed": 3,
+        "passRate": 1,
+        "averageScore": 1
+      }
+    },
+    "latency": {
+      "avgMs": 17142,
+      "p95Ms": 20997,
+      "maxMs": 20997
+    }
+  },
+  "records": [
+    {
+      "questionId": "paraphrase-staff-revenue-ranking-who-leads",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "ranking",
+      "sourceIndex": 1,
+      "persona": "manager",
+      "question": "本月美容师业绩实收谁排第一",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 20997,
+      "conversationId": 33741,
+      "runId": 33966,
+      "answer": "排行：\n1. 员工=宋乔，业绩实收=9334.32\n\n数据依据：业务定义：员工关联业绩实收；员工服务、客户、业绩与提成分析；员工排班忙闲与可用空档。",
+      "citations": [
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.staff_service_revenue@1",
+          "label": "业务定义：员工关联业绩实收"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "manager_staff_analysis",
+          "label": "员工服务、客户、业绩与提成分析"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "reception_operations_snapshot",
+          "label": "员工排班忙闲与可用空档"
+        }
+      ],
+      "domains": [
+        "beautician",
+        "staff"
+      ],
+      "capabilityKeys": [
+        "manager_staff_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "ranking",
+        "actualIntent": "ranking",
+        "expectedShape": "ranking",
+        "actualShape": "ranking",
+        "expectedMetric": "staff_service_revenue",
+        "actualMetric": "staff_service_revenue",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "ranking",
+        "answerShape": "ranking",
+        "domains": [
+          "staff"
+        ],
+        "entities": [],
+        "metrics": [
+          "staff_service_revenue"
+        ],
+        "dimensions": [
+          "beauticianName"
+        ],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_facts",
+          "customer_feedback_overview",
+          "manager_staff_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "staff_service_revenue"
+        ],
+        "dimensionKeys": [
+          "beauticianName"
+        ],
+        "entityKeys": [],
+        "domainKeys": [
+          "staff"
+        ],
+        "capabilityKeys": [
+          "customer_facts",
+          "customer_feedback_overview",
+          "manager_staff_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 5,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "contractPassed": true,
+      "expectedBoundary": false,
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "paraphrase-staff-revenue-ranking-top",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "ranking",
+      "sourceIndex": 2,
+      "persona": "manager",
+      "question": "按这个月关联实收给美容师排个名",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 15941,
+      "conversationId": 33742,
+      "runId": 33967,
+      "answer": "排行：\n1. 员工=宋乔，业绩实收=9334.32\n2. 员工=顾然，业绩实收=7700.88\n3. 员工=沈晴，业绩实收=5286.33\n4. 员工=唐伊，业绩实收=4865.43\n\n数据依据：业务定义：员工关联业绩实收；员工服务、客户、业绩与提成分析；员工排班忙闲与可用空档。",
+      "citations": [
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.staff_service_revenue@1",
+          "label": "业务定义：员工关联业绩实收"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "manager_staff_analysis",
+          "label": "员工服务、客户、业绩与提成分析"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "reception_operations_snapshot",
+          "label": "员工排班忙闲与可用空档"
+        }
+      ],
+      "domains": [
+        "beautician",
+        "staff"
+      ],
+      "capabilityKeys": [
+        "manager_staff_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "ranking",
+        "actualIntent": "ranking",
+        "expectedShape": "ranking",
+        "actualShape": "ranking",
+        "expectedMetric": "staff_service_revenue",
+        "actualMetric": "staff_service_revenue",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "ranking",
+        "answerShape": "ranking",
+        "domains": [
+          "staff"
+        ],
+        "entities": [],
+        "metrics": [
+          "staff_service_revenue"
+        ],
+        "dimensions": [
+          "beauticianName"
+        ],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_facts",
+          "customer_feedback_overview",
+          "manager_staff_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [
+          "staff_service_revenue"
+        ],
+        "dimensionKeys": [
+          "beauticianName"
+        ],
+        "entityKeys": [],
+        "domainKeys": [
+          "staff"
+        ],
+        "capabilityKeys": [
+          "customer_facts",
+          "customer_feedback_overview",
+          "manager_staff_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 5,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "contractPassed": true,
+      "expectedBoundary": false,
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "paraphrase-marketing-post-purchase-project-rule",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "recommendation",
+      "sourceIndex": 3,
+      "persona": "manager",
+      "question": "设计一个消费完成后推荐下一护理项目的自动规则预览",
+      "status": "provider_unavailable",
+      "brainStatus": "failed",
+      "latencyMs": 30805,
+      "conversationId": 33743,
+      "runId": 33968,
+      "answer": "当前无法理解该问题，请换一种清晰表述后重试。",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "executionPath": "model_unavailable",
+      "modelStage": "compile",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "metric_failed",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "语义问数链路执行失败。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "recommendation",
+        "answerShape": "diagnosis",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_priority_recommendation",
+          "inventory_operations_overview",
+          "marketing_automation_rule_preview",
+          "marketing_campaign_plan",
+          "marketing_growth_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer",
+          "project"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_priority_recommendation",
+          "inventory_operations_overview",
+          "marketing_automation_rule_preview",
+          "marketing_campaign_plan",
+          "marketing_growth_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0,
+          "checked": 2,
+          "failures": [
+            "intent_mismatch",
+            "answer_shape_mismatch"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_any_of_missing:customer_priority_recommendation|inventory_operations_overview|marketing_automation_rule_preview|marketing_campaign_plan|marketing_growth_overview"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "brain_status:failed"
+          ],
+          "deterministicFailure": true
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0,
+          "checked": 2,
+          "failures": [
+            "brain_status:failed",
+            "completion_grounding_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "metric_failed"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "contractPassed": false,
+      "expectedBoundary": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "infrastructure:provider_unavailable"
+    },
+    {
+      "questionId": "paraphrase-marketing-next-project-automation-preview",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "recommendation",
+      "sourceIndex": 4,
+      "persona": "manager",
+      "question": "客户做完项目后，系统怎么自动推荐下次适合做的项目",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 14487,
+      "conversationId": 33744,
+      "runId": 33969,
+      "answer": "营销自动化规则预览：客户生命周期自动跟进。触发条件：满足已配置且可审计的客户行为条件；建议动作：创建跟进或推荐任务草稿；保护条件：不自动群发、不自动改权益、不跨门店触达。当前只生成可审阅规则预览，不发布自动化规则、不发送消息、不修改会员等级或客户权益。\n\n未完成范围：当前只生成可审阅规则预览，不发布自动化规则、不发送消息、不修改会员等级或客户权益。\n\n数据依据：营销自动化规则预览。",
+      "citations": [
+        {
+          "sourceType": "template_skill",
+          "sourceId": "marketing_automation_rule_preview",
+          "label": "营销自动化规则预览"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project"
+      ],
+      "capabilityKeys": [
+        "marketing_automation_rule_preview"
+      ],
+      "grounding": "preview_action",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "expected": {
+        "intent": "recommendation",
+        "answerShape": "diagnosis",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_priority_recommendation",
+          "inventory_operations_overview",
+          "marketing_automation_rule_preview",
+          "marketing_campaign_plan",
+          "marketing_growth_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer",
+          "project"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_priority_recommendation",
+          "inventory_operations_overview",
+          "marketing_automation_rule_preview",
+          "marketing_campaign_plan",
+          "marketing_growth_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 2,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "contractPassed": true,
+      "expectedBoundary": false,
+      "legacyStatus": "not_usable"
+    }
+  ]
+}

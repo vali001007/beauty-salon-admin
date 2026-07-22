@@ -74,8 +74,9 @@
 
 | Method | Path | 说明 |
 | --- | --- | --- |
-| GET | `/marketing/recommendations` | 智能推荐列表 |
-| GET | `/marketing/recommendations/{id}/audience` | 推荐命中客户列表 |
+| GET | `/marketing/recommendation-workspace` | 管理端统一入口；后端按门店灰度返回 legacy/V2 |
+| GET | `/marketing/recommendations` | 已弃用兼容接口；仅由非灰度 workspace 承接链路使用 |
+| GET | `/marketing/recommendations/{id}/audience` | 已弃用兼容接口；仅非灰度门店使用，灰度门店改用实例受众分页 |
 
 ### 自动营销
 
@@ -557,3 +558,142 @@ AI Gateway 环境变量：
 | `LLM_API_KEY` | 仅后端保存的模型 Key |
 | `LLM_TIMEOUT_MS` | 模型调用超时时间 |
 | `LLM_DAILY_BUDGET` | 每日预算上限，第一阶段先记录配置 |
+# 订单退款退货接口补充（2026-07-12）
+
+- `GET /orders/product/:id/refund-preview`：返回订单剩余可退净额、每条明细已退/可退数量与库存追溯状态。
+- `POST /orders/product/:id/refund`：按明细提交 `requestId`、`refundMode`、数量、净额和原因；`return_and_refund` 恢复原商品批次或冲销原项目耗材，`refund_only` 不改库存。
+- `POST /orders/checkout-groups/:checkoutGroupNo/refund`：同一收银组按真实拆分订单提交退款，整组在一个事务内成功或回滚。
+- 订单状态新增 `partially_refunded`。重复 `requestId` 返回第一次结果，超额退款和库存追溯歧义的退款退货请求会被拒绝。
+# 门店经营指标 API（v1）
+
+> 2026-07-15 新增。统一前缀 `/api/store-metrics`，请求需携带 Bearer Token 和 `X-Store-Id`；服务端同时校验 JWT 可访问门店列表。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/store-metrics/overview` | `core:store-metrics:view` | 十二项指标总览与经营动作 |
+| GET | `/store-metrics/trends` | `core:store-metrics:view` | 版本化历史快照趋势 |
+| GET | `/store-metrics/:metricKey/drilldown` | `core:store-metrics:drilldown` | 指标事实下钻 |
+| GET | `/store-metrics/definitions` | `core:store-metrics:view` | 指标定义与数据来源 |
+| GET | `/store-metrics/quality` | `core:store-metrics:quality:view` | 非完整指标及缺失原因 |
+| GET | `/store-metrics/targets` | `core:store-metrics:target:view` | 目标列表 |
+| POST | `/store-metrics/targets` | `core:store-metrics:target:edit` | 创建目标 |
+| PUT | `/store-metrics/targets/:id` | `core:store-metrics:target:edit` | 更新目标 |
+
+总览指标统一字段：`key`、`name`、`value`、`unit`、`numerator`、`denominator`、`sampleCount`、`target`、`quality`、`definitionVersion`、`updatedAt`、`drilldownPath`。分母为零或事实不足时 `value` 为 `null`，禁止返回伪 0%。
+
+# 智能推荐实例、统一采纳与效果事实接口（2026-07-13）
+
+所有接口必须携带 `X-Store-Id`。服务端以请求头限定门店，客户端参数不能覆盖其他门店。
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/marketing/recommendation-workspace` | 管理端单一灰度门面；按门店返回 `mode=legacy|v2`、推荐列表、预测覆盖和分页信息 |
+| `GET` | `/marketing/recommendation-instances` | 分页读取门店推荐实例，并返回预测覆盖率和新鲜度 |
+| `GET` | `/marketing/recommendation-instances/{instanceId}` | 读取稳定推荐实例、权益快照和执行状态 |
+| `GET` | `/marketing/recommendation-instances/{instanceId}/audience` | 分页读取持久化受众快照，不在前端重算 |
+| `POST` | `/marketing/recommendation-instances/refresh` | 幂等刷新门店预测和推荐实例 |
+| `POST` | `/marketing/recommendation-instances/{instanceId}/adoptions` | 在后端事务中采纳为活动、自动策略或终端跟进 |
+| `GET` | `/marketing/effects/unified` | 读取去重事实汇总和活动、推荐、权益、页面、策略、渠道维度 |
+
+旧推荐接口仍保留一个兼容观察周期，但所有旧 handler 均返回：
+
+```text
+Deprecation: true
+Sunset: 2026-09-30
+Link: </marketing/recommendation-instances>; rel="successor-version"
+```
+
+服务端同时记录结构化 warning：`legacy_marketing_recommendation_api route=... storeId=... successor=... sunset=2026-09-30`。旧接口只有在所有门店完成 V2 切换、管理端连续两个版本不再命中 legacy 模式、终端只使用统一采纳且该日志连续 14 天为 0 后才允许删除。
+
+营销工作台首屏只调用 `GET /marketing/recommendation-workspace`。灰度门店使用实例 audience 与统一 adoption；非灰度门店继续通过兼容受众和兼容采纳入口执行旧推荐。旧 `/marketing/recommendations/{id}/follow-up-tasks` 已在服务端转发统一采纳服务，不再绕过 adoption 直接创建孤立任务。直接实例读、刷新和采纳接口在非灰度门店失败关闭。
+
+14 天日志导出审计：
+
+```json
+{
+  "rangeStart": "2026-07-01T00:00:00.000Z",
+  "rangeEnd": "2026-07-15T00:00:00.000Z",
+  "exportedAt": "2026-07-15T00:05:00.000Z",
+  "coverageSegments": [
+    { "start": "2026-07-01T00:00:00.000Z", "end": "2026-07-15T00:00:00.000Z" }
+  ],
+  "events": [
+    { "timestamp": "2026-07-02T08:00:00.000Z", "message": "application log line" }
+  ]
+}
+```
+
+```powershell
+$env:MARKETING_LEGACY_LOG_EXPORT='D:\audit\marketing-legacy-14d.json'
+npm.cmd --prefix packages/server-v2 run marketing:legacy-retirement:audit
+```
+
+只有覆盖至少 14 天、导出新鲜、覆盖到导出时点、coverageSegments 内部无缺口且旧接口调用数为 0 才返回成功；工具不会写数据库或调用业务 API。
+
+只读性能采样命令：
+
+```powershell
+$env:MARKETING_PERF_TOKEN='<只读营销权限令牌>'
+$env:MARKETING_PERF_STORE_ID='6'
+npm.cmd --prefix packages/server-v2 run marketing:perf:read
+```
+
+该工具只调用 `GET /marketing/recommendation-instances` 与 `GET /marketing/recommendation-instances/{instanceId}/audience`，不会刷新推荐、采纳或写入业务数据。实例列表 P95 必须 `< 800ms`，50 条受众分页 P95 必须 `< 500ms`；1000 人初始化和 worker 100 条计时仍列入 `notMeasured`。首屏 3 请求和一次编排单权益池查询作为 implementation evidence 单独输出。
+
+统一采纳请求：
+
+```json
+{
+  "mode": "activity | automation | terminal_follow_up",
+  "clientRequestId": "stable-client-idempotency-key",
+  "customerIds": [101, 102],
+  "activity": {
+    "title": "沉睡客户召回",
+    "startDate": "2026-07-14",
+    "endDate": "2026-07-31",
+    "publishPage": true
+  }
+}
+```
+
+采纳只使用服务端保存的推荐、预测、受众和权益快照。活动发布失败会回滚活动、页面、版本和采纳；启用自动策略不会立即产生触达，调度时才生成 execution、touch 和 delivery job。
+
+采纳响应状态为 `draft | published | enabled | dispatched | partial_failed | failed`。终端跟进仅在全部目标任务成功或命中幂等任务时返回 `dispatched`；部分失败返回 `partial_failed`，全部失败返回 `failed`。旧终端接口兼容返回 `items`、`total`、`createdCount`、`duplicatedCount`、`failedCount` 和 `failures`，并保留负责人角色、用户和美容师分配字段。
+
+统一效果响应的 `summary` 只从事实表聚合一次；`dimensions` 是同一事实的多维拆解，不能反向相加为总收入：
+
+```json
+{
+  "summary": {
+    "exposure": { "value": 120, "source": "actual", "definition": "实际页面曝光和真实渠道投递次数" },
+    "clicks": { "value": 20, "source": "actual", "definition": "实际点击次数" },
+    "conversions": { "value": 8, "source": "actual", "definition": "唯一主归因转化次数" },
+    "revenue": { "value": 4680, "source": "actual", "definition": "订单主归因收入减退款冲减" },
+    "cost": { "value": 240, "source": "estimated", "definition": "估算成本，不代表渠道账单" },
+    "roi": { "value": 19.5, "source": "estimated", "definition": "归因净收入除以营销成本" }
+  },
+  "dimensions": {
+    "activities": [],
+    "recommendations": [],
+    "promotions": [],
+    "pages": [],
+    "strategies": [],
+    "channels": []
+  }
+}
+```
+
+触达归因只接受 `sent/delivered/opened/clicked/converted`。`queued`、`failed` 和历史未验证 `reached` 不产生收入事实，生命周期重建和兼容效果接口也遵守同一状态集合。没有触达证据时不得回退到 execution.reachedCount，禁止以 reachedCount 乘固定客单价生成“实际收入”。退款写入独立负向事实，同一订单只能有一个主收入事实。
+
+活动列表、规则模板、权益和 Ami Glow 展示事件采用批量聚合；GET 活动列表只返回动态计算指标，不通过读取请求回写活动表。兼容效果中的收入必须标记 `actual`，固定单价成本和由其计算的 ROI 必须标记 `estimated`。
+
+## Ami Glow 站内通知接口（2026-07-14）
+
+营销 `in_app` 渠道创建成功后，通知通过 Ami Glow 客户认证接口读取。接口不接受客户端传入门店或客户 ID，始终从 Customer App token 取得当前 `storeId + customerId`。
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/customer-app/me/notifications` | 分页读取当前客户在当前门店已投递的通知，返回 `unreadCount` |
+| `POST` | `/customer-app/me/notifications/{id}/open` | 仅在当前客户和门店范围内把 `delivered` 更新为 `opened` |
+
+`queued` 和 `failed` 通知不会返回给客户；已进入 `clicked/converted` 的记录不会被打开操作降级回 `opened`。Ami Glow H5 的“我的 → 站内通知”使用这两个接口，数据库记录不再是无消费者的孤立投递结果。

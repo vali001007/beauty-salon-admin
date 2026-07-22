@@ -4,6 +4,7 @@ import { CreateCustomerDto } from './dto/create-customer.dto.js';
 import { UpdateCustomerDto } from './dto/update-customer.dto.js';
 import { QueryCustomersDto } from './dto/query-customers.dto.js';
 import { formatBusinessDate, formatBusinessDateTime } from '../common/utils/business-time.js';
+import { scoreCustomerMonetary } from './customer-value-segmentation.js';
 
 type ConsumptionNameMaps = {
   projects?: Map<number, string>;
@@ -1580,13 +1581,7 @@ export class CustomersService {
   }
 
   private scoreProfileMonetary(totalSpent: number) {
-    const amount = Number(totalSpent ?? 0);
-    if (amount >= 50000) return 5;
-    if (amount >= 20000) return 4;
-    if (amount >= 8000) return 3;
-    if (amount >= 3000) return 2;
-    if (amount > 0) return 1;
-    return 0;
+    return scoreCustomerMonetary(totalSpent);
   }
 
   private classifyProfileSegment(customer: any, now: Date) {

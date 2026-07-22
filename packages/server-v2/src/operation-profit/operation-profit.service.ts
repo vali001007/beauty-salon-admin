@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { formatBusinessDate } from '../common/utils/business-time.js';
 import { FinanceMetricsService } from '../finance-metrics/finance-metrics.service.js';
@@ -18,6 +18,13 @@ type ProductMovementCost = {
   costAmount: number;
   source: ProductCostSource;
   sourceNo?: string;
+};
+
+export type OperationFinanceContext = {
+  userId: number;
+  storeIds: number[];
+  roles: string[];
+  permissions: string[];
 };
 
 @Injectable()
@@ -196,13 +203,185 @@ export class OperationProfitService {
   }
 
   private async getOperatingCosts(range: DateRange, storeId?: number) {
-    return this.prisma.operatingCost.findMany({
+    const costs = await this.prisma.operatingCost.findMany({
       where: {
         ...(storeId ? { storeId } : {}),
-        OR: [{ costDate: { gte: range.from, lte: range.to } }, { periodMonth: { in: this.monthKeys(range) } }],
+        periodMonth: { in: this.monthKeys(range) },
       },
       include: { store: { select: { id: true, name: true } } },
     });
+    return costs.flatMap((cost: any) => {
+      if (String(cost.allocationType) !== 'store_month') {
+        const costDate = new Date(cost.costDate);
+        return costDate >= range.from && costDate <= range.to ? [cost] : [];
+      }
+      const [year, month] = String(cost.periodMonth).split('-').map(Number);
+      const monthStart = new Date(year, month - 1, 1, 0, 0, 0, 0);
+      const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
+      const overlapStart = range.from > monthStart ? range.from : monthStart;
+      const overlapEnd = range.to < monthEnd ? range.to : monthEnd;
+      if (overlapStart > overlapEnd) return [];
+      const overlapDays = Math.floor((new Date(overlapEnd).setHours(0, 0, 0, 0) - new Date(overlapStart).setHours(0, 0, 0, 0)) / 86400000) + 1;
+      const daysInMonth = new Date(year, month, 0).getDate();
+      return [{ ...cost, amount: (this.toNumber(cost.amount) * overlapDays) / daysInMonth, allocatedDays: overlapDays, daysInMonth }];
+    });
+  }
+
+  private isSuperAdmin(context: OperationFinanceContext) {
+    return context.permissions?.includes('*') || context.roles?.includes('super_admin');
+  }
+
+  private assertStoreAccess(storeId: number, context: OperationFinanceContext) {
+    if (!this.isSuperAdmin(context) && !context.storeIds?.includes(storeId)) {
+      throw new ForbiddenException('无权访问该门店财务数据');
+    }
+  }
+
+  private async writeFinanceAudit(data: any) {
+    if (this.prisma.financeAuditLog?.create) await this.prisma.financeAuditLog.create({ data });
+  }
+
+  private monthRange(periodMonth: string) {
+    if (!/^\d{4}-\d{2}$/.test(periodMonth)) throw new BadRequestException('结账月份格式不正确');
+    const [year, month] = periodMonth.split('-').map(Number);
+    if (month < 1 || month > 12) throw new BadRequestException('结账月份格式不正确');
+    const from = `${periodMonth}-01`;
+    const to = `${periodMonth}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`;
+    return { from, to };
+  }
+
+  async generateMonthlyClose(storeIdInput: number | string, periodMonth: string, context: OperationFinanceContext) {
+    const storeId = this.asOptionalStoreId(storeIdInput);
+    if (!storeId) throw new BadRequestException('缺少门店 ID');
+    this.assertStoreAccess(storeId, context);
+    const range = this.monthRange(periodMonth);
+    const overview = await this.getOverview({ storeId, ...range });
+    const latest = await this.prisma.monthlyProfitClose.findFirst({
+      where: { storeId, periodMonth },
+      orderBy: { version: 'desc' },
+    });
+    if (latest?.status === 'confirmed') throw new ConflictException('已确认月结禁止重新生成，请先由平台管理员重开');
+
+    const amountByKey = new Map((overview.costBreakdown ?? []).map((item: any) => [item.key, this.toNumber(item.amount)]));
+    const operatingCost = (overview.costBreakdown ?? [])
+      .filter((item: any) => !['material', 'product', 'commission'].includes(item.key))
+      .reduce((sum: number, item: any) => sum + this.toNumber(item.amount), 0);
+    const data = {
+      storeId,
+      periodMonth,
+      version: latest?.status === 'draft' ? latest.version : this.toNumber(latest?.version) + 1 || 1,
+      operatingRevenue: this.toNumber(overview.summary.operatingIncome),
+      materialCost: this.toNumber(amountByKey.get('material')),
+      productCost: this.toNumber(amountByKey.get('product')),
+      commissionCost: this.toNumber(amountByKey.get('commission')),
+      operatingCost,
+      grossProfit: this.toNumber(overview.summary.grossProfit),
+      operatingProfit: this.toNumber(overview.summary.operatingProfit),
+      dataQuality: { ...overview.dataQuality, readiness: overview.readiness },
+      sourceSummary: { period: range, summary: overview.summary, costBreakdown: overview.costBreakdown },
+      status: 'draft',
+    };
+    const close = latest?.status === 'draft'
+      ? await this.prisma.monthlyProfitClose.update({ where: { id: latest.id }, data })
+      : await this.prisma.monthlyProfitClose.create({ data });
+    await this.writeFinanceAudit({ storeId, userId: context.userId, action: 'monthly_profit_close_generated', entityType: 'MonthlyProfitClose', entityId: close.id, afterPayload: { periodMonth, version: close.version } });
+    return close;
+  }
+
+  async confirmMonthlyClose(id: number, context: OperationFinanceContext) {
+    const close = await this.prisma.monthlyProfitClose.findUnique({ where: { id } });
+    if (!close) throw new NotFoundException('月度利润结账单不存在');
+    this.assertStoreAccess(this.toNumber(close.storeId), context);
+    if (close.status !== 'draft') throw new ConflictException('只有草稿月结可以确认');
+    if ((close.dataQuality as any)?.readiness?.publishable !== true) throw new ConflictException('利润数据未达到发布条件，禁止确认');
+    const confirmedAt = new Date();
+    const updated = await this.prisma.monthlyProfitClose.update({
+      where: { id },
+      data: { status: 'confirmed', confirmedBy: context.userId, confirmedAt },
+    });
+    await this.writeFinanceAudit({ storeId: close.storeId, userId: context.userId, action: 'monthly_profit_close_confirmed', entityType: 'MonthlyProfitClose', entityId: id, afterPayload: { version: close.version, confirmedAt } });
+    return updated;
+  }
+
+  async reopenMonthlyClose(id: number, reasonInput: string, context: OperationFinanceContext) {
+    if (!this.isSuperAdmin(context)) throw new ForbiddenException('仅超级管理员可以重开月结');
+    const reason = reasonInput?.trim();
+    if (!reason || reason.length < 5 || reason.length > 500) throw new BadRequestException('重开原因需为 5–500 字');
+    const close = await this.prisma.monthlyProfitClose.findUnique({ where: { id } });
+    if (!close) throw new NotFoundException('月度利润结账单不存在');
+    if (close.status !== 'confirmed') throw new ConflictException('只有已确认月结可以重开');
+    const reopenedAt = new Date();
+    const updated = await this.prisma.monthlyProfitClose.update({
+      where: { id },
+      data: { status: 'reopened', reopenedBy: context.userId, reopenedAt, reopenReason: reason },
+    });
+    await this.writeFinanceAudit({ storeId: close.storeId, userId: context.userId, action: 'monthly_profit_close_reopened', entityType: 'MonthlyProfitClose', entityId: id, reason, beforePayload: { status: close.status, version: close.version }, afterPayload: { status: 'reopened' } });
+    return updated;
+  }
+
+  async getMonthlyCloseVersions(storeIdInput: number | string, periodMonth: string, context: OperationFinanceContext) {
+    const storeId = this.asOptionalStoreId(storeIdInput);
+    if (!storeId) throw new BadRequestException('缺少门店 ID');
+    this.assertStoreAccess(storeId, context);
+    return this.prisma.monthlyProfitClose.findMany({ where: { storeId, periodMonth }, orderBy: { version: 'desc' } });
+  }
+
+  async generateMemberLiabilitySnapshot(
+    storeIdInput: number | string,
+    snapshotDateInput: string,
+    context: OperationFinanceContext,
+  ) {
+    const storeId = this.asOptionalStoreId(storeIdInput);
+    if (!storeId) throw new BadRequestException('缺少门店 ID');
+    this.assertStoreAccess(storeId, context);
+    const snapshotDate = new Date(`${snapshotDateInput}T00:00:00.000Z`);
+    if (Number.isNaN(snapshotDate.getTime())) throw new BadRequestException('快照日期格式不正确');
+    const [liability, latest] = await Promise.all([
+      this.getPrepaidLiabilities({ storeId, page: 1, pageSize: 100000 }),
+      this.prisma.memberLiabilitySnapshot.findFirst({ where: { storeId, snapshotDate }, orderBy: { version: 'desc' } }),
+    ]);
+    if (latest?.status === 'confirmed') throw new ConflictException('已确认会员负债快照不可覆盖');
+    const monthStart = new Date(Date.UTC(snapshotDate.getUTCFullYear(), snapshotDate.getUTCMonth(), 1));
+    const monthEnd = new Date(Date.UTC(snapshotDate.getUTCFullYear(), snapshotDate.getUTCMonth() + 1, 1));
+    const transactions = await this.prisma.customerBalanceTransaction.findMany({
+      where: { storeId, createdAt: { gte: monthStart, lt: monthEnd } },
+      select: { type: true, amount: true, giftAmount: true },
+    });
+    const movement = (types: string[]) => transactions
+      .filter((item: any) => types.includes(String(item.type)))
+      .reduce((sum: number, item: any) => sum + Math.abs(this.toNumber(item.amount)) + Math.abs(this.toNumber(item.giftAmount)), 0);
+    const data = {
+      storeId,
+      snapshotDate,
+      version: latest?.status === 'draft' ? latest.version : this.toNumber(latest?.version) + 1 || 1,
+      cashContractLiability: this.toNumber(liability.summary.cashBalance),
+      giftObligation: this.toNumber(liability.summary.giftBalance),
+      cardLiability: this.toNumber(liability.summary.cardLiability),
+      remainingTimes: this.toNumber(liability.summary.remainingTimes),
+      additions: movement(['recharge', '充值', 'member_recharge']),
+      releases: movement(['consume', 'deduct', '消费']),
+      refunds: movement(['refund', '退款', 'refund_restore']),
+      expirations: movement(['expired', 'expire']),
+      adjustments: movement(['adjust', 'adjustment', 'gift']),
+      sourceSummary: { summary: liability.summary, rowCount: liability.total },
+      status: 'draft',
+    };
+    const snapshot = latest?.status === 'draft'
+      ? await this.prisma.memberLiabilitySnapshot.update({ where: { id: latest.id }, data })
+      : await this.prisma.memberLiabilitySnapshot.create({ data });
+    await this.writeFinanceAudit({ storeId, userId: context.userId, action: 'member_liability_snapshot_generated', entityType: 'MemberLiabilitySnapshot', entityId: snapshot.id, afterPayload: { snapshotDate: snapshotDateInput, version: snapshot.version } });
+    return snapshot;
+  }
+
+  async confirmMemberLiabilitySnapshot(id: number, context: OperationFinanceContext) {
+    const snapshot = await this.prisma.memberLiabilitySnapshot.findUnique({ where: { id } });
+    if (!snapshot) throw new NotFoundException('会员负债快照不存在');
+    this.assertStoreAccess(this.toNumber(snapshot.storeId), context);
+    if (snapshot.status !== 'draft') throw new ConflictException('只有草稿会员负债快照可以确认');
+    const confirmedAt = new Date();
+    const updated = await this.prisma.memberLiabilitySnapshot.update({ where: { id }, data: { status: 'confirmed', confirmedBy: context.userId, confirmedAt } });
+    await this.writeFinanceAudit({ storeId: snapshot.storeId, userId: context.userId, action: 'member_liability_snapshot_confirmed', entityType: 'MemberLiabilitySnapshot', entityId: id, afterPayload: { confirmedAt } });
+    return updated;
   }
 
   private buildCostMap(costs: any[]) {
@@ -664,16 +843,58 @@ export class OperationProfitService {
       const row = ensureTrend(this.dateKey(record.verifiedAt));
       row.operatingIncome += this.getCardUsageRecognizedAmount(record, cardUnitValueByName);
     }
-    const trend = Array.from(trendByDate.values()).map((row) => ({
+    let trend = Array.from(trendByDate.values()).map((row) => ({
       ...row,
       grossProfit: this.round(row.operatingIncome * (grossMargin || 0)),
       operatingProfit: this.round(row.operatingIncome * (netMargin || 0)),
       cashIncome: this.round(row.cashIncome),
       operatingIncome: this.round(row.operatingIncome),
     }));
+    if (financeMetrics?.items?.length) {
+      const operatingCostByDate = new Map<string, number>();
+      for (const cost of costs) {
+        if (String(cost.allocationType) === 'store_month') {
+          const [year, month] = String(cost.periodMonth).split('-').map(Number);
+          const monthStart = new Date(year, month - 1, 1);
+          const monthEnd = new Date(year, month, 0);
+          const cursor = new Date(range.from > monthStart ? range.from : monthStart);
+          cursor.setHours(0, 0, 0, 0);
+          const end = new Date(range.to < monthEnd ? range.to : monthEnd);
+          end.setHours(0, 0, 0, 0);
+          const days = Math.max(1, this.toNumber((cost as any).allocatedDays));
+          const amountPerDay = this.toNumber(cost.amount) / days;
+          while (cursor <= end) {
+            const key = this.dateKey(cursor);
+            operatingCostByDate.set(key, this.toNumber(operatingCostByDate.get(key)) + amountPerDay);
+            cursor.setDate(cursor.getDate() + 1);
+          }
+        } else {
+          const key = this.dateKey(cost.costDate);
+          operatingCostByDate.set(key, this.toNumber(operatingCostByDate.get(key)) + this.toNumber(cost.amount));
+        }
+      }
+      trend = financeMetrics.items.map((item: any) => ({
+        date: item.date,
+        cashIncome: this.round(item.cashIncome),
+        operatingIncome: this.round(item.operatingRevenue),
+        grossProfit: this.round(item.grossProfit),
+        operatingProfit: this.round(this.toNumber(item.grossProfit) - this.toNumber(operatingCostByDate.get(item.date))),
+      }));
+    }
 
     const dataQualityStatus: DataQualityStatus =
       operatingIncome <= 0 ? 'unavailable' : missingReasons.has('missing_cost') ? 'missing_cost' : missingReasons.size ? 'estimated' : 'complete';
+
+    const readinessBlockers = Array.from(missingReasons)
+      .filter((reason) => ['missing_cost', 'missing_bom', 'missing_batch_cost', 'missing_commission', 'missing_actual_consumption'].includes(reason))
+      .map((code) => ({
+        code,
+        count: 1,
+        actionPath: code === 'missing_commission' ? '/finance/staff-commission' : code === 'missing_bom' || code === 'missing_actual_consumption' ? '/inventory/consumption' : '/finance/profit',
+      }));
+    const readiness = operatingIncome <= 0
+      ? { status: 'unavailable' as const, publishable: false, blockers: [], warnings: [] }
+      : { status: readinessBlockers.length ? 'blocked' as const : 'ready' as const, publishable: readinessBlockers.length === 0, blockers: readinessBlockers, warnings: [] };
 
     return {
       period: { from: query.from, to: query.to },
@@ -711,6 +932,7 @@ export class OperationProfitService {
       trend,
       alerts: this.buildAlerts({ netMargin, operatingIncome, operatingCostMap, missingReasons, cardConsumptionRate }),
       dataQuality: this.addDataQuality(missingReasons, dataQualityStatus, this.dataQualityDetail(dataQualityStatus)),
+      readiness,
     };
   }
 
@@ -1237,6 +1459,40 @@ export class OperationProfitService {
 
   async getPrepaidLiabilities(query: QueryPrepaidLiabilitiesDto, headerStoreId?: string) {
     const storeId = this.asOptionalStoreId(query.storeId ?? headerStoreId);
+    if (query.asOfDate) {
+      if (!storeId) throw new BadRequestException('历史负债查询必须指定门店');
+      const asOfDate = new Date(`${query.asOfDate}T23:59:59.999Z`);
+      if (Number.isNaN(asOfDate.getTime())) throw new BadRequestException('历史时点格式不正确');
+      const snapshot = await this.prisma.memberLiabilitySnapshot.findFirst({
+        where: { storeId, snapshotDate: { lte: asOfDate }, status: 'confirmed' },
+        orderBy: [{ snapshotDate: 'desc' }, { version: 'desc' }],
+      });
+      if (!snapshot) throw new NotFoundException('该历史时点没有已确认会员负债快照');
+      const cashBalance = this.toNumber(snapshot.cashContractLiability);
+      const giftBalance = this.toNumber(snapshot.giftObligation);
+      const cardLiability = this.toNumber(snapshot.cardLiability);
+      return {
+        items: [],
+        data: [],
+        total: 0,
+        page: 1,
+        pageSize: Number(query.pageSize ?? 20),
+        snapshot,
+        summary: {
+          totalLiability: this.round(cashBalance + giftBalance + cardLiability),
+          cardLiability: this.round(cardLiability),
+          balanceLiability: this.round(cashBalance + giftBalance),
+          cashBalance: this.round(cashBalance),
+          giftBalance: this.round(giftBalance),
+          remainingTimes: this.toNumber(snapshot.remainingTimes),
+          additions: this.toNumber(snapshot.additions),
+          releases: this.toNumber(snapshot.releases),
+          refunds: this.toNumber(snapshot.refunds),
+          expirations: this.toNumber(snapshot.expirations),
+          adjustments: this.toNumber(snapshot.adjustments),
+        },
+      };
+    }
     const page = Number(query.page ?? 1);
     const pageSize = Number(query.pageSize ?? 20);
     const type = query.type ?? 'all';

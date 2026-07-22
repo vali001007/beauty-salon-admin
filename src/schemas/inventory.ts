@@ -28,6 +28,7 @@ export const inventoryAdjustmentSchema = z.object({
 });
 
 export type InventoryAdjustmentFormData = z.infer<typeof inventoryAdjustmentSchema>;
+export type InventoryAdjustmentFormInput = z.input<typeof inventoryAdjustmentSchema>;
 
 export const stocktakeSchema = z.object({
   productId: z.number().int().positive('请选择盘点产品'),

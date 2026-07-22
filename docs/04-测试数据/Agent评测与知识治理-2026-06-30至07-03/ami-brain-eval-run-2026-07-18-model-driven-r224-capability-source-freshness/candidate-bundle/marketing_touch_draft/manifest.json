@@ -1,0 +1,114 @@
+{
+  "key": "marketing_touch_draft",
+  "version": 1,
+  "sourceFingerprint": "d59e2b7a12d5c888de54f0ffea37749f399895b5b4f589e70849d40bfcf44cfb",
+  "name": "单客户营销触达预览",
+  "description": "解析当前门店内的唯一客户并生成单客户营销触达任务预览，包含可编辑话术和风险提示，不自动群发。",
+  "domains": [
+    "customer"
+  ],
+  "intents": [
+    "action"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "comparisonTarget": {
+        "type": "object"
+      },
+      "dimensions": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "entities": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "filters": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "limit": {
+        "type": "number"
+      },
+      "metrics": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "objective": {
+        "type": "string"
+      },
+      "orderBy": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "time": {
+        "type": "object"
+      }
+    },
+    "required": [
+      "dimensions",
+      "entities",
+      "filters",
+      "metrics",
+      "objective",
+      "orderBy"
+    ],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object"
+  },
+  "requiredPermissions": [
+    "core:brain:use",
+    "core:marketing:create"
+  ],
+  "allowedRoles": [
+    "marketing",
+    "store_manager"
+  ],
+  "readOnly": false,
+  "sideEffect": true,
+  "riskLevel": "high",
+  "requiresConfirmation": true,
+  "idempotency": "required",
+  "timeoutMs": 10000,
+  "grounding": "preview_action",
+  "examples": [
+    "给指定客户准备一条待确认的邀约任务",
+    "生成单客户召回触达预览"
+  ],
+  "negativeExamples": [
+    "操作其他门店客户",
+    "直接给全部客户群发",
+    "只生成通用文案"
+  ],
+  "synonyms": [
+    "单客户邀约任务",
+    "营销触达预览",
+    "召回任务草稿"
+  ],
+  "successSchema": {
+    "type": "object"
+  },
+  "definitionRefs": [
+    {
+      "definitionId": 43,
+      "versionId": 43,
+      "definitionKey": "entity.customer",
+      "version": 1,
+      "definitionFingerprint": "e2a455e1bb6fca496a965db988e5547f4bee98a5e43f4c0daf9a04777a0e908e",
+      "sourceFingerprint": "528c308346ae2b37db26eae2c35397fd02d981182ceb30d2378fb588e294ce04"
+    }
+  ]
+}

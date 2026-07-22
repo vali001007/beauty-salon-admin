@@ -1,0 +1,1356 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-10T18:44:56.798Z",
+    "startedAt": "2026-07-10T18:43:45.048Z",
+    "finishedAt": "2026-07-10T18:44:56.798Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\agent-eval-questions.md",
+    "questionCount": 40,
+    "actualRunCount": 40,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "evaluatorPermissions": [
+      "*"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。"
+    }
+  },
+  "summary": {
+    "total": 40,
+    "legacyUsableWithCitation": 0,
+    "legacyUsableRate": 0,
+    "trueUsable": 13,
+    "trueUsableRate": 0.325,
+    "byStatus": [
+      {
+        "key": "false_positive_granularity_mismatch",
+        "total": 16,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "usable_exact",
+        "total": 13,
+        "usable": 13,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "unsupported_intent",
+        "total": 11,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 11,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "beautician",
+        "total": 40,
+        "usable": 13,
+        "usableRate": 0.325,
+        "metricFailed": 0,
+        "unsupportedIntent": 11,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "今日服务安排",
+        "total": 25,
+        "usable": 8,
+        "usableRate": 0.32,
+        "metricFailed": 0,
+        "unsupportedIntent": 4,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "客户护理建议",
+        "total": 15,
+        "usable": 5,
+        "usableRate": 0.3333333333333333,
+        "metricFailed": 0,
+        "unsupportedIntent": 7,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [
+      {
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "count": 16
+      },
+      {
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "count": 11
+      }
+    ],
+    "latency": {
+      "avgMs": 1793,
+      "p95Ms": 2054,
+      "maxMs": 2714
+    },
+    "baselineComparison": {
+      "baselinePath": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-eval-run-2026-07-10\\ami-brain-eval-results-2026-07-10.json",
+      "rows": [
+        {
+          "metric": "旧口径可用率",
+          "baseline": "15.5%",
+          "current": "0.0%"
+        },
+        {
+          "metric": "真实可用率",
+          "baseline": "7.8%",
+          "current": "32.5%"
+        },
+        {
+          "metric": "假阳性数",
+          "baseline": "50",
+          "current": "16"
+        },
+        {
+          "metric": "时间误退化全量数",
+          "baseline": "12",
+          "current": "0"
+        },
+        {
+          "metric": "文案/操作误命中指标数",
+          "baseline": "21",
+          "current": "0"
+        }
+      ]
+    }
+  },
+  "records": [
+    {
+      "questionId": "qb-beautician-service-schedule-001",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 1,
+      "persona": "beautician",
+      "question": "我今天有几个客人，分别几点",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2714,
+      "conversationId": 3698,
+      "runId": 3698,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-002",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 2,
+      "persona": "beautician",
+      "question": "下一个客人是谁，做什么项目",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2025,
+      "conversationId": 3701,
+      "runId": 3701,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-003",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 3,
+      "persona": "beautician",
+      "question": "我今天第一个客人几点来",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 2009,
+      "conversationId": 3705,
+      "runId": 3705,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "unknown",
+        "actualIntent": "diagnosis",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-004",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 4,
+      "persona": "beautician",
+      "question": "下午那个客人叫什么名字，有什么要注意的",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 2022,
+      "conversationId": 3708,
+      "runId": 3708,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "unknown",
+        "actualIntent": "diagnosis",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-005",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 5,
+      "persona": "beautician",
+      "question": "今天最后一个客人几点结束",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 1994,
+      "conversationId": 3712,
+      "runId": 3712,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "unknown",
+        "actualIntent": "diagnosis",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-006",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 6,
+      "persona": "beautician",
+      "question": "我今天有没有空档，几点到几点",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 1996,
+      "conversationId": 3716,
+      "runId": 3716,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "metric_query",
+        "actualIntent": "diagnosis",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "appointment_count",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-007",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 7,
+      "persona": "beautician",
+      "question": "下一个客人上次做了什么，有没有什么特殊要求",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2009,
+      "conversationId": 3719,
+      "runId": 3719,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-008",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 8,
+      "persona": "beautician",
+      "question": "今天我总共要服务几个小时",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1336,
+      "conversationId": 3722,
+      "runId": 3722,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-009",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 9,
+      "persona": "beautician",
+      "question": "有没有客人临时取消了，我可以提前下班吗",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1334,
+      "conversationId": 3725,
+      "runId": 3725,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "action",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-010",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 10,
+      "persona": "beautician",
+      "question": "我今天的客人里有没有首次来的新客",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 1996,
+      "conversationId": 3728,
+      "runId": 3728,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "unknown",
+        "actualIntent": "diagnosis",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-011",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 11,
+      "persona": "beautician",
+      "question": "下一个客人有没有皮肤过敏或者什么注意事项",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2002,
+      "conversationId": 3732,
+      "runId": 3732,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-012",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 12,
+      "persona": "beautician",
+      "question": "今天有哪个客人是比较难服务的，需要注意什么",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 2002,
+      "conversationId": 3735,
+      "runId": 3735,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "unknown",
+        "actualIntent": "diagnosis",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-013",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 13,
+      "persona": "beautician",
+      "question": "我现在服务完这个客人，下一个几点来",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 1996,
+      "conversationId": 3740,
+      "runId": 3740,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "unknown",
+        "actualIntent": "diagnosis",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-014",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 14,
+      "persona": "beautician",
+      "question": "今天有没有安排我去做培训或其他任务",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1353,
+      "conversationId": 3743,
+      "runId": 3743,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-015",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 15,
+      "persona": "beautician",
+      "question": "下午两点那个客人想做什么项目",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 1995,
+      "conversationId": 3746,
+      "runId": 3746,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "unknown",
+        "actualIntent": "diagnosis",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-016",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 16,
+      "persona": "beautician",
+      "question": "我今天要用到什么产品和耗材",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1333,
+      "conversationId": 3750,
+      "runId": 3750,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-017",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 17,
+      "persona": "beautician",
+      "question": "今天有没有客人提前到了在等我",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 2008,
+      "conversationId": 3753,
+      "runId": 3752,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "unknown",
+        "actualIntent": "diagnosis",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-018",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 18,
+      "persona": "beautician",
+      "question": "我这周的排班是怎样的",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2001,
+      "conversationId": 3757,
+      "runId": 3757,
+      "answer": "今日服务安排：共 3 个客人。\n1. 2026-07-07 11:00 H5真实联调客户-20260707 - 背部净透护理\n2. 2026-07-07 12:30 H5真实联调客户-20260707 - 背部净透护理\n3. 2026-07-08 16:00 微信客户0000 - 射频紧致提升护理",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "appointment_count",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-019",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 19,
+      "persona": "beautician",
+      "question": "帮我看一下今天客人的护理历史",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 2014,
+      "conversationId": 3760,
+      "runId": 3760,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "unknown",
+        "actualIntent": "diagnosis",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-020",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 20,
+      "persona": "beautician",
+      "question": "我今天最后一个客人结束后还有没有安排",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 2003,
+      "conversationId": 3764,
+      "runId": 3764,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "unknown",
+        "actualIntent": "diagnosis",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-021",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 21,
+      "persona": "beautician",
+      "question": "下一个客人的疗程做到哪一步了",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1997,
+      "conversationId": 3768,
+      "runId": 3768,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-022",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 22,
+      "persona": "beautician",
+      "question": "今天有没有需要我帮客人续卡或者推荐项目的",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2015,
+      "conversationId": 3772,
+      "runId": 3772,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-023",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 23,
+      "persona": "beautician",
+      "question": "我今天的客人里有没有 VIP 需要特别对待",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 1995,
+      "conversationId": 3776,
+      "runId": 3776,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "unknown",
+        "actualIntent": "diagnosis",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-024",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 24,
+      "persona": "beautician",
+      "question": "下一个客人最近情绪状态怎么样，需要特别关心吗",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1512,
+      "conversationId": 3780,
+      "runId": 3780,
+      "answer": "客户本次项目结束后，建议记录皮肤/身体反馈，24 小时内发送护理提醒，并在 7 天内安排一次跟进。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_follow_up_advice",
+          "label": "美容师跟进建议"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-025",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 25,
+      "persona": "beautician",
+      "question": "帮我看一下今天整体的服务流程安排",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 1998,
+      "conversationId": 3783,
+      "runId": 3783,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "unknown",
+        "actualIntent": "diagnosis",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-beautician-care-advice-026",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "客户护理建议",
+      "sourceIndex": 26,
+      "persona": "beautician",
+      "question": "这个客人皮肤类型是什么，适合做什么护理",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1994,
+      "conversationId": 3786,
+      "runId": 3786,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-care-advice-027",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "客户护理建议",
+      "sourceIndex": 27,
+      "persona": "beautician",
+      "question": "她上次反映皮肤有点干，这次应该用什么产品",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1343,
+      "conversationId": 3789,
+      "runId": 3789,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-beautician-care-advice-028",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "客户护理建议",
+      "sourceIndex": 28,
+      "persona": "beautician",
+      "question": "这个客人有过敏史，做项目前我需要注意什么",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1339,
+      "conversationId": 3792,
+      "runId": 3792,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-beautician-care-advice-029",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "客户护理建议",
+      "sourceIndex": 29,
+      "persona": "beautician",
+      "question": "她的疗程做了几次了，还有几次",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1347,
+      "conversationId": 3795,
+      "runId": 3795,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-beautician-care-advice-030",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "客户护理建议",
+      "sourceIndex": 30,
+      "persona": "beautician",
+      "question": "这次护理后我应该给她什么建议",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2065,
+      "conversationId": 3798,
+      "runId": 3798,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-care-advice-031",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "客户护理建议",
+      "sourceIndex": 31,
+      "persona": "beautician",
+      "question": "这个客人说她最近压力大，皮肤状态差，怎么建议",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1525,
+      "conversationId": 3801,
+      "runId": 3801,
+      "answer": "客户本次项目结束后，建议记录皮肤/身体反馈，24 小时内发送护理提醒，并在 7 天内安排一次跟进。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_follow_up_advice",
+          "label": "美容师跟进建议"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-care-advice-032",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "客户护理建议",
+      "sourceIndex": 32,
+      "persona": "beautician",
+      "question": "她上次护理后反映有点红，这次怎么调整",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1504,
+      "conversationId": 3804,
+      "runId": 3804,
+      "answer": "客户本次项目结束后，建议记录皮肤/身体反馈，24 小时内发送护理提醒，并在 7 天内安排一次跟进。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_follow_up_advice",
+          "label": "美容师跟进建议"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "action",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-care-advice-033",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "客户护理建议",
+      "sourceIndex": 33,
+      "persona": "beautician",
+      "question": "这个客人年龄偏大，适合推荐什么抗老项目",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1345,
+      "conversationId": 3807,
+      "runId": 3807,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-beautician-care-advice-034",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "客户护理建议",
+      "sourceIndex": 34,
+      "persona": "beautician",
+      "question": "她一直在做同一个项目，我应该推荐她升级吗",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1336,
+      "conversationId": 3809,
+      "runId": 3809,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-beautician-care-advice-035",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "客户护理建议",
+      "sourceIndex": 35,
+      "persona": "beautician",
+      "question": "这个客人皮肤最近出油多，护理重点应该放在哪里",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 2054,
+      "conversationId": 3810,
+      "runId": 3810,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "unknown",
+        "actualIntent": "diagnosis",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-beautician-care-advice-036",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "客户护理建议",
+      "sourceIndex": 36,
+      "persona": "beautician",
+      "question": "她问我护理后回家怎么保养，我怎么回答",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 1480,
+      "conversationId": 3811,
+      "runId": 3811,
+      "answer": "客户本次项目结束后，建议记录皮肤/身体反馈，24 小时内发送护理提醒，并在 7 天内安排一次跟进。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_follow_up_advice",
+          "label": "美容师跟进建议"
+        }
+      ],
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-beautician-care-advice-037",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "客户护理建议",
+      "sourceIndex": 37,
+      "persona": "beautician",
+      "question": "这次服务完我应该推荐她预约哪个项目",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1332,
+      "conversationId": 3812,
+      "runId": 3812,
+      "answer": "当前独立版 Ami Brain 尚未接入项目/商品推荐技能，不会用预约数等指标替代推荐结果。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-beautician-care-advice-038",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "客户护理建议",
+      "sourceIndex": 38,
+      "persona": "beautician",
+      "question": "这个客人皮肤有色斑，我应该重点关注什么",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1416,
+      "conversationId": 3813,
+      "runId": 3813,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-beautician-care-advice-039",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "客户护理建议",
+      "sourceIndex": 39,
+      "persona": "beautician",
+      "question": "她的护理周期建议是多久来一次",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1994,
+      "conversationId": 3814,
+      "runId": 3814,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-care-advice-040",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "客户护理建议",
+      "sourceIndex": 40,
+      "persona": "beautician",
+      "question": "这个客人问我们最新的护理项目是什么，有什么特点",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 2006,
+      "conversationId": 3815,
+      "runId": 3815,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师今日服务安排"
+        }
+      ],
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "unknown",
+        "actualIntent": "diagnosis",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    }
+  ]
+}

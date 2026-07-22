@@ -10,6 +10,7 @@ import {
   stocktakeSchema,
   type InboundFormData,
   type InventoryAdjustmentFormData,
+  type InventoryAdjustmentFormInput,
   type StocktakeFormData,
 } from '@/schemas/inventory';
 import { getBatches, getStockItemsPaginated, createInbound, createInventoryAdjustment, getStockMovements } from '@/api/inventory';
@@ -132,7 +133,7 @@ export function StockManagement() {
     formState: { errors: outboundErrors, isSubmitting: outboundSubmitting },
     reset: resetOutbound,
     watch: watchOutbound,
-  } = useForm<InventoryAdjustmentFormData>({
+  } = useForm<InventoryAdjustmentFormInput, unknown, InventoryAdjustmentFormData>({
     resolver: zodResolver(inventoryAdjustmentSchema),
     defaultValues: {
       productId: 0,

@@ -166,7 +166,14 @@ export async function realGetReservationById(id: string | number): Promise<any> 
 }
 
 export async function realCreateReservation(data: Record<string, any>): Promise<any> {
-  const response = await apiClient.post<unknown, ApiReservation>('/reservations', data);
+  const idempotencyKey = String(
+    data.idempotencyKey ?? globalThis.crypto?.randomUUID?.() ?? `admin-reservation-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  );
+  const response = await apiClient.post<unknown, ApiReservation>(
+    '/reservations',
+    { ...data, idempotencyKey },
+    { headers: { 'Idempotency-Key': idempotencyKey } },
+  );
   return normalizeReservation(response);
 }
 
@@ -188,4 +195,19 @@ export async function realCheckInReservation(id: string | number): Promise<any> 
 export async function realCancelReservation(id: string | number, reason?: string): Promise<any> {
   const response = await apiClient.post<unknown, ApiReservation>(`/reservations/${id}/cancel`, { reason });
   return normalizeReservation(response);
+}
+
+export async function realStartCustomerWaiting(id: string | number, expectedWaitMinutes?: number): Promise<any> {
+  return apiClient.post(`/customer-waiting/reservations/${id}/start`, { expectedWaitMinutes });
+}
+
+export async function realMarkCustomerWaitingServed(episodeId: string | number): Promise<any> {
+  return apiClient.post(`/customer-waiting/episodes/${episodeId}/served`);
+}
+
+export async function realMarkCustomerWaitingLeft(
+  episodeId: string | number,
+  data: { reasonCode: string; reasonNote?: string },
+): Promise<any> {
+  return apiClient.post(`/customer-waiting/episodes/${episodeId}/left`, data);
 }

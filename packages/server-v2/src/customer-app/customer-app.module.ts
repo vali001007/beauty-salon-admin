@@ -5,10 +5,14 @@ import { AiModule } from '../ai/ai.module.js';
 import { CustomerAppController } from './customer-app.controller.js';
 import { CustomerAppService } from './customer-app.service.js';
 import { CustomerAppAuthGuard } from './guards/customer-app-auth.guard.js';
+import { MarketingAttributionModule } from '../marketing/attribution/marketing-attribution.module.js';
+import { ReservationsModule } from '../reservations/reservations.module.js';
 
 @Module({
   imports: [
     AiModule,
+    MarketingAttributionModule,
+    ReservationsModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

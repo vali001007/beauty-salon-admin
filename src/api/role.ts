@@ -1,5 +1,7 @@
-import type { Role } from '@/types';
-import { realGetRoles, realCreateRole, realUpdateRole, realUpdateRolePermissions, realDeleteRole, realGetRolesPaginated } from './real/role';
+import type { Permission, Role } from '@/types';
+import { realGetRoles, realCreateRole, realUpdateRole, realUpdateRolePermissions, realDeleteRole, realGetRolesPaginated, realGetPermissionCatalog } from './real/role';
+
+export const getPermissionCatalog: () => Promise<Permission[]> = realGetPermissionCatalog;
 
 export const getRoles: () => Promise<Role[]> =
   realGetRoles;

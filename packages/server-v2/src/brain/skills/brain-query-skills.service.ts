@@ -8,4 +8,8 @@ export class BrainQuerySkillsService {
   runMetricQuery(input: Parameters<BrainSemanticQueryEngineService['run']>[0]) {
     return this.semanticQueryEngine.run(input);
   }
+
+  async runMetricQueries(inputs: Array<Parameters<BrainSemanticQueryEngineService['run']>[0]>) {
+    return Promise.all(inputs.map((input) => this.semanticQueryEngine.run(input)));
+  }
 }

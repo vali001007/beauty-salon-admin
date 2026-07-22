@@ -1,7 +1,7 @@
 import React from "react";
 import { Sparkles } from "lucide-react";
-import { getAgentResultDisplayModel } from "@ami/agent-core";
-import type { AgentFeedbackContext } from "@ami/agent-core";
+import { getAgentResultDisplayModel, mapBrainResponseBlocks } from "@ami/agent-core";
+import type { AgentFeedbackContext, BrainResponseBlockCompat } from "@ami/agent-core";
 import type { AgentRunResult, AuraResponseBlock } from "@/types/agent";
 import { FollowUpChips } from "./FollowUpChips";
 import { AgentFeedback } from "./AgentFeedback";
@@ -13,6 +13,7 @@ const LazyBlockRenderer = React.lazy(() =>
 
 type AgentRunWithBlocks = AgentRunResult & {
   renderedBlocks?: AuraResponseBlock[];
+  brainBlocks?: BrainResponseBlockCompat[];
   followUpSuggestions?: string[];
 };
 
@@ -71,19 +72,7 @@ function asRecord(value: unknown): Record<string, unknown> {
 function getArchitectureLabel(value: unknown) {
   const architecture = String(value ?? "");
   const labels: Record<string, string> = {
-    agent_v2_kg_llm: "KG+LLM",
-    kg_llm_agent: "KG+LLM",
-    agent_v2_shadow: "Agent V2",
-    agent_v2_legacy_fallback: "Agent V2",
-    agent_v2_kg_llm_retired: "Agent V2",
-    agent_v5_business_ontology_agent: "V5 全业务 Ontology",
-    agent_v5: "Agent V5",
-    agent_v4_lifecycle_business_agent: "V4 生命周期经营",
-    agent_v4: "Agent V4",
-    agent_v2: "Agent V2",
-    agent_v3_text_to_sql: "V3 数据分析",
-    agent_v3: "Agent V3",
-    agent_v1: "Agent V1",
+    ami_brain: "Ami Brain",
   };
   return labels[architecture] ?? architecture;
 }
@@ -178,7 +167,7 @@ export function AgentMessageItem({
   onFeedback,
 }: AgentMessageItemProps) {
   const displayModel = getAgentResultDisplayModel(data);
-  const blocks = displayModel.blocks;
+  const blocks = [...displayModel.blocks, ...mapBrainResponseBlocks(data.brainBlocks ?? [])];
   const evidenceText = getEvidenceText(displayModel.evidence);
   const suggestedActions = displayModel.actions;
   const limitations = displayModel.limitations;
@@ -226,8 +215,8 @@ export function AgentMessageItem({
               <Sparkles className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <div className="text-sm font-semibold text-[#2D1B69]">Ami 智能问答</div>
-              <div className="mt-1 text-xs text-[#6F6678]">{data.plan?.goal ?? "基于 Ami_Core 经营数据"}</div>
+              <div className="text-sm font-semibold text-[#2D1B69]">Ami Brain</div>
+              <div className="mt-1 text-xs text-[#6F6678]">{data.plan?.goal ?? "基于受治理门店经营数据"}</div>
             </div>
           </div>
           <div className="flex flex-wrap justify-end gap-2">

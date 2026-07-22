@@ -6,14 +6,19 @@ import { PermissionGuard } from './components/PermissionGuard';
 import { lazyWithRetry } from './components/LazyRetry';
 import { PageSkeleton } from '@/app/components/ui/loading-skeleton';
 import { RouteErrorPage } from './pages/RouteErrorPage';
+import { BRAIN_GOVERNANCE_SECTIONS, DEFAULT_BRAIN_GOVERNANCE_PATH } from './pages/brain/brainGovernanceNavigation';
 
 // Lazy-loaded page components
 const LoginPage = lazyWithRetry(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })), 'LoginPage');
 const RegisterPage = lazyWithRetry(() => import('./pages/RegisterPage').then(m => ({ default: m.RegisterPage })), 'RegisterPage');
 const Dashboard = lazyWithRetry(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })), 'Dashboard');
+const StoreMetricsOverview = lazyWithRetry(() => import('./pages/store-metrics/StoreMetricsOverview').then(m => ({ default: m.StoreMetricsOverview })), 'StoreMetricsOverview');
+const StoreMetricTargets = lazyWithRetry(() => import('./pages/store-metrics/StoreMetricTargets').then(m => ({ default: m.StoreMetricTargets })), 'StoreMetricTargets');
+const AskDataWorkbench = lazyWithRetry(() => import('./pages/ask-data/AskDataWorkbench').then(m => ({ default: m.AskDataWorkbench })), 'AskDataWorkbench');
 const BrainWorkspace = lazyWithRetry(() => import('./pages/brain/BrainWorkspace').then(m => ({ default: m.BrainWorkspace })), 'BrainWorkspace');
 const BrainGovernanceCenter = lazyWithRetry(() => import('./pages/brain/BrainGovernanceCenter').then(m => ({ default: m.BrainGovernanceCenter })), 'BrainGovernanceCenter');
 const CustomerData = lazyWithRetry(() => import('./pages/CustomerData').then(m => ({ default: m.CustomerData })), 'CustomerData');
+const CustomerFeedbackWorkbench = lazyWithRetry(() => import('./pages/CustomerFeedbackWorkbench').then(m => ({ default: m.CustomerFeedbackWorkbench })), 'CustomerFeedbackWorkbench');
 const CustomerInvitationScript = lazyWithRetry(() => import('./pages/CustomerInvitationScript').then(m => ({ default: m.CustomerInvitationScript })), 'CustomerInvitationScript');
 const ProjectManagement = lazyWithRetry(() => import('./pages/ProjectManagement').then(m => ({ default: m.ProjectManagement })), 'ProjectManagement');
 const Scheduling = lazyWithRetry(() => import('./pages/Scheduling').then(m => ({ default: m.Scheduling })), 'Scheduling');
@@ -56,6 +61,7 @@ const DeviceManagement = lazyWithRetry(() => import('./pages/system/DeviceManage
 const AiAuditPage = lazyWithRetry(() => import('./pages/system/AiAuditPage').then(m => ({ default: m.AiAuditPage })), 'AiAuditPage');
 const AgentGovernanceCenter = lazyWithRetry(() => import('./pages/system/AgentGovernanceCenter').then(m => ({ default: m.AgentGovernanceCenter })), 'AgentGovernanceCenter');
 const AgentCapabilityCenter = lazyWithRetry(() => import('./pages/system/AgentCapabilityCenter').then(m => ({ default: m.AgentCapabilityCenter })), 'AgentCapabilityCenter');
+const BusinessDefinitionCenter = lazyWithRetry(() => import('./pages/system/BusinessDefinitionCenter').then(m => ({ default: m.BusinessDefinitionCenter })), 'BusinessDefinitionCenter');
 const AmiAgentWorkspace = lazyWithRetry(() => import('./pages/ami-agent/AmiAgentWorkspace').then(m => ({ default: m.AmiAgentWorkspace })), 'AmiAgentWorkspace');
 const FinanceOverview = lazyWithRetry(() => import('./pages/finance/FinanceOverview').then(m => ({ default: m.FinanceOverview })), 'FinanceOverview');
 const CashierReconciliation = lazyWithRetry(() => import('./pages/finance/CashierReconciliation').then(m => ({ default: m.CashierReconciliation })), 'CashierReconciliation');
@@ -66,6 +72,7 @@ const CommissionRules = lazyWithRetry(() => import('./pages/finance/CommissionRu
 const CommissionRecords = lazyWithRetry(() => import('./pages/finance/CommissionRecords').then(m => ({ default: m.CommissionRecords })), 'CommissionRecords');
 const MonthlySettlement = lazyWithRetry(() => import('./pages/finance/MonthlySettlement').then(m => ({ default: m.MonthlySettlement })), 'MonthlySettlement');
 const DailySettlement = lazyWithRetry(() => import('./pages/finance/DailySettlement').then(m => ({ default: m.DailySettlement })), 'DailySettlement');
+const DailyClose = lazyWithRetry(() => import('./pages/finance/DailyClose').then(m => ({ default: m.DailyClose })), 'DailyClose');
 const AmiPerformance = lazyWithRetry(() => import('./pages/finance/AmiPerformance').then(m => ({ default: m.AmiPerformance })), 'AmiPerformance');
 const AmiBilling = lazyWithRetry(() => import('./pages/finance/AmiBilling').then(m => ({ default: m.AmiBilling })), 'AmiBilling');
 const PlatformRevenue = lazyWithRetry(() => import('./pages/finance/PlatformRevenue').then(m => ({ default: m.PlatformRevenue })), 'PlatformRevenue');
@@ -144,10 +151,14 @@ export const router = createBrowserRouter([
 
       // Dashboard
       { path: 'dashboard', element: withSuspense(Dashboard) },
+      { path: 'ask-data', element: withGuard('core:dashboard:view', AskDataWorkbench) },
       { path: 'brain', element: withGuard('core:brain:use', BrainWorkspace) },
+      { path: 'store-operations/metrics', element: withGuard('core:store-metrics:view', StoreMetricsOverview) },
+      { path: 'store-operations/metrics/targets', element: withGuard('core:store-metrics:target:view', StoreMetricTargets) },
 
       // Customers
       { path: 'customers/data', element: withGuard('core:customer:view', CustomerData) },
+      { path: 'customers/feedback', element: withGuard('core:customer:view', CustomerFeedbackWorkbench) },
       { path: 'customers/profile', element: withGuard('core:customer:profile', UserProfile) },
       { path: 'customers/script', element: withGuard('core:customer:script', CustomerInvitationScript) },
 
@@ -159,9 +170,9 @@ export const router = createBrowserRouter([
       { path: 'customer-marketing/pages', element: withGuard('core:marketing:view', MarketingPageManagement) },
       { path: 'customer-marketing/promotions', element: withGuard('core:marketing:view', PromotionManagement) },
       { path: 'customer-marketing/activity-effect/:id', element: withGuard('core:marketing:view', MarketingActivityEffect) },
-      { path: 'customer-marketing/intelligent-recommendation', element: withGuard('core:marketing:recommend', MarketingRecommendation) },
+      { path: 'customer-marketing/intelligent-recommendation', element: withGuard('core:marketing:view', MarketingRecommendation) },
       { path: 'customer-marketing/assets', element: withGuard('core:marketing:view', MarketingAssets) },
-      { path: 'customer-marketing/automation', element: withGuard('core:marketing:template', CreateMarketing) },
+      { path: 'customer-marketing/automation', element: withGuard('core:marketing:view', CreateMarketing) },
       { path: 'customer-marketing/strategy-templates', element: withGuard('core:marketing:template', CreateMarketing) },
       { path: 'customer-marketing/rule-library', element: withGuard('core:marketing:template', MarketingRuleLibrary) },
       { path: 'customer-marketing/effect-analysis', element: withGuard('core:marketing:analytics', MarketingAnalytics) },
@@ -201,7 +212,7 @@ export const router = createBrowserRouter([
       { path: 'finance/staff-commission', element: withGuard('core:finance:view', StaffCommissionWorkbench) },
       { path: 'finance/profit', element: withGuard('core:operation-profit:view', ProfitWorkbench) },
       { path: 'finance/member-assets', element: withGuard('core:prepaid-liability:view', MemberAssets) },
-      { path: 'finance/daily-settlement', element: withGuard('core:finance:view', DailySettlement) },
+        { path: 'finance/daily-settlement', element: withGuard('core:finance:view', DailyClose) },
       { path: 'finance/commission-rules', element: withGuard('core:finance:manage', CommissionRules) },
       { path: 'finance/commission-records', element: withGuard('core:finance:view', CommissionRecords) },
       { path: 'finance/monthly-settlement', element: withGuard('core:finance:view', MonthlySettlement) },
@@ -239,6 +250,7 @@ export const router = createBrowserRouter([
       { path: 'system/stores', element: withGuard('core:system:stores', StoreSettings) },
       { path: 'system/devices', element: withGuard('core:system:stores', DeviceManagement) },
       { path: 'system/ai-audit', element: withGuard('core:system:view', AiAuditPage) },
+      { path: 'system/business-definitions', element: withGuard('core:system:view', BusinessDefinitionCenter) },
       { path: 'system/agent-audit', element: <Navigate to="/system/agent-governance/runs" replace /> },
       { path: 'system/agent-governance', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
       { path: 'system/agent-governance/runs', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
@@ -252,7 +264,11 @@ export const router = createBrowserRouter([
       { path: 'system/agent-governance/feedback', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
       { path: 'system/agent-governance/debug', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
       { path: 'system/agent-capabilities', element: withGuard('core:agent-governance:view', AgentCapabilityCenter) },
-      { path: 'brain-governance', element: withGuard('core:brain-governance:view', BrainGovernanceCenter) },
+      { path: 'brain-governance', element: <Navigate to={DEFAULT_BRAIN_GOVERNANCE_PATH} replace /> },
+      ...BRAIN_GOVERNANCE_SECTIONS.map((section) => ({
+        path: section.path.slice(1),
+        element: withGuard('core:brain-governance:view', BrainGovernanceCenter),
+      })),
 
       // AI 智能体工作台
       { path: 'ami-agent', element: withGuard('core:agent:view', AmiAgentWorkspace) },

@@ -1,33 +1,49 @@
+import { useEffect } from 'react';
+import { useLocation } from 'react-router';
+import { cancelBrainGovernanceReads } from '@/api/brain';
 import { BrainEvalCenter } from './components/BrainEvalCenter';
 import { BrainFeedbackBoard } from './components/BrainFeedbackBoard';
+import { BrainInspectionGovernance } from './components/BrainInspectionGovernance';
+import { BrainMemoryGovernance } from './components/BrainMemoryGovernance';
+import { BrainModelPlanningGovernance } from './components/BrainModelPlanningGovernance';
 import { BrainReleaseCenter } from './components/BrainReleaseCenter';
 import { BrainRoleGovernance } from './components/BrainRoleGovernance';
 import { BrainSemanticGovernance } from './components/BrainSemanticGovernance';
 import { BrainSkillGovernance } from './components/BrainSkillGovernance';
-import { BrainTraceViewer } from './components/BrainTraceViewer';
-
-const tabs = ['会话追踪', '语义治理', '角色治理', '技能治理', '巡检治理', '评测中心', '发布中心', '反馈指标'];
+import { resolveBrainGovernanceSection, type BrainGovernanceSectionKey } from './brainGovernanceNavigation';
 
 export function BrainGovernanceCenter() {
+  const location = useLocation();
+  const activeSection = resolveBrainGovernanceSection(location.pathname);
+
+  useEffect(() => () => cancelBrainGovernanceReads(), [activeSection]);
+
   return (
-    <div className="h-full overflow-auto bg-background p-6">
-      <h1 className="text-xl font-semibold">Ami Brain 治理中心</h1>
-      <div className="mt-6 grid grid-cols-4 gap-2 border-b border-border text-sm">
-        {tabs.map((tab) => (
-          <button key={tab} className="px-3 py-2 text-left hover:bg-muted">
-            {tab}
-          </button>
-        ))}
-      </div>
-      <div className="mt-6 grid gap-6">
-        <BrainTraceViewer />
-        <BrainSemanticGovernance />
-        <BrainRoleGovernance />
-        <BrainSkillGovernance />
-        <BrainEvalCenter />
-        <BrainReleaseCenter />
-        <BrainFeedbackBoard />
-      </div>
+    <div className="h-full min-w-0 overflow-auto bg-background">
+      <main className="min-w-0 p-4 lg:p-6">{renderSection(activeSection)}</main>
     </div>
   );
+}
+
+function renderSection(activeSection: BrainGovernanceSectionKey) {
+  switch (activeSection) {
+    case 'planning':
+      return <BrainModelPlanningGovernance />;
+    case 'semantic':
+      return <BrainSemanticGovernance />;
+    case 'roles':
+      return <BrainRoleGovernance />;
+    case 'skills':
+      return <BrainSkillGovernance />;
+    case 'memory':
+      return <BrainMemoryGovernance />;
+    case 'inspection':
+      return <BrainInspectionGovernance />;
+    case 'eval':
+      return <BrainEvalCenter />;
+    case 'release':
+      return <BrainReleaseCenter />;
+    case 'feedback':
+      return <BrainFeedbackBoard />;
+  }
 }

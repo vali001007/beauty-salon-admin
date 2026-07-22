@@ -1,0 +1,255 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-07-17T00:12:14.825Z",
+  "identity": {
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-model-driven-paraphrase-cases.json",
+    "storeId": 6,
+    "evaluationRoleKey": "persona",
+    "releaseFingerprint": "d0322ba6a8ed4d0503344a26a5ee9028dce32ff702bd154b69c2c15d4e31c949"
+  },
+  "records": [
+    {
+      "questionId": "paraphrase-diagnosis-03",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "diagnosis",
+      "sourceIndex": 23,
+      "persona": "finance",
+      "question": "为什么最近做得不少却不赚钱",
+      "status": "provider_unavailable",
+      "brainStatus": "failed",
+      "latencyMs": 30930,
+      "conversationId": 23182,
+      "runId": 23095,
+      "answer": "模型服务暂不可用，本次未执行查询，请稍后重试。",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "plan",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "metric_failed",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "语义问数链路执行失败。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "diagnosis",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_facts",
+          "finance_risk_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_facts",
+          "finance_risk_overview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "intent_mismatch"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_any_of_missing:customer_facts|finance_risk_overview"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "brain_status:failed"
+          ],
+          "deterministicFailure": true
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0,
+          "checked": 2,
+          "failures": [
+            "brain_status:failed",
+            "completion_grounding_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "metric_failed"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "infrastructure:provider_unavailable"
+    },
+    {
+      "questionId": "paraphrase-recommendation-04",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "recommendation",
+      "sourceIndex": 29,
+      "persona": "inventory",
+      "question": "既别断货也别积压，采购应该怎么安排",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 25451,
+      "conversationId": 23183,
+      "runId": 23096,
+      "answer": "库存采购建议：共 1 项。\n1. 玻尿酸保湿精华：当前库存 131，安全库存 143，建议采购 155，候选供应商 Ami MVP 供应商\n\n数据依据：库存采购建议分析。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "capability_inventory_procurement_advice",
+          "label": "库存采购建议分析"
+        }
+      ],
+      "domains": [
+        "product"
+      ],
+      "capabilityKeys": [
+        "inventory_procurement_advice"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "recommendation",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "inventory_operations_overview",
+          "inventory_procurement_advice"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "product"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "inventory_operations_overview",
+          "inventory_procurement_advice"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    }
+  ]
+}

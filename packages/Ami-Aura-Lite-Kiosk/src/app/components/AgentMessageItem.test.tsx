@@ -2,11 +2,13 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { BrainResponseBlockCompat } from "@ami/agent-core";
 import type { AgentRunResult, AuraResponseBlock } from "@/types/agent";
 import { AgentMessageItem } from "./AgentMessageItem";
 
 type TestAgentRunResult = AgentRunResult & {
   renderedBlocks?: AuraResponseBlock[];
+  brainBlocks?: BrainResponseBlockCompat[];
   followUpSuggestions?: string[];
 };
 
@@ -130,6 +132,35 @@ describe("AgentMessageItem", () => {
     expect(onAction).toHaveBeenCalledWith("customer.followup.draft", "生成回访话术");
   });
 
+  it("renders Ami Brain structured KPI and ranking blocks instead of dropping them", async () => {
+    await act(async () => {
+      root.render(
+        <AgentMessageItem
+          data={createAgentResult({
+            answer: "本月商品销售排行已完成。",
+            brainBlocks: [
+              { kind: "kpi", items: [{ label: "商品数", value: "2" }] },
+              {
+                kind: "ranking",
+                columns: ["商品", "销量"],
+                rows: [{ 商品: "抗衰紧致眼霜", 销量: 14 }, { 商品: "烟酰胺亮肤精华", 销量: 11 }],
+              },
+            ],
+          })}
+        />,
+      );
+    });
+
+    await act(async () => {
+      await vi.dynamicImportSettled();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(container.textContent).toContain("商品数");
+    expect(container.textContent).toContain("抗衰紧致眼霜");
+    expect(container.textContent).toContain("14");
+  });
+
   it("does not repeat top-level actions as follow-up suggestions", () => {
     act(() => {
       root.render(
@@ -223,7 +254,7 @@ describe("AgentMessageItem", () => {
     expect(container.textContent).toContain("由 库存采购 Agent 处理");
   });
 
-  it("renders Agent V2 KG+LLM architecture and gray mode badges", () => {
+  it("renders Ami Brain as the terminal architecture", () => {
     act(() => {
       root.render(
         <AgentMessageItem
@@ -235,11 +266,7 @@ describe("AgentMessageItem", () => {
               confidence: 0.9,
               clarificationNeeded: false,
               businessTask: {
-                architecture: "agent_v2_kg_llm",
-                agentV2GrayStrategy: {
-                  mode: "kg_llm_preferred",
-                  finalEngine: "kg_llm",
-                },
+                architecture: "ami_brain",
               },
             },
           })}
@@ -247,8 +274,7 @@ describe("AgentMessageItem", () => {
       );
     });
 
-    expect(container.textContent).toContain("KG+LLM");
-    expect(container.querySelector('[title*="kg_llm_preferred"]')).not.toBeNull();
+    expect(container.textContent).toContain("Ami Brain");
   });
 
   it("does not duplicate answer, evidence, or actions already represented by blocks", async () => {

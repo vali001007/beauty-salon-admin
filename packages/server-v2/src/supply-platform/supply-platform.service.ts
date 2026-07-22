@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
@@ -26,6 +26,15 @@ import {
   UpdateSupplySupplierDto,
   UpdateSupplySupplierStatusDto,
 } from './dto/supply-platform.dto.js';
+import {
+  buildProcurementBatchCreationFingerprint,
+  buildProcurementBatchIdempotencyKey,
+  buildProcurementOrderCreationFingerprint,
+  buildProcurementOrderIdempotencyKey,
+  buildProcurementReceiptCreationFingerprint,
+  buildProcurementReceiptIdempotencyKey,
+  normalizeProcurementSource,
+} from './supply-platform-idempotency.js';
 
 const DEFAULT_PLATFORM_FEE_RATE = 0.02;
 const ACTIVE_PROCUREMENT_STATUSES = ['pending_supplier_confirm', 'accepted', 'shipped', 'partial_received'];
@@ -78,7 +87,12 @@ export class SupplyPlatformService {
     return { start: new Date(Date.UTC(year, month - 1, 1)), end: new Date(Date.UTC(year, month, 1)) };
   }
 
-  private isQuoteAvailable(quote: { status?: string; auditStatus?: string; validFrom?: Date | null; validTo?: Date | null }) {
+  private isQuoteAvailable(quote: {
+    status?: string;
+    auditStatus?: string;
+    validFrom?: Date | null;
+    validTo?: Date | null;
+  }) {
     const now = new Date();
     if (quote.status !== 'active' || quote.auditStatus !== 'approved') return false;
     if (quote.validFrom && quote.validFrom > now) return false;
@@ -86,9 +100,90 @@ export class SupplyPlatformService {
     return true;
   }
 
+  private procurementOrderInclude() {
+    return {
+      supplier: true,
+      store: true,
+      items: { include: { product: true, supplySku: true, quote: true, shipmentItems: true } },
+      shipments: { include: { items: { include: { orderItem: true, supplySku: true } } } },
+    } as const;
+  }
+
+  private requireIdempotencyKey(value: unknown, action: string) {
+    const key = String(value ?? '').trim();
+    if (!key) throw new BadRequestException(`${action}必须提供 Idempotency-Key`);
+    return key;
+  }
+
+  private assertOrderIdempotency(existing: any, creationFingerprint: string) {
+    if (existing?.creationFingerprint !== creationFingerprint) {
+      throw new ConflictException('幂等键已用于另一张供应链采购单，请核对原请求');
+    }
+  }
+
+  private assertBatchIdempotency(existing: any[], batchCreationFingerprint: string) {
+    if (existing.some((order) => order.batchCreationFingerprint !== batchCreationFingerprint)) {
+      throw new ConflictException('幂等键已用于另一批供应链采购单，请核对原补货清单');
+    }
+  }
+
+  private assertReceiptIdempotency(existing: any, creationFingerprint: string) {
+    if (existing?.creationFingerprint !== creationFingerprint) {
+      throw new ConflictException('幂等键已用于另一笔采购收货，请核对原收货明细');
+    }
+  }
+
+  private async prepareProcurementOrder(db: Prisma.TransactionClient | PrismaService, dto: CreateProcurementOrderDto) {
+    const [supplier, store] = await Promise.all([
+      db.supplySupplier.findFirst({ where: { id: dto.supplierId, deletedAt: null } }),
+      db.store.findFirst({ where: { id: dto.storeId, deletedAt: null } }),
+    ]);
+    if (!supplier) throw new NotFoundException('供应商不存在');
+    if (!store) throw new NotFoundException('门店不存在');
+    const skuIds = [...new Set(dto.items.map((item) => item.supplySkuId))];
+    const quoteIds = [...new Set(dto.items.map((item) => item.quoteId).filter(Boolean) as number[])];
+    const [skus, quotes] = await Promise.all([
+      db.supplySku.findMany({ where: { id: { in: skuIds }, deletedAt: null } }),
+      db.supplyQuote.findMany({ where: { id: { in: quoteIds }, deletedAt: null } }),
+    ]);
+    const skuMap = new Map(skus.map((item) => [item.id, item]));
+    const quoteMap = new Map(quotes.map((item) => [item.id, item]));
+    const orderItems = dto.items.map((input) => {
+      const sku = skuMap.get(input.supplySkuId);
+      if (!sku) throw new NotFoundException(`供应链商品 ${input.supplySkuId} 不存在`);
+      if (sku.supplierId !== dto.supplierId) throw new BadRequestException(`${sku.name} 不属于当前供应商`);
+      const quote = input.quoteId ? quoteMap.get(input.quoteId) : undefined;
+      if (quote && (!this.isQuoteAvailable(quote) || quote.supplySkuId !== sku.id)) {
+        throw new BadRequestException(`${sku.name} 报价不可用`);
+      }
+      const quantity = Math.max(input.quantity, quote?.moq ?? 1);
+      const unitPrice = input.unitPrice ?? this.toNumber(quote?.price);
+      return {
+        productId: input.productId,
+        supplySkuId: sku.id,
+        quoteId: quote?.id,
+        quantity,
+        unitPrice,
+        subtotal: quantity * unitPrice,
+      };
+    });
+    const totalAmount = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+    const platformFee = totalAmount * this.toNumber(supplier.platformFeeRate, DEFAULT_PLATFORM_FEE_RATE);
+    const rebateAmount = totalAmount * this.toNumber(supplier.rebateRate);
+    return {
+      orderItems,
+      totalAmount,
+      platformFee,
+      rebateAmount,
+      netAmount: Math.max(0, totalAmount - rebateAmount),
+    };
+  }
+
   private supplyMappingInclude() {
     return {
-      product: { select: { id: true, sku: true, name: true, storeId: true, store: { select: { id: true, name: true } } } },
+      product: {
+        select: { id: true, sku: true, name: true, storeId: true, store: { select: { id: true, name: true } } },
+      },
       industryProductTemplate: { select: { id: true, standardProductCode: true, name: true, category: true } },
       supplySku: {
         include: {
@@ -101,7 +196,10 @@ export class SupplyPlatformService {
 
   private mapCatalogMapping(item: any) {
     const quotes = Array.isArray(item.supplySku?.quotes) ? item.supplySku.quotes : [];
-    const availableQuote = quotes.find((quote: any) => this.isQuoteAvailable(quote) && quote.stockStatus !== 'out_of_stock' && quote.stockStatus !== 'unavailable');
+    const availableQuote = quotes.find(
+      (quote: any) =>
+        this.isQuoteAvailable(quote) && quote.stockStatus !== 'out_of_stock' && quote.stockStatus !== 'unavailable',
+    );
     const latestQuote = availableQuote ?? quotes[0] ?? null;
     const purchasableStatus = !item.supplySkuId
       ? 'not_mapped'
@@ -119,7 +217,10 @@ export class SupplyPlatformService {
     };
   }
 
-  private async ensureMappingReferences(dto: CreateSupplyCatalogMappingDto | UpdateSupplyCatalogMappingDto, current?: any) {
+  private async ensureMappingReferences(
+    dto: CreateSupplyCatalogMappingDto | UpdateSupplyCatalogMappingDto,
+    current?: any,
+  ) {
     const nextSupplySkuId = dto.supplySkuId ?? current?.supplySkuId;
     if (!nextSupplySkuId) throw new BadRequestException('供应链 SKU 不能为空');
     const supplySku = await this.prisma.supplySku.findFirst({
@@ -140,7 +241,9 @@ export class SupplyPlatformService {
 
     const nextTemplateId = dto.standardProductTemplateId ?? current?.standardProductTemplateId;
     if (nextTemplateId) {
-      const template = await this.prisma.industryProductTemplate.findFirst({ where: { id: Number(nextTemplateId), deletedAt: null } });
+      const template = await this.prisma.industryProductTemplate.findFirst({
+        where: { id: Number(nextTemplateId), deletedAt: null },
+      });
       if (!template) throw new NotFoundException('行业标准商品模板不存在或已归档');
     }
 
@@ -305,7 +408,11 @@ export class SupplyPlatformService {
   async findSku(id: number, actor?: SupplyPlatformActor) {
     const item = await this.prisma.supplySku.findFirst({
       where: { id, deletedAt: null },
-      include: { supplier: true, quotes: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' } }, mappings: true },
+      include: {
+        supplier: true,
+        quotes: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' } },
+        mappings: true,
+      },
     });
     if (!item) throw new NotFoundException('供应链商品不存在');
     this.ensureManageOrOwnSupplier(actor, item.supplierId);
@@ -380,7 +487,10 @@ export class SupplyPlatformService {
       const now = new Date();
       where.status = 'active';
       where.auditStatus = 'approved';
-      where.AND = [{ OR: [{ validFrom: null }, { validFrom: { lte: now } }] }, { OR: [{ validTo: null }, { validTo: { gte: now } }] }];
+      where.AND = [
+        { OR: [{ validFrom: null }, { validFrom: { lte: now } }] },
+        { OR: [{ validTo: null }, { validTo: { gte: now } }] },
+      ];
     }
     const [items, total] = await Promise.all([
       this.prisma.supplyQuote.findMany({
@@ -486,7 +596,9 @@ export class SupplyPlatformService {
       this.prisma.supplyCatalogMapping.count({ where }),
     ]);
     const items = records.map((item) => this.mapCatalogMapping(item));
-    const filteredItems = query.purchasableStatus ? items.filter((item) => item.purchasableStatus === query.purchasableStatus) : items;
+    const filteredItems = query.purchasableStatus
+      ? items.filter((item) => item.purchasableStatus === query.purchasableStatus)
+      : items;
     return { items: filteredItems, data: filteredItems, total, page, pageSize };
   }
 
@@ -516,7 +628,10 @@ export class SupplyPlatformService {
   }
 
   async updateMapping(id: number, dto: UpdateSupplyCatalogMappingDto) {
-    const current = await this.prisma.supplyCatalogMapping.findFirst({ where: { id }, include: this.supplyMappingInclude() });
+    const current = await this.prisma.supplyCatalogMapping.findFirst({
+      where: { id },
+      include: this.supplyMappingInclude(),
+    });
     if (!current) throw new NotFoundException('供应链目录映射不存在');
     const refs = await this.ensureMappingReferences(dto, current);
     const nextProductId = dto.productId === undefined ? current.productId : dto.productId;
@@ -553,11 +668,20 @@ export class SupplyPlatformService {
     if (supplierId) where.supplierId = Number(supplierId);
     if (query.status) where.status = query.status;
     const keyword = this.text(query.keyword);
-    if (keyword) where.OR = [{ orderNo: { contains: keyword, mode: 'insensitive' } }, { supplier: { name: { contains: keyword, mode: 'insensitive' } } }];
+    if (keyword)
+      where.OR = [
+        { orderNo: { contains: keyword, mode: 'insensitive' } },
+        { supplier: { name: { contains: keyword, mode: 'insensitive' } } },
+      ];
     const [items, total] = await Promise.all([
       this.prisma.procurementOrder.findMany({
         where,
-        include: { supplier: { select: { id: true, name: true } }, store: { select: { id: true, name: true } }, items: { include: { supplySku: true, quote: true } }, shipments: true },
+        include: {
+          supplier: { select: { id: true, name: true } },
+          store: { select: { id: true, name: true } },
+          items: { include: { supplySku: true, quote: true } },
+          shipments: true,
+        },
         skip,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
@@ -583,138 +707,229 @@ export class SupplyPlatformService {
   }
 
   async createOrdersFromReplenishment(dto: CreateProcurementOrdersFromReplenishmentDto) {
-    const store = await this.prisma.store.findFirst({ where: { id: dto.storeId, deletedAt: null } });
-    if (!store) throw new NotFoundException('门店不存在');
-    const productIds = [...new Set(dto.items.map((item) => Number(item.productId)))];
-    const products = await this.prisma.product.findMany({ where: { id: { in: productIds }, storeId: dto.storeId, deletedAt: null } });
-    const productMap = new Map(products.map((item) => [item.id, item]));
-    const mappingIds = [...new Set(dto.items.map((item) => item.mappingId).filter(Boolean) as number[])];
-    const now = new Date();
-    const mappingOrConditions: Prisma.SupplyCatalogMappingWhereInput[] = [
-      { productId: { in: productIds }, OR: [{ storeId: dto.storeId }, { storeId: null }] },
-    ];
-    if (mappingIds.length) {
-      mappingOrConditions.unshift({ id: { in: mappingIds } });
+    const rawIdempotencyKey = this.requireIdempotencyKey(dto.idempotencyKey, '生成供应链采购单');
+    const batchIdempotencyKey = buildProcurementBatchIdempotencyKey(dto.storeId, rawIdempotencyKey)!;
+    const batchCreationFingerprint = buildProcurementBatchCreationFingerprint(
+      dto as unknown as Record<string, unknown>,
+    );
+    const committed = await this.prisma.procurementOrder.findMany({
+      where: { batchIdempotencyKey },
+      include: this.procurementOrderInclude(),
+      orderBy: [{ supplierId: 'asc' }, { id: 'asc' }],
+    });
+    if (committed.length) {
+      this.assertBatchIdempotency(committed, batchCreationFingerprint);
+      return {
+        items: committed,
+        data: committed,
+        total: committed.length,
+        sourceType: 'inventory_replenishment',
+        duplicated: true,
+      };
     }
-    const mappings = await this.prisma.supplyCatalogMapping.findMany({
-      where: {
-        mappingStatus: 'active',
-        OR: mappingOrConditions,
-        supplySku: { status: 'active', auditStatus: 'approved', deletedAt: null },
-      },
-      include: {
-        supplySku: {
-          include: {
-            supplier: { select: { id: true, name: true } },
-            quotes: {
-              where: {
-                status: 'active',
-                auditStatus: 'approved',
-                deletedAt: null,
-                stockStatus: { notIn: ['out_of_stock', 'unavailable'] },
-                AND: [{ OR: [{ validFrom: null }, { validFrom: { lte: now } }] }, { OR: [{ validTo: null }, { validTo: { gte: now } }] }],
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${batchIdempotencyKey}, 0))`);
+      const existing = await tx.procurementOrder.findMany({
+        where: { batchIdempotencyKey },
+        include: this.procurementOrderInclude(),
+        orderBy: [{ supplierId: 'asc' }, { id: 'asc' }],
+      });
+      if (existing.length) {
+        this.assertBatchIdempotency(existing, batchCreationFingerprint);
+        return { orders: existing, duplicated: true };
+      }
+      const store = await tx.store.findFirst({ where: { id: dto.storeId, deletedAt: null } });
+      if (!store) throw new NotFoundException('门店不存在');
+      const productIds = [...new Set(dto.items.map((item) => Number(item.productId)))];
+      const products = await tx.product.findMany({
+        where: { id: { in: productIds }, storeId: dto.storeId, deletedAt: null },
+      });
+      const productMap = new Map(products.map((item) => [item.id, item]));
+      const mappingIds = [...new Set(dto.items.map((item) => item.mappingId).filter(Boolean) as number[])];
+      const now = new Date();
+      const mappingOrConditions: Prisma.SupplyCatalogMappingWhereInput[] = [
+        { productId: { in: productIds }, OR: [{ storeId: dto.storeId }, { storeId: null }] },
+      ];
+      if (mappingIds.length) {
+        mappingOrConditions.unshift({ id: { in: mappingIds } });
+      }
+      const mappings = await tx.supplyCatalogMapping.findMany({
+        where: {
+          mappingStatus: 'active',
+          OR: mappingOrConditions,
+          supplySku: { status: 'active', auditStatus: 'approved', deletedAt: null },
+        },
+        include: {
+          supplySku: {
+            include: {
+              supplier: { select: { id: true, name: true } },
+              quotes: {
+                where: {
+                  status: 'active',
+                  auditStatus: 'approved',
+                  deletedAt: null,
+                  stockStatus: { notIn: ['out_of_stock', 'unavailable'] },
+                  AND: [
+                    { OR: [{ validFrom: null }, { validFrom: { lte: now } }] },
+                    { OR: [{ validTo: null }, { validTo: { gte: now } }] },
+                  ],
+                },
+                orderBy: [{ price: 'asc' }],
               },
-              orderBy: [{ price: 'asc' }],
             },
           },
         },
-      },
-      orderBy: [{ isPreferred: 'desc' }, { updatedAt: 'desc' }],
-    });
-    const mappingsById = new Map(mappings.map((item: any) => [item.id, item]));
-    const mappingsByProduct = new Map<number, any[]>();
-    for (const mapping of mappings as any[]) {
-      if (!mapping.productId) continue;
-      const list = mappingsByProduct.get(mapping.productId) ?? [];
-      list.push(mapping);
-      mappingsByProduct.set(mapping.productId, list);
-    }
-
-    const grouped = new Map<number, CreateProcurementOrderDto['items']>();
-    for (const input of dto.items) {
-      const product = productMap.get(Number(input.productId));
-      if (!product) throw new NotFoundException(`本地商品 ${input.productId} 不存在或不属于当前门店`);
-      const candidates = input.mappingId ? [mappingsById.get(Number(input.mappingId))].filter(Boolean) : (mappingsByProduct.get(product.id) ?? []);
-      const mapping: any = candidates.find((item: any) => {
-        if (item.productId && Number(item.productId) !== Number(product.id)) return false;
-        if (input.supplySkuId && Number(item.supplySkuId) !== Number(input.supplySkuId)) return false;
-        if (input.quoteId && !item.supplySku?.quotes?.some((quote: any) => Number(quote.id) === Number(input.quoteId))) return false;
-        return true;
+        orderBy: [{ isPreferred: 'desc' }, { updatedAt: 'desc' }],
       });
-      if (!mapping) throw new BadRequestException(`${product.name} 尚未建立可用供应链映射`);
-      const quote = input.quoteId
-        ? mapping.supplySku?.quotes?.find((item: any) => Number(item.id) === Number(input.quoteId))
-        : mapping.supplySku?.quotes?.[0];
-      if (!quote || !this.isQuoteAvailable(quote)) throw new BadRequestException(`${product.name} 暂无可用平台报价`);
-      const supplierId = Number(mapping.supplySku.supplierId);
-      const list = grouped.get(supplierId) ?? [];
-      list.push({
-        productId: product.id,
-        supplySkuId: Number(mapping.supplySkuId),
-        quoteId: Number(quote.id),
-        quantity: Number(input.quantity),
-      });
-      grouped.set(supplierId, list);
-    }
+      const mappingsById = new Map(mappings.map((item: any) => [item.id, item]));
+      const mappingsByProduct = new Map<number, any[]>();
+      for (const mapping of mappings as any[]) {
+        if (!mapping.productId) continue;
+        const list = mappingsByProduct.get(mapping.productId) ?? [];
+        list.push(mapping);
+        mappingsByProduct.set(mapping.productId, list);
+      }
 
-    const orders = await Promise.all(
-      [...grouped.entries()].map(([supplierId, items]) =>
-        this.createOrder({
+      const grouped = new Map<number, CreateProcurementOrderDto['items']>();
+      for (const input of dto.items) {
+        const product = productMap.get(Number(input.productId));
+        if (!product) throw new NotFoundException(`本地商品 ${input.productId} 不存在或不属于当前门店`);
+        const candidates = input.mappingId
+          ? [mappingsById.get(Number(input.mappingId))].filter(Boolean)
+          : (mappingsByProduct.get(product.id) ?? []);
+        const mapping: any = candidates.find((item: any) => {
+          if (item.productId && Number(item.productId) !== Number(product.id)) return false;
+          if (input.supplySkuId && Number(item.supplySkuId) !== Number(input.supplySkuId)) return false;
+          if (
+            input.quoteId &&
+            !item.supplySku?.quotes?.some((quote: any) => Number(quote.id) === Number(input.quoteId))
+          )
+            return false;
+          return true;
+        });
+        if (!mapping) throw new BadRequestException(`${product.name} 尚未建立可用供应链映射`);
+        const quote = input.quoteId
+          ? mapping.supplySku?.quotes?.find((item: any) => Number(item.id) === Number(input.quoteId))
+          : mapping.supplySku?.quotes?.[0];
+        if (!quote || !this.isQuoteAvailable(quote)) throw new BadRequestException(`${product.name} 暂无可用平台报价`);
+        const supplierId = Number(mapping.supplySku.supplierId);
+        const list = grouped.get(supplierId) ?? [];
+        list.push({
+          productId: product.id,
+          supplySkuId: Number(mapping.supplySkuId),
+          quoteId: Number(quote.id),
+          quantity: Number(input.quantity),
+        });
+        grouped.set(supplierId, list);
+      }
+
+      const createdOrders = [];
+      for (const [supplierId, items] of [...grouped.entries()].sort(([left], [right]) => left - right)) {
+        const childRawKey = `${rawIdempotencyKey}:supplier:${supplierId}`;
+        const orderInput: CreateProcurementOrderDto = {
           storeId: dto.storeId,
           supplierId,
           expectedArrivalDate: dto.expectedArrivalDate,
           sourceType: 'inventory_replenishment',
           sourceNo: dto.sourceNo,
           items,
-        }),
-      ),
-    );
-    return { items: orders, data: orders, total: orders.length, sourceType: 'inventory_replenishment' };
+          idempotencyKey: childRawKey,
+        };
+        const idempotencyKey = buildProcurementOrderIdempotencyKey(
+          dto.storeId,
+          'inventory_replenishment',
+          childRawKey,
+        )!;
+        const creationFingerprint = buildProcurementOrderCreationFingerprint(
+          orderInput as unknown as Record<string, unknown>,
+        );
+        const collision = await tx.procurementOrder.findUnique({ where: { idempotencyKey } });
+        if (collision) throw new BadRequestException('供应链采购子单幂等键冲突，请核对原批次');
+        const prepared = await this.prepareProcurementOrder(tx, orderInput);
+        createdOrders.push(
+          await tx.procurementOrder.create({
+            data: {
+              orderNo: this.orderNo(),
+              idempotencyKey,
+              creationFingerprint,
+              batchIdempotencyKey,
+              batchCreationFingerprint,
+              storeId: dto.storeId,
+              supplierId,
+              status: 'pending_supplier_confirm',
+              totalAmount: prepared.totalAmount,
+              platformFee: prepared.platformFee,
+              rebateAmount: prepared.rebateAmount,
+              netAmount: prepared.netAmount,
+              expectedArrivalDate: dto.expectedArrivalDate ? new Date(dto.expectedArrivalDate) : undefined,
+              sourceType: 'inventory_replenishment',
+              sourceNo: dto.sourceNo,
+              items: { create: prepared.orderItems },
+            },
+            include: this.procurementOrderInclude(),
+          }),
+        );
+      }
+      return { orders: createdOrders, duplicated: false };
+    });
+    return {
+      items: result.orders,
+      data: result.orders,
+      total: result.orders.length,
+      sourceType: 'inventory_replenishment',
+      duplicated: result.duplicated,
+    };
   }
 
   async createOrder(dto: CreateProcurementOrderDto) {
-    const supplier = await this.findSupplier(dto.supplierId);
-    const store = await this.prisma.store.findFirst({ where: { id: dto.storeId, deletedAt: null } });
-    if (!store) throw new NotFoundException('门店不存在');
-    const skuIds = [...new Set(dto.items.map((item) => item.supplySkuId))];
-    const quoteIds = [...new Set(dto.items.map((item) => item.quoteId).filter(Boolean) as number[])];
-    const [skus, quotes] = await Promise.all([
-      this.prisma.supplySku.findMany({ where: { id: { in: skuIds }, deletedAt: null } }),
-      this.prisma.supplyQuote.findMany({ where: { id: { in: quoteIds }, deletedAt: null } }),
-    ]);
-    const skuMap = new Map(skus.map((item) => [item.id, item]));
-    const quoteMap = new Map(quotes.map((item) => [item.id, item]));
-    const orderItems = dto.items.map((input) => {
-      const sku = skuMap.get(input.supplySkuId);
-      if (!sku) throw new NotFoundException(`供应链商品 ${input.supplySkuId} 不存在`);
-      if (sku.supplierId !== dto.supplierId) throw new BadRequestException(`${sku.name} 不属于当前供应商`);
-      const quote = input.quoteId ? quoteMap.get(input.quoteId) : undefined;
-      if (quote && (!this.isQuoteAvailable(quote) || quote.supplySkuId !== sku.id)) throw new BadRequestException(`${sku.name} 报价不可用`);
-      const quantity = Math.max(input.quantity, quote?.moq ?? 1);
-      const unitPrice = input.unitPrice ?? this.toNumber(quote?.price);
-      return { productId: input.productId, supplySkuId: sku.id, quoteId: quote?.id, quantity, unitPrice, subtotal: quantity * unitPrice };
+    const rawIdempotencyKey = this.requireIdempotencyKey(dto.idempotencyKey, '创建供应链采购单');
+    const sourceType = normalizeProcurementSource(dto.sourceType);
+    const idempotencyKey = buildProcurementOrderIdempotencyKey(dto.storeId, sourceType, rawIdempotencyKey)!;
+    const creationFingerprint = buildProcurementOrderCreationFingerprint({ ...dto, sourceType } as unknown as Record<
+      string,
+      unknown
+    >);
+    const committed = await this.prisma.procurementOrder.findUnique({
+      where: { idempotencyKey },
+      include: this.procurementOrderInclude(),
     });
-    const totalAmount = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
-    const platformFee = totalAmount * this.toNumber(supplier.platformFeeRate, DEFAULT_PLATFORM_FEE_RATE);
-    const rebateAmount = totalAmount * this.toNumber(supplier.rebateRate);
-    const order = await this.prisma.procurementOrder.create({
-      data: {
-        orderNo: this.orderNo(),
-        storeId: dto.storeId,
-        supplierId: dto.supplierId,
-        status: 'pending_supplier_confirm',
-        totalAmount,
-        platformFee,
-        rebateAmount,
-        netAmount: Math.max(0, totalAmount - rebateAmount),
-        expectedArrivalDate: dto.expectedArrivalDate ? new Date(dto.expectedArrivalDate) : undefined,
-        sourceType: dto.sourceType ?? 'manual',
-        sourceNo: dto.sourceNo,
-        items: { create: orderItems },
-      },
-      include: { supplier: true, store: true, items: { include: { supplySku: true, quote: true } } },
+    if (committed) {
+      this.assertOrderIdempotency(committed, creationFingerprint);
+      return { ...committed, duplicated: true };
+    }
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${idempotencyKey}, 0))`);
+      const existing = await tx.procurementOrder.findUnique({
+        where: { idempotencyKey },
+        include: this.procurementOrderInclude(),
+      });
+      if (existing) {
+        this.assertOrderIdempotency(existing, creationFingerprint);
+        return { ...existing, duplicated: true };
+      }
+      const prepared = await this.prepareProcurementOrder(tx, { ...dto, sourceType });
+      const order = await tx.procurementOrder.create({
+        data: {
+          orderNo: this.orderNo(),
+          idempotencyKey,
+          creationFingerprint,
+          storeId: dto.storeId,
+          supplierId: dto.supplierId,
+          status: 'pending_supplier_confirm',
+          totalAmount: prepared.totalAmount,
+          platformFee: prepared.platformFee,
+          rebateAmount: prepared.rebateAmount,
+          netAmount: prepared.netAmount,
+          expectedArrivalDate: dto.expectedArrivalDate ? new Date(dto.expectedArrivalDate) : undefined,
+          sourceType,
+          sourceNo: dto.sourceNo,
+          items: { create: prepared.orderItems },
+        },
+        include: this.procurementOrderInclude(),
+      });
+      return { ...order, duplicated: false };
     });
-    return order;
   }
 
   async updateOrderStatus(id: number, dto: UpdateProcurementOrderStatusDto, actor?: SupplyPlatformActor) {
@@ -734,7 +949,12 @@ export class SupplyPlatformService {
 
   async createShipment(orderId: number, dto: CreateShipmentDto, actor?: SupplyPlatformActor) {
     const order = await this.findOrder(orderId, actor);
-    if (order.status === 'rejected' || order.status === 'cancelled' || order.status === 'received' || order.status === 'settled') {
+    if (
+      order.status === 'rejected' ||
+      order.status === 'cancelled' ||
+      order.status === 'received' ||
+      order.status === 'settled'
+    ) {
       throw new BadRequestException('当前采购单状态不能发货');
     }
     const itemMap = new Map(order.items.map((item: any) => [item.id, item]));
@@ -773,22 +993,66 @@ export class SupplyPlatformService {
   }
 
   async receiveOrder(orderId: number, dto: ReceiveProcurementOrderDto & { operatorId?: number | string }) {
-    const affectedStoreId = await this.prisma.$transaction(async (tx) => {
+    const rawIdempotencyKey = this.requireIdempotencyKey(dto.idempotencyKey, '采购收货');
+    const idempotencyKey = buildProcurementReceiptIdempotencyKey(orderId, rawIdempotencyKey)!;
+    const creationFingerprint = buildProcurementReceiptCreationFingerprint(
+      orderId,
+      dto as unknown as Record<string, unknown>,
+    );
+    const committed = await this.prisma.procurementReceipt.findUnique({ where: { idempotencyKey } });
+    if (committed) {
+      this.assertReceiptIdempotency(committed, creationFingerprint);
+      return {
+        ...(await this.findOrder(orderId)),
+        affectedStoreId: committed.storeId,
+        receiptId: committed.id,
+        duplicated: true,
+      };
+    }
+    const shipmentItemIds = dto.items.map((item) => Number(item.shipmentItemId));
+    if (new Set(shipmentItemIds).size !== shipmentItemIds.length)
+      throw new BadRequestException('同一发货明细不能重复收货');
+    const receipt = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${idempotencyKey}, 0))`);
+      const existing = await tx.procurementReceipt.findUnique({ where: { idempotencyKey } });
+      if (existing) {
+        this.assertReceiptIdempotency(existing, creationFingerprint);
+        return { id: existing.id, storeId: existing.storeId, replayed: true };
+      }
+      await tx.$queryRaw(Prisma.sql`
+        SELECT "id" FROM "SupplierShipmentItem"
+        WHERE "id" IN (${Prisma.join(shipmentItemIds)})
+        FOR UPDATE
+      `);
       const order = await tx.procurementOrder.findUnique({
         where: { id: orderId },
         include: { items: { include: { product: true, supplySku: true } }, shipments: { include: { items: true } } },
       });
       if (!order) throw new NotFoundException('采购订单不存在');
-      const shipmentItems = new Map(order.shipments.flatMap((shipment) => shipment.items.map((item) => [item.id, { ...item, shipment }])));
+      const shipmentItems = new Map(
+        order.shipments.flatMap((shipment) => shipment.items.map((item) => [item.id, { ...item, shipment }])),
+      );
       const orderItemMap = new Map(order.items.map((item) => [item.id, item]));
-      for (const input of dto.items) {
+      const resolvedInputs = dto.items.map((input) => {
         const shipmentItem: any = shipmentItems.get(input.shipmentItemId);
         if (!shipmentItem) throw new NotFoundException('发货明细不存在');
         const orderItem = orderItemMap.get(shipmentItem.orderItemId);
         if (!orderItem) throw new NotFoundException('采购明细不存在');
         const productId = input.productId ?? orderItem.productId;
         if (!productId) throw new BadRequestException(`${orderItem.supplySku.name} 尚未绑定本地商品，不能入库`);
-        const product = await tx.product.findFirst({ where: { id: productId, storeId: order.storeId, deletedAt: null } });
+        return { input, shipmentItem, orderItem, productId: Number(productId) };
+      });
+      const productIds = [...new Set(resolvedInputs.map((item) => item.productId))];
+      await tx.$queryRaw(Prisma.sql`
+        SELECT "id" FROM "Product"
+        WHERE "id" IN (${Prisma.join(productIds)})
+        FOR UPDATE
+      `);
+      const receiptItems = [];
+      for (const { input, shipmentItem, orderItem, productId } of resolvedInputs) {
+        const product = await tx.product.findFirst({
+          where: { id: productId, storeId: order.storeId, deletedAt: null },
+        });
         if (!product) throw new NotFoundException('本地商品不存在或不属于当前门店');
         const remaining = this.toNumber(shipmentItem.shippedQty) - this.toNumber(shipmentItem.receivedQty);
         if (input.receivedQty > remaining) throw new BadRequestException(`${product.name} 收货数量超过未收数量`);
@@ -804,7 +1068,7 @@ export class SupplyPlatformService {
           },
         });
         await tx.product.update({ where: { id: productId }, data: { currentStock: { increment: input.receivedQty } } });
-        await tx.stockMovement.create({
+        const movement = await tx.stockMovement.create({
           data: {
             storeId: order.storeId,
             productId,
@@ -830,17 +1094,44 @@ export class SupplyPlatformService {
           where: { id: orderItem.id },
           data: { receivedQty: { increment: input.receivedQty }, productId },
         });
+        receiptItems.push({
+          shipmentItemId: shipmentItem.id,
+          orderItemId: orderItem.id,
+          productId,
+          stockBatchId: batch.id,
+          stockMovementId: movement.id,
+          receivedQty: input.receivedQty,
+        });
       }
       const refreshedItems = await tx.procurementOrderItem.findMany({ where: { orderId } });
       const allReceived = refreshedItems.every((item) => item.receivedQty >= item.quantity);
       const anyReceived = refreshedItems.some((item) => item.receivedQty > 0);
       await tx.procurementOrder.update({
         where: { id: orderId },
-        data: { status: allReceived ? 'received' : anyReceived ? 'partial_received' : order.status, receivedAt: allReceived ? new Date() : order.receivedAt },
+        data: {
+          status: allReceived ? 'received' : anyReceived ? 'partial_received' : order.status,
+          receivedAt: allReceived ? new Date() : order.receivedAt,
+        },
       });
-      return order.storeId;
+      const created = await tx.procurementReceipt.create({
+        data: {
+          orderId,
+          storeId: order.storeId,
+          idempotencyKey,
+          creationFingerprint,
+          operatorId: dto.operatorId ? Number(dto.operatorId) : undefined,
+          remark: dto.remark,
+          items: receiptItems as Prisma.InputJsonValue,
+        },
+      });
+      return { id: created.id, storeId: order.storeId, replayed: false };
     });
-    return { ...(await this.findOrder(orderId)), affectedStoreId };
+    return {
+      ...(await this.findOrder(orderId)),
+      affectedStoreId: receipt.storeId,
+      receiptId: receipt.id,
+      duplicated: receipt.replayed,
+    };
   }
 
   async generateSettlement(dto: GenerateSupplySettlementDto) {
@@ -857,8 +1148,22 @@ export class SupplyPlatformService {
         const platformFee = procurementOrders.reduce((sum, order) => sum + this.toNumber(order.platformFee), 0);
         return this.prisma.supplySettlement.upsert({
           where: { supplierId_settleMonth: { supplierId, settleMonth: dto.settleMonth } },
-          update: { orderCount: procurementOrders.length, totalAmount, rebateAmount, platformFee, netPayable: Math.max(0, totalAmount - rebateAmount - platformFee) },
-          create: { supplierId, settleMonth: dto.settleMonth, orderCount: procurementOrders.length, totalAmount, rebateAmount, platformFee, netPayable: Math.max(0, totalAmount - rebateAmount - platformFee) },
+          update: {
+            orderCount: procurementOrders.length,
+            totalAmount,
+            rebateAmount,
+            platformFee,
+            netPayable: Math.max(0, totalAmount - rebateAmount - platformFee),
+          },
+          create: {
+            supplierId,
+            settleMonth: dto.settleMonth,
+            orderCount: procurementOrders.length,
+            totalAmount,
+            rebateAmount,
+            platformFee,
+            netPayable: Math.max(0, totalAmount - rebateAmount - platformFee),
+          },
           include: { supplier: true },
         });
       }),
@@ -866,7 +1171,10 @@ export class SupplyPlatformService {
     return { items, total: items.length };
   }
 
-  async findSettlements(query: { page?: number; pageSize?: number; supplierId?: number; settleMonth?: string; status?: string }, actor?: SupplyPlatformActor) {
+  async findSettlements(
+    query: { page?: number; pageSize?: number; supplierId?: number; settleMonth?: string; status?: string },
+    actor?: SupplyPlatformActor,
+  ) {
     const { page, pageSize, skip } = this.page(query);
     const where: any = {};
     const supplierId = this.scopedSupplierId(actor, query.supplierId ? Number(query.supplierId) : undefined);
@@ -874,7 +1182,13 @@ export class SupplyPlatformService {
     if (query.settleMonth) where.settleMonth = query.settleMonth;
     if (query.status) where.status = query.status;
     const [items, total] = await Promise.all([
-      this.prisma.supplySettlement.findMany({ where, include: { supplier: true }, skip, take: pageSize, orderBy: [{ settleMonth: 'desc' }, { createdAt: 'desc' }] }),
+      this.prisma.supplySettlement.findMany({
+        where,
+        include: { supplier: true },
+        skip,
+        take: pageSize,
+        orderBy: [{ settleMonth: 'desc' }, { createdAt: 'desc' }],
+      }),
       this.prisma.supplySettlement.count({ where }),
     ]);
     return { items, data: items, total, page, pageSize };

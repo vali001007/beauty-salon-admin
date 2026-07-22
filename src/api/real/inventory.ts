@@ -382,7 +382,12 @@ export async function realCreateInventoryAdjustment(data: InventoryAdjustmentFor
 }
 
 export async function realCreatePurchaseOrder(data: PurchaseOrderFormData): Promise<PurchaseOrder> {
-  const response = await apiClient.post<unknown, unknown>('/inventory/purchase-orders', data);
+  const idempotencyKey = globalThis.crypto?.randomUUID?.() ?? `purchase-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const response = await apiClient.post<unknown, unknown>(
+    '/inventory/purchase-orders',
+    { ...data, source: 'admin', idempotencyKey },
+    { headers: { 'Idempotency-Key': idempotencyKey } },
+  );
   return normalizePurchaseOrder(response as ApiPurchaseOrder);
 }
 

@@ -5,10 +5,12 @@ import { AiService } from './ai.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { Permissions } from '../common/decorators/permissions.decorator.js';
+import { PermissionsGuard } from '../common/guards/permissions.guard.js';
 
 @ApiTags('AI')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@Permissions('core:agent:view')
 @Controller('ai')
 export class AiController {
   constructor(private aiService: AiService) {}
@@ -117,6 +119,13 @@ export class AiController {
   @ApiOperation({ summary: 'AI审计日志今日汇总' })
   getAuditLogSummary(@Query('scenario') scenario?: string, @Query('status') status?: string) {
     return this.aiService.getAuditLogSummary({ scenario, status });
+  }
+
+  @Get('provider-health')
+  @Permissions('core:system:view')
+  @ApiOperation({ summary: '获取模型主备路由与熔断状态' })
+  getProviderHealth() {
+    return this.aiService.getProviderHealth();
   }
 
   @Get('audit-logs/paginated')

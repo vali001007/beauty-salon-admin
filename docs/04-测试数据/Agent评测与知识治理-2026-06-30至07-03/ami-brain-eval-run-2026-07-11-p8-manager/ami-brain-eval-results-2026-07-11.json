@@ -1,0 +1,4583 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-11T10:54:13.934Z",
+    "startedAt": "2026-07-11T10:48:42.489Z",
+    "finishedAt": "2026-07-11T10:54:13.934Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\agent-eval-questions.md",
+    "questionCount": 100,
+    "actualRunCount": 100,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "evaluatorPermissions": [
+      "*"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。"
+    }
+  },
+  "summary": {
+    "total": 100,
+    "legacyUsableWithCitation": 4,
+    "legacyUsableRate": 0.04,
+    "trueUsable": 54,
+    "trueUsableRate": 0.54,
+    "byStatus": [
+      {
+        "key": "usable_exact",
+        "total": 54,
+        "usable": 54,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "unsupported_intent",
+        "total": 40,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 40,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "false_positive_granularity_mismatch",
+        "total": 5,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "false_positive_intent_mismatch",
+        "total": 1,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "manager",
+        "total": 100,
+        "usable": 54,
+        "usableRate": 0.54,
+        "metricFailed": 0,
+        "unsupportedIntent": 40,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "风险预警",
+        "total": 20,
+        "usable": 12,
+        "usableRate": 0.6,
+        "metricFailed": 0,
+        "unsupportedIntent": 8,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "经营概览",
+        "total": 20,
+        "usable": 13,
+        "usableRate": 0.65,
+        "metricFailed": 0,
+        "unsupportedIntent": 3,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "客户管理",
+        "total": 20,
+        "usable": 14,
+        "usableRate": 0.7,
+        "metricFailed": 0,
+        "unsupportedIntent": 6,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "库存运营",
+        "total": 20,
+        "usable": 10,
+        "usableRate": 0.5,
+        "metricFailed": 0,
+        "unsupportedIntent": 9,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "员工管理",
+        "total": 20,
+        "usable": 5,
+        "usableRate": 0.25,
+        "metricFailed": 0,
+        "unsupportedIntent": 14,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [
+      {
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "count": 40
+      },
+      {
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "count": 5
+      },
+      {
+        "reason": "问题要求事实数据或业务闭环，但系统返回模板技能回答。",
+        "count": 1
+      }
+    ],
+    "securityGate": {
+      "permissionBypassCount": 0,
+      "crossStoreReadCount": 0,
+      "roleHintBypassCount": 0,
+      "fakeActionConfirmationCount": 0
+    },
+    "grounding": {
+      "metricQueryCount": 4,
+      "dbSkillCount": 51,
+      "templateSkillCount": 5,
+      "previewActionCount": 0,
+      "noneCount": 40
+    },
+    "adapterDistribution": [
+      {
+        "reason": "none",
+        "count": 47
+      },
+      {
+        "reason": "marketing_growth",
+        "count": 18
+      },
+      {
+        "reason": "store_manager",
+        "count": 12
+      },
+      {
+        "reason": "finance_risk",
+        "count": 9
+      },
+      {
+        "reason": "inventory_procurement",
+        "count": 7
+      },
+      {
+        "reason": "front_desk",
+        "count": 4
+      },
+      {
+        "reason": "beautician_service",
+        "count": 3
+      }
+    ],
+    "latency": {
+      "avgMs": 3107,
+      "p95Ms": 4984,
+      "maxMs": 8433
+    },
+    "baselineComparison": {
+      "baselinePath": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-eval-run-2026-07-10\\ami-brain-eval-results-2026-07-10.json",
+      "rows": [
+        {
+          "metric": "旧口径可用率",
+          "baseline": "15.5%",
+          "current": "4.0%"
+        },
+        {
+          "metric": "真实可用率",
+          "baseline": "5.8%",
+          "current": "54.0%"
+        },
+        {
+          "metric": "假阳性数",
+          "baseline": "63",
+          "current": "6"
+        },
+        {
+          "metric": "时间误退化全量数",
+          "baseline": "12",
+          "current": "0"
+        },
+        {
+          "metric": "文案/操作误命中指标数",
+          "baseline": "21",
+          "current": "0"
+        }
+      ]
+    }
+  },
+  "records": [
+    {
+      "questionId": "qb-manager-business-overview-001",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 1,
+      "persona": "manager",
+      "question": "今天店里情况怎么样，给我来个总结",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4984,
+      "conversationId": 13820,
+      "runId": 13820,
+      "answer": "今天经营概览：实收流水 0.00 元，预约 0 个，活跃客户 0 人，毛利率 0.0%。风险：低库存：玻尿酸保湿精华。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "store_manager_overview_summary",
+          "label": "店长经营概览"
+        }
+      ],
+      "adapterKey": "store_manager",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "store_operation",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "store_manager",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:dashboard:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-business-overview-002",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 2,
+      "persona": "manager",
+      "question": "今天营业额到多少了",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4359,
+      "conversationId": 13823,
+      "runId": 13822,
+      "answer": "实收流水为 0.00 元。",
+      "citations": [
+        {
+          "sourceType": "metric",
+          "sourceId": "paid_revenue",
+          "label": "实收流水",
+          "definition": "当前门店订单实收金额汇总，退款口径由后续指标版本细化"
+        }
+      ],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "scalar_metric",
+        "reason": "direct_scalar_metric_question",
+        "grounding": "metric_query",
+        "confidence": 0.9,
+        "answerShape": "scalar_metric",
+        "expectedMetric": "paid_revenue",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "metric_query",
+        "expectedShape": "scalar_metric",
+        "actualShape": "scalar_metric",
+        "actualMetric": "paid_revenue",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "metric_query"
+      },
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "qb-manager-business-overview-003",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 3,
+      "persona": "manager",
+      "question": "今天来了几个客人，现在还有几个在店",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3187,
+      "conversationId": 13825,
+      "runId": 13824,
+      "answer": "现在到今天结束经营分析：实收 0.00 元，0 单，客单价 0.00 元，到店客户 0 人、当前在店 0 人，新客 0 人、老客 0 人。\n项目排行：暂无项目数据。\n员工服务量：暂无员工服务数据。\n支付拆分：暂无支付拆分。\n营业额趋势：暂无日结趋势。\n最大订单：暂无。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "store_manager_operations_analysis",
+          "label": "店长经营深度分析"
+        }
+      ],
+      "adapterKey": "store_manager",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "store_operation",
+        "intent": "diagnosis",
+        "reason": "store_manager_operations_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "store_manager",
+        "confidence": 0.8,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:dashboard:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-business-overview-004",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 4,
+      "persona": "manager",
+      "question": "今天和昨天比营业额差多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2802,
+      "conversationId": 13827,
+      "runId": 13826,
+      "answer": "今天对比昨天：实收流水本期为 0.00 元，上期为 0.00 元，差值为 0.00 元，上期为 0，变化率不计算。",
+      "citations": [
+        {
+          "sourceType": "metric",
+          "sourceId": "paid_revenue",
+          "label": "实收流水",
+          "definition": "当前门店订单实收金额汇总，退款口径由后续指标版本细化"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "comparison",
+        "actualIntent": "metric_query",
+        "expectedShape": "comparison",
+        "actualShape": "comparison",
+        "actualMetric": "paid_revenue",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "metric_query"
+      },
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "qb-manager-business-overview-005",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 5,
+      "persona": "manager",
+      "question": "本周跟上周比，哪天差距最大",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2071,
+      "conversationId": 13829,
+      "runId": 13828,
+      "answer": "这个问题需要对比口径。当前独立版 Ami Brain 尚未接入对比计算，不会返回单期或全量数值。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "comparison",
+        "reason": "comparison_question_requires_comparison_shape",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "comparison",
+        "unsupportedReason": "这个问题需要对比口径。当前独立版 Ami Brain 尚未接入对比计算，不会返回单期或全量数值。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "comparison",
+        "actualIntent": "unknown",
+        "expectedShape": "comparison",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-business-overview-006",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 6,
+      "persona": "manager",
+      "question": "这个月目标完成率多少了，还差多远",
+      "status": "false_positive_intent_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 3010,
+      "conversationId": 13831,
+      "runId": 13830,
+      "answer": "本月尚未配置经营目标。请先在门店目标配置中录入收入、预约和新客目标，Ami Brain 不会自行编造目标值。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "store_operating_target",
+          "label": "门店经营目标配置"
+        }
+      ],
+      "adapterKey": "store_manager",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "store_operation",
+        "intent": "diagnosis",
+        "reason": "store_manager_operations_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "store_manager",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:dashboard:view"
+        ]
+      },
+      "grader": {
+        "status": "false_positive_intent_mismatch",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "问题要求事实数据或业务闭环，但系统返回模板技能回答。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "问题要求事实数据或业务闭环，但系统返回模板技能回答。"
+    },
+    {
+      "questionId": "qb-manager-business-overview-007",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 7,
+      "persona": "manager",
+      "question": "今天客单价多少，跟平时比怎么样",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3060,
+      "conversationId": 13833,
+      "runId": 13832,
+      "answer": "对比时间经营分析：实收 0.00 元，0 单，客单价 0.00 元，到店客户 0 人、当前在店 0 人，新客 0 人、老客 0 人。\n项目排行：暂无项目数据。\n员工服务量：暂无员工服务数据。\n支付拆分：暂无支付拆分。\n营业额趋势：暂无日结趋势。\n最大订单：暂无。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "store_manager_operations_analysis",
+          "label": "店长经营深度分析"
+        }
+      ],
+      "adapterKey": "store_manager",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "store_operation",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "store_manager",
+        "confidence": 0.8,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:dashboard:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "ranking",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-business-overview-008",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 8,
+      "persona": "manager",
+      "question": "今天有没有什么异常情况我需要知道",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4036,
+      "conversationId": 13835,
+      "runId": 13834,
+      "answer": "今天经营概览：实收流水 0.00 元，预约 0 个，活跃客户 0 人，毛利率 0.0%。风险：低库存：玻尿酸保湿精华。趋势诊断：P4 先返回当前周期事实摘要；跨天归因诊断进入 P5。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "store_manager_overview_summary",
+          "label": "店长经营概览"
+        }
+      ],
+      "adapterKey": "store_manager",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "store_operation",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "store_manager",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:dashboard:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-business-overview-009",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 9,
+      "persona": "manager",
+      "question": "现在店里哪些美容师在忙，哪些空着",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2642,
+      "conversationId": 13838,
+      "runId": 13837,
+      "answer": "现在到今天结束前台运营：有效预约 0 个，已到店/服务中 0 个，待到店 0 个，爽约 0 个，取消 0 个。\n待到店名单：\n当前没有待到店客户。\n资源状态：\n门店尚未配置床位/房间资源。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "front_desk_operations_snapshot",
+          "label": "预约到店与资源状态"
+        }
+      ],
+      "adapterKey": "front_desk",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "receptionist",
+        "domain": "front_desk",
+        "intent": "list",
+        "reason": "staff_schedule_requires_schedule_list",
+        "grounding": "db_skill",
+        "adapterKey": "front_desk",
+        "confidence": 0.8500000000000001,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:store:reservations"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-business-overview-010",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 10,
+      "persona": "manager",
+      "question": "今天退款有几笔，金额多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2503,
+      "conversationId": 13840,
+      "runId": 13839,
+      "answer": "财务风险摘要：退款 0 笔，金额 0.00 元；优惠 0.00 元；毛利率暂无结算数据。风险：当前未发现明确财务预警。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_risk_summary",
+          "label": "财务风险摘要"
+        }
+      ],
+      "adapterKey": "finance_risk",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "finance",
+        "domain": "finance_risk",
+        "intent": "diagnosis",
+        "reason": "strong_finance_diagnosis_phrase",
+        "grounding": "db_skill",
+        "adapterKey": "finance_risk",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:finance:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-business-overview-011",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 11,
+      "persona": "manager",
+      "question": "这个月跟上个月比收入差多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2462,
+      "conversationId": 13842,
+      "runId": 13841,
+      "answer": "本月对比上月：实收流水本期为 19907.10 元，上期为 124753.01 元，差值为 -104845.91 元，变化率为 -84.0%。",
+      "citations": [
+        {
+          "sourceType": "metric",
+          "sourceId": "paid_revenue",
+          "label": "实收流水",
+          "definition": "当前门店订单实收金额汇总，退款口径由后续指标版本细化"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "comparison",
+        "actualIntent": "metric_query",
+        "expectedShape": "comparison",
+        "actualShape": "comparison",
+        "expectedMetric": "paid_revenue",
+        "actualMetric": "paid_revenue",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "metric_query"
+      },
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "qb-manager-business-overview-012",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 12,
+      "persona": "manager",
+      "question": "今天新客老客各来了几个",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 3385,
+      "conversationId": 13844,
+      "runId": 13843,
+      "answer": "今天经营分析：实收 0.00 元，0 单，客单价 0.00 元，到店客户 0 人、当前在店 0 人，新客 0 人、老客 0 人。\n项目排行：暂无项目数据。\n员工服务量：暂无员工服务数据。\n支付拆分：暂无支付拆分。\n营业额趋势：暂无日结趋势。\n最大订单：暂无。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "store_manager_operations_analysis",
+          "label": "店长经营深度分析"
+        }
+      ],
+      "adapterKey": "store_manager",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "store_operation",
+        "intent": "diagnosis",
+        "reason": "store_manager_operations_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "store_manager",
+        "confidence": 0.8,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:dashboard:view"
+        ]
+      },
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "ranking",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-manager-business-overview-013",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 13,
+      "persona": "manager",
+      "question": "现在几点了，下午还有几个预约",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2496,
+      "conversationId": 13846,
+      "runId": 13845,
+      "answer": "当前独立版 Ami Brain 尚未接入实时时钟与排班联合查询，不会只返回预约数替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "clock_time_not_supported",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 尚未接入实时时钟与排班联合查询，不会只返回预约数替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "non_metric",
+        "expectedMetric": "appointment_count",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-business-overview-014",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 14,
+      "persona": "manager",
+      "question": "今天哪个项目做得最多",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3796,
+      "conversationId": 13848,
+      "runId": 13847,
+      "answer": "今天经营分析：实收 0.00 元，0 单，客单价 0.00 元，到店客户 0 人、当前在店 0 人，新客 0 人、老客 0 人。\n项目排行：暂无项目数据。\n员工服务量：暂无员工服务数据。\n支付拆分：暂无支付拆分。\n营业额趋势：暂无日结趋势。\n最大订单：暂无。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "store_manager_operations_analysis",
+          "label": "店长经营深度分析"
+        }
+      ],
+      "adapterKey": "store_manager",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "store_operation",
+        "intent": "ranking",
+        "reason": "ranking_question_requires_grouped_shape",
+        "grounding": "db_skill",
+        "adapterKey": "store_manager",
+        "confidence": 0.8,
+        "answerShape": "ranking",
+        "requiredPermissions": [
+          "core:dashboard:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "ranking",
+        "actualIntent": "unknown",
+        "expectedShape": "ranking",
+        "actualShape": "ranking",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-business-overview-015",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 15,
+      "persona": "manager",
+      "question": "今天最大的一笔消费是多少",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 5017,
+      "conversationId": 13850,
+      "runId": 13850,
+      "answer": "今天经营分析：实收 0.00 元，0 单，客单价 0.00 元，到店客户 0 人、当前在店 0 人，新客 0 人、老客 0 人。\n项目排行：暂无项目数据。\n员工服务量：暂无员工服务数据。\n支付拆分：暂无支付拆分。\n营业额趋势：暂无日结趋势。\n最大订单：暂无。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "store_manager_operations_analysis",
+          "label": "店长经营深度分析"
+        }
+      ],
+      "adapterKey": "store_manager",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "store_operation",
+        "intent": "diagnosis",
+        "reason": "store_manager_operations_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "store_manager",
+        "confidence": 0.8,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:dashboard:view"
+        ]
+      },
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "ranking",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-manager-business-overview-016",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 16,
+      "persona": "manager",
+      "question": "今天折扣优惠送出去多少钱",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3601,
+      "conversationId": 13853,
+      "runId": 13852,
+      "answer": "财务风险摘要：退款 0 笔，金额 0.00 元；优惠 0.00 元；毛利率暂无结算数据。风险：当前未发现明确财务预警。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_risk_summary",
+          "label": "财务风险摘要"
+        }
+      ],
+      "adapterKey": "finance_risk",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "finance",
+        "domain": "finance_risk",
+        "intent": "diagnosis",
+        "reason": "strong_finance_diagnosis_phrase",
+        "grounding": "db_skill",
+        "adapterKey": "finance_risk",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:finance:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-business-overview-017",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 17,
+      "persona": "manager",
+      "question": "最近三天营业额趋势怎么样",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3243,
+      "conversationId": 13855,
+      "runId": 13854,
+      "answer": "今天经营分析：实收 0.00 元，0 单，客单价 0.00 元，到店客户 0 人、当前在店 0 人，新客 0 人、老客 0 人。\n项目排行：暂无项目数据。\n员工服务量：暂无员工服务数据。\n支付拆分：暂无支付拆分。\n营业额趋势：暂无日结趋势。\n最大订单：暂无。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "store_manager_operations_analysis",
+          "label": "店长经营深度分析"
+        }
+      ],
+      "adapterKey": "store_manager",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "store_operation",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "store_manager",
+        "confidence": 0.8,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:dashboard:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "ranking",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-business-overview-018",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 18,
+      "persona": "manager",
+      "question": "这周有没有哪天特别差，为什么",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3664,
+      "conversationId": 13858,
+      "runId": 13857,
+      "answer": "本周经营分析：实收 4411.70 元，7 单，客单价 630.24 元，到店客户 2 人、当前在店 0 人，新客 2 人、老客 0 人。\n项目排行：1. 背部净透护理 2 次；2. 射频紧致提升护理 1 次。\n员工服务量：1. 未指定美容师 2 次；2. 唐伊 1 次。\n支付拆分：微信 1338.70 元，支付宝 2000.00 元，储值余额 1073.00 元。\n营业额趋势：2026-07-06 896.00 元；2026-07-07 3073.00 元；2026-07-08 442.70 元；2026-07-09 0.00 元；2026-07-10 0.00 元。\n最大订单：MRMRADOOXQ 2000.00 元。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "store_manager_operations_analysis",
+          "label": "店长经营深度分析"
+        }
+      ],
+      "adapterKey": "store_manager",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "store_operation",
+        "intent": "diagnosis",
+        "reason": "diagnosis_requires_analysis_skill",
+        "grounding": "db_skill",
+        "adapterKey": "store_manager",
+        "confidence": 0.8,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:dashboard:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "ranking",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-business-overview-019",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 19,
+      "persona": "manager",
+      "question": "今天现金收了多少，微信支付宝各多少",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 4001,
+      "conversationId": 13860,
+      "runId": 13859,
+      "answer": "今天经营分析：实收 0.00 元，0 单，客单价 0.00 元，到店客户 0 人、当前在店 0 人，新客 0 人、老客 0 人。\n项目排行：暂无项目数据。\n员工服务量：暂无员工服务数据。\n支付拆分：暂无支付拆分。\n营业额趋势：暂无日结趋势。\n最大订单：暂无。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "store_manager_operations_analysis",
+          "label": "店长经营深度分析"
+        }
+      ],
+      "adapterKey": "store_manager",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "store_operation",
+        "intent": "diagnosis",
+        "reason": "store_manager_operations_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "store_manager",
+        "confidence": 0.8,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:dashboard:view"
+        ]
+      },
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "ranking",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-manager-business-overview-020",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 20,
+      "persona": "manager",
+      "question": "今天储值卡消耗了多少，新充值了多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2080,
+      "conversationId": 13862,
+      "runId": 13861,
+      "answer": "储值卡消耗和充值流水尚未接入真实口径，Ami Brain 不会用会员卡负债替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "prepaid_card_flow_metric_not_registered",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "储值卡消耗和充值流水尚未接入真实口径，Ami Brain 不会用会员卡负债替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "card_liability",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-customer-management-021",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 21,
+      "persona": "manager",
+      "question": "最近哪些老客好久没来了，帮我列一下",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2443,
+      "conversationId": 13864,
+      "runId": 13863,
+      "answer": "60 天未到店客户名单：\n1. 刘思琪：累计消费 193085.00 元，到店 82 次，最近到店 2026-05-10\n2. 马语嫣：累计消费 192825.00 元，到店 168 次，最近到店 2026-04-19\n3. 刘婉清：累计消费 186301.00 元，到店 94 次，最近到店 2026-04-23\n4. 高美琳：累计消费 186059.00 元，到店 71 次，最近到店 2026-04-19\n5. 朱静怡：累计消费 180923.00 元，到店 171 次，最近到店 2026-05-11\n6. 周若兰：累计消费 175333.00 元，到店 200 次，最近到店 2026-05-09\n7. 王思琪：累计消费 174072.00 元，到店 83 次，最近到店 2026-05-02\n8. 朱若兰：累计消费 154844.00 元，到店 71 次，最近到店 2026-05-06\n9. 黄美琳：累计消费 145308.00 元，到店 103 次，最近到店 2026-04-26\n10. 吴梦瑶：累计消费 141561.00 元，到店 147 次，最近到店 2026-04-17",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "diagnosis",
+        "reason": "risk_or_exception_requires_diagnosis",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-customer-management-022",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 22,
+      "persona": "manager",
+      "question": "上个月新来了多少新客，转化了多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2100,
+      "conversationId": 13866,
+      "runId": 13865,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-customer-management-023",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 23,
+      "persona": "manager",
+      "question": "我们店里的 VIP 客户有多少个",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3413,
+      "conversationId": 13868,
+      "runId": 13867,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师服务安排"
+        }
+      ],
+      "adapterKey": "beautician_service",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "beautician",
+        "domain": "beautician_service",
+        "intent": "list",
+        "reason": "appointment_schedule_detail_requires_list_shape",
+        "grounding": "db_skill",
+        "adapterKey": "beautician_service",
+        "confidence": 0.8500000000000001,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:customer:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-customer-management-024",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 24,
+      "persona": "manager",
+      "question": "哪些客户卡里的次数快用完了还没约",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4044,
+      "conversationId": 13870,
+      "runId": 13869,
+      "answer": "卡次数快用完客户名单：\n1. 刘志强：抗衰管理 6 次卡 剩余 1 次，估算未履约 613.33 元\n2. 库存验收客户：库存验收-BOM核销次卡 剩余 1 次，估算未履约 0.00 元\n3. 刘紫萱：抗衰管理 6 次卡 剩余 2 次，估算未履约 1226.67 元\n4. 何美琳：抗衰管理 6 次卡 剩余 2 次，估算未履约 1226.67 元\n5. 周梦瑶：抗衰管理 6 次卡 剩余 2 次，估算未履约 1226.67 元\n6. 胡诗涵：抗衰管理 6 次卡 剩余 2 次，估算未履约 1226.67 元\n7. 杨美琳：抗衰管理 6 次卡 剩余 2 次，估算未履约 1226.67 元\n8. 林晓雯：抗衰管理 6 次卡 剩余 2 次，估算未履约 1226.67 元\n9. 吴静怡：抗衰管理 6 次卡 剩余 2 次，估算未履约 1226.67 元\n10. 黄婉清：抗衰管理 6 次卡 剩余 2 次，估算未履约 1226.67 元",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.8500000000000001,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-customer-management-025",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 25,
+      "persona": "manager",
+      "question": "最近有没有客户投诉或者表达不满",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4430,
+      "conversationId": 13873,
+      "runId": 13872,
+      "answer": "客户分层摘要：\n1. 客户总数 1252 人，VIP/高等级客户 581 人。\n2. 近 60 天未到店或无到店记录客户 767 人。\n3. 当前时间范围新增客户 1252 人。\n4. 卡项余额关注名单：\n1. 赵诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n2. 罗诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n3. 何思琪：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n4. 胡婉清：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n5. 罗美琳：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.8500000000000001,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-customer-management-026",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 26,
+      "persona": "manager",
+      "question": "这个月流失了多少客户，主要是什么原因",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2749,
+      "conversationId": 13876,
+      "runId": 13875,
+      "answer": "60 天未到店客户名单：\n1. 刘思琪：累计消费 193085.00 元，到店 82 次，最近到店 2026-05-10\n2. 马语嫣：累计消费 192825.00 元，到店 168 次，最近到店 2026-04-19\n3. 刘婉清：累计消费 186301.00 元，到店 94 次，最近到店 2026-04-23\n4. 高美琳：累计消费 186059.00 元，到店 71 次，最近到店 2026-04-19\n5. 朱静怡：累计消费 180923.00 元，到店 171 次，最近到店 2026-05-11\n6. 周若兰：累计消费 175333.00 元，到店 200 次，最近到店 2026-05-09\n7. 王思琪：累计消费 174072.00 元，到店 83 次，最近到店 2026-05-02\n8. 朱若兰：累计消费 154844.00 元，到店 71 次，最近到店 2026-05-06\n9. 黄美琳：累计消费 145308.00 元，到店 103 次，最近到店 2026-04-26\n10. 吴梦瑶：累计消费 141561.00 元，到店 147 次，最近到店 2026-04-17",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "diagnosis",
+        "reason": "diagnosis_requires_analysis_skill",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-customer-management-027",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 27,
+      "persona": "manager",
+      "question": "哪些客户是高价值但最近不太活跃的",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2381,
+      "conversationId": 13878,
+      "runId": 13877,
+      "answer": "高价值客户分层：\n1. 马美琳：钻石会员，累计消费 193322.00 元，到店 111 次\n2. 刘思琪：钻石会员，累计消费 193085.00 元，到店 82 次，近 30 天未到店\n3. 马语嫣：钻石会员，累计消费 192825.00 元，到店 168 次，近 30 天未到店\n4. 林雨薇：钻石会员，累计消费 192673.00 元，到店 140 次\n5. 王雅婷：钻石会员，累计消费 190532.00 元，到店 72 次\n6. 马佳慧：钻石会员，累计消费 189115.00 元，到店 143 次\n7. 刘婉清：钻石会员，累计消费 186301.00 元，到店 94 次，近 30 天未到店\n8. 高美琳：钻石会员，累计消费 186059.00 元，到店 71 次，近 30 天未到店\n9. 黄婉清：钻石会员，累计消费 185855.00 元，到店 124 次，近 30 天未到店\n10. 何思琪：钻石会员，累计消费 184887.00 元，到店 136 次",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.8500000000000001,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-customer-management-028",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 28,
+      "persona": "manager",
+      "question": "帮我看一下今天到店客人的画像，主要是什么年龄段",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3181,
+      "conversationId": 13879,
+      "runId": 13878,
+      "answer": "今天前台运营：有效预约 0 个，已到店/服务中 0 个，待到店 0 个，爽约 0 个，取消 0 个。\n待到店名单：\n当前没有待到店客户。\n资源状态：\n门店尚未配置床位/房间资源。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "front_desk_operations_snapshot",
+          "label": "预约到店与资源状态"
+        }
+      ],
+      "adapterKey": "front_desk",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "receptionist",
+        "domain": "front_desk",
+        "intent": "diagnosis",
+        "reason": "customer_profile_requires_profile_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "front_desk",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:store:reservations"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-customer-management-029",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 29,
+      "persona": "manager",
+      "question": "我们的老客回头率大概是多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1980,
+      "conversationId": 13881,
+      "runId": 13880,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-customer-management-030",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 30,
+      "persona": "manager",
+      "question": "有没有哪些客户快到生日了可以做关怀",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2685,
+      "conversationId": 13883,
+      "runId": 13882,
+      "answer": "本月生日客户名单：\n1. 徐语嫣：生日 07-13，银卡会员，累计消费 5682.00 元\n2. 李诗涵：生日 07-14，金卡会员，累计消费 38580.00 元\n3. 刘静怡：生日 07-17，普通会员，累计消费 1277.00 元\n4. 何紫萱：生日 07-18，普通会员，累计消费 3845.00 元\n5. 黄若兰：生日 07-18，钻石会员，累计消费 95470.00 元\n6. 孙思琪：生日 07-18，无，累计消费 5980.00 元\n7. 孙静怡：生日 07-18，普通会员，累计消费 2673.00 元\n8. 马雨薇：生日 07-19，钻石会员，累计消费 137143.00 元\n9. 高天佑：生日 07-21，银卡会员，累计消费 7678.00 元\n10. 刘思琪：生日 07-22，普通会员，累计消费 809.00 元",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.8500000000000001,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-customer-management-031",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 31,
+      "persona": "manager",
+      "question": "帮我找一下三个月没来消费的客户",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2025,
+      "conversationId": 13885,
+      "runId": 13884,
+      "answer": "爽约、超时、成本异常等风险诊断尚未接入真实口径，Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "diagnosis",
+        "reason": "risk_or_exception_requires_diagnosis",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "爽约、超时、成本异常等风险诊断尚未接入真实口径，Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-customer-management-032",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 32,
+      "persona": "manager",
+      "question": "哪些客户消费了钱但很少用次卡",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3576,
+      "conversationId": 13887,
+      "runId": 13886,
+      "answer": "客户分层摘要：\n1. 客户总数 1252 人，VIP/高等级客户 581 人。\n2. 近 60 天未到店或无到店记录客户 767 人。\n3. 当前时间范围新增客户 1252 人。\n4. 卡项余额关注名单：\n1. 赵诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n2. 罗诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n3. 何思琪：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n4. 胡婉清：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n5. 罗美琳：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.8500000000000001,
+        "answerShape": "list",
+        "expectedMetric": "card_liability",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "card_liability",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-customer-management-033",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 33,
+      "persona": "manager",
+      "question": "最近有没有客户因为等待时间长而离开",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3722,
+      "conversationId": 13889,
+      "runId": 13888,
+      "answer": "客户分层摘要：\n1. 客户总数 1252 人，VIP/高等级客户 581 人。\n2. 近 60 天未到店或无到店记录客户 767 人。\n3. 当前时间范围新增客户 1252 人。\n4. 卡项余额关注名单：\n1. 赵诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n2. 罗诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n3. 何思琪：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n4. 胡婉清：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n5. 罗美琳：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.8500000000000001,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-customer-management-034",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 34,
+      "persona": "manager",
+      "question": "我们有多少客户开了次卡但从来不来消费",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2850,
+      "conversationId": 13892,
+      "runId": 13891,
+      "answer": "财务风险摘要：退款 0 笔，金额 0.00 元；优惠 0.00 元；毛利率暂无结算数据。风险：当前未发现明确财务预警。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_risk_summary",
+          "label": "财务风险摘要"
+        }
+      ],
+      "adapterKey": "finance_risk",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "finance",
+        "domain": "finance_risk",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "finance_risk",
+        "confidence": 0.8500000000000001,
+        "answerShape": "list",
+        "expectedMetric": "card_liability",
+        "requiredPermissions": [
+          "core:finance:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "non_metric",
+        "expectedMetric": "card_liability",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-customer-management-035",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 35,
+      "persona": "manager",
+      "question": "今天有没有重要客户来店，需要特别关注的",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2973,
+      "conversationId": 13893,
+      "runId": 13892,
+      "answer": "今日需关注的重要到店客户：\n1. 当前没有命中客户。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-customer-management-036",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 36,
+      "persona": "manager",
+      "question": "哪些沉睡客户最近有点被唤醒的迹象",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2567,
+      "conversationId": 13895,
+      "runId": 13894,
+      "answer": "60 天未到店客户名单：\n1. 刘思琪：累计消费 193085.00 元，到店 82 次，最近到店 2026-05-10\n2. 马语嫣：累计消费 192825.00 元，到店 168 次，最近到店 2026-04-19\n3. 刘婉清：累计消费 186301.00 元，到店 94 次，最近到店 2026-04-23\n4. 高美琳：累计消费 186059.00 元，到店 71 次，最近到店 2026-04-19\n5. 朱静怡：累计消费 180923.00 元，到店 171 次，最近到店 2026-05-11\n6. 周若兰：累计消费 175333.00 元，到店 200 次，最近到店 2026-05-09\n7. 王思琪：累计消费 174072.00 元，到店 83 次，最近到店 2026-05-02\n8. 朱若兰：累计消费 154844.00 元，到店 71 次，最近到店 2026-05-06\n9. 黄美琳：累计消费 145308.00 元，到店 103 次，最近到店 2026-04-26\n10. 吴梦瑶：累计消费 141561.00 元，到店 147 次，最近到店 2026-04-17",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.8500000000000001,
+        "answerShape": "list",
+        "expectedMetric": "churn_risk_count",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "churn_risk_count",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-customer-management-037",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 37,
+      "persona": "manager",
+      "question": "帮我看一下客户满意度整体情况",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2008,
+      "conversationId": 13897,
+      "runId": 13896,
+      "answer": "库存明细、门店/仓库合计、安全库存和处置流程尚未接入真实口径，Ami Brain 不会用临期库存金额替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "list",
+        "reason": "inventory_detail_or_workflow_not_supported",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "list",
+        "unsupportedReason": "库存明细、门店/仓库合计、安全库存和处置流程尚未接入真实口径，Ami Brain 不会用临期库存金额替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "list",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-customer-management-038",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 38,
+      "persona": "manager",
+      "question": "这个月新客主要来自什么渠道",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2027,
+      "conversationId": 13899,
+      "runId": 13898,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-customer-management-039",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 39,
+      "persona": "manager",
+      "question": "老客户平均多久回来一次",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2241,
+      "conversationId": 13900,
+      "runId": 13899,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-customer-management-040",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "客户管理",
+      "sourceIndex": 40,
+      "persona": "manager",
+      "question": "哪些客户最近消费频率明显下降",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2355,
+      "conversationId": 13902,
+      "runId": 13900,
+      "answer": "60 天未到店客户名单：\n1. 刘思琪：累计消费 193085.00 元，到店 82 次，最近到店 2026-05-10\n2. 马语嫣：累计消费 192825.00 元，到店 168 次，最近到店 2026-04-19\n3. 刘婉清：累计消费 186301.00 元，到店 94 次，最近到店 2026-04-23\n4. 高美琳：累计消费 186059.00 元，到店 71 次，最近到店 2026-04-19\n5. 朱静怡：累计消费 180923.00 元，到店 171 次，最近到店 2026-05-11\n6. 周若兰：累计消费 175333.00 元，到店 200 次，最近到店 2026-05-09\n7. 王思琪：累计消费 174072.00 元，到店 83 次，最近到店 2026-05-02\n8. 朱若兰：累计消费 154844.00 元，到店 71 次，最近到店 2026-05-06\n9. 黄美琳：累计消费 145308.00 元，到店 103 次，最近到店 2026-04-26\n10. 吴梦瑶：累计消费 141561.00 元，到店 147 次，最近到店 2026-04-17",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.8500000000000001,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-staff-management-041",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "员工管理",
+      "sourceIndex": 41,
+      "persona": "manager",
+      "question": "这个月谁的业绩最好",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2904,
+      "conversationId": 13903,
+      "runId": 13902,
+      "answer": "员工业绩排行：\n1. 宋乔：5579.00 元\n2. 顾然：4657.00 元\n3. 沈晴：4385.00 元\n4. 唐伊：3286.10 元",
+      "citations": [
+        {
+          "sourceType": "metric",
+          "sourceId": "paid_revenue",
+          "label": "实收流水",
+          "definition": "当前门店订单实收金额汇总，退款口径由后续指标版本细化"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "ranking",
+        "actualIntent": "metric_query",
+        "expectedShape": "ranking",
+        "actualShape": "ranking",
+        "expectedMetric": "paid_revenue",
+        "actualMetric": "paid_revenue",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": true,
+        "groundingType": "metric_query"
+      },
+      "legacyStatus": "usable_with_citation"
+    },
+    {
+      "questionId": "qb-manager-staff-management-042",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "员工管理",
+      "sourceIndex": 42,
+      "persona": "manager",
+      "question": "哪个美容师接的客人最多",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2016,
+      "conversationId": 13905,
+      "runId": 13904,
+      "answer": "这个问题需要分组排行口径。当前独立版 Ami Brain 不会用全店单值替代排行结果。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "ranking",
+        "reason": "ranking_question_requires_grouped_shape",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "ranking",
+        "unsupportedReason": "这个问题需要分组排行口径。当前独立版 Ami Brain 不会用全店单值替代排行结果。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "ranking",
+        "actualIntent": "unknown",
+        "expectedShape": "ranking",
+        "actualShape": "ranking",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-staff-management-043",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "员工管理",
+      "sourceIndex": 43,
+      "persona": "manager",
+      "question": "谁的客户复购率最高",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2006,
+      "conversationId": 13907,
+      "runId": 13906,
+      "answer": "这个问题需要分组排行口径。当前独立版 Ami Brain 不会用全店单值替代排行结果。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "ranking",
+        "reason": "ranking_question_requires_grouped_shape",
+        "grounding": "metric_query",
+        "confidence": 0.9,
+        "answerShape": "ranking",
+        "expectedMetric": "repurchase_rate",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "ranking",
+        "actualIntent": "unknown",
+        "expectedShape": "ranking",
+        "actualShape": "ranking",
+        "expectedMetric": "repurchase_rate",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-staff-management-044",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "员工管理",
+      "sourceIndex": 44,
+      "persona": "manager",
+      "question": "有没有员工这周业绩明显下滑",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 4097,
+      "conversationId": 13908,
+      "runId": 13907,
+      "answer": "结论：已围绕“诊断利润下降原因并给出行动建议”完成 4 个子任务。\n归因：\n- finance：财务风险摘要：退款 0 笔，金额 0.00 元；优惠 23.30 元；毛利率 80.3%。风险：优惠金额 23.30 元，需要确认授权来源。\n- store_manager：本周经营概览：实收流水 4411.70 元，预约 3 个，活跃客户 4 人，毛利率 80.3%。风险：低库存：玻尿酸保湿精华。趋势诊断：P4 先返回当前周期事实摘要；跨天归因诊断进入 P5。\n- inventory：临期/过期库存清单：\n1. 舒缓修护面膜：剩余 97，到期日 2026-07-05，估算货值 0.00 元。\n临期库存金额 0.00 元。\n- marketing：门店促销活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。\n建议：优先处理已被多个角色共同指向的风险，再补齐缺失数据。\n行动：当前只提供分析和建议，涉及写操作时需要另行生成动作预览。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_risk_summary",
+          "label": "财务风险摘要"
+        },
+        {
+          "sourceType": "skill",
+          "sourceId": "store_manager_overview_summary",
+          "label": "店长经营概览"
+        },
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        },
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案"
+        }
+      ],
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "diagnosis",
+        "reason": "performance_decline_requires_diagnosis",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "员工业绩下滑诊断尚未接入真实口径，Ami Brain 不会用单期流水替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "metric_query",
+        "actualIntent": "diagnosis",
+        "expectedShape": "scalar_metric",
+        "actualShape": "comparison",
+        "expectedMetric": "paid_revenue",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-manager-staff-management-045",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "员工管理",
+      "sourceIndex": 45,
+      "persona": "manager",
+      "question": "这个月提成最高的是谁，大概多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2356,
+      "conversationId": 13911,
+      "runId": 13910,
+      "answer": "这个问题需要分组排行口径。当前独立版 Ami Brain 不会用全店单值替代排行结果。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "ranking",
+        "reason": "ranking_question_requires_grouped_shape",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "ranking",
+        "unsupportedReason": "这个问题需要分组排行口径。当前独立版 Ami Brain 不会用全店单值替代排行结果。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "ranking",
+        "actualIntent": "unknown",
+        "expectedShape": "ranking",
+        "actualShape": "ranking",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-staff-management-046",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "员工管理",
+      "sourceIndex": 46,
+      "persona": "manager",
+      "question": "各美容师今天的排班情况，有没有空档",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2579,
+      "conversationId": 13913,
+      "runId": 13912,
+      "answer": "员工忙闲看板：\n1. 忙碌：当前预约清单未显示忙碌美容师。\n2. 可排空档：P4 已接入预约占用事实，完整排班/床位空档计算进入 P5。\n3. 当前预约数：0 个。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "front_desk_staff_schedule_summary",
+          "label": "前台忙闲看板"
+        }
+      ],
+      "adapterKey": "front_desk",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "receptionist",
+        "domain": "front_desk",
+        "intent": "list",
+        "reason": "appointment_schedule_detail_requires_list_shape",
+        "grounding": "db_skill",
+        "adapterKey": "front_desk",
+        "confidence": 0.8500000000000001,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:store:reservations"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "appointment_count",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-staff-management-047",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "员工管理",
+      "sourceIndex": 47,
+      "persona": "manager",
+      "question": "今天谁请假了，有没有影响接待",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2506,
+      "conversationId": 13915,
+      "runId": 13914,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-staff-management-048",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "员工管理",
+      "sourceIndex": 48,
+      "persona": "manager",
+      "question": "哪个美容师的客诉最多，最近有没有",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3371,
+      "conversationId": 13917,
+      "runId": 13916,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师服务安排"
+        }
+      ],
+      "adapterKey": "beautician_service",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "beautician",
+        "domain": "beautician_service",
+        "intent": "ranking",
+        "reason": "ranking_question_requires_grouped_shape",
+        "grounding": "db_skill",
+        "adapterKey": "beautician_service",
+        "confidence": 0.8500000000000001,
+        "answerShape": "ranking",
+        "requiredPermissions": [
+          "core:customer:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "ranking",
+        "actualIntent": "diagnosis",
+        "expectedShape": "ranking",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-staff-management-049",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "员工管理",
+      "sourceIndex": 49,
+      "persona": "manager",
+      "question": "新员工试用期表现怎么样",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2863,
+      "conversationId": 13919,
+      "runId": 13918,
+      "answer": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-staff-management-050",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "员工管理",
+      "sourceIndex": 50,
+      "persona": "manager",
+      "question": "帮我看一下各美容师的服务次数对比",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3201,
+      "conversationId": 13921,
+      "runId": 13920,
+      "answer": "今日服务安排：共 0 个客人。\n今天没有已排服务。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "beautician_service_summary",
+          "label": "美容师服务安排"
+        }
+      ],
+      "adapterKey": "beautician_service",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "beautician",
+        "domain": "beautician_service",
+        "intent": "comparison",
+        "reason": "comparison_question_requires_comparison_shape",
+        "grounding": "db_skill",
+        "adapterKey": "beautician_service",
+        "confidence": 0.8500000000000001,
+        "answerShape": "comparison",
+        "requiredPermissions": [
+          "core:customer:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "comparison",
+        "actualIntent": "diagnosis",
+        "expectedShape": "comparison",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-staff-management-051",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "员工管理",
+      "sourceIndex": 51,
+      "persona": "manager",
+      "question": "今天谁服务了几个客人",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2118,
+      "conversationId": 13923,
+      "runId": 13922,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-staff-management-052",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "员工管理",
+      "sourceIndex": 52,
+      "persona": "manager",
+      "question": "哪个员工这个月进步最快",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2494,
+      "conversationId": 13925,
+      "runId": 13924,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-staff-management-053",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "员工管理",
+      "sourceIndex": 53,
+      "persona": "manager",
+      "question": "有没有员工最近很长时间没有新客了",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 3254,
+      "conversationId": 13927,
+      "runId": 13926,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-staff-management-054",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "员工管理",
+      "sourceIndex": 54,
+      "persona": "manager",
+      "question": "本月员工总提成大概多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2123,
+      "conversationId": 13929,
+      "runId": 13928,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-staff-management-055",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "员工管理",
+      "sourceIndex": 55,
+      "persona": "manager",
+      "question": "哪个美容师擅长的项目客户最满意",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2165,
+      "conversationId": 13931,
+      "runId": 13930,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-staff-management-056",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "员工管理",
+      "sourceIndex": 56,
+      "persona": "manager",
+      "question": "有没有员工到期转正需要我处理",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2528,
+      "conversationId": 13933,
+      "runId": 13932,
+      "answer": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-staff-management-057",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "员工管理",
+      "sourceIndex": 57,
+      "persona": "manager",
+      "question": "最近有没有员工出现迟到早退",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2382,
+      "conversationId": 13934,
+      "runId": 13933,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-staff-management-058",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "员工管理",
+      "sourceIndex": 58,
+      "persona": "manager",
+      "question": "哪个美容师的升单能力最强",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2133,
+      "conversationId": 13936,
+      "runId": 13935,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-staff-management-059",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "员工管理",
+      "sourceIndex": 59,
+      "persona": "manager",
+      "question": "帮我看一下员工这周的工作饱和度",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2369,
+      "conversationId": 13937,
+      "runId": 13936,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-staff-management-060",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "员工管理",
+      "sourceIndex": 60,
+      "persona": "manager",
+      "question": "有没有员工的客户被别的美容师挖走的迹象",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 5681,
+      "conversationId": 13939,
+      "runId": 13938,
+      "answer": "客户分层摘要：\n1. 客户总数 1252 人，VIP/高等级客户 581 人。\n2. 近 60 天未到店或无到店记录客户 767 人。\n3. 当前时间范围新增客户 1252 人。\n4. 卡项余额关注名单：\n1. 赵诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n2. 罗诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n3. 何思琪：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n4. 胡婉清：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n5. 罗美琳：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.8500000000000001,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-inventory-ops-061",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "库存运营",
+      "sourceIndex": 61,
+      "persona": "manager",
+      "question": "现在哪些产品库存不够了",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4758,
+      "conversationId": 13942,
+      "runId": 13941,
+      "answer": "低库存产品：\n1. 玻尿酸保湿精华：当前 133，安全库存 143。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.8500000000000001,
+        "answerShape": "list",
+        "expectedMetric": "expiring_stock_value",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-inventory-ops-062",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "库存运营",
+      "sourceIndex": 62,
+      "persona": "manager",
+      "question": "有没有快过期的产品，数量多少",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 5580,
+      "conversationId": 13945,
+      "runId": 13944,
+      "answer": "临期/过期库存清单：\n1. 舒缓修护面膜：剩余 97，到期日 2026-07-05，估算货值 0.00 元。\n临期库存金额 0.00 元。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_or_priority_requires_list_shape",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.8500000000000001,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-inventory-ops-063",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "库存运营",
+      "sourceIndex": 63,
+      "persona": "manager",
+      "question": "这个月耗材用了多少，正常吗",
+      "status": "false_positive_granularity_mismatch",
+      "brainStatus": "completed",
+      "latencyMs": 8433,
+      "conversationId": 13949,
+      "runId": 13948,
+      "answer": "库存明细：共 45 个 SKU，当前估算库存货值 269474.20 元。\n1. 亮肤软膜粉（IND-6-STD-MASK-BRIGHTENING-001）：库存 400，安全库存 0，本期入库 500、出库/消耗 100，货值 220.00 元，预计覆盖 43 天。\n2. 水润柔肤水（AMI-DEMO-FULL-SKU-013）：库存 110，安全库存 55，本期入库 70、出库/消耗 70，货值 7920.00 元，预计覆盖 17 天。\n3. 补水软膜粉（IND-6-STD-MASK-POWDER-001）：库存 150，安全库存 0，本期入库 200、出库/消耗 50，货值 52.50 元，预计覆盖 33 天。\n4. 院装温和洁面乳（IND-6-STD-CLEANSER-PRO-001）：库存 160，安全库存 0，本期入库 184、出库/消耗 24，货值 72.00 元，预计覆盖 73 天。\n5. 射频仪器导入凝胶（IND-6-STD-GEL-RF-001）：库存 52，安全库存 0，本期入库 66、出库/消耗 14，货值 26.00 元，预计覆盖 40 天。\n6. 抗衰紧致眼霜（AMI-DEMO-FULL-SKU-005）：库存 110，安全库存 28，本期入库 26、出库/消耗 14，货值 24200.00 元，预计覆盖 86 天。\n7. 美容棉片（IND-6-STD-COTTON-PAD-001）：库存 57，安全库存 0，本期入库 70、出库/消耗 13，货值 6.84 元，预计覆盖 48 天。\n8. 烟酰胺亮肤精华（AMI-DEMO-FULL-SKU-004）：库存 163，安全库存 35，本期入库 0、出库/消耗 11，货值 30644.00 元，预计覆盖 163 天。\n9. 氨基酸洁面乳（AMI-DEMO-FULL-SKU-003）：库存 164，安全库存 50，本期入库 0、出库/消耗 11，货值 9512.00 元，预计覆盖 164 天。\n10. 补水精华液（IND-6-STD-SERUM-HYDRATING-001）：库存 36，安全库存 0，本期入库 46、出库/消耗 10，货值 126.00 元，预计覆盖 39 天。\n11. 一次性面巾（IND-6-STD-TOWEL-DISPOSABLE-001）：库存 16，安全库存 0，本期入库 22、出库/消耗 6，货值 14.40 元，预计覆盖 29 天。\n12. 淡斑亮肤精华（IND-6-STD-SPOT-BRIGHTENING-ESSENCE-001）：库存 52，安全库存 0，本期入库 56、出库/消耗 4，货值 457.60 元，预计覆盖 143 天。\n进出库记录：\n1. 2026-07-08 03:41 美容棉片 service_consume -4\n2. 2026-07-08 03:41 一次性面巾 service_consume -1\n3. 2026-07-08 03:41 补水软膜粉 service_consume -25\n4. 2026-07-08 03:41 补水精华液 service_consume -3\n5. 2026-07-08 03:41 院装温和洁面乳 service_consume -5\n6. 2026-07-08 02:28 舒缓修护面膜 sale_out -1\n7. 2026-07-08 02:28 美容棉片 service_consume -4\n8. 2026-07-08 02:28 一次性面巾 service_consume -1\n9. 2026-07-08 02:28 补水软膜粉 service_consume -25\n10. 2026-07-08 02:28 补水精华液 service_consume -3",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.8500000000000001,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "false_positive_granularity_mismatch",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "list",
+        "reason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "用户问题要求直接数值指标，但系统返回了非指标技能回答。"
+    },
+    {
+      "questionId": "qb-manager-inventory-ops-064",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "库存运营",
+      "sourceIndex": 64,
+      "persona": "manager",
+      "question": "最近卖得最好的产品是什么",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4430,
+      "conversationId": 13953,
+      "runId": 13952,
+      "answer": "低库存产品：\n1. 玻尿酸保湿精华：当前 133，安全库存 143。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "ranking",
+        "reason": "ranking_question_requires_grouped_shape",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.8500000000000001,
+        "answerShape": "ranking",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "ranking",
+        "actualIntent": "diagnosis",
+        "expectedShape": "ranking",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-inventory-ops-065",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "库存运营",
+      "sourceIndex": 65,
+      "persona": "manager",
+      "question": "有什么产品积压太久了",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2010,
+      "conversationId": 13955,
+      "runId": 13954,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-inventory-ops-066",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "库存运营",
+      "sourceIndex": 66,
+      "persona": "manager",
+      "question": "下次采购需要补什么货",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2972,
+      "conversationId": 13957,
+      "runId": 13956,
+      "answer": "采购建议清单：\n1. 玻尿酸保湿精华：当前 133，安全库存 143，建议人工复核后补货。\n先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存采购建议"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-inventory-ops-067",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "库存运营",
+      "sourceIndex": 67,
+      "persona": "manager",
+      "question": "现在库存金额大概多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 3428,
+      "conversationId": 13959,
+      "runId": 13958,
+      "answer": "库存金额和周转率尚未接入真实口径，Ami Brain 不会用临期库存金额替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "inventory_value_or_turnover_not_registered",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "库存金额和周转率尚未接入真实口径，Ami Brain 不会用临期库存金额替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "expiring_stock_value",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-inventory-ops-068",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "库存运营",
+      "sourceIndex": 68,
+      "persona": "manager",
+      "question": "有没有哪个项目因为缺耗材没法做",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 3013,
+      "conversationId": 13962,
+      "runId": 13961,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-inventory-ops-069",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "库存运营",
+      "sourceIndex": 69,
+      "persona": "manager",
+      "question": "这个月产品销售额是多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2095,
+      "conversationId": 13964,
+      "runId": 13963,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "paid_revenue",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-inventory-ops-070",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "库存运营",
+      "sourceIndex": 70,
+      "persona": "manager",
+      "question": "最近采购了什么，花了多少钱",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2887,
+      "conversationId": 13966,
+      "runId": 13965,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-inventory-ops-071",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "库存运营",
+      "sourceIndex": 71,
+      "persona": "manager",
+      "question": "有没有产品快断货但还没采购的",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 3461,
+      "conversationId": 13968,
+      "runId": 13967,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-inventory-ops-072",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "库存运营",
+      "sourceIndex": 72,
+      "persona": "manager",
+      "question": "临期产品怎么处理比较好",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 4564,
+      "conversationId": 13970,
+      "runId": 13969,
+      "answer": "前台接待建议：\n1. 先确认客户诉求和身份。\n2. 再查看预约、消费或会员记录。\n3. 涉及金额、权益或争议时转交店长确认。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "front_desk_service_advice",
+          "label": "前台接待建议"
+        }
+      ],
+      "adapterKey": "front_desk",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "receptionist",
+        "domain": "front_desk",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "front_desk",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:store:reservations"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-inventory-ops-073",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "库存运营",
+      "sourceIndex": 73,
+      "persona": "manager",
+      "question": "哪些耗材消耗速度最快",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3929,
+      "conversationId": 13973,
+      "runId": 13972,
+      "answer": "库存明细：共 45 个 SKU，当前估算库存货值 269474.20 元。\n1. 玻尿酸保湿精华（AMI-DEMO-FULL-SKU-001）：库存 133，安全库存 143，本期入库 0、出库/消耗 0，货值 22344.00 元。\n2. 舒缓修护面膜（AMI-DEMO-FULL-SKU-002）：库存 202，安全库存 60，本期入库 0、出库/消耗 0，货值 17372.00 元。\n3. 氨基酸洁面乳（AMI-DEMO-FULL-SKU-003）：库存 164，安全库存 50，本期入库 0、出库/消耗 0，货值 9512.00 元。\n4. 烟酰胺亮肤精华（AMI-DEMO-FULL-SKU-004）：库存 163，安全库存 35，本期入库 0、出库/消耗 0，货值 30644.00 元。\n5. 抗衰紧致眼霜（AMI-DEMO-FULL-SKU-005）：库存 110，安全库存 28，本期入库 0、出库/消耗 0，货值 24200.00 元。\n6. 屏障修护乳（AMI-DEMO-FULL-SKU-006）：库存 136，安全库存 42，本期入库 0、出库/消耗 0，货值 18496.00 元。\n7. 水氧护理耗材包（AMI-DEMO-FULL-SKU-007）：库存 81，安全库存 24，本期入库 0、出库/消耗 0，货值 21060.00 元。\n8. 一次性护理巾（AMI-DEMO-FULL-SKU-008）：库存 277，安全库存 90，本期入库 0、出库/消耗 0，货值 8864.00 元。\n9. 胶原蛋白面膜（AMI-DEMO-FULL-SKU-009）：库存 124，安全库存 55，本期入库 0、出库/消耗 0，货值 13888.00 元。\n10. 清透防晒乳（AMI-DEMO-FULL-SKU-010）：库存 122，安全库存 45，本期入库 0、出库/消耗 0，货值 11224.00 元。\n11. 紧致颈霜（AMI-DEMO-FULL-SKU-011）：库存 67，安全库存 32，本期入库 0、出库/消耗 0，货值 9246.00 元。\n12. 舒缓精油（AMI-DEMO-FULL-SKU-012）：库存 92，安全库存 40，本期入库 0、出库/消耗 0，货值 8832.00 元。\n进出库记录：\n当前时间范围没有进出库记录。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.8500000000000001,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-inventory-ops-074",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "库存运营",
+      "sourceIndex": 74,
+      "persona": "manager",
+      "question": "现在仓库里护肤品还有多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2885,
+      "conversationId": 13976,
+      "runId": 13975,
+      "answer": "库存明细、门店/仓库合计、安全库存和处置流程尚未接入真实口径，Ami Brain 不会用临期库存金额替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "list",
+        "reason": "inventory_detail_or_workflow_not_supported",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "list",
+        "unsupportedReason": "库存明细、门店/仓库合计、安全库存和处置流程尚未接入真实口径，Ami Brain 不会用临期库存金额替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "list",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-inventory-ops-075",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "库存运营",
+      "sourceIndex": 75,
+      "persona": "manager",
+      "question": "有没有产品卖出去的价格低于成本的",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 3539,
+      "conversationId": 13978,
+      "runId": 13977,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-inventory-ops-076",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "库存运营",
+      "sourceIndex": 76,
+      "persona": "manager",
+      "question": "最近有没有收到供应商的涨价通知",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3612,
+      "conversationId": 13981,
+      "runId": 13980,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-inventory-ops-077",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "库存运营",
+      "sourceIndex": 77,
+      "persona": "manager",
+      "question": "这个月退货了多少，原因是什么",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2124,
+      "conversationId": 13983,
+      "runId": 13982,
+      "answer": "当前独立版 Ami Brain 尚未接入经营诊断技能，不会用单个指标替代原因分析。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "diagnosis",
+        "reason": "diagnosis_requires_analysis_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "当前独立版 Ami Brain 尚未接入经营诊断技能，不会用单个指标替代原因分析。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-inventory-ops-078",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "库存运营",
+      "sourceIndex": 78,
+      "persona": "manager",
+      "question": "哪些产品毛利率最高",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3625,
+      "conversationId": 13985,
+      "runId": 13984,
+      "answer": "低库存产品：\n1. 玻尿酸保湿精华：当前 133，安全库存 143。\n临期库存金额 0.00 元。先复核低于安全库存的 SKU，再人工确认补货单。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        }
+      ],
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "ranking",
+        "actualIntent": "diagnosis",
+        "expectedShape": "ranking",
+        "actualShape": "list",
+        "expectedMetric": "gross_margin_rate",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-inventory-ops-079",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "库存运营",
+      "sourceIndex": 79,
+      "persona": "manager",
+      "question": "库存的周转率怎么样",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3060,
+      "conversationId": 13988,
+      "runId": 13987,
+      "answer": "库存明细：共 45 个 SKU，当前估算库存货值 269474.20 元。\n1. 玻尿酸保湿精华（AMI-DEMO-FULL-SKU-001）：库存 133，安全库存 143，本期入库 0、出库/消耗 0，货值 22344.00 元。\n2. 舒缓修护面膜（AMI-DEMO-FULL-SKU-002）：库存 202，安全库存 60，本期入库 0、出库/消耗 0，货值 17372.00 元。\n3. 氨基酸洁面乳（AMI-DEMO-FULL-SKU-003）：库存 164，安全库存 50，本期入库 0、出库/消耗 0，货值 9512.00 元。\n4. 烟酰胺亮肤精华（AMI-DEMO-FULL-SKU-004）：库存 163，安全库存 35，本期入库 0、出库/消耗 0，货值 30644.00 元。\n5. 抗衰紧致眼霜（AMI-DEMO-FULL-SKU-005）：库存 110，安全库存 28，本期入库 0、出库/消耗 0，货值 24200.00 元。\n6. 屏障修护乳（AMI-DEMO-FULL-SKU-006）：库存 136，安全库存 42，本期入库 0、出库/消耗 0，货值 18496.00 元。\n7. 水氧护理耗材包（AMI-DEMO-FULL-SKU-007）：库存 81，安全库存 24，本期入库 0、出库/消耗 0，货值 21060.00 元。\n8. 一次性护理巾（AMI-DEMO-FULL-SKU-008）：库存 277，安全库存 90，本期入库 0、出库/消耗 0，货值 8864.00 元。\n9. 胶原蛋白面膜（AMI-DEMO-FULL-SKU-009）：库存 124，安全库存 55，本期入库 0、出库/消耗 0，货值 13888.00 元。\n10. 清透防晒乳（AMI-DEMO-FULL-SKU-010）：库存 122，安全库存 45，本期入库 0、出库/消耗 0，货值 11224.00 元。\n11. 紧致颈霜（AMI-DEMO-FULL-SKU-011）：库存 67，安全库存 32，本期入库 0、出库/消耗 0，货值 9246.00 元。\n12. 舒缓精油（AMI-DEMO-FULL-SKU-012）：库存 92，安全库存 40，本期入库 0、出库/消耗 0，货值 8832.00 元。\n进出库记录：\n当前时间范围没有进出库记录。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_detail_analysis",
+          "label": "库存 SKU、消耗与进出库分析"
+        }
+      ],
+      "adapterKey": "inventory_procurement",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "inventory",
+        "domain": "inventory_procurement",
+        "intent": "list",
+        "reason": "inventory_detail_analysis",
+        "grounding": "db_skill",
+        "adapterKey": "inventory_procurement",
+        "confidence": 0.8500000000000001,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:inventory:stock"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-inventory-ops-080",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "库存运营",
+      "sourceIndex": 80,
+      "persona": "manager",
+      "question": "帮我生成一份补货建议",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2527,
+      "conversationId": 13990,
+      "runId": 13989,
+      "answer": "您好，店里近期有可预约空档，方便的话可以回复我帮您安排。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "营销文案草稿"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "draft",
+        "reason": "draft_request_before_metric_keyword",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-risk-alert-081",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "风险预警",
+      "sourceIndex": 81,
+      "persona": "manager",
+      "question": "今天有没有什么需要我特别注意的风险",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3068,
+      "conversationId": 13992,
+      "runId": 13991,
+      "answer": "财务风险摘要：退款 0 笔，金额 0.00 元；优惠 0.00 元；毛利率暂无结算数据。风险：当前未发现明确财务预警。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_risk_summary",
+          "label": "财务风险摘要"
+        }
+      ],
+      "adapterKey": "finance_risk",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "finance",
+        "domain": "finance_risk",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "finance_risk",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:finance:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-risk-alert-082",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "风险预警",
+      "sourceIndex": 82,
+      "persona": "manager",
+      "question": "最近有没有现金流异常的情况",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3329,
+      "conversationId": 13994,
+      "runId": 13993,
+      "answer": "今天收入分析：实收 0.00 元。\n支付拆分：暂无支付记录。\n订单类型：暂无订单分类数据。\n每日趋势：\n当前时间范围没有日结趋势数据。\n最大订单：暂无。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_income_analysis",
+          "label": "财务收入与支付分析"
+        }
+      ],
+      "adapterKey": "finance_risk",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "finance",
+        "domain": "finance_risk",
+        "intent": "diagnosis",
+        "reason": "diagnosis_requires_analysis_skill",
+        "grounding": "db_skill",
+        "adapterKey": "finance_risk",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:finance:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-risk-alert-083",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "风险预警",
+      "sourceIndex": 83,
+      "persona": "manager",
+      "question": "这周预约爽约率高不高",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2642,
+      "conversationId": 13997,
+      "runId": 13996,
+      "answer": "爽约、超时、成本异常等风险诊断尚未接入真实口径，Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "diagnosis",
+        "reason": "risk_or_exception_requires_diagnosis",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "爽约、超时、成本异常等风险诊断尚未接入真实口径，Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "appointment_count",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-risk-alert-084",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "风险预警",
+      "sourceIndex": 84,
+      "persona": "manager",
+      "question": "有没有大额异常退款我不知道的",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2812,
+      "conversationId": 13999,
+      "runId": 13998,
+      "answer": "财务风险摘要：退款 0 笔，金额 0.00 元；优惠 0.00 元；毛利率暂无结算数据。风险：当前未发现明确财务预警。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_risk_summary",
+          "label": "财务风险摘要"
+        }
+      ],
+      "adapterKey": "finance_risk",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "finance",
+        "domain": "finance_risk",
+        "intent": "diagnosis",
+        "reason": "diagnosis_requires_analysis_skill",
+        "grounding": "db_skill",
+        "adapterKey": "finance_risk",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:finance:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-risk-alert-085",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "风险预警",
+      "sourceIndex": 85,
+      "persona": "manager",
+      "question": "店里设备最近有没有什么问题",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2042,
+      "conversationId": 14001,
+      "runId": 14000,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-risk-alert-086",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "风险预警",
+      "sourceIndex": 86,
+      "persona": "manager",
+      "question": "今天有没有超时服务影响了下一个预约",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2032,
+      "conversationId": 14003,
+      "runId": 14002,
+      "answer": "爽约、超时、成本异常等风险诊断尚未接入真实口径，Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "diagnosis",
+        "reason": "risk_or_exception_requires_diagnosis",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "爽约、超时、成本异常等风险诊断尚未接入真实口径，Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "appointment_count",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-risk-alert-087",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "风险预警",
+      "sourceIndex": 87,
+      "persona": "manager",
+      "question": "最近折扣幅度有没有超出正常范围的",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3182,
+      "conversationId": 14005,
+      "runId": 14004,
+      "answer": "财务风险摘要：退款 0 笔，金额 0.00 元；优惠 0.00 元；毛利率暂无结算数据。风险：当前未发现明确财务预警。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_risk_summary",
+          "label": "财务风险摘要"
+        }
+      ],
+      "adapterKey": "finance_risk",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "finance",
+        "domain": "finance_risk",
+        "intent": "diagnosis",
+        "reason": "strong_finance_diagnosis_phrase",
+        "grounding": "db_skill",
+        "adapterKey": "finance_risk",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:finance:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-risk-alert-088",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "风险预警",
+      "sourceIndex": 88,
+      "persona": "manager",
+      "question": "有没有员工在没有授权的情况下给了额外优惠",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 5575,
+      "conversationId": 14007,
+      "runId": 14006,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-risk-alert-089",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "风险预警",
+      "sourceIndex": 89,
+      "persona": "manager",
+      "question": "这个月利润率下降原因是什么",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3457,
+      "conversationId": 14008,
+      "runId": 14007,
+      "answer": "结论：已围绕“诊断利润下降原因并给出行动建议”完成 4 个子任务。\n归因：\n- finance：财务风险摘要：退款 0 笔，金额 0.00 元；优惠 23.30 元；毛利率 80.3%。风险：优惠金额 23.30 元，需要确认授权来源。\n- store_manager：本周经营概览：实收流水 4411.70 元，预约 3 个，活跃客户 4 人，毛利率 80.3%。风险：低库存：玻尿酸保湿精华。趋势诊断：P4 先返回当前周期事实摘要；跨天归因诊断进入 P5。\n- inventory：临期/过期库存清单：\n1. 舒缓修护面膜：剩余 97，到期日 2026-07-05，估算货值 0.00 元。\n临期库存金额 0.00 元。\n- marketing：门店促销活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。\n建议：优先处理已被多个角色共同指向的风险，再补齐缺失数据。\n行动：当前只提供分析和建议，涉及写操作时需要另行生成动作预览。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_risk_summary",
+          "label": "财务风险摘要"
+        },
+        {
+          "sourceType": "skill",
+          "sourceId": "store_manager_overview_summary",
+          "label": "店长经营概览"
+        },
+        {
+          "sourceType": "skill",
+          "sourceId": "inventory_risk_summary",
+          "label": "库存风险摘要"
+        },
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案"
+        }
+      ],
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "finance",
+        "domain": "finance_risk",
+        "intent": "diagnosis",
+        "reason": "diagnosis_requires_analysis_skill",
+        "grounding": "db_skill",
+        "adapterKey": "finance_risk",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:finance:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "comparison",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-risk-alert-090",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "风险预警",
+      "sourceIndex": 90,
+      "persona": "manager",
+      "question": "有没有客户最近投诉了但我还没处理",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3298,
+      "conversationId": 14009,
+      "runId": 14008,
+      "answer": "门店促销活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "template_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-risk-alert-091",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "风险预警",
+      "sourceIndex": 91,
+      "persona": "manager",
+      "question": "最近储值卡提现风险高不高",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2773,
+      "conversationId": 14010,
+      "runId": 14009,
+      "answer": "财务风险摘要：退款 0 笔，金额 0.00 元；优惠 0.00 元；毛利率暂无结算数据。风险：当前未发现明确财务预警。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_risk_summary",
+          "label": "财务风险摘要"
+        }
+      ],
+      "adapterKey": "finance_risk",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "finance",
+        "domain": "finance_risk",
+        "intent": "diagnosis",
+        "reason": "risk_or_exception_requires_diagnosis",
+        "grounding": "db_skill",
+        "adapterKey": "finance_risk",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:finance:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-risk-alert-092",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "风险预警",
+      "sourceIndex": 92,
+      "persona": "manager",
+      "question": "有没有次卡即将过期但客户还有很多余量",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2992,
+      "conversationId": 14011,
+      "runId": 14010,
+      "answer": "客户分层摘要：\n1. 客户总数 1252 人，VIP/高等级客户 581 人。\n2. 近 60 天未到店或无到店记录客户 767 人。\n3. 当前时间范围新增客户 1252 人。\n4. 卡项余额关注名单：\n1. 赵诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n2. 罗诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n3. 何思琪：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n4. 胡婉清：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n5. 罗美琳：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.8500000000000001,
+        "answerShape": "list",
+        "expectedMetric": "card_liability",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "diagnosis",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "card_liability",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-risk-alert-093",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "风险预警",
+      "sourceIndex": 93,
+      "persona": "manager",
+      "question": "今天有没有超过接待能力的情况",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 3042,
+      "conversationId": 14012,
+      "runId": 14011,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-risk-alert-094",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "风险预警",
+      "sourceIndex": 94,
+      "persona": "manager",
+      "question": "最近某个美容师的客户流失率异常高吗",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2838,
+      "conversationId": 14013,
+      "runId": 14012,
+      "answer": "60 天未到店客户名单：\n1. 刘思琪：累计消费 193085.00 元，到店 82 次，最近到店 2026-05-10\n2. 马语嫣：累计消费 192825.00 元，到店 168 次，最近到店 2026-04-19\n3. 刘婉清：累计消费 186301.00 元，到店 94 次，最近到店 2026-04-23\n4. 高美琳：累计消费 186059.00 元，到店 71 次，最近到店 2026-04-19\n5. 朱静怡：累计消费 180923.00 元，到店 171 次，最近到店 2026-05-11\n6. 周若兰：累计消费 175333.00 元，到店 200 次，最近到店 2026-05-09\n7. 王思琪：累计消费 174072.00 元，到店 83 次，最近到店 2026-05-02\n8. 朱若兰：累计消费 154844.00 元，到店 71 次，最近到店 2026-05-06\n9. 黄美琳：累计消费 145308.00 元，到店 103 次，最近到店 2026-04-26\n10. 吴梦瑶：累计消费 141561.00 元，到店 147 次，最近到店 2026-04-17",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "diagnosis",
+        "reason": "diagnosis_requires_analysis_skill",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-risk-alert-095",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "风险预警",
+      "sourceIndex": 95,
+      "persona": "manager",
+      "question": "有没有项目成本明显上涨影响毛利的",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3415,
+      "conversationId": 14014,
+      "runId": 14013,
+      "answer": "财务风险摘要：退款 0 笔，金额 0.00 元；优惠 0.00 元；毛利率暂无结算数据。风险：当前未发现明确财务预警。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "finance_risk_summary",
+          "label": "财务风险摘要"
+        }
+      ],
+      "adapterKey": "finance_risk",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "finance",
+        "domain": "finance_risk",
+        "intent": "diagnosis",
+        "reason": "risk_or_exception_requires_diagnosis",
+        "grounding": "db_skill",
+        "adapterKey": "finance_risk",
+        "confidence": 0.8500000000000001,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:finance:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-risk-alert-096",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "风险预警",
+      "sourceIndex": 96,
+      "persona": "manager",
+      "question": "最近有没有出现服务事故或皮肤过敏的情况",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 3052,
+      "conversationId": 14015,
+      "runId": 14014,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-risk-alert-097",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "风险预警",
+      "sourceIndex": 97,
+      "persona": "manager",
+      "question": "这个月有没有收到很多差评或负面反馈",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2416,
+      "conversationId": 14016,
+      "runId": 14015,
+      "answer": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "unknown",
+        "reason": "no_supported_question_intent_detected",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "unknown",
+        "unsupportedReason": "当前独立版 Ami Brain 已接入门店经营指标问答。请提问预约数、实收流水、复购率、毛利、会员卡负债、库存预警等已注册指标。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-risk-alert-098",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "风险预警",
+      "sourceIndex": 98,
+      "persona": "manager",
+      "question": "最近有没有员工离职带走客户的风险",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 3259,
+      "conversationId": 14017,
+      "runId": 14016,
+      "answer": "客户分层摘要：\n1. 客户总数 1252 人，VIP/高等级客户 581 人。\n2. 近 60 天未到店或无到店记录客户 767 人。\n3. 当前时间范围新增客户 1252 人。\n4. 卡项余额关注名单：\n1. 赵诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n2. 罗诗涵：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n3. 何思琪：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n4. 胡婉清：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。\n5. 罗美琳：综合养护 20 次卡 剩余 20 次，估算未履约 5980.00 元。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_customer_segment_summary",
+          "label": "营销客群摘要"
+        }
+      ],
+      "adapterKey": "marketing_growth",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "marketing",
+        "domain": "marketing_growth",
+        "intent": "list",
+        "reason": "list_question_requires_detail_shape",
+        "grounding": "db_skill",
+        "adapterKey": "marketing_growth",
+        "confidence": 0.8500000000000001,
+        "answerShape": "list",
+        "requiredPermissions": [
+          "core:marketing:create"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-manager-risk-alert-099",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "风险预警",
+      "sourceIndex": 99,
+      "persona": "manager",
+      "question": "店里消防安全检查需要做吗",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2573,
+      "conversationId": 14018,
+      "runId": 14017,
+      "answer": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+      "citations": [],
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "semantic_metric",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "none",
+        "confidence": 0.4,
+        "answerShape": "non_metric",
+        "unsupportedReason": "该问题需要方案、建议或模拟计算技能，当前独立版 Ami Brain 不会用单个指标替代回答。",
+        "requiredPermissions": []
+      },
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "legacyStatus": "not_usable",
+      "failureReason": "当前能力未覆盖该意图或未返回指标引用。"
+    },
+    {
+      "questionId": "qb-manager-risk-alert-100",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "风险预警",
+      "sourceIndex": 100,
+      "persona": "manager",
+      "question": "今天有没有需要我马上处理的紧急事项",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2631,
+      "conversationId": 14019,
+      "runId": 14018,
+      "answer": "今天经营概览：实收流水 0.00 元，预约 0 个，活跃客户 0 人，毛利率 0.0%。风险：低库存：玻尿酸保湿精华。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "store_manager_overview_summary",
+          "label": "店长经营概览"
+        }
+      ],
+      "adapterKey": "store_manager",
+      "grounding": "db_skill",
+      "routePlan": {
+        "role": "store_manager",
+        "domain": "store_operation",
+        "intent": "recommendation",
+        "reason": "advice_or_simulation_requires_skill",
+        "grounding": "template_skill",
+        "adapterKey": "store_manager",
+        "confidence": 0.95,
+        "answerShape": "non_metric",
+        "requiredPermissions": [
+          "core:dashboard:view"
+        ]
+      },
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "diagnosis",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "legacyStatus": "not_usable"
+    }
+  ]
+}

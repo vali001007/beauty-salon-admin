@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-07-18T16:14:03.897Z",
+  "identity": {
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-eval-run-2026-07-18-model-driven-r247-marketing-strategy-execution-preview\\marketing-strategy-execution-preview-cases.json",
+    "storeId": 6,
+    "evaluationRoleKey": "persona",
+    "releaseFingerprint": "131893fb9f967e9fb0b49fcf9e918a4b9a54d34d63a6e0d25b4bac6062bbf2b6"
+  },
+  "records": [
+    {
+      "questionId": "paraphrase-marketing-strategy-execution-preview",
+      "sourceSection": "模型驱动同义改写门禁",
+      "sourceCategory": "action",
+      "sourceIndex": 1,
+      "persona": "manager",
+      "question": "执行自动触达策略 AMI-DEMO-FULL 沉睡客户唤醒策略",
+      "status": "provider_unavailable",
+      "brainStatus": "failed",
+      "latencyMs": 33364,
+      "conversationId": 26384,
+      "runId": 26371,
+      "answer": "当前无法理解该问题，请换一种清晰表述后重试。",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "executionPath": "model_unavailable",
+      "modelStage": "compile",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "metric_failed",
+        "expectedIntent": "action",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "语义问数链路执行失败。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "action",
+        "answerShape": "action_preview",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "requiresPreview": true
+        },
+        "brainStatuses": [
+          "completed"
+        ],
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "card_usage_action_preview",
+          "customer_follow_up_draft",
+          "gap_fill_touch_preview",
+          "marketing_strategy_execute_preview",
+          "marketing_touch_draft",
+          "reservation_action_preview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "card_usage_action_preview",
+          "customer_follow_up_draft",
+          "gap_fill_touch_preview",
+          "marketing_strategy_execute_preview",
+          "marketing_touch_draft",
+          "reservation_action_preview"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0,
+          "checked": 2,
+          "failures": [
+            "intent_mismatch",
+            "answer_shape_mismatch"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_any_of_missing:card_usage_action_preview|customer_follow_up_draft|gap_fill_touch_preview|marketing_strategy_execute_preview|marketing_touch_draft|reservation_action_preview"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": false,
+          "score": 0.5,
+          "checked": 2,
+          "failures": [
+            "plan_preview_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "brain_status:failed"
+          ],
+          "deterministicFailure": true
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0,
+          "checked": 3,
+          "failures": [
+            "brain_status:failed",
+            "completion_grounding_missing",
+            "completion_action_preview_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "metric_failed"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "infrastructure:provider_unavailable"
+    }
+  ]
+}

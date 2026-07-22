@@ -7,10 +7,10 @@ import { deductStockItems } from '../common/inventory-stock-deduction.js';
 import { OrderRefundService } from './refund/order-refund.service.js';
 import { RefundInventoryReversalService } from './refund/refund-inventory-reversal.service.js';
 import type { CreateOrderRefundInput, OrderRefundMode } from './refund/refund.types.js';
+import { MarketingAttributionService } from '../marketing/attribution/marketing-attribution.service.js';
 
 @Injectable()
 export class OrdersService {
-  private readonly MARKETING_PAGE_ATTRIBUTION_WINDOW_DAYS = 30;
   private readonly orderItemInclude = {
     beautician: { select: { id: true, name: true } },
   };
@@ -21,6 +21,7 @@ export class OrdersService {
     private discountAllocationService: DiscountAllocationService = new DiscountAllocationService(),
     private orderRefundService: OrderRefundService = new OrderRefundService(),
     private refundInventoryReversalService: RefundInventoryReversalService = new RefundInventoryReversalService(),
+    private marketingAttributionService?: MarketingAttributionService,
   ) {}
 
   private toNumber(value: unknown): number {
@@ -198,6 +199,8 @@ export class OrdersService {
         isGift: Boolean(item.isGift),
         eligibleForOrderDiscount: item.eligibleForOrderDiscount,
         beauticianId: this.toNumber(item.beauticianId) || undefined,
+        reservationId: this.toNumber(item.reservationId) || undefined,
+        serviceTaskId: this.toNumber(item.serviceTaskId) || undefined,
         payload: item,
       };
     });
@@ -640,9 +643,19 @@ export class OrdersService {
   private async refreshDailySettlementForOrder(order: any, source: string) {
     const storeId = this.toNumber(order?.storeId);
     if (!storeId || !['completed', 'paid', 'partially_refunded', 'refunded'].includes(String(order?.status))) return;
-    if (typeof this.commissionService?.generateDailySettlement !== 'function') return;
+    const refundRecords = Array.isArray(order?.refundRecords) ? order.refundRecords : [];
+    const latestRefund = [...refundRecords].sort((a: any, b: any) => new Date(b.refundedAt ?? b.createdAt).getTime() - new Date(a.refundedAt ?? a.createdAt).getTime())[0];
+    const paymentRecords = Array.isArray(order?.paymentRecords) ? order.paymentRecords : [];
+    const latestPayment = [...paymentRecords].sort((a: any, b: any) => new Date(b.paidAt ?? b.createdAt).getTime() - new Date(a.paidAt ?? a.createdAt).getTime())[0];
+    const occurredAt = source.includes('refund')
+      ? order?.refund?.refundedAt ?? latestRefund?.refundedAt ?? latestRefund?.createdAt ?? order?.updatedAt ?? new Date()
+      : latestPayment?.paidAt ?? latestPayment?.createdAt ?? order?.updatedAt ?? order?.createdAt ?? new Date();
     try {
-      await this.commissionService.generateDailySettlement(storeId, order.createdAt ?? new Date());
+      if (typeof this.commissionService?.refreshDailySettlementForFact === 'function') {
+        await this.commissionService.refreshDailySettlementForFact(storeId, occurredAt, source);
+      } else if (typeof this.commissionService?.generateDailySettlement === 'function') {
+        await this.commissionService.generateDailySettlement(storeId, occurredAt);
+      }
     } catch (error) {
       console.warn(`Daily settlement refresh failed after ${source}`, error);
     }
@@ -746,155 +759,19 @@ export class OrdersService {
     return tx.customer.findFirst({ where, orderBy: { updatedAt: 'desc' } });
   }
 
-  private async applyMarketingAttribution(tx: any, order: { id: number; customerId?: number | null }, amount: number) {
-    if (!order.customerId || amount <= 0) return;
-
-    const existed = await tx.marketingAttribution.findFirst({
-      where: { orderId: order.id },
-      select: { id: true },
-    });
-    if (existed) return;
-
-    const touches = await tx.marketingAutomationTouch.findMany({
-      where: {
-        customerId: order.customerId,
-        touchedAt: { lte: new Date() },
-        status: { in: ['sent', 'delivered', 'opened', 'clicked', 'converted'] },
-      },
-      orderBy: { touchedAt: 'desc' },
-      take: 10,
-    });
-
-    const now = new Date();
-    const touch = touches.find((item: any) => {
-      const windowDays = Number(item.attributionWindowDays ?? 30);
-      return item.touchedAt.getTime() >= now.getTime() - windowDays * 86400000;
-    });
-    if (!touch) return;
-
-    await tx.marketingAttribution.create({
-      data: {
-        touchId: touch.id,
-        strategyId: touch.strategyId,
-        executionId: touch.executionId,
-        customerId: order.customerId,
-        orderId: order.id,
-        attributionType: 'last_touch',
-        attributedRevenue: amount,
-        attributionWindowDays: touch.attributionWindowDays ?? 30,
-        occurredAt: now,
-      },
-    });
-
-    await tx.marketingAutomationTouch.update({
-      where: { id: touch.id },
-      data: {
-        status: 'converted',
-        convertedAt: now,
-        conversionType: 'order',
-        actualRevenue: { increment: amount },
-      },
-    });
-
-    const category =
-      String(touch.conversionType ?? touch.metadata?.category ?? touch.metadata?.strategyType ?? '')
-        .toLowerCase()
-        .includes('churn')
-        ? 'churn_recovery'
-        : 'marketing_conversion';
-    await this.commissionService.recordAmiContribution(
-      {
-        storeId: this.toNumber((order as any).storeId),
-        category,
-        triggerType: 'automation',
-        triggerId: touch.id,
-        customerId: order.customerId,
-        orderId: order.id,
-        revenueAmount: amount,
-        metadata: {
-          strategyId: touch.strategyId,
-          executionId: touch.executionId,
-          attributionWindowDays: touch.attributionWindowDays ?? 30,
-        },
-      },
-      tx,
-    );
+  private async applyMarketingAttribution(tx: any, order: { id: number; storeId?: number | null; customerId?: number | null }, amount: number) {
+    if (!order.storeId || !order.customerId || amount <= 0) return;
+    return this.marketingAttributionService?.attributeOrder({
+      storeId: Number(order.storeId),
+      orderId: order.id,
+      customerId: order.customerId,
+      netRevenue: amount,
+    }, tx);
   }
 
-  private async applyMarketingPageAttribution(tx: any, order: { id: number; customerId?: number | null }, amount: number) {
-    if (!order.customerId || amount <= 0) return;
-    if (!tx.marketingPageLead || !tx.marketingPageAttribution) return;
-
-    try {
-      const existed = await tx.marketingPageAttribution.findFirst({
-        where: { orderId: order.id },
-        select: { id: true },
-      });
-      if (existed) return;
-
-      const now = new Date();
-      const windowStart = new Date(now.getTime() - this.MARKETING_PAGE_ATTRIBUTION_WINDOW_DAYS * 86400000);
-      const eligibleLeads = await tx.marketingPageLead.findMany({
-        where: {
-          customerId: order.customerId,
-          status: { not: 'expired' },
-          createdAt: { gte: windowStart },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-      });
-      const lastLead = eligibleLeads[0];
-      if (!lastLead) return;
-
-      const duplicated = await tx.marketingPageAttribution.findFirst({
-        where: { leadId: lastLead.id, orderId: order.id },
-        select: { id: true },
-      });
-      if (duplicated) return;
-
-      await tx.marketingPageAttribution.create({
-        data: {
-          leadId: lastLead.id,
-          pageId: lastLead.pageId,
-          customerId: order.customerId,
-          orderId: order.id,
-          attributionType: 'last_touch',
-          attributedRevenue: amount,
-          attributionWindowDays: this.MARKETING_PAGE_ATTRIBUTION_WINDOW_DAYS,
-          touchedAt: lastLead.createdAt,
-          convertedAt: now,
-        },
-      });
-
-      await tx.marketingPageLead.update({
-        where: { id: lastLead.id },
-        data: { status: 'converted', convertedAt: now },
-      });
-    } catch (error) {
-      console.warn('营销页面归因写入失败', error);
-    }
-  }
-
-  private async reverseMarketingAttribution(tx: any, orderId: number, refundAmount: number) {
-    if (refundAmount <= 0) return;
-
-    const attributions = await tx.marketingAttribution.findMany({
-      where: { orderId },
-      include: { touch: true },
-    });
-
-    for (const attribution of attributions) {
-      const nextRevenue = Math.max(0, this.toNumber(attribution.attributedRevenue) - refundAmount);
-      const nextTouchRevenue = Math.max(0, this.toNumber(attribution.touch.actualRevenue) - refundAmount);
-      await tx.marketingAttribution.update({
-        where: { id: attribution.id },
-        data: { attributedRevenue: nextRevenue },
-      });
-      await tx.marketingAutomationTouch.update({
-        where: { id: attribution.touchId },
-        data: { actualRevenue: nextTouchRevenue },
-      });
-    }
+  private async reverseMarketingAttribution(tx: any, orderId: number, refundAmount: number, refundId?: number, storeId?: number) {
+    if (refundAmount <= 0 || !refundId || !storeId) return;
+    return this.marketingAttributionService?.reverseOrder({ storeId, orderId, refundId, refundAmount }, tx);
   }
 
   private async deductMemberBalanceForOrder(tx: any, order: any, amount: number, remark?: string) {
@@ -1487,6 +1364,7 @@ export class OrdersService {
     const totalAmount = allocation.order.netAmount;
     const status = this.normalizeOrderStatus(data.status);
     const payMethod = this.normalizePaymentMethod(data.payMethod ?? data.paymentMethod);
+    const directRecognitionAt = this.isPaidLikeStatus(status) ? (data.paidAt ? new Date(data.paidAt) : new Date()) : undefined;
 
     const execute = async (tx: any) => {
       const customer = await this.resolveOrderCustomer(tx, data);
@@ -1543,6 +1421,18 @@ export class OrdersService {
             isGift: item.isGift,
             eligibleForOrderDiscount: item.eligibleForOrderDiscount,
             beauticianId: this.toNumber(item.beauticianId ?? data.beauticianId) || undefined,
+            reservationId: this.toNumber(item.reservationId ?? data.reservationId) || undefined,
+            serviceTaskId: this.toNumber(item.serviceTaskId ?? data.serviceTaskId ?? data.taskId) || undefined,
+            recognizedAt:
+              String(item.itemType).toLowerCase() === 'project' && data.serviceCompletedAt
+                ? new Date(data.serviceCompletedAt)
+                : directRecognitionAt,
+            recognitionSource:
+              String(item.itemType).toLowerCase() === 'project' && data.serviceCompletedAt
+                ? 'service_task_completed'
+                : directRecognitionAt
+                  ? 'direct_payment'
+                  : undefined,
             payload: item.payload,
           })),
         });
@@ -1572,7 +1462,7 @@ export class OrdersService {
             amount: payment.amount,
             status: 'success',
             transactionNo: payment.transactionNo ?? data.transactionNo,
-            paidAt: data.paidAt ? new Date(data.paidAt) : new Date(),
+            paidAt: directRecognitionAt ?? new Date(),
           })),
         });
 
@@ -1587,7 +1477,6 @@ export class OrdersService {
           });
         }
         await this.applyMarketingAttribution(tx, order, totalAmount);
-        await this.applyMarketingPageAttribution(tx, order, totalAmount);
         await this.calculateOrderCommissionIfNeeded(tx, order, data);
       }
 
@@ -1650,6 +1539,8 @@ export class OrdersService {
 
       const order = await tx.productOrder.update({ where: { id }, data: updateData });
       const orderItems = items ? await this.attachProductCostSnapshots(tx, this.toNumber(order.storeId) || undefined, items) : undefined;
+      const paidLike = this.isPaidLikeStatus(this.normalizeOrderStatus(data.status ?? order.status));
+      const directRecognitionAt = paidLike ? (data.paidAt ? new Date(data.paidAt) : new Date()) : undefined;
 
       if (orderItems) {
         await tx.orderItem.deleteMany({ where: { orderId: id } });
@@ -1674,18 +1565,21 @@ export class OrdersService {
               discountPayload: item.discountPayload,
               isGift: item.isGift,
               eligibleForOrderDiscount: item.eligibleForOrderDiscount,
+              recognizedAt: directRecognitionAt,
+              recognitionSource: directRecognitionAt ? 'direct_payment' : undefined,
               payload: item.payload,
             })),
           });
         }
       }
 
-      if (this.isPaidLikeStatus(this.normalizeOrderStatus(data.status ?? order.status))) {
+      if (paidLike) {
         const orderItemsForConsumption = orderItems ?? (await tx.orderItem.findMany({ where: { orderId: id } }));
         await this.consumeProductItemsForOrder(tx, order, orderItemsForConsumption, data.remark ?? order.remark);
         await this.consumeProjectBomForOrder(tx, order, orderItemsForConsumption, data.remark ?? order.remark);
 
         const paid = await tx.paymentRecord.findFirst({ where: { orderId: id, status: 'success' } });
+        const recognizedAt = paid?.paidAt ?? directRecognitionAt ?? new Date();
         if (!paid) {
           const amount = this.toNumber(data.paidAmount ?? order.totalAmount);
           await tx.paymentRecord.create({
@@ -1696,11 +1590,16 @@ export class OrdersService {
               amount,
               status: 'success',
               transactionNo: data.transactionNo,
-              paidAt: new Date(),
+              paidAt: recognizedAt,
             },
           });
           await this.applyMarketingAttribution(tx, order, amount);
-          await this.applyMarketingPageAttribution(tx, order, amount);
+        }
+        if (tx.orderItem.updateMany) {
+          await tx.orderItem.updateMany({
+            where: { orderId: id, recognizedAt: null },
+            data: { recognizedAt, recognitionSource: 'direct_payment' },
+          });
         }
       }
 
@@ -1886,8 +1785,13 @@ export class OrdersService {
         await tx.customer.update({ where: { id: updated.customerId }, data: { totalSpent: { decrement: amount } } });
       }
       await this.restoreMemberBalanceForOrderRefund(tx, order, amount, preview.netAmount, preview.remainingRefundableAmount, reason);
-      await this.reverseMarketingAttribution(tx, id, amount);
-      await this.commissionService.reverseOrderCommissions(id, amount, tx);
+      await this.reverseMarketingAttribution(tx, id, amount, refundRecord?.id, Number(order.storeId));
+      await this.commissionService.reverseOrderCommissions(
+        id,
+        amount,
+        tx,
+        refundItems.map((item: any) => ({ orderItemId: item.orderItemId, refundAmount: item.refundAmount })),
+      );
       const refreshed = await tx.productOrder.findUnique({ where: { id }, include: this.refundOrderInclude() as any });
       return { order: refreshed ?? updated, refund: refundRecord, refundItems, inventoryMovements, remainingRefundableAmount: this.round(Math.max(0, preview.netAmount - refundedAfter)) };
     };
@@ -2162,6 +2066,7 @@ export class OrdersService {
       const giftBalanceBefore = this.toNumber(account.giftBalance);
       const cashBalanceAfter = cashBalanceBefore + rechargeAmount;
       const giftBalanceAfter = giftBalanceBefore + giftAmount;
+      const paidAt = new Date();
 
       const order = await tx.productOrder.create({
         data: {
@@ -2203,6 +2108,8 @@ export class OrdersService {
           isGift: false,
           eligibleForOrderDiscount: false,
           beauticianId: this.toNumber(data.beauticianId) || undefined,
+          recognizedAt: paidAt,
+          recognitionSource: 'prepaid_payment',
           payload: { giftAmount, giftProjects, remark: data.remark },
         },
       });
@@ -2230,7 +2137,7 @@ export class OrdersService {
           amount: rechargeAmount,
           status: 'success',
           transactionNo: data.transactionNo,
-          paidAt: new Date(),
+          paidAt,
         },
       });
 
@@ -2273,7 +2180,6 @@ export class OrdersService {
       });
 
       await this.applyMarketingAttribution(tx, order, rechargeAmount);
-      await this.applyMarketingPageAttribution(tx, order, rechargeAmount);
       await this.calculateOrderCommissionIfNeeded(tx, order, data);
       return { account: updatedAccount, order, balanceTransaction };
     }, { timeout: 20000 });
@@ -2435,7 +2341,7 @@ export class OrdersService {
         const orderRefundable = this.round(Math.max(0, orderAmount - existingRefundAmount));
         if (orderRefundable <= 0) continue;
         const allocatedRefund = this.round(Math.min(remainingRefund, orderRefundable));
-        await tx.refundRecord.create({
+        const marketingRefundRecord = await tx.refundRecord.create({
           data: {
             orderId: order.id,
             refundNo: this.createRefundNo(),
@@ -2452,7 +2358,13 @@ export class OrdersService {
           where: { id: order.id },
           data: { status: 'refunded', remark: data.remark ?? '会员卡余额退款' },
         });
-        await this.reverseMarketingAttribution(tx, order.id, allocatedRefund);
+        await this.reverseMarketingAttribution(
+          tx,
+          order.id,
+          allocatedRefund,
+          marketingRefundRecord?.id,
+          Number(order.storeId ?? account.storeId),
+        );
         await this.commissionService.reverseOrderCommissions(order.id, allocatedRefund, tx);
         refundedOrderIds.add(order.id);
         remainingRefund = this.round(remainingRefund - allocatedRefund);
@@ -2636,9 +2548,13 @@ export class OrdersService {
           pricingSnapshot,
           expiryDate,
           status: data.status ?? 'active',
+          saleType: data.saleType ?? (data.renewedFromCustomerCardId ? 'renewal' : 'new'),
+          renewedFromCustomerCardId: this.toNumber(data.renewedFromCustomerCardId) || undefined,
+          activatedAt: data.activatedAt ? new Date(data.activatedAt) : new Date(),
         },
       });
 
+      const paidAt = new Date();
       const order = await tx.productOrder.create({
         data: {
           orderNo: `CO${Date.now().toString(36).toUpperCase()}`,
@@ -2682,6 +2598,10 @@ export class OrdersService {
           isGift: false,
           eligibleForOrderDiscount: true,
           beauticianId: this.toNumber(data.beauticianId) || undefined,
+          reservationId: this.toNumber(data.reservationId) || undefined,
+          serviceTaskId: this.toNumber(data.serviceTaskId ?? data.taskId) || undefined,
+          recognizedAt: paidAt,
+          recognitionSource: 'prepaid_payment',
           payload: { cardName: card.name, totalTimes, expiryDate: expiryDate.toISOString(), giftProjects },
         },
       });
@@ -2702,7 +2622,7 @@ export class OrdersService {
           amount,
           status: 'success',
           transactionNo: data.transactionNo,
-          paidAt: new Date(),
+          paidAt,
         },
       });
       if (payMethod === 'member_balance' && amount > 0) {
@@ -2719,7 +2639,6 @@ export class OrdersService {
       });
 
       await this.applyMarketingAttribution(tx, order, amount);
-      await this.applyMarketingPageAttribution(tx, order, amount);
       return { customerCard: { ...customerCard, sourceOrderId: order.id, sourceOrderItemId: orderItem.id }, order };
     });
 
@@ -3033,7 +2952,13 @@ export class OrdersService {
           where: { id: sourceOrderId },
           data: { status: 'refunded', remark: reason },
         });
-        await this.reverseMarketingAttribution(tx, sourceOrderId, refundAmount);
+        await this.reverseMarketingAttribution(
+          tx,
+          sourceOrderId,
+          refundAmount,
+          refundRecord?.id,
+          Number(refundSourceOrder?.storeId ?? item.card?.storeId),
+        );
         await this.commissionService.reverseOrderCommissions(sourceOrderId, refundAmount, tx);
       }
       if (item.customerId && refundAmount > 0) {

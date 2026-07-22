@@ -1,0 +1,1431 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-15T08:05:32.240Z",
+    "startedAt": "2026-07-15T08:05:07.820Z",
+    "finishedAt": "2026-07-15T08:05:32.240Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\agent-eval-questions.md",
+    "questionCount": 10,
+    "actualRunCount": 10,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "releaseId": 84,
+    "releaseSnapshot": {
+      "releaseFingerprint": "410b0ebc3776fbc2cabe5c5f63a906327753c7a1e77d93d35020f411461bd5b4",
+      "declaredMode": "shadow",
+      "resourceVersionIds": [
+        57,
+        58,
+        59,
+        60,
+        61,
+        62
+      ],
+      "capabilityKeys": [
+        "customer_priority_recommendation",
+        "inventory_risk_ranking",
+        "order_revenue_analysis",
+        "product_sales_ranking",
+        "project_service_ranking",
+        "staff_performance_ranking"
+      ]
+    },
+    "candidateSkillsEnabledForEval": true,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "permissionSource": "active_backend_role_catalog",
+    "evaluationRoleKeys": [
+      "store_manager"
+    ],
+    "permissionCatalogRoleKeys": [
+      "ami_demo_full_beautician",
+      "ami_demo_full_cashier",
+      "ami_demo_full_manager",
+      "beautician",
+      "cashier",
+      "store_manager",
+      "super_admin"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。",
+      "sixLayerGate": "意图、工具、计划、执行、完成度、答案六层必须全部通过；确定性失败不可被 LLM Judge 覆盖。"
+    }
+  },
+  "summary": {
+    "total": 10,
+    "legacyUsableWithCitation": 0,
+    "legacyUsableRate": 0,
+    "trueUsable": 0,
+    "trueUsableRate": 0,
+    "byStatus": [
+      {
+        "key": "unsupported_intent",
+        "total": 6,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 6,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      },
+      {
+        "key": "metric_failed",
+        "total": 4,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 4,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "manager",
+        "total": 10,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 4,
+        "unsupportedIntent": 6,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "经营概览",
+        "total": 10,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 4,
+        "unsupportedIntent": 6,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [
+      {
+        "reason": "intent:domain_missing:store_operation",
+        "count": 6
+      },
+      {
+        "reason": "intent:intent_mismatch",
+        "count": 4
+      }
+    ],
+    "securityGate": {
+      "permissionBypassCount": 0,
+      "crossStoreReadCount": 0,
+      "roleHintBypassCount": 0,
+      "fakeActionConfirmationCount": 0
+    },
+    "grounding": {
+      "metricQueryCount": 1,
+      "dbSkillCount": 1,
+      "templateSkillCount": 0,
+      "previewActionCount": 0,
+      "noneCount": 8
+    },
+    "adapterDistribution": [
+      {
+        "reason": "none",
+        "count": 10
+      }
+    ],
+    "domainDistribution": [
+      {
+        "reason": "none",
+        "count": 4
+      },
+      {
+        "reason": "payment",
+        "count": 4
+      },
+      {
+        "reason": "product_order",
+        "count": 3
+      },
+      {
+        "reason": "beautician",
+        "count": 1
+      },
+      {
+        "reason": "customer",
+        "count": 1
+      },
+      {
+        "reason": "reservation",
+        "count": 1
+      }
+    ],
+    "capabilityDistribution": [
+      {
+        "reason": "none",
+        "count": 8
+      },
+      {
+        "reason": "order_revenue_analysis",
+        "count": 2
+      }
+    ],
+    "sixLayer": {
+      "intent": {
+        "total": 10,
+        "passed": 0,
+        "passRate": 0,
+        "averageScore": 0.26666666666666666
+      },
+      "tool": {
+        "total": 10,
+        "passed": 2,
+        "passRate": 0.2,
+        "averageScore": 0.2
+      },
+      "plan": {
+        "total": 10,
+        "passed": 2,
+        "passRate": 0.2,
+        "averageScore": 0.7166666666666667
+      },
+      "execution": {
+        "total": 10,
+        "passed": 6,
+        "passRate": 0.6,
+        "averageScore": 0.6
+      },
+      "completion": {
+        "total": 10,
+        "passed": 2,
+        "passRate": 0.2,
+        "averageScore": 0.4
+      },
+      "answer": {
+        "total": 10,
+        "passed": 0,
+        "passRate": 0,
+        "averageScore": 0
+      }
+    },
+    "latency": {
+      "avgMs": 8919,
+      "p95Ms": 16227,
+      "maxMs": 16227
+    },
+    "baselineComparison": {
+      "baselinePath": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-eval-run-2026-07-10\\ami-brain-eval-results-2026-07-10.json",
+      "rows": [
+        {
+          "metric": "旧口径可用率",
+          "baseline": "15.5%",
+          "current": "0.0%"
+        },
+        {
+          "metric": "真实可用率",
+          "baseline": "3.7%",
+          "current": "0.0%"
+        },
+        {
+          "metric": "假阳性数",
+          "baseline": "77",
+          "current": "0"
+        },
+        {
+          "metric": "时间误退化全量数",
+          "baseline": "12",
+          "current": "0"
+        },
+        {
+          "metric": "文案/操作误命中指标数",
+          "baseline": "21",
+          "current": "0"
+        }
+      ]
+    }
+  },
+  "records": [
+    {
+      "questionId": "qb-manager-business-overview-001",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 1,
+      "persona": "manager",
+      "question": "今天店里情况怎么样，给我来个总结",
+      "status": "metric_failed",
+      "brainStatus": "failed",
+      "latencyMs": 16227,
+      "conversationId": 19498,
+      "runId": 19469,
+      "answer": "当前无法生成受控复合计划，本次未执行查询。",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "grader": {
+        "status": "metric_failed",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "语义问数链路执行失败。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [
+          "store_operation"
+        ],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [
+          "store.operations.overview"
+        ],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0,
+          "checked": 2,
+          "failures": [
+            "intent_mismatch",
+            "domain_missing:store_operation"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_missing:store.operations.overview"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": false,
+          "score": 0.6666666666666666,
+          "checked": 3,
+          "failures": [
+            "plan_nodes_below:1"
+          ],
+          "deterministicFailure": true
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "brain_status:failed"
+          ],
+          "deterministicFailure": true
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0,
+          "checked": 2,
+          "failures": [
+            "brain_status:failed",
+            "completion_grounding_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "metric_failed"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "intent:intent_mismatch"
+    },
+    {
+      "questionId": "qb-manager-business-overview-002",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 2,
+      "persona": "manager",
+      "question": "今天营业额到多少了",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 8194,
+      "conversationId": 19499,
+      "runId": 19470,
+      "answer": "已完成经营任务，结构化结果见下方。",
+      "citations": [
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.paid_amount@4",
+          "label": "业务定义：实收金额",
+          "definition": "指定周期内当前门店支付成功记录的实收金额。"
+        }
+      ],
+      "domains": [
+        "payment"
+      ],
+      "capabilityKeys": [
+        "order_revenue_analysis"
+      ],
+      "grounding": "metric_query",
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "metric_query",
+        "actualIntent": "unknown",
+        "expectedShape": "scalar_metric",
+        "actualShape": "non_metric",
+        "expectedMetric": "paid_revenue",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [
+          "store_operation"
+        ],
+        "entities": [],
+        "metrics": [
+          "paid_revenue"
+        ],
+        "dimensions": [],
+        "capabilityKeys": [
+          "store.operations.overview"
+        ],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0.3333333333333333,
+          "checked": 3,
+          "failures": [
+            "domain_missing:store_operation",
+            "metric_missing:paid_revenue"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "unsupported_intent"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "intent:domain_missing:store_operation"
+    },
+    {
+      "questionId": "qb-manager-business-overview-003",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 3,
+      "persona": "manager",
+      "question": "今天来了几个客人，现在还有几个在店",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 6907,
+      "conversationId": 19501,
+      "runId": 19472,
+      "answer": "请补充业务对象、指标或时间范围。",
+      "citations": [],
+      "domains": [
+        "customer",
+        "reservation"
+      ],
+      "capabilityKeys": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [
+          "store_operation"
+        ],
+        "entities": [
+          "customer"
+        ],
+        "metrics": [],
+        "dimensions": [
+          "customer"
+        ],
+        "capabilityKeys": [
+          "store.operations.overview"
+        ],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0.5,
+          "checked": 4,
+          "failures": [
+            "domain_missing:store_operation",
+            "dimension_missing:customer"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_missing:store.operations.overview"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": false,
+          "score": 0.6666666666666666,
+          "checked": 3,
+          "failures": [
+            "plan_nodes_below:1"
+          ],
+          "deterministicFailure": true
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0.5,
+          "checked": 2,
+          "failures": [
+            "completion_grounding_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "unsupported_intent"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "intent:domain_missing:store_operation"
+    },
+    {
+      "questionId": "qb-manager-business-overview-004",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 4,
+      "persona": "manager",
+      "question": "今天和昨天比营业额差多少",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 12406,
+      "conversationId": 19500,
+      "runId": 19471,
+      "answer": "已完成经营任务，结构化结果见下方。",
+      "citations": [
+        {
+          "sourceType": "business_definition",
+          "sourceId": "metric.paid_amount@4",
+          "label": "业务定义：实收金额",
+          "definition": "指定周期内当前门店支付成功记录的实收金额。"
+        }
+      ],
+      "domains": [
+        "payment",
+        "product_order"
+      ],
+      "capabilityKeys": [
+        "order_revenue_analysis"
+      ],
+      "grounding": "db_skill",
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "comparison",
+        "actualIntent": "unknown",
+        "expectedShape": "comparison",
+        "actualShape": "non_metric",
+        "expectedMetric": "paid_revenue",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "comparison",
+        "domains": [
+          "store_operation"
+        ],
+        "entities": [],
+        "metrics": [
+          "paid_revenue"
+        ],
+        "dimensions": [
+          "date"
+        ],
+        "capabilityKeys": [
+          "store.operations.overview"
+        ],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0.25,
+          "checked": 4,
+          "failures": [
+            "domain_missing:store_operation",
+            "metric_missing:paid_revenue",
+            "dimension_missing:date"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 2,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "unsupported_intent"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "intent:domain_missing:store_operation"
+    },
+    {
+      "questionId": "qb-manager-business-overview-005",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 5,
+      "persona": "manager",
+      "question": "本周跟上周比，哪天差距最大",
+      "status": "metric_failed",
+      "brainStatus": "failed",
+      "latencyMs": 5161,
+      "conversationId": 19502,
+      "runId": 19473,
+      "answer": "当前问题未通过业务定义校验，请补充业务对象、指标或时间范围。",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "grader": {
+        "status": "metric_failed",
+        "expectedIntent": "comparison",
+        "actualIntent": "unknown",
+        "expectedShape": "comparison",
+        "actualShape": "non_metric",
+        "reason": "语义问数链路执行失败。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "comparison",
+        "domains": [
+          "store_operation"
+        ],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [
+          "date"
+        ],
+        "capabilityKeys": [
+          "store.operations.overview"
+        ],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0,
+          "checked": 3,
+          "failures": [
+            "intent_mismatch",
+            "domain_missing:store_operation",
+            "dimension_missing:date"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_missing:store.operations.overview"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": false,
+          "score": 0.6666666666666666,
+          "checked": 3,
+          "failures": [
+            "plan_nodes_below:1"
+          ],
+          "deterministicFailure": true
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "brain_status:failed"
+          ],
+          "deterministicFailure": true
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0,
+          "checked": 2,
+          "failures": [
+            "brain_status:failed",
+            "completion_grounding_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "metric_failed"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "intent:intent_mismatch"
+    },
+    {
+      "questionId": "qb-manager-business-overview-006",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 6,
+      "persona": "manager",
+      "question": "这个月目标完成率多少了，还差多远",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 6888,
+      "conversationId": 19503,
+      "runId": 19474,
+      "answer": "请补充业务对象、指标或时间范围。",
+      "citations": [],
+      "domains": [
+        "payment",
+        "product_order"
+      ],
+      "capabilityKeys": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [
+          "store_operation"
+        ],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [
+          "store.operations.overview"
+        ],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0.5,
+          "checked": 2,
+          "failures": [
+            "domain_missing:store_operation"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_missing:store.operations.overview"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": false,
+          "score": 0.6666666666666666,
+          "checked": 3,
+          "failures": [
+            "plan_nodes_below:1"
+          ],
+          "deterministicFailure": true
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0.5,
+          "checked": 2,
+          "failures": [
+            "completion_grounding_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "unsupported_intent"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "intent:domain_missing:store_operation"
+    },
+    {
+      "questionId": "qb-manager-business-overview-007",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 7,
+      "persona": "manager",
+      "question": "今天客单价多少，跟平时比怎么样",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 6837,
+      "conversationId": 19504,
+      "runId": 19475,
+      "answer": "请补充业务对象、指标或时间范围。",
+      "citations": [],
+      "domains": [
+        "payment",
+        "product_order"
+      ],
+      "capabilityKeys": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "recommendation",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "comparison",
+        "domains": [
+          "store_operation"
+        ],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [
+          "date"
+        ],
+        "capabilityKeys": [
+          "store.operations.overview"
+        ],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0.3333333333333333,
+          "checked": 3,
+          "failures": [
+            "domain_missing:store_operation",
+            "dimension_missing:date"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_missing:store.operations.overview"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": false,
+          "score": 0.6666666666666666,
+          "checked": 3,
+          "failures": [
+            "plan_nodes_below:1"
+          ],
+          "deterministicFailure": true
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0.5,
+          "checked": 2,
+          "failures": [
+            "completion_grounding_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "unsupported_intent"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "intent:domain_missing:store_operation"
+    },
+    {
+      "questionId": "qb-manager-business-overview-008",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 8,
+      "persona": "manager",
+      "question": "今天有没有什么异常情况我需要知道",
+      "status": "metric_failed",
+      "brainStatus": "failed",
+      "latencyMs": 11204,
+      "conversationId": 19505,
+      "runId": 19476,
+      "answer": "当前无法生成受控复合计划，本次未执行查询。",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "grader": {
+        "status": "metric_failed",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "语义问数链路执行失败。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "diagnosis",
+        "domains": [
+          "store_operation"
+        ],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [
+          "store.operations.overview"
+        ],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0,
+          "checked": 2,
+          "failures": [
+            "intent_mismatch",
+            "domain_missing:store_operation"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_missing:store.operations.overview"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": false,
+          "score": 0.6666666666666666,
+          "checked": 3,
+          "failures": [
+            "plan_nodes_below:1"
+          ],
+          "deterministicFailure": true
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "brain_status:failed"
+          ],
+          "deterministicFailure": true
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0,
+          "checked": 2,
+          "failures": [
+            "brain_status:failed",
+            "completion_grounding_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "metric_failed"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "intent:intent_mismatch"
+    },
+    {
+      "questionId": "qb-manager-business-overview-009",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 9,
+      "persona": "manager",
+      "question": "现在店里哪些美容师在忙，哪些空着",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 8751,
+      "conversationId": 19506,
+      "runId": 19477,
+      "answer": "请补充业务对象、指标或时间范围。",
+      "citations": [],
+      "domains": [
+        "beautician"
+      ],
+      "capabilityKeys": [],
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [
+          "store_operation"
+        ],
+        "entities": [
+          "beautician"
+        ],
+        "metrics": [],
+        "dimensions": [
+          "beautician"
+        ],
+        "capabilityKeys": [
+          "store.operations.overview"
+        ],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0.75,
+          "checked": 4,
+          "failures": [
+            "domain_missing:store_operation"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_missing:store.operations.overview"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": false,
+          "score": 0.6666666666666666,
+          "checked": 3,
+          "failures": [
+            "plan_nodes_below:1"
+          ],
+          "deterministicFailure": true
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0.5,
+          "checked": 2,
+          "failures": [
+            "completion_grounding_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "unsupported_intent"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "intent:domain_missing:store_operation"
+    },
+    {
+      "questionId": "qb-manager-business-overview-010",
+      "sourceSection": "一、店长经营 Agent",
+      "sourceCategory": "经营概览",
+      "sourceIndex": 10,
+      "persona": "manager",
+      "question": "今天退款有几笔，金额多少",
+      "status": "metric_failed",
+      "brainStatus": "failed",
+      "latencyMs": 6616,
+      "conversationId": 19507,
+      "runId": 19478,
+      "answer": "当前问题未通过业务定义校验，请补充业务对象、指标或时间范围。",
+      "citations": [],
+      "domains": [],
+      "capabilityKeys": [],
+      "grader": {
+        "status": "metric_failed",
+        "expectedIntent": "diagnosis",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "语义问数链路执行失败。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "action",
+        "domains": [
+          "store_operation"
+        ],
+        "entities": [
+          "order"
+        ],
+        "metrics": [
+          "refund_amount"
+        ],
+        "dimensions": [],
+        "capabilityKeys": [
+          "store.operations.overview"
+        ],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": true,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": false,
+          "score": 0,
+          "checked": 4,
+          "failures": [
+            "intent_mismatch",
+            "domain_missing:store_operation",
+            "entity_missing:order",
+            "metric_missing:refund_amount"
+          ],
+          "deterministicFailure": true
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "capability_missing:store.operations.overview"
+          ],
+          "deterministicFailure": true
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": false,
+          "score": 0.5,
+          "checked": 4,
+          "failures": [
+            "plan_nodes_below:1",
+            "plan_preview_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "brain_status:failed"
+          ],
+          "deterministicFailure": true
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": false,
+          "score": 0,
+          "checked": 3,
+          "failures": [
+            "brain_status:failed",
+            "completion_grounding_missing",
+            "completion_action_preview_missing"
+          ],
+          "deterministicFailure": true
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "metric_failed"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "intent:intent_mismatch"
+    }
+  ]
+}

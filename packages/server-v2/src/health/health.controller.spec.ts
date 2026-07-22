@@ -2,6 +2,9 @@ import { HealthController } from './health.controller.js';
 
 describe('HealthController', () => {
   const originalEnv = { ...process.env };
+  const prisma = {
+    $queryRaw: jest.fn(),
+  };
 
   afterEach(() => {
     process.env = { ...originalEnv };
@@ -13,7 +16,7 @@ describe('HealthController', () => {
     process.env.ZEABUR_DEPLOYMENT_ID = 'deploy-1';
     process.env.NODE_ENV = 'production';
 
-    const result = new HealthController().check();
+    const result = new HealthController(prisma as any).check();
 
     expect(result.status).toBe('ok');
     expect(result.deployment).toEqual({
@@ -43,7 +46,7 @@ describe('HealthController', () => {
     delete process.env.RAILWAY_ENVIRONMENT;
     delete process.env.VERCEL_ENV;
 
-    const result = new HealthController().check();
+    const result = new HealthController(prisma as any).check();
 
     expect(result.deployment).toEqual({
       commit: null,
@@ -51,5 +54,13 @@ describe('HealthController', () => {
       buildId: null,
       environment: null,
     });
+  });
+
+  it('checks database connectivity before reporting ready', async () => {
+    prisma.$queryRaw.mockResolvedValueOnce([{ database_ready: 1 }]);
+    const controller = new HealthController(prisma as any);
+
+    await expect(controller.ready()).resolves.toMatchObject({ status: 'ready', database: 'connected' });
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
   });
 });

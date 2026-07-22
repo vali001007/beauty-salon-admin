@@ -218,4 +218,80 @@ describe('FinanceMetricsService', () => {
       ]),
     );
   });
+
+  it('recognizes legacy order items on payment date and applies refund items to the exact business category', async () => {
+    const prisma = createPrisma();
+    const paidAt = new Date('2026-07-02T08:00:00.000Z');
+    const order = {
+      id: 31,
+      storeId: 1,
+      customerId: 9,
+      createdAt: new Date('2026-07-01T08:00:00.000Z'),
+      status: 'paid',
+      netAmount: 500,
+      totalAmount: 500,
+      orderItems: [
+        { id: 311, itemType: 'project', itemId: 101, quantity: 1, netAmount: 200, subtotal: 200 },
+        { id: 312, itemType: 'recharge', quantity: 1, netAmount: 300, subtotal: 300 },
+      ],
+      paymentRecords: [{ status: 'success', amount: 500, paidAt }],
+      refundRecords: [],
+    };
+    prisma.productOrder.findMany.mockResolvedValue([order]);
+    prisma.paymentRecord.findMany.mockResolvedValue([{ id: 1, amount: 500, method: 'wechat', status: 'success', paidAt, order: { storeId: 1 } }]);
+    prisma.refundRecord.findMany.mockResolvedValue([{
+      id: 71,
+      orderId: 31,
+      amount: 420,
+      refundMode: 'refund_only',
+      status: 'success',
+      refundedAt: new Date('2026-07-02T10:00:00.000Z'),
+      order: { ...order, storeId: 1 },
+      items: [
+        { id: 1, orderItemId: 311, itemType: 'project', refundAmount: 120, stockMovements: [] },
+        { id: 2, orderItemId: 312, itemType: 'recharge', refundAmount: 300, stockMovements: [] },
+      ],
+    }]);
+    prisma.customerBalanceTransaction.findMany.mockResolvedValue([]);
+    prisma.cardUsageRecord.findMany.mockResolvedValue([]);
+    prisma.stockMovement.findMany.mockResolvedValue([]);
+    prisma.product.findMany.mockResolvedValue([]);
+    prisma.project.findMany.mockResolvedValue([]);
+    prisma.commissionRecord.findMany.mockResolvedValue([]);
+    prisma.store.findMany.mockResolvedValue([{ id: 1, name: 'Store' }]);
+    prisma.card.findMany.mockResolvedValue([]);
+
+    const service = new FinanceMetricsService(prisma as any);
+    const result = await service.getDailyMetrics({ storeId: 1, dateFrom: '2026-07-02', dateTo: '2026-07-02' });
+
+    expect(result.summary.operatingRevenue).toBe(80);
+    expect(result.summary.prepaidAmount).toBe(0);
+    expect(result.summary.refundAmount).toBe(420);
+  });
+
+  it('deduplicates customers across the full summary period and exposes order and customer averages separately', async () => {
+    const prisma = createPrisma();
+    prisma.productOrder.findMany.mockResolvedValue([
+      { id: 1, storeId: 1, customerId: 9, createdAt: new Date('2026-07-01T08:00:00.000Z'), status: 'paid', orderItems: [{ id: 1, itemType: 'project', netAmount: 100, subtotal: 100, recognizedAt: new Date('2026-07-01T08:00:00.000Z') }], paymentRecords: [], refundRecords: [] },
+      { id: 2, storeId: 1, customerId: 9, createdAt: new Date('2026-07-02T08:00:00.000Z'), status: 'paid', orderItems: [{ id: 2, itemType: 'project', netAmount: 300, subtotal: 300, recognizedAt: new Date('2026-07-02T08:00:00.000Z') }], paymentRecords: [], refundRecords: [] },
+    ]);
+    prisma.paymentRecord.findMany.mockResolvedValue([]);
+    prisma.refundRecord.findMany.mockResolvedValue([]);
+    prisma.customerBalanceTransaction.findMany.mockResolvedValue([]);
+    prisma.cardUsageRecord.findMany.mockResolvedValue([]);
+    prisma.stockMovement.findMany.mockResolvedValue([]);
+    prisma.product.findMany.mockResolvedValue([]);
+    prisma.project.findMany.mockResolvedValue([]);
+    prisma.commissionRecord.findMany.mockResolvedValue([]);
+    prisma.store.findMany.mockResolvedValue([{ id: 1, name: 'Store' }]);
+    prisma.card.findMany.mockResolvedValue([]);
+
+    const service = new FinanceMetricsService(prisma as any);
+    const result = await service.getDailyMetrics({ storeId: 1, dateFrom: '2026-07-01', dateTo: '2026-07-02' });
+
+    expect(result.summary.customerCount).toBe(1);
+    expect(result.summary.orderCount).toBe(2);
+    expect(result.summary.avgOrderAmount).toBe(200);
+    expect(result.summary.avgCustomerSpend).toBe(400);
+  });
 });

@@ -1,0 +1,6441 @@
+{
+  "metadata": {
+    "generatedAt": "2026-07-18T21:21:50.309Z",
+    "startedAt": "2026-07-18T21:19:47.331Z",
+    "finishedAt": "2026-07-18T21:21:50.309Z",
+    "sourceFile": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\agent-eval-questions.md",
+    "questionCount": 45,
+    "actualRunCount": 45,
+    "actualTurnCount": 45,
+    "requestedStoreId": 6,
+    "storeId": 6,
+    "releaseId": 325,
+    "releaseSnapshot": {
+      "releaseFingerprint": "42bc62c1b4c95580ab2a3390f28042a2f386f8c34356c7af2a9d65c71ce814af",
+      "declaredMode": "shadow",
+      "resourceVersionIds": [
+        338,
+        344,
+        349,
+        351,
+        353,
+        510,
+        556,
+        557,
+        558,
+        559,
+        560,
+        561,
+        562,
+        563,
+        564,
+        565,
+        566,
+        567,
+        568,
+        569,
+        570,
+        571,
+        572,
+        573,
+        578,
+        579,
+        580,
+        582
+      ],
+      "capabilityKeys": [
+        "beautician_customer_card_progress",
+        "beautician_material_preparation",
+        "beautician_service_overview",
+        "card_usage_action_preview",
+        "customer_facts",
+        "customer_follow_up_draft",
+        "customer_priority_recommendation",
+        "finance_payment_breakdown",
+        "finance_risk_overview",
+        "front_desk_operations_overview",
+        "gap_fill_touch_preview",
+        "inventory_operations_overview",
+        "inventory_procurement_advice",
+        "inventory_risk_ranking",
+        "manager_staff_overview",
+        "marketing_campaign_plan",
+        "marketing_customer_segment",
+        "marketing_growth_overview",
+        "marketing_message_draft",
+        "marketing_strategy_execute_preview",
+        "marketing_touch_draft",
+        "order_revenue_analysis",
+        "product_sales_ranking",
+        "project_service_ranking",
+        "reservation_action_preview",
+        "reservation_list",
+        "staff_performance_ranking",
+        "store_operations_overview"
+      ]
+    },
+    "candidateSkillsEnabledForEval": true,
+    "product": "ami_brain",
+    "entrypoint": "BrainChatService.createConversation + BrainChatService.sendMessage",
+    "permissionSource": "active_backend_role_catalog_plus_candidate_minimum_permissions",
+    "evaluationRoleKeys": [
+      "beautician",
+      "marketing"
+    ],
+    "evaluationUserIds": {
+      "beautician": 32,
+      "marketing": 1
+    },
+    "permissionCatalogRoleKeys": [
+      "ami_demo_full_beautician",
+      "ami_demo_full_cashier",
+      "ami_demo_full_manager",
+      "beautician",
+      "cashier",
+      "store_manager",
+      "super_admin"
+    ],
+    "scoring": {
+      "legacyUsableWithCitation": "旧口径：Ami Brain 返回 completed 且包含 metric citation。",
+      "usable_exact": "新口径：completed、有 metric citation，且意图、指标口径、回答粒度均匹配。",
+      "false_positive_intent_mismatch": "旧口径可用，但用户真实意图不是问数，例如文案、动作或推荐。",
+      "false_positive_granularity_mismatch": "旧口径可用，但问题要求排行、名单或对比，系统只返回单个全店指标。",
+      "false_positive_metric_mismatch": "旧口径可用，但引用指标与问题期望指标不一致。",
+      "unsupported_intent": "Ami Brain 返回通用能力边界提示，说明当前意图未接入。",
+      "unsupported_metric_formula": "识别到指标但真实口径未接入，系统拒绝用 0 或估算替代。",
+      "metric_failed": "进入语义问数但查询失败或安全计划失败。",
+      "provider_unavailable": "模型供应商不可用，单列为评测基础设施失败，不进入产品可用率分母。",
+      "sixLayerGate": "意图、工具、计划、执行、完成度、答案六层必须全部通过；确定性失败不可被 LLM Judge 覆盖。"
+    }
+  },
+  "summary": {
+    "total": 45,
+    "evaluableTotal": 45,
+    "providerUnavailableCount": 0,
+    "legacyUsableWithCitation": 0,
+    "legacyUsableRate": 0,
+    "trueUsable": 43,
+    "trueUsableRate": 0.9555555555555556,
+    "observedTrueUsableRate": 0.9555555555555556,
+    "conversationGate": {
+      "scenarioCount": 0,
+      "passedScenarioCount": 0,
+      "turnCount": 45,
+      "passedTurnCount": 43
+    },
+    "byStatus": [
+      {
+        "key": "usable_exact",
+        "total": 43,
+        "evaluableTotal": 43,
+        "usable": 43,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "unsupported_intent",
+        "total": 2,
+        "evaluableTotal": 2,
+        "usable": 0,
+        "usableRate": 0,
+        "metricFailed": 0,
+        "unsupportedIntent": 2,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byPersona": [
+      {
+        "key": "beautician",
+        "total": 25,
+        "evaluableTotal": 25,
+        "usable": 23,
+        "usableRate": 0.92,
+        "metricFailed": 0,
+        "unsupportedIntent": 2,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "marketing",
+        "total": 20,
+        "evaluableTotal": 20,
+        "usable": 20,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "byCategory": [
+      {
+        "key": "今日服务安排",
+        "total": 25,
+        "evaluableTotal": 25,
+        "usable": 23,
+        "usableRate": 0.92,
+        "metricFailed": 0,
+        "unsupportedIntent": 2,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      },
+      {
+        "key": "活动策划",
+        "total": 20,
+        "evaluableTotal": 20,
+        "usable": 20,
+        "usableRate": 1,
+        "metricFailed": 0,
+        "unsupportedIntent": 0,
+        "unsupportedMetricFormula": 0,
+        "securityBlocked": 0,
+        "providerUnavailable": 0,
+        "error": 0
+      }
+    ],
+    "topFailureReasons": [
+      {
+        "reason": "answer:unsupported_intent",
+        "count": 2
+      }
+    ],
+    "securityGate": {
+      "permissionBypassCount": 0,
+      "crossStoreReadCount": 0,
+      "roleHintBypassCount": 0,
+      "fakeActionConfirmationCount": 0
+    },
+    "grounding": {
+      "metricQueryCount": 0,
+      "dbSkillCount": 26,
+      "templateSkillCount": 14,
+      "previewActionCount": 0,
+      "noneCount": 5
+    },
+    "adapterDistribution": [
+      {
+        "reason": "none",
+        "count": 45
+      }
+    ],
+    "domainDistribution": [
+      {
+        "reason": "customer",
+        "count": 42
+      },
+      {
+        "reason": "project",
+        "count": 37
+      },
+      {
+        "reason": "reservation",
+        "count": 23
+      },
+      {
+        "reason": "beautician",
+        "count": 21
+      },
+      {
+        "reason": "product",
+        "count": 1
+      }
+    ],
+    "capabilityDistribution": [
+      {
+        "reason": "beautician_service_overview",
+        "count": 22
+      },
+      {
+        "reason": "marketing_campaign_plan",
+        "count": 18
+      },
+      {
+        "reason": "beautician_customer_card_progress",
+        "count": 2
+      },
+      {
+        "reason": "marketing_message_draft",
+        "count": 2
+      },
+      {
+        "reason": "beautician_material_preparation",
+        "count": 1
+      }
+    ],
+    "executionPathDistribution": [
+      {
+        "reason": "model_primary",
+        "count": 30
+      },
+      {
+        "reason": "exact_contract_fast_path",
+        "count": 15
+      }
+    ],
+    "sixLayer": {
+      "intent": {
+        "total": 45,
+        "passed": 45,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "tool": {
+        "total": 45,
+        "passed": 45,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "plan": {
+        "total": 45,
+        "passed": 45,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "execution": {
+        "total": 45,
+        "passed": 45,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "completion": {
+        "total": 45,
+        "passed": 45,
+        "passRate": 1,
+        "averageScore": 1
+      },
+      "answer": {
+        "total": 45,
+        "passed": 43,
+        "passRate": 0.9555555555555556,
+        "averageScore": 0.9555555555555556
+      }
+    },
+    "latency": {
+      "avgMs": 10211,
+      "p95Ms": 25957,
+      "maxMs": 32080
+    },
+    "baselineComparison": {
+      "baselinePath": "D:\\AI coding\\beauty-salon-admin\\docs\\04-测试数据\\Agent评测与知识治理-2026-06-30至07-03\\ami-brain-eval-run-2026-07-10\\ami-brain-eval-results-2026-07-10.json",
+      "rows": [
+        {
+          "metric": "旧口径可用率",
+          "baseline": "15.5%",
+          "current": "0.0%"
+        },
+        {
+          "metric": "真实可用率",
+          "baseline": "3.4%",
+          "current": "95.6%"
+        },
+        {
+          "metric": "假阳性数",
+          "baseline": "79",
+          "current": "0"
+        },
+        {
+          "metric": "时间误退化全量数",
+          "baseline": "12",
+          "current": "0"
+        },
+        {
+          "metric": "文案/操作误命中指标数",
+          "baseline": "21",
+          "current": "0"
+        }
+      ]
+    }
+  },
+  "records": [
+    {
+      "questionId": "qb-marketing-campaign-planning-021",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 21,
+      "persona": "marketing",
+      "question": "帮我策划一个母亲节的促销活动",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 10277,
+      "conversationId": 27439,
+      "runId": 27426,
+      "answer": "围绕“帮我策划一个母亲节的促销活动”活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。\n\n未完成范围：这是可编辑活动方案草稿，尚未发布活动、创建自动化规则或发送消息；上线前需由用户确认权益、毛利、库存、档期和执行范围。\n\n数据依据：营销活动方案模板。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案模板"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project"
+      ],
+      "capabilityKeys": [
+        "marketing_campaign_plan"
+      ],
+      "grounding": "template_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "expected": {
+        "intent": "draft",
+        "answerShape": "draft",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "marketing_campaign_plan",
+          "marketing_message_draft"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "marketing_campaign_plan",
+          "marketing_message_draft"
+        ],
+        "unresolved": [
+          "entity:marketing_activity"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 2,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-022",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 22,
+      "persona": "marketing",
+      "question": "国庆节前后我应该做什么活动",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 12259,
+      "conversationId": 27440,
+      "runId": 27427,
+      "answer": "围绕“国庆节前后我应该做什么活动”活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。\n\n未完成范围：这是可编辑活动方案草稿，尚未发布活动、创建自动化规则或发送消息；上线前需由用户确认权益、毛利、库存、档期和执行范围。\n\n数据依据：营销活动方案模板。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案模板"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project"
+      ],
+      "capabilityKeys": [
+        "marketing_campaign_plan"
+      ],
+      "grounding": "template_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "expected": {
+        "intent": "recommendation",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_priority_recommendation",
+          "marketing_campaign_plan",
+          "marketing_growth_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_priority_recommendation",
+          "marketing_campaign_plan",
+          "marketing_growth_overview"
+        ],
+        "unresolved": [
+          "entity:marketing_activity"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-023",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 23,
+      "persona": "marketing",
+      "question": "夏天快来了，有什么适合推的季节性项目",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 15300,
+      "conversationId": 27442,
+      "runId": 27429,
+      "answer": "围绕“夏天快来了，有什么适合推的季节性项目”活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。\n\n未完成范围：这是可编辑活动方案草稿，尚未发布活动、创建自动化规则或发送消息；上线前需由用户确认权益、毛利、库存、档期和执行范围。\n\n数据依据：营销活动方案模板。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案模板"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project"
+      ],
+      "capabilityKeys": [
+        "marketing_campaign_plan"
+      ],
+      "grounding": "template_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "expected": {
+        "intent": "recommendation",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "marketing_campaign_plan",
+          "marketing_growth_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "project"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "marketing_campaign_plan",
+          "marketing_growth_overview"
+        ],
+        "unresolved": [
+          "entity:marketing_activity"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-024",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 24,
+      "persona": "marketing",
+      "question": "我想做个老带新的活动，怎么设计比较合理",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 13813,
+      "conversationId": 27441,
+      "runId": 27428,
+      "answer": "围绕“我想做个老带新的活动，怎么设计比较合理”活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。\n\n未完成范围：这是可编辑活动方案草稿，尚未发布活动、创建自动化规则或发送消息；上线前需由用户确认权益、毛利、库存、档期和执行范围。\n\n数据依据：营销活动方案模板。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案模板"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project"
+      ],
+      "capabilityKeys": [
+        "marketing_campaign_plan"
+      ],
+      "grounding": "template_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "expected": {
+        "intent": "draft",
+        "answerShape": "draft",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "marketing_campaign_plan",
+          "marketing_message_draft"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "marketing_campaign_plan",
+          "marketing_message_draft"
+        ],
+        "unresolved": [
+          "entity:marketing_activity"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 2,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-025",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 25,
+      "persona": "marketing",
+      "question": "帮我策划一个针对沉睡客户的召回方案",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 9890,
+      "conversationId": 27443,
+      "runId": 27430,
+      "answer": "您好，最近护理节奏可以衔接起来了。方便的话回复我，我帮您安排合适时间。\n\n未完成范围：这是可编辑文案草稿，未查询或选择具体客户，也不会自动发送。\n\n数据依据：老客召回文案模板。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_customer_recall",
+          "label": "老客召回文案模板"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project"
+      ],
+      "capabilityKeys": [
+        "marketing_message_draft"
+      ],
+      "grounding": "template_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "expected": {
+        "intent": "draft",
+        "answerShape": "draft",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "marketing_campaign_plan",
+          "marketing_message_draft"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "marketing_campaign_plan",
+          "marketing_message_draft"
+        ],
+        "unresolved": [
+          "entity:marketing_activity"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 2,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-026",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 26,
+      "persona": "marketing",
+      "question": "年底有哪些营销节点我应该提前准备",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 23379,
+      "conversationId": 27444,
+      "runId": 27431,
+      "answer": "围绕“年底有哪些营销节点我应该提前准备”活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。\n\n未完成范围：这是可编辑活动方案草稿，尚未发布活动、创建自动化规则或发送消息；上线前需由用户确认权益、毛利、库存、档期和执行范围。\n\n数据依据：营销活动方案模板。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案模板"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project"
+      ],
+      "capabilityKeys": [
+        "marketing_campaign_plan"
+      ],
+      "grounding": "template_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "expected": {
+        "intent": "recommendation",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_priority_recommendation",
+          "marketing_campaign_plan",
+          "marketing_growth_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_priority_recommendation",
+          "marketing_campaign_plan",
+          "marketing_growth_overview"
+        ],
+        "unresolved": [
+          "entity:marketing_activity"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-027",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 27,
+      "persona": "marketing",
+      "question": "我想推一个储值送赠品的活动，怎么设计",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 14829,
+      "conversationId": 27445,
+      "runId": 27432,
+      "answer": "围绕“我想推一个储值送赠品的活动，怎么设计”活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。\n\n未完成范围：这是可编辑活动方案草稿，尚未发布活动、创建自动化规则或发送消息；上线前需由用户确认权益、毛利、库存、档期和执行范围。\n\n数据依据：营销活动方案模板。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案模板"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project"
+      ],
+      "capabilityKeys": [
+        "marketing_campaign_plan"
+      ],
+      "grounding": "template_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "expected": {
+        "intent": "draft",
+        "answerShape": "draft",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "marketing_campaign_plan",
+          "marketing_message_draft"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "marketing_campaign_plan",
+          "marketing_message_draft"
+        ],
+        "unresolved": [
+          "entity:marketing_activity"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 2,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-028",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 28,
+      "persona": "marketing",
+      "question": "帮我想个适合在朋友圈发的活动主题",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 9839,
+      "conversationId": 27446,
+      "runId": 27433,
+      "answer": "围绕“帮我想个适合在朋友圈发的活动主题”活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。\n\n未完成范围：这是可编辑活动方案草稿，尚未发布活动、创建自动化规则或发送消息；上线前需由用户确认权益、毛利、库存、档期和执行范围。\n\n数据依据：营销活动方案模板。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案模板"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project"
+      ],
+      "capabilityKeys": [
+        "marketing_campaign_plan"
+      ],
+      "grounding": "template_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "expected": {
+        "intent": "recommendation",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_priority_recommendation",
+          "marketing_campaign_plan",
+          "marketing_growth_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_priority_recommendation",
+          "marketing_campaign_plan",
+          "marketing_growth_overview"
+        ],
+        "unresolved": [
+          "entity:marketing_activity"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-029",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 29,
+      "persona": "marketing",
+      "question": "我想做一个次卡促销，折扣力度给多少合适",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 15818,
+      "conversationId": 27447,
+      "runId": 27434,
+      "answer": "围绕“我想做一个次卡促销，折扣力度给多少合适”活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。\n\n未完成范围：这是可编辑活动方案草稿，尚未发布活动、创建自动化规则或发送消息；上线前需由用户确认权益、毛利、库存、档期和执行范围。\n\n数据依据：营销活动方案模板。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案模板"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project"
+      ],
+      "capabilityKeys": [
+        "marketing_campaign_plan"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "expected": {
+        "intent": "recommendation",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_priority_recommendation",
+          "marketing_campaign_plan",
+          "marketing_growth_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_priority_recommendation",
+          "marketing_campaign_plan",
+          "marketing_growth_overview"
+        ],
+        "unresolved": [
+          "entity:customer_card",
+          "entity:marketing_activity"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-030",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 30,
+      "persona": "marketing",
+      "question": "帮我设计一个新客专属的欢迎礼包",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 13906,
+      "conversationId": 27448,
+      "runId": 27435,
+      "answer": "围绕“帮我设计一个新客专属的欢迎礼包”活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。\n\n未完成范围：这是可编辑活动方案草稿，尚未发布活动、创建自动化规则或发送消息；上线前需由用户确认权益、毛利、库存、档期和执行范围。\n\n数据依据：营销活动方案模板。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案模板"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project"
+      ],
+      "capabilityKeys": [
+        "marketing_campaign_plan"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "expected": {
+        "intent": "draft",
+        "answerShape": "draft",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "marketing_campaign_plan",
+          "marketing_message_draft"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "marketing_campaign_plan",
+          "marketing_message_draft"
+        ],
+        "unresolved": [
+          "entity:marketing_activity"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 2,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-031",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 31,
+      "persona": "marketing",
+      "question": "最近销售下滑，有什么活动可以拉动一下",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 25957,
+      "conversationId": 27449,
+      "runId": 27436,
+      "answer": "围绕“最近销售下滑，有什么活动可以拉动一下”活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。\n\n未完成范围：这是可编辑活动方案草稿，尚未发布活动、创建自动化规则或发送消息；上线前需由用户确认权益、毛利、库存、档期和执行范围。\n\n数据依据：营销活动方案模板。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案模板"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project"
+      ],
+      "capabilityKeys": [
+        "marketing_campaign_plan"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "expected": {
+        "intent": "recommendation",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_priority_recommendation",
+          "marketing_campaign_plan",
+          "marketing_growth_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_priority_recommendation",
+          "marketing_campaign_plan",
+          "marketing_growth_overview"
+        ],
+        "unresolved": [
+          "entity:marketing_activity"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-032",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 32,
+      "persona": "marketing",
+      "question": "我们店三周年了，做什么活动比较有意义",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 6728,
+      "conversationId": 27450,
+      "runId": 27437,
+      "answer": "围绕“我们店三周年了，做什么活动比较有意义”活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。\n\n未完成范围：这是可编辑活动方案草稿，尚未发布活动、创建自动化规则或发送消息；上线前需由用户确认权益、毛利、库存、档期和执行范围。\n\n数据依据：营销活动方案模板。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案模板"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project"
+      ],
+      "capabilityKeys": [
+        "marketing_campaign_plan"
+      ],
+      "grounding": "template_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "expected": {
+        "intent": "draft",
+        "answerShape": "draft",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "marketing_campaign_plan",
+          "marketing_message_draft"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "marketing_campaign_plan",
+          "marketing_message_draft"
+        ],
+        "unresolved": [
+          "entity:marketing_activity"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 2,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-033",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 33,
+      "persona": "marketing",
+      "question": "如何设计一个让客户主动发朋友圈的活动",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 7641,
+      "conversationId": 27451,
+      "runId": 27438,
+      "answer": "围绕“如何设计一个让客户主动发朋友圈的活动”活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。\n\n未完成范围：这是可编辑活动方案草稿，尚未发布活动、创建自动化规则或发送消息；上线前需由用户确认权益、毛利、库存、档期和执行范围。\n\n数据依据：营销活动方案模板。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案模板"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project"
+      ],
+      "capabilityKeys": [
+        "marketing_campaign_plan"
+      ],
+      "grounding": "template_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "expected": {
+        "intent": "draft",
+        "answerShape": "draft",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "marketing_campaign_plan",
+          "marketing_message_draft"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "marketing_campaign_plan",
+          "marketing_message_draft"
+        ],
+        "unresolved": [
+          "entity:marketing_activity"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 2,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-034",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 34,
+      "persona": "marketing",
+      "question": "帮我策划一个回馈老客的感恩活动",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 14724,
+      "conversationId": 27452,
+      "runId": 27439,
+      "answer": "围绕“帮我策划一个回馈老客的感恩活动”活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。\n\n未完成范围：这是可编辑活动方案草稿，尚未发布活动、创建自动化规则或发送消息；上线前需由用户确认权益、毛利、库存、档期和执行范围。\n\n数据依据：营销活动方案模板。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案模板"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project"
+      ],
+      "capabilityKeys": [
+        "marketing_campaign_plan"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "expected": {
+        "intent": "draft",
+        "answerShape": "draft",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "marketing_campaign_plan",
+          "marketing_message_draft"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "marketing_campaign_plan",
+          "marketing_message_draft"
+        ],
+        "unresolved": [
+          "entity:marketing_activity"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 2,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-035",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 35,
+      "persona": "marketing",
+      "question": "我想推一个疗程套餐，定价和权益怎么设计",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 7305,
+      "conversationId": 27453,
+      "runId": 27440,
+      "answer": "围绕“我想推一个疗程套餐，定价和权益怎么设计”活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。\n\n未完成范围：这是可编辑活动方案草稿，尚未发布活动、创建自动化规则或发送消息；上线前需由用户确认权益、毛利、库存、档期和执行范围。\n\n数据依据：营销活动方案模板。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案模板"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project"
+      ],
+      "capabilityKeys": [
+        "marketing_campaign_plan"
+      ],
+      "grounding": "template_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "expected": {
+        "intent": "draft",
+        "answerShape": "draft",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "marketing_campaign_plan"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "project"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "marketing_campaign_plan"
+        ],
+        "unresolved": [
+          "entity:marketing_activity"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 2,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-036",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 36,
+      "persona": "marketing",
+      "question": "有没有不用打折也能吸引客户来的方法",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 13711,
+      "conversationId": 27454,
+      "runId": 27441,
+      "answer": "围绕“有没有不用打折也能吸引客户来的方法”活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。\n\n未完成范围：这是可编辑活动方案草稿，尚未发布活动、创建自动化规则或发送消息；上线前需由用户确认权益、毛利、库存、档期和执行范围。\n\n数据依据：营销活动方案模板。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案模板"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project"
+      ],
+      "capabilityKeys": [
+        "marketing_campaign_plan"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "expected": {
+        "intent": "recommendation",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "customer_priority_recommendation",
+          "marketing_campaign_plan",
+          "marketing_growth_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "customer_priority_recommendation",
+          "marketing_campaign_plan",
+          "marketing_growth_overview"
+        ],
+        "unresolved": [
+          "entity:marketing_activity"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-037",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 37,
+      "persona": "marketing",
+      "question": "帮我做一个针对 VIP 客户的专属活动",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 18221,
+      "conversationId": 27455,
+      "runId": 27442,
+      "answer": "围绕“帮我做一个针对 VIP 客户的专属活动”活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。\n\n未完成范围：这是可编辑活动方案草稿，尚未发布活动、创建自动化规则或发送消息；上线前需由用户确认权益、毛利、库存、档期和执行范围。\n\n数据依据：营销活动方案模板。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案模板"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project"
+      ],
+      "capabilityKeys": [
+        "marketing_campaign_plan"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "expected": {
+        "intent": "draft",
+        "answerShape": "draft",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "marketing_campaign_plan",
+          "marketing_message_draft"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "marketing_campaign_plan",
+          "marketing_message_draft"
+        ],
+        "unresolved": [
+          "entity:marketing_activity"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 2,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-038",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 38,
+      "persona": "marketing",
+      "question": "情人节快到了，适合推什么项目或活动",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 10082,
+      "conversationId": 27456,
+      "runId": 27443,
+      "answer": "围绕“情人节快到了，适合推什么项目或活动”活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。\n\n未完成范围：这是可编辑活动方案草稿，尚未发布活动、创建自动化规则或发送消息；上线前需由用户确认权益、毛利、库存、档期和执行范围。\n\n数据依据：营销活动方案模板。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案模板"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project"
+      ],
+      "capabilityKeys": [
+        "marketing_campaign_plan"
+      ],
+      "grounding": "template_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "expected": {
+        "intent": "recommendation",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "marketing_campaign_plan",
+          "marketing_growth_overview"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "project"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "marketing_campaign_plan",
+          "marketing_growth_overview"
+        ],
+        "unresolved": [
+          "entity:marketing_activity"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-039",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 39,
+      "persona": "marketing",
+      "question": "如何设计一个让客户愿意提前预约的方案",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 9094,
+      "conversationId": 27457,
+      "runId": 27444,
+      "answer": "您好，店里今天有可预约空档，方便的话可以回复我帮您安排。\n\n未完成范围：这是可编辑文案草稿，未查询或选择具体客户，也不会自动发送。\n\n数据依据：预约邀约文案模板。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_draft_appointment_reminder",
+          "label": "预约邀约文案模板"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project",
+        "reservation"
+      ],
+      "capabilityKeys": [
+        "marketing_message_draft"
+      ],
+      "grounding": "template_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "draft",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "expected": {
+        "intent": "draft",
+        "answerShape": "draft",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "marketing_campaign_plan",
+          "marketing_message_draft"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer",
+          "reservation"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "marketing_campaign_plan",
+          "marketing_message_draft"
+        ],
+        "unresolved": [
+          "entity:marketing_activity"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 2,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-marketing-campaign-planning-040",
+      "sourceSection": "二、营销增长 Agent",
+      "sourceCategory": "活动策划",
+      "sourceIndex": 40,
+      "persona": "marketing",
+      "question": "帮我策划一个线上引流到线下体验的活动",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 9260,
+      "conversationId": 27458,
+      "runId": 27445,
+      "answer": "围绕“帮我策划一个线上引流到线下体验的活动”活动方案：\n1. 目标客群：优先触达近 90 天有消费记录的老客和会员。\n2. 权益设计：用护理套餐加赠或预约礼替代大额折扣，先保护毛利。\n3. 执行节奏：先小范围试发，再根据预约和核销反馈扩大触达。\n4. 上线前检查：确认可预约档期、库存和员工接待能力。\n\n未完成范围：这是可编辑活动方案草稿，尚未发布活动、创建自动化规则或发送消息；上线前需由用户确认权益、毛利、库存、档期和执行范围。\n\n数据依据：营销活动方案模板。",
+      "citations": [
+        {
+          "sourceType": "skill",
+          "sourceId": "marketing_campaign_plan",
+          "label": "营销活动方案模板"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project"
+      ],
+      "capabilityKeys": [
+        "marketing_campaign_plan"
+      ],
+      "grounding": "template_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "draft",
+        "actualIntent": "recommendation",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "template_skill"
+      },
+      "expected": {
+        "intent": "draft",
+        "answerShape": "draft",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "marketing_campaign_plan",
+          "marketing_message_draft"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "marketing_campaign_plan",
+          "marketing_message_draft"
+        ],
+        "unresolved": [
+          "entity:marketing_activity"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 2,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-001",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 1,
+      "persona": "beautician",
+      "question": "我今天有几个客人，分别几点",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2312,
+      "conversationId": 27459,
+      "runId": 27446,
+      "answer": "今天没有有效预约安排。\n\n有效预约：0 个；计划服务时长：0 分钟。\n\n明细：当前没有匹配数据。\n\n说明：当前时间范围没有匹配的明细数据。\n\n数据依据：当前美容师服务安排与客户注意事项；当前美容师个人服务与业绩。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_service_summary",
+          "label": "当前美容师服务安排与客户注意事项"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_personal_performance",
+          "label": "当前美容师个人服务与业绩"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project",
+        "beautician",
+        "reservation"
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [
+          "customer"
+        ],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [
+          "customerName"
+        ],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [
+          "customerName"
+        ],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [
+          "customer"
+        ],
+        "capabilityKeys": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-002",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 2,
+      "persona": "beautician",
+      "question": "下一个客人是谁，做什么项目",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2343,
+      "conversationId": 27460,
+      "runId": 27447,
+      "answer": "今天没有后续有效预约。\n\n明细：当前没有匹配数据。\n\n说明：当前时间范围没有匹配的明细数据。\n\n数据依据：当前美容师服务安排与客户注意事项；当前美容师个人服务与业绩。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_service_summary",
+          "label": "当前美容师服务安排与客户注意事项"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_personal_performance",
+          "label": "当前美容师个人服务与业绩"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project",
+        "beautician",
+        "reservation"
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [
+          "project"
+        ],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [
+          "projectName"
+        ],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "beautician_service_overview",
+          "customer_facts"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [
+          "projectName"
+        ],
+        "entityKeys": [
+          "customer",
+          "project"
+        ],
+        "domainKeys": [
+          "project"
+        ],
+        "capabilityKeys": [
+          "beautician_service_overview",
+          "customer_facts"
+        ],
+        "unresolved": [
+          "dimension:beautician"
+        ]
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-003",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 3,
+      "persona": "beautician",
+      "question": "我今天第一个客人几点来",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1938,
+      "conversationId": 27461,
+      "runId": 27448,
+      "answer": "今天没有有效预约。\n\n明细：当前没有匹配数据。\n\n说明：当前时间范围没有匹配的明细数据。\n\n数据依据：当前美容师服务安排与客户注意事项；当前美容师个人服务与业绩。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_service_summary",
+          "label": "当前美容师服务安排与客户注意事项"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_personal_performance",
+          "label": "当前美容师个人服务与业绩"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project",
+        "beautician",
+        "reservation"
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-004",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 4,
+      "persona": "beautician",
+      "question": "下午那个客人叫什么名字，有什么要注意的",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 18893,
+      "conversationId": 27462,
+      "runId": 27449,
+      "answer": "今天没有找到匹配预约。\n\n明细：当前没有匹配数据。\n\n说明：当前时间范围没有匹配的明细数据。\n\n数据依据：当前美容师服务安排与客户注意事项；当前美容师个人服务与业绩。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_service_summary",
+          "label": "当前美容师服务安排与客户注意事项"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_personal_performance",
+          "label": "当前美容师个人服务与业绩"
+        }
+      ],
+      "domains": [
+        "customer",
+        "reservation"
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview"
+      ],
+      "grounding": "none",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-005",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 5,
+      "persona": "beautician",
+      "question": "今天最后一个客人几点结束",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1905,
+      "conversationId": 27463,
+      "runId": 27450,
+      "answer": "今天没有有效预约。这里只能确认后续是否还有个人预约，培训、会议和其他任务尚未接入。\n\n明细：当前没有匹配数据。\n\n未完成范围：当前时间范围没有匹配的明细数据；这里只能确认后续是否还有个人预约，培训、会议和其他任务尚未接入。\n\n数据依据：当前美容师服务安排与客户注意事项；当前美容师个人服务与业绩。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_service_summary",
+          "label": "当前美容师服务安排与客户注意事项"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_personal_performance",
+          "label": "当前美容师个人服务与业绩"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project",
+        "beautician",
+        "reservation"
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-006",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 6,
+      "persona": "beautician",
+      "question": "我今天有没有空档，几点到几点",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1893,
+      "conversationId": 27464,
+      "runId": 27451,
+      "answer": "今天没有检测到预约之间的空档。这里只计算已接入预约之间的空档，不包含营业前后时间，也不包含培训、会议和其他任务。\n\n明细：当前没有匹配数据。\n\n未完成范围：当前时间范围没有匹配的明细数据；这里只计算已接入预约之间的空档，不包含营业前后时间，也不包含培训、会议和其他任务。\n\n数据依据：当前美容师服务安排与客户注意事项；当前美容师个人服务与业绩。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_service_summary",
+          "label": "当前美容师服务安排与客户注意事项"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_personal_performance",
+          "label": "当前美容师个人服务与业绩"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project",
+        "beautician",
+        "reservation"
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "appointment_count",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "beautician_service_overview",
+          "customer_facts"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "reservation"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "beautician_service_overview",
+          "customer_facts"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-007",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 7,
+      "persona": "beautician",
+      "question": "下一个客人上次做了什么，有没有什么特殊要求",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 2254,
+      "conversationId": 27465,
+      "runId": 27452,
+      "answer": "今天当前预约客户没有可用的已完成历史服务记录。\n\n明细：当前没有匹配数据。\n\n说明：当前时间范围没有匹配的明细数据。\n\n数据依据：当前美容师服务安排与客户注意事项；当前美容师个人服务与业绩。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_service_summary",
+          "label": "当前美容师服务安排与客户注意事项"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_personal_performance",
+          "label": "当前美容师个人服务与业绩"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project",
+        "beautician",
+        "reservation"
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-008",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 8,
+      "persona": "beautician",
+      "question": "今天我总共要服务几个小时",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1766,
+      "conversationId": 27466,
+      "runId": 27453,
+      "answer": "今天有效预约 0 个，按预约开始和结束时间合计计划服务 0 分钟。\n\n有效预约：0 个；计划服务时长：0 分钟。\n\n明细：当前没有匹配数据。\n\n说明：当前时间范围没有匹配的明细数据。\n\n数据依据：当前美容师服务安排与客户注意事项；当前美容师个人服务与业绩。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_service_summary",
+          "label": "当前美容师服务安排与客户注意事项"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_personal_performance",
+          "label": "当前美容师个人服务与业绩"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project",
+        "beautician",
+        "reservation"
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "list",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "beautician_customer_card_progress",
+          "beautician_material_preparation",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation",
+          "order_revenue_analysis",
+          "product_sales_ranking",
+          "staff_performance_ranking"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "beautician_customer_card_progress",
+          "beautician_material_preparation",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation",
+          "order_revenue_analysis",
+          "product_sales_ranking",
+          "staff_performance_ranking"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-009",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 9,
+      "persona": "beautician",
+      "question": "有没有客人临时取消了，我可以提前下班吗",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 10227,
+      "conversationId": 27467,
+      "runId": 27454,
+      "answer": "今天没有取消预约。取消预约只说明预约状态，不能据此判断可以提前下班；培训、会议和其他非预约任务尚未接入。\n\n明细：当前没有匹配数据。\n\n未完成范围：当前时间范围没有匹配的明细数据；取消预约只说明预约状态，不能据此判断可以提前下班；培训、会议和其他非预约任务尚未接入。\n\n数据依据：当前美容师服务安排与客户注意事项；当前美容师个人服务与业绩。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_service_summary",
+          "label": "当前美容师服务安排与客户注意事项"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_personal_performance",
+          "label": "当前美容师个人服务与业绩"
+        }
+      ],
+      "domains": [
+        "beautician",
+        "reservation",
+        "customer"
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "action",
+        "actualIntent": "list",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-010",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 10,
+      "persona": "beautician",
+      "question": "我今天的客人里有没有首次来的新客",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1844,
+      "conversationId": 27468,
+      "runId": 27455,
+      "answer": "今天没有到店次数为 0 的首次到店候选。\n\n明细：当前没有匹配数据。\n\n说明：当前时间范围没有匹配的明细数据。\n\n数据依据：当前美容师服务安排与客户注意事项；当前美容师个人服务与业绩。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_service_summary",
+          "label": "当前美容师服务安排与客户注意事项"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_personal_performance",
+          "label": "当前美容师个人服务与业绩"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project",
+        "beautician",
+        "reservation"
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-011",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 11,
+      "persona": "beautician",
+      "question": "下一个客人有没有皮肤过敏或者什么注意事项",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 10422,
+      "conversationId": 27469,
+      "runId": 27456,
+      "answer": "今天没有后续有效预约。\n\n明细：当前没有匹配数据。\n\n说明：当前时间范围没有匹配的明细数据。\n\n数据依据：当前美容师服务安排与客户注意事项；当前美容师个人服务与业绩。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_service_summary",
+          "label": "当前美容师服务安排与客户注意事项"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_personal_performance",
+          "label": "当前美容师个人服务与业绩"
+        }
+      ],
+      "domains": [
+        "customer",
+        "reservation",
+        "beautician"
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-012",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 12,
+      "persona": "beautician",
+      "question": "今天有哪个客人是比较难服务的，需要注意什么",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 20998,
+      "conversationId": 27470,
+      "runId": 27457,
+      "answer": "今天没有记录到明确注意事项。系统不会给客户贴“难服务”标签，只列出档案中已有的过敏、肤质、皮肤状态和明确备注。\n\n明细：当前没有匹配数据。\n\n未完成范围：当前时间范围没有匹配的明细数据；系统不会给客户贴“难服务”标签，只列出档案中已有的过敏、肤质、皮肤状态和明确备注。\n\n数据依据：当前美容师服务安排与客户注意事项；当前美容师个人服务与业绩。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_service_summary",
+          "label": "当前美容师服务安排与客户注意事项"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_personal_performance",
+          "label": "当前美容师个人服务与业绩"
+        }
+      ],
+      "domains": [
+        "customer",
+        "reservation",
+        "beautician",
+        "project"
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview"
+      ],
+      "grounding": "none",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [
+          "customer"
+        ],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [
+          "customerName"
+        ],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [
+          "customerName"
+        ],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [
+          "customer"
+        ],
+        "capabilityKeys": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-013",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 13,
+      "persona": "beautician",
+      "question": "我现在服务完这个客人，下一个几点来",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 10312,
+      "conversationId": 27471,
+      "runId": 27458,
+      "answer": "现在到今天结束没有后续有效预约。\n\n明细：当前没有匹配数据。\n\n说明：当前时间范围没有匹配的明细数据。\n\n数据依据：当前美容师服务安排与客户注意事项；当前美容师个人服务与业绩。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_service_summary",
+          "label": "当前美容师服务安排与客户注意事项"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_personal_performance",
+          "label": "当前美容师个人服务与业绩"
+        }
+      ],
+      "domains": [
+        "reservation",
+        "beautician"
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-014",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 14,
+      "persona": "beautician",
+      "question": "今天有没有安排我去做培训或其他任务",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 1680,
+      "conversationId": 27472,
+      "runId": 27459,
+      "answer": "当前美容师能力只接入个人预约与服务事实，没有统一的培训或其他任务排期数据，无法判断今天是否另有培训或非预约任务。",
+      "citations": [],
+      "domains": [
+        "customer",
+        "project",
+        "beautician",
+        "reservation"
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview"
+      ],
+      "grounding": "none",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "unknown",
+        "actualIntent": "unknown",
+        "expectedShape": "non_metric",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": false,
+        "requiresComplete": false
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "service.quality.record"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "unsupported_intent"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "answer:unsupported_intent"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-015",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 15,
+      "persona": "beautician",
+      "question": "下午两点那个客人想做什么项目",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 12790,
+      "conversationId": 27473,
+      "runId": 27460,
+      "answer": "今天没有找到匹配预约。\n\n明细：当前没有匹配数据。\n\n说明：当前时间范围没有匹配的明细数据。\n\n数据依据：当前美容师服务安排与客户注意事项；当前美容师个人服务与业绩。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_service_summary",
+          "label": "当前美容师服务安排与客户注意事项"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_personal_performance",
+          "label": "当前美容师个人服务与业绩"
+        }
+      ],
+      "domains": [
+        "reservation",
+        "customer",
+        "project",
+        "beautician"
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer",
+          "project"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-016",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 16,
+      "persona": "beautician",
+      "question": "我今天要用到什么产品和耗材",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1626,
+      "conversationId": 27474,
+      "runId": 27461,
+      "answer": "今天没有可汇总的项目 BOM 用料。数量是项目 BOM 的标准计划用量，实际操作用量仍需服务时确认。\n\n明细：当前没有匹配数据。\n\n未完成范围：当前时间范围没有匹配的明细数据；数量是项目 BOM 的标准计划用量，实际操作用量仍需服务时确认。\n\n数据依据：当前美容师预约项目与标准 BOM 用料。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_project_bom_material_plan",
+          "label": "当前美容师预约项目与标准 BOM 用料"
+        }
+      ],
+      "domains": [
+        "product"
+      ],
+      "capabilityKeys": [
+        "beautician_material_preparation"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "unknown",
+        "actualIntent": "list",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "beautician_material_preparation",
+          "product_sales_ranking"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "product"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "beautician_material_preparation",
+          "product_sales_ranking"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-017",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 17,
+      "persona": "beautician",
+      "question": "今天有没有客人提前到了在等我",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1960,
+      "conversationId": 27475,
+      "runId": 27462,
+      "answer": "今天没有记录到提前签到并等待的客户。\n\n明细：当前没有匹配数据。\n\n说明：当前时间范围没有匹配的明细数据。\n\n数据依据：当前美容师服务安排与客户注意事项；当前美容师个人服务与业绩。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_service_summary",
+          "label": "当前美容师服务安排与客户注意事项"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_personal_performance",
+          "label": "当前美容师个人服务与业绩"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project",
+        "beautician",
+        "reservation"
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-018",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 18,
+      "persona": "beautician",
+      "question": "我这周的排班是怎样的",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 30837,
+      "conversationId": 27476,
+      "runId": 27463,
+      "answer": "本周有 0 个有效预约。当前输出的是个人预约排期，不等同于考勤排班，也不包含培训和其他任务。\n\n明细：当前没有匹配数据。\n\n未完成范围：当前时间范围没有匹配的明细数据；当前输出的是个人预约排期，不等同于考勤排班，也不包含培训和其他任务。\n\n数据依据：当前美容师服务安排与客户注意事项；当前美容师个人服务与业绩。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_service_summary",
+          "label": "当前美容师服务安排与客户注意事项"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_personal_performance",
+          "label": "当前美容师个人服务与业绩"
+        }
+      ],
+      "domains": [
+        "beautician",
+        "reservation",
+        "customer",
+        "project"
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "expectedMetric": "appointment_count",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "beautician_service_overview",
+          "customer_facts",
+          "staff_performance_ranking"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "beautician"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "beautician_service_overview",
+          "customer_facts",
+          "staff_performance_ranking"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-019",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 19,
+      "persona": "beautician",
+      "question": "帮我看一下今天客人的护理历史",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 32080,
+      "conversationId": 27477,
+      "runId": 27464,
+      "answer": "今天当前预约客户没有可用的已完成历史服务记录。\n\n明细：当前没有匹配数据。\n\n说明：当前时间范围没有匹配的明细数据。\n\n数据依据：当前美容师服务安排与客户注意事项；当前美容师个人服务与业绩。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_service_summary",
+          "label": "当前美容师服务安排与客户注意事项"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_personal_performance",
+          "label": "当前美容师个人服务与业绩"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project",
+        "beautician",
+        "reservation"
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview"
+      ],
+      "grounding": "none",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer",
+          "project"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-020",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 20,
+      "persona": "beautician",
+      "question": "我今天最后一个客人结束后还有没有安排",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 10947,
+      "conversationId": 27478,
+      "runId": 27465,
+      "answer": "今天没有有效预约。这里只能确认后续是否还有个人预约，培训、会议和其他任务尚未接入。\n\n明细：当前没有匹配数据。\n\n未完成范围：当前时间范围没有匹配的明细数据；这里只能确认后续是否还有个人预约，培训、会议和其他任务尚未接入。\n\n数据依据：当前美容师服务安排与客户注意事项；当前美容师个人服务与业绩。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_service_summary",
+          "label": "当前美容师服务安排与客户注意事项"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_personal_performance",
+          "label": "当前美容师个人服务与业绩"
+        }
+      ],
+      "domains": [
+        "beautician",
+        "reservation"
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-021",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 21,
+      "persona": "beautician",
+      "question": "下一个客人的疗程做到哪一步了",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1592,
+      "conversationId": 27479,
+      "runId": 27466,
+      "answer": "今天没有后续预约客户，无法查询卡项进度。\n\n明细：当前没有匹配数据。\n\n未完成范围：当前时间范围没有匹配的明细数据；卡项进度按 CustomerCard 总次数与剩余次数计算，不推断护理阶段名称。\n\n数据依据：当前美容师预约客户有效卡项。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_reservation_customer_cards",
+          "label": "当前美容师预约客户有效卡项"
+        }
+      ],
+      "domains": [
+        "customer"
+      ],
+      "capabilityKeys": [
+        "beautician_customer_card_progress"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer",
+          "project"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-022",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 22,
+      "persona": "beautician",
+      "question": "今天有没有需要我帮客人续卡或者推荐项目的",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1628,
+      "conversationId": 27480,
+      "runId": 27467,
+      "answer": "今天没有后续预约客户，无法查询卡项进度。\n\n明细：当前没有匹配数据。\n\n未完成范围：当前时间范围没有匹配的明细数据；统一续卡阈值与项目推荐规则尚未发布，因此只展示卡项余次和到期日，不自动判定必须续卡或推荐具体项目。\n\n数据依据：当前美容师预约客户有效卡项。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_reservation_customer_cards",
+          "label": "当前美容师预约客户有效卡项"
+        }
+      ],
+      "domains": [
+        "customer"
+      ],
+      "capabilityKeys": [
+        "beautician_customer_card_progress"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "recommendation",
+        "actualIntent": "list",
+        "expectedShape": "non_metric",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer",
+          "project"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-023",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 23,
+      "persona": "beautician",
+      "question": "我今天的客人里有没有 VIP 需要特别对待",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 1899,
+      "conversationId": 27481,
+      "runId": 27468,
+      "answer": "今天预约客户会员等级已列出。当前只展示客户原始会员等级，统一 VIP 等级映射规则尚未发布，不能自动判定哪些等级属于 VIP。\n\n明细：当前没有匹配数据。\n\n未完成范围：当前时间范围没有匹配的明细数据；当前只展示客户原始会员等级，统一 VIP 等级映射规则尚未发布，不能自动判定哪些等级属于 VIP。\n\n数据依据：当前美容师服务安排与客户注意事项；当前美容师个人服务与业绩。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_service_summary",
+          "label": "当前美容师服务安排与客户注意事项"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_personal_performance",
+          "label": "当前美容师个人服务与业绩"
+        }
+      ],
+      "domains": [
+        "customer",
+        "project",
+        "beautician",
+        "reservation"
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "beautician_customer_card_progress",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-024",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 24,
+      "persona": "beautician",
+      "question": "下一个客人最近情绪状态怎么样，需要特别关心吗",
+      "status": "unsupported_intent",
+      "brainStatus": "completed",
+      "latencyMs": 2069,
+      "conversationId": 27482,
+      "runId": 27469,
+      "answer": "当前客户档案没有结构化、可审计的近期情绪状态，无法推断客户情绪。可以查看已有客户备注和明确注意事项，但不会据此给客户贴情绪标签。",
+      "citations": [],
+      "domains": [
+        "customer",
+        "project",
+        "beautician",
+        "reservation"
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview"
+      ],
+      "grounding": "none",
+      "executionPath": "exact_contract_fast_path",
+      "modelProvider": "governed_contract",
+      "modelName": "exact_example_fast_path",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "unsupported_intent",
+        "expectedIntent": "list",
+        "actualIntent": "unknown",
+        "expectedShape": "list",
+        "actualShape": "non_metric",
+        "reason": "当前能力未覆盖该意图或未返回指标引用。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "none"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "requiresGrounding": false,
+        "requiresComplete": false
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [
+          "customer"
+        ],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "service.quality.record"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 0,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": false,
+          "score": 0,
+          "checked": 1,
+          "failures": [
+            "unsupported_intent"
+          ],
+          "deterministicFailure": true
+        }
+      },
+      "sixLayerPassed": false,
+      "legacyStatus": "not_usable",
+      "failureReason": "answer:unsupported_intent"
+    },
+    {
+      "questionId": "qb-beautician-service-schedule-025",
+      "sourceSection": "四、美容师服务 Agent",
+      "sourceCategory": "今日服务安排",
+      "sourceIndex": 25,
+      "persona": "beautician",
+      "question": "帮我看一下今天整体的服务流程安排",
+      "status": "usable_exact",
+      "brainStatus": "completed",
+      "latencyMs": 11266,
+      "conversationId": 27483,
+      "runId": 27470,
+      "answer": "今天没有有效预约安排。\n\n有效预约：0 个；计划服务时长：0 分钟。\n\n明细：当前没有匹配数据。\n\n说明：当前时间范围没有匹配的明细数据。\n\n数据依据：当前美容师服务安排与客户注意事项；当前美容师个人服务与业绩。",
+      "citations": [
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_service_summary",
+          "label": "当前美容师服务安排与客户注意事项"
+        },
+        {
+          "sourceType": "db_skill",
+          "sourceId": "beautician_personal_performance",
+          "label": "当前美容师个人服务与业绩"
+        }
+      ],
+      "domains": [
+        "beautician",
+        "reservation",
+        "customer",
+        "project"
+      ],
+      "capabilityKeys": [
+        "beautician_service_overview"
+      ],
+      "grounding": "db_skill",
+      "executionPath": "model_primary",
+      "modelProvider": "openai_responses",
+      "modelName": "gpt-5.6-terra",
+      "modelStage": "execute",
+      "cognitionMode": "model",
+      "grader": {
+        "status": "usable_exact",
+        "expectedIntent": "list",
+        "actualIntent": "list",
+        "expectedShape": "list",
+        "actualShape": "list",
+        "reason": "意图、指标引用和回答粒度匹配。",
+        "legacyUsableWithCitation": false,
+        "groundingType": "db_skill"
+      },
+      "expected": {
+        "intent": "query",
+        "domains": [],
+        "entities": [],
+        "metrics": [],
+        "dimensions": [],
+        "capabilityKeys": [],
+        "planShape": {
+          "minNodes": 1,
+          "maxNodes": 8,
+          "requiresPreview": false,
+          "requiredCapabilityKeys": []
+        },
+        "requiresGrounding": true,
+        "requiresComplete": true,
+        "capabilityAnyOf": [
+          "beautician_customer_card_progress",
+          "beautician_material_preparation",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation",
+          "order_revenue_analysis",
+          "product_sales_ranking",
+          "staff_performance_ranking"
+        ]
+      },
+      "expectationResolution": {
+        "metricKeys": [],
+        "dimensionKeys": [],
+        "entityKeys": [],
+        "domainKeys": [],
+        "capabilityKeys": [
+          "beautician_customer_card_progress",
+          "beautician_material_preparation",
+          "beautician_service_overview",
+          "customer_facts",
+          "customer_priority_recommendation",
+          "order_revenue_analysis",
+          "product_sales_ranking",
+          "staff_performance_ranking"
+        ],
+        "unresolved": []
+      },
+      "layers": {
+        "intent": {
+          "layer": "intent",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "tool": {
+          "layer": "capability",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "plan": {
+          "layer": "plan",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "execution": {
+          "layer": "execution",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "completion": {
+          "layer": "completion",
+          "passed": true,
+          "score": 1,
+          "checked": 3,
+          "failures": [],
+          "deterministicFailure": false
+        },
+        "answer": {
+          "layer": "answer",
+          "passed": true,
+          "score": 1,
+          "checked": 1,
+          "failures": [],
+          "deterministicFailure": false
+        }
+      },
+      "sixLayerPassed": true,
+      "legacyStatus": "not_usable"
+    }
+  ]
+}

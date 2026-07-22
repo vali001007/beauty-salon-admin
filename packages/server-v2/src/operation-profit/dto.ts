@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsString, Matches, Min } from 'class-validator';
+import { IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsString, Matches, MaxLength, Min, MinLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export const OPERATION_COST_CATEGORIES = [
@@ -243,6 +243,11 @@ export class QueryPrepaidLiabilitiesDto {
   @IsInt()
   storeId?: number;
 
+  @ApiPropertyOptional({ example: '2026-06-30', description: '历史时点；历史查询优先返回已确认月末快照' })
+  @IsOptional()
+  @IsDateString()
+  asOfDate?: string;
+
   @ApiPropertyOptional({ default: false })
   @IsOptional()
   riskOnly?: boolean;
@@ -278,4 +283,36 @@ export class QueryBeauticianPerformanceDto extends QueryOperationProfitDto {
   @Type(() => Number)
   @IsInt()
   beauticianId?: number;
+}
+
+export class GenerateMonthlyProfitCloseDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  storeId?: number;
+
+  @ApiProperty({ example: '2026-06' })
+  @Matches(/^\d{4}-\d{2}$/)
+  periodMonth: string;
+}
+
+export class ReopenFinanceCloseDto {
+  @ApiProperty({ minLength: 5, maxLength: 500 })
+  @IsString()
+  @MinLength(5)
+  @MaxLength(500)
+  reason: string;
+}
+
+export class GenerateMemberLiabilitySnapshotDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  storeId?: number;
+
+  @ApiProperty({ example: '2026-06-30' })
+  @IsDateString()
+  snapshotDate: string;
 }

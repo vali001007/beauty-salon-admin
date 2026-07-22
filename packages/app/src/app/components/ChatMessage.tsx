@@ -1,11 +1,16 @@
 import { ReactNode } from 'react'
 import type { BusinessResult } from '../../api/claude'
+import type { BrainActionPreview, BrainResponseBlock } from '../../api/brain'
 
 interface ChatMessageProps {
   type: 'ai' | 'user' | 'system'
   content?: string
   children?: ReactNode
   businessResult?: BusinessResult | null
+  blocks?: BrainResponseBlock[]
+  onClarificationSelect?: (label: string, value: unknown) => void
+  onConfirmAction?: (action: BrainActionPreview) => void
+  onRejectAction?: (action: BrainActionPreview) => void
 }
 
 function MarkdownText({ content }: { content: string }) {
@@ -181,7 +186,17 @@ function BusinessCard({ businessResult }: { businessResult: BusinessResult }) {
   return null
 }
 
-export function ChatMessage({ type, content, children, businessResult }: ChatMessageProps) {
+export function ChatMessage({
+  type,
+  content,
+  children,
+  businessResult,
+  blocks = [],
+  onClarificationSelect,
+  onConfirmAction,
+  onRejectAction,
+}: ChatMessageProps) {
+  const renderableBlocks = blocks.filter(isSupportedBrainBlock)
   if (type === 'system') {
     return (
       <div className="flex justify-center py-2">
@@ -198,7 +213,14 @@ export function ChatMessage({ type, content, children, businessResult }: ChatMes
         </div>
         <div className="flex-1 max-w-[80%]">
           <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-none p-3 shadow-sm">
-            {content && <MarkdownText content={content} />}
+            {renderableBlocks.length ? (
+              <AssistantBlocks
+                blocks={renderableBlocks}
+                onClarificationSelect={onClarificationSelect}
+                onConfirmAction={onConfirmAction}
+                onRejectAction={onRejectAction}
+              />
+            ) : content && <MarkdownText content={content} />}
             {businessResult ? <BusinessCard businessResult={businessResult} /> : null}
             {children}
           </div>
@@ -217,4 +239,168 @@ export function ChatMessage({ type, content, children, businessResult }: ChatMes
       </div>
     </div>
   )
+}
+
+function AssistantBlocks({
+  blocks,
+  onClarificationSelect,
+  onConfirmAction,
+  onRejectAction,
+}: {
+  blocks: BrainResponseBlock[]
+  onClarificationSelect?: (label: string, value: unknown) => void
+  onConfirmAction?: (action: BrainActionPreview) => void
+  onRejectAction?: (action: BrainActionPreview) => void
+}) {
+  return <div className="space-y-3">{blocks.map((block, index) => {
+    if (block.kind === 'text') return <p key={index} className="whitespace-pre-wrap text-sm leading-6 text-gray-800">{block.text}</p>
+    if (block.kind === 'kpi') return (
+      <div key={index} className="grid grid-cols-2 gap-2">
+        {block.items.map((item) => (
+          <div key={`${item.label}:${item.value}`} className="border-l-2 border-amber-500 pl-2">
+            <div className="text-xs text-gray-500">{item.label}</div>
+            <div className="break-words font-semibold text-gray-900">{item.value}</div>
+            {item.hint ? <div className="text-[11px] text-gray-500">{item.hint}</div> : null}
+          </div>
+        ))}
+      </div>
+    )
+    if (block.kind === 'ranking' || block.kind === 'table') return <MobileDataTable key={index} block={block} />
+    if (block.kind === 'chart') return <MobileChart key={index} block={block} />
+    if (block.kind === 'comparison') return (
+      <div key={index} className="divide-y divide-gray-100 border border-gray-200">
+        {block.items.map((item) => (
+          <div key={item.label} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 p-2 text-xs">
+            <span className="font-medium text-gray-800">{item.label}</span>
+            <span className="text-right text-gray-700">{item.current}</span>
+            <span className="text-gray-500">上期 {item.previous}</span>
+            <span className="text-right font-medium text-gray-800">{item.delta ?? '-'}</span>
+          </div>
+        ))}
+      </div>
+    )
+    if (block.kind === 'diagnosis') return (
+      <div key={index} className="space-y-2">
+        {block.findings.map((finding) => (
+          <div key={`${finding.title}:${finding.detail}`} className={`border-l-2 pl-3 text-sm ${finding.severity === 'critical' ? 'border-red-500 text-red-800' : finding.severity === 'warning' ? 'border-amber-500 text-amber-800' : 'border-blue-500 text-gray-700'}`}>
+            <div className="font-medium">{finding.title}</div>
+            <div className="mt-0.5 text-xs leading-5 opacity-90">{finding.detail}</div>
+          </div>
+        ))}
+      </div>
+    )
+    if (block.kind === 'clarification') return (
+      <div key={index} className="border-l-2 border-amber-500 pl-3">
+        <div className="text-sm text-gray-800">{block.question}</div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {block.options.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900"
+              onClick={() => onClarificationSelect?.(option.label, option.value)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+    if (block.kind === 'action_preview') return (
+      <div key={index} className="space-y-2">
+        {block.actions.map((action) => (
+          <div key={action.actionId} className="border border-amber-200 bg-amber-50 p-3">
+            <div className="text-sm font-medium text-amber-900">待确认：{action.actionType ?? action.skillKey ?? '经营动作'}</div>
+            <div className="mt-1 text-xs leading-5 text-amber-800">{action.summary}</div>
+            {action.requiresConfirmation ? (
+              <div className="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  className="rounded-md bg-amber-700 px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
+                  onClick={() => onConfirmAction?.(action)}
+                  disabled={!onConfirmAction}
+                >
+                  确认执行
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border border-amber-300 bg-white px-3 py-2 text-xs font-medium text-amber-900 disabled:opacity-50"
+                  onClick={() => onRejectAction?.(action)}
+                  disabled={!onRejectAction}
+                >
+                  拒绝
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    )
+    if (block.kind === 'limitations') return <div key={index} className="border-l-2 border-amber-500 pl-3 text-sm text-amber-700">未完成：{block.items.join('；')}</div>
+    if (block.kind === 'evidence') return (
+      <div key={index} className="border-t border-gray-100 pt-2 text-xs leading-5 text-gray-500">
+        数据依据：{block.citations.map((citation) => citation.label ?? citation.sourceId).join('、')}
+      </div>
+    )
+    return null
+  })}</div>
+}
+
+function MobileDataTable({ block }: { block: Extract<BrainResponseBlock, { kind: 'ranking' | 'table' }> }) {
+  const columns = block.columns.length ? block.columns : Object.keys(block.rows[0] ?? {})
+  return (
+    <div className="overflow-x-auto">
+      <div className="mb-1 text-xs font-medium text-gray-500">{block.kind === 'ranking' ? '排行结果' : '明细结果'}</div>
+      <table className="min-w-full text-xs">
+        <thead><tr>{columns.map((column) => <th key={column} className="whitespace-nowrap border-b px-2 py-1 text-left font-medium text-gray-600">{column}</th>)}</tr></thead>
+        <tbody>{block.rows.map((row, rowIndex) => <tr key={rowIndex}>{columns.map((column) => <td key={column} className="max-w-40 break-words border-b px-2 py-1.5 text-gray-700">{formatBlockValue(row[column])}</td>)}</tr>)}</tbody>
+      </table>
+    </div>
+  )
+}
+
+function MobileChart({ block }: { block: Extract<BrainResponseBlock, { kind: 'chart' }> }) {
+  const valueKey = block.yKeys[0]
+  const values = block.rows.map((row) => Number(row[valueKey])).filter(Number.isFinite)
+  const max = Math.max(...values, 0)
+  if (!valueKey || !block.rows.length || max <= 0) return <div className="text-sm text-gray-500">暂无可绘制数据。</div>
+  return (
+    <div className="space-y-2" aria-label={block.chartType === 'line' ? '趋势数据图' : '柱状数据图'}>
+      {block.rows.slice(0, 12).map((row, index) => {
+        const value = Number(row[valueKey])
+        const width = Number.isFinite(value) ? Math.max(2, Math.round((value / max) * 100)) : 0
+        return (
+          <div key={`${formatBlockValue(row[block.xKey])}:${index}`} className="grid grid-cols-[4.5rem_minmax(5rem,1fr)_auto] items-center gap-2 text-xs">
+            <span className="truncate text-gray-500">{formatBlockValue(row[block.xKey])}</span>
+            <span className="h-2 overflow-hidden bg-gray-100"><span className="block h-full bg-emerald-700" style={{ width: `${width}%` }} /></span>
+            <span className="font-medium text-gray-700">{formatBlockValue(row[valueKey])}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function formatBlockValue(value: unknown) {
+  if (value === null || value === undefined || value === '') return '-'
+  if (typeof value === 'object') return JSON.stringify(value)
+  return String(value)
+}
+
+function isSupportedBrainBlock(value: unknown): value is BrainResponseBlock {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const kind = (value as { kind?: unknown }).kind
+  return typeof kind === 'string' && [
+    'text',
+    'kpi',
+    'ranking',
+    'table',
+    'chart',
+    'comparison',
+    'diagnosis',
+    'clarification',
+    'action_preview',
+    'limitations',
+    'evidence',
+  ].includes(kind)
 }

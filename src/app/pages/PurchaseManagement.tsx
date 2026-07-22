@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { CheckCircle, PackageCheck, ShoppingCart, Sparkles, Loader2 } from 'lucide-react';
 import { Button, Table, TableHeader, TableRow, TableHead, TableBody, TableCell, Input } from '../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
@@ -53,6 +53,10 @@ type UnifiedPurchaseOrder = {
 };
 
 const OFFICIAL_SUPPLY_DISCOUNT_RATE = 0.8;
+
+function createIdempotencyKey(prefix: string) {
+  return globalThis.crypto?.randomUUID?.() ?? `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 function getSuggestionUnitPrice(suggestion: ReplenishmentSuggestion) {
   if (suggestion.suggestedQty <= 0 || suggestion.estimatedAmount <= 0) return 0;
@@ -205,6 +209,8 @@ export function PurchaseManagement() {
   const [isReceivingManualOrder, setIsReceivingManualOrder] = useState(false);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
   const [loadingStockMovements, setLoadingStockMovements] = useState(false);
+  const platformBatchRequestKeys = useRef(new Map<string, string>());
+  const receiptRequestKeys = useRef(new Map<string, string>());
   const { currentStoreId, stores } = useStoreStore();
   const currentStoreName = useMemo(() => {
     if (!currentStoreId) return '全部门店';
@@ -323,8 +329,8 @@ export function PurchaseManagement() {
           items: draft.items.filter((item) => !draft.platformItems.some((platformItem) => platformItem.sku === item.sku)),
         }))
         .filter((draft) => draft.items.length > 0);
-      await Promise.all([
-        ...platformDrafts.map((draft) => createProcurementOrdersFromReplenishment({
+      const platformRequests = platformDrafts.map((draft) => {
+        const payload = {
           storeId: currentStoreId ?? 1,
           expectedArrivalDate: draft.expectedDate,
           items: draft.platformItems.map((item) => ({
@@ -334,7 +340,14 @@ export function PurchaseManagement() {
             quoteId: item.quoteId,
             quantity: item.quantity,
           })),
-        })),
+        };
+        const fingerprint = JSON.stringify(payload);
+        const idempotencyKey = platformBatchRequestKeys.current.get(fingerprint) ?? createIdempotencyKey('procurement-batch');
+        platformBatchRequestKeys.current.set(fingerprint, idempotencyKey);
+        return { fingerprint, payload: { ...payload, idempotencyKey } };
+      });
+      await Promise.all([
+        ...platformRequests.map((request) => createProcurementOrdersFromReplenishment(request.payload)),
         ...manualDrafts.map((draft) => createPurchaseOrder({
           supplier: draft.supplier,
           storeId: currentStoreId ?? 1,
@@ -343,6 +356,7 @@ export function PurchaseManagement() {
           items: draft.items,
         })),
       ]);
+      platformRequests.forEach((request) => platformBatchRequestKeys.current.delete(request.fingerprint));
       toast.success(`已生成 ${platformDrafts.length} 张平台供货订单、${manualDrafts.length} 张手动采购单，合计 ¥${selectedTotal.toLocaleString()}`);
       setShowGenerateConfirm(false);
       setSuggestions(prev => prev.map(item => item.checked ? { ...item, checked: false } : item));
@@ -480,16 +494,24 @@ export function PurchaseManagement() {
       toast.error('当前平台订单没有可收货的发货明细');
       return;
     }
+    const payload = {
+      items: receivableShipmentItems.map(({ item, orderItem }) => ({
+        shipmentItemId: item.id,
+        productId: orderItem?.productId ?? undefined,
+        receivedQty: item.shippedQty - item.receivedQty,
+      })),
+      remark: '门店采购管理确认收货',
+    };
+    const fingerprint = JSON.stringify({ orderId: selectedOrder.id, ...payload });
+    const idempotencyKey = receiptRequestKeys.current.get(fingerprint) ?? createIdempotencyKey('procurement-receipt');
+    receiptRequestKeys.current.set(fingerprint, idempotencyKey);
     setIsReceivingOrder(true);
     try {
       const updated = await receiveProcurementOrder(selectedOrder.id, {
-        items: receivableShipmentItems.map(({ item, orderItem }) => ({
-          shipmentItemId: item.id,
-          productId: orderItem?.productId ?? undefined,
-          receivedQty: item.shippedQty - item.receivedQty,
-        })),
-        remark: '门店采购管理确认收货',
+        ...payload,
+        idempotencyKey,
       });
+      receiptRequestKeys.current.delete(fingerprint);
       toast.success('收货入库完成，库存批次和流水已同步');
       setSelectedOrder(updated);
       await loadOrderStockMovements(selectedOrder.id);

@@ -5,7 +5,7 @@ export interface MarketingActivity {
   title: string;
   description: string;
   image: string;
-  status: '进行中' | '即将开始' | '已结束' | '草稿';
+  status: MarketingActivityStatus;
   participants: number;
   conversion: string;
   startDate: string;
@@ -19,6 +19,8 @@ export interface MarketingActivity {
   posterTitleColor?: string;
   pageSchema?: ActivityPageSchema;
   sourceRecommendationId?: string | number;
+  recommendationInstanceId?: string;
+  adoptionId?: number;
   predictionRunId?: string | number;
   audienceSnapshotId?: string | number;
   audienceSnapshotJson?: AudienceSnapshot;
@@ -114,6 +116,130 @@ export interface MarketingRecommendation {
   attributionSummary?: RecommendationAttributionSummary;
 }
 
+export type RecommendationInstanceSourceType = 'prediction' | 'lifecycle' | 'product_project';
+
+export interface RecommendationInstanceCoverage {
+  totalCustomers: number;
+  predictedCustomers: number;
+  coverageRate: number;
+  predictionRunId: number | null;
+  generatedAt: string | null;
+  freshness: 'fresh' | 'stale' | 'missing';
+}
+
+export interface MarketingRecommendationInstanceView {
+  recommendationInstanceId: string;
+  recommendationKey: string;
+  sourceType: RecommendationInstanceSourceType;
+  sourceVersion: string;
+  predictionRunId: number | null;
+  businessDate: string;
+  status: 'active' | 'superseded' | 'expired' | string;
+  title: string;
+  description?: string | null;
+  priority: 'P0' | 'P1' | 'P2';
+  urgency: 'urgent' | 'recommended' | 'opportunity';
+  preferredMode: 'activity' | 'automation' | 'terminal_follow_up';
+  executionModes: Array<'activity' | 'automation' | 'terminal_follow_up'>;
+  evidence: Record<string, unknown>;
+  strategy?: Record<string, unknown> | null;
+  targetCount: number;
+  generatedAt: string;
+  expiresAt: string;
+  audience: {
+    snapshotId: string;
+    customerCount: number;
+    rule: Record<string, unknown>;
+    generatedAt: string;
+  } | null;
+  offer: {
+    snapshotId: string;
+    selectedPromotionId: number | null;
+    offer: RecommendedOffer | Record<string, unknown>;
+    alternatives: RecommendedPromotionMatch[];
+    fitBreakdown?: RecommendationOfferFitBreakdown | Record<string, unknown> | null;
+    inventorySnapshot?: Record<string, unknown> | null;
+    capacitySnapshot?: Record<string, unknown> | null;
+    riskWarnings: string[];
+    generatedAt: string;
+  } | null;
+  executionState: {
+    adopted: boolean;
+    latestAdoptionId: number | null;
+    activity: Record<string, unknown> | null;
+    automation: Record<string, unknown> | null;
+    terminalFollowUp: Record<string, unknown> | null;
+  };
+}
+
+export interface RecommendationInstanceListResponse {
+  items: MarketingRecommendationInstanceView[];
+  total: number;
+  page: number;
+  pageSize: number;
+  coverage: RecommendationInstanceCoverage;
+}
+
+export interface RecommendationInstanceAudienceItem {
+  id: number;
+  customerId: number;
+  rank: number;
+  score: number;
+  reason: Record<string, unknown>;
+  predictionData?: Record<string, unknown> | null;
+  customer: {
+    id: number;
+    name: string;
+    phone?: string | null;
+    memberLevel?: string | null;
+    tags?: string[];
+    lastVisitDate?: string | null;
+    skinType?: string | null;
+    visitCount?: number;
+    totalSpent?: number;
+    store?: { name?: string | null } | null;
+  };
+}
+
+export interface RecommendationInstanceAudienceResponse {
+  recommendationInstanceId: string;
+  snapshotId: string;
+  customerCount: number;
+  generatedAt: string;
+  items: RecommendationInstanceAudienceItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface AdoptRecommendationInstanceRequest {
+  mode: 'activity' | 'automation' | 'terminal_follow_up';
+  clientRequestId: string;
+  customerIds?: number[];
+  assignments?: Array<{
+    customerId: number;
+    assigneeRole?: 'manager' | 'consultant' | 'reception';
+    assigneeUserId: number;
+    assigneeBeauticianId?: number;
+  }>;
+  activity?: { title?: string; startDate?: string; endDate?: string; publishPage: boolean };
+}
+
+export interface AdoptRecommendationInstanceResponse {
+  adoptionId: number;
+  recommendationInstanceId: string;
+  mode: AdoptRecommendationInstanceRequest['mode'];
+  status: 'draft' | 'published' | 'enabled' | 'dispatched' | 'partial_failed' | 'failed';
+  activityId?: number;
+  pageId?: number;
+  strategyId?: number;
+  followUpTaskIds?: number[];
+  duplicatedCustomerIds?: number[];
+  failedCustomers?: Array<{ customerId: number; code: string; message: string }>;
+}
+
+export type MarketingActivityStatus = 'draft' | 'scheduled' | 'active' | 'ended' | 'cancelled';
+
 export interface RecommendationFulfillmentSummary {
   inventoryReady: boolean;
   capacityReady: boolean;
@@ -140,7 +266,7 @@ export interface RecommendationExecutionState {
 }
 
 export type RecommendationPriority = 'P0' | 'P1' | 'P2' | 'P3';
-export type RecommendationExecutionMode = 'activity' | 'automation' | 'advisor_task' | 'miniapp_slot' | 'transfer' | 'replenishment';
+export type RecommendationExecutionMode = 'activity' | 'automation' | 'terminal_follow_up' | 'advisor_task' | 'miniapp_slot' | 'transfer' | 'replenishment';
 
 export interface RecommendationInventorySnapshot {
   productId: number;
@@ -362,6 +488,8 @@ export interface PredictionRunSummary {
 }
 
 export type MarketingEffectObjectType = 'activity' | 'auto' | 'page' | 'promotion' | 'recommendation' | 'glow';
+export type MarketingMetricSource = 'actual' | 'predicted' | 'estimated';
+export type MarketingMetric = { value: number; source: MarketingMetricSource; definition: string };
 
 export interface UnifiedMarketingEffectItem {
   id: string;
@@ -382,6 +510,12 @@ export interface UnifiedMarketingEffectItem {
   detailPath?: string;
   emptyReason?: string;
   metricsSource: string;
+  metrics?: {
+    exposure: MarketingMetric;
+    conversion: MarketingMetric;
+    revenue: MarketingMetric;
+    cost: MarketingMetric;
+  };
   relatedObjectName?: string;
   audienceName?: string;
   promotionName?: string;
@@ -408,9 +542,41 @@ export interface UnifiedMarketingEffectSummary {
   roi: string;
 }
 
+export interface UnifiedMarketingMetricSummary {
+  exposure: MarketingMetric;
+  clicks: MarketingMetric;
+  conversions: MarketingMetric;
+  revenue: MarketingMetric;
+  cost: MarketingMetric;
+  roi: MarketingMetric;
+}
+
+export interface UnifiedMarketingFactDimensionItem {
+  id: number | string;
+  objectType: string;
+  name: string;
+  exposure: MarketingMetric;
+  clicks: MarketingMetric;
+  conversions: MarketingMetric;
+  revenue: MarketingMetric;
+  cost: MarketingMetric;
+  roi: MarketingMetric;
+}
+
+export interface UnifiedMarketingEffectDimensions {
+  activities: UnifiedMarketingFactDimensionItem[];
+  recommendations: UnifiedMarketingFactDimensionItem[];
+  promotions: UnifiedMarketingFactDimensionItem[];
+  pages: UnifiedMarketingFactDimensionItem[];
+  strategies: UnifiedMarketingFactDimensionItem[];
+  channels: UnifiedMarketingFactDimensionItem[];
+}
+
 export interface UnifiedMarketingEffectsResponse {
   items: UnifiedMarketingEffectItem[];
   summary: UnifiedMarketingEffectSummary;
+  metricSummary?: UnifiedMarketingMetricSummary;
+  dimensions?: UnifiedMarketingEffectDimensions;
   emptyReasons: Partial<Record<MarketingEffectObjectType, string>>;
   generatedAt: string;
 }
@@ -511,6 +677,10 @@ export interface MarketingAutomationStrategy {
   status: MarketingStrategyStatus;
   executionType: 'auto' | 'manual';
   source?: 'manual' | 'rule_library' | 'recommendation';
+  recommendationInstanceId?: string;
+  adoptionId?: number;
+  predictionRunId?: number;
+  audienceSnapshotId?: string;
   ruleTemplateId?: number;
   ruleTemplateVersion?: string;
   schedule: MarketingSchedule;
@@ -550,6 +720,10 @@ export interface MarketingRuleEffectSummary {
   cost: number;
   roi: string;
   lastExecutedAt?: string;
+  metrics?: {
+    revenue: MarketingMetric;
+    cost: MarketingMetric;
+  };
 }
 
 export interface MarketingRuleTemplate {
@@ -690,4 +864,8 @@ export interface MarketingAutomationEffect {
   predictedRevenue?: number;
   actualRevenue?: number;
   revenueDeviation?: number;
+  metrics?: {
+    revenue: MarketingMetric;
+    cost: MarketingMetric;
+  };
 }

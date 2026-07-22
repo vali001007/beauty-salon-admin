@@ -1,0 +1,220 @@
+{
+  "schemaVersion": 1,
+  "policy": "published_registry_gate",
+  "productionReady": true,
+  "proposalStatus": "ready",
+  "capabilityKey": "customer_facts",
+  "sourceFingerprint": "06691df3673a6c20218c6c177ff08c039e9fb564915d2ac44ed33470c82c837d",
+  "proposalFingerprint": "ccbd9e030536b0a294c6a05b4cc51358720529e2ab3620afed426d96209f6471",
+  "bindingFingerprint": "f341e93c1ce391d9e9b02b7ec26a9a0c8b72c1401a8d440ccfde3ed30a177a7e",
+  "executorBinding": {
+    "schemaVersion": 1,
+    "capabilityKey": "customer_facts",
+    "sourceFingerprint": "06691df3673a6c20218c6c177ff08c039e9fb564915d2ac44ed33470c82c837d",
+    "target": {
+      "kind": "service",
+      "className": "BrainDomainServiceCapabilityExecutor",
+      "methodName": "customerFactsLookup",
+      "sourcePath": "packages/server-v2/src/brain/capability/executors/brain-domain-service-capability.executor.ts",
+      "exportedClass": true,
+      "methodAccess": "public",
+      "parameterCount": 2,
+      "parameterTypes": [
+        "BrainCapabilityToolArgs",
+        "BrainCapabilityExecutionInput"
+      ],
+      "returnType": "unknown"
+    },
+    "generatedSourcePath": "packages/server-v2/src/brain/capability/generated/customer_facts/binding.ts",
+    "targetImportPath": "../../executors/brain-domain-service-capability.executor.js",
+    "requiredPermissions": [
+      "core:brain:use",
+      "core:customer:view"
+    ],
+    "storeScope": "required",
+    "requiresConfirmation": false,
+    "idempotency": "not_applicable",
+    "readOnly": true,
+    "sideEffect": false,
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "comparisonTarget": {
+          "type": "object"
+        },
+        "dimensions": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "entities": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "filters": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "limit": {
+          "type": "number"
+        },
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "objective": {
+          "type": "string"
+        },
+        "orderBy": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "time": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "dimensions",
+        "entities",
+        "filters",
+        "metrics",
+        "objective",
+        "orderBy"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "bindingFingerprint": "f341e93c1ce391d9e9b02b7ec26a9a0c8b72c1401a8d440ccfde3ed30a177a7e"
+  },
+  "businessDefinitions": [
+    {
+      "definitionId": 67,
+      "versionId": 117,
+      "definitionKey": "dimension.beauticianName",
+      "version": 3,
+      "definitionFingerprint": "d0a3014dc9578917ae646f3f06c1642cf9c34579f4cfe4759aae9baee604a238",
+      "sourceFingerprint": "45bca8e4426b9a797e5279dc0b241d5172ade76b18bf9cce942551f6fadcaac6"
+    },
+    {
+      "definitionId": 88,
+      "versionId": 136,
+      "definitionKey": "dimension.customerAgeGroup",
+      "version": 1,
+      "definitionFingerprint": "e04059e35ad3f4b9b13a358a4cbe92ce374c5bcc590755d08cd846d33f92eee1",
+      "sourceFingerprint": "5a0dcd01f02daecc08a31ebe2410bed1707d60492a63ea97594b3c9c39b93a86"
+    },
+    {
+      "definitionId": 69,
+      "versionId": 94,
+      "definitionKey": "dimension.customerId",
+      "version": 1,
+      "definitionFingerprint": "0bac6349d738a5e74a79d7c27a98ed72bf5e6dec319d7bffda34271e29008b15",
+      "sourceFingerprint": "154b940352b28b0827428928ffc5952e50fc09c833a3a444d479212ab04ad9f8"
+    },
+    {
+      "definitionId": 70,
+      "versionId": 95,
+      "definitionKey": "dimension.customerName",
+      "version": 1,
+      "definitionFingerprint": "16a020e1a509f25f3deb238be8a9c4f8a590659f8981783ed9257d9efa07e380",
+      "sourceFingerprint": "60b2f2c792c620d0da511234bb53d533b180c1870b6e2b5b486b8b57a32cb09d"
+    },
+    {
+      "definitionId": 78,
+      "versionId": 121,
+      "definitionKey": "dimension.customerSource",
+      "version": 1,
+      "definitionFingerprint": "16e288b4fecda94845ceffbf2712a98f01a8f71ed05a5bf5e9e6c6090d534925",
+      "sourceFingerprint": "0488da9ed6d49fd3c994741dc68303884763225f91bfa9e4b386c836bc1b35cb"
+    },
+    {
+      "definitionId": 65,
+      "versionId": 76,
+      "definitionKey": "dimension.projectName",
+      "version": 2,
+      "definitionFingerprint": "9fbfe8e74a8be704e8f8783e20469d6f32ff0403029a860fe2de5fc4c65941e8",
+      "sourceFingerprint": "f7a39099ba14aa097993505768b46e17684731b66d5a13779eecdef7899aecfd"
+    },
+    {
+      "definitionId": 42,
+      "versionId": 42,
+      "definitionKey": "entity.beautician",
+      "version": 1,
+      "definitionFingerprint": "37a4c2aa5f21152da29509f1f60b5767dfe658bc69959ec32909aac342ac7c2c",
+      "sourceFingerprint": "be47f37fcbe8846fd96ab81bcc09d2aaa8507556aad465ffb31676c252001d1d"
+    },
+    {
+      "definitionId": 43,
+      "versionId": 43,
+      "definitionKey": "entity.customer",
+      "version": 1,
+      "definitionFingerprint": "e2a455e1bb6fca496a965db988e5547f4bee98a5e43f4c0daf9a04777a0e908e",
+      "sourceFingerprint": "528c308346ae2b37db26eae2c35397fd02d981182ceb30d2378fb588e294ce04"
+    },
+    {
+      "definitionId": 48,
+      "versionId": 48,
+      "definitionKey": "entity.project",
+      "version": 1,
+      "definitionFingerprint": "172e39f445a03511fe7d3505d45373b62726a3136265c01800f415a4cdd53e95",
+      "sourceFingerprint": "85490c6c5cc1803b078f7d264cccd7f021ed7759412f83025c771f8c5240bf4f"
+    },
+    {
+      "definitionId": 49,
+      "versionId": 49,
+      "definitionKey": "entity.reservation",
+      "version": 1,
+      "definitionFingerprint": "b32f57f9bbc3f74914569e6045d91828ddac361b929b01dce233dfa1f2b3638e",
+      "sourceFingerprint": "546ca6346cdfee365eda191956a34fb67310885e0e540dfe34200965b95c2991"
+    },
+    {
+      "definitionId": 89,
+      "versionId": 137,
+      "definitionKey": "metric.dormant_reactivation_customer_count",
+      "version": 1,
+      "definitionFingerprint": "ccd4eb999a846ef01a82e6612cee87f5763ce6a90345b9ac2d5d69a47b877fc1",
+      "sourceFingerprint": "2dd7887b1656cfdf1326d70a96bb266c91f2bb4373eb5badb63faac019cd5cbf"
+    },
+    {
+      "definitionId": 85,
+      "versionId": 133,
+      "definitionKey": "metric.new_customer_conversion_count",
+      "version": 1,
+      "definitionFingerprint": "758eba967aa4ccdc92e2948203817908c3c00b9befb75e8b8a787e9b0d774a1f",
+      "sourceFingerprint": "1f424d95283a8d4bdd167565b3920349f8da9de17755557a732fb5c2b6e58d8b"
+    },
+    {
+      "definitionId": 86,
+      "versionId": 134,
+      "definitionKey": "metric.new_customer_conversion_rate",
+      "version": 1,
+      "definitionFingerprint": "1f848c450a345cd1addad77f2beac97acd4af8cf0f8f2a2c4fac73072f2b5c13",
+      "sourceFingerprint": "fef1503ef296b82d5d2892d523e42fc8ec1896646b0059185ac6eaf6adf5646c"
+    },
+    {
+      "definitionId": 87,
+      "versionId": 135,
+      "definitionKey": "metric.new_customer_count",
+      "version": 1,
+      "definitionFingerprint": "24c218e54c338b0034c6d318c2fbcb7ee209583b716eb81d282c2040bf3f1a83",
+      "sourceFingerprint": "b4b5afb3691897c0cd9a4ca5628c0ac07514c07802df4811e97f764f335e72cc"
+    }
+  ],
+  "artifacts": {
+    "manifest": "manifest.json",
+    "binding": "binding.ts",
+    "contractTest": "contract.spec.ts",
+    "gateReport": "gate-report.json"
+  }
+}

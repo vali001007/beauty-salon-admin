@@ -1,0 +1,43 @@
+{
+  "status": "passed",
+  "databaseWritePerformed": true,
+  "externalChannelWritePerformed": false,
+  "target": {
+    "host": "127.0.0.1",
+    "port": 55439,
+    "database": "ami_brain_marketing_action_r252"
+  },
+  "evidence": {
+    "audienceDriftRejected": true,
+    "audienceDriftBusinessExecutionCount": 0,
+    "queuedActionStatus": "executing",
+    "duplicateConfirmationShortCircuited": true,
+    "businessReplayReturnedSameExecution": true,
+    "successfulDelivery": {
+      "executionId": 1,
+      "queuedCount": 12,
+      "reachedCount": 12,
+      "failedCount": 0,
+      "notificationCount": 12,
+      "actionStatus": "succeeded",
+      "duplicateWorkerClaimed": 0
+    },
+    "receiptRecovery": {
+      "executionId": 2,
+      "failedReceiptDetected": true,
+      "retryStatus": "executing",
+      "jobsBeforeRetry": 2,
+      "jobsAfterRetry": 2,
+      "finalActionStatus": "succeeded"
+    },
+    "failedChannel": {
+      "executionId": 3,
+      "status": "failed",
+      "failedCount": 2,
+      "actionStatus": "failed",
+      "retryable": false,
+      "recovery": "manual_reconcile",
+      "deadLetterCount": 2
+    }
+  }
+}

@@ -12,10 +12,12 @@ const wait = args.has('--wait');
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const apiTarget = process.env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:8080';
-const healthPath = process.env.VITE_API_HEALTH_PATH || '/api/auth/csrf-token';
+const healthPath = process.env.VITE_API_HEALTH_PATH || '/api/health/ready';
 const apiHealthUrl = new URL(healthPath, apiTarget);
 const waitTimeoutMs = Number(process.env.VITE_API_WAIT_TIMEOUT_MS || 120000);
 const waitIntervalMs = Number(process.env.VITE_API_WAIT_INTERVAL_MS || 1500);
+const apiWatchIntervalMs = Number(process.env.VITE_API_WATCH_INTERVAL_MS || 15000);
+const apiWatchDisabled = args.has('--no-api-watch') || process.env.VITE_API_WATCH === '0';
 const webCwd = path.resolve(repoRoot, getArg('--web-cwd', '.'));
 const webScript = getArg('--web-script', 'dev:web');
 const webHost = getArg('--web-host', process.env.VITE_DEV_HOST || '127.0.0.1');
@@ -98,11 +100,14 @@ async function ensureApi(options = {}) {
 
 function spawnNpm(label, commandArgs, cwd = repoRoot) {
   const child = spawn(npmCommand, commandArgs, {
-    stdio: 'inherit',
-    shell: false,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    shell: process.platform === 'win32',
     env: process.env,
     cwd,
   });
+
+  child.stdout?.pipe(process.stdout);
+  child.stderr?.pipe(process.stderr);
 
   child.on('error', (error) => {
     console.error(`[dev-local] Failed to start ${label}:`, error);
@@ -117,6 +122,14 @@ function stopChild(child) {
   }
 }
 
+function isChildRunning(child) {
+  return Boolean(child && child.exitCode === null && child.signalCode === null);
+}
+
+function startApi() {
+  return spawnNpm('api', ['run', 'dev:api'], repoRoot);
+}
+
 if (checkOnly && process.env.VITE_API_MODE === 'mock') {
   console.log('[dev-local] VITE_API_MODE=mock, skip local API check.');
   process.exit(0);
@@ -129,12 +142,13 @@ if (checkOnly) {
 
 const initial = await requestApi();
 let apiProcess = null;
+let apiWatchRunning = false;
 
 if (process.env.VITE_API_MODE === 'mock') {
   console.log(`[dev-local] VITE_API_MODE=mock, starting ${webLabel} only.`);
 } else if (!initial.ok) {
   console.log('[dev-local] API is not running, starting server-v2 first...');
-  apiProcess = spawnNpm('api', ['run', 'dev:api'], repoRoot);
+  apiProcess = startApi();
   const apiReady = await ensureApi({ wait: true });
   if (!apiReady) {
     stopChild(apiProcess);
@@ -147,8 +161,48 @@ if (process.env.VITE_API_MODE === 'mock') {
 console.log(`[dev-local] Starting ${webLabel} on http://${webHost}:${webPort} ...`);
 const webProcess = spawnNpm('web', ['run', webScript, '--', '--host', webHost, '--port', webPort], webCwd);
 const children = [apiProcess, webProcess].filter(Boolean);
+let apiWatchTimer = null;
+
+async function watchApiHealth() {
+  if (apiWatchRunning || process.env.VITE_API_MODE === 'mock') {
+    return;
+  }
+  apiWatchRunning = true;
+  try {
+    const result = await requestApi();
+    if (result.ok) {
+      return;
+    }
+
+    const message = result.error
+      ? `${result.error.code || result.error.name || 'ERROR'} ${result.error.message || ''}`.trim()
+      : 'unknown error';
+    console.error(`[dev-local] API health check failed: ${message}`);
+
+    if (!isChildRunning(apiProcess)) {
+      console.error('[dev-local] Restarting server-v2 for the running web app...');
+      apiProcess = startApi();
+      if (!children.includes(apiProcess)) {
+        children.push(apiProcess);
+      }
+    }
+
+    await ensureApi({ wait: true });
+  } finally {
+    apiWatchRunning = false;
+  }
+}
+
+if (!apiWatchDisabled && process.env.VITE_API_MODE !== 'mock') {
+  apiWatchTimer = setInterval(() => {
+    void watchApiHealth();
+  }, apiWatchIntervalMs);
+}
 
 function shutdown(code = 0) {
+  if (apiWatchTimer) {
+    clearInterval(apiWatchTimer);
+  }
   for (const child of children) {
     stopChild(child);
   }
