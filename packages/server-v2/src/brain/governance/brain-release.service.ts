@@ -2,7 +2,9 @@ import { BadRequestException, ConflictException, Injectable, Optional } from '@n
 import { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { BrainCapabilityCatalogService } from '../capability/brain-capability-catalog.service.js';
 import { BrainCapabilitySemanticVerifierService } from '../capability/brain-capability-semantic-verifier.service.js';
+import type { BrainCapabilityCatalogValidationReport } from '../capability/brain-capability.types.js';
 import type { BrainCapabilityCandidate } from '../capability/brain-capability.types.js';
 import type { BrainEvaluationReleaseSnapshot } from './brain-evaluation-release-snapshot.js';
 import {
@@ -20,6 +22,7 @@ export class BrainReleaseService {
   constructor(
     @Optional() private readonly prisma?: PrismaService,
     @Optional() private readonly semanticVerifier?: BrainCapabilitySemanticVerifierService,
+    @Optional() private readonly capabilityCatalog?: BrainCapabilityCatalogService,
   ) {}
 
   buildRollbackPlan(currentReleaseKey: string, previousReleaseKey: string) {
@@ -143,6 +146,24 @@ export class BrainReleaseService {
         .sort(),
       capabilityCandidates,
     });
+  }
+
+  async validateReleaseCatalog(releaseId: number) {
+    const snapshot = await this.freezeEvaluationRelease(releaseId);
+    const report = this.capabilityCatalog
+      ? await this.capabilityCatalog.validateEnabledCapabilities(snapshot.capabilityCandidates)
+      : {
+          valid: false,
+          cards: [],
+          issues: [{ capabilityKey: '*', capabilityVersion: 0, code: 'permission_registry_unavailable', message: 'Capability catalog service is unavailable.' }],
+        } as BrainCapabilityCatalogValidationReport;
+    return {
+      valid: report.valid,
+      capabilityCount: snapshot.capabilityCandidates.length,
+      cardCount: report.cards.length,
+      issueCount: report.issues.length,
+      issues: report.issues,
+    };
   }
 
   async createRelease(input: {
@@ -408,12 +429,43 @@ export class BrainReleaseService {
     });
   }
 
-  listReleases() {
+  async listReleases(input?: { includeSnapshot?: boolean; take?: number }) {
+    const take = Math.max(1, Math.min(100, Number(input?.take) || 30));
+    if (input?.includeSnapshot === false) {
+      const releases = await this.requirePrisma().brainRelease.findMany({
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          releaseKey: true,
+          scope: true,
+          rollout: true,
+          status: true,
+          previousReleaseId: true,
+          activatedAt: true,
+          rolledBackAt: true,
+          failureReason: true,
+          createdAt: true,
+          updatedAt: true,
+          _count: { select: { items: true } },
+        },
+        take,
+      });
+      return releases.map(({ _count, ...release }) => ({ ...release, itemCount: _count.items, items: [] }));
+    }
     return this.requirePrisma().brainRelease.findMany({
       orderBy: { createdAt: 'desc' },
       include: { items: true },
-      take: 100,
+      take,
     });
+  }
+
+  async resolveRuntimeSummary(input: { storeId: number; userId: number; roleKey: string }) {
+    const release = await this.selectReleaseSummary(input);
+    const declaredMode = release ? this.record(release.rollout).mode : undefined;
+    const mode = declaredMode === 'rules' || declaredMode === 'shadow' || declaredMode === 'model'
+      ? declaredMode
+      : undefined;
+    return { mode, declaredMode: mode, release };
   }
 
   async selectRelease(input: { storeId: number; userId: number; roleKey: string }) {
@@ -421,6 +473,15 @@ export class BrainReleaseService {
       where: { status: 'active' },
       orderBy: { activatedAt: 'desc' },
       include: { items: true },
+    });
+    return releases.find((release) => this.matchesRollout(release.scope, this.record(release.rollout), input)) ?? null;
+  }
+
+  private async selectReleaseSummary(input: { storeId: number; userId: number; roleKey: string }) {
+    const releases = await this.requirePrisma().brainRelease.findMany({
+      where: { status: 'active' },
+      orderBy: { activatedAt: 'desc' },
+      select: { id: true, releaseKey: true, scope: true, rollout: true, status: true, activatedAt: true },
     });
     return releases.find((release) => this.matchesRollout(release.scope, this.record(release.rollout), input)) ?? null;
   }

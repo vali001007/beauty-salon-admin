@@ -6,11 +6,14 @@ import { PermissionGuard } from './components/PermissionGuard';
 import { lazyWithRetry } from './components/LazyRetry';
 import { PageSkeleton } from '@/app/components/ui/loading-skeleton';
 import { RouteErrorPage } from './pages/RouteErrorPage';
+import { BRAIN_GOVERNANCE_SECTIONS, DEFAULT_BRAIN_GOVERNANCE_PATH } from './pages/brain/brainGovernanceNavigation';
 
 // Lazy-loaded page components
 const LoginPage = lazyWithRetry(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })), 'LoginPage');
 const RegisterPage = lazyWithRetry(() => import('./pages/RegisterPage').then(m => ({ default: m.RegisterPage })), 'RegisterPage');
 const Dashboard = lazyWithRetry(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })), 'Dashboard');
+const StoreMetricsOverview = lazyWithRetry(() => import('./pages/store-metrics/StoreMetricsOverview').then(m => ({ default: m.StoreMetricsOverview })), 'StoreMetricsOverview');
+const StoreMetricTargets = lazyWithRetry(() => import('./pages/store-metrics/StoreMetricTargets').then(m => ({ default: m.StoreMetricTargets })), 'StoreMetricTargets');
 const AskDataWorkbench = lazyWithRetry(() => import('./pages/ask-data/AskDataWorkbench').then(m => ({ default: m.AskDataWorkbench })), 'AskDataWorkbench');
 const BrainWorkspace = lazyWithRetry(() => import('./pages/brain/BrainWorkspace').then(m => ({ default: m.BrainWorkspace })), 'BrainWorkspace');
 const BrainGovernanceCenter = lazyWithRetry(() => import('./pages/brain/BrainGovernanceCenter').then(m => ({ default: m.BrainGovernanceCenter })), 'BrainGovernanceCenter');
@@ -150,6 +153,8 @@ export const router = createBrowserRouter([
       { path: 'dashboard', element: withSuspense(Dashboard) },
       { path: 'ask-data', element: withGuard('core:dashboard:view', AskDataWorkbench) },
       { path: 'brain', element: withGuard('core:brain:use', BrainWorkspace) },
+      { path: 'store-operations/metrics', element: withGuard('core:store-metrics:view', StoreMetricsOverview) },
+      { path: 'store-operations/metrics/targets', element: withGuard('core:store-metrics:target:view', StoreMetricTargets) },
 
       // Customers
       { path: 'customers/data', element: withGuard('core:customer:view', CustomerData) },
@@ -259,7 +264,11 @@ export const router = createBrowserRouter([
       { path: 'system/agent-governance/feedback', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
       { path: 'system/agent-governance/debug', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
       { path: 'system/agent-capabilities', element: withGuard('core:agent-governance:view', AgentCapabilityCenter) },
-      { path: 'brain-governance', element: withGuard('core:brain-governance:view', BrainGovernanceCenter) },
+      { path: 'brain-governance', element: <Navigate to={DEFAULT_BRAIN_GOVERNANCE_PATH} replace /> },
+      ...BRAIN_GOVERNANCE_SECTIONS.map((section) => ({
+        path: section.path.slice(1),
+        element: withGuard('core:brain-governance:view', BrainGovernanceCenter),
+      })),
 
       // AI 智能体工作台
       { path: 'ami-agent', element: withGuard('core:agent:view', AmiAgentWorkspace) },

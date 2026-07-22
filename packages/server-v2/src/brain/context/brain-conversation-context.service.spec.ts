@@ -282,6 +282,7 @@ describe('BrainConversationContextService model conversation preparation', () =>
         missingSlots: ['timeRange'],
         questions: ['请补充时间范围'],
         ambiguities: [],
+        turnCount: 2,
       },
     };
     const { service, timeRangeParser } = createService({ model });
@@ -511,6 +512,7 @@ describe('BrainConversationContextService model conversation preparation', () =>
         missingSlots: ['timeRange'],
         questions: ['请补充时间范围'],
         ambiguities: [],
+        turnCount: 2,
       },
     });
 
@@ -533,6 +535,7 @@ describe('BrainConversationContextService model conversation preparation', () =>
                 missingSlots: ['timeRange'],
                 questions: ['请补充时间范围'],
                 ambiguities: [],
+                turnCount: 2,
               },
               entities: [expect.objectContaining({ mention: '李女士' })],
             }),

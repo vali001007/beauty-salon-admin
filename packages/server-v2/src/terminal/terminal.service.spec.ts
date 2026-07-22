@@ -111,8 +111,8 @@ describe('TerminalService automation', () => {
         findFirst: jest.fn(),
       },
     };
-    prisma.$executeRaw = jest.fn().mockResolvedValue(0);
-    prisma.$transaction = jest.fn(async (callback: (tx: any) => unknown) => callback(prisma));
+     prisma.$executeRaw = jest.fn().mockResolvedValue(0);
+     prisma.$transaction = jest.fn(async (callback: (tx: any) => unknown) => callback(prisma));
     service = new TerminalService(
       prisma as any,
       {} as any,
@@ -126,7 +126,7 @@ describe('TerminalService automation', () => {
     jest.useRealTimers();
   });
 
-  it('delegates reservation creation to the shared idempotent reservation service', async () => {
+   it('delegates reservation creation to the shared idempotent reservation service', async () => {
     const reservations = {
       createIdempotent: jest.fn().mockResolvedValue({
         replayed: false,
@@ -155,8 +155,7 @@ describe('TerminalService automation', () => {
       allowCreateCustomer: false,
     }));
     expect(terminalDashboardCache.invalidate).toHaveBeenCalled();
-  });
-
+   });
   it('progresses the source automation touch when a terminal follow-up produces a conversion', async () => {
     const completedAt = new Date('2026-07-14T10:00:00.000Z');
     const effectFacts = { recordFact: jest.fn().mockResolvedValue({ id: 501 }) };
@@ -2585,8 +2584,8 @@ describe('TerminalService automation', () => {
       role: 'manager',
       date: '2026-06-08',
       messages: [
-        { role: 'user', content: ' 今天经营怎么样 ', timestamp: 1780920000000, type: 'query' },
-        { role: 'assistant', content: '今日预约 3 条。', timestamp: 1780920001000, type: 'ai' },
+        { role: 'user', content: ' 今天经营怎么样 ', timestamp: 1780920000000, type: 'query', runtime: 'ami_brain' },
+        { role: 'assistant', content: '今日预约 3 条。', timestamp: 1780920001000, type: 'ai', runtime: 'ami_brain' },
         { role: 'assistant', content: '   ', timestamp: 1780920002000, type: 'ai' },
       ],
     });
@@ -2607,8 +2606,8 @@ describe('TerminalService automation', () => {
         operatorId: 9,
         date: new Date('2026-06-08T00:00:00.000Z'),
         messages: [
-          { role: 'user', content: '今天经营怎么样', timestamp: 1780920000000, type: 'query', title: undefined },
-          { role: 'assistant', content: '今日预约 3 条。', timestamp: 1780920001000, type: 'ai', title: undefined },
+          { role: 'user', content: '今天经营怎么样', timestamp: 1780920000000, type: 'query', title: undefined, runtime: 'ami_brain' },
+          { role: 'assistant', content: '今日预约 3 条。', timestamp: 1780920001000, type: 'ai', title: undefined, runtime: 'ami_brain' },
         ],
         messageCount: 2,
       }),

@@ -2,10 +2,15 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateRoleDto } from './dto/create-role.dto.js';
 import { UpdateRoleDto } from './dto/update-role.dto.js';
+import { listRegisteredPermissionDefinitions } from '../permissions/permission-catalog.js';
 
 @Injectable()
 export class RolesService {
   constructor(private prisma: PrismaService) {}
+
+  listPermissionCatalog() {
+    return { items: listRegisteredPermissionDefinitions() };
+  }
 
   async findAll() {
     const roles = await this.prisma.role.findMany({

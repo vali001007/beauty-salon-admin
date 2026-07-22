@@ -254,7 +254,7 @@ describe("AgentMessageItem", () => {
     expect(container.textContent).toContain("由 库存采购 Agent 处理");
   });
 
-  it("renders Agent V2 KG+LLM architecture and gray mode badges", () => {
+  it("renders Ami Brain as the terminal architecture", () => {
     act(() => {
       root.render(
         <AgentMessageItem
@@ -266,11 +266,7 @@ describe("AgentMessageItem", () => {
               confidence: 0.9,
               clarificationNeeded: false,
               businessTask: {
-                architecture: "agent_v2_kg_llm",
-                agentV2GrayStrategy: {
-                  mode: "kg_llm_preferred",
-                  finalEngine: "kg_llm",
-                },
+                architecture: "ami_brain",
               },
             },
           })}
@@ -278,8 +274,7 @@ describe("AgentMessageItem", () => {
       );
     });
 
-    expect(container.textContent).toContain("KG+LLM");
-    expect(container.querySelector('[title*="kg_llm_preferred"]')).not.toBeNull();
+    expect(container.textContent).toContain("Ami Brain");
   });
 
   it("does not duplicate answer, evidence, or actions already represented by blocks", async () => {

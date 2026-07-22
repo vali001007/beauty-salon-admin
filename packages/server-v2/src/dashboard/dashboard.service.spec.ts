@@ -4,7 +4,7 @@ describe('DashboardService workbench helpers', () => {
   let service: DashboardService;
 
   beforeEach(() => {
-    service = new DashboardService({} as any);
+    service = new DashboardService({} as any, {} as any);
   });
 
   it('returns all workbench roles for super admin', () => {

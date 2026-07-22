@@ -105,11 +105,13 @@ jobs:
           node --loader ts-node/esm --experimental-specifier-resolution=node \
             prisma/ami-brain-capability-scan.ts \
             --workspace-root="$base_dir" \
+            --explicit-only \
             --output="$base_report"
           node --loader ts-node/esm --experimental-specifier-resolution=node \
             prisma/ami-brain-capability-scan.ts \
             --workspace-root="$GITHUB_WORKSPACE" \
             --baseline="$base_report" \
+            --explicit-only \
             --output="$current_report" \
             --md="$current_markdown" \
             --strict

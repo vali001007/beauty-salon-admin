@@ -29,6 +29,10 @@ function getCsrfToken(): string {
 }
 
 function isRetryable(error: AxiosError): boolean {
+  const responseData = error.response?.data as Record<string, unknown> | undefined;
+  if (error.response?.status === 503 && responseData?.code === 'DATABASE_UNAVAILABLE') {
+    return false;
+  }
   // Do not retry on 4xx client errors
   if (error.response && error.response.status >= 400 && error.response.status < 500) {
     return false;
@@ -134,7 +138,7 @@ apiClient.interceptors.response.use(
         (responseData?.message as string) ||
         error.message ||
         '请求失败，请稍后重试',
-      code: responseData?.code as string | undefined,
+      code: (responseData?.code as string | undefined) || error.code,
       status,
       details: (responseData?.details ?? responseData) as unknown,
     };

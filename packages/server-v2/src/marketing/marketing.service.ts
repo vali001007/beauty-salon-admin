@@ -2411,9 +2411,35 @@ export class MarketingService {
     return this.customerLifecycleOntologyService.createBusinessPlan(input, storeId, userId);
   }
 
-  submitLifecycleBusinessPlanActions(id: number, storeId: number, input: any = {}, userId?: number) {
+  submitLifecycleBusinessPlanActions(id: number, storeId: number, input?: any, userId?: number): Promise<any>;
+  submitLifecycleBusinessPlanActions(id: number, input?: any, userId?: number): Promise<any>;
+  async submitLifecycleBusinessPlanActions(
+    id: number,
+    storeIdOrInput: number | any,
+    inputOrUserId: any = {},
+    explicitUserId?: number,
+  ) {
     if (!this.customerLifecycleOntologyService) return Promise.resolve({ submitted: false, reason: 'customer_lifecycle_service_unavailable' });
-    return this.customerLifecycleOntologyService.submitBusinessPlanActions(id, storeId, input, userId);
+    if (typeof storeIdOrInput === 'number') {
+      return this.customerLifecycleOntologyService.submitBusinessPlanActions(
+        id,
+        storeIdOrInput,
+        inputOrUserId ?? {},
+        explicitUserId,
+      );
+    }
+
+    const plan = await this.prisma.lifecycleBusinessPlan.findUnique({
+      where: { id },
+      select: { storeId: true },
+    });
+    if (!plan) return { submitted: false, reason: 'lifecycle_business_plan_not_found' };
+    return this.customerLifecycleOntologyService.submitBusinessPlanActions(
+      id,
+      plan.storeId,
+      storeIdOrInput ?? {},
+      typeof inputOrUserId === 'number' ? inputOrUserId : undefined,
+    );
   }
 
   async getLatestPredictionSummary(storeId: number) {

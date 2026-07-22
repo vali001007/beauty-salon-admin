@@ -8,6 +8,7 @@ import { PrismaModule } from '../prisma/prisma.module.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ReservationsModule } from '../reservations/reservations.module.js';
 import { TerminalModule } from '../terminal/terminal.module.js';
+import { StoreMetricsModule } from '../store-metrics/store-metrics.module.js';
 import { BusinessDefinitionModule } from '../semantic-data/business-definition.module.js';
 import { SemanticDataModule } from '../semantic-data/semantic-data.module.js';
 import { BrainController } from './brain.controller.js';
@@ -21,6 +22,7 @@ import { BrainCapabilitySemanticVerifierService } from './capability/brain-capab
 import { BrainCapabilityGenerationGateService } from './capability/brain-capability-generation-gate.service.js';
 import { BrainCapabilityPublishedGateService } from './capability/brain-capability-published-gate.service.js';
 import { BrainGeneratedCapabilityDraftService } from './capability/brain-generated-capability-draft.service.js';
+import { BrainConversationGuidanceService } from './guidance/brain-conversation-guidance.service.js';
 import {
   BRAIN_CAPABILITY_DEFINITION_SNAPSHOT_SOURCE,
   BRAIN_CAPABILITY_NARRATIVE_GENERATOR,
@@ -149,6 +151,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     OperationProfitModule,
     SchedulingModule,
     TerminalModule,
+    StoreMetricsModule,
     SemanticDataModule,
     BusinessDefinitionModule,
     CustomerFeedbackModule,
@@ -161,6 +164,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BrainResultReferenceService,
     BrainIntentCompletenessPolicyService,
     BrainChatService,
+    BrainConversationGuidanceService,
     BrainRoleIntentRouterService,
     BrainDomainAdapterRegistryService,
     BrainCustomerFactResolverService,
@@ -255,7 +259,6 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BrainSemanticQueryEngineService,
     {
       provide: BRAIN_REGISTERED_PERMISSION_CODES,
-      inject: [PrismaService],
       useFactory: loadRegisteredBrainPermissionCodes,
     },
     BrainCapabilityCatalogService,
@@ -327,6 +330,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BrainResultReferenceService,
     BrainIntentCompletenessPolicyService,
     BrainChatService,
+    BrainConversationGuidanceService,
     BrainRoleIntentRouterService,
     BrainDomainAdapterRegistryService,
     BrainCustomerFactResolverService,

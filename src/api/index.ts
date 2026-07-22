@@ -25,6 +25,7 @@ export * from './askData';
 export * from './brain';
 export * from './commission';
 export * from './financeMetrics';
+export * from './storeMetrics';
 export * from './supplyPlatform';
 export * from './industry';
 export * from './businessQuery';

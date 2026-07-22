@@ -31,6 +31,14 @@ export interface BrainCapabilityRetrievalResult {
   reason: string;
 }
 
+export interface BrainCapabilityGuidanceInput {
+  domains: readonly string[];
+  question: string;
+  context: BrainRequestContext;
+  cards: readonly BrainCapabilityCard[];
+  limit?: number;
+}
+
 export interface BrainCapabilityDiscoveryInput {
   question: string;
   context: BrainRequestContext;
@@ -113,6 +121,18 @@ export class BrainCapabilityRetrieverService {
       .map((card) => this.rankForSupervisor(card, input))
       .sort((left, right) => right.score - left.score || left.card.name.localeCompare(right.card.name))
       .slice(0, this.config.runtime.capabilityTopK);
+  }
+
+  retrieveGuidanceCandidates(input: BrainCapabilityGuidanceInput): readonly BrainCapabilityRankedCandidate[] {
+    return input.cards
+      .filter((card) => {
+        if (input.domains.length && !input.domains.some((domain) => card.domains.includes(domain))) return false;
+        if (!card.readOnly || card.sideEffect || card.requiresConfirmation || card.riskLevel !== 'low') return false;
+        return this.hasPermissions(card, input.context) && this.hasAllowedRole(card, input.context);
+      })
+      .map((card) => this.rank(card, input.question))
+      .sort((left, right) => right.score - left.score || left.card.name.localeCompare(right.card.name))
+      .slice(0, input.limit ?? this.config.runtime.capabilityTopK);
   }
 
   private passesHardFilters(card: BrainCapabilityCard, input: BrainCapabilityRetrievalInput): boolean {

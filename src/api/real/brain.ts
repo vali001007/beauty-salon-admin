@@ -5,9 +5,16 @@ import type {
   BrainChatResponse,
   BrainCapabilityRegenerationJob,
   BrainCapabilityRegenerationJobListResponse,
+  BrainEvalCatalogResponse,
+  BrainEvalCatalogDetail,
+  BrainEvalSuite,
+  BrainFullDomainEvalCatalogItem,
+  BrainFullDomainEvalCatalogParams,
+  BrainFullDomainEvalCatalogResponse,
   BrainConversation,
   BrainConversationListResponse,
   BrainFeedbackResponse,
+  BrainFeedbackIssueListResponse,
   BrainMessageListResponse,
   BrainMemoryListResponse,
   BrainMemoryRecord,
@@ -27,17 +34,54 @@ import type {
   BrainRolloutSequenceResponse,
   BrainRunEventsResponse,
   BrainRunContextResponse,
+  BrainSkillGovernanceHistoryListResponse,
+  BrainSkillGovernanceSummaryListResponse,
+  BrainSemanticGovernanceHistoryListResponse,
+  BrainSemanticGovernanceResource,
+  BrainSemanticGovernanceSummaryListResponse,
+  BrainSemanticGraphResponse,
   BrainStreamEvent,
 } from '@/types/brain';
+import type { AxiosRequestConfig } from 'axios';
 import apiClient from '../client';
 import { useStoreStore } from '@/stores/storeStore';
+
+const activeGovernanceReads = new Set<InstanceType<typeof globalThis.AbortController>>();
+
+function governanceGet<T>(url: string, config: AxiosRequestConfig = {}): Promise<T> {
+  const controller = new globalThis.AbortController();
+  activeGovernanceReads.add(controller);
+  const requestConfig: AxiosRequestConfig & { skipRetry?: boolean } = {
+    ...config,
+    signal: controller.signal,
+    skipRetry: true,
+  };
+  return apiClient.get<unknown, T>(url, requestConfig).finally(() => {
+    activeGovernanceReads.delete(controller);
+  });
+}
+
+export function cancelBrainGovernanceReads(): void {
+  for (const controller of activeGovernanceReads) controller.abort();
+  activeGovernanceReads.clear();
+}
+
+export function isBrainGovernanceReadCancelled(error: unknown): boolean {
+  const payload =
+    error && typeof error === 'object' && 'payload' in error
+      ? (error as { payload?: { code?: string } }).payload
+      : undefined;
+  return payload?.code === 'ERR_CANCELED' || (error instanceof Error && error.message === 'canceled');
+}
 
 export async function createBrainConversation(title?: string): Promise<BrainConversation> {
   return apiClient.post<unknown, BrainConversation>('/brain/conversations', { title });
 }
 
-export async function listBrainConversations(): Promise<BrainConversationListResponse> {
-  return apiClient.get<unknown, BrainConversationListResponse>('/brain/conversations');
+export async function listBrainConversations(
+  params: { page?: number; pageSize?: number } = {},
+): Promise<BrainConversationListResponse> {
+  return apiClient.get<unknown, BrainConversationListResponse>('/brain/conversations', { params });
 }
 
 export async function listBrainMessages(conversationId: number): Promise<BrainMessageListResponse> {
@@ -163,6 +207,40 @@ export async function updateBrainSemanticResource(resource: string, key: string,
   return apiClient.patch(`/brain/governance/semantic/${resource}/${key}`, payload);
 }
 
+export async function listBrainSemanticGovernanceSummaries(
+  resource: BrainSemanticGovernanceResource,
+  params?: { take?: number },
+): Promise<BrainSemanticGovernanceSummaryListResponse> {
+  return governanceGet<BrainSemanticGovernanceSummaryListResponse>(`/brain/governance/semantic-versions/${resource}`, {
+    params,
+  });
+}
+
+export async function listBrainSemanticGovernanceHistory(
+  resource: BrainSemanticGovernanceResource,
+  resourceKey: string,
+  params?: { take?: number },
+): Promise<BrainSemanticGovernanceHistoryListResponse> {
+  return governanceGet<BrainSemanticGovernanceHistoryListResponse>(
+    `/brain/governance/semantic-versions/${resource}/${encodeURIComponent(resourceKey)}`,
+    { params },
+  );
+}
+
+export async function setBrainPublishedSemanticEnabled(
+  resource: BrainSemanticGovernanceResource,
+  resourceKey: string,
+  enabled: boolean,
+) {
+  return apiClient.patch(`/brain/governance/semantic-versions/${resource}/${encodeURIComponent(resourceKey)}/enabled`, {
+    enabled,
+  });
+}
+
+export async function getBrainSemanticGraph(): Promise<BrainSemanticGraphResponse> {
+  return governanceGet<BrainSemanticGraphResponse>('/brain/governance/semantic-graph');
+}
+
 export async function listBrainRoleProfiles() {
   return apiClient.get('/brain/governance/roles');
 }
@@ -175,8 +253,29 @@ export async function updateBrainRoleProfile(roleKey: string, payload: Record<st
   return apiClient.patch(`/brain/governance/roles/${roleKey}`, payload);
 }
 
-export async function listBrainSkills(): Promise<BrainGovernanceSkillListResponse> {
-  return apiClient.get<unknown, BrainGovernanceSkillListResponse>('/brain/governance/skills');
+export async function listBrainSkills(params?: { summary?: boolean }): Promise<BrainGovernanceSkillListResponse> {
+  if (!params) return apiClient.get<unknown, BrainGovernanceSkillListResponse>('/brain/governance/skills');
+  return governanceGet<BrainGovernanceSkillListResponse>('/brain/governance/skills', { params });
+}
+
+export async function listBrainSkillGovernanceSummaries(params?: {
+  take?: number;
+}): Promise<BrainSkillGovernanceSummaryListResponse> {
+  return governanceGet<BrainSkillGovernanceSummaryListResponse>('/brain/governance/skill-versions', { params });
+}
+
+export async function listBrainSkillGovernanceHistory(
+  skillKey: string,
+  params?: { take?: number },
+): Promise<BrainSkillGovernanceHistoryListResponse> {
+  return governanceGet<BrainSkillGovernanceHistoryListResponse>(
+    `/brain/governance/skill-versions/${encodeURIComponent(skillKey)}`,
+    { params },
+  );
+}
+
+export async function setBrainPublishedSkillEnabled(skillKey: string, enabled: boolean) {
+  return apiClient.patch(`/brain/governance/skills/${encodeURIComponent(skillKey)}/enabled`, { enabled });
 }
 
 export async function createBrainSkill(payload: Record<string, unknown>) {
@@ -200,9 +299,9 @@ export async function updateBrainInspectionRule(ruleKey: string, payload: Record
 }
 
 export async function listBrainResourceVersions(
-  params?: { resourceType?: string; status?: string },
+  params?: { resourceType?: string; status?: string; includeSnapshot?: boolean; take?: number },
 ): Promise<BrainGovernanceResourceVersionListResponse> {
-  return apiClient.get<unknown, BrainGovernanceResourceVersionListResponse>('/brain/governance/resource-versions', { params });
+  return governanceGet<BrainGovernanceResourceVersionListResponse>('/brain/governance/resource-versions', { params });
 }
 
 export async function changeBrainResourceVersionStatus(id: number, status: 'draft' | 'active' | 'disabled' | 'archived') {
@@ -250,6 +349,50 @@ export async function listBrainEvalRuns() {
   return apiClient.get('/brain/governance/evals/runs');
 }
 
+export async function listBrainEvalQuestionCatalog(params?: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  questionType?: string;
+  status?: 'passed' | 'failed' | 'unavailable';
+}): Promise<BrainEvalCatalogResponse> {
+  return governanceGet<BrainEvalCatalogResponse>('/brain/governance/evals/catalog', { params });
+}
+
+export async function listBrainRuntimeEvalQuestionCatalog(params?: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  questionType?: string;
+  status?: 'passed' | 'failed' | 'unavailable';
+}): Promise<BrainEvalCatalogResponse> {
+  return apiClient.get('/brain/evals/catalog', { params });
+}
+
+export async function getBrainEvalQuestionCatalogDetail(questionId: string): Promise<BrainEvalCatalogDetail> {
+  return governanceGet<BrainEvalCatalogDetail>(`/brain/governance/evals/catalog/${encodeURIComponent(questionId)}`);
+}
+
+export async function listBrainEvalSuites(): Promise<{ items: BrainEvalSuite[] }> {
+  return governanceGet<{ items: BrainEvalSuite[] }>('/brain/governance/evals/suites');
+}
+
+export async function listBrainFullDomainEvalCatalog(
+  evalRunId: number,
+  params?: BrainFullDomainEvalCatalogParams,
+): Promise<BrainFullDomainEvalCatalogResponse> {
+  return governanceGet<BrainFullDomainEvalCatalogResponse>(`/brain/governance/evals/runs/${evalRunId}/catalog`, { params });
+}
+
+export async function getBrainFullDomainEvalCatalogDetail(
+  evalRunId: number,
+  caseKey: string,
+): Promise<BrainFullDomainEvalCatalogItem> {
+  return governanceGet<BrainFullDomainEvalCatalogItem>(
+    `/brain/governance/evals/runs/${evalRunId}/catalog/${encodeURIComponent(caseKey)}`,
+  );
+}
+
 export async function getBrainEvalRun(evalRunId: number) {
   return apiClient.get(`/brain/governance/evals/runs/${evalRunId}`);
 }
@@ -269,8 +412,11 @@ export async function getBrainGovernanceRuntimeConfig(): Promise<BrainGovernance
   return apiClient.get<unknown, BrainGovernanceRuntimeConfigResponse>('/brain/governance/runtime-config');
 }
 
-export async function listBrainReleases(): Promise<BrainGovernanceReleaseListResponse> {
-  return apiClient.get<unknown, BrainGovernanceReleaseListResponse>('/brain/governance/releases');
+export async function listBrainReleases(params?: {
+  includeSnapshot?: boolean;
+  take?: number;
+}): Promise<BrainGovernanceReleaseListResponse> {
+  return governanceGet<BrainGovernanceReleaseListResponse>('/brain/governance/releases', { params });
 }
 
 export async function activateBrainRelease(releaseId: number): Promise<BrainGovernanceRelease> {
@@ -340,6 +486,12 @@ export async function createBrainFeedback(payload: {
   correction?: Record<string, unknown>;
 }): Promise<BrainFeedbackResponse> {
   return apiClient.post<unknown, BrainFeedbackResponse>('/brain/feedback', payload);
+}
+
+export async function listBrainFeedbackIssues(
+  params: { page?: number; pageSize?: number } = {},
+): Promise<BrainFeedbackIssueListResponse> {
+  return apiClient.get<unknown, BrainFeedbackIssueListResponse>('/brain/feedback/issues', { params });
 }
 
 export async function listBrainMemories(): Promise<BrainMemoryListResponse> {

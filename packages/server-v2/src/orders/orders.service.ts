@@ -199,6 +199,8 @@ export class OrdersService {
         isGift: Boolean(item.isGift),
         eligibleForOrderDiscount: item.eligibleForOrderDiscount,
         beauticianId: this.toNumber(item.beauticianId) || undefined,
+        reservationId: this.toNumber(item.reservationId) || undefined,
+        serviceTaskId: this.toNumber(item.serviceTaskId) || undefined,
         payload: item,
       };
     });
@@ -1419,6 +1421,8 @@ export class OrdersService {
             isGift: item.isGift,
             eligibleForOrderDiscount: item.eligibleForOrderDiscount,
             beauticianId: this.toNumber(item.beauticianId ?? data.beauticianId) || undefined,
+            reservationId: this.toNumber(item.reservationId ?? data.reservationId) || undefined,
+            serviceTaskId: this.toNumber(item.serviceTaskId ?? data.serviceTaskId ?? data.taskId) || undefined,
             recognizedAt:
               String(item.itemType).toLowerCase() === 'project' && data.serviceCompletedAt
                 ? new Date(data.serviceCompletedAt)
@@ -2544,6 +2548,9 @@ export class OrdersService {
           pricingSnapshot,
           expiryDate,
           status: data.status ?? 'active',
+          saleType: data.saleType ?? (data.renewedFromCustomerCardId ? 'renewal' : 'new'),
+          renewedFromCustomerCardId: this.toNumber(data.renewedFromCustomerCardId) || undefined,
+          activatedAt: data.activatedAt ? new Date(data.activatedAt) : new Date(),
         },
       });
 
@@ -2591,6 +2598,8 @@ export class OrdersService {
           isGift: false,
           eligibleForOrderDiscount: true,
           beauticianId: this.toNumber(data.beauticianId) || undefined,
+          reservationId: this.toNumber(data.reservationId) || undefined,
+          serviceTaskId: this.toNumber(data.serviceTaskId ?? data.taskId) || undefined,
           recognizedAt: paidAt,
           recognitionSource: 'prepaid_payment',
           payload: { cardName: card.name, totalTimes, expiryDate: expiryDate.toISOString(), giftProjects },

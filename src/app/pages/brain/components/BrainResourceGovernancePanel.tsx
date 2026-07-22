@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FilePlus2, Loader2, RefreshCw, Save } from 'lucide-react';
 import { toast } from 'sonner';
-import { listBrainResourceVersions } from '@/api/brain';
+import { isBrainGovernanceReadCancelled, listBrainResourceVersions } from '@/api/brain';
 
 interface ResourceRow {
   id?: number;
@@ -40,17 +40,24 @@ export function BrainResourceGovernancePanel({
   const [activeItems, setActiveItems] = useState<ResourceRow[]>([]);
   const [versions, setVersions] = useState<ResourceRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
   const [editor, setEditor] = useState(JSON.stringify(example, null, 2));
+  const tableItems = versions.length ? versions : activeItems;
 
   async function load() {
     setLoading(true);
+    setLoadError('');
     try {
-      const [active, versionResponse] = await Promise.all([loadActive(), listBrainResourceVersions({ resourceType })]);
-      setActiveItems(rowsFrom(active));
+      const versionResponse = await listBrainResourceVersions({ resourceType, includeSnapshot: false, take: 100 });
       setVersions(rowsFrom(versionResponse));
+      const active = await loadActive();
+      setActiveItems(rowsFrom(active));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : `${title}加载失败`);
+      if (isBrainGovernanceReadCancelled(error)) return;
+      const message = error instanceof Error ? error.message : `${title}加载失败`;
+      setLoadError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -101,12 +108,20 @@ export function BrainResourceGovernancePanel({
 
       <div className="grid gap-6 py-5 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="min-w-0 overflow-x-auto border border-border">
+          {loadError ? (
+            <div className="flex items-center justify-between gap-3 border-b border-border bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              <span>{loadError}</span>
+              <button type="button" className="shrink-0 underline" onClick={() => void load()} disabled={loading}>
+                重试
+              </button>
+            </div>
+          ) : null}
           <table className="w-full min-w-[680px] text-left text-sm">
             <thead className="bg-muted/50 text-xs text-muted-foreground">
               <tr><th className="px-3 py-2">资源</th><th className="px-3 py-2">版本</th><th className="px-3 py-2">状态</th><th className="px-3 py-2">更新时间/快照</th></tr>
             </thead>
             <tbody>
-              {versions.length ? versions.map((item) => (
+              {tableItems.length ? tableItems.map((item) => (
                 <tr key={String(item.id)} className="border-t border-border">
                   <td className="px-3 py-3 font-medium">{String(item.resourceKey ?? item[keyField] ?? '-')}</td>
                   <td className="px-3 py-3">v{String(item.version ?? '-')}</td>

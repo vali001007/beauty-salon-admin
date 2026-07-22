@@ -3,6 +3,16 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsDateString, IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateReservationDto {
+  @ApiPropertyOptional({ description: '预约来源' })
+  @IsOptional()
+  @IsIn(['online', 'frontdesk', 'checkout_rebook', 'marketing', 'kiosk', 'miniapp', 'manual'])
+  bookingSource?: string;
+
+  @ApiPropertyOptional({ description: '现场再预约来源预约 ID' })
+  @IsOptional()
+  @IsInt()
+  sourceReservationId?: number;
+
   @ApiPropertyOptional({ description: '外部创建请求幂等键' })
   @IsOptional()
   @IsString()
