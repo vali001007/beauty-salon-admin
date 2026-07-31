@@ -39,96 +39,96 @@ enum MarketingStrategyStatus {
 // ─── Auth & Access ───────────────────────────────────────────────────────────
 
 model Store {
-  id        Int       @id @default(autoincrement())
-  name      String
-  city      String?
-  address   String?
-  phone     String?
-  status    String    @default("active")
-  shiftRequired Boolean @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  id            Int       @id @default(autoincrement())
+  name          String
+  city          String?
+  address       String?
+  phone         String?
+  status        String    @default("active")
+  shiftRequired Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
 
-  users                    UserStore[]
-  customers                Customer[]
-  predictionRuns           PredictionRun[]
-  predictionSnapshots      CustomerPredictionSnapshot[]
-  lifecycleSnapshots        CustomerLifecycleSnapshot[]
-  lifecycleEvents           CustomerLifecycleEvent[]
-  customerOpportunities     CustomerOpportunity[]
-  customerServiceCycles      CustomerServiceCycleState[]
-  lifecycleAttributionEvents LifecycleAttributionEvent[]
-  lifecycleRuleVersions      CustomerLifecycleRuleVersion[]
-  lifecycleQualitySnapshots  CustomerLifecycleQualitySnapshot[]
-  lifecycleBusinessPlans     LifecycleBusinessPlan[]
-  products                 Product[]
-  projects                 Project[]
-  beauticians              Beautician[]
-  schedules                Schedule[]
-  reservations             Reservation[]
-  productOrders            ProductOrder[]
-  transferOrdersFrom       TransferOrder[]              @relation("TransferFromStore")
-  transferOrdersTo         TransferOrder[]              @relation("TransferToStore")
-  stockMovements           StockMovement[]
-  terminalDevices          TerminalDevice[]
-  terminalConversations    TerminalConversation[]
-  serviceTasks             ServiceTask[]
-  recommendationEvents     RecommendationEvent[]
-  balanceAccounts          CustomerBalanceAccount[]
-  balanceTransactions      CustomerBalanceTransaction[]
-  promotions               Promotion[]
-  printJobs                PrintJob[]
-  aiAuditLogs              AiAuditLog[]
-  commissionRules          CommissionRule[]
-  commissionRuleAssignments CommissionRuleAssignment[]
-  commissionRecords        CommissionRecord[]
-  commissionSettlements    CommissionSettlement[]
-  cashierShifts            CashierShift[]
-  dailySettlements         DailySettlement[]
-  dailySettlementSnapshots      DailySettlementSnapshot[]
-  financeAuditLogs              FinanceAuditLog[]
-  financeReconciliationRuns     FinanceReconciliationRun[]
-  financeReconciliationIssues   FinanceReconciliationIssue[]
-  dailySettlementAdjustments    DailySettlementAdjustment[]
-  monthlyProfitCloses           MonthlyProfitClose[]
-  memberLiabilitySnapshots      MemberLiabilitySnapshot[]
-  commissionAdjustments         CommissionAdjustment[]
-  amiPerformanceRecords    AmiPerformanceRecord[]
-  marketingRuleTemplates   MarketingRuleTemplate[]
-  marketingActivities      MarketingActivity[]
-  marketingAutomationStrategies MarketingAutomationStrategy[]
-  marketingAutomationExecutions MarketingAutomationExecution[]
-  marketingDeliveryJobs       MarketingDeliveryJob[]
-  marketingEffectFacts        MarketingEffectFact[]
-  marketingRecommendationInstances MarketingRecommendationInstance[]
+  users                                    UserStore[]
+  customers                                Customer[]
+  predictionRuns                           PredictionRun[]
+  predictionSnapshots                      CustomerPredictionSnapshot[]
+  lifecycleSnapshots                       CustomerLifecycleSnapshot[]
+  lifecycleEvents                          CustomerLifecycleEvent[]
+  customerOpportunities                    CustomerOpportunity[]
+  customerServiceCycles                    CustomerServiceCycleState[]
+  lifecycleAttributionEvents               LifecycleAttributionEvent[]
+  lifecycleRuleVersions                    CustomerLifecycleRuleVersion[]
+  lifecycleQualitySnapshots                CustomerLifecycleQualitySnapshot[]
+  lifecycleBusinessPlans                   LifecycleBusinessPlan[]
+  products                                 Product[]
+  projects                                 Project[]
+  beauticians                              Beautician[]
+  schedules                                Schedule[]
+  reservations                             Reservation[]
+  productOrders                            ProductOrder[]
+  transferOrdersFrom                       TransferOrder[]                           @relation("TransferFromStore")
+  transferOrdersTo                         TransferOrder[]                           @relation("TransferToStore")
+  stockMovements                           StockMovement[]
+  terminalDevices                          TerminalDevice[]
+  terminalConversations                    TerminalConversation[]
+  serviceTasks                             ServiceTask[]
+  recommendationEvents                     RecommendationEvent[]
+  balanceAccounts                          CustomerBalanceAccount[]
+  balanceTransactions                      CustomerBalanceTransaction[]
+  promotions                               Promotion[]
+  printJobs                                PrintJob[]
+  aiAuditLogs                              AiAuditLog[]
+  commissionRules                          CommissionRule[]
+  commissionRuleAssignments                CommissionRuleAssignment[]
+  commissionRecords                        CommissionRecord[]
+  commissionSettlements                    CommissionSettlement[]
+  cashierShifts                            CashierShift[]
+  dailySettlements                         DailySettlement[]
+  dailySettlementSnapshots                 DailySettlementSnapshot[]
+  financeAuditLogs                         FinanceAuditLog[]
+  financeReconciliationRuns                FinanceReconciliationRun[]
+  financeReconciliationIssues              FinanceReconciliationIssue[]
+  dailySettlementAdjustments               DailySettlementAdjustment[]
+  monthlyProfitCloses                      MonthlyProfitClose[]
+  memberLiabilitySnapshots                 MemberLiabilitySnapshot[]
+  commissionAdjustments                    CommissionAdjustment[]
+  amiPerformanceRecords                    AmiPerformanceRecord[]
+  marketingRuleTemplates                   MarketingRuleTemplate[]
+  marketingActivities                      MarketingActivity[]
+  marketingAutomationStrategies            MarketingAutomationStrategy[]
+  marketingAutomationExecutions            MarketingAutomationExecution[]
+  marketingDeliveryJobs                    MarketingDeliveryJob[]
+  marketingEffectFacts                     MarketingEffectFact[]
+  marketingRecommendationInstances         MarketingRecommendationInstance[]
   marketingRecommendationAudienceSnapshots MarketingRecommendationAudienceSnapshot[]
-  marketingRecommendationAudienceMembers MarketingRecommendationAudienceMember[]
-  marketingRecommendationOfferSnapshots MarketingRecommendationOfferSnapshot[]
-  marketingRecommendationAdoptions MarketingRecommendationAdoption[]
-  amiMonthlyBills          AmiMonthlyBill[]
-  procurementOrders        ProcurementOrder[]
-  procurementReceipts      ProcurementReceipt[]
-  schedulingRuleConfigs    SchedulingRuleConfig[]
-  beauticianAvailabilities BeauticianAvailability[]
-  beauticianTimeOffs       BeauticianTimeOff[]
-  smartSchedulingRuns      SmartSchedulingRun[]
-  scheduleVersions         ScheduleVersion[]
-  storeResources           StoreResource[]
-  resourceBookings         ResourceBooking[]
-  customerAppIdentities    CustomerAppIdentity[]
-  customerAppEvents        CustomerAppEvent[]
-  amiGlowDisplayConfigs    AmiGlowDisplayConfig[]
-  terminalFollowUpTasks    TerminalFollowUpTask[]
-  gapOpportunities         AppointmentGapOpportunity[]
-  gapCandidates            AppointmentGapCandidate[]
-  gapOpportunityEvents     AppointmentGapOpportunityEvent[]
-  operatingCosts           OperatingCost[]
-  cardUsageRecords         CardUsageRecord[]
-  cards                    Card[]
-  customerServiceFeedback CustomerServiceFeedback[]
-  customerWaitingEpisodes CustomerWaitingEpisode[]
-  brainOperatingTargets    BrainStoreOperatingTarget[]
+  marketingRecommendationAudienceMembers   MarketingRecommendationAudienceMember[]
+  marketingRecommendationOfferSnapshots    MarketingRecommendationOfferSnapshot[]
+  marketingRecommendationAdoptions         MarketingRecommendationAdoption[]
+  amiMonthlyBills                          AmiMonthlyBill[]
+  procurementOrders                        ProcurementOrder[]
+  procurementReceipts                      ProcurementReceipt[]
+  schedulingRuleConfigs                    SchedulingRuleConfig[]
+  beauticianAvailabilities                 BeauticianAvailability[]
+  beauticianTimeOffs                       BeauticianTimeOff[]
+  smartSchedulingRuns                      SmartSchedulingRun[]
+  scheduleVersions                         ScheduleVersion[]
+  storeResources                           StoreResource[]
+  resourceBookings                         ResourceBooking[]
+  customerAppIdentities                    CustomerAppIdentity[]
+  customerAppEvents                        CustomerAppEvent[]
+  amiGlowDisplayConfigs                    AmiGlowDisplayConfig[]
+  terminalFollowUpTasks                    TerminalFollowUpTask[]
+  gapOpportunities                         AppointmentGapOpportunity[]
+  gapCandidates                            AppointmentGapCandidate[]
+  gapOpportunityEvents                     AppointmentGapOpportunityEvent[]
+  operatingCosts                           OperatingCost[]
+  cardUsageRecords                         CardUsageRecord[]
+  cards                                    Card[]
+  customerServiceFeedback                  CustomerServiceFeedback[]
+  customerWaitingEpisodes                  CustomerWaitingEpisode[]
+  brainOperatingTargets                    BrainStoreOperatingTarget[]
   reservationStatusEvents                  ReservationStatusEvent[]
   metricTargets                            StoreMetricTarget[]
   metricSnapshots                          StoreMetricSnapshot[]
@@ -138,51 +138,51 @@ model Store {
 }
 
 model User {
-  id           Int       @id @default(autoincrement())
-  username     String    @unique
-  passwordHash String
-  name         String
-  phone        String?
-  email        String?
-  avatar       String?
+  id               Int       @id @default(autoincrement())
+  username         String    @unique
+  passwordHash     String
+  name             String
+  phone            String?
+  email            String?
+  avatar           String?
   supplySupplierId Int?
-  status       String    @default("active")
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  deletedAt    DateTime?
+  status           String    @default("active")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
 
-  roles               UserRole[]
-  stores              UserStore[]
-  aiAuditLogs         AiAuditLog[]
-  refreshTokens       RefreshToken[]
-  stockMovements      StockMovement[]
-  smartSchedulingRuns SmartSchedulingRun[] @relation("SmartSchedulingRunCreatedBy")
-  publishedScheduleVersions ScheduleVersion[] @relation("ScheduleVersionPublishedBy")
-  handledBalanceTransactions CustomerBalanceTransaction[] @relation("BalanceTransactionOperator")
-  handledCustomerCards CustomerCard[] @relation("CustomerCardOperator")
-  handledCardUsageRecords CardUsageRecord[] @relation("CardUsageOperator")
-  handledRefundRecords   RefundRecord[] @relation("RefundOperator")
-  cashierShifts       CashierShift[]
-  terminalConversations TerminalConversation[]
-  beauticianProfiles Beautician[]
-  assignedFollowUpTasks TerminalFollowUpTask[] @relation("FollowUpAssignedUser")
-  createdFollowUpTasks TerminalFollowUpTask[] @relation("FollowUpCreatedBy")
-  completedFollowUpTasks TerminalFollowUpTask[] @relation("FollowUpCompletedBy")
-  createdOperatingCosts  OperatingCost[]        @relation("OperatingCostCreatedBy")
-  commissionRules        CommissionRule[]        @relation("CommissionRuleUser")
-  commissionRuleAssignments CommissionRuleAssignment[] @relation("CommissionRuleAssignmentUser")
-  commissionRecords      CommissionRecord[]      @relation("CommissionRecordStaffUser")
-  commissionSettlements  CommissionSettlement[]  @relation("CommissionSettlementStaffUser")
+  roles                          UserRole[]
+  stores                         UserStore[]
+  aiAuditLogs                    AiAuditLog[]
+  refreshTokens                  RefreshToken[]
+  stockMovements                 StockMovement[]
+  smartSchedulingRuns            SmartSchedulingRun[]           @relation("SmartSchedulingRunCreatedBy")
+  publishedScheduleVersions      ScheduleVersion[]              @relation("ScheduleVersionPublishedBy")
+  handledBalanceTransactions     CustomerBalanceTransaction[]   @relation("BalanceTransactionOperator")
+  handledCustomerCards           CustomerCard[]                 @relation("CustomerCardOperator")
+  handledCardUsageRecords        CardUsageRecord[]              @relation("CardUsageOperator")
+  handledRefundRecords           RefundRecord[]                 @relation("RefundOperator")
+  cashierShifts                  CashierShift[]
+  terminalConversations          TerminalConversation[]
+  beauticianProfiles             Beautician[]
+  assignedFollowUpTasks          TerminalFollowUpTask[]         @relation("FollowUpAssignedUser")
+  createdFollowUpTasks           TerminalFollowUpTask[]         @relation("FollowUpCreatedBy")
+  completedFollowUpTasks         TerminalFollowUpTask[]         @relation("FollowUpCompletedBy")
+  createdOperatingCosts          OperatingCost[]                @relation("OperatingCostCreatedBy")
+  commissionRules                CommissionRule[]               @relation("CommissionRuleUser")
+  commissionRuleAssignments      CommissionRuleAssignment[]     @relation("CommissionRuleAssignmentUser")
+  commissionRecords              CommissionRecord[]             @relation("CommissionRecordStaffUser")
+  commissionSettlements          CommissionSettlement[]         @relation("CommissionSettlementStaffUser")
   financeAuditLogs               FinanceAuditLog[]              @relation("FinanceAuditUser")
   confirmedDailySnapshots        DailySettlementSnapshot[]      @relation("DailySnapshotConfirmedBy")
   confirmedMonthlyProfitCloses   MonthlyProfitClose[]           @relation("MonthlyProfitConfirmedBy")
   confirmedLiabilitySnapshots    MemberLiabilitySnapshot[]      @relation("LiabilitySnapshotConfirmedBy")
   createdCommissionAdjustments   CommissionAdjustment[]         @relation("CommissionAdjustmentCreatedBy")
   confirmedCommissionAdjustments CommissionAdjustment[]         @relation("CommissionAdjustmentConfirmedBy")
-  publishedLifecycleRules CustomerLifecycleRuleVersion[] @relation("LifecycleRulePublisher")
-  createdLifecycleBusinessPlans LifecycleBusinessPlan[] @relation("LifecycleBusinessPlanCreator")
-  procurementReceipts ProcurementReceipt[] @relation("ProcurementReceiptOperator")
-  supplySupplier         SupplySupplier?         @relation(fields: [supplySupplierId], references: [id], onDelete: SetNull)
+  publishedLifecycleRules        CustomerLifecycleRuleVersion[] @relation("LifecycleRulePublisher")
+  createdLifecycleBusinessPlans  LifecycleBusinessPlan[]        @relation("LifecycleBusinessPlanCreator")
+  procurementReceipts            ProcurementReceipt[]           @relation("ProcurementReceiptOperator")
+  supplySupplier                 SupplySupplier?                @relation(fields: [supplySupplierId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([phone])
@@ -272,37 +272,37 @@ model Customer {
   updatedAt     DateTime  @updatedAt
   deletedAt     DateTime?
 
-  store                 Store                        @relation(fields: [storeId], references: [id])
-  healthProfile         CustomerHealthProfile?
-  consumptionRecords    ConsumptionRecord[]
-  customerCards         CustomerCard[]
-  productOrders         ProductOrder[]
-  reservations          Reservation[]
-  serviceTasks          ServiceTask[]
-  cardUsageRecords      CardUsageRecord[]
-  skinTests             SkinTest[]
-  predictionSnapshots   CustomerPredictionSnapshot[]
-  lifecycleSnapshots    CustomerLifecycleSnapshot[]
-  lifecycleEvents       CustomerLifecycleEvent[]
-  opportunities         CustomerOpportunity[]
-  serviceCycleStates    CustomerServiceCycleState[]
-  lifecycleAttributionEvents LifecycleAttributionEvent[]
-  amiPerformanceRecords AmiPerformanceRecord[]
-  marketingTouches      MarketingAutomationTouch[]
-  marketingDeliveryJobs MarketingDeliveryJob[]
-  marketingAttributions MarketingAttribution[]
-  pageAttributions      MarketingPageAttribution[]
-  recommendationEvents  RecommendationEvent[]
-  balanceAccounts       CustomerBalanceAccount[]
-  balanceTransactions   CustomerBalanceTransaction[]
-  customerAppIdentities CustomerAppIdentity[]
-  terminalFollowUpTasks TerminalFollowUpTask[]
-  serviceFeedback      CustomerServiceFeedback[]
-  waitingEpisodes      CustomerWaitingEpisode[]
+  store                             Store                                   @relation(fields: [storeId], references: [id])
+  healthProfile                     CustomerHealthProfile?
+  consumptionRecords                ConsumptionRecord[]
+  customerCards                     CustomerCard[]
+  productOrders                     ProductOrder[]
+  reservations                      Reservation[]
+  serviceTasks                      ServiceTask[]
+  cardUsageRecords                  CardUsageRecord[]
+  skinTests                         SkinTest[]
+  predictionSnapshots               CustomerPredictionSnapshot[]
+  lifecycleSnapshots                CustomerLifecycleSnapshot[]
+  lifecycleEvents                   CustomerLifecycleEvent[]
+  opportunities                     CustomerOpportunity[]
+  serviceCycleStates                CustomerServiceCycleState[]
+  lifecycleAttributionEvents        LifecycleAttributionEvent[]
+  amiPerformanceRecords             AmiPerformanceRecord[]
+  marketingTouches                  MarketingAutomationTouch[]
+  marketingDeliveryJobs             MarketingDeliveryJob[]
+  marketingAttributions             MarketingAttribution[]
+  pageAttributions                  MarketingPageAttribution[]
+  recommendationEvents              RecommendationEvent[]
+  balanceAccounts                   CustomerBalanceAccount[]
+  balanceTransactions               CustomerBalanceTransaction[]
+  customerAppIdentities             CustomerAppIdentity[]
+  terminalFollowUpTasks             TerminalFollowUpTask[]
+  serviceFeedback                   CustomerServiceFeedback[]
+  waitingEpisodes                   CustomerWaitingEpisode[]
   recommendationAudienceMemberships MarketingRecommendationAudienceMember[]
-  customerAppEvents     CustomerAppEvent[]
-  gapCandidates         AppointmentGapCandidate[]
-  gapOpportunityEvents  AppointmentGapOpportunityEvent[]
+  customerAppEvents                 CustomerAppEvent[]
+  gapCandidates                     AppointmentGapCandidate[]
+  gapOpportunityEvents              AppointmentGapOpportunityEvent[]
 
   @@index([storeId])
   @@index([phone])
@@ -455,12 +455,12 @@ model Product {
   updatedAt          DateTime  @updatedAt
   deletedAt          DateTime?
 
-  store          Store            @relation(fields: [storeId], references: [id])
-  category       Category?        @relation(fields: [categoryId], references: [id])
-  batches        StockBatch[]
-  bomItems       ProjectBomItem[]
-  stockMovements StockMovement[]
-  supplyMappings SupplyCatalogMapping[]
+  store            Store                  @relation(fields: [storeId], references: [id])
+  category         Category?              @relation(fields: [categoryId], references: [id])
+  batches          StockBatch[]
+  bomItems         ProjectBomItem[]
+  stockMovements   StockMovement[]
+  supplyMappings   SupplyCatalogMapping[]
   procurementItems ProcurementOrderItem[]
 
   @@unique([storeId, sku])
@@ -550,12 +550,12 @@ model StockMovement {
   occurredAt   DateTime @default(now())
   createdAt    DateTime @default(now())
 
-  store    Store       @relation(fields: [storeId], references: [id])
-  product  Product     @relation(fields: [productId], references: [id])
-  batch    StockBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
-  operator User?       @relation(fields: [operatorId], references: [id], onDelete: SetNull)
-  orderItem OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
-  refundItem RefundItem? @relation(fields: [refundItemId], references: [id], onDelete: SetNull)
+  store                      Store                       @relation(fields: [storeId], references: [id])
+  product                    Product                     @relation(fields: [productId], references: [id])
+  batch                      StockBatch?                 @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  operator                   User?                       @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  orderItem                  OrderItem?                  @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
+  refundItem                 RefundItem?                 @relation(fields: [refundItemId], references: [id], onDelete: SetNull)
   lifecycleAttributionEvents LifecycleAttributionEvent[]
 
   @@index([storeId, productId, occurredAt])
@@ -578,34 +578,34 @@ model ProjectType {
 }
 
 model Project {
-  id          Int       @id @default(autoincrement())
-  storeId     Int
-  typeId      Int?
-  name        String
-  description String?
-  price       Decimal   @default(0)
-  duration    Int       @default(60)
-  careCycleWeeks      Int?
+  id                   Int       @id @default(autoincrement())
+  storeId              Int
+  typeId               Int?
+  name                 String
+  description          String?
+  price                Decimal   @default(0)
+  duration             Int       @default(60)
+  careCycleWeeks       Int?
   treatmentCourseTimes Int?
-  image       String?
-  recommend   Boolean   @default(false)
-  online      Boolean   @default(true)
-  home        Boolean   @default(false)
-  sort        Int       @default(0)
-  status      String    @default("active")
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
+  image                String?
+  recommend            Boolean   @default(false)
+  online               Boolean   @default(true)
+  home                 Boolean   @default(false)
+  sort                 Int       @default(0)
+  status               String    @default("active")
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  deletedAt            DateTime?
 
-  store            Store                    @relation(fields: [storeId], references: [id])
-  type             ProjectType?             @relation(fields: [typeId], references: [id])
-  bomItems         ProjectBomItem[]
+  store              Store                       @relation(fields: [storeId], references: [id])
+  type               ProjectType?                @relation(fields: [typeId], references: [id])
+  bomItems           ProjectBomItem[]
   serviceCycleStates CustomerServiceCycleState[]
-  serviceTasks     ServiceTask[]
-  reservations     Reservation[]
-  beauticianSkills BeauticianProjectSkill[]
-  cardUsageRecords CardUsageRecord[]
-  gapCandidates    AppointmentGapCandidate[]
+  serviceTasks       ServiceTask[]
+  reservations       Reservation[]
+  beauticianSkills   BeauticianProjectSkill[]
+  cardUsageRecords   CardUsageRecord[]
+  gapCandidates      AppointmentGapCandidate[]
 
   @@index([storeId])
   @@index([status])
@@ -651,14 +651,14 @@ model IndustryDataSource {
 }
 
 model IndustryEvidence {
-  id          Int      @id @default(autoincrement())
-  sourceId    Int
-  title       String
-  evidenceType String  @default("link")
-  url         String?
-  filePath    String?
-  notes       String?
-  createdAt   DateTime @default(now())
+  id           Int      @id @default(autoincrement())
+  sourceId     Int
+  title        String
+  evidenceType String   @default("link")
+  url          String?
+  filePath     String?
+  notes        String?
+  createdAt    DateTime @default(now())
 
   source IndustryDataSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
 
@@ -693,8 +693,8 @@ model IndustryServiceTemplate {
   updatedAt              DateTime  @updatedAt
   deletedAt              DateTime?
 
-  source         IndustryDataSource?       @relation(fields: [sourceId], references: [id], onDelete: SetNull)
-  bomTemplates   IndustryProjectBomTemplate[]
+  source          IndustryDataSource?          @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  bomTemplates    IndustryProjectBomTemplate[]
   adoptionRecords IndustryAdoptionRecord[]
 
   @@index([category])
@@ -705,7 +705,7 @@ model IndustryServiceTemplate {
 
 model IndustryProductTemplate {
   id                          Int       @id @default(autoincrement())
-  standardProductCode          String    @unique
+  standardProductCode         String    @unique
   name                        String
   aliases                     Json?
   category                    String
@@ -817,7 +817,7 @@ model SupplySku {
   updatedAt          DateTime  @updatedAt
   deletedAt          DateTime?
 
-  supplier      SupplySupplier        @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  supplier      SupplySupplier         @relation(fields: [supplierId], references: [id], onDelete: Cascade)
   quotes        SupplyQuote[]
   mappings      SupplyCatalogMapping[]
   orderItems    ProcurementOrderItem[]
@@ -853,8 +853,8 @@ model SupplyQuote {
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
 
-  sku        SupplySku             @relation(fields: [supplySkuId], references: [id], onDelete: Cascade)
-  supplier   SupplySupplier        @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  sku        SupplySku              @relation(fields: [supplySkuId], references: [id], onDelete: Cascade)
+  supplier   SupplySupplier         @relation(fields: [supplierId], references: [id], onDelete: Cascade)
   orderItems ProcurementOrderItem[]
 
   @@index([supplySkuId])
@@ -866,14 +866,14 @@ model SupplyQuote {
 
 model SupplyCatalogMapping {
   id                        Int      @id @default(autoincrement())
-  supplySkuId                Int
-  productId                  Int?
-  storeId                    Int?
-  standardProductTemplateId  Int?
-  mappingStatus              String   @default("active")
-  isPreferred                Boolean  @default(false)
-  createdAt                  DateTime @default(now())
-  updatedAt                  DateTime @updatedAt
+  supplySkuId               Int
+  productId                 Int?
+  storeId                   Int?
+  standardProductTemplateId Int?
+  mappingStatus             String   @default("active")
+  isPreferred               Boolean  @default(false)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
 
   supplySku               SupplySku                @relation(fields: [supplySkuId], references: [id], onDelete: Cascade)
   product                 Product?                 @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -887,36 +887,36 @@ model SupplyCatalogMapping {
 }
 
 model ProcurementOrder {
-  id                  Int       @id @default(autoincrement())
-  orderNo             String    @unique
-  idempotencyKey      String?   @unique
-  creationFingerprint String?   @db.VarChar(64)
-  batchIdempotencyKey String?
-  batchCreationFingerprint String? @db.VarChar(64)
-  storeId             Int
-  supplierId          Int
-  status              String    @default("pending_supplier_confirm")
-  totalAmount         Decimal   @default(0)
-  platformFee         Decimal   @default(0)
-  rebateAmount        Decimal   @default(0)
-  netAmount           Decimal   @default(0)
-  expectedArrivalDate DateTime?
-  sourceType          String    @default("manual")
-  sourceNo            String?
-  createdBy           Int?
-  acceptedAt          DateTime?
-  rejectedAt          DateTime?
-  shippedAt           DateTime?
-  receivedAt          DateTime?
-  settledAt           DateTime?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                       Int       @id @default(autoincrement())
+  orderNo                  String    @unique
+  idempotencyKey           String?   @unique
+  creationFingerprint      String?   @db.VarChar(64)
+  batchIdempotencyKey      String?
+  batchCreationFingerprint String?   @db.VarChar(64)
+  storeId                  Int
+  supplierId               Int
+  status                   String    @default("pending_supplier_confirm")
+  totalAmount              Decimal   @default(0)
+  platformFee              Decimal   @default(0)
+  rebateAmount             Decimal   @default(0)
+  netAmount                Decimal   @default(0)
+  expectedArrivalDate      DateTime?
+  sourceType               String    @default("manual")
+  sourceNo                 String?
+  createdBy                Int?
+  acceptedAt               DateTime?
+  rejectedAt               DateTime?
+  shippedAt                DateTime?
+  receivedAt               DateTime?
+  settledAt                DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
-  store      Store                  @relation(fields: [storeId], references: [id])
-  supplier   SupplySupplier         @relation(fields: [supplierId], references: [id])
-  items      ProcurementOrderItem[]
-  shipments  SupplierShipment[]
-  receipts   ProcurementReceipt[]
+  store     Store                  @relation(fields: [storeId], references: [id])
+  supplier  SupplySupplier         @relation(fields: [supplierId], references: [id])
+  items     ProcurementOrderItem[]
+  shipments SupplierShipment[]
+  receipts  ProcurementReceipt[]
 
   @@index([storeId])
   @@index([supplierId, status])
@@ -936,10 +936,10 @@ model ProcurementOrderItem {
   subtotal    Decimal @default(0)
   receivedQty Int     @default(0)
 
-  order         ProcurementOrder     @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product       Product?             @relation(fields: [productId], references: [id], onDelete: SetNull)
-  supplySku     SupplySku            @relation(fields: [supplySkuId], references: [id])
-  quote         SupplyQuote?         @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  order         ProcurementOrder       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product       Product?               @relation(fields: [productId], references: [id], onDelete: SetNull)
+  supplySku     SupplySku              @relation(fields: [supplySkuId], references: [id])
+  quote         SupplyQuote?           @relation(fields: [quoteId], references: [id], onDelete: SetNull)
   shipmentItems SupplierShipmentItem[]
 
   @@index([orderId])
@@ -962,8 +962,8 @@ model SupplierShipment {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  order    ProcurementOrder      @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  supplier SupplySupplier        @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  order    ProcurementOrder       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  supplier SupplySupplier         @relation(fields: [supplierId], references: [id], onDelete: Cascade)
   items    SupplierShipmentItem[]
 
   @@index([orderId])
@@ -982,9 +982,9 @@ model SupplierShipmentItem {
   productionDate DateTime?
   expiryDate     DateTime?
 
-  shipment SupplierShipment   @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  shipment  SupplierShipment     @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
   orderItem ProcurementOrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
-  supplySku SupplySku           @relation(fields: [supplySkuId], references: [id])
+  supplySku SupplySku            @relation(fields: [supplySkuId], references: [id])
 
   @@index([shipmentId])
   @@index([orderItemId])
@@ -1041,8 +1041,8 @@ model IndustryProjectBomTemplate {
   updatedAt         DateTime  @updatedAt
   deletedAt         DateTime?
 
-  serviceTemplate IndustryServiceTemplate @relation(fields: [serviceTemplateId], references: [id], onDelete: Cascade)
-  source          IndustryDataSource?     @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  serviceTemplate IndustryServiceTemplate          @relation(fields: [serviceTemplateId], references: [id], onDelete: Cascade)
+  source          IndustryDataSource?              @relation(fields: [sourceId], references: [id], onDelete: SetNull)
   items           IndustryProjectBomItemTemplate[]
 
   @@unique([serviceTemplateId, version])
@@ -1052,21 +1052,21 @@ model IndustryProjectBomTemplate {
 
 model IndustryProjectBomItemTemplate {
   id                     Int      @id @default(autoincrement())
-  bomTemplateId           Int
-  productTemplateId       Int
-  itemRole                String   @default("main_material")
-  standardQty             Decimal  @default(0)
-  unit                    String
-  lossRate                Decimal  @default(0)
-  required                Boolean  @default(true)
-  costIncluded            Boolean  @default(true)
-  serviceStep             String?
-  allowSubstitute         Boolean  @default(false)
-  substituteGroupCode     String?
-  futureSupplyRequired    Boolean  @default(false)
-  futureSupplyMappingKey  String?
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  bomTemplateId          Int
+  productTemplateId      Int
+  itemRole               String   @default("main_material")
+  standardQty            Decimal  @default(0)
+  unit                   String
+  lossRate               Decimal  @default(0)
+  required               Boolean  @default(true)
+  costIncluded           Boolean  @default(true)
+  serviceStep            String?
+  allowSubstitute        Boolean  @default(false)
+  substituteGroupCode    String?
+  futureSupplyRequired   Boolean  @default(false)
+  futureSupplyMappingKey String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   bomTemplate     IndustryProjectBomTemplate @relation(fields: [bomTemplateId], references: [id], onDelete: Cascade)
   productTemplate IndustryProductTemplate    @relation(fields: [productTemplateId], references: [id], onDelete: Restrict)
@@ -1077,26 +1077,26 @@ model IndustryProjectBomItemTemplate {
 }
 
 model IndustrySalaryBenchmark {
-  id                   Int       @id @default(autoincrement())
-  jobRole              String
-  roleCategory         String?
-  employeeLevel        String?
-  targetStoreTypes     Json?
-  cityTier             String?
-  baseSalaryMin        Decimal?
-  baseSalaryMax        Decimal?
-  commissionRateMin    Decimal?
-  commissionRateMax    Decimal?
-  serviceFeeMin        Decimal?
-  serviceFeeMax        Decimal?
-  performanceMetrics   Json?
-  responsibilities     Json?
+  id                     Int       @id @default(autoincrement())
+  jobRole                String
+  roleCategory           String?
+  employeeLevel          String?
+  targetStoreTypes       Json?
+  cityTier               String?
+  baseSalaryMin          Decimal?
+  baseSalaryMax          Decimal?
+  commissionRateMin      Decimal?
+  commissionRateMax      Decimal?
+  serviceFeeMin          Decimal?
+  serviceFeeMax          Decimal?
+  performanceMetrics     Json?
+  responsibilities       Json?
   capabilityRequirements Json?
-  status               String    @default("draft")
-  version              Int       @default(1)
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
-  deletedAt            DateTime?
+  status                 String    @default("draft")
+  version                Int       @default(1)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  deletedAt              DateTime?
 
   @@index([jobRole])
   @@index([roleCategory])
@@ -1131,18 +1131,18 @@ model IndustryKnowledgeItem {
 }
 
 model IndustryAdoptionRecord {
-  id                    Int      @id @default(autoincrement())
-  storeId                Int?
-  adoptedByUserId        Int?
-  adoptionType           String
-  serviceTemplateId      Int?
-  productTemplateId      Int?
-  templateVersion        Int?
-  localProjectId         Int?
-  localProductId         Int?
-  localBomItemIds        Json?
-  payload                Json?
-  createdAt              DateTime @default(now())
+  id                Int      @id @default(autoincrement())
+  storeId           Int?
+  adoptedByUserId   Int?
+  adoptionType      String
+  serviceTemplateId Int?
+  productTemplateId Int?
+  templateVersion   Int?
+  localProjectId    Int?
+  localProductId    Int?
+  localBomItemIds   Json?
+  payload           Json?
+  createdAt         DateTime @default(now())
 
   serviceTemplate IndustryServiceTemplate? @relation(fields: [serviceTemplateId], references: [id], onDelete: SetNull)
 
@@ -1153,17 +1153,17 @@ model IndustryAdoptionRecord {
 }
 
 model IndustrySupplyMappingRequest {
-  id                         Int      @id @default(autoincrement())
-  productTemplateId           Int?
-  bomItemTemplateId           Int?
-  requestType                 String   @default("mapping")
-  status                      String   @default("not_connected")
-  requestedByStoreId          Int?
-  requestedByUserId           Int?
-  note                        String?
-  payload                     Json?
-  createdAt                   DateTime @default(now())
-  updatedAt                   DateTime @updatedAt
+  id                 Int      @id @default(autoincrement())
+  productTemplateId  Int?
+  bomItemTemplateId  Int?
+  requestType        String   @default("mapping")
+  status             String   @default("not_connected")
+  requestedByStoreId Int?
+  requestedByUserId  Int?
+  note               String?
+  payload            Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   @@index([productTemplateId])
   @@index([bomItemTemplateId])
@@ -1237,11 +1237,11 @@ model CommissionRule {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  store   Store              @relation(fields: [storeId], references: [id])
-  level   BeauticianLevel?   @relation(fields: [levelId], references: [id])
-  user    User?              @relation("CommissionRuleUser", fields: [userId], references: [id], onDelete: SetNull)
+  store       Store                      @relation(fields: [storeId], references: [id])
+  level       BeauticianLevel?           @relation(fields: [levelId], references: [id])
+  user        User?                      @relation("CommissionRuleUser", fields: [userId], references: [id], onDelete: SetNull)
   assignments CommissionRuleAssignment[]
-  records CommissionRecord[]
+  records     CommissionRecord[]
 
   @@index([storeId, type, status])
   @@index([levelId])
@@ -1261,9 +1261,9 @@ model CommissionRuleAssignment {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  store   Store          @relation(fields: [storeId], references: [id])
-  rule    CommissionRule @relation(fields: [ruleId], references: [id])
-  user    User           @relation("CommissionRuleAssignmentUser", fields: [userId], references: [id])
+  store   Store              @relation(fields: [storeId], references: [id])
+  rule    CommissionRule     @relation(fields: [ruleId], references: [id])
+  user    User               @relation("CommissionRuleAssignmentUser", fields: [userId], references: [id])
   records CommissionRecord[]
 
   @@index([storeId, type, status])
@@ -1273,36 +1273,36 @@ model CommissionRuleAssignment {
 }
 
 model CommissionRecord {
-  id           Int       @id @default(autoincrement())
-  storeId      Int
-  staffUserId  Int?
-  beauticianId Int?
-  orderId      Int?
-  orderItemId  Int?
-  sourceType   String?
-  sourceId     Int?
+  id                Int       @id @default(autoincrement())
+  storeId           Int
+  staffUserId       Int?
+  beauticianId      Int?
+  orderId           Int?
+  orderItemId       Int?
+  sourceType        String?
+  sourceId          Int?
   cardUsageRecordId Int?
-  ruleId       Int?
-  assignmentId Int?
-  type         String
-  sourceAmount Decimal
-  rate         Decimal
-  amount       Decimal
-  status       String    @default("pending")
-  settleMonth  String?
-  confirmedAt  DateTime?
-  settledAt    DateTime?
-  remark       String?
-  createdAt    DateTime  @default(now())
+  ruleId            Int?
+  assignmentId      Int?
+  type              String
+  sourceAmount      Decimal
+  rate              Decimal
+  amount            Decimal
+  status            String    @default("pending")
+  settleMonth       String?
+  confirmedAt       DateTime?
+  settledAt         DateTime?
+  remark            String?
+  createdAt         DateTime  @default(now())
 
-  store      Store           @relation(fields: [storeId], references: [id])
-  staffUser  User?           @relation("CommissionRecordStaffUser", fields: [staffUserId], references: [id], onDelete: SetNull)
-  beautician Beautician?     @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
-  order      ProductOrder?   @relation(fields: [orderId], references: [id])
-  orderItem  OrderItem?      @relation(fields: [orderItemId], references: [id])
-  cardUsageRecord CardUsageRecord? @relation(fields: [cardUsageRecordId], references: [id], onDelete: SetNull)
-  rule       CommissionRule? @relation(fields: [ruleId], references: [id])
-  assignment CommissionRuleAssignment? @relation(fields: [assignmentId], references: [id])
+  store             Store                        @relation(fields: [storeId], references: [id])
+  staffUser         User?                        @relation("CommissionRecordStaffUser", fields: [staffUserId], references: [id], onDelete: SetNull)
+  beautician        Beautician?                  @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
+  order             ProductOrder?                @relation(fields: [orderId], references: [id])
+  orderItem         OrderItem?                   @relation(fields: [orderItemId], references: [id])
+  cardUsageRecord   CardUsageRecord?             @relation(fields: [cardUsageRecordId], references: [id], onDelete: SetNull)
+  rule              CommissionRule?              @relation(fields: [ruleId], references: [id])
+  assignment        CommissionRuleAssignment?    @relation(fields: [assignmentId], references: [id])
   settlementRecords CommissionSettlementRecord[]
   adjustments       CommissionAdjustment[]
 
@@ -1318,33 +1318,33 @@ model CommissionRecord {
 }
 
 model CommissionSettlement {
-  id             Int       @id @default(autoincrement())
-  storeId        Int
-  staffUserId    Int?
-  beauticianId   Int?
-  settleMonth    String
-  projectAmount  Decimal   @default(0)
-  productAmount  Decimal   @default(0)
-  cardSaleAmount Decimal   @default(0)
-  rechargeAmount Decimal   @default(0)
-  otherAmount    Decimal   @default(0)
-  totalAmount    Decimal   @default(0)
-  deductions     Decimal   @default(0)
-  netAmount      Decimal   @default(0)
-  status         String    @default("draft")
-  confirmedBy    Int?
-  confirmedAt    DateTime?
-  paidAt         DateTime?
+  id               Int       @id @default(autoincrement())
+  storeId          Int
+  staffUserId      Int?
+  beauticianId     Int?
+  settleMonth      String
+  projectAmount    Decimal   @default(0)
+  productAmount    Decimal   @default(0)
+  cardSaleAmount   Decimal   @default(0)
+  rechargeAmount   Decimal   @default(0)
+  otherAmount      Decimal   @default(0)
+  totalAmount      Decimal   @default(0)
+  deductions       Decimal   @default(0)
+  netAmount        Decimal   @default(0)
+  status           String    @default("draft")
+  confirmedBy      Int?
+  confirmedAt      DateTime?
+  paidAt           DateTime?
   paidBy           Int?
   paymentBatchNo   String?
   paymentMethod    String?
   paymentVoucherNo String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
-  store      Store      @relation(fields: [storeId], references: [id])
-  staffUser  User?      @relation("CommissionSettlementStaffUser", fields: [staffUserId], references: [id], onDelete: SetNull)
-  beautician Beautician? @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
+  store             Store                        @relation(fields: [storeId], references: [id])
+  staffUser         User?                        @relation("CommissionSettlementStaffUser", fields: [staffUserId], references: [id], onDelete: SetNull)
+  beautician        Beautician?                  @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
   settlementRecords CommissionSettlementRecord[]
   adjustments       CommissionAdjustment[]
 
@@ -1422,42 +1422,42 @@ model OperatingCost {
 }
 
 model DailySettlement {
-  id              Int       @id @default(autoincrement())
-  storeId         Int
-  settleDate      DateTime
-  totalRevenue    Decimal   @default(0)
-  cashRevenue     Decimal   @default(0)
-  wechatRevenue   Decimal   @default(0)
-  alipayRevenue   Decimal   @default(0)
-  cardRevenue     Decimal   @default(0)
-  balanceRevenue  Decimal   @default(0)
-  rechargeIncome  Decimal   @default(0)
-  refundAmount    Decimal   @default(0)
-  orderCount      Int       @default(0)
-  customerCount   Int       @default(0)
-  avgTransaction  Decimal   @default(0)
-  materialCost    Decimal   @default(0)
-  grossProfit     Decimal   @default(0)
-  grossMargin     Decimal   @default(0)
-  commissionTotal Decimal   @default(0)
-  status          String    @default("draft")
-  reconciliationStatus String @default("pending")
-  confirmationMode     String?
+  id                        Int       @id @default(autoincrement())
+  storeId                   Int
+  settleDate                DateTime
+  totalRevenue              Decimal   @default(0)
+  cashRevenue               Decimal   @default(0)
+  wechatRevenue             Decimal   @default(0)
+  alipayRevenue             Decimal   @default(0)
+  cardRevenue               Decimal   @default(0)
+  balanceRevenue            Decimal   @default(0)
+  rechargeIncome            Decimal   @default(0)
+  refundAmount              Decimal   @default(0)
+  orderCount                Int       @default(0)
+  customerCount             Int       @default(0)
+  avgTransaction            Decimal   @default(0)
+  materialCost              Decimal   @default(0)
+  grossProfit               Decimal   @default(0)
+  grossMargin               Decimal   @default(0)
+  commissionTotal           Decimal   @default(0)
+  status                    String    @default("draft")
+  reconciliationStatus      String    @default("pending")
+  confirmationMode          String?
   latestReconciliationRunId Int?
-  confirmedBy     Int?
-  confirmedAt     DateTime?
-  summary         Json?
-  systemSummary   Json?
-  adjustmentSummary Json?
-  finalSummary    Json?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  confirmedBy               Int?
+  confirmedAt               DateTime?
+  summary                   Json?
+  systemSummary             Json?
+  adjustmentSummary         Json?
+  finalSummary              Json?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
 
-  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  snapshots DailySettlementSnapshot[]
-  reconciliationRuns FinanceReconciliationRun[]
+  store                Store                        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  snapshots            DailySettlementSnapshot[]
+  reconciliationRuns   FinanceReconciliationRun[]
   reconciliationIssues FinanceReconciliationIssue[]
-  adjustments DailySettlementAdjustment[]
+  adjustments          DailySettlementAdjustment[]
 
   @@unique([storeId, settleDate])
   @@index([storeId, settleDate])
@@ -1467,48 +1467,48 @@ model DailySettlement {
 // ─── Orders & Cards ──────────────────────────────────────────────────────────
 
 model ProductOrder {
-  id           Int      @id @default(autoincrement())
-  orderNo      String   @unique
-  checkoutGroupNo String?
-  orderKind    String   @default("product")
-  customerId   Int?
-  customerName String?
-  storeId      Int?
-  totalAmount  Decimal  @default(0)
-  listAmount   Decimal  @default(0)
-  itemDiscountAmount  Decimal @default(0)
-  orderDiscountAmount Decimal @default(0)
-  totalDiscountAmount Decimal @default(0)
-  netAmount           Decimal @default(0)
-  discountSource      String  @default("none")
-  allocationMethod    String  @default("none")
+  id                  Int      @id @default(autoincrement())
+  orderNo             String   @unique
+  checkoutGroupNo     String?
+  orderKind           String   @default("product")
+  customerId          Int?
+  customerName        String?
+  storeId             Int?
+  totalAmount         Decimal  @default(0)
+  listAmount          Decimal  @default(0)
+  itemDiscountAmount  Decimal  @default(0)
+  orderDiscountAmount Decimal  @default(0)
+  totalDiscountAmount Decimal  @default(0)
+  netAmount           Decimal  @default(0)
+  discountSource      String   @default("none")
+  allocationMethod    String   @default("none")
   promotionId         Int?
   couponId            Int?
   packageId           Int?
   discountPayload     Json?
-  status       String   @default("completed")
-  payMethod    String?
-  source       String?
-  items        Json
-  remark       String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  status              String   @default("completed")
+  payMethod           String?
+  source              String?
+  items               Json
+  remark              String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
-  customer              Customer?                    @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  store                 Store?                       @relation(fields: [storeId], references: [id], onDelete: SetNull)
-  orderItems            OrderItem[]
-  paymentRecords        PaymentRecord[]
-  refundRecords         RefundRecord[]
-  marketingAttributions MarketingAttribution[]
-  pageAttributions      MarketingPageAttribution[]
-  recommendationEvents  RecommendationEvent[]
+  customer                   Customer?                    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  store                      Store?                       @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  orderItems                 OrderItem[]
+  paymentRecords             PaymentRecord[]
+  refundRecords              RefundRecord[]
+  marketingAttributions      MarketingAttribution[]
+  pageAttributions           MarketingPageAttribution[]
+  recommendationEvents       RecommendationEvent[]
   lifecycleAttributionEvents LifecycleAttributionEvent[]
-  terminalFollowUpTasks TerminalFollowUpTask[]
-  balanceTransactions   CustomerBalanceTransaction[]
-  commissionRecords     CommissionRecord[]
-  amiPerformanceRecords AmiPerformanceRecord[]
-  sourceCustomerCards    CustomerCard[]               @relation("CustomerCardSourceOrder")
-  cardUsageSourceRecords CardUsageRecord[]            @relation("CardUsageSourceOrder")
+  terminalFollowUpTasks      TerminalFollowUpTask[]
+  balanceTransactions        CustomerBalanceTransaction[]
+  commissionRecords          CommissionRecord[]
+  amiPerformanceRecords      AmiPerformanceRecord[]
+  sourceCustomerCards        CustomerCard[]               @relation("CustomerCardSourceOrder")
+  cardUsageSourceRecords     CardUsageRecord[]            @relation("CardUsageSourceOrder")
 
   @@index([status])
   @@index([customerId])
@@ -1542,42 +1542,42 @@ model ProcurementReceipt {
 }
 
 model OrderItem {
-  id           Int      @id @default(autoincrement())
-  orderId      Int
+  id                           Int       @id @default(autoincrement())
+  orderId                      Int
   reservationId                Int?
   serviceTaskId                Int?
-  itemType     String
-  itemId       Int?
-  name         String
-  quantity     Decimal
-  unitPrice    Decimal
-  listAmount   Decimal  @default(0)
-  subtotal     Decimal
-  discount     Decimal  @default(0)
-  itemDiscountAmount           Decimal @default(0)
-  orderAllocatedDiscountAmount Decimal @default(0)
-  totalDiscountAmount          Decimal @default(0)
-  netAmount                    Decimal @default(0)
-  discountSource               String  @default("none")
-  allocationMethod             String  @default("none")
+  itemType                     String
+  itemId                       Int?
+  name                         String
+  quantity                     Decimal
+  unitPrice                    Decimal
+  listAmount                   Decimal   @default(0)
+  subtotal                     Decimal
+  discount                     Decimal   @default(0)
+  itemDiscountAmount           Decimal   @default(0)
+  orderAllocatedDiscountAmount Decimal   @default(0)
+  totalDiscountAmount          Decimal   @default(0)
+  netAmount                    Decimal   @default(0)
+  discountSource               String    @default("none")
+  allocationMethod             String    @default("none")
   discountPayload              Json?
-  isGift                       Boolean @default(false)
-  eligibleForOrderDiscount     Boolean @default(true)
-  beauticianId Int?
-  payload      Json?
+  isGift                       Boolean   @default(false)
+  eligibleForOrderDiscount     Boolean   @default(true)
+  beauticianId                 Int?
+  payload                      Json?
   recognizedAt                 DateTime?
   recognitionSource            String?
-  createdAt    DateTime @default(now())
+  createdAt                    DateTime  @default(now())
 
-  order             ProductOrder       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order                  ProductOrder       @relation(fields: [orderId], references: [id], onDelete: Cascade)
   reservation            Reservation?       @relation(fields: [reservationId], references: [id], onDelete: SetNull)
   serviceTask            ServiceTask?       @relation(fields: [serviceTaskId], references: [id], onDelete: SetNull)
-  beautician        Beautician?        @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
-  commissionRecords CommissionRecord[]
-  sourceCustomerCards CustomerCard[]    @relation("CustomerCardSourceOrderItem")
-  cardUsageSourceRecords CardUsageRecord[] @relation("CardUsageSourceOrderItem")
-  refundItems        RefundItem[]
-  stockMovements     StockMovement[]
+  beautician             Beautician?        @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
+  commissionRecords      CommissionRecord[]
+  sourceCustomerCards    CustomerCard[]     @relation("CustomerCardSourceOrderItem")
+  cardUsageSourceRecords CardUsageRecord[]  @relation("CardUsageSourceOrderItem")
+  refundItems            RefundItem[]
+  stockMovements         StockMovement[]
 
   @@index([orderId])
   @@index([reservationId])
@@ -1657,19 +1657,19 @@ model CommissionAdjustment {
 }
 
 model RefundItem {
-  id              Int       @id @default(autoincrement())
+  id              Int      @id @default(autoincrement())
   refundId        Int
   orderItemId     Int
   itemType        String
   itemId          Int?
   quantity        Decimal
-  listAmount      Decimal   @default(0)
-  discountAmount  Decimal   @default(0)
+  listAmount      Decimal  @default(0)
+  discountAmount  Decimal  @default(0)
   refundAmount    Decimal
-  inventoryAction String    @default("none")
-  inventoryStatus String    @default("not_required")
+  inventoryAction String   @default("none")
+  inventoryStatus String   @default("not_required")
   payload         Json?
-  createdAt       DateTime  @default(now())
+  createdAt       DateTime @default(now())
 
   refund         RefundRecord    @relation(fields: [refundId], references: [id], onDelete: Cascade)
   orderItem      OrderItem       @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
@@ -1696,7 +1696,7 @@ model Card {
 
   customerCards CustomerCard[]
   usageRecords  CardUsageRecord[]
-  store         Store? @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  store         Store?            @relation(fields: [storeId], references: [id], onDelete: SetNull)
 
   @@index([storeId])
   @@index([status])
@@ -1704,37 +1704,37 @@ model Card {
 }
 
 model CustomerCard {
-  id             Int      @id @default(autoincrement())
-  customerId     Int
-  cardId         Int
-  operatorId     Int?
-  sourceOrderId  Int?
-  sourceOrderItemId Int?
+  id                        Int       @id @default(autoincrement())
+  customerId                Int
+  cardId                    Int
+  operatorId                Int?
+  sourceOrderId             Int?
+  sourceOrderItemId         Int?
   renewedFromCustomerCardId Int?
-  cardName       String
-  totalTimes     Int
-  remainingTimes Int
-  paidAmount     Decimal  @default(0)
-  discountAmount Decimal  @default(0)
-  giftTimes      Int      @default(0)
-  recognizedUnitValue Decimal @default(0)
-  pricingSnapshot Json?
-  expiryDate     DateTime
-  status         String   @default("active")
+  cardName                  String
+  totalTimes                Int
+  remainingTimes            Int
+  paidAmount                Decimal   @default(0)
+  discountAmount            Decimal   @default(0)
+  giftTimes                 Int       @default(0)
+  recognizedUnitValue       Decimal   @default(0)
+  pricingSnapshot           Json?
+  expiryDate                DateTime
+  status                    String    @default("active")
   saleType                  String    @default("new")
   activatedAt               DateTime?
   terminatedAt              DateTime?
   terminationReason         String?
-  createdAt      DateTime @default(now())
+  createdAt                 DateTime  @default(now())
 
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  card     Card     @relation(fields: [cardId], references: [id])
-  operator User?    @relation("CustomerCardOperator", fields: [operatorId], references: [id], onDelete: SetNull)
-  sourceOrder ProductOrder? @relation("CustomerCardSourceOrder", fields: [sourceOrderId], references: [id], onDelete: SetNull)
-  sourceOrderItem OrderItem? @relation("CustomerCardSourceOrderItem", fields: [sourceOrderItemId], references: [id], onDelete: SetNull)
+  customer                Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  card                    Card              @relation(fields: [cardId], references: [id])
+  operator                User?             @relation("CustomerCardOperator", fields: [operatorId], references: [id], onDelete: SetNull)
+  sourceOrder             ProductOrder?     @relation("CustomerCardSourceOrder", fields: [sourceOrderId], references: [id], onDelete: SetNull)
+  sourceOrderItem         OrderItem?        @relation("CustomerCardSourceOrderItem", fields: [sourceOrderItemId], references: [id], onDelete: SetNull)
   renewedFromCustomerCard CustomerCard?     @relation("CustomerCardRenewal", fields: [renewedFromCustomerCardId], references: [id], onDelete: SetNull)
   renewedCustomerCards    CustomerCard[]    @relation("CustomerCardRenewal")
-  usageRecords CardUsageRecord[]
+  usageRecords            CardUsageRecord[]
 
   @@index([customerId])
   @@index([operatorId])
@@ -1746,42 +1746,42 @@ model CustomerCard {
 }
 
 model CardUsageRecord {
-  id             Int      @id @default(autoincrement())
-  idempotencyKey String?  @unique
-  customerCardId Int?
-  cardId         Int?
-  projectId      Int?
-  storeId        Int?
-  customerId     Int
-  customerName   String
-  cardName       String
-  projectName    String
-  times          Int
-  remainingTimes Int
-  recognizedUnitValue Decimal @default(0)
-  recognizedAmount Decimal @default(0)
-  sourceOrderId Int?
-  sourceOrderItemId Int?
+  id                  Int      @id @default(autoincrement())
+  idempotencyKey      String?  @unique
+  customerCardId      Int?
+  cardId              Int?
+  projectId           Int?
+  storeId             Int?
+  customerId          Int
+  customerName        String
+  cardName            String
+  projectName         String
+  times               Int
+  remainingTimes      Int
+  recognizedUnitValue Decimal  @default(0)
+  recognizedAmount    Decimal  @default(0)
+  sourceOrderId       Int?
+  sourceOrderItemId   Int?
   reservationId       Int?
   serviceTaskId       Int?
-  pricingSnapshot Json?
-  operatorId     Int?
-  beauticianId   Int?
-  deviceId       Int?
-  verifiedAt     DateTime @default(now())
+  pricingSnapshot     Json?
+  operatorId          Int?
+  beauticianId        Int?
+  deviceId            Int?
+  verifiedAt          DateTime @default(now())
 
-  customer   Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  customerCard CustomerCard?  @relation(fields: [customerCardId], references: [id], onDelete: SetNull)
-  card       Card?            @relation(fields: [cardId], references: [id], onDelete: SetNull)
-  project    Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  store      Store?           @relation(fields: [storeId], references: [id], onDelete: SetNull)
-  sourceOrder ProductOrder?   @relation("CardUsageSourceOrder", fields: [sourceOrderId], references: [id], onDelete: SetNull)
-  sourceOrderItem OrderItem?  @relation("CardUsageSourceOrderItem", fields: [sourceOrderItemId], references: [id], onDelete: SetNull)
+  customer          Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerCard      CustomerCard?      @relation(fields: [customerCardId], references: [id], onDelete: SetNull)
+  card              Card?              @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  project           Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  store             Store?             @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  sourceOrder       ProductOrder?      @relation("CardUsageSourceOrder", fields: [sourceOrderId], references: [id], onDelete: SetNull)
+  sourceOrderItem   OrderItem?         @relation("CardUsageSourceOrderItem", fields: [sourceOrderItemId], references: [id], onDelete: SetNull)
   reservation       Reservation?       @relation(fields: [reservationId], references: [id], onDelete: SetNull)
   serviceTask       ServiceTask?       @relation(fields: [serviceTaskId], references: [id], onDelete: SetNull)
-  operator   User?           @relation("CardUsageOperator", fields: [operatorId], references: [id], onDelete: SetNull)
-  beautician Beautician?     @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
-  device     TerminalDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  operator          User?              @relation("CardUsageOperator", fields: [operatorId], references: [id], onDelete: SetNull)
+  beautician        Beautician?        @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
+  device            TerminalDevice?    @relation(fields: [deviceId], references: [id], onDelete: SetNull)
   commissionRecords CommissionRecord[]
 
   @@index([customerId])
@@ -1829,38 +1829,38 @@ model Schedule {
 }
 
 model Reservation {
-  id           Int       @id @default(autoincrement())
-  idempotencyKey String?  @unique
-  creationFingerprint String? @db.VarChar(64)
-  storeId      Int
-  customerId   Int
-  projectId    Int
-  beauticianId Int?
+  id                  Int       @id @default(autoincrement())
+  idempotencyKey      String?   @unique
+  creationFingerprint String?   @db.VarChar(64)
+  storeId             Int
+  customerId          Int
+  projectId           Int
+  beauticianId        Int?
   sourceReservationId Int?
   createdById         Int?
-  date         DateTime
-  startTime    String
-  endTime      String?
-  status       String    @default("pending")
+  date                DateTime
+  startTime           String
+  endTime             String?
+  status              String    @default("pending")
   bookingSource       String    @default("manual")
-  remark       String?
-  checkedInAt  DateTime?
+  remark              String?
+  checkedInAt         DateTime?
   cancelledAt         DateTime?
   cancelReasonCode    String?
   cancelledByType     String?
   noShowAt            DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  store      Store       @relation(fields: [storeId], references: [id])
-  customer   Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  project    Project     @relation(fields: [projectId], references: [id])
-  beautician Beautician? @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
+  store                      Store                       @relation(fields: [storeId], references: [id])
+  customer                   Customer                    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  project                    Project                     @relation(fields: [projectId], references: [id])
+  beautician                 Beautician?                 @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
   sourceReservation          Reservation?                @relation("ReservationSource", fields: [sourceReservationId], references: [id], onDelete: SetNull)
   derivedReservations        Reservation[]               @relation("ReservationSource")
-  followUpTasks TerminalFollowUpTask[]
+  followUpTasks              TerminalFollowUpTask[]
   lifecycleAttributionEvents LifecycleAttributionEvent[]
-  waitingEpisodes CustomerWaitingEpisode[]
+  waitingEpisodes            CustomerWaitingEpisode[]
   orderItems                 OrderItem[]
   cardUsageRecords           CardUsageRecord[]
   serviceTask                ServiceTask?
@@ -2042,11 +2042,11 @@ model SmartSchedulingRun {
   createdAt                  DateTime  @default(now())
   updatedAt                  DateTime  @updatedAt
 
-  store     Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  createdBy User? @relation("SmartSchedulingRunCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  schedules Schedule[]
-  publishedScheduleVersion ScheduleVersion? @relation("SmartSchedulingRunPublishedVersion", fields: [publishedScheduleVersionId], references: [id], onDelete: SetNull)
-  sourceScheduleVersions ScheduleVersion[] @relation("ScheduleVersionSourceRun")
+  store                    Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdBy                User?             @relation("SmartSchedulingRunCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  schedules                Schedule[]
+  publishedScheduleVersion ScheduleVersion?  @relation("SmartSchedulingRunPublishedVersion", fields: [publishedScheduleVersionId], references: [id], onDelete: SetNull)
+  sourceScheduleVersions   ScheduleVersion[] @relation("ScheduleVersionSourceRun")
 
   @@index([storeId, weekStart])
   @@index([status])
@@ -2064,13 +2064,13 @@ model ScheduleVersion {
   rollbackFromVersionId Int?
   createdAt             DateTime  @default(now())
 
-  store               Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  publishedBy         User?   @relation("ScheduleVersionPublishedBy", fields: [publishedById], references: [id], onDelete: SetNull)
-  sourceRun           SmartSchedulingRun? @relation("ScheduleVersionSourceRun", fields: [sourceRunId], references: [runId], onDelete: SetNull)
+  store               Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  publishedBy         User?                @relation("ScheduleVersionPublishedBy", fields: [publishedById], references: [id], onDelete: SetNull)
+  sourceRun           SmartSchedulingRun?  @relation("ScheduleVersionSourceRun", fields: [sourceRunId], references: [runId], onDelete: SetNull)
   publishedByRuns     SmartSchedulingRun[] @relation("SmartSchedulingRunPublishedVersion")
   schedules           Schedule[]
-  rollbackFromVersion ScheduleVersion? @relation("ScheduleVersionRollback", fields: [rollbackFromVersionId], references: [id], onDelete: SetNull)
-  rollbackVersions    ScheduleVersion[] @relation("ScheduleVersionRollback")
+  rollbackFromVersion ScheduleVersion?     @relation("ScheduleVersionRollback", fields: [rollbackFromVersionId], references: [id], onDelete: SetNull)
+  rollbackVersions    ScheduleVersion[]    @relation("ScheduleVersionRollback")
 
   @@index([storeId, weekStart])
   @@index([status])
@@ -2152,7 +2152,7 @@ model TerminalDevice {
   lastOnlineAt    DateTime?
   boundAt         DateTime?
 
-  store                Store                 @relation(fields: [storeId], references: [id])
+  store                Store                  @relation(fields: [storeId], references: [id])
   serviceTasks         ServiceTask[]
   skinTests            SkinTest[]
   cardUsageRecords     CardUsageRecord[]
@@ -2165,20 +2165,20 @@ model TerminalDevice {
 }
 
 model TerminalConversation {
-  id           Int      @id @default(autoincrement())
+  id           Int       @id @default(autoincrement())
   deviceId     String
   storeId      Int
   role         String
   operatorId   Int?
-  date         DateTime @db.Date
+  date         DateTime  @db.Date
   messages     Json
-  messageCount Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  messageCount Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
   archivedAt   DateTime?
 
-  store    Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  operator User?          @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  store    Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  operator User? @relation(fields: [operatorId], references: [id], onDelete: SetNull)
 
   @@unique([deviceId, operatorId, role, date])
   @@index([storeId, date])
@@ -2204,11 +2204,11 @@ model ServiceTask {
   consumptionItems Json?
   images           String[]
 
-  store                Store                 @relation(fields: [storeId], references: [id])
-  customer             Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  project              Project               @relation(fields: [projectId], references: [id])
-  beautician           Beautician?           @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
-  device               TerminalDevice?       @relation(fields: [deviceId], references: [id])
+  store                Store                  @relation(fields: [storeId], references: [id])
+  customer             Customer               @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  project              Project                @relation(fields: [projectId], references: [id])
+  beautician           Beautician?            @relation(fields: [beauticianId], references: [id], onDelete: SetNull)
+  device               TerminalDevice?        @relation(fields: [deviceId], references: [id])
   reservation          Reservation?           @relation(fields: [reservationId], references: [id], onDelete: SetNull)
   skinTests            SkinTest[]
   recommendationEvents RecommendationEvent[]
@@ -2247,39 +2247,39 @@ model SkinTest {
 // ─── Marketing ───────────────────────────────────────────────────────────────
 
 model MarketingActivity {
-  id                     Int       @id @default(autoincrement())
-  storeId                Int
-  title                  String
-  description            String?
-  status                 String    @default("draft")
-  participants           Int       @default(0)
-  conversion             String?
-  startDate              DateTime?
-  endDate                DateTime?
-  targetCustomers        String?
-  discount               String?
-  pageSchema             Json?
-  sourceRecommendationId String?
+  id                       Int       @id @default(autoincrement())
+  storeId                  Int
+  title                    String
+  description              String?
+  status                   String    @default("draft")
+  participants             Int       @default(0)
+  conversion               String?
+  startDate                DateTime?
+  endDate                  DateTime?
+  targetCustomers          String?
+  discount                 String?
+  pageSchema               Json?
+  sourceRecommendationId   String?
   recommendationInstanceId String?
-  adoptionId             Int?
-  predictionRunId        String?
-  audienceSnapshotId     String?
-  audienceSnapshotJson   Json?
-  sourceSignalsJson      Json?
-  offerJson              Json?
-  primaryPromotionId     Int?
-  promotionIdsJson       Json?
-  recommendedItemsJson   Json?
-  aiGenerationId         String?
-  publishStatus          String?
-  publishedAt            DateTime?
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
+  adoptionId               Int?
+  predictionRunId          String?
+  audienceSnapshotId       String?
+  audienceSnapshotJson     Json?
+  sourceSignalsJson        Json?
+  offerJson                Json?
+  primaryPromotionId       Int?
+  promotionIdsJson         Json?
+  recommendedItemsJson     Json?
+  aiGenerationId           String?
+  publishStatus            String?
+  publishedAt              DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
-  store            Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  primaryPromotion Promotion? @relation(fields: [primaryPromotionId], references: [id], onDelete: SetNull)
+  store                  Store                            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  primaryPromotion       Promotion?                       @relation(fields: [primaryPromotionId], references: [id], onDelete: SetNull)
   recommendationInstance MarketingRecommendationInstance? @relation(fields: [recommendationInstanceId], references: [id], onDelete: SetNull)
-  adoption MarketingRecommendationAdoption? @relation(fields: [adoptionId], references: [id], onDelete: SetNull)
+  adoption               MarketingRecommendationAdoption? @relation(fields: [adoptionId], references: [id], onDelete: SetNull)
 
   @@index([storeId, status])
   @@index([status])
@@ -2292,40 +2292,40 @@ model MarketingActivity {
 }
 
 model MarketingPage {
-  id               Int       @id @default(autoincrement())
-  storeId          Int?
-  activityId       Int?
+  id                       Int       @id @default(autoincrement())
+  storeId                  Int?
+  activityId               Int?
   recommendationInstanceId String?
-  adoptionId       Int?
-  sourceType       String
-  sourceId         String?
-  title            String
-  slug             String    @unique
-  runtimeType      String    @default("h5")
-  pageSchema       Json
-  snapshotJson     Json?
-  themeJson        Json?
-  shareTitle       String?
-  shareDescription String?
-  shareImage       String?
-  status           String    @default("draft")
-  shareUrl         String?
-  miniappPath      String?
-  qrCodeUrl        String?
-  aiGenerationId   String?
-  promptVersion    String?
-  publishedAt      DateTime?
-  offlineAt        DateTime?
-  createdBy        Int?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  adoptionId               Int?
+  sourceType               String
+  sourceId                 String?
+  title                    String
+  slug                     String    @unique
+  runtimeType              String    @default("h5")
+  pageSchema               Json
+  snapshotJson             Json?
+  themeJson                Json?
+  shareTitle               String?
+  shareDescription         String?
+  shareImage               String?
+  status                   String    @default("draft")
+  shareUrl                 String?
+  miniappPath              String?
+  qrCodeUrl                String?
+  aiGenerationId           String?
+  promptVersion            String?
+  publishedAt              DateTime?
+  offlineAt                DateTime?
+  createdBy                Int?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
-  versions     MarketingPageVersion[]
-  events       MarketingPageEvent[]
-  leads        MarketingPageLead[]
-  attributions MarketingPageAttribution[]
+  versions               MarketingPageVersion[]
+  events                 MarketingPageEvent[]
+  leads                  MarketingPageLead[]
+  attributions           MarketingPageAttribution[]
   recommendationInstance MarketingRecommendationInstance? @relation(fields: [recommendationInstanceId], references: [id], onDelete: SetNull)
-  adoption MarketingRecommendationAdoption? @relation(fields: [adoptionId], references: [id], onDelete: SetNull)
+  adoption               MarketingRecommendationAdoption? @relation(fields: [adoptionId], references: [id], onDelete: SetNull)
 
   @@index([storeId, status])
   @@index([sourceType, sourceId])
@@ -2430,38 +2430,38 @@ model MarketingPageAttribution {
 }
 
 model MarketingAutomationStrategy {
-  id             Int                     @id @default(autoincrement())
-  storeId        Int
-  name           String
-  description    String?
-  status         MarketingStrategyStatus @default(draft)
-  executionType  String
-  source         String                  @default("manual")
+  id                       Int                     @id @default(autoincrement())
+  storeId                  Int
+  name                     String
+  description              String?
+  status                   MarketingStrategyStatus @default(draft)
+  executionType            String
+  source                   String                  @default("manual")
   recommendationInstanceId String?
-  adoptionId     Int?
-  predictionRunId Int?
-  audienceSnapshotId String?
-  ruleTemplateId Int?
-  ruleTemplateVersion String?
-  schedule       Json
-  triggerRules   Json
-  ruleRelation   String                  @default("AND")
-  actions        Json
-  targetCount    Int                     @default(0)
-  createdAt      DateTime                @default(now())
-  updatedAt      DateTime                @updatedAt
-  lastExecutedAt DateTime?
+  adoptionId               Int?
+  predictionRunId          Int?
+  audienceSnapshotId       String?
+  ruleTemplateId           Int?
+  ruleTemplateVersion      String?
+  schedule                 Json
+  triggerRules             Json
+  ruleRelation             String                  @default("AND")
+  actions                  Json
+  targetCount              Int                     @default(0)
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
+  lastExecutedAt           DateTime?
 
-  store        Store                          @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  executions   MarketingAutomationExecution[]
-  touches      MarketingAutomationTouch[]
-  attributions MarketingAttribution[]
-  deliveryJobs MarketingDeliveryJob[]
-  ruleTemplate MarketingRuleTemplate? @relation(fields: [ruleTemplateId], references: [id], onDelete: SetNull)
-  recommendationInstance MarketingRecommendationInstance? @relation(fields: [recommendationInstanceId], references: [id], onDelete: SetNull)
-  adoption MarketingRecommendationAdoption? @relation(fields: [adoptionId], references: [id], onDelete: SetNull)
-  predictionRun PredictionRun? @relation(fields: [predictionRunId], references: [id], onDelete: SetNull)
-  audienceSnapshot MarketingRecommendationAudienceSnapshot? @relation(fields: [audienceSnapshotId], references: [id], onDelete: SetNull)
+  store                  Store                                    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  executions             MarketingAutomationExecution[]
+  touches                MarketingAutomationTouch[]
+  attributions           MarketingAttribution[]
+  deliveryJobs           MarketingDeliveryJob[]
+  ruleTemplate           MarketingRuleTemplate?                   @relation(fields: [ruleTemplateId], references: [id], onDelete: SetNull)
+  recommendationInstance MarketingRecommendationInstance?         @relation(fields: [recommendationInstanceId], references: [id], onDelete: SetNull)
+  adoption               MarketingRecommendationAdoption?         @relation(fields: [adoptionId], references: [id], onDelete: SetNull)
+  predictionRun          PredictionRun?                           @relation(fields: [predictionRunId], references: [id], onDelete: SetNull)
+  audienceSnapshot       MarketingRecommendationAudienceSnapshot? @relation(fields: [audienceSnapshotId], references: [id], onDelete: SetNull)
 
   @@index([storeId, status])
   @@index([status])
@@ -2499,9 +2499,9 @@ model MarketingRuleTemplate {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  store              Store?                        @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  baseTemplate       MarketingRuleTemplate?         @relation("RuleTemplateClone", fields: [baseTemplateId], references: [id], onDelete: SetNull)
-  clonedTemplates    MarketingRuleTemplate[]        @relation("RuleTemplateClone")
+  store                Store?                        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  baseTemplate         MarketingRuleTemplate?        @relation("RuleTemplateClone", fields: [baseTemplateId], references: [id], onDelete: SetNull)
+  clonedTemplates      MarketingRuleTemplate[]       @relation("RuleTemplateClone")
   automationStrategies MarketingAutomationStrategy[]
 
   @@unique([code])
@@ -2515,23 +2515,23 @@ model MarketingRuleTemplate {
 }
 
 model MarketingAutomationExecution {
-  id             Int      @id @default(autoincrement())
-  storeId        Int
-  strategyId     Int
-  idempotencyKey String
-  strategyName   String
-  status         String
-  triggeredCount Int      @default(0)
-  queuedCount    Int      @default(0)
-  reachedCount   Int      @default(0)
-  failedCount    Int      @default(0)
-  channel        String?
+  id                   Int       @id @default(autoincrement())
+  storeId              Int
+  strategyId           Int
+  idempotencyKey       String
+  strategyName         String
+  status               String
+  triggeredCount       Int       @default(0)
+  queuedCount          Int       @default(0)
+  reachedCount         Int       @default(0)
+  failedCount          Int       @default(0)
+  channel              String?
   audienceSnapshotJson Json?
-  executedAt     DateTime @default(now())
-  startedAt      DateTime?
-  completedAt    DateTime?
-  updatedAt      DateTime @updatedAt
-  message        String?
+  executedAt           DateTime  @default(now())
+  startedAt            DateTime?
+  completedAt          DateTime?
+  updatedAt            DateTime  @updatedAt
+  message              String?
 
   store        Store                       @relation(fields: [storeId], references: [id], onDelete: Cascade)
   strategy     MarketingAutomationStrategy @relation(fields: [strategyId], references: [id], onDelete: Cascade)
@@ -2557,12 +2557,12 @@ model PredictionRun {
   customerCount Int       @default(0)
   summaryJson   Json?
 
-  store     Store?                       @relation(fields: [storeId], references: [id], onDelete: SetNull)
-  snapshots CustomerPredictionSnapshot[]
-  lifecycleSnapshots CustomerLifecycleSnapshot[]
-  opportunities CustomerOpportunity[]
+  store                   Store?                            @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  snapshots               CustomerPredictionSnapshot[]
+  lifecycleSnapshots      CustomerLifecycleSnapshot[]
+  opportunities           CustomerOpportunity[]
   recommendationInstances MarketingRecommendationInstance[]
-  automationStrategies MarketingAutomationStrategy[]
+  automationStrategies    MarketingAutomationStrategy[]
 
   @@index([storeId, businessDate, status])
   @@index([storeId])
@@ -2589,12 +2589,12 @@ model CustomerPredictionSnapshot {
   recommendedActionsJson Json
   createdAt              DateTime @default(now())
 
-  run      PredictionRun              @relation(fields: [runId], references: [id], onDelete: Cascade)
-  customer Customer                   @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  store    Store                      @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  touches  MarketingAutomationTouch[]
+  run                PredictionRun               @relation(fields: [runId], references: [id], onDelete: Cascade)
+  customer           Customer                    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  store              Store                       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  touches            MarketingAutomationTouch[]
   lifecycleSnapshots CustomerLifecycleSnapshot[]
-  opportunities CustomerOpportunity[]
+  opportunities      CustomerOpportunity[]
 
   @@index([runId])
   @@index([customerId])
@@ -2605,21 +2605,21 @@ model CustomerPredictionSnapshot {
 }
 
 model CustomerLifecycleSnapshot {
-  id                     Int      @id @default(autoincrement())
-  storeId                Int
-  customerId             Int
-  predictionRunId        Int?
-  predictionSnapshotId   Int?
-  lifecycleStage         String
-  ltvTier                String?
-  churnRiskLevel         String?
-  touchFatigueScore      Decimal  @default(0)
-  assetSummaryJson       Json?
-  servicePreferenceJson  Json?
-  evidenceJson           Json
-  computedAt             DateTime @default(now())
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  id                    Int      @id @default(autoincrement())
+  storeId               Int
+  customerId            Int
+  predictionRunId       Int?
+  predictionSnapshotId  Int?
+  lifecycleStage        String
+  ltvTier               String?
+  churnRiskLevel        String?
+  touchFatigueScore     Decimal  @default(0)
+  assetSummaryJson      Json?
+  servicePreferenceJson Json?
+  evidenceJson          Json
+  computedAt            DateTime @default(now())
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   store              Store                       @relation(fields: [storeId], references: [id], onDelete: Cascade)
   customer           Customer                    @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -2635,17 +2635,17 @@ model CustomerLifecycleSnapshot {
 }
 
 model CustomerLifecycleEvent {
-  id            Int      @id @default(autoincrement())
-  storeId       Int
-  customerId    Int
-  fromStage     String?
-  toStage       String
-  eventType     String
-  sourceType    String
-  sourceId      String?
-  evidenceJson  Json
-  occurredAt    DateTime @default(now())
-  createdAt     DateTime @default(now())
+  id           Int      @id @default(autoincrement())
+  storeId      Int
+  customerId   Int
+  fromStage    String?
+  toStage      String
+  eventType    String
+  sourceType   String
+  sourceId     String?
+  evidenceJson Json
+  occurredAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
 
   store    Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -2658,28 +2658,28 @@ model CustomerLifecycleEvent {
 }
 
 model CustomerOpportunity {
-  id                         Int      @id @default(autoincrement())
-  storeId                    Int
-  customerId                 Int
-  predictionRunId            Int?
-  predictionSnapshotId       Int?
-  opportunityType            String
-  priority                   String   @default("P1")
-  status                     String   @default("open")
-  score                      Int      @default(0)
-  recommendedExecutionMode   String   @default("automation")
-  recommendedChannelsJson    Json
-  recommendedOfferJson       Json?
-  recommendedItemsJson       Json?
-  evidenceJson               Json
-  expiresAt                  DateTime?
-  createdAt                  DateTime @default(now())
-  updatedAt                  DateTime @updatedAt
+  id                       Int       @id @default(autoincrement())
+  storeId                  Int
+  customerId               Int
+  predictionRunId          Int?
+  predictionSnapshotId     Int?
+  opportunityType          String
+  priority                 String    @default("P1")
+  status                   String    @default("open")
+  score                    Int       @default(0)
+  recommendedExecutionMode String    @default("automation")
+  recommendedChannelsJson  Json
+  recommendedOfferJson     Json?
+  recommendedItemsJson     Json?
+  evidenceJson             Json
+  expiresAt                DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
-  store              Store                       @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  customer           Customer                    @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  predictionRun      PredictionRun?              @relation(fields: [predictionRunId], references: [id], onDelete: SetNull)
-  predictionSnapshot CustomerPredictionSnapshot? @relation(fields: [predictionSnapshotId], references: [id], onDelete: SetNull)
+  store              Store                                 @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer           Customer                              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  predictionRun      PredictionRun?                        @relation(fields: [predictionRunId], references: [id], onDelete: SetNull)
+  predictionSnapshot CustomerPredictionSnapshot?           @relation(fields: [predictionSnapshotId], references: [id], onDelete: SetNull)
   fulfillmentChecks  CustomerOpportunityFulfillmentCheck[]
   attributionEvents  LifecycleAttributionEvent[]
 
@@ -2693,18 +2693,18 @@ model CustomerOpportunity {
 }
 
 model CustomerServiceCycleState {
-  id           Int      @id @default(autoincrement())
-  storeId      Int
-  customerId   Int
-  projectId    Int
+  id            Int       @id @default(autoincrement())
+  storeId       Int
+  customerId    Int
+  projectId     Int
   lastServiceAt DateTime?
-  cycleDays    Int      @default(28)
-  nextDueAt    DateTime?
-  sourceType   String?
-  sourceId     String?
-  evidenceJson Json
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  cycleDays     Int       @default(28)
+  nextDueAt     DateTime?
+  sourceType    String?
+  sourceId      String?
+  evidenceJson  Json
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   store    Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -2753,13 +2753,13 @@ model LifecycleAttributionEvent {
   occurredAt        DateTime @default(now())
   createdAt         DateTime @default(now())
 
-  store         Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  customer      Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  opportunity   CustomerOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  store         Store                     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer      Customer                  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  opportunity   CustomerOpportunity?      @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
   touch         MarketingAutomationTouch? @relation(fields: [touchId], references: [id], onDelete: SetNull)
-  order         ProductOrder?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  reservation   Reservation?     @relation(fields: [reservationId], references: [id], onDelete: SetNull)
-  stockMovement StockMovement?   @relation(fields: [stockMovementId], references: [id], onDelete: SetNull)
+  order         ProductOrder?             @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  reservation   Reservation?              @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  stockMovement StockMovement?            @relation(fields: [stockMovementId], references: [id], onDelete: SetNull)
 
   @@index([storeId, occurredAt])
   @@index([customerId, occurredAt])
@@ -2773,19 +2773,19 @@ model LifecycleAttributionEvent {
 }
 
 model CustomerLifecycleRuleVersion {
-  id             Int       @id @default(autoincrement())
-  storeId        Int?
-  ruleType       String
-  version        Int       @default(1)
-  status         String    @default("draft")
-  grayPercent    Int       @default(100)
-  ruleJson       Json
-  evidenceJson   Json?
-  publishedBy    Int?
-  publishedAt    DateTime?
+  id               Int       @id @default(autoincrement())
+  storeId          Int?
+  ruleType         String
+  version          Int       @default(1)
+  status           String    @default("draft")
+  grayPercent      Int       @default(100)
+  ruleJson         Json
+  evidenceJson     Json?
+  publishedBy      Int?
+  publishedAt      DateTime?
   rolledBackFromId Int?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   store     Store? @relation(fields: [storeId], references: [id], onDelete: Cascade)
   publisher User?  @relation("LifecycleRulePublisher", fields: [publishedBy], references: [id], onDelete: SetNull)
@@ -2797,15 +2797,15 @@ model CustomerLifecycleRuleVersion {
 }
 
 model CustomerLifecycleQualitySnapshot {
-  id                         Int      @id @default(autoincrement())
-  storeId                    Int
-  snapshotDate               DateTime @default(now())
-  fieldCoverageRate          Decimal  @default(0)
-  ruleHitRate                Decimal  @default(0)
-  attributionCompletenessRate Decimal @default(0)
-  fulfillmentReadyRate       Decimal  @default(0)
-  metricsJson                Json
-  createdAt                  DateTime @default(now())
+  id                          Int      @id @default(autoincrement())
+  storeId                     Int
+  snapshotDate                DateTime @default(now())
+  fieldCoverageRate           Decimal  @default(0)
+  ruleHitRate                 Decimal  @default(0)
+  attributionCompletenessRate Decimal  @default(0)
+  fulfillmentReadyRate        Decimal  @default(0)
+  metricsJson                 Json
+  createdAt                   DateTime @default(now())
 
   store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
@@ -2813,22 +2813,22 @@ model CustomerLifecycleQualitySnapshot {
 }
 
 model LifecycleBusinessPlan {
-  id             Int      @id @default(autoincrement())
-  storeId        Int
-  planPeriod     String
-  title          String
-  status         String   @default("draft")
-  goalsJson      Json
-  actionsJson    Json
-  evidenceJson   Json
-  approvalJson   Json?
-  resultJson     Json?
-  createdBy      Int?
-  submittedAt    DateTime?
-  approvedAt     DateTime?
-  executedAt     DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id           Int       @id @default(autoincrement())
+  storeId      Int
+  planPeriod   String
+  title        String
+  status       String    @default("draft")
+  goalsJson    Json
+  actionsJson  Json
+  evidenceJson Json
+  approvalJson Json?
+  resultJson   Json?
+  createdBy    Int?
+  submittedAt  DateTime?
+  approvedAt   DateTime?
+  executedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   store   Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
   creator User? @relation("LifecycleBusinessPlanCreator", fields: [createdBy], references: [id], onDelete: SetNull)
@@ -2857,13 +2857,13 @@ model MarketingAutomationTouch {
   actualRevenue            Decimal?
   attributionWindowDays    Int       @default(30)
 
-  execution          MarketingAutomationExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
-  strategy           MarketingAutomationStrategy  @relation(fields: [strategyId], references: [id], onDelete: Cascade)
-  customer           Customer                     @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  predictionSnapshot CustomerPredictionSnapshot?  @relation(fields: [predictionSnapshotId], references: [id], onDelete: SetNull)
-  attributions       MarketingAttribution[]
+  execution                  MarketingAutomationExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  strategy                   MarketingAutomationStrategy  @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+  customer                   Customer                     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  predictionSnapshot         CustomerPredictionSnapshot?  @relation(fields: [predictionSnapshotId], references: [id], onDelete: SetNull)
+  attributions               MarketingAttribution[]
   lifecycleAttributionEvents LifecycleAttributionEvent[]
-  deliveryJob        MarketingDeliveryJob?
+  deliveryJob                MarketingDeliveryJob?
 
   @@index([executionId])
   @@index([strategyId])
@@ -2874,19 +2874,19 @@ model MarketingAutomationTouch {
 }
 
 model MarketingDeliveryJob {
-  id             Int      @id @default(autoincrement())
+  id             Int       @id @default(autoincrement())
   storeId        Int
   executionId    Int
-  touchId        Int      @unique
+  touchId        Int       @unique
   strategyId     Int
   customerId     Int
   channel        String
   title          String
   content        String
-  status         String   @default("queued")
-  attemptCount   Int      @default(0)
-  maxAttempts    Int      @default(4)
-  availableAt    DateTime @default(now())
+  status         String    @default("queued")
+  attemptCount   Int       @default(0)
+  maxAttempts    Int       @default(4)
+  availableAt    DateTime  @default(now())
   leasedAt       DateTime?
   leaseExpiresAt DateTime?
   leaseOwner     String?
@@ -2894,8 +2894,8 @@ model MarketingDeliveryJob {
   errorCode      String?
   errorMessage   String?
   deliveredAt    DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   store     Store                        @relation(fields: [storeId], references: [id], onDelete: Cascade)
   execution MarketingAutomationExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
@@ -2911,19 +2911,19 @@ model MarketingDeliveryJob {
 }
 
 model MarketingInAppNotification {
-  id          Int       @id @default(autoincrement())
-  deliveryJobId Int?    @unique
-  storeId     Int
-  customerId  Int
-  strategyId  Int
-  executionId Int?
-  title       String
-  content     String
-  status      String    @default("queued")
-  deliveredAt DateTime?
-  openedAt    DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id            Int       @id @default(autoincrement())
+  deliveryJobId Int?      @unique
+  storeId       Int
+  customerId    Int
+  strategyId    Int
+  executionId   Int?
+  title         String
+  content       String
+  status        String    @default("queued")
+  deliveredAt   DateTime?
+  openedAt      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([storeId, customerId, createdAt])
   @@index([strategyId, executionId])
@@ -2984,19 +2984,19 @@ model RecommendationEvent {
 }
 
 model MarketingRecommendationSnapshot {
-  id              Int      @id @default(autoincrement())
+  id              Int       @id @default(autoincrement())
   storeId         Int?
-  scope           String   @default("customer")
+  scope           String    @default("customer")
   type            String?
   predictionRunId Int?
-  cacheKey        String   @unique
+  cacheKey        String    @unique
   cardsJson       Json
-  cardCount       Int      @default(0)
-  sourceVersion   String   @default("rules-v2")
-  generatedAt     DateTime @default(now())
+  cardCount       Int       @default(0)
+  sourceVersion   String    @default("rules-v2")
+  generatedAt     DateTime  @default(now())
   expiresAt       DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([storeId, scope, type])
   @@index([predictionRunId])
@@ -3048,32 +3048,32 @@ model MarketingEffectFact {
 }
 
 model MarketingRecommendationInstance {
-  id                String   @id @default(uuid())
+  id                String    @id @default(uuid())
   storeId           Int
   recommendationKey String
   sourceType        String
   sourceVersion     String
   predictionRunId   Int?
-  businessDate      DateTime @db.Date
-  status            String   @default("active")
+  businessDate      DateTime  @db.Date
+  status            String    @default("active")
   title             String
   description       String?
-  priority          String   @default("P1")
-  urgency           String   @default("recommended")
+  priority          String    @default("P1")
+  urgency           String    @default("recommended")
   preferredMode     String
   executionModes    Json
   evidenceSnapshot  Json
   strategySnapshot  Json?
-  targetCount       Int      @default(0)
+  targetCount       Int       @default(0)
   fingerprint       String
-  generatedAt       DateTime @default(now())
+  generatedAt       DateTime  @default(now())
   expiresAt         DateTime
   supersededAt      DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  store            Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  predictionRun    PredictionRun? @relation(fields: [predictionRunId], references: [id], onDelete: SetNull)
+  store            Store                                    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  predictionRun    PredictionRun?                           @relation(fields: [predictionRunId], references: [id], onDelete: SetNull)
   audienceSnapshot MarketingRecommendationAudienceSnapshot?
   offerSnapshot    MarketingRecommendationOfferSnapshot?
   adoptions        MarketingRecommendationAdoption[]
@@ -3097,8 +3097,8 @@ model MarketingRecommendationAudienceSnapshot {
   customerCount            Int
   generatedAt              DateTime @default(now())
 
-  recommendationInstance MarketingRecommendationInstance @relation(fields: [recommendationInstanceId], references: [id], onDelete: Cascade)
-  store                  Store                           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  recommendationInstance MarketingRecommendationInstance         @relation(fields: [recommendationInstanceId], references: [id], onDelete: Cascade)
+  store                  Store                                   @relation(fields: [storeId], references: [id], onDelete: Cascade)
   members                MarketingRecommendationAudienceMember[]
   automationStrategies   MarketingAutomationStrategy[]
 
@@ -3140,37 +3140,37 @@ model MarketingRecommendationOfferSnapshot {
 
   recommendationInstance MarketingRecommendationInstance @relation(fields: [recommendationInstanceId], references: [id], onDelete: Cascade)
   store                  Store                           @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  selectedPromotion      Promotion?                     @relation(fields: [selectedPromotionId], references: [id], onDelete: SetNull)
+  selectedPromotion      Promotion?                      @relation(fields: [selectedPromotionId], references: [id], onDelete: SetNull)
 
   @@index([storeId, selectedPromotionId])
 }
 
 model MarketingRecommendationAdoption {
-  id               Int      @id @default(autoincrement())
-  storeId          Int
-  recommendationId Int?
+  id                       Int      @id @default(autoincrement())
+  storeId                  Int
+  recommendationId         Int?
   recommendationInstanceId String?
-  adoptionKey      String?  @unique
-  mode             String
-  status           String
-  activityId       Int?
-  pageId           Int?
-  strategyId       Int?
-  followUpTaskIds  Json?
-  predictionRunId  Int?
-  snapshotJson     Json
-  errorCode        String?
-  errorMessage     String?
-  createdBy        Int?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  adoptionKey              String?  @unique
+  mode                     String
+  status                   String
+  activityId               Int?
+  pageId                   Int?
+  strategyId               Int?
+  followUpTaskIds          Json?
+  predictionRunId          Int?
+  snapshotJson             Json
+  errorCode                String?
+  errorMessage             String?
+  createdBy                Int?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
-  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  store                  Store                            @relation(fields: [storeId], references: [id], onDelete: Cascade)
   recommendationInstance MarketingRecommendationInstance? @relation(fields: [recommendationInstanceId], references: [id], onDelete: SetNull)
-  activities MarketingActivity[]
-  pages MarketingPage[]
-  strategies MarketingAutomationStrategy[]
-  followUpTasks TerminalFollowUpTask[]
+  activities             MarketingActivity[]
+  pages                  MarketingPage[]
+  strategies             MarketingAutomationStrategy[]
+  followUpTasks          TerminalFollowUpTask[]
 
   @@index([storeId, createdAt])
   @@index([recommendationId, mode])
@@ -3181,54 +3181,54 @@ model MarketingRecommendationAdoption {
 }
 
 model TerminalFollowUpTask {
-  id                      Int       @id @default(autoincrement())
-  idempotencyKey          String?   @unique
-  creationFingerprint     String?   @db.VarChar(64)
-  storeId                 Int
-  customerId              Int
-  recommendationId        Int?
+  id                       Int       @id @default(autoincrement())
+  idempotencyKey           String?   @unique
+  creationFingerprint      String?   @db.VarChar(64)
+  storeId                  Int
+  customerId               Int
+  recommendationId         Int?
   recommendationInstanceId String?
-  adoptionId              Int?
-  sourceRecommendationKey String?
-  source                  String    @default("recommendation")
-  triggerType             String?
-  title                   String
-  script                  String?
-  note                    String?
-  priority                String    @default("recommended")
-  assigneeRole            String    @default("manager")
-  assigneeUserId          Int?
-  assigneeBeauticianId    Int?
-  assignedByUserId        Int?
-  assignedAt              DateTime  @default(now())
-  dueAt                   DateTime?
-  status                  String    @default("pending")
-  resultType              String?
-  resultNote              String?
-  reservationId           Int?
-  orderId                 Int?
-  serviceTaskId           Int?
-  deviceId                Int?
-  completedByUserId       Int?
-  completedAt             DateTime?
-  payload                 Json?
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
-  deletedAt               DateTime?
+  adoptionId               Int?
+  sourceRecommendationKey  String?
+  source                   String    @default("recommendation")
+  triggerType              String?
+  title                    String
+  script                   String?
+  note                     String?
+  priority                 String    @default("recommended")
+  assigneeRole             String    @default("manager")
+  assigneeUserId           Int?
+  assigneeBeauticianId     Int?
+  assignedByUserId         Int?
+  assignedAt               DateTime  @default(now())
+  dueAt                    DateTime?
+  status                   String    @default("pending")
+  resultType               String?
+  resultNote               String?
+  reservationId            Int?
+  orderId                  Int?
+  serviceTaskId            Int?
+  deviceId                 Int?
+  completedByUserId        Int?
+  completedAt              DateTime?
+  payload                  Json?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+  deletedAt                DateTime?
 
-  store              Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  customer           Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  assigneeUser       User?           @relation("FollowUpAssignedUser", fields: [assigneeUserId], references: [id], onDelete: SetNull)
-  assigneeBeautician Beautician?     @relation(fields: [assigneeBeauticianId], references: [id], onDelete: SetNull)
-  assignedByUser     User?           @relation("FollowUpCreatedBy", fields: [assignedByUserId], references: [id], onDelete: SetNull)
-  completedByUser    User?           @relation("FollowUpCompletedBy", fields: [completedByUserId], references: [id], onDelete: SetNull)
-  reservation        Reservation?    @relation(fields: [reservationId], references: [id], onDelete: SetNull)
-  order              ProductOrder?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  serviceTask        ServiceTask?    @relation(fields: [serviceTaskId], references: [id], onDelete: SetNull)
-  device             TerminalDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
-  gapCandidates      AppointmentGapCandidate[]
+  store                  Store                            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer               Customer                         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  assigneeUser           User?                            @relation("FollowUpAssignedUser", fields: [assigneeUserId], references: [id], onDelete: SetNull)
+  assigneeBeautician     Beautician?                      @relation(fields: [assigneeBeauticianId], references: [id], onDelete: SetNull)
+  assignedByUser         User?                            @relation("FollowUpCreatedBy", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+  completedByUser        User?                            @relation("FollowUpCompletedBy", fields: [completedByUserId], references: [id], onDelete: SetNull)
+  reservation            Reservation?                     @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  order                  ProductOrder?                    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  serviceTask            ServiceTask?                     @relation(fields: [serviceTaskId], references: [id], onDelete: SetNull)
+  device                 TerminalDevice?                  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  gapCandidates          AppointmentGapCandidate[]
   recommendationInstance MarketingRecommendationInstance? @relation(fields: [recommendationInstanceId], references: [id], onDelete: SetNull)
-  adoption MarketingRecommendationAdoption? @relation(fields: [adoptionId], references: [id], onDelete: SetNull)
+  adoption               MarketingRecommendationAdoption? @relation(fields: [adoptionId], references: [id], onDelete: SetNull)
 
   @@index([storeId, status, dueAt])
   @@index([storeId, assigneeRole, status, dueAt])
@@ -3247,32 +3247,32 @@ model TerminalFollowUpTask {
 }
 
 model AppointmentGapOpportunity {
-  id                     Int      @id @default(autoincrement())
-  storeId                Int
-  date                   DateTime
-  startTime              String
-  endTime                String
-  beauticianIds          Int[]
-  projectIds             Int[]
-  durationMinutes        Int
-  capacity               Int      @default(0)
-  bookedCount            Int      @default(0)
-  availableCapacity      Int      @default(0)
-  source                 String   @default("heatmap")
-  gapType                String   @default("available_capacity")
-  score                  Int      @default(0)
-  estimatedRevenue       Decimal  @default(0)
-  expectedFillRate       Decimal  @default(0)
-  candidateCount         Int      @default(0)
-  status                 String   @default("open")
-  confirmationDraftJson  Json?
-  payload                Json?
-  expiresAt              DateTime?
-  lastGeneratedAt        DateTime @default(now())
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  id                    Int       @id @default(autoincrement())
+  storeId               Int
+  date                  DateTime
+  startTime             String
+  endTime               String
+  beauticianIds         Int[]
+  projectIds            Int[]
+  durationMinutes       Int
+  capacity              Int       @default(0)
+  bookedCount           Int       @default(0)
+  availableCapacity     Int       @default(0)
+  source                String    @default("heatmap")
+  gapType               String    @default("available_capacity")
+  score                 Int       @default(0)
+  estimatedRevenue      Decimal   @default(0)
+  expectedFillRate      Decimal   @default(0)
+  candidateCount        Int       @default(0)
+  status                String    @default("open")
+  confirmationDraftJson Json?
+  payload               Json?
+  expiresAt             DateTime?
+  lastGeneratedAt       DateTime  @default(now())
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-  store      Store                         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  store      Store                            @relation(fields: [storeId], references: [id], onDelete: Cascade)
   candidates AppointmentGapCandidate[]
   events     AppointmentGapOpportunityEvent[]
 
@@ -3283,29 +3283,29 @@ model AppointmentGapOpportunity {
 }
 
 model AppointmentGapCandidate {
-  id                 Int       @id @default(autoincrement())
+  id                 Int      @id @default(autoincrement())
   opportunityId      Int
   storeId            Int
   customerId         Int
   projectId          Int?
   followUpTaskId     Int?
-  score              Int       @default(0)
-  expectedFillRate   Decimal   @default(0)
-  estimatedRevenue   Decimal   @default(0)
-  recommendedChannel String    @default("phone")
+  score              Int      @default(0)
+  expectedFillRate   Decimal  @default(0)
+  estimatedRevenue   Decimal  @default(0)
+  recommendedChannel String   @default("phone")
   messageDraft       String?
   reasonJson         Json?
   riskJson           Json?
   scoreBreakdown     Json?
-  status             String    @default("candidate")
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  status             String   @default("candidate")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  opportunity  AppointmentGapOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
-  store        Store                     @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  customer     Customer                  @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  project      Project?                  @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  followUpTask TerminalFollowUpTask?     @relation(fields: [followUpTaskId], references: [id], onDelete: SetNull)
+  opportunity  AppointmentGapOpportunity        @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  store        Store                            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer     Customer                         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  project      Project?                         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  followUpTask TerminalFollowUpTask?            @relation(fields: [followUpTaskId], references: [id], onDelete: SetNull)
   events       AppointmentGapOpportunityEvent[]
 
   @@unique([opportunityId, customerId])
@@ -3371,8 +3371,8 @@ model CustomerAppIdentity {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  store    Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  store    Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer Customer?          @relation(fields: [customerId], references: [id], onDelete: SetNull)
   events   CustomerAppEvent[]
 
   @@unique([storeId, openid])
@@ -3490,40 +3490,40 @@ model CustomerBalanceTransaction {
 }
 
 model Promotion {
-  id                   Int       @id @default(autoincrement())
-  storeId              Int?
-  code                 String?
-  name                 String
-  description          String?
-  discountText         String
-  type                 String    @default("money_off")
-  source               String    @default("store")
-  scenario             String?
-  audienceTags         Json?
-  applicableCustomerLevels Json?
-  applicableProjectIds Int[]
-  thresholdAmount      Decimal?
-  discountAmount       Decimal?
-  discountRate         Int?
-  giftText             String?
-  validDays            Int?
-  maxIssueCount        Int?
-  issuedCount          Int       @default(0)
-  usedCount            Int       @default(0)
-  estimatedCost        Decimal?
-  grossMarginGuard     Json?
-  stackable            Boolean   @default(false)
-  approvalStatus       String    @default("approved")
+  id                        Int       @id @default(autoincrement())
+  storeId                   Int?
+  code                      String?
+  name                      String
+  description               String?
+  discountText              String
+  type                      String    @default("money_off")
+  source                    String    @default("store")
+  scenario                  String?
+  audienceTags              Json?
+  applicableCustomerLevels  Json?
+  applicableProjectIds      Int[]
+  thresholdAmount           Decimal?
+  discountAmount            Decimal?
+  discountRate              Int?
+  giftText                  String?
+  validDays                 Int?
+  maxIssueCount             Int?
+  issuedCount               Int       @default(0)
+  usedCount                 Int       @default(0)
+  estimatedCost             Decimal?
+  grossMarginGuard          Json?
+  stackable                 Boolean   @default(false)
+  approvalStatus            String    @default("approved")
   createdByRecommendationId String?
-  metadata             Json?
-  startAt              DateTime?
-  endAt                DateTime?
-  status               String    @default("active")
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  metadata                  Json?
+  startAt                   DateTime?
+  endAt                     DateTime?
+  status                    String    @default("active")
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
 
-  store Store? @relation(fields: [storeId], references: [id], onDelete: SetNull)
-  marketingActivities MarketingActivity[]
+  store                        Store?                                 @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  marketingActivities          MarketingActivity[]
   recommendationOfferSnapshots MarketingRecommendationOfferSnapshot[]
 
   @@unique([code])
@@ -3587,7 +3587,7 @@ model AmiPerformanceRecord {
 }
 
 model AmiMonthlyBill {
-  id               Int      @id @default(autoincrement())
+  id               Int       @id @default(autoincrement())
   storeId          Int
   settleMonth      String
   version          Int       @default(1)
@@ -3597,14 +3597,14 @@ model AmiMonthlyBill {
   revenueGenerated Decimal
   roi              Decimal?
   breakdown        Json
-  status           String   @default("draft")
+  status           String    @default("draft")
   confirmedBy      Int?
   confirmedAt      DateTime?
   invoicedAt       DateTime?
   paidAt           DateTime?
   voidedAt         DateTime?
   voidReason       String?
-  createdAt        DateTime @default(now())
+  createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
   store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
@@ -3781,17 +3781,17 @@ model AgentToolCall {
 }
 
 model AgentApproval {
-  id         Int       @id @default(autoincrement())
-  runId      Int
-  toolCallId Int?
-  status     String
+  id          Int       @id @default(autoincrement())
+  runId       Int
+  toolCallId  Int?
+  status      String
   requestedBy Int?
-  approvedBy Int?
-  beforeJson Json?
-  afterJson  Json?
-  comment    String?
-  createdAt  DateTime  @default(now())
-  decidedAt  DateTime?
+  approvedBy  Int?
+  beforeJson  Json?
+  afterJson   Json?
+  comment     String?
+  createdAt   DateTime  @default(now())
+  decidedAt   DateTime?
 
   @@index([runId, createdAt])
   @@index([toolCallId])
@@ -3816,14 +3816,14 @@ model AgentEvalCase {
 }
 
 model AgentEvalRun {
-  id         Int      @id @default(autoincrement())
-  caseId     Int?
-  runId      Int?
-  status     String
-  score      Decimal?
-  resultJson Json?
+  id           Int      @id @default(autoincrement())
+  caseId       Int?
+  runId        Int?
+  status       String
+  score        Decimal?
+  resultJson   Json?
   errorMessage String?
-  createdAt  DateTime @default(now())
+  createdAt    DateTime @default(now())
 
   caseResults AgentEvalCaseResult[]
 
@@ -3872,24 +3872,24 @@ model AgentEvalCaseResult {
 // ─── Agent Persona（六大角色 Agent 配置）────────────────────────────────────
 
 model AgentPersona {
-  id           Int      @id @default(autoincrement())
+  id                 Int      @id @default(autoincrement())
   // 唯一代码，如 manager / marketing / reception / beautician / inventory / finance
-  code         String   @unique
-  name         String
-  description  String?
+  code               String   @unique
+  name               String
+  description        String?
   // 可使用该 Agent 的角色列表，JSON 数组如 ["manager","reception"]
-  targetRoles  Json
+  targetRoles        Json
   // 该 Persona 允许调用的工具组，JSON 数组如 ["customer.priority.rank","revenue.diagnose"]
-  toolGroups   Json
+  toolGroups         Json
   // 默认回复风格配置（简洁/标准/详细等），JSON 对象
-  defaultStyle Json?
+  defaultStyle       Json?
   // 风险策略：哪些操作需要确认/审批，JSON 对象
-  riskPolicy   Json?
+  riskPolicy         Json?
   // 推荐问题列表，JSON 字符串数组，用于冷启动引导
   suggestedQuestions Json?
-  status       String   @default("active")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  status             String   @default("active")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   @@index([status])
   @@map("agent_personas")
@@ -3919,18 +3919,18 @@ model AgentRenderedBlock {
 // ─── Agent Feedback（用户反馈与采纳记录）────────────────────────────────────
 
 model AgentFeedback {
-  id               Int      @id @default(autoincrement())
-  runId            Int
-  userId           Int?
-  storeId          Int?
+  id                 Int      @id @default(autoincrement())
+  runId              Int
+  userId             Int?
+  storeId            Int?
   // 1-5 星评分
-  rating           Int?
+  rating             Int?
   // 用户是否采纳了 Agent 的建议
-  adopted          Boolean?
-  comment          String?
+  adopted            Boolean?
+  comment            String?
   // 用户采纳后产生的业务动作，JSON 对象（如 { type: 'reservation', id: 123 }）
   businessActionJson Json?
-  createdAt        DateTime @default(now())
+  createdAt          DateTime @default(now())
 
   @@index([runId])
   @@index([userId])
@@ -3941,21 +3941,21 @@ model AgentFeedback {
 // ─── Agent Memory（门店级跨会话记忆）────────────────────────────────────────
 
 model AgentMemory {
-  id           Int      @id @default(autoincrement())
-  storeId      Int
-  userId       Int?
-  personaCode  String?
-  memoryType   String
-  title        String
-  content      String
-  summary      String?
-  importance   Int      @default(1)
-  sourceRunId  Int?
-  sourceJson   Json?
-  status       String   @default("active")
-  lastUsedAt   DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id          Int       @id @default(autoincrement())
+  storeId     Int
+  userId      Int?
+  personaCode String?
+  memoryType  String
+  title       String
+  content     String
+  summary     String?
+  importance  Int       @default(1)
+  sourceRunId Int?
+  sourceJson  Json?
+  status      String    @default("active")
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([storeId, personaCode, status])
   @@index([storeId, memoryType, status])
@@ -4020,19 +4020,19 @@ model AgentAutomationDefinition {
 }
 
 model AgentAutomationRun {
-  id            Int       @id @default(autoincrement())
-  definitionId  Int?
-  storeId       Int
-  personaCode   String?
-  triggerType   String
-  mode          String    @default("manual")
-  status        String
-  triggeredBy   Int?
-  inputJson     Json?
-  outputJson    Json?
-  errorMessage  String?
-  startedAt     DateTime  @default(now())
-  completedAt   DateTime?
+  id           Int       @id @default(autoincrement())
+  definitionId Int?
+  storeId      Int
+  personaCode  String?
+  triggerType  String
+  mode         String    @default("manual")
+  status       String
+  triggeredBy  Int?
+  inputJson    Json?
+  outputJson   Json?
+  errorMessage String?
+  startedAt    DateTime  @default(now())
+  completedAt  DateTime?
 
   @@index([definitionId, startedAt])
   @@index([storeId, startedAt])
@@ -4042,19 +4042,19 @@ model AgentAutomationRun {
 }
 
 model AgentAutomationEffect {
-  id            Int      @id @default(autoincrement())
-  definitionId  Int?
-  runId         Int?
-  storeId       Int
-  effectType    String
-  objectType    String?
-  objectId      Int?
-  customerId    Int?
-  metricKey     String?
-  impactJson    Json?
-  status        String   @default("pending")
-  occurredAt    DateTime @default(now())
-  createdAt     DateTime @default(now())
+  id           Int      @id @default(autoincrement())
+  definitionId Int?
+  runId        Int?
+  storeId      Int
+  effectType   String
+  objectType   String?
+  objectId     Int?
+  customerId   Int?
+  metricKey    String?
+  impactJson   Json?
+  status       String   @default("pending")
+  occurredAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
 
   @@index([definitionId])
   @@index([runId])
@@ -4129,21 +4129,21 @@ model AgentCapabilityReview {
 }
 
 model AgentCapabilityManifestVersion {
-  id                    Int      @id @default(autoincrement())
-  version               String   @unique
-  status                String   @default("draft")
-  source                String   @default("capability_center")
+  id                    Int       @id @default(autoincrement())
+  version               String    @unique
+  status                String    @default("draft")
+  source                String    @default("capability_center")
   title                 String?
   summary               String?
-  itemCount             Int      @default(0)
-  autoPublishedCount    Int      @default(0)
-  approvalRequiredCount Int      @default(0)
-  writeBlockedCount     Int      @default(0)
+  itemCount             Int       @default(0)
+  autoPublishedCount    Int       @default(0)
+  approvalRequiredCount Int       @default(0)
+  writeBlockedCount     Int       @default(0)
   evalReportJson        Json?
   publishedBy           Int?
   publishedAt           DateTime?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   items AgentCapabilityManifestItem[]
 
@@ -4253,10 +4253,10 @@ model AgentAutoPublishLog {
 }
 
 model AgentHealthMetric {
-  id             Int      @id @default(autoincrement())
+  id             Int       @id @default(autoincrement())
   storeId        Int?
   metricKey      String
-  metricType     String   @default("gauge")
+  metricType     String    @default("gauge")
   valueFloat     Float?
   valueInt       Int?
   valueText      String?
@@ -4264,10 +4264,10 @@ model AgentHealthMetric {
   windowStart    DateTime?
   windowEnd      DateTime?
   dimensionsJson Json?
-  status         String   @default("normal")
-  source         String   @default("agent_v2_governance")
-  collectedAt    DateTime @default(now())
-  createdAt      DateTime @default(now())
+  status         String    @default("normal")
+  source         String    @default("agent_v2_governance")
+  collectedAt    DateTime  @default(now())
+  createdAt      DateTime  @default(now())
 
   @@index([storeId, collectedAt])
   @@index([metricKey, collectedAt])
@@ -4472,16 +4472,16 @@ model AgentV3SemanticMetric {
 }
 
 model AgentV3SemanticViewBinding {
-  id             Int      @id @default(autoincrement())
-  entityType     String
-  metricName     String
-  viewName       String
-  score          Float    @default(0)
-  reasonsJson    Json
-  status         String   @default("active")
-  source         String   @default("v3_kg_snapshot")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id          Int      @id @default(autoincrement())
+  entityType  String
+  metricName  String
+  viewName    String
+  score       Float    @default(0)
+  reasonsJson Json
+  status      String   @default("active")
+  source      String   @default("v3_kg_snapshot")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@unique([entityType, metricName, viewName])
   @@index([entityType])
@@ -4755,38 +4755,38 @@ model BrainStoreOperatingTarget {
 }
 
 model DailySettlementSnapshot {
-  id                Int       @id @default(autoincrement())
-  dailySettlementId Int
-  storeId           Int
-  settleDate        DateTime
-  version           Int
-  totalRevenue      Decimal   @default(0)
-  cashRevenue       Decimal   @default(0)
-  wechatRevenue     Decimal   @default(0)
-  alipayRevenue     Decimal   @default(0)
-  cardRevenue       Decimal   @default(0)
-  balanceRevenue    Decimal   @default(0)
-  rechargeIncome    Decimal   @default(0)
-  refundAmount      Decimal   @default(0)
-  orderCount        Int       @default(0)
-  customerCount     Int       @default(0)
-  avgTransaction    Decimal   @default(0)
-  materialCost      Decimal   @default(0)
-  grossProfit       Decimal   @default(0)
-  grossMargin       Decimal   @default(0)
-  commissionTotal   Decimal   @default(0)
-  snapshot          Json
-  sourceDigest      String?
-  systemSummary     Json?
-  adjustmentSummary Json?
-  finalSummary      Json?
-  confirmationMode  String   @default("manual")
+  id                  Int       @id @default(autoincrement())
+  dailySettlementId   Int
+  storeId             Int
+  settleDate          DateTime
+  version             Int
+  totalRevenue        Decimal   @default(0)
+  cashRevenue         Decimal   @default(0)
+  wechatRevenue       Decimal   @default(0)
+  alipayRevenue       Decimal   @default(0)
+  cardRevenue         Decimal   @default(0)
+  balanceRevenue      Decimal   @default(0)
+  rechargeIncome      Decimal   @default(0)
+  refundAmount        Decimal   @default(0)
+  orderCount          Int       @default(0)
+  customerCount       Int       @default(0)
+  avgTransaction      Decimal   @default(0)
+  materialCost        Decimal   @default(0)
+  grossProfit         Decimal   @default(0)
+  grossMargin         Decimal   @default(0)
+  commissionTotal     Decimal   @default(0)
+  snapshot            Json
+  sourceDigest        String?
+  systemSummary       Json?
+  adjustmentSummary   Json?
+  finalSummary        Json?
+  confirmationMode    String    @default("manual")
   reconciliationRunId Int?
-  ruleVersion       String?
-  confirmedBy       Int?
-  confirmedAt       DateTime  @default(now())
-  supersededAt      DateTime?
-  createdAt         DateTime  @default(now())
+  ruleVersion         String?
+  confirmedBy         Int?
+  confirmedAt         DateTime  @default(now())
+  supersededAt        DateTime?
+  createdAt           DateTime  @default(now())
 
   dailySettlement DailySettlement @relation(fields: [dailySettlementId], references: [id], onDelete: Cascade)
   store           Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
@@ -4874,15 +4874,15 @@ model MemberLiabilitySnapshot {
 }
 
 model BrainMemoryRevision {
-  id              Int      @id @default(autoincrement())
-  memoryId        Int
+  id               Int      @id @default(autoincrement())
+  memoryId         Int
   previousMemoryId Int?
-  revisionType    String
-  previousContent Json?
-  nextContent     Json?
-  changedByUserId Int
-  reason          String?
-  createdAt       DateTime @default(now())
+  revisionType     String
+  previousContent  Json?
+  nextContent      Json?
+  changedByUserId  Int
+  reason           String?
+  createdAt        DateTime @default(now())
 
   memory BrainMemory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
 
@@ -4907,8 +4907,8 @@ model FinanceReconciliationRun {
   completedAt       DateTime?
   createdAt         DateTime  @default(now())
 
-  store           Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  dailySettlement DailySettlement? @relation(fields: [dailySettlementId], references: [id], onDelete: SetNull)
+  store           Store                        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  dailySettlement DailySettlement?             @relation(fields: [dailySettlementId], references: [id], onDelete: SetNull)
   issues          FinanceReconciliationIssue[]
 
   @@index([storeId, businessDate, status])
@@ -4985,11 +4985,11 @@ model BusinessDefinition {
   ownerId                   String?
   status                    BusinessDefinitionStatus @default(active)
   currentPublishedVersionId Int?                     @unique
-  createdAt                 DateTime                  @default(now())
-  updatedAt                 DateTime                  @updatedAt
+  createdAt                 DateTime                 @default(now())
+  updatedAt                 DateTime                 @updatedAt
 
-  versions                BusinessDefinitionVersion[] @relation("BusinessDefinitionVersions")
-  currentPublishedVersion BusinessDefinitionVersion?  @relation("BusinessDefinitionCurrentPublishedVersion", fields: [currentPublishedVersionId], references: [id], onDelete: SetNull)
+  versions                BusinessDefinitionVersion[]        @relation("BusinessDefinitionVersions")
+  currentPublishedVersion BusinessDefinitionVersion?         @relation("BusinessDefinitionCurrentPublishedVersion", fields: [currentPublishedVersionId], references: [id], onDelete: SetNull)
   semanticEvidence        BusinessSemanticEvidence[]
   aliasCandidates         BusinessDefinitionAliasCandidate[]
 
@@ -4999,40 +4999,40 @@ model BusinessDefinition {
 }
 
 model BusinessDefinitionVersion {
-  id                 Int                                @id @default(autoincrement())
-  definitionId       Int
-  version            Int
-  schemaVersion      String                             @default("1.0")
-  payload            Json
-  lifecycleStatus    BusinessDefinitionLifecycleStatus @default(draft)
-  fingerprint        String
-  sourceFingerprint  String
-  validationStatus   BusinessDefinitionValidationStatus @default(pending)
-  validationReport   Json?
-  canonicalQueryRef  String?
-  fixtureSetKey      String?
-  timezone           String                             @default("Asia/Shanghai")
-  storeScope         Json
-  createdBy          Int
-  validatedBy        Int?
-  validatedAt        DateTime?
-  publishedBy        Int?
-  publishedAt        DateTime?
-  createdAt          DateTime                           @default(now())
+  id                Int                                @id @default(autoincrement())
+  definitionId      Int
+  version           Int
+  schemaVersion     String                             @default("1.0")
+  payload           Json
+  lifecycleStatus   BusinessDefinitionLifecycleStatus  @default(draft)
+  fingerprint       String
+  sourceFingerprint String
+  validationStatus  BusinessDefinitionValidationStatus @default(pending)
+  validationReport  Json?
+  canonicalQueryRef String?
+  fixtureSetKey     String?
+  timezone          String                             @default("Asia/Shanghai")
+  storeScope        Json
+  createdBy         Int
+  validatedBy       Int?
+  validatedAt       DateTime?
+  publishedBy       Int?
+  publishedAt       DateTime?
+  createdAt         DateTime                           @default(now())
 
-  definition                 BusinessDefinition             @relation("BusinessDefinitionVersions", fields: [definitionId], references: [id], onDelete: Cascade)
-  currentForDefinition        BusinessDefinition?            @relation("BusinessDefinitionCurrentPublishedVersion")
-  evidence                    BusinessDefinitionEvidence[]
-  projections                 BusinessDefinitionProjection[]
-  brainOntologyEntities       BrainOntologyEntity[]           @relation("BrainOntologyEntityBusinessDefinitionVersion")
-  brainOntologyRelations      BrainOntologyRelation[]         @relation("BrainOntologyRelationBusinessDefinitionVersion")
-  brainMetrics                BrainMetric[]                   @relation("BrainMetricBusinessDefinitionVersion")
-  brainDimensions             BrainDimension[]                @relation("BrainDimensionBusinessDefinitionVersion")
-  brainEvalCases              BrainEvalCase[]                 @relation("BrainEvalCaseBusinessDefinitionVersion")
-  semanticEvidence            BusinessSemanticEvidence[]
-  aliasCandidates             BusinessDefinitionAliasCandidate[] @relation("BusinessDefinitionAliasCandidateSourceVersion")
-  aliasCandidateDrafts        BusinessDefinitionAliasCandidate[] @relation("BusinessDefinitionAliasCandidateDraftVersion")
-  aliasCandidatePublications  BusinessDefinitionAliasCandidate[] @relation("BusinessDefinitionAliasCandidatePublishedVersion")
+  definition                 BusinessDefinition                 @relation("BusinessDefinitionVersions", fields: [definitionId], references: [id], onDelete: Cascade)
+  currentForDefinition       BusinessDefinition?                @relation("BusinessDefinitionCurrentPublishedVersion")
+  evidence                   BusinessDefinitionEvidence[]
+  projections                BusinessDefinitionProjection[]
+  brainOntologyEntities      BrainOntologyEntity[]              @relation("BrainOntologyEntityBusinessDefinitionVersion")
+  brainOntologyRelations     BrainOntologyRelation[]            @relation("BrainOntologyRelationBusinessDefinitionVersion")
+  brainMetrics               BrainMetric[]                      @relation("BrainMetricBusinessDefinitionVersion")
+  brainDimensions            BrainDimension[]                   @relation("BrainDimensionBusinessDefinitionVersion")
+  brainEvalCases             BrainEvalCase[]                    @relation("BrainEvalCaseBusinessDefinitionVersion")
+  semanticEvidence           BusinessSemanticEvidence[]
+  aliasCandidates            BusinessDefinitionAliasCandidate[] @relation("BusinessDefinitionAliasCandidateSourceVersion")
+  aliasCandidateDrafts       BusinessDefinitionAliasCandidate[] @relation("BusinessDefinitionAliasCandidateDraftVersion")
+  aliasCandidatePublications BusinessDefinitionAliasCandidate[] @relation("BusinessDefinitionAliasCandidatePublishedVersion")
 
   @@unique([definitionId, version])
   @@unique([definitionId, fingerprint])
@@ -5065,33 +5065,33 @@ model BusinessDefinitionEvidence {
 }
 
 model BusinessSemanticEvidence {
-  id                     Int      @id @default(autoincrement())
-  sourceType             String   @db.VarChar(40)
-  evidenceKind           String   @db.VarChar(40)
-  runId                  Int?
-  storeId                Int
-  userId                 Int
-  definitionId           Int
-  definitionVersionId    Int
-  definitionType         String   @db.VarChar(40)
-  definitionKey          String   @db.VarChar(160)
-  definitionVersion      Int
-  definitionFingerprint  String   @db.VarChar(64)
-  definitionSourceFingerprint String @db.VarChar(64)
-  redactedText           String   @db.VarChar(1000)
-  normalizedValue        String   @db.VarChar(256)
-  confidence             Float
-  status                 String   @default("pooled") @db.VarChar(32)
-  idempotencyFingerprint String   @unique @db.VarChar(64)
-  firstSeenAt            DateTime @default(now())
-  lastSeenAt             DateTime @default(now())
-  metadata               Json?
-  aliasCandidateId       Int?
+  id                          Int      @id @default(autoincrement())
+  sourceType                  String   @db.VarChar(40)
+  evidenceKind                String   @db.VarChar(40)
+  runId                       Int?
+  storeId                     Int
+  userId                      Int
+  definitionId                Int
+  definitionVersionId         Int
+  definitionType              String   @db.VarChar(40)
+  definitionKey               String   @db.VarChar(160)
+  definitionVersion           Int
+  definitionFingerprint       String   @db.VarChar(64)
+  definitionSourceFingerprint String   @db.VarChar(64)
+  redactedText                String   @db.VarChar(1000)
+  normalizedValue             String   @db.VarChar(256)
+  confidence                  Float
+  status                      String   @default("pooled") @db.VarChar(32)
+  idempotencyFingerprint      String   @unique @db.VarChar(64)
+  firstSeenAt                 DateTime @default(now())
+  lastSeenAt                  DateTime @default(now())
+  metadata                    Json?
+  aliasCandidateId            Int?
 
-  run               BrainRun?                 @relation(fields: [runId], references: [id], onDelete: SetNull)
-  definition        BusinessDefinition        @relation(fields: [definitionId], references: [id], onDelete: Restrict)
-  definitionVersionRecord BusinessDefinitionVersion @relation(fields: [definitionVersionId, definitionId], references: [id, definitionId], onDelete: Restrict)
-  aliasCandidate    BusinessDefinitionAliasCandidate? @relation(fields: [aliasCandidateId, definitionId], references: [id, definitionId], onDelete: Restrict)
+  run                     BrainRun?                         @relation(fields: [runId], references: [id], onDelete: SetNull)
+  definition              BusinessDefinition                @relation(fields: [definitionId], references: [id], onDelete: Restrict)
+  definitionVersionRecord BusinessDefinitionVersion         @relation(fields: [definitionVersionId, definitionId], references: [id, definitionId], onDelete: Restrict)
+  aliasCandidate          BusinessDefinitionAliasCandidate? @relation(fields: [aliasCandidateId, definitionId], references: [id, definitionId], onDelete: Restrict)
 
   @@index([definitionType, definitionKey, normalizedValue, status])
   @@index([definitionVersionId])
@@ -5102,35 +5102,35 @@ model BusinessSemanticEvidence {
 }
 
 model BusinessDefinitionAliasCandidate {
-  id                      Int      @id @default(autoincrement())
+  id                      Int       @id @default(autoincrement())
   definitionId            Int
   versionId               Int
-  definitionType          String   @db.VarChar(40)
-  definitionKey           String   @db.VarChar(160)
-  alias                    String   @db.VarChar(256)
-  normalizedAlias         String   @db.VarChar(256)
-  occurrenceCount         Int      @default(0)
-  distinctUserCount       Int      @default(0)
-  averageConfidence       Float    @default(0)
-  explicitCorrectionCount Int      @default(0)
-  maxExplicitConfidence   Float    @default(0)
-  conflictDefinitions     Json     @default("[]")
-  regressionCaseIds       Json     @default("[]")
-  status                  String   @default("pending") @db.VarChar(32)
-  blockReason             String?  @db.VarChar(1000)
+  definitionType          String    @db.VarChar(40)
+  definitionKey           String    @db.VarChar(160)
+  alias                   String    @db.VarChar(256)
+  normalizedAlias         String    @db.VarChar(256)
+  occurrenceCount         Int       @default(0)
+  distinctUserCount       Int       @default(0)
+  averageConfidence       Float     @default(0)
+  explicitCorrectionCount Int       @default(0)
+  maxExplicitConfidence   Float     @default(0)
+  conflictDefinitions     Json      @default("[]")
+  regressionCaseIds       Json      @default("[]")
+  status                  String    @default("pending") @db.VarChar(32)
+  blockReason             String?   @db.VarChar(1000)
   evalReport              Json?
   draftVersionId          Int?
   publishedVersionId      Int?
-  attemptCount            Int      @default(0)
-  leaseOwner              String?  @db.VarChar(160)
+  attemptCount            Int       @default(0)
+  leaseOwner              String?   @db.VarChar(160)
   leaseExpiresAt          DateTime?
-  firstSeenAt             DateTime @default(now())
-  lastSeenAt              DateTime @default(now())
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  firstSeenAt             DateTime  @default(now())
+  lastSeenAt              DateTime  @default(now())
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
-  definition       BusinessDefinition        @relation(fields: [definitionId], references: [id], onDelete: Restrict)
-  version          BusinessDefinitionVersion @relation("BusinessDefinitionAliasCandidateSourceVersion", fields: [versionId, definitionId], references: [id, definitionId], onDelete: Restrict)
+  definition       BusinessDefinition         @relation(fields: [definitionId], references: [id], onDelete: Restrict)
+  version          BusinessDefinitionVersion  @relation("BusinessDefinitionAliasCandidateSourceVersion", fields: [versionId, definitionId], references: [id, definitionId], onDelete: Restrict)
   draftVersion     BusinessDefinitionVersion? @relation("BusinessDefinitionAliasCandidateDraftVersion", fields: [draftVersionId, definitionId], references: [id, definitionId], onDelete: Restrict)
   publishedVersion BusinessDefinitionVersion? @relation("BusinessDefinitionAliasCandidatePublishedVersion", fields: [publishedVersionId, definitionId], references: [id, definitionId], onDelete: Restrict)
   evidence         BusinessSemanticEvidence[]
@@ -5184,21 +5184,21 @@ model BusinessDefinitionFixtureArtifact {
 }
 
 model BrainOntologyEntity {
-  id                          Int      @id @default(autoincrement())
+  id                          Int       @id @default(autoincrement())
   domain                      String
   entityKey                   String
   name                        String
   synonyms                    Json
   attributes                  Json
   tableMap                    Json
-  status                      String   @default("active")
-  version                     Int      @default(1)
+  status                      String    @default("active")
+  version                     Int       @default(1)
   businessDefinitionVersionId Int?
   definitionFingerprint       String?
   projectedAt                 DateTime?
   projectionStatus            String?
-  createdAt                   DateTime @default(now())
-  updatedAt                   DateTime @updatedAt
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
 
   businessDefinitionVersion BusinessDefinitionVersion? @relation("BrainOntologyEntityBusinessDefinitionVersion", fields: [businessDefinitionVersionId], references: [id], onDelete: SetNull)
 
@@ -5209,20 +5209,20 @@ model BrainOntologyEntity {
 }
 
 model BrainOntologyRelation {
-  id                          Int      @id @default(autoincrement())
+  id                          Int       @id @default(autoincrement())
   relationKey                 String
   fromEntityKey               String
   toEntityKey                 String
   name                        String
   joinPath                    Json
-  status                      String   @default("active")
-  version                     Int      @default(1)
+  status                      String    @default("active")
+  version                     Int       @default(1)
   businessDefinitionVersionId Int?
   definitionFingerprint       String?
   projectedAt                 DateTime?
   projectionStatus            String?
-  createdAt                   DateTime @default(now())
-  updatedAt                   DateTime @updatedAt
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
 
   businessDefinitionVersion BusinessDefinitionVersion? @relation("BrainOntologyRelationBusinessDefinitionVersion", fields: [businessDefinitionVersionId], references: [id], onDelete: SetNull)
 
@@ -5264,7 +5264,7 @@ model BrainKgEdge {
 }
 
 model BrainMetric {
-  id                          Int      @id @default(autoincrement())
+  id                          Int       @id @default(autoincrement())
   metricKey                   String
   name                        String
   domain                      String
@@ -5273,14 +5273,14 @@ model BrainMetric {
   defaultFilters              Json?
   permissions                 Json
   description                 String
-  status                      String   @default("active")
-  version                     Int      @default(1)
+  status                      String    @default("active")
+  version                     Int       @default(1)
   businessDefinitionVersionId Int?
   definitionFingerprint       String?
   projectedAt                 DateTime?
   projectionStatus            String?
-  createdAt                   DateTime @default(now())
-  updatedAt                   DateTime @updatedAt
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
 
   businessDefinitionVersion BusinessDefinitionVersion? @relation("BrainMetricBusinessDefinitionVersion", fields: [businessDefinitionVersionId], references: [id], onDelete: SetNull)
 
@@ -5291,20 +5291,20 @@ model BrainMetric {
 }
 
 model BrainDimension {
-  id                          Int      @id @default(autoincrement())
+  id                          Int       @id @default(autoincrement())
   dimensionKey                String
   name                        String
   domain                      String
   source                      Json
   permissions                 Json
-  status                      String   @default("active")
-  version                     Int      @default(1)
+  status                      String    @default("active")
+  version                     Int       @default(1)
   businessDefinitionVersionId Int?
   definitionFingerprint       String?
   projectedAt                 DateTime?
   projectionStatus            String?
-  createdAt                   DateTime @default(now())
-  updatedAt                   DateTime @updatedAt
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
 
   businessDefinitionVersion BusinessDefinitionVersion? @relation("BrainDimensionBusinessDefinitionVersion", fields: [businessDefinitionVersionId], references: [id], onDelete: SetNull)
 
@@ -5388,16 +5388,16 @@ model BrainInspectionRule {
 }
 
 model BrainInspectionRun {
-  id           Int      @id @default(autoincrement())
+  id           Int       @id @default(autoincrement())
   storeId      Int
   triggerType  String
-  status       String   @default("running")
-  ruleCount    Int      @default(0)
-  findingCount Int      @default(0)
+  status       String    @default("running")
+  ruleCount    Int       @default(0)
+  findingCount Int       @default(0)
   error        Json?
-  startedAt    DateTime @default(now())
+  startedAt    DateTime  @default(now())
   finishedAt   DateTime?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
 
   findings BrainInspectionFinding[]
 
@@ -5407,28 +5407,28 @@ model BrainInspectionRun {
 }
 
 model BrainInspectionFinding {
-  id             Int            @id @default(autoincrement())
-  runId          Int?
-  storeId        Int
-  ruleKey        String
-  ruleVersion    Int
-  domain         String
-  objectType     String
-  objectId       String
-  severity       BrainRiskLevel
-  title          String
-  evidence       Json
-  suggestion     Json
-  dedupeKey      String
-  status         String         @default("open")
-  disposition    String?
+  id              Int            @id @default(autoincrement())
+  runId           Int?
+  storeId         Int
+  ruleKey         String
+  ruleVersion     Int
+  domain          String
+  objectType      String
+  objectId        String
+  severity        BrainRiskLevel
+  title           String
+  evidence        Json
+  suggestion      Json
+  dedupeKey       String
+  status          String         @default("open")
+  disposition     String?
   dispositionNote String?
-  feedback       String?
-  firstDetectedAt DateTime      @default(now())
-  lastDetectedAt  DateTime      @default(now())
+  feedback        String?
+  firstDetectedAt DateTime       @default(now())
+  lastDetectedAt  DateTime       @default(now())
   resolvedAt      DateTime?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   run BrainInspectionRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
 
@@ -5453,8 +5453,8 @@ model BrainRun {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
-  conversation BrainConversation? @relation(fields: [conversationId], references: [id])
-  steps        BrainRunStep[]
+  conversation     BrainConversation?         @relation(fields: [conversationId], references: [id])
+  steps            BrainRunStep[]
   semanticEvidence BusinessSemanticEvidence[]
 
   @@index([storeId, userId, createdAt])
@@ -5503,21 +5503,21 @@ model BrainEvalCase {
 }
 
 model BrainEvalRun {
-  id             Int      @id @default(autoincrement())
-  releaseId      Int?
-  storeId        Int?
-  roleKey        String?
-  modelVersion   String?
-  status         String
-  caseCount      Int      @default(0)
-  passedCount    Int      @default(0)
-  failedCount    Int      @default(0)
-  summary        Json
-  results        Json
-  error          Json?
-  startedAt      DateTime @default(now())
-  finishedAt     DateTime?
-  createdAt      DateTime @default(now())
+  id           Int       @id @default(autoincrement())
+  releaseId    Int?
+  storeId      Int?
+  roleKey      String?
+  modelVersion String?
+  status       String
+  caseCount    Int       @default(0)
+  passedCount  Int       @default(0)
+  failedCount  Int       @default(0)
+  summary      Json
+  results      Json
+  error        Json?
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
+  createdAt    DateTime  @default(now())
 
   evalResults BrainEvalResult[]
 
@@ -5527,22 +5527,22 @@ model BrainEvalRun {
 }
 
 model BrainEvalResult {
-  id                 Int      @id @default(autoincrement())
-  evalRunId          Int
-  caseId             Int?
-  caseKey            String
-  roleKey            String?
-  question           String
-  answer             String
-  citations          Json
-  deterministicGrade Json
+  id                  Int      @id @default(autoincrement())
+  evalRunId           Int
+  caseId              Int?
+  caseKey             String
+  roleKey             String?
+  question            String
+  answer              String
+  citations           Json
+  deterministicGrade  Json
   deterministicPassed Boolean
-  llmJudge           Json?
-  latencyMs          Int?
-  failureCluster     String?
-  error              Json?
-  metadata           Json?
-  createdAt          DateTime @default(now())
+  llmJudge            Json?
+  latencyMs           Int?
+  failureCluster      String?
+  error               Json?
+  metadata            Json?
+  createdAt           DateTime @default(now())
 
   evalRun BrainEvalRun @relation(fields: [evalRunId], references: [id], onDelete: Cascade)
 
@@ -5553,23 +5553,23 @@ model BrainEvalResult {
 }
 
 model BrainResourceVersion {
-  id                           Int      @id @default(autoincrement())
+  id                           Int       @id @default(autoincrement())
   resourceType                 String
   resourceKey                  String
   version                      Int
-  status                       String   @default("draft")
+  status                       String    @default("draft")
   snapshot                     Json
   checksum                     String
   sourceResourceId             Int?
   generatedByRegenerationJobId Int?
   createdBy                    Int
-  createdAt                    DateTime @default(now())
+  createdAt                    DateTime  @default(now())
   activatedAt                  DateTime?
   archivedAt                   DateTime?
 
-  releaseItems                   BrainReleaseItem[]
-  regenerationRequestJob         BrainCapabilityRegenerationJob?  @relation("BrainCapabilityRegenerationRequest")
-  generatedByRegenerationJob     BrainCapabilityRegenerationJob?  @relation("BrainCapabilityRegenerationGeneratedVersions", fields: [generatedByRegenerationJobId], references: [id], onDelete: Restrict)
+  releaseItems               BrainReleaseItem[]
+  regenerationRequestJob     BrainCapabilityRegenerationJob? @relation("BrainCapabilityRegenerationRequest")
+  generatedByRegenerationJob BrainCapabilityRegenerationJob? @relation("BrainCapabilityRegenerationGeneratedVersions", fields: [generatedByRegenerationJobId], references: [id], onDelete: Restrict)
 
   @@unique([resourceType, resourceKey, version])
   @@unique([generatedByRegenerationJobId, resourceType, resourceKey])
@@ -5602,18 +5602,18 @@ model BrainRelease {
 }
 
 model BrainCapabilityRegenerationJob {
-  id                          Int      @id @default(autoincrement())
+  id                          Int       @id @default(autoincrement())
   releaseId                   Int
-  requestVersionId            Int      @unique
-  idempotencyKey              String   @unique
+  requestVersionId            Int       @unique
+  idempotencyKey              String    @unique
   releaseFingerprint          String
   requirement                 String
   inferredChanges             Json
   affectedCapabilities        Json
-  status                      String   @default("queued")
-  attemptCount                Int      @default(0)
-  maxAttempts                 Int      @default(3)
-  availableAt                 DateTime @default(now())
+  status                      String    @default("queued")
+  attemptCount                Int       @default(0)
+  maxAttempts                 Int       @default(3)
+  availableAt                 DateTime  @default(now())
   leasedAt                    DateTime?
   leaseExpiresAt              DateTime?
   leaseOwner                  String?
@@ -5623,8 +5623,8 @@ model BrainCapabilityRegenerationJob {
   generatedResourceVersionIds Json
   completedAt                 DateTime?
   createdBy                   Int
-  createdAt                   DateTime @default(now())
-  updatedAt                   DateTime @updatedAt
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
 
   release                   BrainRelease           @relation(fields: [releaseId], references: [id], onDelete: Restrict)
   requestVersion            BrainResourceVersion   @relation("BrainCapabilityRegenerationRequest", fields: [requestVersionId], references: [id], onDelete: Restrict)
@@ -5671,13 +5671,13 @@ model BrainFeedback {
 }
 
 model BrainActionConfirmation {
-  id          Int            @id @default(autoincrement())
-  actionId    String         @unique
-  runId       Int
-  userId      Int
-  storeId     Int
-  skillKey    String
-  riskLevel   BrainRiskLevel
+  id                                    Int            @id @default(autoincrement())
+  actionId                              String         @unique
+  runId                                 Int
+  userId                                Int
+  storeId                               Int
+  skillKey                              String
+  riskLevel                             BrainRiskLevel
   actionDefinitionKey                   String?
   actionDefinitionVersion               Int?
   actionDefinitionFingerprint           String?
@@ -5696,14 +5696,14 @@ model BrainActionConfirmation {
   ontologySnapshotFingerprint           String?
   releaseId                             Int?
   releaseFingerprint                    String?
-  preview     Json
-  payload     Json
-  status      String         @default("pending")
-  confirmedAt DateTime?
-  executedAt  DateTime?
-  result      Json?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  preview                               Json
+  payload                               Json
+  status                                String         @default("pending")
+  confirmedAt                           DateTime?
+  executedAt                            DateTime?
+  result                                Json?
+  createdAt                             DateTime       @default(now())
+  updatedAt                             DateTime       @updatedAt
 
   @@index([runId, status])
   @@index([actionDefinitionKey, actionDefinitionVersion])
@@ -5712,13 +5712,13 @@ model BrainActionConfirmation {
 }
 
 model BrainActionExecution {
-  id                 Int            @id @default(autoincrement())
-  confirmationId     Int
-  actionId           String
-  runId              Int
-  storeId            Int
-  userId             Int
-  capabilityKey      String
+  id                                    Int            @id @default(autoincrement())
+  confirmationId                        Int
+  actionId                              String
+  runId                                 Int
+  storeId                               Int
+  userId                                Int
+  capabilityKey                         String
   boundCapabilityKey                    String?
   capabilityVersion                     Int?
   capabilitySourceFingerprint           String?
@@ -5737,20 +5737,20 @@ model BrainActionExecution {
   ontologySnapshotFingerprint           String?
   releaseId                             Int?
   releaseFingerprint                    String?
-  idempotencyKey     String
-  riskLevel          BrainRiskLevel
-  status             String         @default("queued")
-  requestPayload     Json
-  previewPayload     Json?
-  receiptPayload     Json?
-  businessObjectType String?
-  businessObjectId   String?
-  errorCode          String?
-  errorMessage       String?
-  startedAt          DateTime       @default(now())
-  completedAt        DateTime?
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  idempotencyKey                        String
+  riskLevel                             BrainRiskLevel
+  status                                String         @default("queued")
+  requestPayload                        Json
+  previewPayload                        Json?
+  receiptPayload                        Json?
+  businessObjectType                    String?
+  businessObjectId                      String?
+  errorCode                             String?
+  errorMessage                          String?
+  startedAt                             DateTime       @default(now())
+  completedAt                           DateTime?
+  createdAt                             DateTime       @default(now())
+  updatedAt                             DateTime       @updatedAt
 
   @@unique([storeId, capabilityKey, idempotencyKey])
   @@index([confirmationId])
