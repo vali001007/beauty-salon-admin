@@ -128,6 +128,7 @@ describe('BrainCustomerFactResolverService', () => {
 
     await expect(service.getCardHoldersWithoutVisit({
       storeId: 6,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       message: '办了综合养护 20 次卡但2026年6月15日至21日没来的客户名单',
       startDate: new Date('2026-06-14T16:00:00.000Z'),
       endDate: new Date('2026-06-21T16:00:00.000Z'),
@@ -638,6 +639,7 @@ describe('BrainCustomerFactResolverService', () => {
 
     const result = await service.getExpiringCardCustomersWithoutUpcomingReservation({
       storeId: 6,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       message: '哪些客户的综合养护 20 次卡快到期还没预约',
       asOf,
       windowDays: 30,

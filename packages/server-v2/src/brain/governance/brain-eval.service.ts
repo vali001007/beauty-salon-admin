@@ -247,6 +247,7 @@ export class BrainEvalService {
         : releaseId
           ? 'development_sample'
           : 'general_eval';
+    const runtimeCommit = currentRuntimeCommit();
     const run = await this.prisma.brainEvalRun.create({
       data: {
         releaseId,
@@ -261,6 +262,7 @@ export class BrainEvalService {
           failed: 0,
           canRelease: false,
           gateMode,
+          ...(runtimeCommit ? { runtimeCommit } : {}),
           ...(regressionSource
             ? {
                 sourceEvalRunId: regressionSource.id,
@@ -595,12 +597,14 @@ export class BrainEvalService {
       const releaseGateResult = releaseGate
         ? evaluateBrainReleaseEvalGate(releaseGate.manifest, results)
         : undefined;
+      const runtimeCommit = currentRuntimeCommit();
       const summary = {
         ...baseSummary,
         canRelease: releaseGate
           ? baseSummary.canRelease && releaseGateResult!.passed
           : false,
         gateMode,
+        ...(runtimeCommit ? { runtimeCommit } : {}),
         ...(gateMode === 'release_regression'
           ? {
               sourceEvalRunId: this.record(evalRun.summary).sourceEvalRunId,
@@ -1030,6 +1034,14 @@ export class BrainEvalService {
   private toJson(value: unknown): Prisma.InputJsonValue {
     return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
   }
+}
+
+function currentRuntimeCommit() {
+  for (const name of ['ZEABUR_GIT_COMMIT_SHA', 'GIT_COMMIT_SHA', 'GITHUB_SHA', 'COMMIT_SHA', 'SOURCE_COMMIT']) {
+    const value = process.env[name]?.trim();
+    if (value && /^[0-9a-f]{40}$/iu.test(value)) return value.toLowerCase();
+  }
+  return null;
 }
 
 function isPrismaCode(error: unknown, code: string): boolean {

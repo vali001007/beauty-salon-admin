@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "ami-brain-question-data-evidence/test-v1",
+  "cases": [
+    {
+      "anchor": "supplemental-current-staff-directory",
+      "questionChecksum": "fa6e90479062e46b419a4f2ca6278259afea75256861b1ffef246b0ac95e9991"
+    },
+    {
+      "anchor": "release-acceptance-supplemental-staff-directory",
+      "questionChecksum": "e6f9fd9dd5184e0f5a4e13ad51177e66c809232caf37d39aa867e250dbb65187"
+    },
+    {
+      "anchor": "supplemental-stale-staff-directory",
+      "questionChecksum": "fb0243f39b339a6df4a882006472718e736d120afbb7a7164b6d68be1c0e2faf"
+    },
+    {
+      "anchor": "supplemental-no-suite-staff-directory",
+      "questionChecksum": "deb097ca202b70a3eb2d85a5f1e066a3f153c306b451c094c8fa6afde9b7c1c1"
+    },
+    {
+      "anchor": "supplemental-empty-time-off",
+      "questionChecksum": "9a9122e78258a347352ce58e03fd8c2251f8bb8af5e389c3dc7a4e996a81d66c"
+    },
+    {
+      "anchor": "supplemental-global-level",
+      "questionChecksum": "838f6fbbf407b4b5e5849e54aeaee0152f5a2234f73e8553f0b720cb212c8bc6"
+    },
+    {
+      "anchor": "supplemental-equipment-override",
+      "questionChecksum": "4006499b7ac26c34788f463b89e0502fde28b4aec5114f8aedb572a0b6257abe"
+    }
+  ]
+}

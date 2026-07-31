@@ -1200,6 +1200,7 @@ describe('BrainSemanticIntentCompilerService', () => {
     };
     const compiler = createCompiler(fakeAiService(async () => structuredResult(modelIntent)));
 
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
     const result = await compiler.compile(compilerInput('本月护理商品销售排行'));
 
     expect(result.status).toBe('completed');
@@ -1236,6 +1237,7 @@ describe('BrainSemanticIntentCompilerService', () => {
     const compiler = createCompiler(fakeAiService(async () => structuredResult(modelIntent)));
 
     const result = await compiler.compile({
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       ...compilerInput('一共有多少个钻石会员'),
       metricRefs: [],
       dimensionRefs: [],
@@ -1267,6 +1269,7 @@ describe('BrainSemanticIntentCompilerService', () => {
     const compiler = createCompiler(aiService);
 
     const result = await compiler.compile({
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       ...compilerInput('一共有多少个钻石会员'),
       metricRefs: [],
       dimensionRefs: [],
@@ -1301,6 +1304,7 @@ describe('BrainSemanticIntentCompilerService', () => {
     const compiler = createCompiler(aiService);
 
     const result = await compiler.compile({
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       ...compilerInput('截至2026/07/29 12:45:40，一共有多少个钻石会员'),
       metricRefs: [],
       dimensionRefs: [customerLevelDimensionRef],
@@ -1339,6 +1343,7 @@ describe('BrainSemanticIntentCompilerService', () => {
     const compiler = createCompiler(aiService);
 
     const result = await compiler.compile({
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       ...compilerInput('办了综合养护 20 次卡但2026年6月15日至21日没来的客户名单'),
       metricRefs: [],
       dimensionRefs: [customerLevelDimensionRef],
@@ -1575,6 +1580,7 @@ describe('BrainSemanticIntentCompilerService', () => {
   });
 
   it('returns a model-selected read-only delivery contract only when it is in Top-K and covers the hydrated intent', async () => {
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
     const question = '晒后舒缓修护项目利润归因';
     const modelIntent = {
       ...productRankingIntent,
@@ -1672,6 +1678,7 @@ describe('BrainSemanticIntentCompilerService', () => {
     } as BrainSemanticIntent & { selectedCapabilityKey: string };
     const aiService = fakeAiService(async () => structuredResult(modelIntent));
     const compiler = createCompiler(aiService);
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
     const input = compilerInput('最近哪些商品卖得最好');
     input.capabilitySummaries = [
       {
@@ -1703,6 +1710,7 @@ describe('BrainSemanticIntentCompilerService', () => {
   it('sends only the Ontology subgraph referenced by Top-K capability contracts to the model', async () => {
     const aiService = fakeAiService(async () => structuredResult(productRankingIntent));
     const compiler = createCompiler(aiService);
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
     const input = compilerInput('最近哪些商品卖得最好');
     input.capabilitySummaries = [
       {
@@ -2424,30 +2432,37 @@ describe('BrainSemanticIntentCompilerService', () => {
 
   it.each([
     {
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年1月1日至6月30日的毛利是多少',
       metricRefs: [grossProfitMetricRef],
     },
     {
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年6月29日的经营利润是多少',
       metricRefs: [operatingProfitMetricRef],
     },
     {
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年6月成本占收入的比例',
       metricRefs: [costIncomeRatioMetricRef],
     },
     {
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年6月的收银班次对平了吗',
       metricRefs: [cashShiftReconciliationRateMetricRef],
     },
     {
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '截至2026/07/29 12:45:41的储值负债总额',
       metricRefs: [storedValueLiabilityMetricRef],
     },
     {
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年6月30日次卡核销确认的收入有多少',
       metricRefs: [cardRecognizedRevenueMetricRef],
     },
     {
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '截至2026/07/29 12:45:41，综合养护 20 次卡的确认收入进度',
       metricRefs: [cardRecognizedRevenueMetricRef],
     },
@@ -2502,6 +2517,7 @@ describe('BrainSemanticIntentCompilerService', () => {
       throw new Error('model_should_not_be_called');
     });
     const compiler = createCompiler(aiService);
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
     const input = compilerInput('本月毛利、经营利润和储值负债分别多少');
     const metricRefs = [grossProfitMetricRef, operatingProfitMetricRef, storedValueLiabilityMetricRef];
     input.metricRefs = metricRefs;
@@ -2542,6 +2558,7 @@ describe('BrainSemanticIntentCompilerService', () => {
       throw new Error('model_should_not_be_called');
     });
     const compiler = createCompiler(aiService);
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
     const input = compilerInput('截至2026/07/29 12:45:41，综合养护 20 次卡的确认收入进度');
     input.metricRefs = [cardRecognizedRevenueMetricRef];
     input.dimensionRefs = [];
@@ -2575,6 +2592,7 @@ describe('BrainSemanticIntentCompilerService', () => {
       throw new Error('model_should_not_be_called');
     });
     const compiler = createCompiler(aiService);
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
     const input = compilerInput('晒后舒缓修护订单2026年6月17日至30日的利润情况'); // BQ0846
     input.metricRefs = [];
     input.dimensionRefs = [];
@@ -2616,21 +2634,25 @@ describe('BrainSemanticIntentCompilerService', () => {
 
   it.each([
     {
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年6月30日每张订单的毛利分别多少',
       metricRefs: [orderGrossProfitMetricRef],
       answerShape: 'list',
     },
     {
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年6月30日哪些订单毛利为负',
       metricRefs: [negativeMarginOrderCountMetricRef],
       answerShape: 'list',
     },
     {
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年6月30日开卡订单的利润分析',
       metricRefs: [prepaidOrderGrossProfitMetricRef],
       answerShape: 'scalar',
     },
     {
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年6月30日产品订单的成本和毛利',
       metricRefs: [productOrderTotalCostMetricRef, productOrderGrossProfitMetricRef],
       answerShape: 'scalar',
@@ -2678,6 +2700,7 @@ describe('BrainSemanticIntentCompilerService', () => {
       throw new Error('model_should_not_be_called');
     });
     const compiler = createCompiler(aiService);
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
     const input = compilerInput('顾然2026年6月22日至28日的提成构成'); // BQ1332
     input.metricRefs = [staffCommissionComponentMetricRef];
     input.dimensionRefs = [commissionTypeDimensionRef];
@@ -2723,6 +2746,7 @@ describe('BrainSemanticIntentCompilerService', () => {
       throw new Error('model_should_not_be_called');
     });
     const compiler = createCompiler(aiService);
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
     const input = compilerInput('2026年6月30日哪些订单毛利为负'); // BQ0857
     input.metricRefs = [];
     input.dimensionRefs = [];
@@ -3426,6 +3450,7 @@ describe('BrainSemanticIntentCompilerService', () => {
       throw new AiStructuredOutputError('PROVIDER_UNAVAILABLE', 'all providers unavailable');
     });
     const compiler = createCompiler(aiService);
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
     const input = compilerInput('背部净透护理在2026年6月1日至30日一共卖了几单');
     input.metricRefs = [projectServiceCountMetricRef];
     input.capabilitySummaries = [
@@ -3458,6 +3483,7 @@ describe('BrainSemanticIntentCompilerService', () => {
       throw new AiStructuredOutputError('PROVIDER_UNAVAILABLE', 'all providers unavailable');
     });
     const compiler = createCompiler(aiService);
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
     const input = compilerInput('胶原焕活提拉标准配置了哪些耗材');
     input.metricRefs = [];
     input.capabilitySummaries = [

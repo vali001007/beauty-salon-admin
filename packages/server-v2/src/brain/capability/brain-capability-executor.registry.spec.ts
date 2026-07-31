@@ -494,6 +494,7 @@ describe('BrainSemanticQueryCapabilityExecutor', () => {
 
     const answer = await executor.execute(
       input(card('inventory_risk_ranking', 'semantic'), {
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
         question: '本月有多少临期产品',
         answerShape: 'list',
       }),
@@ -538,6 +539,7 @@ describe('BrainSemanticQueryCapabilityExecutor', () => {
 
     const answer = await executor.execute(
       input(card('inventory_risk_ranking', 'semantic'), {
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
         question: '今天低于安全库存的有几个',
         answerShape: 'list',
       }),
@@ -592,6 +594,7 @@ describe('BrainSemanticQueryCapabilityExecutor', () => {
 
     const answer = await executor.execute(
       input(card('inventory_risk_ranking', 'semantic'), {
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
         question: '2026年6月有哪些产品缺货了',
         answerShape: 'list',
       }),

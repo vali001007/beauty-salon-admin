@@ -1,0 +1,108 @@
+{
+  "schemaVersion": "ami-brain-action-relation-manifest/v1",
+  "catalogSchemaVersion": "1.0",
+  "catalogSource": {
+    "path": "packages/server-v2/src/semantic-data/brain-action-relation-catalog.ts",
+    "checksum": "117e92bf4cbbb50669471f9d58a1ba37bc85fafbecc5abc2b5e2631448632d4a"
+  },
+  "relations": [
+    {
+      "key": "action_relation.occurrence_of",
+      "version": 1,
+      "fingerprint": "77d714766f85eb1be046bfc03b1d08cacc6d7e879d6becc4d053ef35ffdcfdf3",
+      "requiredKeys": ["store", "business_time", "evidence"],
+      "truthMode": "observed"
+    },
+    {
+      "key": "action_relation.acts_on",
+      "version": 1,
+      "fingerprint": "3ee741d807d1e4500a258eef5b3b8b98ddc4fbab209268cc8126bf83e9cadd80",
+      "requiredKeys": [],
+      "truthMode": "declared"
+    },
+    {
+      "key": "action_relation.creates",
+      "version": 1,
+      "fingerprint": "2a68202241f3cc295cc3399909b44f78d0afbc21609c70c0bbf49b7cfe775dfb",
+      "requiredKeys": [],
+      "truthMode": "declared"
+    },
+    {
+      "key": "action_relation.state_transition",
+      "version": 1,
+      "fingerprint": "a8c606724898582a9180ad6d2d5ab003b91619c6b4962d80f59f94275ed06c71",
+      "requiredKeys": ["object_version"],
+      "truthMode": "observed"
+    },
+    {
+      "key": "action_relation.institutional_effect",
+      "version": 1,
+      "fingerprint": "38b4399bfb95a4cd2bb5da57ad73018979b67ab566d71ffbd7c474c743859a32",
+      "requiredKeys": ["role", "store", "business_time", "object_version", "evidence", "confirmation"],
+      "truthMode": "observed"
+    },
+    {
+      "key": "action_relation.requested_by",
+      "version": 1,
+      "fingerprint": "5a2fa4a8c1091e01c891db4eac51eab859eef48ff024f902a995c14a88402325",
+      "requiredKeys": ["role", "store", "business_time", "evidence"],
+      "truthMode": "observed"
+    },
+    {
+      "key": "action_relation.authorized_by",
+      "version": 1,
+      "fingerprint": "7bca530abacf8976e023a9daa1c6dfc4f772d896e7b7d535cbd082ab8d7a4f4c",
+      "requiredKeys": ["role", "store", "business_time", "evidence"],
+      "truthMode": "observed"
+    },
+    {
+      "key": "action_relation.approved_by",
+      "version": 1,
+      "fingerprint": "5c332ff56348b59bcd788359f81ede27c23e521a5c0d055b8e52e4b4331e6eb8",
+      "requiredKeys": ["role", "store", "business_time", "evidence"],
+      "truthMode": "observed"
+    },
+    {
+      "key": "action_relation.performed_by",
+      "version": 1,
+      "fingerprint": "e945190ebeae13ff53f8c3110847fb8388f5c3c34474fbca70128b8fa3bff474",
+      "requiredKeys": ["role", "store", "business_time", "evidence"],
+      "truthMode": "observed"
+    },
+    {
+      "key": "action_relation.accountable_party",
+      "version": 1,
+      "fingerprint": "7c75cb87b93e7a8cd6cbf7fbeae8942999678322ced2df6b934bab10a8fb5c65",
+      "requiredKeys": ["role", "store", "business_time", "evidence"],
+      "truthMode": "observed"
+    },
+    {
+      "key": "action_relation.assigned_to",
+      "version": 1,
+      "fingerprint": "1b7b973390b89a99cbb2deee4b6e62e1668936efb4ff1695bdc0c9af2f7c6176",
+      "requiredKeys": ["role", "store", "business_time", "evidence"],
+      "truthMode": "observed"
+    },
+    {
+      "key": "action_relation.assigned_service_provider",
+      "version": 1,
+      "fingerprint": "52f81b5dc97651693cd7d3df4f16abd70adf19bf2d0a8c2f3006257f4693d189",
+      "requiredKeys": ["role", "store", "business_time", "evidence"],
+      "truthMode": "observed"
+    },
+    {
+      "key": "action_relation.benefits",
+      "version": 1,
+      "fingerprint": "c721299aa8dd28ade21647372547868c6d2b3825b4213bc270b7c3e40380ff43",
+      "requiredKeys": ["role", "store", "business_time", "evidence"],
+      "truthMode": "observed"
+    },
+    {
+      "key": "action_relation.counterparty",
+      "version": 1,
+      "fingerprint": "a3c0091840f690b59ae96d0b8a4debfd53c3e8cfb1aca1aa25d1d48e88d5543f",
+      "requiredKeys": ["role", "store", "business_time", "evidence"],
+      "truthMode": "observed"
+    }
+  ]
+}

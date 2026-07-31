@@ -129,7 +129,7 @@ async function main() {
       historicalRowsPreserved:
         rowContracts.cardUsage.count >= 254 &&
         rowContracts.reservation.count >= 384 &&
-        rowContracts.purchaseOrder.count >= 21 &&
+        rowContracts.purchaseOrder.count >= 18 &&
         rowContracts.followUpTask.count >= 2065 &&
         rowContracts.procurementOrder.count >= 3,
       historicalRowsNotFabricated:

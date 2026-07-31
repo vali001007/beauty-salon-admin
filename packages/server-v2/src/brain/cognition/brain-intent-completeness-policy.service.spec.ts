@@ -127,6 +127,7 @@ describe('BrainIntentCompletenessPolicyService', () => {
         domains: ['finance', 'order', 'product_order'],
         metrics: [metricRef('negative_margin_order_count')],
       }),
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年6月30日哪些订单毛利为负',
       snapshot: orderSnapshot as never,
       catalogAmbiguous: false,

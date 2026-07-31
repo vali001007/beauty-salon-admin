@@ -76,8 +76,8 @@ function summarizeMovement(movement: any) {
 }
 
 function purchaseOrderStoreId(order: any) {
-  const payload = order.items && typeof order.items === 'object' && !Array.isArray(order.items) ? order.items : undefined;
-  return payload?.storeId ? Number(payload.storeId) : undefined;
+  const storeId = Number(order?.storeId);
+  return Number.isInteger(storeId) && storeId > 0 ? storeId : undefined;
 }
 
 function evidenceText(evidence: any) {
@@ -207,6 +207,7 @@ async function main() {
     findMovement({ ...movementWhereBase, movementType: { in: ['stocktake_gain', 'stocktake_loss'] }, sourceType: 'stocktake' }),
     prisma.purchaseOrder.findMany({
       where: {
+        storeId,
         ...(sinceDate ? { createdAt: { gte: sinceDate } } : {}),
         ...(marker ? { supplier: { contains: marker } } : {}),
       },
@@ -214,12 +215,7 @@ async function main() {
       take: 200,
     }),
   ]);
-
-  const scopedPurchaseOrders = purchaseOrders.filter((order: any) => {
-    const payloadStoreId = purchaseOrderStoreId(order);
-    return !payloadStoreId || payloadStoreId === storeId;
-  });
-  const purchaseOrderCreated = scopedPurchaseOrders[0] ?? null;
+  const purchaseOrderCreated = purchaseOrders[0] ?? null;
   const transferIn = transferOut
     ? await findMovement(withRemarkMarker({
         ...(sinceMovementId > 0 ? { id: { gt: sinceMovementId } } : {}),

@@ -109,7 +109,11 @@ async function main() {
       payload,
       context: { userId: operator.id, storeId: store.id, permissions, idempotencyKey },
     });
-    await prisma.purchaseOrder.update({ where: { id: Number(businessReplay.businessObjectId) }, data: { status: '已下单' } });
+    const statusUpdated = await prisma.purchaseOrder.updateMany({
+      where: { id: Number(businessReplay.businessObjectId), storeId: store.id },
+      data: { status: '已下单' },
+    });
+    assert(statusUpdated.count === 1, 'purchase_order_status_update_out_of_scope');
     const postMutationReplay = await gateway.execute({
       skillKey: 'create_purchase_order',
       payload,
@@ -127,7 +131,7 @@ async function main() {
     }
 
     const businessKey = buildPurchaseOrderIdempotencyKey(store.id, 'ami_brain', idempotencyKey)!;
-    const orders = await prisma.purchaseOrder.findMany({ where: { idempotencyKey: businessKey } });
+    const orders = await prisma.purchaseOrder.findMany({ where: { idempotencyKey: businessKey, storeId: store.id } });
     const executions = await prisma.brainActionExecution.findMany({ where: { actionId: confirmation.actionId } });
     assert(firstExecution?.status === 'succeeded', 'first_execution_not_succeeded');
     assert(duplicateConfirmationShortCircuited, 'duplicate_confirmation_not_short_circuited');
@@ -188,7 +192,7 @@ async function main() {
     });
     const failedReceiptRetryable = Boolean(failedReceipt && 'retryable' in failedReceipt && failedReceipt.retryable === true);
     assert(failedReceipt?.status === 'failed' && failedReceiptRetryable, 'receipt_failure_not_marked_safe_replay');
-    const committedBeforeRetry = await prisma.purchaseOrder.count({ where: { supplier: recoverySupplier } });
+    const committedBeforeRetry = await prisma.purchaseOrder.count({ where: { supplier: recoverySupplier, storeId: store.id } });
     assert(committedBeforeRetry === 1, 'business_write_not_committed_before_receipt_failure');
     const recoveredReceipt = await faultingConfirmationService.retryFailedExecution({
       actionId: recoveryConfirmation.actionId,
@@ -198,7 +202,7 @@ async function main() {
       permissions,
     });
     const recoveredReceiptRetried = Boolean(recoveredReceipt && 'retried' in recoveredReceipt && recoveredReceipt.retried === true);
-    const committedAfterRetry = await prisma.purchaseOrder.count({ where: { supplier: recoverySupplier } });
+    const committedAfterRetry = await prisma.purchaseOrder.count({ where: { supplier: recoverySupplier, storeId: store.id } });
     assert(recoveredReceipt?.status === 'succeeded' && recoveredReceiptRetried, 'receipt_safe_replay_not_succeeded');
     assert(committedAfterRetry === 1, 'safe_replay_created_duplicate_purchase_order');
 
@@ -217,7 +221,7 @@ async function main() {
         context: { userId: operator.id, storeId: store.id, permissions, idempotencyKey: concurrentKey },
       }),
     ]);
-    const concurrentCount = await prisma.purchaseOrder.count({ where: { supplier: concurrentSupplier } });
+    const concurrentCount = await prisma.purchaseOrder.count({ where: { supplier: concurrentSupplier, storeId: store.id } });
     assert(concurrentCount === 1, 'concurrent_replay_created_duplicate_purchase_order');
     assert(concurrentResults[0].businessObjectId === concurrentResults[1].businessObjectId, 'concurrent_replay_returned_different_purchase_orders');
 

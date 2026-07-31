@@ -101,12 +101,6 @@ async function collectPlan() {
     ],
   });
   const globalCleanupWhere = {
-    purchaseOrders: {
-      AND: [
-        { orderNo: { not: { startsWith: FULL_DEMO_PREFIX } } },
-        { OR: [{ orderNo: { startsWith: 'MVP-' } }, { orderNo: { startsWith: 'TEST-AMI' } }] },
-      ],
-    },
     cards: {
       AND: [
         { id: { notIn: fullDemoCardIds.length ? fullDemoCardIds : [-1] } },
@@ -294,7 +288,7 @@ async function collectPlan() {
   addCount(counts, 'StoreResource', await count(prisma.storeResource, { storeId: idIn(deleteStoreIds) }));
   addCount(counts, 'ResourceBooking', await count(prisma.resourceBooking, { storeId: idIn(deleteStoreIds) }));
   addCount(counts, 'AmiGlowDisplayConfig', await count(prisma.amiGlowDisplayConfig, { storeId: idIn(deleteStoreIds) }));
-  addCount(counts, 'GlobalPurchaseOrder', await count(prisma.purchaseOrder, globalCleanupWhere.purchaseOrders));
+  addCount(counts, 'PurchaseOrder', await count(prisma.purchaseOrder, { storeId: idIn(deleteStoreIds) }));
   addCount(counts, 'GlobalCard', await count(prisma.card, globalCleanupWhere.cards));
   addCount(counts, 'GlobalMarketingAutomationStrategy', await count(prisma.marketingAutomationStrategy, globalCleanupWhere.marketingStrategies));
   addCount(counts, 'GlobalUser', await count(prisma.user, globalCleanupWhere.users));
@@ -447,6 +441,9 @@ async function applyCleanup(plan: Awaited<ReturnType<typeof collectPlan>>) {
   }), deleted);
   await del('SupplyCatalogMapping', () => prisma.supplyCatalogMapping.deleteMany({ where: where.supplyCatalogMappings }), deleted);
   await del('ProcurementOrder', () => prisma.procurementOrder.deleteMany({ where: where.procurementOrders }), deleted);
+  await del('PurchaseOrder', () => prisma.purchaseOrder.deleteMany({
+    where: { storeId: idIn(ids.deleteStoreIds) },
+  }), deleted);
   await del('ProjectBomItem', () => prisma.projectBomItem.deleteMany({
     where: { OR: [{ projectId: idIn(ids.projectIds) }, { productId: idIn(ids.productIds) }] },
   }), deleted);
@@ -471,7 +468,6 @@ async function applyCleanup(plan: Awaited<ReturnType<typeof collectPlan>>) {
   await del('Store', () => prisma.store.deleteMany({ where: where.stores }), deleted);
   await del('UserRole', () => prisma.userRole.deleteMany({ where: { userId: idIn(ids.globalUserIds) } }), deleted);
   await del('RefreshToken', () => prisma.refreshToken.deleteMany({ where: { userId: idIn(ids.globalUserIds) } }), deleted);
-  await del('GlobalPurchaseOrder', () => prisma.purchaseOrder.deleteMany({ where: globalCleanupWhere.purchaseOrders }), deleted);
   await del('GlobalCard', () => prisma.card.deleteMany({ where: globalCleanupWhere.cards }), deleted);
   await del('GlobalMarketingAutomationStrategy', () => prisma.marketingAutomationStrategy.deleteMany({ where: globalCleanupWhere.marketingStrategies }), deleted);
   await del('GlobalUser', () => prisma.user.deleteMany({ where: globalCleanupWhere.users }), deleted);

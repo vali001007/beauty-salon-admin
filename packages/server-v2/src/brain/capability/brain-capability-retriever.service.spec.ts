@@ -335,6 +335,7 @@ describe('BrainCapabilityRetrieverService', () => {
         dimensions: [],
         entities: [],
       } as unknown as BrainSemanticIntent,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年6月成本占收入的比例',
       context,
       cards: [
@@ -492,6 +493,7 @@ describe('BrainCapabilityRetrieverService', () => {
         metricDefinitionKey: 'metric.paid_amount',
         dimensionDefinitionKey: 'dimension.paymentMethod',
       }),
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年6月30日各支付方式的金额分别多少', // BQ0705
       context,
       cards: [
@@ -614,6 +616,7 @@ describe('BrainCapabilityRetrieverService', () => {
           },
         ],
       },
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '一共有多少个钻石会员',
       context,
       cards: [
@@ -713,6 +716,7 @@ describe('BrainCapabilityRetrieverService', () => {
         metricDefinitionKey: 'metric.staff_commission_component_amount',
         dimensionDefinitionKey: 'dimension.commissionType',
       }),
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '顾然2026年6月22日至28日的提成构成', // BQ1332
       context,
       cards: [
@@ -746,6 +750,7 @@ describe('BrainCapabilityRetrieverService', () => {
         entityDefinitionKey: 'entity.beautician',
         entityKey: '19',
       }),
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '顾然2026年6月22日至28日的提成构成', // BQ1332
       context,
       cards: [

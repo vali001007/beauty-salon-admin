@@ -258,12 +258,6 @@ function withRemarkMarker(where: any, marker?: string) {
   return { ...where, remark: { contains: marker } };
 }
 
-function purchaseOrderStoreId(order: any) {
-  const payload = order.items && typeof order.items === 'object' && !Array.isArray(order.items) ? order.items : undefined;
-  const storeId = Number(payload?.storeId);
-  return Number.isInteger(storeId) && storeId > 0 ? storeId : undefined;
-}
-
 function parseProjectIdsFromCard(cardProjects: unknown) {
   const rawItems = Array.isArray(cardProjects) ? cardProjects : [];
   return rawItems
@@ -425,6 +419,7 @@ async function acceptanceState(storeId: number, sinceMovement: any, marker?: str
     findMovement(withRemarkMarker({ ...movementWhereBase, movementType: 'scrap_out', sourceType: 'inventory_adjustment' }, marker)),
     prisma.purchaseOrder.findMany({
       where: {
+        storeId,
         ...(sinceMovement?.occurredAt ? { createdAt: { gte: sinceMovement.occurredAt } } : {}),
         ...(marker ? { supplier: { contains: marker } } : {}),
       },
@@ -432,10 +427,7 @@ async function acceptanceState(storeId: number, sinceMovement: any, marker?: str
       take: 200,
     }),
   ]);
-  const purchaseOrderCreated = purchaseOrders.find((order: any) => {
-    const payloadStoreId = purchaseOrderStoreId(order);
-    return !payloadStoreId || payloadStoreId === storeId;
-  }) ?? null;
+  const purchaseOrderCreated = purchaseOrders[0] ?? null;
   const transferIn = transferOut
     ? await findMovement(withRemarkMarker({
         ...(sinceMovement?.id ? { id: { gt: sinceMovement.id } } : {}),

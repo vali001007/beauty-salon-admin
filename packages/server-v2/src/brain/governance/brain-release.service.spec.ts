@@ -3,10 +3,12 @@ import {
   generatedProposalFixture,
   publishedSnapshotFixture,
 } from '../capability/brain-generated-capability.test-fixtures.js';
+import { jsonChecksum } from '../eval/ami-brain-product-acceptance.js';
+import { caseIdsChecksum } from '../eval/ami-brain-suite-manifest.js';
 import { createReleaseFingerprint } from './brain-capability-regeneration-fingerprint.js';
 import { BrainReleaseService } from './brain-release.service.js';
 
-function passingEvalSummary(items: any[]) {
+function passingEvalSummary(items: any[], runtimeCommit = 'a'.repeat(40)) {
   const requiredCapabilityKeys = items
     .filter((item) => item.resourceType === 'skill')
     .map((item) => item.resourceKey)
@@ -15,6 +17,7 @@ function passingEvalSummary(items: any[]) {
     canRelease: true,
     total: 1,
     gateMode: 'release_gate',
+    runtimeCommit,
     coverageComplete: true,
     releaseFingerprint: createReleaseFingerprint(items),
     requiredCapabilityKeys,
@@ -23,7 +26,280 @@ function passingEvalSummary(items: any[]) {
   };
 }
 
+function passingProductSummary(items: any[], overrides: Record<string, unknown> = {}) {
+  const releaseFingerprint = createReleaseFingerprint(items);
+  const sourceCommit = 'a'.repeat(40);
+  const goldStandardAcceptance = passingGoldStandardAcceptance();
+  const goldIds = goldStandardCaseIds();
+  return {
+    runId: 502,
+    stage: 'standard-regression',
+    executionMode: 'delta_after_release_core',
+    runKey: 'release416-v2',
+    suiteManifestVersion: '2026-07-28-v2',
+    suiteManifestChecksum: 'b'.repeat(64),
+    sourceChecksum: 'c'.repeat(64),
+    sourceCommit,
+    storeId: 6,
+    total: 690,
+    suiteCaseCount: 1040,
+    suiteCaseIdsChecksum: 'f'.repeat(64),
+    productionHealth: { commit: sourceCommit },
+    releaseFingerprint,
+    goldStandardRunId: 503,
+    goldStandardAcceptance,
+    productAcceptance: {
+      contractVersion: 'ami-brain-release-acceptance/v1',
+      releaseCoreRunId: 501,
+      standardRegressionRunId: 502,
+      runKey: 'release416-v2',
+      suiteManifestVersion: '2026-07-28-v2',
+      suiteManifestChecksum: 'b'.repeat(64),
+      sourceChecksum: 'c'.repeat(64),
+      releaseFingerprint,
+      sourceCommit,
+      runtimeCommit: sourceCommit,
+      storeId: 6,
+      releaseCoreCaseCount: 350,
+      standardDeltaCaseCount: 690,
+      standardRegressionCaseCount: 1040,
+      releaseCoreCaseIdsChecksum: 'd'.repeat(64),
+      standardDeltaCaseIdsChecksum: 'e'.repeat(64),
+      standardRegressionCaseIdsChecksum: 'f'.repeat(64),
+      verifiedCapabilityTotal: 100,
+      goldStandardRunId: 503,
+      goldStandardManifestVersion: '2026-07-29-v1',
+      goldStandardManifestChecksum: '1'.repeat(64),
+      goldStandardCaseIdsChecksum: caseIdsChecksum([...goldIds].sort()),
+      goldStandardAcceptanceChecksum: jsonChecksum(goldStandardAcceptance),
+      goldStandardCaseCount: 100,
+      goldStandardAuditQueryReady: 100,
+      goldStandardSnapshotReady: 100,
+      goldStandardEvaluated: 100,
+      goldStandardPassed: 100,
+      blockingReasons: [],
+      canActivate: true,
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      ...overrides,
+    },
+  };
+}
+
+function passingGoldStandardAcceptance() {
+  return {
+    contractVersion: 'ami-brain-gold-standard-acceptance/v1',
+    status: 'ready',
+    manifestVersion: '2026-07-29-v1',
+    manifestChecksum: '1'.repeat(64),
+    caseCount: 100,
+    auditQueryReady: 100,
+    snapshotReady: 100,
+    evaluated: 100,
+    passed: 100,
+    failed: 0,
+    blockingReasons: [],
+  };
+}
+
+function goldStandardCaseIds() {
+  return Array.from({ length: 100 }, (_, index) => `gold-${String(index + 1).padStart(3, '0')}`);
+}
+
+function passingGoldStandardResultRows() {
+  return goldStandardCaseIds().map((caseKey) => ({
+    caseKey,
+    deterministicPassed: true,
+    deterministicGrade: { goldCaseId: caseKey, passed: true, status: 'passed' },
+  }));
+}
+
+function passingGoldStandardRun(items: any[], overrides: Record<string, unknown> = {}) {
+  const releaseFingerprint = createReleaseFingerprint(items);
+  const sourceCommit = 'a'.repeat(40);
+  const goldIds = goldStandardCaseIds();
+  return {
+    id: 503,
+    status: 'completed',
+    caseCount: 100,
+    passedCount: 100,
+    failedCount: 0,
+    summary: {
+      executionPurpose: 'standard_regression_internal_gold_standard',
+      stage: 'standard-regression-gold-internal',
+      runKey: 'release416-v2',
+      pipelineIdentity: {
+        contractVersion: 'ami-brain-gold-standard-runtime/v1',
+        parentStandardRegressionRunId: 502,
+        releaseId: 20,
+        storeId: 6,
+        releaseFingerprint,
+        sourceCommit,
+        runtimeCommit: sourceCommit,
+        sourceChecksum: 'c'.repeat(64),
+        suiteManifestVersion: '2026-07-28-v2',
+        suiteManifestChecksum: 'b'.repeat(64),
+        goldStandardManifestChecksum: '1'.repeat(64),
+        standardRegressionCaseIdsChecksum: 'f'.repeat(64),
+      },
+      completedCaseCount: 100,
+      remainingCaseCount: 0,
+      passed: 100,
+      failed: 0,
+      providerUnavailable: 0,
+      acceptance: passingGoldStandardAcceptance(),
+      compactResults: goldIds.map((goldCaseId) => ({ goldCaseId, passed: true })),
+      ...overrides,
+    },
+  };
+}
+
+const performanceFixtures = {
+  quick: { runId: 601, count: 20, checksum: '2'.repeat(64), latency: { count: 20, missingCount: 0, averageMs: 900, p50Ms: 800, p95Ms: 1200, maxMs: 1800 } },
+  single: { runId: 602, count: 20, checksum: '3'.repeat(64), latency: { count: 20, missingCount: 0, averageMs: 1800, p50Ms: 1600, p95Ms: 2800, maxMs: 4200 } },
+  multi: { runId: 603, count: 10, checksum: '4'.repeat(64), latency: { count: 10, missingCount: 0, averageMs: 3600, p50Ms: 3200, p95Ms: 5200, maxMs: 7600 } },
+  multiTurn: { runId: 604, count: 10, checksum: '5'.repeat(64), latency: { count: 10, missingCount: 0, averageMs: 4800, p50Ms: 4200, p95Ms: 6800, maxMs: 9200 } },
+} as const;
+
+const performanceBudgets = {
+  quick: { p50: 1500, p95: 3000, max: 5000 },
+  single: { p50: 3000, p95: 8000, max: 12000 },
+  multi: { p50: 6000, p95: 15000, max: 20000 },
+  multiTurn: { p50: 8000, p95: 20000, max: 25000 },
+} as const;
+
+type PerformanceBucketKey = keyof typeof performanceFixtures;
+
+function passingPerformanceAcceptance(items: any[], overrides: Record<string, unknown> = {}) {
+  const releaseFingerprint = createReleaseFingerprint(items);
+  const sourceCommit = 'a'.repeat(40);
+  return {
+    schemaVersion: 'ami-brain-performance-acceptance/v1',
+    status: 'ready',
+    manifestVersion: '2026-07-29-v1',
+    manifestCaseIdsChecksum: '4f97cc54be8e347cf36bd483f919e261538753645fcb077c864061c5415a1342',
+    identity: {
+      releaseId: 20,
+      storeId: 6,
+      sourceCommit,
+      releaseFingerprint,
+      runtimeCommit: sourceCommit,
+      suiteManifestChecksum: 'b'.repeat(64),
+    },
+    buckets: Object.fromEntries(
+      Object.entries(performanceFixtures).map(([key, fixture]) => [
+        key,
+        {
+          runId: fixture.runId,
+          caseCount: fixture.count,
+          caseIdsChecksum: fixture.checksum,
+          latency: fixture.latency,
+          budgetsMs: performanceBudgets[key as PerformanceBucketKey],
+        },
+      ]),
+    ),
+    blockingReasons: [],
+    generatedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    runIdentity: {
+      schemaVersion: 'ami-brain-performance-run-identity/v1',
+      runKey: 'release416-performance-v1',
+      releaseId: 20,
+      standardRegressionRunId: 502,
+      runtimeCommit: sourceCommit,
+      storeId: 6,
+      performanceManifestPath: 'docs/04-测试数据/Ami-Brain-性能回归/ami-brain-performance-suite-v1.json',
+      performanceManifestVersion: '2026-07-29-v1',
+      performanceManifestChecksum: 'f529a9ad14651c3a98bd281bc9281631b00c62465fe8fd2e493907f9fcfd0101',
+      performanceCaseIdsChecksum: '4f97cc54be8e347cf36bd483f919e261538753645fcb077c864061c5415a1342',
+      suiteManifestChecksum: 'b'.repeat(64),
+    },
+    ...overrides,
+  };
+}
+
+function passingPerformanceRun(
+  items: any[],
+  bucketKey: PerformanceBucketKey,
+  overrides: Record<string, unknown> = {},
+) {
+  const fixture = performanceFixtures[bucketKey];
+  const sourceCommit = 'a'.repeat(40);
+  return {
+    id: fixture.runId,
+    status: 'completed',
+    caseCount: fixture.count,
+    passedCount: fixture.count,
+    failedCount: 0,
+    summary: {
+      runId: fixture.runId,
+      runKey: `release416-performance-v1-${bucketKey}`,
+      stage: 'targeted',
+      executionMode: 'full_suite',
+      activeRelease: { id: 20 },
+      storeId: 6,
+      sourceCommit,
+      sourceChecksum: 'c'.repeat(64),
+      productionHealth: { commit: sourceCommit },
+      releaseFingerprint: createReleaseFingerprint(items),
+      suiteManifestChecksum: 'b'.repeat(64),
+      total: fixture.count,
+      expectedTotal: fixture.count,
+      suiteCaseIdsChecksum: fixture.checksum,
+      passed: fixture.count,
+      failed: 0,
+      providerUnavailable: 0,
+      scorecards: { suspectedFalseSuccess: { count: 0 } },
+      latencyBreakdown: { userResponse: fixture.latency },
+      ...overrides,
+    },
+  };
+}
+
+function passingEvidenceRunById(items: any[], runId: number) {
+  if (runId === 503) return passingGoldStandardRun(items);
+  const bucketKey = (Object.keys(performanceFixtures) as PerformanceBucketKey[]).find(
+    (key) => performanceFixtures[key].runId === runId,
+  );
+  return bucketKey ? passingPerformanceRun(items, bucketKey) : null;
+}
+
 describe('BrainReleaseService', () => {
+  it('reports and blocks a release catalog whose capability source fingerprint is stale', async () => {
+    const candidate = { key: 'customer_facts', version: 1, sourceFingerprint: 'a'.repeat(64) };
+    const scanner = {
+      scan: jest.fn().mockResolvedValue({
+        capabilities: [{ key: 'customer_facts', sourceFingerprint: 'b'.repeat(64), implementationDependencies: [] }],
+      }),
+    };
+    const catalog = {
+      validateEnabledCapabilities: jest.fn().mockResolvedValue({ valid: true, cards: [candidate], issues: [] }),
+    };
+    const service = new BrainReleaseService(undefined, undefined, catalog as never, scanner as never);
+    jest.spyOn(service, 'freezeEvaluationRelease').mockResolvedValue({
+      releaseId: 21,
+      releaseStatus: 'draft',
+      releaseFingerprint: 'c'.repeat(64),
+      declaredMode: 'shadow',
+      mode: 'model',
+      resourceVersionIds: [11],
+      capabilityKeys: ['customer_facts'],
+      capabilityCandidates: [candidate as never],
+    });
+
+    await expect(service.validateReleaseCatalog(21)).resolves.toMatchObject({
+      valid: false,
+      sourceFreshness: {
+        valid: false,
+        issues: [expect.objectContaining({ capabilityKey: 'customer_facts', code: 'stale_source_fingerprint' })],
+      },
+    });
+    await expect((service as any).assertCapabilitySourceFreshness([candidate])).rejects.toMatchObject({
+      message: 'capability_source_freshness_invalid:customer_facts',
+    });
+    expect(scanner.scan).toHaveBeenCalledTimes(1);
+  });
+
   it('bounds the release history loaded by the governance console', async () => {
     const findMany = jest.fn().mockResolvedValue([
       { id: 1, releaseKey: 'brain-r1', _count: { items: 54 } },
@@ -129,11 +405,27 @@ describe('BrainReleaseService', () => {
       brainSkillRegistry: { findMany: jest.fn().mockResolvedValue([]) },
       $transaction: jest.fn((callback) => callback(tx)),
     };
-    const service = new BrainReleaseService(prisma as never);
+    const activeReleaseWarmup = { warmRelease: jest.fn().mockResolvedValue({}) };
+    const service = new BrainReleaseService(
+      prisma as never,
+      undefined,
+      undefined,
+      undefined,
+      activeReleaseWarmup as never,
+    );
+    (service as any).activeRuntimeReleaseCache = { expiresAt: Number.MAX_SAFE_INTEGER, fingerprint: 'stale', releases: [] };
 
     await expect(service.activateRelease({ releaseId: release.id, activatedBy: 9 })).resolves.toMatchObject({
       status: 'active',
     });
+    expect((service as any).activeRuntimeReleaseCache).toBeUndefined();
+    expect(activeReleaseWarmup.warmRelease).toHaveBeenCalledWith({
+      releaseId: release.id,
+      expectedStatus: 'draft',
+    });
+    expect(activeReleaseWarmup.warmRelease.mock.invocationCallOrder[0]).toBeLessThan(
+      prisma.$transaction.mock.invocationCallOrder[0],
+    );
     expect(prisma.brainEvalRun.findFirst).toHaveBeenCalledWith({
       where: { releaseId: evidenceRelease.id, status: 'completed' },
       orderBy: { createdAt: 'desc' },
@@ -171,6 +463,562 @@ describe('BrainReleaseService', () => {
     await expect(
       (service as any).assertReleaseEvalEvidence(prisma, target, createReleaseFingerprint(items)),
     ).resolves.toBeUndefined();
+  });
+
+  it('requires capability and two-stage product evidence for a production baseline release', async () => {
+    const resourceVersion = {
+      id: 11,
+      checksum: 'a'.repeat(64),
+      resourceType: 'skill',
+      resourceKey: 'customer_query',
+      snapshot: {},
+    };
+    const items = [
+      { resourceVersionId: 11, resourceType: 'skill', resourceKey: 'customer_query', resourceVersion },
+    ];
+    const target = {
+      id: 21,
+      rollout: { mode: 'model', productionBaseline: true, evaluationEvidenceReleaseId: 20 },
+      items,
+    };
+    const evidenceRelease = {
+      id: 20,
+      status: 'active',
+      rollout: { mode: 'shadow', stage: 'shadow' },
+      items,
+    };
+    const productSummary = {
+      ...passingProductSummary(items),
+      performanceAcceptance: passingPerformanceAcceptance(items),
+    };
+    const prisma = {
+      brainRelease: { findUnique: jest.fn().mockResolvedValue(evidenceRelease) },
+      brainEvalRun: {
+        findMany: jest.fn(({ where }: { where: { releaseId: number } }) =>
+          Promise.resolve(where.releaseId === evidenceRelease.id ? [
+            { summary: productSummary },
+            { summary: passingEvalSummary(items) },
+          ] : [])),
+        findFirst: jest.fn(({ where }: { where: { id: number } }) =>
+          Promise.resolve(passingEvidenceRunById(items, where.id))),
+      },
+      brainEvalResult: {
+        findMany: jest.fn().mockResolvedValue(passingGoldStandardResultRows()),
+      },
+    };
+    const service = new BrainReleaseService(prisma as never);
+
+    await expect(
+      (service as any).assertReleaseEvalEvidence(prisma, target, createReleaseFingerprint(items)),
+    ).resolves.toBeUndefined();
+  });
+
+  it('rejects a production performance gate when its acceptance evidence is missing', async () => {
+    const items = [{
+      resourceVersionId: 11,
+      resourceType: 'skill',
+      resourceKey: 'customer_query',
+      resourceVersion: { id: 11, checksum: 'a'.repeat(64), resourceType: 'skill', resourceKey: 'customer_query' },
+    }];
+    const standardSummary = passingProductSummary(items);
+    const service = new BrainReleaseService({} as never);
+
+    await expect(
+      (service as any).assertPerformanceEvidenceRuns(
+        { brainEvalRun: { findFirst: jest.fn() } },
+        20,
+        standardSummary,
+        standardSummary.productAcceptance,
+      ),
+    ).rejects.toMatchObject({ message: 'release_performance_acceptance_missing' });
+  });
+
+  it('rejects blocked or expired performance acceptance evidence', async () => {
+    const items = [{
+      resourceVersionId: 11,
+      resourceType: 'skill',
+      resourceKey: 'customer_query',
+      resourceVersion: { id: 11, checksum: 'a'.repeat(64), resourceType: 'skill', resourceKey: 'customer_query' },
+    }];
+    const productSummary = passingProductSummary(items);
+    const service = new BrainReleaseService({} as never);
+    const prisma = { brainEvalRun: { findFirst: jest.fn() } };
+
+    await expect(
+      (service as any).assertPerformanceEvidenceRuns(
+        prisma,
+        20,
+        {
+          ...productSummary,
+          performanceAcceptance: passingPerformanceAcceptance(items, {
+            status: 'blocked',
+            blockingReasons: ['quick:p95_budget_exceeded'],
+          }),
+        },
+        productSummary.productAcceptance,
+      ),
+    ).rejects.toMatchObject({ message: 'release_performance_acceptance_failed' });
+
+    await expect(
+      (service as any).assertPerformanceEvidenceRuns(
+        prisma,
+        20,
+        {
+          ...productSummary,
+          performanceAcceptance: passingPerformanceAcceptance(items, {
+            expiresAt: new Date(Date.now() - 1000).toISOString(),
+          }),
+        },
+        productSummary.productAcceptance,
+      ),
+    ).rejects.toMatchObject({ message: 'release_performance_acceptance_expired' });
+  });
+
+  it('rejects performance evidence produced by a different runtime commit', async () => {
+    const items = [{
+      resourceVersionId: 11,
+      resourceType: 'skill',
+      resourceKey: 'customer_query',
+      resourceVersion: { id: 11, checksum: 'a'.repeat(64), resourceType: 'skill', resourceKey: 'customer_query' },
+    }];
+    const productSummary = passingProductSummary(items);
+    const performance = passingPerformanceAcceptance(items) as any;
+    performance.runIdentity.runtimeCommit = '9'.repeat(40);
+    const service = new BrainReleaseService({} as never);
+
+    await expect(
+      (service as any).assertPerformanceEvidenceRuns(
+        { brainEvalRun: { findFirst: jest.fn() } },
+        20,
+        { ...productSummary, performanceAcceptance: performance },
+        productSummary.productAcceptance,
+      ),
+    ).rejects.toMatchObject({ message: 'release_performance_acceptance_identity_invalid' });
+  });
+
+  it('rejects a substituted 60-case performance manifest even when its checksum is well formed', async () => {
+    const items = [{
+      resourceVersionId: 11,
+      resourceType: 'skill',
+      resourceKey: 'customer_query',
+      resourceVersion: { id: 11, checksum: 'a'.repeat(64), resourceType: 'skill', resourceKey: 'customer_query' },
+    }];
+    const productSummary = passingProductSummary(items);
+    const performance = passingPerformanceAcceptance(items) as any;
+    performance.runIdentity.performanceManifestChecksum = '9'.repeat(64);
+    const service = new BrainReleaseService({} as never);
+
+    await expect(
+      (service as any).assertPerformanceEvidenceRuns(
+        { brainEvalRun: { findFirst: jest.fn() } },
+        20,
+        { ...productSummary, performanceAcceptance: performance },
+        productSummary.productAcceptance,
+      ),
+    ).rejects.toMatchObject({ message: 'release_performance_acceptance_identity_invalid' });
+  });
+
+  it('rejects missing performance buckets and duplicate performance run ids', async () => {
+    const items = [{
+      resourceVersionId: 11,
+      resourceType: 'skill',
+      resourceKey: 'customer_query',
+      resourceVersion: { id: 11, checksum: 'a'.repeat(64), resourceType: 'skill', resourceKey: 'customer_query' },
+    }];
+    const productSummary = passingProductSummary(items);
+    const missingBucket = passingPerformanceAcceptance(items) as any;
+    delete missingBucket.buckets.multiTurn;
+    const duplicateRun = passingPerformanceAcceptance(items) as any;
+    duplicateRun.buckets.single.runId = duplicateRun.buckets.quick.runId;
+    const service = new BrainReleaseService({} as never);
+    const prisma = { brainEvalRun: { findFirst: jest.fn() } };
+
+    await expect(
+      (service as any).assertPerformanceEvidenceRuns(
+        prisma,
+        20,
+        { ...productSummary, performanceAcceptance: missingBucket },
+        productSummary.productAcceptance,
+      ),
+    ).rejects.toMatchObject({ message: 'release_performance_acceptance_buckets_invalid' });
+
+    await expect(
+      (service as any).assertPerformanceEvidenceRuns(
+        prisma,
+        20,
+        { ...productSummary, performanceAcceptance: duplicateRun },
+        productSummary.productAcceptance,
+      ),
+    ).rejects.toMatchObject({ message: 'release_performance_acceptance_run_ids_invalid' });
+  });
+
+  it('rejects performance acceptance when one referenced database run is missing', async () => {
+    const items = [{
+      resourceVersionId: 11,
+      resourceType: 'skill',
+      resourceKey: 'customer_query',
+      resourceVersion: { id: 11, checksum: 'a'.repeat(64), resourceType: 'skill', resourceKey: 'customer_query' },
+    }];
+    const productSummary = passingProductSummary(items);
+    const service = new BrainReleaseService({} as never);
+    const prisma = {
+      brainEvalRun: {
+        findFirst: jest.fn(({ where }: { where: { id: number } }) =>
+          Promise.resolve(where.id === performanceFixtures.multiTurn.runId ? null : passingEvidenceRunById(items, where.id))),
+      },
+    };
+
+    await expect(
+      (service as any).assertPerformanceEvidenceRuns(
+        prisma,
+        20,
+        { ...productSummary, performanceAcceptance: passingPerformanceAcceptance(items) },
+        productSummary.productAcceptance,
+      ),
+    ).rejects.toMatchObject({ message: 'release_performance_run_missing:multiTurn' });
+  });
+
+  it('rejects a ready aggregate when the referenced run actually failed or exceeded P95', async () => {
+    const items = [{
+      resourceVersionId: 11,
+      resourceType: 'skill',
+      resourceKey: 'customer_query',
+      resourceVersion: { id: 11, checksum: 'a'.repeat(64), resourceType: 'skill', resourceKey: 'customer_query' },
+    }];
+    const productSummary = passingProductSummary(items);
+    const service = new BrainReleaseService({} as never);
+    const failedPrisma = {
+      brainEvalRun: {
+        findFirst: jest.fn(({ where }: { where: { id: number } }) => {
+          if (where.id !== performanceFixtures.multi.runId) return Promise.resolve(passingEvidenceRunById(items, where.id));
+          return Promise.resolve(passingPerformanceRun(items, 'multi', { failed: 1 }));
+        }),
+      },
+    };
+
+    await expect(
+      (service as any).assertPerformanceEvidenceRuns(
+        failedPrisma,
+        20,
+        { ...productSummary, performanceAcceptance: passingPerformanceAcceptance(items) },
+        productSummary.productAcceptance,
+      ),
+    ).rejects.toMatchObject({ message: expect.stringContaining('release_performance_run_invalid:multi:') });
+
+    const slowLatency = { ...performanceFixtures.single.latency, p95Ms: 9000, maxMs: 10000 };
+    const slowPrisma = {
+      brainEvalRun: {
+        findFirst: jest.fn(({ where }: { where: { id: number } }) => {
+          if (where.id !== performanceFixtures.single.runId) return Promise.resolve(passingEvidenceRunById(items, where.id));
+          return Promise.resolve(passingPerformanceRun(items, 'single', {
+            latencyBreakdown: { userResponse: slowLatency },
+          }));
+        }),
+      },
+    };
+
+    await expect(
+      (service as any).assertPerformanceEvidenceRuns(
+        slowPrisma,
+        20,
+        { ...productSummary, performanceAcceptance: passingPerformanceAcceptance(items) },
+        productSummary.productAcceptance,
+      ),
+    ).rejects.toMatchObject({ message: expect.stringContaining('release_performance_run_invalid:single:') });
+  });
+
+  it('rejects product evidence when the referenced gold-standard child run is missing', async () => {
+    const resourceVersion = {
+      id: 11,
+      checksum: 'a'.repeat(64),
+      resourceType: 'skill',
+      resourceKey: 'customer_query',
+      snapshot: {},
+    };
+    const items = [
+      { resourceVersionId: 11, resourceType: 'skill', resourceKey: 'customer_query', resourceVersion },
+    ];
+    const target = {
+      id: 21,
+      rollout: { mode: 'model', productionBaseline: true, evaluationEvidenceReleaseId: 20 },
+      items,
+    };
+    const evidenceRelease = {
+      id: 20,
+      status: 'active',
+      rollout: { mode: 'shadow', stage: 'shadow' },
+      items,
+    };
+    const prisma = {
+      brainRelease: { findUnique: jest.fn().mockResolvedValue(evidenceRelease) },
+      brainEvalRun: {
+        findMany: jest.fn(({ where }: { where: { releaseId: number } }) =>
+          Promise.resolve(where.releaseId === evidenceRelease.id ? [
+            { summary: passingProductSummary(items) },
+            { summary: passingEvalSummary(items) },
+          ] : [])),
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+    };
+    const service = new BrainReleaseService(prisma as never);
+
+    await expect(
+      (service as any).assertReleaseEvalEvidence(prisma, target, createReleaseFingerprint(items)),
+    ).rejects.toMatchObject({ message: 'release_gold_standard_run_missing' });
+  });
+
+  it('rejects product evidence when the gold-standard child results are incomplete', async () => {
+    const resourceVersion = {
+      id: 11,
+      checksum: 'a'.repeat(64),
+      resourceType: 'skill',
+      resourceKey: 'customer_query',
+      snapshot: {},
+    };
+    const items = [
+      { resourceVersionId: 11, resourceType: 'skill', resourceKey: 'customer_query', resourceVersion },
+    ];
+    const target = {
+      id: 21,
+      rollout: { mode: 'model', productionBaseline: true, evaluationEvidenceReleaseId: 20 },
+      items,
+    };
+    const evidenceRelease = {
+      id: 20,
+      status: 'active',
+      rollout: { mode: 'shadow', stage: 'shadow' },
+      items,
+    };
+    const prisma = {
+      brainRelease: { findUnique: jest.fn().mockResolvedValue(evidenceRelease) },
+      brainEvalRun: {
+        findMany: jest.fn(({ where }: { where: { releaseId: number } }) =>
+          Promise.resolve(where.releaseId === evidenceRelease.id ? [
+            { summary: passingProductSummary(items) },
+            { summary: passingEvalSummary(items) },
+          ] : [])),
+        findFirst: jest.fn().mockResolvedValue(passingGoldStandardRun(items)),
+      },
+      brainEvalResult: {
+        findMany: jest.fn().mockResolvedValue(passingGoldStandardResultRows().slice(0, 99)),
+      },
+    };
+    const service = new BrainReleaseService(prisma as never);
+
+    await expect(
+      (service as any).assertReleaseEvalEvidence(prisma, target, createReleaseFingerprint(items)),
+    ).rejects.toMatchObject({ message: 'release_gold_standard_results_invalid' });
+  });
+
+  it('rejects product evidence when one actual gold-standard row failed despite a passing summary', async () => {
+    const resourceVersion = {
+      id: 11,
+      checksum: 'a'.repeat(64),
+      resourceType: 'skill',
+      resourceKey: 'customer_query',
+      snapshot: {},
+    };
+    const items = [
+      { resourceVersionId: 11, resourceType: 'skill', resourceKey: 'customer_query', resourceVersion },
+    ];
+    const target = {
+      id: 21,
+      rollout: { mode: 'model', productionBaseline: true, evaluationEvidenceReleaseId: 20 },
+      items,
+    };
+    const evidenceRelease = {
+      id: 20,
+      status: 'active',
+      rollout: { mode: 'shadow', stage: 'shadow' },
+      items,
+    };
+    const rows = passingGoldStandardResultRows();
+    rows[0] = {
+      caseKey: rows[0]!.caseKey,
+      deterministicPassed: false,
+      deterministicGrade: { goldCaseId: rows[0]!.caseKey, passed: false, status: 'comparison_failed' },
+    };
+    const prisma = {
+      brainRelease: { findUnique: jest.fn().mockResolvedValue(evidenceRelease) },
+      brainEvalRun: {
+        findMany: jest.fn(({ where }: { where: { releaseId: number } }) =>
+          Promise.resolve(where.releaseId === evidenceRelease.id ? [
+            { summary: passingProductSummary(items) },
+            { summary: passingEvalSummary(items) },
+          ] : [])),
+        findFirst: jest.fn().mockResolvedValue(passingGoldStandardRun(items)),
+      },
+      brainEvalResult: { findMany: jest.fn().mockResolvedValue(rows) },
+    };
+    const service = new BrainReleaseService(prisma as never);
+
+    await expect(
+      (service as any).assertReleaseEvalEvidence(prisma, target, createReleaseFingerprint(items)),
+    ).rejects.toMatchObject({ message: 'release_gold_standard_results_invalid' });
+  });
+
+  it('rejects capability and product evidence produced by different runtime commits', async () => {
+    const resourceVersion = {
+      id: 11,
+      checksum: 'a'.repeat(64),
+      resourceType: 'skill',
+      resourceKey: 'customer_query',
+      snapshot: {},
+    };
+    const items = [
+      { resourceVersionId: 11, resourceType: 'skill', resourceKey: 'customer_query', resourceVersion },
+    ];
+    const target = {
+      id: 21,
+      rollout: { mode: 'model', productionBaseline: true, evaluationEvidenceReleaseId: 20 },
+      items,
+    };
+    const evidenceRelease = {
+      id: 20,
+      status: 'active',
+      rollout: { mode: 'shadow', stage: 'shadow' },
+      items,
+    };
+    const productSummary = {
+      ...passingProductSummary(items),
+      performanceAcceptance: passingPerformanceAcceptance(items),
+    };
+    const prisma = {
+      brainRelease: { findUnique: jest.fn().mockResolvedValue(evidenceRelease) },
+      brainEvalRun: {
+        findMany: jest.fn(({ where }: { where: { releaseId: number } }) =>
+          Promise.resolve(where.releaseId === evidenceRelease.id ? [
+            { summary: productSummary },
+            { summary: passingEvalSummary(items, '9'.repeat(40)) },
+          ] : [])),
+        findFirst: jest.fn(({ where }: { where: { id: number } }) =>
+          Promise.resolve(passingEvidenceRunById(items, where.id))),
+      },
+      brainEvalResult: {
+        findMany: jest.fn().mockResolvedValue(passingGoldStandardResultRows()),
+      },
+    };
+    const service = new BrainReleaseService(prisma as never);
+
+    await expect(
+      (service as any).assertReleaseEvalEvidence(prisma, target, createReleaseFingerprint(items)),
+    ).rejects.toMatchObject({ message: 'release_eval_pipeline_identity_mismatch' });
+  });
+
+  it('rejects product evidence whose embedded summary does not match its standard run', async () => {
+    const resourceVersion = {
+      id: 11,
+      checksum: 'a'.repeat(64),
+      resourceType: 'skill',
+      resourceKey: 'customer_query',
+      snapshot: {},
+    };
+    const items = [
+      { resourceVersionId: 11, resourceType: 'skill', resourceKey: 'customer_query', resourceVersion },
+    ];
+    const target = {
+      id: 21,
+      rollout: { mode: 'model', productionBaseline: true, evaluationEvidenceReleaseId: 20 },
+      items,
+    };
+    const evidenceRelease = {
+      id: 20,
+      status: 'active',
+      rollout: { mode: 'shadow', stage: 'shadow' },
+      items,
+    };
+    const productSummary = passingProductSummary(items);
+    productSummary.runKey = 'different-run-key';
+    const prisma = {
+      brainRelease: { findUnique: jest.fn().mockResolvedValue(evidenceRelease) },
+      brainEvalRun: {
+        findMany: jest.fn().mockResolvedValue([
+          { summary: productSummary },
+          { summary: passingEvalSummary(items) },
+        ]),
+        findFirst: jest.fn(),
+      },
+    };
+    const service = new BrainReleaseService(prisma as never);
+
+    await expect(
+      (service as any).assertReleaseEvalEvidence(prisma, target, createReleaseFingerprint(items)),
+    ).rejects.toMatchObject({ message: 'release_product_acceptance_summary_mismatch' });
+  });
+
+  it('rejects a production baseline release when two-stage product evidence is missing', async () => {
+    const resourceVersion = {
+      id: 11,
+      checksum: 'a'.repeat(64),
+      resourceType: 'skill',
+      resourceKey: 'customer_query',
+      snapshot: {},
+    };
+    const items = [
+      { resourceVersionId: 11, resourceType: 'skill', resourceKey: 'customer_query', resourceVersion },
+    ];
+    const target = {
+      id: 21,
+      rollout: { mode: 'model', productionBaseline: true, evaluationEvidenceReleaseId: 20 },
+      items,
+    };
+    const evidenceRelease = {
+      id: 20,
+      status: 'active',
+      rollout: { mode: 'shadow', stage: 'shadow' },
+      items,
+    };
+    const prisma = {
+      brainRelease: { findUnique: jest.fn().mockResolvedValue(evidenceRelease) },
+      brainEvalRun: {
+        findMany: jest.fn().mockResolvedValue([{ summary: passingEvalSummary(items) }]),
+        findFirst: jest.fn(),
+      },
+    };
+    const service = new BrainReleaseService(prisma as never);
+
+    await expect(
+      (service as any).assertReleaseEvalEvidence(prisma, target, createReleaseFingerprint(items)),
+    ).rejects.toMatchObject({ message: 'release_product_acceptance_missing' });
+  });
+
+  it('rejects expired two-stage product evidence', async () => {
+    const resourceVersion = {
+      id: 11,
+      checksum: 'a'.repeat(64),
+      resourceType: 'skill',
+      resourceKey: 'customer_query',
+      snapshot: {},
+    };
+    const items = [
+      { resourceVersionId: 11, resourceType: 'skill', resourceKey: 'customer_query', resourceVersion },
+    ];
+    const target = {
+      id: 21,
+      rollout: { mode: 'model', productionBaseline: true, evaluationEvidenceReleaseId: 20 },
+      items,
+    };
+    const evidenceRelease = {
+      id: 20,
+      status: 'active',
+      rollout: { mode: 'shadow', stage: 'shadow' },
+      items,
+    };
+    const prisma = {
+      brainRelease: { findUnique: jest.fn().mockResolvedValue(evidenceRelease) },
+      brainEvalRun: {
+        findMany: jest.fn().mockResolvedValue([
+          { summary: passingProductSummary(items, { expiresAt: new Date(Date.now() - 1000).toISOString() }) },
+          { summary: passingEvalSummary(items) },
+        ]),
+        findFirst: jest.fn(),
+      },
+    };
+    const service = new BrainReleaseService(prisma as never);
+
+    await expect(
+      (service as any).assertReleaseEvalEvidence(prisma, target, createReleaseFingerprint(items)),
+    ).rejects.toMatchObject({ message: 'release_product_acceptance_expired' });
   });
 
   it('rejects inherited evaluation evidence when the production fingerprint differs', async () => {
@@ -275,11 +1123,13 @@ describe('BrainReleaseService', () => {
       $transaction: jest.fn((callback) => callback(tx)),
     };
     const service = new BrainReleaseService(prisma as never);
+    (service as any).activeRuntimeReleaseCache = { expiresAt: Number.MAX_SAFE_INTEGER, fingerprint: 'stale', releases: [] };
 
     await expect(service.rollbackToRules({ releaseId: 15, reason: 'emergency' })).resolves.toMatchObject({
       id: 10,
       status: 'active',
     });
+    expect((service as any).activeRuntimeReleaseCache).toBeUndefined();
 
     expect(tx.brainRelease.updateMany).toHaveBeenCalledWith({
       where: { id: 15, status: 'active' },
@@ -526,6 +1376,7 @@ describe('BrainReleaseService', () => {
     const service = new BrainReleaseService(prisma as never);
 
     const resolved = await service.resolveRuntimeMode({ storeId: 6, userId: 28, roleKey: 'store_manager' });
+    const cached = await service.resolveRuntimeMode({ storeId: 6, userId: 28, roleKey: 'store_manager' });
 
     expect(resolved).toMatchObject({
       mode: 'model',
@@ -535,6 +1386,130 @@ describe('BrainReleaseService', () => {
     });
     expect(Object.isFrozen(resolved.capabilityCandidates)).toBe(true);
     expect(Object.isFrozen(resolved.capabilityCandidates?.[0])).toBe(true);
+    expect(cached).toMatchObject({ release: { id: 23 }, capabilityCandidates: [candidate] });
+    expect(prisma.brainRelease.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('serves the stale active runtime cache while refreshing it after TTL', async () => {
+    const now = jest.spyOn(Date, 'now').mockReturnValue(1_000);
+    try {
+      const first = {
+        id: 23,
+        status: 'active',
+        scope: 'global',
+        activatedAt: new Date('2026-07-21T12:00:00.000Z'),
+        rollout: { mode: 'model' },
+        items: [
+          {
+            resourceType: 'skill',
+            resourceKey: 'customer_facts',
+            version: 1,
+            snapshot: { key: 'customer_facts', version: 1, sourceFingerprint: 'a'.repeat(64) },
+          },
+        ],
+      };
+      const second = {
+        ...first,
+        id: 24,
+        activatedAt: new Date('2026-07-21T12:05:00.000Z'),
+        items: [
+          {
+            resourceType: 'skill',
+            resourceKey: 'customer_facts',
+            version: 2,
+            snapshot: { key: 'customer_facts', version: 2, sourceFingerprint: 'b'.repeat(64) },
+          },
+        ],
+      };
+      const findMany = jest.fn().mockResolvedValueOnce([first]).mockResolvedValueOnce([second]);
+      const service = new BrainReleaseService({ brainRelease: { findMany } } as never);
+
+      await expect(
+        service.resolveRuntimeMode({ storeId: 6, userId: 28, roleKey: 'store_manager' }),
+      ).resolves.toMatchObject({ release: { id: 23 }, capabilityCandidates: [{ version: 1 }] });
+      now.mockReturnValue(2_001);
+      await expect(
+        service.resolveRuntimeMode({ storeId: 6, userId: 28, roleKey: 'store_manager' }),
+      ).resolves.toMatchObject({ release: { id: 23 }, capabilityCandidates: [{ version: 1 }] });
+      await Promise.resolve();
+      await Promise.resolve();
+      await expect(
+        service.resolveRuntimeMode({ storeId: 6, userId: 28, roleKey: 'store_manager' }),
+      ).resolves.toMatchObject({ release: { id: 24 }, capabilityCandidates: [{ version: 2 }] });
+
+      expect(findMany).toHaveBeenCalledTimes(2);
+    } finally {
+      now.mockRestore();
+    }
+  });
+
+  it('does not block a runtime request on a slow refresh when a stale release is available', async () => {
+    const now = jest.spyOn(Date, 'now').mockReturnValue(1_000);
+    try {
+      let resolveRefresh!: (value: unknown[]) => void;
+      const refresh = new Promise<unknown[]>((resolve) => {
+        resolveRefresh = resolve;
+      });
+      const release = {
+        id: 23,
+        status: 'active',
+        scope: 'global',
+        activatedAt: new Date('2026-07-21T12:00:00.000Z'),
+        rollout: { mode: 'model' },
+        items: [{ resourceType: 'skill', resourceKey: 'customer_facts', snapshot: { key: 'customer_facts' } }],
+      };
+      const findMany = jest.fn().mockResolvedValueOnce([release]).mockReturnValueOnce(refresh);
+      const service = new BrainReleaseService({ brainRelease: { findMany } } as never);
+      await service.resolveRuntimeMode({ storeId: 6, userId: 28, roleKey: 'store_manager' });
+      now.mockReturnValue(2_001);
+
+      await expect(
+        service.resolveRuntimeMode({ storeId: 6, userId: 28, roleKey: 'store_manager' }),
+      ).resolves.toMatchObject({ release: { id: 23 } });
+      expect(findMany).toHaveBeenCalledTimes(2);
+
+      resolveRefresh([release]);
+      await refresh;
+    } finally {
+      now.mockRestore();
+    }
+  });
+
+  it('does not let an invalidated in-flight release lookup overwrite the newer active fingerprint', async () => {
+    const release = (id: number, version: number, fingerprint: string) => ({
+      id,
+      status: 'active',
+      scope: 'global',
+      activatedAt: new Date(`2026-07-21T12:0${version}:00.000Z`),
+      rollout: { mode: 'model' },
+      items: [
+        {
+          resourceType: 'skill',
+          resourceKey: 'customer_facts',
+          version,
+          snapshot: { key: 'customer_facts', version, sourceFingerprint: fingerprint.repeat(64) },
+        },
+      ],
+    });
+    let resolveStale!: (value: unknown) => void;
+    const staleLookup = new Promise((resolve) => {
+      resolveStale = resolve;
+    });
+    const findMany = jest
+      .fn()
+      .mockReturnValueOnce(staleLookup)
+      .mockResolvedValueOnce([release(24, 2, 'b')]);
+    const service = new BrainReleaseService({ brainRelease: { findMany } } as never);
+
+    const staleRequest = service.resolveRuntimeMode({ storeId: 6, userId: 28, roleKey: 'store_manager' });
+    await Promise.resolve();
+    (service as any).invalidateActiveRuntimeReleaseCache();
+    const freshRequest = service.resolveRuntimeMode({ storeId: 6, userId: 28, roleKey: 'store_manager' });
+    await expect(freshRequest).resolves.toMatchObject({ release: { id: 24 }, capabilityCandidates: [{ version: 2 }] });
+    resolveStale([release(23, 1, 'a')]);
+    await expect(staleRequest).resolves.toMatchObject({ release: { id: 23 }, capabilityCandidates: [{ version: 1 }] });
+
+    expect((service as any).activeRuntimeReleaseCache.releases[0].id).toBe(24);
   });
 
   it('resolves the governance runtime summary without loading release item snapshots', async () => {

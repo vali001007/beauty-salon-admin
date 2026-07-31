@@ -386,7 +386,7 @@ async function countCurrentStoreData(storeId?: number | null) {
     products: productIds.length,
     stockBatches: productIds.length ? await prisma.stockBatch.count({ where: { productId: { in: productIds } } }) : 0,
     stockMovements: await prisma.stockMovement.count({ where: { storeId } }),
-    purchaseOrders: await prisma.purchaseOrder.count({ where: { orderNo: { startsWith: PREFIX } } }),
+    purchaseOrders: await prisma.purchaseOrder.count({ where: { storeId, orderNo: { startsWith: PREFIX } } }),
     transferOrders: await prisma.transferOrder.count({ where: { OR: [{ fromStoreId: storeId }, { toStoreId: storeId }] } }),
     projects: projectIds.length,
     projectBomItems: projectIds.length ? await prisma.projectBomItem.count({ where: { projectId: { in: projectIds } } }) : 0,
@@ -512,7 +512,7 @@ async function refreshStoreData(storeId: number) {
   await prisma.stockBatch.deleteMany({ where: { productId: { in: productIds } } });
   await prisma.product.deleteMany({ where: { storeId } });
   await prisma.transferOrder.deleteMany({ where: { OR: [{ fromStoreId: storeId }, { toStoreId: storeId }, { orderNo: { startsWith: PREFIX } }] } });
-  await prisma.purchaseOrder.deleteMany({ where: { orderNo: { startsWith: PREFIX } } });
+  await prisma.purchaseOrder.deleteMany({ where: { storeId, orderNo: { startsWith: PREFIX } } });
   await prisma.customerHealthProfile.deleteMany({ where: { customerId: { in: customerIds } } });
   await prisma.consumptionRecord.deleteMany({ where: { customerId: { in: customerIds } } });
   await prisma.customer.deleteMany({ where: { storeId } });
@@ -733,6 +733,7 @@ async function seedProducts(storeId: number, categoryIds: Map<string, number>) {
   for (let i = 0; i < 4; i++) {
     await prisma.purchaseOrder.create({
       data: {
+        storeId,
         orderNo: `${PREFIX}-PUR-${String(i + 1).padStart(3, '0')}`,
         supplier: 'Ami 官方演示供应链',
         totalAmount: 18000 + i * 4200,

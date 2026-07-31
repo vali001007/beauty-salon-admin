@@ -115,7 +115,7 @@ async function main() {
     prisma.projectBomItem.count({ where: store ? { project: projectWhere } : {} }),
     prisma.stockBatch.count({ where: store ? { product: { storeId: store.id, deletedAt: null } } : {} }),
     prisma.stockMovement.count({ where: stockMovementWhere }),
-    prisma.purchaseOrder.count(),
+    prisma.purchaseOrder.count({ where: store ? { storeId: store.id } : {} }),
     prisma.supplyCatalogMapping.count({ where: supplyMappingWhere }),
     prisma.supplyCatalogMapping.count({
       where: {
@@ -163,7 +163,7 @@ async function main() {
       stockBatches,
       stockMovements,
       manualPurchaseOrders,
-      manualPurchaseOrdersScope: 'legacy_global_table_without_store_id',
+      manualPurchaseOrdersScope: store ? 'selected_store' : 'all_stores',
       supplyMappings,
       supplyMappingsWithQuote,
       procurementOrders,

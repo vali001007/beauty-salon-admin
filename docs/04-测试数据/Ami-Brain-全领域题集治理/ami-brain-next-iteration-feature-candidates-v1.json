@@ -1,0 +1,222 @@
+{
+  "schemaVersion": "ami-brain-next-iteration-feature-candidates/v1",
+  "generatedAt": "2026-07-29T04:28:14.272Z",
+  "sourceBaselineChecksum": "eeabcf0ba6d2652cabe91950bfc04bb2fa6f3fd6c95510d583d9ed6d99f186ec",
+  "caseCount": 6,
+  "excludedFrom": [
+    "release-core",
+    "standard-regression",
+    "extended-rotation",
+    "pass_rate_denominator"
+  ],
+  "featureSummary": {
+    "staff_customer_churn_attribution": 5,
+    "staff_directory_schedule": 1
+  },
+  "cases": [
+    {
+      "id": "BQ0355",
+      "domain": "员工域",
+      "role": "店长",
+      "type": "risk",
+      "difficulty": "medium",
+      "question": "哪个美容师上个月客户流失偏多",
+      "expectedTarget": "员工风险巡检",
+      "notes": "",
+      "status": "next_iteration_feature",
+      "featureKey": "staff_customer_churn_attribution",
+      "reason": "按美容师归属的客户留存基线、流失事件和归因尚未形成业务闭环。",
+      "missingComponents": [
+        "management_entry",
+        "backend_api",
+        "data_facts"
+      ],
+      "evidence": {
+        "managementEntry": {
+          "status": "missing"
+        },
+        "backendApi": {
+          "status": "missing"
+        },
+        "dataFacts": {
+          "status": "missing"
+        },
+        "decisionEvidence": {
+          "path": "packages/server-v2/src/brain/brain-chat.service.ts",
+          "anchor": "当前管理端和后台没有按美容师归属的客户留存基线、流失事件和归因事实"
+        }
+      }
+    },
+    {
+      "id": "BQ0362",
+      "domain": "员工域",
+      "role": "店长",
+      "type": "risk",
+      "difficulty": "medium",
+      "question": "哪个美容师最近三个月客户流失偏多",
+      "expectedTarget": "员工风险巡检",
+      "notes": "",
+      "status": "next_iteration_feature",
+      "featureKey": "staff_customer_churn_attribution",
+      "reason": "按美容师归属的客户留存基线、流失事件和归因尚未形成业务闭环。",
+      "missingComponents": [
+        "management_entry",
+        "backend_api",
+        "data_facts"
+      ],
+      "evidence": {
+        "managementEntry": {
+          "status": "missing"
+        },
+        "backendApi": {
+          "status": "missing"
+        },
+        "dataFacts": {
+          "status": "missing"
+        },
+        "decisionEvidence": {
+          "path": "packages/server-v2/src/brain/brain-chat.service.ts",
+          "anchor": "当前管理端和后台没有按美容师归属的客户留存基线、流失事件和归因事实"
+        }
+      }
+    },
+    {
+      "id": "BQ0368",
+      "domain": "员工域",
+      "role": "店长",
+      "type": "risk",
+      "difficulty": "medium",
+      "question": "哪个美容师这个季度客户流失偏多",
+      "expectedTarget": "员工风险巡检",
+      "notes": "",
+      "status": "next_iteration_feature",
+      "featureKey": "staff_customer_churn_attribution",
+      "reason": "按美容师归属的客户留存基线、流失事件和归因尚未形成业务闭环。",
+      "missingComponents": [
+        "management_entry",
+        "backend_api",
+        "data_facts"
+      ],
+      "evidence": {
+        "managementEntry": {
+          "status": "missing"
+        },
+        "backendApi": {
+          "status": "missing"
+        },
+        "dataFacts": {
+          "status": "missing"
+        },
+        "decisionEvidence": {
+          "path": "packages/server-v2/src/brain/brain-chat.service.ts",
+          "anchor": "当前管理端和后台没有按美容师归属的客户留存基线、流失事件和归因事实"
+        }
+      }
+    },
+    {
+      "id": "BQ0374",
+      "domain": "员工域",
+      "role": "店长",
+      "type": "risk",
+      "difficulty": "medium",
+      "question": "哪个美容师双十一期间客户流失偏多",
+      "expectedTarget": "员工风险巡检",
+      "notes": "",
+      "status": "next_iteration_feature",
+      "featureKey": "staff_customer_churn_attribution",
+      "reason": "按美容师归属的客户留存基线、流失事件和归因尚未形成业务闭环。",
+      "missingComponents": [
+        "management_entry",
+        "backend_api",
+        "data_facts"
+      ],
+      "evidence": {
+        "managementEntry": {
+          "status": "missing"
+        },
+        "backendApi": {
+          "status": "missing"
+        },
+        "dataFacts": {
+          "status": "missing"
+        },
+        "decisionEvidence": {
+          "path": "packages/server-v2/src/brain/brain-chat.service.ts",
+          "anchor": "当前管理端和后台没有按美容师归属的客户留存基线、流失事件和归因事实"
+        }
+      }
+    },
+    {
+      "id": "BQ0380",
+      "domain": "员工域",
+      "role": "店长",
+      "type": "risk",
+      "difficulty": "medium",
+      "question": "哪个美容师最近14天客户流失偏多",
+      "expectedTarget": "员工风险巡检",
+      "notes": "",
+      "status": "next_iteration_feature",
+      "featureKey": "staff_customer_churn_attribution",
+      "reason": "按美容师归属的客户留存基线、流失事件和归因尚未形成业务闭环。",
+      "missingComponents": [
+        "management_entry",
+        "backend_api",
+        "data_facts"
+      ],
+      "evidence": {
+        "managementEntry": {
+          "status": "missing"
+        },
+        "backendApi": {
+          "status": "missing"
+        },
+        "dataFacts": {
+          "status": "missing"
+        },
+        "decisionEvidence": {
+          "path": "packages/server-v2/src/brain/brain-chat.service.ts",
+          "anchor": "当前管理端和后台没有按美容师归属的客户留存基线、流失事件和归因事实"
+        }
+      }
+    },
+    {
+      "id": "BQ2001",
+      "domain": "员工域",
+      "role": "店长",
+      "type": "query_cross",
+      "difficulty": "medium",
+      "question": "能做肩颈舒压养护的美容师2026年6月29日有谁在岗",
+      "expectedTarget": "Beautician/Schedule 表",
+      "notes": "固定日期技能与严格在岗交集；门店 6 在该日期有排班，但当前没有肩颈舒压养护项目的美容师技能绑定，本轮只作为下一轮数据配置候选且不进入发布分母",
+      "status": "next_iteration_feature",
+      "featureKey": "staff_directory_schedule",
+      "reason": "员工目录、项目技能和排班功能已存在，但当前批准开发门店在指定日期没有任何满足该项目技能与在岗交集的真实业务记录，不能使用测试 mock 代替题目所需数据。",
+      "missingComponents": [
+        "data_facts"
+      ],
+      "evidence": {
+        "managementEntry": {
+          "status": "present"
+        },
+        "backendApi": {
+          "status": "present"
+        },
+        "dataFacts": {
+          "status": "missing"
+        },
+        "decisionEvidence": {
+          "path": "docs/03-开发计划/01-AI智能体与问数能力/07-Ami-Brain-当前主线/Ami-Brain-发布门禁全量验收与性能收敛详细开发计划-2026-07-28.md",
+          "anchor": "门店 6 在 2026-06-29 有 30 条有效排班，但“肩颈舒压养护”项目没有任何美容师技能绑定。"
+        }
+      },
+      "source": "supplemental_question_registry_v1",
+      "admission": {
+        "source": "supplemental_question_registry_v1",
+        "questionChecksum": "5ba4a29fb343659b0d5abc87579748e2a8fbe88b7ead0c5f7ba07a98436fef0a",
+        "reviewChecksum": "ffa522b9cb0c43ea0e37a1e41559718d8c267eaf81a8b235fc7a4f35878c2215",
+        "reviewedBy": "product-owner",
+        "reviewedAt": "2026-07-29T14:30:00.000Z"
+      }
+    }
+  ]
+}

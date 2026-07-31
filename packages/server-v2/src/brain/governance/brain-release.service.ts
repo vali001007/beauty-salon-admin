@@ -1,29 +1,59 @@
-import { BadRequestException, ConflictException, Injectable, Optional } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, OnModuleInit, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
+import { basename, resolve } from 'node:path';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { BrainCapabilityCatalogService } from '../capability/brain-capability-catalog.service.js';
+import { BrainCapabilityScannerService } from '../capability/brain-capability-scanner.service.js';
 import { BrainCapabilitySemanticVerifierService } from '../capability/brain-capability-semantic-verifier.service.js';
+import { evaluateCapabilitySourceFreshness } from '../capability/brain-capability-source-freshness.js';
+import type { BrainCapabilityScanReport } from '../capability/brain-capability-scan.types.js';
 import type { BrainCapabilityCatalogValidationReport } from '../capability/brain-capability.types.js';
 import type { BrainCapabilityCandidate } from '../capability/brain-capability.types.js';
+import { jsonChecksum } from '../eval/ami-brain-product-acceptance.js';
+import { caseIdsChecksum } from '../eval/ami-brain-suite-manifest.js';
 import type { BrainEvaluationReleaseSnapshot } from './brain-evaluation-release-snapshot.js';
-import {
-  createReleaseFingerprint,
-  lockReleaseResources,
-} from './brain-capability-regeneration-fingerprint.js';
+import { BrainActiveReleaseWarmupService } from './brain-active-release-warmup.service.js';
+import { createReleaseFingerprint, lockReleaseResources } from './brain-capability-regeneration-fingerprint.js';
+
+const ACTIVE_RUNTIME_RELEASE_CACHE_TTL_MS = 1_000;
+const PERFORMANCE_BUCKET_POLICY = {
+  quick: { count: 20, budgetsMs: { p50: 1500, p95: 3000, max: 5000 } },
+  single: { count: 20, budgetsMs: { p50: 3000, p95: 8000, max: 12000 } },
+  multi: { count: 10, budgetsMs: { p50: 6000, p95: 15000, max: 20000 } },
+  multiTurn: { count: 10, budgetsMs: { p50: 8000, p95: 20000, max: 25000 } },
+} as const;
+const APPROVED_PERFORMANCE_MANIFESTS: Record<string, { manifestChecksum: string; caseIdsChecksum: string }> = {
+  '2026-07-29-v1': {
+    manifestChecksum: 'f529a9ad14651c3a98bd281bc9281631b00c62465fe8fd2e493907f9fcfd0101',
+    caseIdsChecksum: '4f97cc54be8e347cf36bd483f919e261538753645fcb077c864061c5415a1342',
+  },
+};
 
 @Injectable()
-export class BrainReleaseService {
-  private readonly evaluationReleaseSnapshotCache = new Map<
-    number,
-    Promise<BrainEvaluationReleaseSnapshot>
-  >();
+export class BrainReleaseService implements OnModuleInit {
+  private readonly evaluationReleaseSnapshotCache = new Map<number, Promise<BrainEvaluationReleaseSnapshot>>();
+  private activeRuntimeReleaseCache?: {
+    expiresAt: number;
+    fingerprint: string;
+    releases: readonly ActiveRuntimeRelease[];
+  };
+  private activeRuntimeReleaseLoading?: Promise<readonly ActiveRuntimeRelease[]>;
+  private activeRuntimeReleaseCacheGeneration = 0;
+  private capabilitySourceScanLoading?: Promise<BrainCapabilityScanReport>;
 
   constructor(
     @Optional() private readonly prisma?: PrismaService,
     @Optional() private readonly semanticVerifier?: BrainCapabilitySemanticVerifierService,
     @Optional() private readonly capabilityCatalog?: BrainCapabilityCatalogService,
+    @Optional() private readonly capabilityScanner?: BrainCapabilityScannerService,
+    @Optional() private readonly activeReleaseWarmup?: BrainActiveReleaseWarmupService,
   ) {}
+
+  onModuleInit(): void {
+    if (!this.prisma) return;
+    void this.loadActiveRuntimeReleases().catch(() => undefined);
+  }
 
   buildRollbackPlan(currentReleaseKey: string, previousReleaseKey: string) {
     return {
@@ -74,12 +104,7 @@ export class BrainReleaseService {
     return prisma.brainRelease.update({ where: { id: input.releaseId }, data: { failureReason: reason } });
   }
 
-  async resolveRuntimeMode(input: {
-    storeId: number;
-    userId: number;
-    roleKey: string;
-    evaluationReleaseId?: number;
-  }) {
+  async resolveRuntimeMode(input: { storeId: number; userId: number; roleKey: string; evaluationReleaseId?: number }) {
     const evaluationRequested = input.evaluationReleaseId !== undefined;
     if (evaluationRequested) {
       const snapshot = await this.freezeEvaluationRelease(input.evaluationReleaseId!);
@@ -94,13 +119,14 @@ export class BrainReleaseService {
     const release = await this.selectRelease(input);
     const rollout = release ? this.record(release.rollout) : {};
     const declaredMode = rollout.mode;
-    const capabilityCandidates = release && (declaredMode === 'model' || declaredMode === 'shadow')
-      ? deepCloneFreeze(
-          release.items
-            .filter((item) => item.resourceType === 'skill')
-            .map((item) => this.record(item.snapshot) as unknown as BrainCapabilityCandidate),
-        )
-      : undefined;
+    const capabilityCandidates =
+      release && (declaredMode === 'model' || declaredMode === 'shadow')
+        ? deepCloneFreeze(
+            release.items
+              .filter((item) => item.resourceType === 'skill')
+              .map((item) => this.record(item.snapshot) as unknown as BrainCapabilityCandidate),
+          )
+        : undefined;
     const mode = declaredMode;
     return mode === 'rules' || mode === 'shadow' || mode === 'model'
       ? { mode, declaredMode, release, capabilityCandidates }
@@ -120,6 +146,10 @@ export class BrainReleaseService {
     }
   }
 
+  loadFreshEvaluationRelease(releaseId: number): Promise<BrainEvaluationReleaseSnapshot> {
+    return this.loadEvaluationReleaseSnapshot(releaseId);
+  }
+
   private async loadEvaluationReleaseSnapshot(releaseId: number): Promise<BrainEvaluationReleaseSnapshot> {
     const release = await this.selectEvaluationRelease(releaseId);
     const skillItems = await this.requirePrisma().brainReleaseItem.findMany({
@@ -131,8 +161,9 @@ export class BrainReleaseService {
     if (declaredMode !== 'rules' && declaredMode !== 'shadow' && declaredMode !== 'model') {
       throw new BadRequestException('evaluation_release_mode_invalid');
     }
-    const capabilityCandidates = skillItems
-      .map((item) => this.record(item.snapshot) as unknown as BrainCapabilityCandidate);
+    const capabilityCandidates = skillItems.map(
+      (item) => this.record(item.snapshot) as unknown as BrainCapabilityCandidate,
+    );
     return deepCloneFreeze({
       releaseId: release.id,
       releaseStatus: release.status as 'draft' | 'active',
@@ -150,19 +181,28 @@ export class BrainReleaseService {
 
   async validateReleaseCatalog(releaseId: number) {
     const snapshot = await this.freezeEvaluationRelease(releaseId);
+    const sourceFreshness = await this.validateCapabilitySourceFreshness(snapshot.capabilityCandidates);
     const report = this.capabilityCatalog
       ? await this.capabilityCatalog.validateEnabledCapabilities(snapshot.capabilityCandidates)
-      : {
+      : ({
           valid: false,
           cards: [],
-          issues: [{ capabilityKey: '*', capabilityVersion: 0, code: 'permission_registry_unavailable', message: 'Capability catalog service is unavailable.' }],
-        } as BrainCapabilityCatalogValidationReport;
+          issues: [
+            {
+              capabilityKey: '*',
+              capabilityVersion: 0,
+              code: 'permission_registry_unavailable',
+              message: 'Capability catalog service is unavailable.',
+            },
+          ],
+        } as BrainCapabilityCatalogValidationReport);
     return {
-      valid: report.valid,
+      valid: report.valid && sourceFreshness.valid,
       capabilityCount: snapshot.capabilityCandidates.length,
       cardCount: report.cards.length,
       issueCount: report.issues.length,
       issues: report.issues,
+      sourceFreshness,
     };
   }
 
@@ -234,11 +274,13 @@ export class BrainReleaseService {
       throw new BadRequestException('release_evaluation_only');
     }
     const releaseFingerprint = createReleaseFingerprint(release.items);
-    const regenerationDelegate = (prisma as unknown as {
-      brainCapabilityRegenerationJob?: {
-        findFirst(input: Record<string, unknown>): Promise<{ id: number; status?: string } | null>;
-      };
-    }).brainCapabilityRegenerationJob;
+    const regenerationDelegate = (
+      prisma as unknown as {
+        brainCapabilityRegenerationJob?: {
+          findFirst(input: Record<string, unknown>): Promise<{ id: number; status?: string } | null>;
+        };
+      }
+    ).brainCapabilityRegenerationJob;
     const regeneration = regenerationDelegate
       ? await regenerationDelegate.findFirst({
           where: { releaseFingerprint },
@@ -250,11 +292,17 @@ export class BrainReleaseService {
     this.assertReleaseItemsConsistent(release.items);
     this.assertDeployableRuntimeRelease(release);
     this.assertSemanticSnapshotFingerprint(release);
+    await this.assertCapabilitySourceFreshness(
+      release.items
+        .filter((item) => item.resourceType === 'skill')
+        .map((item) => this.record(item.resourceVersion.snapshot) as unknown as BrainCapabilityCandidate),
+    );
     await this.assertReleaseEvalEvidence(prisma, release, releaseFingerprint);
     await this.validateGeneratedCapabilities(release.items.map((item) => item.resourceVersion));
     await this.validateDependencies(release.items.map((item) => item.resourceVersion));
+    await this.activeReleaseWarmup?.warmRelease({ releaseId: release.id, expectedStatus: 'draft' });
 
-    return this.runSerializable('release_activation_conflict', async (tx) => {
+    const activated = await this.runSerializable('release_activation_conflict', async (tx) => {
       await lockReleaseResources(tx, release.id);
       const lockedRelease = await tx.brainRelease.findUnique({
         where: { id: release.id },
@@ -302,6 +350,46 @@ export class BrainReleaseService {
         include: { items: true },
       });
     });
+    this.invalidateActiveRuntimeReleaseCache();
+    return activated;
+  }
+
+  private async validateCapabilitySourceFreshness(candidates: readonly BrainCapabilityCandidate[]) {
+    if (!this.capabilityScanner) {
+      return {
+        valid: false,
+        issues: [{ capabilityKey: '*', code: 'source_capability_missing' as const }],
+      };
+    }
+    const scan = await this.loadCurrentCapabilitySourceScan();
+    return evaluateCapabilitySourceFreshness(candidates, scan);
+  }
+
+  private async assertCapabilitySourceFreshness(candidates: readonly BrainCapabilityCandidate[]): Promise<void> {
+    if (!this.capabilityScanner) return;
+    const report = await this.validateCapabilitySourceFreshness(candidates);
+    if (report.valid) return;
+    const keys = report.issues
+      .map((issue) => issue.capabilityKey)
+      .filter(Boolean)
+      .sort();
+    throw new BadRequestException(`capability_source_freshness_invalid:${keys.join(',')}`);
+  }
+
+  private async loadCurrentCapabilitySourceScan(): Promise<BrainCapabilityScanReport> {
+    const cached = this.capabilitySourceScanLoading;
+    if (cached) return cached;
+    const loading = this.capabilityScanner!.scan({
+      workspaceRoot: capabilityWorkspaceRoot(),
+      explicitOnly: true,
+    });
+    this.capabilitySourceScanLoading = loading;
+    try {
+      return await loading;
+    } catch (error) {
+      this.capabilitySourceScanLoading = undefined;
+      throw error;
+    }
   }
 
   async rollbackRelease(input: { releaseId: number; reason: string }) {
@@ -324,7 +412,8 @@ export class BrainReleaseService {
     const previousVersions = previous.items.map((item) => item.resourceVersion);
     await this.validateGeneratedCapabilities(previousVersions);
     await this.validateDependencies(previousVersions);
-    return this.runSerializable('release_rollback_conflict', async (tx) => {
+    await this.activeReleaseWarmup?.warmRelease({ releaseId: previous.id, expectedStatus: previous.status });
+    const rolledBack = await this.runSerializable('release_rollback_conflict', async (tx) => {
       const rolledBackAt = new Date();
       const claim = await tx.brainRelease.updateMany({
         where: { id: current.id, status: 'active' },
@@ -354,6 +443,8 @@ export class BrainReleaseService {
         include: { items: true },
       });
     });
+    this.invalidateActiveRuntimeReleaseCache();
+    return rolledBack;
   }
 
   async rollbackToRules(input: { releaseId: number; reason: string }) {
@@ -392,8 +483,9 @@ export class BrainReleaseService {
     const targetVersions = target.items.map((item) => item.resourceVersion);
     await this.validateGeneratedCapabilities(targetVersions);
     await this.validateDependencies(targetVersions);
+    await this.activeReleaseWarmup?.warmRelease({ releaseId: target.id, expectedStatus: target.status });
 
-    return this.runSerializable('release_rules_rollback_conflict', async (tx) => {
+    const rolledBack = await this.runSerializable('release_rules_rollback_conflict', async (tx) => {
       const rolledBackAt = new Date();
       const claim = await tx.brainRelease.updateMany({
         where: { id: current.id, status: 'active' },
@@ -427,6 +519,8 @@ export class BrainReleaseService {
         include: { items: true },
       });
     });
+    this.invalidateActiveRuntimeReleaseCache();
+    return rolledBack;
   }
 
   async listReleases(input?: { includeSnapshot?: boolean; take?: number }) {
@@ -462,19 +556,61 @@ export class BrainReleaseService {
   async resolveRuntimeSummary(input: { storeId: number; userId: number; roleKey: string }) {
     const release = await this.selectReleaseSummary(input);
     const declaredMode = release ? this.record(release.rollout).mode : undefined;
-    const mode = declaredMode === 'rules' || declaredMode === 'shadow' || declaredMode === 'model'
-      ? declaredMode
-      : undefined;
+    const mode =
+      declaredMode === 'rules' || declaredMode === 'shadow' || declaredMode === 'model' ? declaredMode : undefined;
     return { mode, declaredMode: mode, release };
   }
 
   async selectRelease(input: { storeId: number; userId: number; roleKey: string }) {
-    const releases = await this.requirePrisma().brainRelease.findMany({
-      where: { status: 'active' },
-      orderBy: { activatedAt: 'desc' },
-      include: { items: true },
-    });
+    const releases = await this.loadActiveRuntimeReleases();
     return releases.find((release) => this.matchesRollout(release.scope, this.record(release.rollout), input)) ?? null;
+  }
+
+  private async loadActiveRuntimeReleases(): Promise<readonly ActiveRuntimeRelease[]> {
+    const now = Date.now();
+    if (this.activeRuntimeReleaseCache && this.activeRuntimeReleaseCache.expiresAt > now) {
+      return this.activeRuntimeReleaseCache.releases;
+    }
+    if (this.activeRuntimeReleaseCache) {
+      void this.refreshActiveRuntimeReleases().catch(() => undefined);
+      return this.activeRuntimeReleaseCache.releases;
+    }
+    return this.refreshActiveRuntimeReleases();
+  }
+
+  private async refreshActiveRuntimeReleases(): Promise<readonly ActiveRuntimeRelease[]> {
+    if (this.activeRuntimeReleaseLoading) return this.activeRuntimeReleaseLoading;
+    const previous = this.activeRuntimeReleaseCache;
+    const generation = this.activeRuntimeReleaseCacheGeneration;
+    const loading = this.requirePrisma()
+      .brainRelease.findMany({
+        where: { status: 'active' },
+        orderBy: { activatedAt: 'desc' },
+        include: { items: true },
+      })
+      .then((releases) => {
+        const fingerprint = createActiveRuntimeReleaseFingerprint(releases);
+        const cachedReleases = previous?.fingerprint === fingerprint ? previous.releases : Object.freeze([...releases]);
+        if (generation !== this.activeRuntimeReleaseCacheGeneration) return cachedReleases;
+        this.activeRuntimeReleaseCache = {
+          expiresAt: Date.now() + ACTIVE_RUNTIME_RELEASE_CACHE_TTL_MS,
+          fingerprint,
+          releases: cachedReleases,
+        };
+        return cachedReleases;
+      });
+    this.activeRuntimeReleaseLoading = loading;
+    try {
+      return await loading;
+    } finally {
+      if (this.activeRuntimeReleaseLoading === loading) this.activeRuntimeReleaseLoading = undefined;
+    }
+  }
+
+  private invalidateActiveRuntimeReleaseCache() {
+    this.activeRuntimeReleaseCacheGeneration += 1;
+    this.activeRuntimeReleaseCache = undefined;
+    this.activeRuntimeReleaseLoading = undefined;
   }
 
   private async selectReleaseSummary(input: { storeId: number; userId: number; roleKey: string }) {
@@ -562,17 +698,438 @@ export class BrainReleaseService {
     }
   }
 
+  private assertProductAcceptanceSummary(summary: Record<string, unknown>, releaseFingerprint: string) {
+    const evidence = this.record(summary.productAcceptance as Prisma.JsonValue);
+    const blockingReasons = Array.isArray(evidence.blockingReasons) ? evidence.blockingReasons : [];
+    if (
+      evidence.contractVersion !== 'ami-brain-release-acceptance/v1' ||
+      evidence.canActivate !== true ||
+      blockingReasons.length > 0
+    ) {
+      throw new BadRequestException('release_product_acceptance_failed');
+    }
+    if (evidence.releaseFingerprint !== releaseFingerprint || summary.releaseFingerprint !== releaseFingerprint) {
+      throw new BadRequestException('release_product_acceptance_fingerprint_mismatch');
+    }
+    if (
+      !Number.isInteger(Number(evidence.releaseCoreRunId)) ||
+      !Number.isInteger(Number(evidence.standardRegressionRunId)) ||
+      Number(evidence.releaseCoreCaseCount) < 300 ||
+      Number(evidence.releaseCoreCaseCount) > 400 ||
+      Number(evidence.standardRegressionCaseCount) < 1000 ||
+      Number(evidence.standardRegressionCaseCount) > 1100 ||
+      Number(evidence.standardDeltaCaseCount) + Number(evidence.releaseCoreCaseCount) !==
+        Number(evidence.standardRegressionCaseCount) ||
+      Number(evidence.verifiedCapabilityTotal) <= 0 ||
+      Number(evidence.goldStandardCaseCount) !== 100 ||
+      Number(evidence.goldStandardAuditQueryReady) !== 100 ||
+      Number(evidence.goldStandardSnapshotReady) !== 100 ||
+      Number(evidence.goldStandardEvaluated) !== 100 ||
+      Number(evidence.goldStandardPassed) !== 100 ||
+      !Number.isInteger(Number(evidence.goldStandardRunId)) ||
+      Number(evidence.goldStandardRunId) <= 0 ||
+      Number(evidence.goldStandardRunId) === Number(evidence.releaseCoreRunId) ||
+      Number(evidence.goldStandardRunId) === Number(evidence.standardRegressionRunId) ||
+      Number(evidence.releaseCoreRunId) === Number(evidence.standardRegressionRunId) ||
+      Number(summary.runId) !== Number(evidence.standardRegressionRunId)
+    ) {
+      throw new BadRequestException('release_product_acceptance_incomplete');
+    }
+    if (
+      typeof evidence.sourceCommit !== 'string' ||
+      !/^[0-9a-f]{40}$/iu.test(evidence.sourceCommit) ||
+      evidence.runtimeCommit !== evidence.sourceCommit ||
+      typeof evidence.suiteManifestVersion !== 'string' ||
+      !this.sha256String(evidence.suiteManifestChecksum) ||
+      !this.sha256String(evidence.sourceChecksum) ||
+      !this.sha256String(evidence.releaseCoreCaseIdsChecksum) ||
+      !this.sha256String(evidence.standardDeltaCaseIdsChecksum) ||
+      !this.sha256String(evidence.standardRegressionCaseIdsChecksum) ||
+      typeof evidence.goldStandardManifestVersion !== 'string' ||
+      !evidence.goldStandardManifestVersion ||
+      !this.sha256String(evidence.goldStandardManifestChecksum) ||
+      !this.sha256String(evidence.goldStandardCaseIdsChecksum) ||
+      !this.sha256String(evidence.goldStandardAcceptanceChecksum) ||
+      typeof evidence.runKey !== 'string' ||
+      !evidence.runKey
+    ) {
+      throw new BadRequestException('release_product_acceptance_identity_invalid');
+    }
+    if (
+      summary.stage !== 'standard-regression' ||
+      summary.executionMode !== 'delta_after_release_core' ||
+      summary.runKey !== evidence.runKey ||
+      summary.suiteManifestVersion !== evidence.suiteManifestVersion ||
+      summary.suiteManifestChecksum !== evidence.suiteManifestChecksum ||
+      summary.sourceChecksum !== evidence.sourceChecksum ||
+      summary.sourceCommit !== evidence.sourceCommit ||
+      Number(summary.storeId) !== Number(evidence.storeId) ||
+      Number(summary.total) !== Number(evidence.standardDeltaCaseCount) ||
+      Number(summary.suiteCaseCount) !== Number(evidence.standardRegressionCaseCount) ||
+      summary.suiteCaseIdsChecksum !== evidence.standardRegressionCaseIdsChecksum ||
+      Number(summary.goldStandardRunId) !== Number(evidence.goldStandardRunId) ||
+      jsonChecksum(this.record(summary.goldStandardAcceptance as Prisma.JsonValue)) !==
+        evidence.goldStandardAcceptanceChecksum ||
+      this.record(summary.productionHealth as Prisma.JsonValue).commit !== evidence.runtimeCommit
+    ) {
+      throw new BadRequestException('release_product_acceptance_summary_mismatch');
+    }
+    const expiresAt = Date.parse(String(evidence.expiresAt ?? ''));
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+      throw new BadRequestException('release_product_acceptance_expired');
+    }
+    return evidence;
+  }
+
+  private async assertGoldStandardEvidenceRun(
+    prisma: PrismaService,
+    releaseId: number,
+    standardSummary: Record<string, unknown>,
+    evidence: Record<string, unknown>,
+  ) {
+    const goldStandardRunId = Number(evidence.goldStandardRunId);
+    const run = await prisma.brainEvalRun.findFirst({
+      where: { id: goldStandardRunId, releaseId, storeId: Number(evidence.storeId) },
+      select: {
+        id: true,
+        status: true,
+        caseCount: true,
+        passedCount: true,
+        failedCount: true,
+        summary: true,
+      },
+    });
+    if (!run) throw new BadRequestException('release_gold_standard_run_missing');
+    const summary = this.record(run.summary as Prisma.JsonValue);
+    const identity = this.record(summary.pipelineIdentity as Prisma.JsonValue);
+    const acceptance = this.record(summary.acceptance as Prisma.JsonValue);
+    const expectedIdentity: Record<string, unknown> = {
+      contractVersion: 'ami-brain-gold-standard-runtime/v1',
+      parentStandardRegressionRunId: Number(evidence.standardRegressionRunId),
+      releaseId,
+      storeId: Number(evidence.storeId),
+      releaseFingerprint: evidence.releaseFingerprint,
+      sourceCommit: evidence.sourceCommit,
+      runtimeCommit: evidence.runtimeCommit,
+      sourceChecksum: evidence.sourceChecksum,
+      suiteManifestVersion: evidence.suiteManifestVersion,
+      suiteManifestChecksum: evidence.suiteManifestChecksum,
+      goldStandardManifestChecksum: evidence.goldStandardManifestChecksum,
+      standardRegressionCaseIdsChecksum: evidence.standardRegressionCaseIdsChecksum,
+    };
+    const identityMismatches = Object.entries(expectedIdentity)
+      .filter(([key, value]) => identity[key] !== value)
+      .map(([key]) => key);
+    const parentAcceptanceChecksum = jsonChecksum(
+      this.record(standardSummary.goldStandardAcceptance as Prisma.JsonValue),
+    );
+    const compactResultIds = Array.isArray(summary.compactResults)
+      ? summary.compactResults
+          .map((item) => this.record(item as Prisma.JsonValue).goldCaseId)
+          .filter((item): item is string => typeof item === 'string' && Boolean(item))
+      : [];
+    const invalidReasons = [
+      run.status !== 'completed' ? 'status' : null,
+      run.id !== goldStandardRunId ? 'run_id' : null,
+      Number(run.caseCount) !== 100 ? 'case_count' : null,
+      Number(run.passedCount) !== 100 ? 'passed_count' : null,
+      Number(run.failedCount) !== 0 ? 'failed_count' : null,
+      summary.executionPurpose !== 'standard_regression_internal_gold_standard' ? 'execution_purpose' : null,
+      summary.stage !== 'standard-regression-gold-internal' ? 'stage' : null,
+      summary.runKey !== evidence.runKey ? 'run_key' : null,
+      identityMismatches.length ? `pipeline_identity(${identityMismatches.join('+')})` : null,
+      Number(summary.completedCaseCount) !== 100 ? 'completed_case_count' : null,
+      Number(summary.remainingCaseCount) !== 0 ? 'remaining_case_count' : null,
+      Number(summary.passed) !== 100 ? 'summary_passed' : null,
+      Number(summary.failed) !== 0 ? 'summary_failed' : null,
+      Number(summary.providerUnavailable) !== 0 ? 'provider_unavailable' : null,
+      compactResultIds.length !== 100 ? 'compact_result_count' : null,
+      new Set(compactResultIds).size !== 100 ? 'compact_result_duplicates' : null,
+      caseIdsChecksum([...compactResultIds].sort()) !== evidence.goldStandardCaseIdsChecksum
+        ? 'compact_result_checksum'
+        : null,
+      jsonChecksum(acceptance) !== evidence.goldStandardAcceptanceChecksum ? 'child_acceptance' : null,
+      parentAcceptanceChecksum !== evidence.goldStandardAcceptanceChecksum ? 'parent_acceptance' : null,
+    ].filter((item): item is string => Boolean(item));
+    if (invalidReasons.length) {
+      throw new BadRequestException(`release_gold_standard_evidence_invalid:${invalidReasons.join(',')}`);
+    }
+    const resultRows = await prisma.brainEvalResult.findMany({
+      where: { evalRunId: goldStandardRunId },
+      orderBy: { caseKey: 'asc' },
+      select: { caseKey: true, deterministicPassed: true, deterministicGrade: true },
+    });
+    const resultIds = resultRows.map((item) => item.caseKey);
+    const invalidResults = resultRows.filter((item) => {
+      const grade = this.record(item.deterministicGrade as Prisma.JsonValue);
+      return (
+        item.deterministicPassed !== true ||
+        grade.passed !== true ||
+        grade.goldCaseId !== item.caseKey ||
+        grade.status === 'provider_unavailable'
+      );
+    });
+    if (
+      resultIds.length !== 100 ||
+      new Set(resultIds).size !== 100 ||
+      caseIdsChecksum([...resultIds].sort()) !== evidence.goldStandardCaseIdsChecksum ||
+      invalidResults.length > 0
+    ) {
+      throw new BadRequestException('release_gold_standard_results_invalid');
+    }
+  }
+
+  private async assertPerformanceEvidenceRuns(
+    prisma: PrismaService,
+    releaseId: number,
+    standardSummary: Record<string, unknown>,
+    productEvidence: Record<string, unknown>,
+  ) {
+    const evidence = this.record(standardSummary.performanceAcceptance as Prisma.JsonValue);
+    if (!Object.keys(evidence).length) {
+      throw new BadRequestException('release_performance_acceptance_missing');
+    }
+    const blockingReasons = Array.isArray(evidence.blockingReasons) ? evidence.blockingReasons : [];
+    if (
+      evidence.schemaVersion !== 'ami-brain-performance-acceptance/v1' ||
+      evidence.status !== 'ready' ||
+      blockingReasons.length > 0
+    ) {
+      throw new BadRequestException('release_performance_acceptance_failed');
+    }
+
+    const runIdentity = this.record(evidence.runIdentity as Prisma.JsonValue);
+    const aggregateIdentity = this.record(evidence.identity as Prisma.JsonValue);
+    const standardRegressionRunId = Number(productEvidence.standardRegressionRunId);
+    const storeId = Number(productEvidence.storeId);
+    const manifestVersion = typeof evidence.manifestVersion === 'string' ? evidence.manifestVersion : '';
+    const approvedManifest = APPROVED_PERFORMANCE_MANIFESTS[manifestVersion];
+    const identityInvalid =
+      !approvedManifest ||
+      runIdentity.schemaVersion !== 'ami-brain-performance-run-identity/v1' ||
+      typeof runIdentity.runKey !== 'string' ||
+      !runIdentity.runKey ||
+      Number(runIdentity.standardRegressionRunId) !== standardRegressionRunId ||
+      Number(runIdentity.releaseId) !== releaseId ||
+      Number(runIdentity.storeId) !== storeId ||
+      runIdentity.runtimeCommit !== productEvidence.runtimeCommit ||
+      runIdentity.suiteManifestChecksum !== productEvidence.suiteManifestChecksum ||
+      runIdentity.performanceManifestVersion !== manifestVersion ||
+      runIdentity.performanceManifestChecksum !== approvedManifest?.manifestChecksum ||
+      runIdentity.performanceCaseIdsChecksum !== approvedManifest?.caseIdsChecksum ||
+      evidence.manifestCaseIdsChecksum !== approvedManifest?.caseIdsChecksum ||
+      aggregateIdentity.releaseId !== releaseId ||
+      Number(aggregateIdentity.storeId) !== storeId ||
+      aggregateIdentity.sourceCommit !== productEvidence.sourceCommit ||
+      aggregateIdentity.runtimeCommit !== productEvidence.runtimeCommit ||
+      aggregateIdentity.releaseFingerprint !== productEvidence.releaseFingerprint ||
+      aggregateIdentity.suiteManifestChecksum !== productEvidence.suiteManifestChecksum;
+    if (identityInvalid) {
+      throw new BadRequestException('release_performance_acceptance_identity_invalid');
+    }
+
+    const generatedAt = Date.parse(String(evidence.generatedAt ?? ''));
+    const expiresAt = Date.parse(String(evidence.expiresAt ?? ''));
+    if (
+      !Number.isFinite(generatedAt) ||
+      !Number.isFinite(expiresAt) ||
+      generatedAt >= expiresAt ||
+      expiresAt <= Date.now()
+    ) {
+      throw new BadRequestException('release_performance_acceptance_expired');
+    }
+
+    const buckets = this.record(evidence.buckets as Prisma.JsonValue);
+    const expectedBucketKeys = Object.keys(PERFORMANCE_BUCKET_POLICY);
+    if (
+      Object.keys(buckets).length !== expectedBucketKeys.length ||
+      expectedBucketKeys.some((key) => !Object.prototype.hasOwnProperty.call(buckets, key))
+    ) {
+      throw new BadRequestException('release_performance_acceptance_buckets_invalid');
+    }
+
+    const runIds: number[] = [];
+    for (const bucketKey of expectedBucketKeys) {
+      const policy = PERFORMANCE_BUCKET_POLICY[bucketKey as keyof typeof PERFORMANCE_BUCKET_POLICY];
+      const bucket = this.record(buckets[bucketKey] as Prisma.JsonValue);
+      const latency = this.record(bucket.latency as Prisma.JsonValue);
+      const budgets = this.record(bucket.budgetsMs as Prisma.JsonValue);
+      const runId = Number(bucket.runId);
+      const p50Ms = Number(latency.p50Ms);
+      const p95Ms = Number(latency.p95Ms);
+      const maxMs = Number(latency.maxMs);
+      const bucketInvalid =
+        !Number.isInteger(runId) ||
+        runId <= 0 ||
+        Number(bucket.caseCount) !== policy.count ||
+        !this.sha256String(bucket.caseIdsChecksum) ||
+        Number(latency.count) !== policy.count ||
+        !Number.isFinite(p50Ms) ||
+        !Number.isFinite(p95Ms) ||
+        !Number.isFinite(maxMs) ||
+        p50Ms < 0 ||
+        p50Ms > p95Ms ||
+        p95Ms > maxMs ||
+        p50Ms > policy.budgetsMs.p50 ||
+        p95Ms > policy.budgetsMs.p95 ||
+        maxMs > policy.budgetsMs.max ||
+        Number(budgets.p50) !== policy.budgetsMs.p50 ||
+        Number(budgets.p95) !== policy.budgetsMs.p95 ||
+        Number(budgets.max) !== policy.budgetsMs.max;
+      if (bucketInvalid) {
+        throw new BadRequestException(`release_performance_acceptance_bucket_invalid:${bucketKey}`);
+      }
+      runIds.push(runId);
+    }
+    if (new Set(runIds).size !== expectedBucketKeys.length) {
+      throw new BadRequestException('release_performance_acceptance_run_ids_invalid');
+    }
+
+    for (const bucketKey of expectedBucketKeys) {
+      const policy = PERFORMANCE_BUCKET_POLICY[bucketKey as keyof typeof PERFORMANCE_BUCKET_POLICY];
+      const bucket = this.record(buckets[bucketKey] as Prisma.JsonValue);
+      const runId = Number(bucket.runId);
+      const run = await prisma.brainEvalRun.findFirst({
+        where: { id: runId, releaseId, storeId },
+        select: {
+          id: true,
+          status: true,
+          caseCount: true,
+          passedCount: true,
+          failedCount: true,
+          summary: true,
+        },
+      });
+      if (!run) throw new BadRequestException(`release_performance_run_missing:${bucketKey}`);
+      const summary = this.record(run.summary as Prisma.JsonValue);
+      const activeRelease = this.record(summary.activeRelease as Prisma.JsonValue);
+      const productionHealth = this.record(summary.productionHealth as Prisma.JsonValue);
+      const scorecards = this.record(summary.scorecards as Prisma.JsonValue);
+      const falseSuccess = this.record(scorecards.suspectedFalseSuccess as Prisma.JsonValue);
+      const latencyBreakdown = this.record(summary.latencyBreakdown as Prisma.JsonValue);
+      const actualLatency = this.record(latencyBreakdown.userResponse as Prisma.JsonValue);
+      const expectedLatency = this.record(bucket.latency as Prisma.JsonValue);
+      const invalidReasons = [
+        run.id !== runId ? 'run_id' : null,
+        run.status !== 'completed' ? 'status' : null,
+        Number(run.caseCount) !== policy.count ? 'case_count' : null,
+        Number(run.passedCount) !== policy.count ? 'passed_count' : null,
+        Number(run.failedCount) !== 0 ? 'failed_count' : null,
+        Number(summary.runId) !== runId ? 'summary_run_id' : null,
+        summary.runKey !== `${runIdentity.runKey}-${bucketKey}` ? 'run_key' : null,
+        summary.stage !== 'targeted' ? 'stage' : null,
+        summary.executionMode !== 'full_suite' ? 'execution_mode' : null,
+        Number(activeRelease.id) !== releaseId ? 'release_id' : null,
+        Number(summary.storeId) !== storeId ? 'store_id' : null,
+        summary.sourceCommit !== productEvidence.sourceCommit ? 'source_commit' : null,
+        summary.sourceChecksum !== productEvidence.sourceChecksum ? 'source_checksum' : null,
+        productionHealth.commit !== productEvidence.runtimeCommit ? 'runtime_commit' : null,
+        summary.releaseFingerprint !== productEvidence.releaseFingerprint ? 'release_fingerprint' : null,
+        summary.suiteManifestChecksum !== productEvidence.suiteManifestChecksum ? 'suite_manifest_checksum' : null,
+        Number(summary.total) !== policy.count ? 'total' : null,
+        Number(summary.expectedTotal) !== policy.count ? 'expected_total' : null,
+        summary.suiteCaseIdsChecksum !== bucket.caseIdsChecksum ? 'case_ids_checksum' : null,
+        Number(summary.failed ?? -1) !== 0 ? 'summary_failed' : null,
+        Number(summary.providerUnavailable ?? -1) !== 0 ? 'provider_unavailable' : null,
+        summary.productSafetyGate === 'blocked' ? 'safety_blocked' : null,
+        Number(falseSuccess.count ?? -1) !== 0 ? 'suspected_false_success' : null,
+        jsonChecksum(actualLatency) !== jsonChecksum(expectedLatency) ? 'latency_evidence' : null,
+        Number(actualLatency.count) !== policy.count ? 'latency_count' : null,
+        Number(actualLatency.p50Ms) > policy.budgetsMs.p50 ? 'p50_budget' : null,
+        Number(actualLatency.p95Ms) > policy.budgetsMs.p95 ? 'p95_budget' : null,
+        Number(actualLatency.maxMs) > policy.budgetsMs.max ? 'max_budget' : null,
+      ].filter((item): item is string => Boolean(item));
+      if (invalidReasons.length) {
+        throw new BadRequestException(`release_performance_run_invalid:${bucketKey}:${invalidReasons.join(',')}`);
+      }
+    }
+  }
+
+  private sha256String(value: unknown) {
+    return typeof value === 'string' && /^[0-9a-f]{64}$/iu.test(value);
+  }
+
+  private requiresProductAcceptance(release: BrainReleaseWithItems) {
+    const rollout = this.record(release.rollout);
+    return rollout.productAcceptanceRequired === true || rollout.productionBaseline === true;
+  }
+
+  private requiresPerformanceAcceptance(release: BrainReleaseWithItems) {
+    return this.record(release.rollout).productionBaseline === true;
+  }
+
+  private async completedEvalRuns(prisma: PrismaService, releaseId: number) {
+    const delegate = prisma.brainEvalRun as unknown as {
+      findMany?: (input: Record<string, unknown>) => Promise<Array<{ summary: Prisma.JsonValue }>>;
+      findFirst: (input: Record<string, unknown>) => Promise<{ summary: Prisma.JsonValue } | null>;
+    };
+    if (delegate.findMany) {
+      return delegate.findMany({
+        where: { releaseId, status: 'completed' },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      });
+    }
+    const latest = await delegate.findFirst({
+      where: { releaseId, status: 'completed' },
+      orderBy: { createdAt: 'desc' },
+    });
+    return latest ? [latest] : [];
+  }
+
+  private async assertReleaseEvidenceRuns(
+    prisma: PrismaService,
+    runs: Array<{ summary: Prisma.JsonValue }>,
+    releaseId: number,
+    releaseFingerprint: string,
+    requireProductAcceptance: boolean,
+    requirePerformanceAcceptance: boolean,
+  ) {
+    if (!requireProductAcceptance) {
+      const capabilityRun =
+        runs.find((run) => this.record(run.summary).gateMode === 'release_gate') ??
+        runs.find((run) => this.record(run.summary).canRelease === true);
+      if (!capabilityRun) throw new BadRequestException('release_eval_gate_failed');
+      this.assertReleaseEvalSummary(this.record(capabilityRun.summary), releaseFingerprint);
+      return;
+    }
+    const productRun = runs.find(
+      (run) =>
+        this.record(this.record(run.summary).productAcceptance as Prisma.JsonValue).contractVersion ===
+        'ami-brain-release-acceptance/v1',
+    );
+    if (!productRun) throw new BadRequestException('release_product_acceptance_missing');
+    const productSummary = this.record(productRun.summary);
+    const productEvidence = this.assertProductAcceptanceSummary(productSummary, releaseFingerprint);
+    await this.assertGoldStandardEvidenceRun(prisma, releaseId, productSummary, productEvidence);
+    if (requirePerformanceAcceptance) {
+      await this.assertPerformanceEvidenceRuns(prisma, releaseId, productSummary, productEvidence);
+    }
+    const capabilityRun = runs.find((run) => {
+      const summary = this.record(run.summary);
+      return summary.gateMode === 'release_gate' && summary.runtimeCommit === productEvidence.runtimeCommit;
+    });
+    if (!capabilityRun) throw new BadRequestException('release_eval_pipeline_identity_mismatch');
+    this.assertReleaseEvalSummary(this.record(capabilityRun.summary), releaseFingerprint);
+  }
+
   private async assertReleaseEvalEvidence(
     prisma: PrismaService,
     release: BrainReleaseWithItems,
     releaseFingerprint: string,
   ) {
-    const ownEvalRun = await prisma.brainEvalRun.findFirst({
-      where: { releaseId: release.id, status: 'completed' },
-      orderBy: { createdAt: 'desc' },
-    });
-    if (ownEvalRun) {
-      this.assertReleaseEvalSummary(this.record(ownEvalRun.summary), releaseFingerprint);
+    const requireProductAcceptance = this.requiresProductAcceptance(release);
+    const requirePerformanceAcceptance = this.requiresPerformanceAcceptance(release);
+    const ownEvalRuns = await this.completedEvalRuns(prisma, release.id);
+    if (ownEvalRuns.length) {
+      await this.assertReleaseEvidenceRuns(
+        prisma,
+        ownEvalRuns,
+        release.id,
+        releaseFingerprint,
+        requireProductAcceptance,
+        requirePerformanceAcceptance,
+      );
       return;
     }
 
@@ -585,10 +1142,10 @@ export class BrainReleaseService {
       include: { items: { include: { resourceVersion: true } } },
     });
     const evidenceRollout = this.record(evidenceRelease?.rollout as Prisma.JsonValue);
-    const validEvidenceRelease = evidenceRelease && (
-      evidenceRollout.evaluationOnly === true ||
-      (evidenceRelease.status === 'active' && evidenceRollout.mode === 'shadow')
-    );
+    const validEvidenceRelease =
+      evidenceRelease &&
+      (evidenceRollout.evaluationOnly === true ||
+        (evidenceRelease.status === 'active' && evidenceRollout.mode === 'shadow'));
     if (!validEvidenceRelease) {
       throw new BadRequestException('release_eval_evidence_invalid');
     }
@@ -596,12 +1153,15 @@ export class BrainReleaseService {
     if (evidenceFingerprint !== releaseFingerprint) {
       throw new BadRequestException('release_eval_evidence_fingerprint_mismatch');
     }
-    const evidenceEvalRun = await prisma.brainEvalRun.findFirst({
-      where: { releaseId: evidenceRelease.id, status: 'completed' },
-      orderBy: { createdAt: 'desc' },
-    });
-    if (!evidenceEvalRun) throw new BadRequestException('release_eval_gate_failed');
-    this.assertReleaseEvalSummary(this.record(evidenceEvalRun.summary), releaseFingerprint);
+    const evidenceEvalRuns = await this.completedEvalRuns(prisma, evidenceRelease.id);
+    await this.assertReleaseEvidenceRuns(
+      prisma,
+      evidenceEvalRuns,
+      evidenceRelease.id,
+      releaseFingerprint,
+      requireProductAcceptance,
+      requirePerformanceAcceptance,
+    );
   }
 
   private async validateGeneratedCapabilities(
@@ -815,9 +1375,11 @@ export class BrainReleaseService {
     const roleKeys = Array.isArray(rollout.roleKeys) ? rollout.roleKeys.map(String) : [];
     if (scope === 'store') return storeIds.includes(input.storeId);
     if (scope === 'user') {
-      return userIds.includes(input.userId) &&
+      return (
+        userIds.includes(input.userId) &&
         (!storeIds.length || storeIds.includes(input.storeId)) &&
-        (!roleKeys.length || roleKeys.includes(input.roleKey));
+        (!roleKeys.length || roleKeys.includes(input.roleKey))
+      );
     }
     if (scope === 'role')
       return roleKeys.includes(input.roleKey) && (!storeIds.length || storeIds.includes(input.storeId));
@@ -863,12 +1425,15 @@ function createSemanticSnapshotFingerprint(
   const contracts = versions
     .filter((version) => version.resourceType === 'skill')
     .map((version) => {
-      const snapshot = version.snapshot && typeof version.snapshot === 'object' && !Array.isArray(version.snapshot)
-        ? version.snapshot as Record<string, unknown>
-        : {};
+      const snapshot =
+        version.snapshot && typeof version.snapshot === 'object' && !Array.isArray(version.snapshot)
+          ? (version.snapshot as Record<string, unknown>)
+          : {};
       const definitionRefs = Array.isArray(snapshot.definitionRefs)
         ? snapshot.definitionRefs
-            .filter((ref): ref is Record<string, unknown> => Boolean(ref) && typeof ref === 'object' && !Array.isArray(ref))
+            .filter(
+              (ref): ref is Record<string, unknown> => Boolean(ref) && typeof ref === 'object' && !Array.isArray(ref),
+            )
             .map((ref) => ({
               definitionKey: String(ref.definitionKey ?? ''),
               versionId: Number(ref.versionId ?? 0),
@@ -896,6 +1461,52 @@ function deepCloneFreeze<T>(value: T): T {
   return value;
 }
 
+function capabilityWorkspaceRoot(): string {
+  if (process.env.BRAIN_CAPABILITY_WORKSPACE_ROOT) return resolve(process.env.BRAIN_CAPABILITY_WORKSPACE_ROOT);
+  const cwd = process.cwd();
+  return basename(cwd).toLowerCase() === 'server-v2' ? resolve(cwd, '../..') : resolve(cwd);
+}
+
+function createActiveRuntimeReleaseFingerprint(releases: readonly ActiveRuntimeRelease[]) {
+  const runtimeContract = releases.map((release) => ({
+    id: release.id,
+    status: release.status,
+    scope: release.scope,
+    activatedAt: release.activatedAt,
+    rollout: release.rollout,
+    items: release.items
+      .map((item) => ({
+        resourceType: item.resourceType,
+        resourceKey: item.resourceKey,
+        version: item.version,
+        snapshot: item.snapshot,
+      }))
+      .sort((left, right) =>
+        `${left.resourceType}:${left.resourceKey}`.localeCompare(`${right.resourceType}:${right.resourceKey}`),
+      ),
+  }));
+  return createHash('sha256')
+    .update(JSON.stringify(canonicalizeForFingerprint(runtimeContract)))
+    .digest('hex');
+}
+
+function canonicalizeForFingerprint(value: unknown): unknown {
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) return value.map(canonicalizeForFingerprint);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, item]) => [key, canonicalizeForFingerprint(item)]),
+    );
+  }
+  return value;
+}
+
 type BrainReleaseWithItems = Prisma.BrainReleaseGetPayload<{
   include: { items: { include: { resourceVersion: true } } };
+}>;
+
+type ActiveRuntimeRelease = Prisma.BrainReleaseGetPayload<{
+  include: { items: true };
 }>;

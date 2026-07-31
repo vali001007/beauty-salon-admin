@@ -635,6 +635,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       card,
       context,
       runId: 91,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '给我当前等级客户数量',
       answerShape: 'scalar',
       args: {
@@ -650,6 +651,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       card,
       context,
       runId: 92,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '列出当前等级客户',
       answerShape: 'list',
       args: {
@@ -685,6 +687,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         card,
         context,
         runId: 93,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
         question: '列出当前等级客户',
         args: {
           objective: '列出指定会员等级客户',
@@ -762,6 +765,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       card: { ...storeCard(), key: 'customer_facts' },
       context,
       runId: 94,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年6月1日至30日到店的客户有多少',
       answerShape: 'scalar',
       args,
@@ -770,6 +774,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       card: { ...storeCard(), key: 'customer_facts' },
       context,
       runId: 95,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年6月22日至28日到店的客户里有哪些是金卡以上',
       answerShape: 'list',
       args,
@@ -778,6 +783,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       card: { ...storeCard(), key: 'customer_facts' },
       context,
       runId: 96,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '办了综合养护 20 次卡但2026年6月15日至21日没来的客户名单',
       answerShape: 'list',
       args,
@@ -2638,6 +2644,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 55,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '有多少个供应商',
       answerShape: 'list',
       args: { objective: '供应商数量', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
@@ -2704,6 +2711,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 56,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '有几个待收货的采购单',
       answerShape: 'list',
       args: { objective: '待收货采购单数量', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
@@ -2774,6 +2782,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 57,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '上周采购结算待付款多少',
       answerShape: 'list',
       args: { objective: '待付款采购单金额', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
@@ -2858,6 +2867,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 58,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '本月采购成本最高的品类',
       answerShape: 'ranking',
       args: { objective: '采购品类成本排行', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
@@ -3228,6 +3238,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 72,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '把当天各单贡献展开给我看',
       answerShape: 'list',
       args: {
@@ -3287,6 +3298,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 73,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '把风险订单挑出来',
       answerShape: 'list',
       args: {
@@ -3347,6 +3359,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 74,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '看看当天零售经营结果',
       answerShape: 'scalar',
       args: {
@@ -3410,6 +3423,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 75,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '给我正式结算结果',
     };
 
@@ -3434,6 +3448,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     const inferredScalar = await executor.execute({
       ...base,
       runId: 751,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年1月1日至6月30日的毛利是多少',
       answerShape: 'scalar',
       args: {
@@ -3453,6 +3468,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     const ratioScalar = await executor.execute({
       ...base,
       runId: 752,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年6月成本占收入的比例',
       answerShape: 'scalar',
       args: {
@@ -3511,6 +3527,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 77,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '把她这段时间的组成拆开',
       answerShape: 'list',
       args: {
@@ -3559,6 +3576,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 78,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '顾然和宋乔的提成构成',
       answerShape: 'list',
       args: {
@@ -3715,6 +3733,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 8,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年6月30日次卡核销确认的收入有多少', // BQ0855
       answerShape: 'scalar',
       args: {
@@ -4220,6 +4239,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 56,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '有没有次卡即将过期但客户还有很多余量',
       answerShape: 'list',
       args: { objective: '次卡临期高余量名单', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
@@ -4307,6 +4327,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 59,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '哪些客户的综合养护 20 次卡快到期还没预约',
       answerShape: 'list',
       args: {
@@ -5253,6 +5274,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 75,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年6月15日至21日的预约都有谁',
       answerShape: 'list',
       args: {
@@ -5406,6 +5428,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 79,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '今年哪个项目预约最多',
       answerShape: 'ranking',
       args: { objective: '项目预约排行', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },

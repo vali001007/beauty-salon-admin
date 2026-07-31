@@ -1,0 +1,101 @@
+{
+  "schemaVersion": "ami-brain-action-predicate-effect-manifest/v1",
+  "catalogSchemaVersion": "1.0",
+  "catalogSource": {
+    "path": "packages/server-v2/src/semantic-data/brain-action-predicate-effect-catalog.ts",
+    "checksum": "02c4742d96cd129e54a648128a56018135253d093b0cc95cdea75be393de1327"
+  },
+  "evaluatorSource": {
+    "path": "packages/server-v2/src/brain/domain/brain-action-predicate-effect-evaluator.service.ts",
+    "checksum": "7b150f79413fc3db5dc8a049398668abec33fbe16ec0dce4a204fdec41f20549"
+  },
+  "predicates": [
+    {
+      "key": "context_store_resolved",
+      "version": 1,
+      "fingerprint": "873b367c9c5355e64f27266e1a5772afdb4595fc5335c45332a6c0d87af26c53"
+    },
+    {
+      "key": "customer_name_present",
+      "version": 1,
+      "fingerprint": "daa0d00ab20f7f620a19641f28884cdd486f1bfd094340d0528060fdc73f9784"
+    },
+    {
+      "key": "customer_phone_valid_before_execution",
+      "version": 2,
+      "fingerprint": "1f66e5b632e5675ee027e9a5f9b157ea54ed00af6250cdbe29a5f84fd7f0b9b2"
+    },
+    {
+      "key": "product_belongs_to_context_store",
+      "version": 1,
+      "fingerprint": "277793e207cc83115b405fb0c8a52f0b147bc85e49a4b9f2cea9ad97a71e213b"
+    },
+    {
+      "key": "quantity_positive",
+      "version": 1,
+      "fingerprint": "6cb56798716581d3f008635f4ff52fe6d5e295e5ea7a32a9f37c2ea3df332132"
+    },
+    {
+      "key": "supplier_present_before_execution",
+      "version": 1,
+      "fingerprint": "03c6132df709ebf8a5f27f80b34790d98c1cc5fb1385da9c7f36a88f94748545"
+    },
+    {
+      "key": "purchase_order_draft_belongs_to_context_store",
+      "version": 1,
+      "fingerprint": "77839b9c29d2f69e93cbe5c5a8545079baea1da4bb3dea8ec414999f9903d761"
+    },
+    {
+      "key": "customer_and_project_in_context_store",
+      "version": 1,
+      "fingerprint": "8a21d274c32f8c76807d767f63e5f5cfb1783965da9c4a0b58f2e72fe9d2d526"
+    },
+    {
+      "key": "appointment_time_resolved",
+      "version": 1,
+      "fingerprint": "6b11ee6fc43a9000a12ad5f63a7debcff25ec16be4749be92962fc31be608d6c"
+    },
+    {
+      "key": "reservation_window_available",
+      "version": 1,
+      "fingerprint": "8e84295a367ee661716e3e2573e1b1d1afd2247b2cf7cb70d42889df7445af7c"
+    },
+    {
+      "key": "reservation_belongs_to_context_store",
+      "version": 2,
+      "fingerprint": "bf69a3278f5c1d1ab78eafcfe83d0b3c4d82a952550da92f6dfd4f59dbd54a80"
+    }
+  ],
+  "effects": [
+    {
+      "key": "customer_created_in_context_store",
+      "version": 3,
+      "fingerprint": "6a477e7c261b5a00e492e4d1e09e8ba42aa659ec6debcbf18d0f5848c9060b04"
+    },
+    {
+      "key": "purchase_order_draft_created_in_context_store",
+      "version": 1,
+      "fingerprint": "89c6277791f0a3b3c0a5e411b24f81c445d9f0cc9017431987609067029e0321"
+    },
+    {
+      "key": "purchase_order_submitted_for_approval",
+      "version": 1,
+      "fingerprint": "96cff8ef1e8b30b3a3dc7e9eec17d2d739855fb4be7c86198e548e98c5ff6aa3"
+    },
+    {
+      "key": "reservation_created_in_context_store",
+      "version": 3,
+      "fingerprint": "55aa78c27faa54a1e4d17459b14f5614e40013f5c8288196496c516be8f14376"
+    },
+    {
+      "key": "reservation_time_updated",
+      "version": 4,
+      "fingerprint": "6e16039c67b68cb88091c3bfbe75b9be6ee0a2f0558b802f4dc1bc08a4d330e0"
+    },
+    {
+      "key": "reservation_cancelled",
+      "version": 4,
+      "fingerprint": "d744b1c0e3fe826a9baf5c84ddc86754578fa833ff69c8dc95b1d8bdf3b484a3"
+    }
+  ]
+}
