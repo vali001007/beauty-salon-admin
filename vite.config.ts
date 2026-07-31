@@ -19,6 +19,9 @@ export default defineConfig({
   },
 
   server: {
+    // Codex/local automation can disable filesystem watching when macOS
+    // FSEvents blocks startup. Regular development keeps Vite HMR enabled.
+    watch: process.env.VITE_DISABLE_FILE_WATCH === '1' ? null : undefined,
     proxy: {
       '/api': {
         target: process.env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:8080',
