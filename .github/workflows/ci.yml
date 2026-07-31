@@ -41,6 +41,7 @@ jobs:
       - run: npm ci
       - run: npx prisma generate
       - run: npm run build
+      - run: npm run brain:release:acceptance:test
       - run: npm run test
     env:
       DATABASE_URL: "postgresql://test:test@localhost:5432/test"

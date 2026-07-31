@@ -2003,6 +2003,8 @@ function StatusBadge({ status }: { status?: string | null }) {
   const value = status ?? 'unknown';
   const className = value === 'completed' || value === 'approved'
     ? 'bg-emerald-50 text-emerald-700'
+    : value === 'partially_completed'
+      ? 'bg-amber-50 text-amber-700'
     : value === 'failed' || value === 'rejected' || value === 'cancelled'
       ? 'bg-rose-50 text-rose-700'
       : value === 'waiting_approval' || value === 'pending'
@@ -2019,6 +2021,7 @@ function statusLabel(status: string) {
     waiting_approval: '待审批',
     composing: '生成中',
     completed: '已完成',
+    partially_completed: '部分完成',
     failed: '失败',
     cancelled: '已取消',
     pending: '待处理',

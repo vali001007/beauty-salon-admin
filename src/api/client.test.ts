@@ -126,6 +126,18 @@ describe('API Client', () => {
       expect(result.headers['X-Request-Id']).toMatch(/^req_/);
     });
 
+    it('adds the governed Ami client channel header', async () => {
+      const { default: axios } = await import('axios');
+      const config = {
+        headers: new axios.AxiosHeaders(),
+        method: 'get',
+      } as InternalAxiosRequestConfig;
+
+      const result = requestInterceptorFn(config);
+
+      expect(result.headers['X-Ami-Client-Channel']).toBe('admin_web');
+    });
+
     it('adds X-CSRF-Token on mutating requests', async () => {
       const { default: axios } = await import('axios');
       const config = {

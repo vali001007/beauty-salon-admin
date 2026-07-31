@@ -78,6 +78,7 @@ describe('BrainSkillGovernance', () => {
     expect(screen.getByRole('columnheader', { name: '技能 ID' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '名称' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '版本' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '状态' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '技能说明' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '涉及领域' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '实体' })).toBeInTheDocument();

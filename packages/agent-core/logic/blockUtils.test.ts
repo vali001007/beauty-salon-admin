@@ -75,6 +75,46 @@ describe('blockUtils', () => {
     expect(mapped).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: 'table', caption: '排行结果' }),
       expect.objectContaining({ kind: 'alert', message: '退款异常：退款金额上升' }),
+      expect.objectContaining({
+        kind: 'clarification_card',
+        options: [expect.objectContaining({ label: '本月', value: '本月' })],
+      }),
     ]));
+    const clarification = mapped.find((block) => block.kind === 'clarification_card');
+    expect(clarification?.kind === 'clarification_card' ? clarification.options[0] : null).not.toHaveProperty('actionId');
+  });
+
+  it('keeps an empty result visible without duplicating internal no-data codes', () => {
+    const mapped = mapBrainResponseBlocks([
+      { kind: 'table', columns: ['客户'], rows: [] },
+      { kind: 'limitations', items: ['no_data:table'] },
+    ]);
+
+    expect(mapped).toEqual([{ kind: 'table', caption: '明细结果', columns: ['客户'], rows: [] }]);
+  });
+
+  it('maps a real unsupported scope to a human-readable capability boundary', () => {
+    const mapped = mapBrainResponseBlocks([
+      { kind: 'limitations', items: ['当前后台没有设备维修业务闭环。'] },
+    ]);
+
+    expect(mapped).toEqual([expect.objectContaining({
+      kind: 'data_gap',
+      title: '能力边界',
+      message: '当前后台没有设备维修业务闭环',
+    })]);
+  });
+
+  it.each([
+    ['capability_failed', '相关能力执行失败，本次没有生成业务结论'],
+    ['request_processing', '请求仍在处理中，当前内容不是最终业务结果'],
+    ['request_cancelled', '请求已取消，本次没有生成新的业务结论'],
+  ])('maps %s without exposing an internal status code', (code, message) => {
+    const mapped = mapBrainResponseBlocks([{ kind: 'limitations', items: [code] }]);
+
+    expect(mapped).toEqual([expect.objectContaining({
+      kind: 'data_gap',
+      message,
+    })]);
   });
 });

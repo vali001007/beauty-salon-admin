@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BrainWorkspace } from './BrainWorkspace';
 import { useStoreStore } from '@/stores/storeStore';
@@ -47,6 +47,9 @@ describe('BrainWorkspace', () => {
       items: [],
       summary: { total: 0, critical: 0, high: 0, medium: 0, low: 0 },
       storeId: 6,
+      page: 1,
+      pageSize: 20,
+      totalPages: 1,
     });
     apiMocks.getBrainInspectionRepairPreview.mockResolvedValue({
       schemaVersion: 1,
@@ -84,6 +87,7 @@ describe('BrainWorkspace', () => {
   });
 
   it('shows live progress before the persisted answer is ready', async () => {
+    const registeredQuestion = { id: 'BQ0627', text: '最近三个月的实收流水' };
     let resolveStream!: (value: {
       conversationId: number;
       runId: number;
@@ -105,20 +109,36 @@ describe('BrainWorkspace', () => {
     render(<BrainWorkspace />);
     await waitFor(() => expect(apiMocks.listBrainConversations).toHaveBeenCalledOnce());
     fireEvent.change(screen.getByPlaceholderText('问经营数据、风险和下一步动作'), {
-      target: { value: '本月流水多少' },
+      target: { value: registeredQuestion.text },
     });
     fireEvent.click(screen.getByRole('button', { name: '发送' }));
 
     expect(await screen.findByText('正在理解问题并核对可用数据...')).toBeInTheDocument();
+    expect(screen.queryByText('正在读取数据并组织回答')).not.toBeInTheDocument();
 
     resolveStream({
       conversationId: 42,
       runId: 100,
       status: 'completed',
-      answer: '本月实收流水为 19907.10 元。',
+      answer: '最近三个月实收流水为 19907.10 元。',
       citations: [],
       suggestedActions: [],
     });
+  });
+
+  it('keeps the question in the composer and offers retry when sending fails', async () => {
+    apiMocks.streamBrainMessage.mockRejectedValueOnce(new Error('模型服务暂时不可用'));
+    const registeredQuestion = { id: 'BQ0627', text: '最近三个月的实收流水' };
+
+    render(<BrainWorkspace />);
+    await waitFor(() => expect(apiMocks.listBrainConversations).toHaveBeenCalledOnce());
+    const composer = screen.getByPlaceholderText('问经营数据、风险和下一步动作');
+    fireEvent.change(composer, { target: { value: registeredQuestion.text } });
+    fireEvent.click(screen.getByRole('button', { name: '发送' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('问题已为你保留');
+    expect(composer).toHaveValue(registeredQuestion.text);
+    expect(screen.getByRole('button', { name: '重新发送' })).toBeInTheDocument();
   });
 
   it('renders the real conversation workspace shell', async () => {
@@ -148,13 +168,19 @@ describe('BrainWorkspace', () => {
       }],
       summary: { total: 1, critical: 0, high: 1, medium: 0, low: 0 },
       storeId: 6,
+      page: 1,
+      pageSize: 20,
+      totalPages: 1,
     });
 
     render(<BrainWorkspace />);
 
-    expect(await screen.findByText('本月毛利下降')).toBeInTheDocument();
-    expect(screen.getByText('下降幅度：20.0%')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '审查' }));
+    expect(screen.queryByText('本月毛利下降')).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: '主动风险 1' }));
+    const riskDialog = screen.getByRole('dialog', { name: '主动风险' });
+    expect(within(riskDialog).getByText('本月毛利下降')).toBeInTheDocument();
+    expect(within(riskDialog).getByText('下降幅度：20.0%')).toBeInTheDocument();
+    fireEvent.click(within(riskDialog).getByRole('button', { name: '审查' }));
     expect(await screen.findByText('修复预览')).toBeInTheDocument();
     expect(apiMocks.getBrainInspectionRepairPreview).toHaveBeenCalledWith(31);
   });
@@ -280,6 +306,41 @@ describe('BrainWorkspace', () => {
       expect.any(Function),
     );
     expect(await screen.findByText('本月实收流水为 19907.10 元。')).toBeInTheDocument();
+  });
+
+  it('does not send to the previous conversation while a new conversation is being created', async () => {
+    const nextConversation = { ...conversation, id: 43, title: '新会话' };
+    let resolveCreate!: (value: typeof nextConversation) => void;
+    apiMocks.listBrainConversations.mockResolvedValue({ items: [conversation], total: 1, storeId: 6 });
+    apiMocks.createBrainConversation.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCreate = resolve;
+        }),
+    );
+
+    render(<BrainWorkspace />);
+
+    expect(await screen.findByText('会话 #42')).toBeInTheDocument();
+    const composer = screen.getByPlaceholderText('问经营数据、风险和下一步动作');
+    const registeredQuestion = { id: 'BQ0705', text: '今天各支付方式的金额分别多少' };
+    fireEvent.change(composer, { target: { value: registeredQuestion.text } });
+    fireEvent.click(screen.getByRole('button', { name: '新建会话' }));
+
+    expect(composer).toBeDisabled();
+    expect(screen.getByRole('button', { name: '发送' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: '发送' }));
+    expect(apiMocks.streamBrainMessage).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveCreate(nextConversation);
+    });
+    expect(await screen.findByText('会话 #43')).toBeInTheDocument();
+    expect(composer).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: '发送' }));
+    await waitFor(() => expect(apiMocks.streamBrainMessage).toHaveBeenCalled());
+    expect(apiMocks.streamBrainMessage.mock.calls[0]?.[0]).toBe(43);
   });
 
   it('executes a confirmed action and renders its business receipt', async () => {

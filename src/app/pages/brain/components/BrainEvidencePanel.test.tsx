@@ -73,4 +73,80 @@ describe('BrainEvidencePanel', () => {
     expect(screen.getAllByText('输出')).toHaveLength(2);
     expect(screen.getByText(/"role": "store_manager"/)).toBeInTheDocument();
   });
+
+  it('switches to the proactive risk tab and keeps paging actions available', () => {
+    const onTabChange = vi.fn();
+    const onInspectionPageChange = vi.fn();
+    const { rerender } = render(
+      <BrainEvidencePanel
+        message={message}
+        events={events}
+        loadingEvents={false}
+        actionResults={{}}
+        pendingActionId={null}
+        feedbackLoading={false}
+        onConfirmAction={vi.fn()}
+        onRejectAction={vi.fn()}
+        onRetryAction={vi.fn()}
+        onFeedback={vi.fn()}
+        activeTab="evidence"
+        onTabChange={onTabChange}
+        inspectionInbox={{
+          items: [],
+          summary: { total: 38, critical: 2, high: 12, medium: 20, low: 4 },
+          storeId: 6,
+          page: 1,
+          pageSize: 20,
+          totalPages: 2,
+        }}
+        onInspectionPageChange={onInspectionPageChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('tab', { name: '主动风险 38' }));
+    expect(onTabChange).toHaveBeenCalledWith('risks');
+
+    rerender(
+      <BrainEvidencePanel
+        message={message}
+        events={events}
+        loadingEvents={false}
+        actionResults={{}}
+        pendingActionId={null}
+        feedbackLoading={false}
+        onConfirmAction={vi.fn()}
+        onRejectAction={vi.fn()}
+        onRetryAction={vi.fn()}
+        onFeedback={vi.fn()}
+        activeTab="risks"
+        onTabChange={onTabChange}
+        inspectionInbox={{
+          items: [{
+            id: 31,
+            ruleKey: 'finance_margin_drop',
+            domain: 'finance',
+            title: '本月毛利下降',
+            severity: 'critical',
+            status: 'open',
+            target: { objectType: 'store', objectId: '6' },
+            evidence: { dropRate: 0.2 },
+            suggestion: { action: '复核项目成本', entry: '/finance/profit', planningStatus: 'planned', actionPreviewCount: 0 },
+            canReview: true,
+            firstDetectedAt: '2026-07-20T01:00:00.000Z',
+            lastDetectedAt: '2026-07-21T01:00:00.000Z',
+          }],
+          summary: { total: 38, critical: 2, high: 12, medium: 20, low: 4 },
+          storeId: 6,
+          page: 1,
+          pageSize: 20,
+          totalPages: 2,
+        }}
+        onInspectionPageChange={onInspectionPageChange}
+      />,
+    );
+
+    expect(screen.getByText('本月毛利下降')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+    expect(onInspectionPageChange).toHaveBeenCalledWith(2);
+  });
 });

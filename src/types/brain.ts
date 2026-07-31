@@ -85,6 +85,9 @@ export interface BrainInspectionInboxResponse {
   items: BrainInspectionInboxItem[];
   summary: { total: number; critical: number; high: number; medium: number; low: number };
   storeId: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
 }
 
 export interface BrainChatRequest {
@@ -489,13 +492,51 @@ export interface BrainSkillGovernanceHistoryListResponse {
   items: BrainSkillGovernanceHistoryItem[];
 }
 
-export type BrainSemanticGovernanceResource = 'metrics' | 'entities' | 'relations';
+export type BrainSemanticGovernanceResource = 'metrics' | 'entities' | 'relations' | 'actions';
+
+export interface BrainActionGovernanceDiscriminator {
+  dimension: string;
+  currentActionValue: string;
+  contrastActionValue: string;
+}
+
+export interface BrainActionGovernanceContrast {
+  conceptKey: string;
+  name: string;
+  discriminators: BrainActionGovernanceDiscriminator[];
+}
+
+export interface BrainActionGovernanceProfile {
+  key: string;
+  label: string;
+  status: 'available' | 'invalid' | 'missing';
+  schemaVersion: string | null;
+  fingerprint: string | null;
+}
+
+export interface BrainActionGovernanceDetails {
+  origin: 'registry' | 'local_candidate';
+  domain: string;
+  actionClass: string;
+  targetEntityRefs: string[];
+  inputSlots: Array<{ slotKey: string; label: string; semanticRole: string; requiredAt: string[] }>;
+  preconditions: string[];
+  effects: string[];
+  capabilityBindings: Array<{ capabilityKey: string; gatewayActionKey: string; enabled: boolean }>;
+  contrasts: BrainActionGovernanceContrast[];
+  profiles: BrainActionGovernanceProfile[];
+  profileGaps: string[];
+  riskPolicy: string;
+  confirmationPolicy: string;
+  idempotencyPolicy: string;
+}
 
 export interface BrainSemanticGovernanceSummary {
   id: number;
-  resourceType: 'metric' | 'ontology_entity' | 'ontology_relation';
+  resourceType: 'metric' | 'ontology_entity' | 'ontology_relation' | 'action';
   resourceKey: string;
   name: string;
+  domain: string | null;
   version: number;
   status: string;
   semanticDescription: string;
@@ -504,13 +545,16 @@ export interface BrainSemanticGovernanceSummary {
   hitCount: number;
   sampleCount: number;
   hitRate: number | null;
-  updatedAt: string;
+  updatedAt: string | null;
   managed: boolean;
   enabled: boolean;
   definitionId: number | null;
   definitionKey: string | null;
   definitionVersionId: number | null;
   historyCount: number;
+  fingerprint: string | null;
+  sourceFingerprint: string | null;
+  actionDetails: BrainActionGovernanceDetails | null;
 }
 
 export type BrainSemanticGovernanceHistoryItem = Omit<
@@ -530,19 +574,32 @@ export interface BrainSemanticGraphNode {
   id: string;
   key: string;
   label: string;
-  kind: 'entity' | 'relation' | 'metric' | 'table';
+  kind: 'entity' | 'relation' | 'metric' | 'action' | 'predicate' | 'effect' | 'event' | 'role' | 'table';
   status: string;
   version: number | null;
   description: string;
   dataTables: string[];
   fuzzyTerms: string[];
+  actionDetails: BrainActionGovernanceDetails | null;
 }
 
 export interface BrainSemanticGraphEdge {
   id: string;
   source: string;
   target: string;
-  kind: 'relation_from' | 'relation_to' | 'metric_entity' | 'backed_by';
+  kind:
+    | 'relation_from'
+    | 'relation_to'
+    | 'metric_entity'
+    | 'backed_by'
+    | 'acts_on'
+    | 'uses_role'
+    | 'requires_predicate'
+    | 'asserts_effect'
+    | 'triggered_by'
+    | 'emits'
+    | 'may_affect_metric'
+    | 'confusable_with';
   label: string;
 }
 
@@ -553,6 +610,11 @@ export interface BrainSemanticGraphResponse {
     entities: number;
     relations: number;
     metrics: number;
+    actions: number;
+    predicates: number;
+    effects: number;
+    events: number;
+    roles: number;
     tables: number;
     edges: number;
   };

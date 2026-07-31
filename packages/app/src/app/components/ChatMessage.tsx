@@ -1,6 +1,6 @@
 import { ReactNode } from 'react'
 import type { BusinessResult } from '../../api/claude'
-import type { BrainActionPreview, BrainResponseBlock } from '../../api/brain'
+import type { BrainActionPreview, BrainChatResponse, BrainResponseBlock } from '../../api/brain'
 
 interface ChatMessageProps {
   type: 'ai' | 'user' | 'system'
@@ -8,7 +8,9 @@ interface ChatMessageProps {
   children?: ReactNode
   businessResult?: BusinessResult | null
   blocks?: BrainResponseBlock[]
-  onClarificationSelect?: (label: string, value: unknown) => void
+  brainStatus?: BrainChatResponse['status']
+  onClarificationSelect?: (label: string, value: unknown, optionId: string) => void
+  onFollowUpSelect?: (label: string, value: string, optionId: string) => void
   onConfirmAction?: (action: BrainActionPreview) => void
   onRejectAction?: (action: BrainActionPreview) => void
 }
@@ -192,7 +194,9 @@ export function ChatMessage({
   children,
   businessResult,
   blocks = [],
+  brainStatus,
   onClarificationSelect,
+  onFollowUpSelect,
   onConfirmAction,
   onRejectAction,
 }: ChatMessageProps) {
@@ -213,10 +217,12 @@ export function ChatMessage({
         </div>
         <div className="flex-1 max-w-[80%]">
           <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-none p-3 shadow-sm">
+            {brainStatus && brainStatus !== 'completed' ? <BrainStatusNotice status={brainStatus} /> : null}
             {renderableBlocks.length ? (
               <AssistantBlocks
                 blocks={renderableBlocks}
                 onClarificationSelect={onClarificationSelect}
+                onFollowUpSelect={onFollowUpSelect}
                 onConfirmAction={onConfirmAction}
                 onRejectAction={onRejectAction}
               />
@@ -241,17 +247,36 @@ export function ChatMessage({
   )
 }
 
+function BrainStatusNotice({ status }: { status: BrainChatResponse['status'] }) {
+  const presentation = status === 'failed'
+    ? { label: '执行失败', className: 'border-red-200 bg-red-50 text-red-700' }
+    : status === 'cancelled'
+      ? { label: '已取消', className: 'border-gray-200 bg-gray-50 text-gray-600' }
+      : status === 'needs_confirmation'
+        ? { label: '待确认', className: 'border-amber-200 bg-amber-50 text-amber-800' }
+        : { label: '处理中', className: 'border-blue-200 bg-blue-50 text-blue-700' }
+  return (
+    <div className={`mb-3 rounded-lg border px-3 py-2 text-xs font-medium ${presentation.className}`}>
+      {presentation.label}
+    </div>
+  )
+}
+
 function AssistantBlocks({
   blocks,
   onClarificationSelect,
+  onFollowUpSelect,
   onConfirmAction,
   onRejectAction,
 }: {
   blocks: BrainResponseBlock[]
-  onClarificationSelect?: (label: string, value: unknown) => void
+  onClarificationSelect?: (label: string, value: unknown, optionId: string) => void
+  onFollowUpSelect?: (label: string, value: string, optionId: string) => void
   onConfirmAction?: (action: BrainActionPreview) => void
   onRejectAction?: (action: BrainActionPreview) => void
 }) {
+  const hasEmptyRanking = blocks.some((block) => block.kind === 'ranking' && block.rows.length === 0)
+  const hasEmptyTable = blocks.some((block) => block.kind === 'table' && block.rows.length === 0)
   return <div className="space-y-3">{blocks.map((block, index) => {
     if (block.kind === 'text') return <p key={index} className="whitespace-pre-wrap text-sm leading-6 text-gray-800">{block.text}</p>
     if (block.kind === 'kpi') return (
@@ -298,9 +323,26 @@ function AssistantBlocks({
               key={option.id}
               type="button"
               className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900"
-              onClick={() => onClarificationSelect?.(option.label, option.value)}
+              onClick={() => onClarificationSelect?.(option.label, option.value, option.id)}
             >
               {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+    if (block.kind === 'follow_up_questions') return (
+      <div key={index} className="rounded-md border border-emerald-100 bg-emerald-50/60 p-3">
+        <div className="text-xs font-medium text-emerald-800">你还可以继续问</div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {block.questions.map((question) => (
+            <button
+              key={question.id}
+              type="button"
+              className="rounded-md border border-emerald-200 bg-white px-2.5 py-1.5 text-left text-xs text-emerald-900"
+              onClick={() => onFollowUpSelect?.(question.label, question.value, question.id)}
+            >
+              {question.label}
             </button>
           ))}
         </div>
@@ -336,7 +378,14 @@ function AssistantBlocks({
         ))}
       </div>
     )
-    if (block.kind === 'limitations') return <div key={index} className="border-l-2 border-amber-500 pl-3 text-sm text-amber-700">未完成：{block.items.join('；')}</div>
+    if (block.kind === 'limitations') {
+      const items = block.items.filter((item) =>
+        !(item === 'no_data:ranking' && hasEmptyRanking) && !(item === 'no_data:table' && hasEmptyTable))
+      if (!items.length) return null
+      return <div key={index} className="border-l-2 border-amber-500 pl-3 text-sm text-amber-700">
+        {items.every((item) => item.startsWith('no_data:')) ? '说明' : '能力边界'}：{items.map(formatLimitation).join('；')}
+      </div>
+    }
     if (block.kind === 'evidence') return (
       <div key={index} className="border-t border-gray-100 pt-2 text-xs leading-5 text-gray-500">
         数据依据：{block.citations.map((citation) => citation.label ?? citation.sourceId).join('、')}
@@ -348,6 +397,16 @@ function AssistantBlocks({
 
 function MobileDataTable({ block }: { block: Extract<BrainResponseBlock, { kind: 'ranking' | 'table' }> }) {
   const columns = block.columns.length ? block.columns : Object.keys(block.rows[0] ?? {})
+  if (!block.rows.length) {
+    return (
+      <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center">
+        <div className="text-sm font-medium text-gray-800">暂无匹配数据</div>
+        <div className="mt-1 text-xs text-gray-500">
+          {block.kind === 'ranking' ? '当前条件下没有可排行的业务记录。' : '当前条件下没有匹配的业务明细。'}
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="overflow-x-auto">
       <div className="mb-1 text-xs font-medium text-gray-500">{block.kind === 'ranking' ? '排行结果' : '明细结果'}</div>
@@ -387,6 +446,15 @@ function formatBlockValue(value: unknown) {
   return String(value)
 }
 
+function formatLimitation(value: string) {
+  if (value === 'no_data:ranking') return '当前条件下没有可排行的业务记录'
+  if (value === 'no_data:table') return '当前条件下没有匹配的业务明细'
+  if (value === 'capability_failed') return '相关能力执行失败，本次没有生成业务结论'
+  if (value === 'request_processing') return '请求仍在处理中，当前内容不是最终业务结果'
+  if (value === 'request_cancelled') return '请求已取消，本次没有生成新的业务结论'
+  return value.replace(/[。；;]+$/u, '')
+}
+
 function isSupportedBrainBlock(value: unknown): value is BrainResponseBlock {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const kind = (value as { kind?: unknown }).kind
@@ -399,6 +467,7 @@ function isSupportedBrainBlock(value: unknown): value is BrainResponseBlock {
     'comparison',
     'diagnosis',
     'clarification',
+    'follow_up_questions',
     'action_preview',
     'limitations',
     'evidence',

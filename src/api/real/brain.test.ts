@@ -49,6 +49,9 @@ describe('brain real API contract', () => {
     await brainApi.listBrainTraces();
     await brainApi.listBrainSemanticResource('metrics');
     await brainApi.updateBrainSemanticResource('metrics', 'paid_revenue', { status: 'active' });
+    await brainApi.listBrainSemanticGovernanceSummaries('actions', { take: 25 });
+    await brainApi.listBrainSemanticGovernanceHistory('actions', 'action.create_customer', { take: 10 });
+    await brainApi.getBrainSemanticGraph();
     await brainApi.listBrainRoleProfiles();
     await brainApi.listBrainMemories();
     await brainApi.listBrainMemoryRevisions(5);
@@ -58,6 +61,7 @@ describe('brain real API contract', () => {
     await brainApi.listBrainSkills();
     await brainApi.listBrainInspectionRules();
     await brainApi.listBrainInspectionInbox(6);
+    await brainApi.listBrainInspectionInbox({ page: 2, pageSize: 20 });
     await brainApi.getBrainInspectionRepairPreview(21);
     await brainApi.decideBrainInspectionRepair(21, { decision: 'modify', modifications: { safetyStock: 12 } });
     await brainApi.createBrainEvalRun({ releaseId: 1, caseKeys: ['metric_001'] });
@@ -80,7 +84,22 @@ describe('brain real API contract', () => {
     expect(apiClientMock.post).toHaveBeenCalledWith('/brain/actions/act_1/retry', { actionId: 'act_1', runId: 7 });
     expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/traces');
     expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/semantic/metrics');
-    expect(apiClientMock.patch).toHaveBeenCalledWith('/brain/governance/semantic/metrics/paid_revenue', { status: 'active' });
+    expect(apiClientMock.patch).toHaveBeenCalledWith('/brain/governance/semantic/metrics/paid_revenue', {
+      status: 'active',
+    });
+    expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/semantic-versions/actions', {
+      params: { take: 25 },
+      signal: expect.anything(),
+      skipRetry: true,
+    });
+    expect(apiClientMock.get).toHaveBeenCalledWith(
+      '/brain/governance/semantic-versions/actions/action.create_customer',
+      { params: { take: 10 }, signal: expect.anything(), skipRetry: true },
+    );
+    expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/semantic-graph', {
+      signal: expect.anything(),
+      skipRetry: true,
+    });
     expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/roles');
     expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/memories');
     expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/memories/5/revisions');
@@ -92,6 +111,7 @@ describe('brain real API contract', () => {
     expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/skills');
     expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/inspection-rules');
     expect(apiClientMock.get).toHaveBeenCalledWith('/brain/inspections/inbox', { params: { limit: 6 } });
+    expect(apiClientMock.get).toHaveBeenCalledWith('/brain/inspections/inbox', { params: { page: 2, pageSize: 20 } });
     expect(apiClientMock.get).toHaveBeenCalledWith('/brain/inspections/findings/21/repair-preview');
     expect(apiClientMock.post).toHaveBeenCalledWith('/brain/inspections/findings/21/repair-decisions', {
       decision: 'modify',
@@ -113,7 +133,9 @@ describe('brain real API contract', () => {
     expect(apiClientMock.post).toHaveBeenCalledWith('/brain/governance/releases/61/modification-requirements', {
       requirement: '只允许店长使用，客户手机号必须脱敏',
     });
-    expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/regeneration-jobs', { params: { releaseId: 61 } });
+    expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/regeneration-jobs', {
+      params: { releaseId: 61 },
+    });
     expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/regeneration-jobs/501');
     expect(apiClientMock.post).toHaveBeenCalledWith('/brain/governance/regeneration-jobs/501/retry', {});
     expect(apiClientMock.post).toHaveBeenCalledWith('/brain/governance/releases/61/rollback-to-rules', {

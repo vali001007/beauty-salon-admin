@@ -15,7 +15,7 @@ export interface AgentAnswerDisplayInput {
   } | null;
 }
 
-export type AgentAnswerStatusKind = 'no_data' | 'unsupported' | 'failed';
+export type AgentAnswerStatusKind = 'no_data' | 'unsupported' | 'partial' | 'failed';
 
 export interface AgentAnswerStatusNotice {
   kind: AgentAnswerStatusKind;
@@ -86,6 +86,14 @@ export function getAgentResultStatusNotice(result: AgentAnswerDisplayInput): Age
   const toolResults = result.toolResults ?? [];
   const hasSuccess = toolResults.some((toolResult) => toolResult.status === 'success');
   const contractErrors = normalizeStrings(result.answerContract?.errors);
+
+  if (result.status === 'partially_completed') {
+    return {
+      kind: 'partial',
+      title: '部分完成',
+      message: '动作仅部分执行成功，请核对业务回执、已完成项和失败项。',
+    };
+  }
 
   if (result.status === 'failed' || contractErrors.length || (!hasSuccess && toolResults.some((toolResult) => toolResult.status === 'failed'))) {
     return {

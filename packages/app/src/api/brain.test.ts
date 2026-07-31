@@ -16,15 +16,17 @@ describe('mobile Ami Brain API', () => {
     const { sendBrainMessage } = await import('./brain')
 
     await sendBrainMessage(16, {
-      message: '本月商品销售排行',
+      message: '本月各项目的销量排行',
       roleHint: 'store_manager',
       timezone: 'Asia/Shanghai',
+      guidanceSelection: { kind: 'follow_up', sourceRunId: 88, optionId: 'next_1' },
     })
 
     expect(apiClient.post).toHaveBeenCalledWith('/brain/conversations/16/messages', {
-      message: '本月商品销售排行',
+      message: '本月各项目的销量排行',
       roleHint: 'store_manager',
       timezone: 'Asia/Shanghai',
+      guidanceSelection: { kind: 'follow_up', sourceRunId: 88, optionId: 'next_1' },
     })
   })
 

@@ -133,6 +133,7 @@ export interface ReplenishmentSuggestion {
 
 export interface PurchaseOrder {
   id: number;
+  storeId: number;
   orderNo: string;
   supplier: string;
   storeName: string;
@@ -140,6 +141,7 @@ export interface PurchaseOrder {
   totalAmount: number;
   status: '草稿' | '待审核' | '已审核' | '已下单' | '部分收货' | '已收货' | '已取消';
   createDate: string;
+  updatedAt: string;
   expectedDate: string;
   items?: PurchaseOrderItem[];
 }

@@ -57,9 +57,12 @@ describe('BrainRoleGovernance', () => {
   it('loads the selected role into the editor and saves a new draft version', async () => {
     render(<BrainRoleGovernance />);
 
+    expect(screen.queryByRole('dialog', { name: '配置角色 · store_manager' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('角色配置 JSON')).not.toBeInTheDocument();
+
     await userEvent.click(await screen.findByRole('button', { name: '配置店长经营专家' }));
 
-    expect(screen.getByText('配置角色 · store_manager')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: '配置角色 · store_manager' })).toBeInTheDocument();
     expect((screen.getByLabelText('角色配置 JSON') as unknown as { value: string }).value).toContain('query_margin');
 
     await userEvent.click(screen.getByRole('button', { name: '保存新版本' }));
@@ -74,5 +77,17 @@ describe('BrainRoleGovernance', () => {
         }),
       );
     });
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: '配置角色 · store_manager' })).not.toBeInTheDocument();
+    });
+  });
+
+  it('opens new role configuration in a dialog', async () => {
+    render(<BrainRoleGovernance />);
+
+    await userEvent.click(await screen.findByRole('button', { name: '新建角色' }));
+
+    expect(screen.getByRole('dialog', { name: '新建角色配置' })).toBeInTheDocument();
+    expect((screen.getByLabelText('角色配置 JSON') as unknown as { value: string }).value).toContain('store_manager');
   });
 });

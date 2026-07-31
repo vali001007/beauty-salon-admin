@@ -236,7 +236,7 @@ function normalizePurchaseStatus(status: unknown): PurchaseOrder['status'] {
 
 function getPurchasePayload(item: ApiPurchaseOrder) {
   const payload = item.items && typeof item.items === 'object' && !Array.isArray(item.items)
-    ? item.items as { items?: unknown; storeName?: string; expectedDate?: string }
+    ? item.items as { items?: unknown; storeId?: number | string; storeName?: string; expectedDate?: string }
     : undefined;
   const rawItems = Array.isArray(item.items) ? item.items : Array.isArray(payload?.items) ? payload.items : [];
   const items = rawItems.map((raw, index) => {
@@ -262,6 +262,7 @@ function normalizePurchaseOrder(item: ApiPurchaseOrder): PurchaseOrder {
   const totalAmount = Number(item.totalAmount ?? items.reduce((sum, orderItem) => sum + orderItem.subtotal, 0));
   return {
     id: Number(item.id),
+    storeId: Number(item.storeId ?? payload?.storeId ?? 0),
     orderNo: item.orderNo ?? '',
     supplier: item.supplier ?? '',
     storeName: item.storeName ?? payload?.storeName ?? '全部门店',
@@ -269,6 +270,7 @@ function normalizePurchaseOrder(item: ApiPurchaseOrder): PurchaseOrder {
     totalAmount,
     status: normalizePurchaseStatus(item.status),
     createDate: item.createDate ?? item.createdAt?.slice(0, 10) ?? '',
+    updatedAt: item.updatedAt ?? '',
     expectedDate: item.expectedDate ?? payload?.expectedDate ?? '',
     items,
   };
@@ -393,6 +395,21 @@ export async function realCreatePurchaseOrder(data: PurchaseOrderFormData): Prom
 
 export async function realUpdatePurchaseOrderStatus(id: number, status: PurchaseOrder['status']): Promise<PurchaseOrder> {
   const response = await apiClient.patch<unknown, unknown>(`/inventory/purchase-orders/${id}/status`, { status });
+  return normalizePurchaseOrder(response as ApiPurchaseOrder);
+}
+
+export async function realSubmitPurchaseOrderForApproval(
+  id: number,
+  expectedPurchaseOrderUpdatedAt: string,
+  idempotencyKey: string,
+): Promise<PurchaseOrder> {
+  const normalizedIdempotencyKey = String(idempotencyKey ?? '').trim();
+  if (!normalizedIdempotencyKey) throw new Error('采购单送审缺少幂等键');
+  const response = await apiClient.post<unknown, unknown>(
+    `/inventory/purchase-orders/${id}/submit-for-approval`,
+    { expectedPurchaseOrderUpdatedAt },
+    { headers: { 'Idempotency-Key': normalizedIdempotencyKey } },
+  );
   return normalizePurchaseOrder(response as ApiPurchaseOrder);
 }
 

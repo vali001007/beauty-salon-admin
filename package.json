@@ -43,6 +43,7 @@
     "check:ami-semantic-agent": "node scripts/check-ami-semantic-agent.mjs",
     "check:ami-query-hub": "node scripts/check-ami-query-hub.mjs",
     "check:brain-mvp": "node scripts/check-brain-mvp.mjs",
+    "check:ami-brain-cross-client-contract": "node scripts/check-ami-brain-cross-client-contract.mjs",
     "brain:capability:scan": "npm --prefix packages/server-v2 run brain:capability:scan --",
     "brain:capability:scan:strict": "npm --prefix packages/server-v2 run brain:capability:scan:strict --",
     "brain:capability:generate": "npm --prefix packages/server-v2 run brain:capability:generate --",

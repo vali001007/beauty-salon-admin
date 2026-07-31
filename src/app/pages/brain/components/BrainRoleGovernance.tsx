@@ -8,6 +8,14 @@ import {
   listBrainRoleProfiles,
   updateBrainRoleProfile,
 } from '@/api/brain';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/app/components/ui/dialog';
 
 interface ResourceRow {
   id?: number;
@@ -152,6 +160,7 @@ export function BrainRoleGovernance() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [selectedRoleKey, setSelectedRoleKey] = useState<string | null>(null);
   const [editor, setEditor] = useState(JSON.stringify(EMPTY_ROLE, null, 2));
   const roles = useMemo(() => mergeRoleRows(versions, activeItems), [versions, activeItems]);
@@ -185,11 +194,13 @@ export function BrainRoleGovernance() {
   function configureRole(row: RoleProfileRow) {
     setSelectedRoleKey(row.roleKey);
     setEditor(JSON.stringify(rolePayload(row), null, 2));
+    setEditorOpen(true);
   }
 
   function createRole() {
     setSelectedRoleKey(null);
     setEditor(JSON.stringify(EMPTY_ROLE, null, 2));
+    setEditorOpen(true);
   }
 
   async function save() {
@@ -217,6 +228,7 @@ export function BrainRoleGovernance() {
       toast.success('角色配置草稿版本已保存');
       setSelectedRoleKey(roleKey);
       await load();
+      setEditorOpen(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '角色配置保存失败');
     } finally {
@@ -243,7 +255,7 @@ export function BrainRoleGovernance() {
         </div>
       </div>
 
-      <div className="grid gap-6 py-5 2xl:grid-cols-[minmax(0,1fr)_440px]">
+      <div className="py-5">
         <div className="min-w-0 overflow-x-auto rounded-md border border-border">
           {loadError ? (
             <div className="flex items-center justify-between gap-3 border-b border-border bg-destructive/5 px-3 py-2 text-sm text-destructive">
@@ -313,31 +325,42 @@ export function BrainRoleGovernance() {
             </tbody>
           </table>
         </div>
+      </div>
 
-        <aside className="min-w-0 rounded-md border border-border p-4">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <Settings2 className="h-4 w-4" />
-            {selectedRoleKey ? `配置角色 · ${selectedRoleKey}` : '新建角色配置'}
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">保存后创建不可变草稿版本，不会直接覆盖已发布配置。</p>
-          <label htmlFor="brain-role-config-editor" className="mt-4 block text-xs font-medium text-muted-foreground">角色配置 JSON</label>
+      <Dialog open={editorOpen} onOpenChange={(open) => !saving && setEditorOpen(open)}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{selectedRoleKey ? `配置角色 · ${selectedRoleKey}` : '新建角色配置'}</DialogTitle>
+            <DialogDescription>保存后创建不可变草稿版本，不会直接覆盖已发布配置。</DialogDescription>
+          </DialogHeader>
+          <label htmlFor="brain-role-config-editor" className="text-sm font-medium">角色配置 JSON</label>
           <textarea
             id="brain-role-config-editor"
             value={editor}
             onChange={(event) => setEditor(event.target.value)}
-            className="mt-2 min-h-[400px] w-full rounded-md border border-input bg-background p-3 font-mono text-xs outline-none focus:border-primary"
+            className="min-h-[420px] w-full rounded-md border border-input bg-background p-3 font-mono text-xs outline-none focus:border-primary"
           />
-          <button
-            type="button"
-            className="mt-3 inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm text-primary-foreground disabled:opacity-60"
-            onClick={() => void save()}
-            disabled={saving}
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            保存新版本
-          </button>
-        </aside>
-      </div>
+          <DialogFooter>
+            <button
+              type="button"
+              className="inline-flex h-9 items-center justify-center rounded-md border border-border px-4 text-sm"
+              onClick={() => setEditorOpen(false)}
+              disabled={saving}
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm text-primary-foreground disabled:opacity-60"
+              onClick={() => void save()}
+              disabled={saving}
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              保存新版本
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

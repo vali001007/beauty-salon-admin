@@ -248,12 +248,13 @@ export function BrainSkillGovernance() {
             </div>
           ) : null}
           <div className="min-w-0 overflow-x-auto border border-border">
-            <table className="w-full min-w-[1480px] text-left text-sm">
+            <table className="w-full min-w-[1560px] text-left text-sm">
               <thead className="bg-muted/50 text-xs text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2">技能 ID</th>
                   <th className="px-3 py-2">名称</th>
                   <th className="px-3 py-2">版本</th>
+                  <th className="px-3 py-2">状态</th>
                   <th className="px-3 py-2">技能说明</th>
                   <th className="px-3 py-2">涉及领域</th>
                   <th className="px-3 py-2">实体</th>
@@ -275,12 +276,14 @@ export function BrainSkillGovernance() {
                     </td>
                     <td className="px-3 py-3">
                       <div className="font-medium">v{item.version}</div>
-                      <div className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-xs ${statusClass(item.status)}`}>
-                        {statusLabel(item.status)}
-                      </div>
                       {item.activeVersion && item.activeVersion !== item.version ? (
                         <div className="mt-1 text-xs text-muted-foreground">生效 v{item.activeVersion}</div>
                       ) : null}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3">
+                      <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${statusClass(item.status)}`}>
+                        {statusLabel(item.status)}
+                      </span>
                     </td>
                     <td className="max-w-sm px-3 py-3 text-sm leading-6 text-muted-foreground">
                       {item.description || '暂无技能说明'}
@@ -326,7 +329,7 @@ export function BrainSkillGovernance() {
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={9} className="px-3 py-10 text-center text-muted-foreground">
+                    <td colSpan={10} className="px-3 py-10 text-center text-muted-foreground">
                       {loading ? '加载中' : '暂无技能版本'}
                     </td>
                   </tr>

@@ -1,11 +1,16 @@
-import { CheckCircle2, ChevronDown, Database, GitBranch, Loader2, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { useEffect } from 'react';
+import { CheckCircle2, ChevronDown, Database, GitBranch, Loader2, ThumbsDown, ThumbsUp, X } from 'lucide-react';
 import type {
   BrainActionPreview as BrainActionPreviewType,
   BrainActionDecisionResponse,
+  BrainInspectionInboxResponse,
   BrainMessage,
   BrainRunEvent,
 } from '@/types/brain';
 import { BrainActionPreview } from './BrainActionPreview';
+import { BrainInspectionInbox } from './BrainInspectionInbox';
+
+export type BrainContextPanelTab = 'evidence' | 'risks';
 
 interface BrainEvidencePanelProps {
   message: BrainMessage | null;
@@ -19,6 +24,17 @@ interface BrainEvidencePanelProps {
   onRejectAction: (actionId: string, runId: number) => void;
   onRetryAction: (actionId: string, runId: number) => void;
   onFeedback: (runId: number, rating: string) => void;
+  activeTab?: BrainContextPanelTab;
+  onTabChange?: (tab: BrainContextPanelTab) => void;
+  inspectionInbox?: BrainInspectionInboxResponse | null;
+  loadingInspectionInbox?: boolean;
+  inspectionError?: string | null;
+  reviewingFindingId?: number | null;
+  onInspectionRefresh?: () => void;
+  onInspectionReview?: (findingId: number) => void;
+  onInspectionPageChange?: (page: number) => void;
+  mobileRiskOpen?: boolean;
+  onCloseMobileRisk?: () => void;
 }
 
 const EVENT_LABELS: Record<string, string> = {
@@ -166,20 +182,164 @@ export function BrainEvidencePanel({
   onRejectAction,
   onRetryAction,
   onFeedback,
+  activeTab = 'evidence',
+  onTabChange = () => undefined,
+  inspectionInbox = null,
+  loadingInspectionInbox = false,
+  inspectionError = null,
+  reviewingFindingId = null,
+  onInspectionRefresh = () => undefined,
+  onInspectionReview = () => undefined,
+  onInspectionPageChange = () => undefined,
+  mobileRiskOpen = false,
+  onCloseMobileRisk = () => undefined,
 }: BrainEvidencePanelProps) {
+  useEffect(() => {
+    if (!mobileRiskOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onCloseMobileRisk();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mobileRiskOpen, onCloseMobileRisk]);
+
+  const sharedProps: ContextPanelProps = {
+    message,
+    events,
+    loadingEvents,
+    actionResults,
+    pendingActionId,
+    feedbackRating,
+    feedbackLoading,
+    onConfirmAction,
+    onRejectAction,
+    onRetryAction,
+    onFeedback,
+    activeTab,
+    onTabChange,
+    inspectionInbox,
+    loadingInspectionInbox,
+    inspectionError,
+    reviewingFindingId,
+    onInspectionRefresh,
+    onInspectionReview,
+    onInspectionPageChange,
+  };
+
+  return (
+    <>
+      <aside className="hidden w-80 min-w-80 flex-col border-l border-border bg-muted/10 xl:flex">
+        <ContextPanel {...sharedProps} />
+      </aside>
+      {mobileRiskOpen ? (
+        <div className="fixed inset-0 z-50 xl:hidden">
+          <button
+            type="button"
+            aria-label="关闭主动风险面板"
+            className="absolute inset-0 bg-black/30"
+            onClick={onCloseMobileRisk}
+          />
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label="主动风险"
+            className="absolute inset-y-0 right-0 flex w-[min(92vw,420px)] flex-col border-l border-border bg-background shadow-xl"
+          >
+            <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
+              <h2 className="text-sm font-semibold text-foreground">Ami Brain 上下文</h2>
+              <button
+                type="button"
+                aria-label="关闭主动风险"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+                onClick={onCloseMobileRisk}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <ContextPanel {...sharedProps} />
+          </aside>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+interface ContextPanelProps extends Omit<BrainEvidencePanelProps, 'mobileRiskOpen' | 'onCloseMobileRisk'> {
+  activeTab: BrainContextPanelTab;
+  onTabChange: (tab: BrainContextPanelTab) => void;
+  inspectionInbox: BrainInspectionInboxResponse | null;
+  loadingInspectionInbox: boolean;
+  inspectionError: string | null;
+  reviewingFindingId: number | null;
+  onInspectionRefresh: () => void;
+  onInspectionReview: (findingId: number) => void;
+  onInspectionPageChange: (page: number) => void;
+}
+
+function ContextPanel(props: ContextPanelProps) {
+  const riskTotal = props.inspectionInbox?.summary.total ?? 0;
+  const critical = props.inspectionInbox?.summary.critical ?? 0;
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="shrink-0 border-b border-border p-3">
+        <div className="grid grid-cols-2 gap-1 rounded-md bg-muted p-1" role="tablist" aria-label="Ami Brain 上下文面板">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={props.activeTab === 'evidence'}
+            className={`rounded px-2 py-2 text-xs font-medium ${props.activeTab === 'evidence' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+            onClick={() => props.onTabChange('evidence')}
+          >
+            依据与动作
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={props.activeTab === 'risks'}
+            className={`rounded px-2 py-2 text-xs font-medium ${props.activeTab === 'risks' ? 'bg-background text-foreground shadow-sm' : critical ? 'text-red-700' : 'text-muted-foreground'}`}
+            onClick={() => props.onTabChange('risks')}
+          >
+            主动风险 {riskTotal}
+          </button>
+        </div>
+      </div>
+      {props.activeTab === 'risks' ? (
+        <BrainInspectionInbox
+          inbox={props.inspectionInbox}
+          loading={props.loadingInspectionInbox}
+          error={props.inspectionError}
+          reviewingId={props.reviewingFindingId}
+          onRefresh={props.onInspectionRefresh}
+          onReview={props.onInspectionReview}
+          onPageChange={props.onInspectionPageChange}
+        />
+      ) : (
+        <EvidenceContent {...props} />
+      )}
+    </div>
+  );
+}
+
+function EvidenceContent({
+  message,
+  events,
+  loadingEvents,
+  actionResults,
+  pendingActionId,
+  feedbackRating,
+  feedbackLoading,
+  onConfirmAction,
+  onRejectAction,
+  onRetryAction,
+  onFeedback,
+}: ContextPanelProps) {
   const metadata = message?.metadata;
   const runId = metadata?.runId;
   const citations = metadata?.citations ?? [];
   const actions = (metadata?.suggestedActions ?? []).filter(isConfirmableAction);
 
   return (
-    <aside className="hidden w-80 min-w-80 flex-col border-l border-border bg-muted/10 xl:flex">
-      <div className="border-b border-border p-4">
-        <h2 className="text-sm font-semibold text-foreground">依据与动作</h2>
-        <p className="mt-1 text-xs text-muted-foreground">选择一条回答查看来源、运行轨迹和待确认动作。</p>
-      </div>
-
-      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
+    <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4" role="tabpanel" aria-label="依据与动作">
         {!message ? (
           <div className="py-8 text-center text-sm leading-6 text-muted-foreground">回答生成后，这里会展示可核验依据。</div>
         ) : (
@@ -323,7 +483,6 @@ export function BrainEvidencePanel({
             ) : null}
           </>
         )}
-      </div>
-    </aside>
+    </div>
   );
 }

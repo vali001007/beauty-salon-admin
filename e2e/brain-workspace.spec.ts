@@ -12,12 +12,23 @@ async function login(page: import('@playwright/test').Page) {
 }
 
 test.describe('Ami Brain real product flow', () => {
-  test.use({ viewport: { width: 1440, height: 1000 } });
+  test.use({ viewport: { width: 1512, height: 746 } });
 
   test('creates a conversation, streams an answer and restores it after refresh', async ({ page }) => {
     await login(page);
     await page.goto('/brain');
     await expect(page.getByRole('heading', { name: 'Ami Brain' })).toBeVisible();
+    const chatPanel = page.getByTestId('brain-chat-panel');
+    const riskButton = page.getByRole('button', { name: /主动风险 \d+/ });
+    await expect(riskButton).toBeVisible();
+    await expect(chatPanel.getByRole('region', { name: '主动巡检风险' })).toHaveCount(0);
+    const messageScrollBox = await page.getByTestId('brain-message-scroll').boundingBox();
+    expect(messageScrollBox?.height ?? 0).toBeGreaterThan(240);
+
+    await riskButton.click();
+    await expect(page.getByRole('tab', { name: /主动风险 \d+/ })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('region', { name: '主动巡检风险' })).toBeVisible();
+    await page.getByRole('tab', { name: '依据与动作' }).click();
 
     await page.getByRole('button', { name: '新建会话' }).click();
     await expect(page.getByText(/会话 #\d+/)).toBeVisible();
@@ -65,6 +76,12 @@ test.describe('Ami Brain mobile width', () => {
     await page.goto('/brain');
     await expect(page.getByPlaceholder('问经营数据、风险和下一步动作')).toBeVisible();
     await expect(page.getByRole('button', { name: '新会话' })).toBeVisible();
+    const riskButton = page.getByRole('button', { name: /主动风险 \d+/ });
+    await riskButton.click();
+    await expect(page.getByRole('dialog', { name: '主动风险' })).toBeVisible();
+    await page.getByRole('button', { name: '关闭主动风险', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: '主动风险' })).toHaveCount(0);
+    await expect(riskButton).toBeFocused();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow).toBeLessThanOrEqual(1);
   });

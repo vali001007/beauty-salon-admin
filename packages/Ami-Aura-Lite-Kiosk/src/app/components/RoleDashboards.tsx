@@ -3893,6 +3893,7 @@ function getAgentStatusLabel(status: AgentRunResult["status"]) {
     waiting_approval: "待确认",
     composing: "生成中",
     completed: "已完成",
+    partially_completed: "部分完成",
     failed: "执行失败",
     cancelled: "已取消",
   };
@@ -3901,6 +3902,7 @@ function getAgentStatusLabel(status: AgentRunResult["status"]) {
 
 function getAgentStatusClass(status: AgentRunResult["status"]) {
   if (status === "completed") return "bg-emerald-50 text-emerald-700";
+  if (status === "partially_completed") return "bg-amber-50 text-amber-800";
   if (status === "waiting_approval") return "bg-amber-50 text-amber-700";
   if (status === "failed" || status === "cancelled") return "bg-rose-50 text-rose-600";
   return "bg-[#F7F5F2] text-[#6F6678]";
@@ -4432,4 +4434,3 @@ export function SummaryBadge({ text }: { text: string }) {
     </div>
   );
 }
-

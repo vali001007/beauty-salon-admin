@@ -106,6 +106,7 @@ export async function mockGetReplenishmentSuggestions(): Promise<ReplenishmentSu
 const MOCK_PURCHASE_ORDERS: PurchaseOrder[] = [
   {
     id: 1,
+    storeId: 1,
     orderNo: 'PO-2026-03-001',
     supplier: '兰蔻官方旗舰店',
     storeName: '心悦美容养生会所',
@@ -113,6 +114,7 @@ const MOCK_PURCHASE_ORDERS: PurchaseOrder[] = [
     totalAmount: 28400,
     status: '已审核',
     createDate: '2026-03-20',
+    updatedAt: '2026-03-20T00:00:00.000Z',
     expectedDate: '2026-03-27',
     items: [
       { id: 1, productName: '玫瑰精华液', sku: 'SK-LO-000001', quantity: 50, unitPrice: 480, subtotal: 24000 },
@@ -121,6 +123,7 @@ const MOCK_PURCHASE_ORDERS: PurchaseOrder[] = [
   },
   {
     id: 2,
+    storeId: 2,
     orderNo: 'PO-2026-03-002',
     supplier: '雅诗兰黛专柜',
     storeName: '凤仪阁美容养生会所',
@@ -128,6 +131,7 @@ const MOCK_PURCHASE_ORDERS: PurchaseOrder[] = [
     totalAmount: 17600,
     status: '已下单',
     createDate: '2026-03-18',
+    updatedAt: '2026-03-18T00:00:00.000Z',
     expectedDate: '2026-03-25',
     items: [
       { id: 3, productName: '补水面膜', sku: 'SK-LO-000002', quantity: 80, unitPrice: 220, subtotal: 17600 },
@@ -135,6 +139,7 @@ const MOCK_PURCHASE_ORDERS: PurchaseOrder[] = [
   },
   {
     id: 3,
+    storeId: 1,
     orderNo: 'PO-2026-03-003',
     supplier: 'SK-II官方授权店',
     storeName: '心悦美容养生会所',
@@ -142,6 +147,7 @@ const MOCK_PURCHASE_ORDERS: PurchaseOrder[] = [
     totalAmount: 58800,
     status: '待审核',
     createDate: '2026-03-22',
+    updatedAt: '2026-03-22T00:00:00.000Z',
     expectedDate: '2026-03-29',
     items: [
       { id: 4, productName: '美白精华', sku: 'SK-LO-000003', quantity: 60, unitPrice: 980, subtotal: 58800 },
@@ -149,6 +155,7 @@ const MOCK_PURCHASE_ORDERS: PurchaseOrder[] = [
   },
   {
     id: 4,
+    storeId: 2,
     orderNo: 'PO-2026-03-004',
     supplier: '资生堂旗舰店',
     storeName: '凤仪阁美容养生会所',
@@ -156,6 +163,7 @@ const MOCK_PURCHASE_ORDERS: PurchaseOrder[] = [
     totalAmount: 56000,
     status: '草稿',
     createDate: '2026-03-24',
+    updatedAt: '2026-03-24T00:00:00.000Z',
     expectedDate: '2026-03-31',
     items: [
       { id: 5, productName: '保湿乳液', sku: 'SK-LO-000005', quantity: 175, unitPrice: 320, subtotal: 56000 },
@@ -216,6 +224,7 @@ export async function mockCreatePurchaseOrder(data: PurchaseOrderFormData): Prom
   const totalAmount = data.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
   const newOrder: PurchaseOrder = {
     id: Date.now(),
+    storeId: data.storeId ?? 0,
     orderNo: `PO-${today}-${String(Math.floor(Math.random() * 999)).padStart(3, '0')}`,
     supplier: data.supplier,
     storeName: data.storeName,
@@ -223,6 +232,7 @@ export async function mockCreatePurchaseOrder(data: PurchaseOrderFormData): Prom
     totalAmount,
     status: '草稿',
     createDate: today,
+    updatedAt: new Date().toISOString(),
     expectedDate: data.expectedDate,
     items: data.items.map((item, index) => ({
       id: Date.now() + index,

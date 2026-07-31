@@ -3,7 +3,8 @@ import type { ComponentProps } from 'react'
 import { Menu, LogOut } from 'lucide-react'
 import { toast } from 'sonner'
 import { ChatMessage } from './ChatMessage'
-import { confirmBrainAction, rejectBrainAction, type BrainActionPreview } from '@/api'
+import { confirmBrainAction, rejectBrainAction, type BrainActionPreview, type BrainGuidanceSelection } from '@/api'
+import { presentBrainActionDecision } from '@/api/brain-action-decision'
 import { QuickActions } from './QuickActions'
 import { ChatInput } from './ChatInput'
 import { sendMessage, type Message, type Role, type BusinessResult } from '../../api/claude'
@@ -52,6 +53,7 @@ interface UIMessage {
   businessResult?: BusinessResult | null
   blocks?: ComponentProps<typeof ChatMessage>['blocks']
   runId?: number
+  brainStatus?: ComponentProps<typeof ChatMessage>['brainStatus']
 }
 
 export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
@@ -68,8 +70,8 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [uiMessages])
 
-  const handleSend = async (text: string) => {
-    if (loading) return
+  const handleSend = async (text: string, guidanceSelection?: BrainGuidanceSelection) => {
+    if (loading) return false
 
     const userMsg: UIMessage = { id: Date.now(), type: 'user', content: text }
     const aiMsgId = Date.now() + 1
@@ -97,18 +99,26 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
             )
           )
         },
-        (result) => {
+        (result, presentation) => {
           setUiMessages((prev) =>
-            prev.map((m) => (m.id === aiMsgId ? { ...m, blocks: completeBlocks(result), runId: result.runId } : m))
+            prev.map((m) => (m.id === aiMsgId ? {
+              ...m,
+              blocks: presentation.blocks,
+              runId: result.runId,
+              brainStatus: presentation.status,
+            } : m))
           )
         },
+        guidanceSelection,
       )
 
       setHistory((prev) => [...prev, ...newEntries])
+      return true
     } catch (err) {
       const msg = err instanceof Error ? err.message : '请求失败'
       toast.error(msg)
       setUiMessages((prev) => prev.filter((m) => m.id !== aiMsgId))
+      return false
     } finally {
       setLoading(false)
     }
@@ -119,14 +129,11 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
       const result = decision === 'confirm'
         ? await confirmBrainAction(action.actionId, runId)
         : await rejectBrainAction(action.actionId, runId)
-      const receipt = result.receipt ?? {}
-      const message = typeof receipt.message === 'string'
-        ? receipt.message
-        : decision === 'reject'
-          ? '已拒绝该动作，本次不会执行。'
-          : `动作已${result.status === 'succeeded' ? '执行' : '提交'}。`
-      setUiMessages((prev) => [...prev, { id: Date.now(), type: 'ai', content: message }])
-      toast.success(message)
+      const presentation = presentBrainActionDecision(result, decision)
+      setUiMessages((prev) => [...prev, { id: Date.now(), type: 'ai', content: presentation.message }])
+      if (presentation.tone === 'error') toast.error(presentation.message)
+      else if (presentation.tone === 'success') toast.success(presentation.message)
+      else toast.info(presentation.message)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '动作确认失败')
     }
@@ -157,7 +164,15 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
             content={msg.content}
             businessResult={msg.businessResult}
             blocks={msg.blocks}
-            onClarificationSelect={(label) => void handleSend(label)}
+            brainStatus={msg.brainStatus}
+            onClarificationSelect={(label, value, optionId) => void handleSend(
+              guidanceValue(value, label),
+              msg.runId ? { kind: 'clarification', sourceRunId: msg.runId, optionId } : undefined,
+            )}
+            onFollowUpSelect={(label, value, optionId) => void handleSend(
+              value || label,
+              msg.runId ? { kind: 'follow_up', sourceRunId: msg.runId, optionId } : undefined,
+            )}
             onConfirmAction={msg.runId ? (action) => void handleActionDecision(msg.runId!, action, 'confirm') : undefined}
             onRejectAction={msg.runId ? (action) => void handleActionDecision(msg.runId!, action, 'reject') : undefined}
           />
@@ -185,16 +200,11 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
   )
 }
 
-function completeBlocks(result: import('@/api').BrainChatResponse) {
-  const blocks = [...(result.blocks ?? [])]
-  if (result.clarification && !blocks.some((block) => block.kind === 'clarification')) {
-    blocks.push({ kind: 'clarification', ...result.clarification })
+function guidanceValue(value: unknown, fallback: string) {
+  if (typeof value === 'string' && value.trim()) return value.trim()
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const candidate = (value as Record<string, unknown>).candidate
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim()
   }
-  if (result.suggestedActions.length && !blocks.some((block) => block.kind === 'action_preview')) {
-    blocks.push({ kind: 'action_preview', actions: result.suggestedActions })
-  }
-  if (result.citations.length && !blocks.some((block) => block.kind === 'evidence')) {
-    blocks.push({ kind: 'evidence', citations: result.citations })
-  }
-  return blocks
+  return fallback
 }
