@@ -12,7 +12,13 @@ export interface FinanceRiskSummary {
 export interface FinanceIncomeAnalysis {
   totalCollected: number;
   paymentBreakdown: Array<{ method: string; amount: number; count: number }>;
-  dailyTrend: Array<{ date: string; revenue: number; orderCount: number; customerCount: number; avgTransaction: number }>;
+  dailyTrend: Array<{
+    date: string;
+    revenue: number;
+    orderCount: number;
+    customerCount: number;
+    avgTransaction: number;
+  }>;
   orderKindBreakdown: Array<{ kind: string; amount: number }>;
   largestOrder?: { orderNo: string; amount: number; customerName?: string | null; createdAt: Date };
 }
@@ -24,8 +30,45 @@ export interface FinanceCostAnalysis {
   operatingCost: number;
   grossProfit: number;
   grossMarginRate?: number;
+  operatingProfit: number;
+  costIncomeRatio: number;
+  storedValueLiability: number;
+  unfulfilledCardLiability: number;
+  settlementCount: number;
+  reconciledSettlementCount: number;
+  cashShiftReconciliationRate: number;
   cardLiability: number;
   costCategories: Array<{ category: string; amount: number }>;
+}
+
+export interface FinanceCardRecognitionRow {
+  usageRecordId: number;
+  customerId: number;
+  customerCardId: number | null;
+  projectId: number | null;
+  cardName: string;
+  times: number;
+  recognizedAmount: number;
+  verifiedAt: Date;
+}
+
+export type FinanceOrderProfitScope = 'all' | 'product' | 'project' | 'prepaid';
+
+export interface FinanceOrderProfitRow {
+  orderId: number;
+  orderNo: string;
+  orderKind: string;
+  businessType: 'product' | 'project' | 'mixed' | 'prepaid' | 'other';
+  totalCost: number;
+  grossProfit: number;
+  negativeMarginFlag: number;
+}
+
+export interface FinanceStaffCommissionRow {
+  beauticianId: number;
+  beauticianName: string;
+  commissionType: string;
+  amount: number;
 }
 
 export interface FinanceMemberBalanceFlowSummary {
@@ -75,7 +118,11 @@ export interface FinanceProductMarginAnalysis {
 export class BrainFinanceSkillsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async buildFinanceRiskSummary(input: { storeId: number; startDate: Date; endDate: Date }): Promise<FinanceRiskSummary> {
+  async buildFinanceRiskSummary(input: {
+    storeId: number;
+    startDate: Date;
+    endDate: Date;
+  }): Promise<FinanceRiskSummary> {
     const [refunds, orders, settlements] = await Promise.all([
       this.prisma.refundRecord.findMany({
         where: {
@@ -157,20 +204,29 @@ export class BrainFinanceSkillsService {
       current.count += 1;
       reasonMap.set(reason, current);
     }
-    const records = refunds.flatMap((refund) => refund.refundedAt ? [{
-      refundNo: refund.refundNo,
-      orderNo: refund.order.orderNo,
-      customerName: refund.order.customerName,
-      reason: refund.reason?.trim() || '未填写原因',
-      amount: this.roundMoney(this.toNumber(refund.amount)),
-      refundedAt: refund.refundedAt,
-    }] : []);
+    const records = refunds.flatMap((refund) =>
+      refund.refundedAt
+        ? [
+            {
+              refundNo: refund.refundNo,
+              orderNo: refund.order.orderNo,
+              customerName: refund.order.customerName,
+              reason: refund.reason?.trim() || '未填写原因',
+              amount: this.roundMoney(this.toNumber(refund.amount)),
+              refundedAt: refund.refundedAt,
+            },
+          ]
+        : [],
+    );
     return {
       refundAmount: this.roundMoney(refunds.reduce((sum, refund) => sum + this.toNumber(refund.amount), 0)),
       refundCount: refunds.length,
       reasons: [...reasonMap.entries()]
         .map(([reason, value]) => ({ reason, amount: this.roundMoney(value.amount), count: value.count }))
-        .sort((left, right) => right.amount - left.amount || right.count - left.count || left.reason.localeCompare(right.reason)),
+        .sort(
+          (left, right) =>
+            right.amount - left.amount || right.count - left.count || left.reason.localeCompare(right.reason),
+        ),
       records,
     };
   }
@@ -204,7 +260,9 @@ export class BrainFinanceSkillsService {
       },
       take: 20_000,
     });
-    const productIds = [...new Set(items.map((item) => Number(item.itemId)).filter((id) => Number.isInteger(id) && id > 0))];
+    const productIds = [
+      ...new Set(items.map((item) => Number(item.itemId)).filter((id) => Number.isInteger(id) && id > 0)),
+    ];
     const products = productIds.length
       ? await this.prisma.product.findMany({
           where: { storeId: input.storeId, id: { in: productIds } },
@@ -212,15 +270,18 @@ export class BrainFinanceSkillsService {
         })
       : [];
     const productMap = new Map(products.map((product) => [product.id, product]));
-    const grouped = new Map<number, {
-      productName: string;
-      quantity: number;
-      netRevenue: number;
-      costAmount: number;
-      belowCostSaleCount: number;
-      knownCostQuantity: number;
-      costSources: Set<string>;
-    }>();
+    const grouped = new Map<
+      number,
+      {
+        productName: string;
+        quantity: number;
+        netRevenue: number;
+        costAmount: number;
+        belowCostSaleCount: number;
+        knownCostQuantity: number;
+        costSources: Set<string>;
+      }
+    >();
     for (const item of items) {
       const productId = Number(item.itemId);
       if (!Number.isInteger(productId) || productId < 1) continue;
@@ -233,7 +294,8 @@ export class BrainFinanceSkillsService {
       const snapshotUnitCost = this.payloadNumber(item.payload, ['costPrice', 'unitCost', 'productCostPrice']);
       const masterUnitCost = this.toNumber(productMap.get(productId)?.costPrice);
       const unitCost = snapshotUnitCost > 0 ? snapshotUnitCost : masterUnitCost;
-      const costSource = snapshotUnitCost > 0 ? 'order_snapshot' : masterUnitCost > 0 ? 'product_master_fallback' : 'missing';
+      const costSource =
+        snapshotUnitCost > 0 ? 'order_snapshot' : masterUnitCost > 0 ? 'product_master_fallback' : 'missing';
       const costAmount = unitCost > 0 ? unitCost * remainingQuantity : 0;
       const current = grouped.get(productId) ?? {
         productName: productMap.get(productId)?.name ?? item.name,
@@ -268,14 +330,22 @@ export class BrainFinanceSkillsService {
       };
     });
     return {
-      rows: rows.sort((left, right) => (right.grossMarginRate ?? -Infinity) - (left.grossMarginRate ?? -Infinity) || right.netRevenue - left.netRevenue),
+      rows: rows.sort(
+        (left, right) =>
+          (right.grossMarginRate ?? -Infinity) - (left.grossMarginRate ?? -Infinity) ||
+          right.netRevenue - left.netRevenue,
+      ),
       totalProductCount: rows.length,
       belowCostProductCount: rows.filter((row) => row.belowCostSaleCount > 0).length,
       incompleteCostProductCount: rows.filter((row) => row.costCoverageRate < 1).length,
     };
   }
 
-  async buildIncomeAnalysis(input: { storeId: number; startDate: Date; endDate: Date }): Promise<FinanceIncomeAnalysis> {
+  async buildIncomeAnalysis(input: {
+    storeId: number;
+    startDate: Date;
+    endDate: Date;
+  }): Promise<FinanceIncomeAnalysis> {
     const [settlements, payments, orders] = await Promise.all([
       this.prisma.dailySettlement.findMany({
         where: { storeId: input.storeId, settleDate: { gte: input.startDate, lte: input.endDate } },
@@ -431,8 +501,293 @@ export class BrainFinanceSkillsService {
     return summary;
   }
 
+  async buildCardRecognitionRows(input: {
+    storeId: number;
+    startDate: Date;
+    endDate: Date;
+    cardName?: string;
+  }): Promise<FinanceCardRecognitionRow[]> {
+    const rows = await this.prisma.cardUsageRecord.findMany({
+      where: {
+        storeId: input.storeId,
+        verifiedAt: { gte: input.startDate, lte: input.endDate },
+        ...(input.cardName ? { cardName: input.cardName } : {}),
+      },
+      select: {
+        id: true,
+        customerId: true,
+        customerCardId: true,
+        projectId: true,
+        cardName: true,
+        times: true,
+        recognizedUnitValue: true,
+        recognizedAmount: true,
+        verifiedAt: true,
+      },
+      orderBy: { id: 'asc' },
+      take: 20_000,
+    });
+    return rows.map((row) => {
+      const recognizedAmount = this.toNumber(row.recognizedAmount);
+      return {
+        usageRecordId: row.id,
+        customerId: row.customerId,
+        customerCardId: row.customerCardId,
+        projectId: row.projectId,
+        cardName: row.cardName,
+        times: row.times,
+        recognizedAmount: this.roundMoney(
+          recognizedAmount > 0 ? recognizedAmount : this.toNumber(row.recognizedUnitValue) * this.toNumber(row.times),
+        ),
+        verifiedAt: row.verifiedAt,
+      };
+    });
+  }
+
+  async buildOrderProfitRows(input: {
+    storeId: number;
+    startDate: Date;
+    endDate: Date;
+    scope?: FinanceOrderProfitScope;
+  }): Promise<FinanceOrderProfitRow[]> {
+    const scope = input.scope ?? 'all';
+    const orders = await this.prisma.productOrder.findMany({
+      where: {
+        storeId: input.storeId,
+        createdAt: { gte: input.startDate, lte: input.endDate },
+        status: { notIn: ['cancelled', 'canceled', 'refunded', '已取消'] },
+      },
+      select: {
+        id: true,
+        orderNo: true,
+        orderKind: true,
+        netAmount: true,
+        totalAmount: true,
+        refundRecords: {
+          where: { status: { notIn: ['failed', 'cancelled', 'canceled', 'refunded', 'rejected'] } },
+          select: { amount: true },
+        },
+        orderItems: {
+          select: {
+            id: true,
+            itemType: true,
+            itemId: true,
+            quantity: true,
+            subtotal: true,
+            netAmount: true,
+            payload: true,
+            commissionRecords: {
+              where: { status: { notIn: ['cancelled', 'canceled', 'rejected'] } },
+              select: { amount: true },
+            },
+          },
+          orderBy: { id: 'asc' },
+        },
+        commissionRecords: {
+          where: { orderItemId: null, status: { notIn: ['cancelled', 'canceled', 'rejected'] } },
+          select: { amount: true },
+        },
+      },
+      orderBy: { id: 'asc' },
+      take: 20_000,
+    });
+    const scopedOrders = orders.filter((order) => this.orderMatchesProfitScope(order, scope));
+    const orderItemIds = scopedOrders.flatMap((order) => order.orderItems.map((item) => item.id));
+    const productIds = scopedOrders
+      .flatMap((order) => order.orderItems)
+      .filter((item) => this.isProductItem(item.itemType) && item.itemId !== null)
+      .map((item) => Number(item.itemId));
+    const projectIds = scopedOrders
+      .flatMap((order) => order.orderItems)
+      .filter((item) => this.isProjectItem(item.itemType) && item.itemId !== null)
+      .map((item) => Number(item.itemId));
+    const [products, bomItems, movements] = await Promise.all([
+      productIds.length
+        ? this.prisma.product.findMany({
+            where: { storeId: input.storeId, id: { in: [...new Set(productIds)] } },
+            select: { id: true, costPrice: true },
+          })
+        : [],
+      projectIds.length
+        ? this.prisma.projectBomItem.findMany({
+            where: { projectId: { in: [...new Set(projectIds)] } },
+            select: {
+              projectId: true,
+              standardQty: true,
+              product: { select: { costPrice: true } },
+            },
+          })
+        : [],
+      scopedOrders.length
+        ? this.prisma.stockMovement.findMany({
+            where: {
+              storeId: input.storeId,
+              movementType: { in: ['service_consume', 'service_consumption', 'sale_out'] },
+              OR: [
+                ...(orderItemIds.length ? [{ orderItemId: { in: orderItemIds } }] : []),
+                {
+                  sourceType: { in: ['project_order', 'product_order'] },
+                  sourceId: { in: scopedOrders.map((order) => order.id) },
+                },
+              ],
+            },
+            select: {
+              movementType: true,
+              productId: true,
+              orderItemId: true,
+              sourceId: true,
+              quantity: true,
+              unitCost: true,
+              costAmount: true,
+              product: { select: { costPrice: true } },
+            },
+          })
+        : [],
+    ]);
+    const productById = new Map(products.map((product) => [product.id, product]));
+    const movementRows = movements as Array<{
+      movementType: string;
+      productId: number;
+      orderItemId: number | null;
+      sourceId: number | null;
+      quantity: unknown;
+      unitCost: unknown;
+      costAmount: unknown;
+      product: { costPrice: unknown };
+    }>;
+    const bomByProject = new Map<number, typeof bomItems>();
+    for (const item of bomItems) {
+      const rows = bomByProject.get(item.projectId) ?? [];
+      rows.push(item);
+      bomByProject.set(item.projectId, rows);
+    }
+
+    return scopedOrders.map((order) => {
+      const selectedItems = order.orderItems.filter((item) => {
+        if (scope === 'product') return this.isProductItem(item.itemType);
+        if (scope === 'project') return this.isProjectItem(item.itemType);
+        if (scope === 'prepaid') return false;
+        return this.isProductItem(item.itemType) || this.isProjectItem(item.itemType);
+      });
+      const orderNetAmount = Math.max(0, this.toNumber(order.netAmount) || this.toNumber(order.totalAmount));
+      const refundAmount = order.refundRecords.reduce((sum, refund) => sum + this.toNumber(refund.amount), 0);
+      const income = selectedItems.reduce((sum, item) => {
+        const itemIncome = Math.max(0, this.toNumber(item.netAmount) || this.toNumber(item.subtotal));
+        const refundShare = orderNetAmount > 0 ? Math.min(itemIncome, refundAmount * (itemIncome / orderNetAmount)) : 0;
+        return sum + Math.max(0, itemIncome - refundShare);
+      }, 0);
+      let itemCost = 0;
+      for (const item of selectedItems) {
+        const quantity = this.toNumber(item.quantity) || 1;
+        if (this.isProductItem(item.itemType) && item.itemId !== null) {
+          const productId = Number(item.itemId);
+          const movement = movementRows.find(
+            (candidate) =>
+              candidate.movementType === 'sale_out' &&
+              (candidate.orderItemId === item.id || candidate.sourceId === order.id) &&
+              candidate.productId === productId,
+          );
+          const movementCost = movement
+            ? this.toNumber(movement.costAmount) ||
+              Math.abs(this.toNumber(movement.quantity)) *
+                (this.toNumber(movement.unitCost) || this.toNumber(movement.product.costPrice))
+            : 0;
+          const snapshotCostAmount = this.payloadNumber(item.payload, ['costAmount', 'productCostAmount']);
+          const snapshotUnitCost = this.payloadNumber(item.payload, ['costPrice', 'unitCost', 'productCostPrice']);
+          itemCost +=
+            movementCost > 0
+              ? movementCost
+              : snapshotCostAmount > 0
+                ? snapshotCostAmount
+                : quantity *
+                  (snapshotUnitCost > 0 ? snapshotUnitCost : this.toNumber(productById.get(productId)?.costPrice));
+        }
+        if (this.isProjectItem(item.itemType) && item.itemId !== null) {
+          const actualCost = movementRows
+            .filter(
+              (movement) =>
+                ['service_consume', 'service_consumption'].includes(movement.movementType) &&
+                (movement.orderItemId === item.id || (movement.orderItemId === null && movement.sourceId === order.id)),
+            )
+            .reduce((sum, movement) => {
+              const recorded = this.toNumber(movement.costAmount);
+              return (
+                sum +
+                (recorded > 0
+                  ? recorded
+                  : Math.abs(this.toNumber(movement.quantity)) *
+                    (this.toNumber(movement.unitCost) || this.toNumber(movement.product.costPrice)))
+              );
+            }, 0);
+          const standardCost = (bomByProject.get(Number(item.itemId)) ?? []).reduce(
+            (sum, bomItem) =>
+              sum + quantity * this.toNumber(bomItem.standardQty) * this.toNumber(bomItem.product.costPrice),
+            0,
+          );
+          itemCost += actualCost > 0 ? actualCost : standardCost;
+        }
+      }
+      const commissionCost = [
+        ...(selectedItems.length ? order.commissionRecords : []),
+        ...selectedItems.flatMap((item) => item.commissionRecords),
+      ].reduce((sum, commission) => sum + this.toNumber(commission.amount), 0);
+      const totalCost = this.roundMoney(itemCost + commissionCost);
+      const grossProfit = this.roundMoney(income - totalCost);
+      return {
+        orderId: order.id,
+        orderNo: order.orderNo,
+        orderKind: order.orderKind,
+        businessType: this.resolveOrderBusinessType(order),
+        totalCost,
+        grossProfit,
+        negativeMarginFlag: grossProfit < 0 ? 1 : 0,
+      };
+    });
+  }
+
+  async buildStaffCommissionRows(input: {
+    storeId: number;
+    startDate: Date;
+    endDate: Date;
+    beauticianId?: number;
+  }): Promise<FinanceStaffCommissionRow[]> {
+    const records = await this.prisma.commissionRecord.findMany({
+      where: {
+        storeId: input.storeId,
+        createdAt: { gte: input.startDate, lte: input.endDate },
+        status: { notIn: ['cancelled', 'canceled', 'rejected'] },
+        beauticianId: input.beauticianId ? input.beauticianId : { not: null },
+        beautician: { storeId: input.storeId },
+      },
+      select: {
+        beauticianId: true,
+        type: true,
+        amount: true,
+        beautician: { select: { name: true } },
+      },
+      orderBy: { id: 'asc' },
+      take: 20_000,
+    });
+    const grouped = new Map<string, FinanceStaffCommissionRow>();
+    for (const record of records) {
+      if (!record.beauticianId) continue;
+      const key = `${record.beauticianId}:${record.type}`;
+      const current = grouped.get(key) ?? {
+        beauticianId: record.beauticianId,
+        beauticianName: record.beautician?.name ?? `美容师 ${record.beauticianId}`,
+        commissionType: record.type,
+        amount: 0,
+      };
+      current.amount += this.toNumber(record.amount);
+      grouped.set(key, current);
+    }
+    return [...grouped.values()]
+      .map((row) => ({ ...row, amount: this.roundMoney(row.amount) }))
+      .sort((left, right) => right.amount - left.amount || left.commissionType.localeCompare(right.commissionType));
+  }
+
   async buildCostAnalysis(input: { storeId: number; startDate: Date; endDate: Date }): Promise<FinanceCostAnalysis> {
-    const [settlements, operatingCosts, commissions, activeCards] = await Promise.all([
+    const [settlements, operatingCosts, commissions, activeCards, balanceAccounts] = await Promise.all([
       this.prisma.dailySettlement.findMany({
         where: { storeId: input.storeId, settleDate: { gte: input.startDate, lte: input.endDate } },
         select: {
@@ -467,12 +822,19 @@ export class BrainFinanceSkillsService {
         },
         select: { remainingTimes: true, recognizedUnitValue: true },
       }),
+      this.prisma.customerBalanceAccount.findMany({
+        where: { storeId: input.storeId, status: 'active' },
+        select: { cashBalance: true, giftBalance: true },
+      }),
     ]);
     const authoritativeSettlements = this.selectAuthoritativeSettlements(settlements);
     const revenue = authoritativeSettlements.reduce((sum, row) => sum + this.toNumber(row.totalRevenue), 0);
     const materialCost = authoritativeSettlements.reduce((sum, row) => sum + this.toNumber(row.materialCost), 0);
     const grossProfit = authoritativeSettlements.reduce((sum, row) => sum + this.toNumber(row.grossProfit), 0);
-    const settlementCommission = authoritativeSettlements.reduce((sum, row) => sum + this.toNumber(row.commissionTotal), 0);
+    const settlementCommission = authoritativeSettlements.reduce(
+      (sum, row) => sum + this.toNumber(row.commissionTotal),
+      0,
+    );
     const commissionCost = commissions.length
       ? commissions.reduce((sum, row) => sum + this.toNumber(row.amount), 0)
       : settlementCommission;
@@ -482,22 +844,76 @@ export class BrainFinanceSkillsService {
       categoryMap.set(category, (categoryMap.get(category) ?? 0) + this.toNumber(cost.amount));
     }
     const operatingCost = [...categoryMap.values()].reduce((sum, amount) => sum + amount, 0);
-    const cardLiability = activeCards.reduce(
+    const unfulfilledCardLiability = activeCards.reduce(
       (sum, card) => sum + this.toNumber(card.remainingTimes) * this.toNumber(card.recognizedUnitValue),
       0,
     );
+    const storedValueLiability = balanceAccounts.reduce(
+      (sum, account) => sum + this.toNumber(account.cashBalance) + this.toNumber(account.giftBalance),
+      0,
+    );
+    const settlementCount = authoritativeSettlements.length;
+    const reconciledSettlementCount = authoritativeSettlements.filter(
+      (row) => row.status === 'confirmed' && row.reconciliationStatus === 'passed',
+    ).length;
+    const cashShiftReconciliationRate = settlementCount > 0 ? reconciledSettlementCount / settlementCount : 0;
+    const operatingProfit = grossProfit - commissionCost - operatingCost;
+    const totalCost = materialCost + commissionCost + operatingCost;
     return {
-      revenue,
-      materialCost,
-      commissionCost,
-      operatingCost,
-      grossProfit,
+      revenue: this.roundMoney(revenue),
+      materialCost: this.roundMoney(materialCost),
+      commissionCost: this.roundMoney(commissionCost),
+      operatingCost: this.roundMoney(operatingCost),
+      grossProfit: this.roundMoney(grossProfit),
       grossMarginRate: revenue > 0 ? grossProfit / revenue : undefined,
-      cardLiability,
+      operatingProfit: this.roundMoney(operatingProfit),
+      costIncomeRatio: revenue > 0 ? Number((totalCost / revenue).toFixed(4)) : 0,
+      storedValueLiability: this.roundMoney(storedValueLiability),
+      unfulfilledCardLiability: this.roundMoney(unfulfilledCardLiability),
+      settlementCount,
+      reconciledSettlementCount,
+      cashShiftReconciliationRate,
+      cardLiability: this.roundMoney(unfulfilledCardLiability),
       costCategories: [...categoryMap.entries()]
-        .map(([category, amount]) => ({ category, amount }))
+        .map(([category, amount]) => ({ category, amount: this.roundMoney(amount) }))
         .sort((left, right) => right.amount - left.amount),
     };
+  }
+
+  private orderMatchesProfitScope(
+    order: { orderKind: string; orderItems: Array<{ itemType: string }> },
+    scope: FinanceOrderProfitScope,
+  ) {
+    if (scope === 'all') return true;
+    if (scope === 'product') return order.orderItems.some((item) => this.isProductItem(item.itemType));
+    if (scope === 'project') return order.orderItems.some((item) => this.isProjectItem(item.itemType));
+    return (
+      order.orderKind === 'member_card_open' || order.orderItems.some((item) => this.isCardSaleItem(item.itemType))
+    );
+  }
+
+  private resolveOrderBusinessType(order: { orderKind: string; orderItems: Array<{ itemType: string }> }) {
+    const hasProduct = order.orderItems.some((item) => this.isProductItem(item.itemType));
+    const hasProject = order.orderItems.some((item) => this.isProjectItem(item.itemType));
+    if (order.orderKind === 'member_card_open' || order.orderItems.some((item) => this.isCardSaleItem(item.itemType))) {
+      return 'prepaid' as const;
+    }
+    if (hasProduct && hasProject) return 'mixed' as const;
+    if (hasProduct) return 'product' as const;
+    if (hasProject) return 'project' as const;
+    return 'other' as const;
+  }
+
+  private isProductItem(itemType: string) {
+    return ['product', 'goods'].includes(String(itemType ?? '').toLowerCase());
+  }
+
+  private isProjectItem(itemType: string) {
+    return ['project', 'service', 'service_project'].includes(String(itemType ?? '').toLowerCase());
+  }
+
+  private isCardSaleItem(itemType: string) {
+    return ['card', 'customer_card', 'card_sale', 'member_card'].includes(String(itemType ?? '').toLowerCase());
   }
 
   private toNumber(value: unknown) {
@@ -522,13 +938,15 @@ export class BrainFinanceSkillsService {
     return Math.round((value + Number.EPSILON) * 100) / 100;
   }
 
-  private selectAuthoritativeSettlements<T extends {
-    settleDate: Date;
-    status: string;
-    reconciliationStatus: string;
-    confirmedAt: Date | null;
-    updatedAt: Date;
-  }>(rows: T[]) {
+  private selectAuthoritativeSettlements<
+    T extends {
+      settleDate: Date;
+      status: string;
+      reconciliationStatus: string;
+      confirmedAt: Date | null;
+      updatedAt: Date;
+    },
+  >(rows: T[]) {
     const selected = new Map<string, T>();
     for (const row of rows) {
       const date = this.shanghaiDateKey(row.settleDate);

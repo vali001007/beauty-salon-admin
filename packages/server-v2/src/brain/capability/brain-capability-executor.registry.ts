@@ -1,11 +1,19 @@
 import { ForbiddenException, Inject, Injectable, Optional } from '@nestjs/common';
-import type { BrainSemanticAnswerShape } from '../cognition/brain-semantic-intent.types.js';
+import type {
+  BrainDefinitionRef,
+  BrainSemanticActionModality,
+  BrainSemanticActionSlot,
+  BrainSemanticAnswerShape,
+} from '../cognition/brain-semantic-intent.types.js';
+import type { BrainActionExecutionProvenance } from '../cognition/brain-action-execution-provenance.types.js';
 import type { BrainRequestContext } from '../context/brain-request-context.js';
 import type { BrainDomainAnswer } from '../domain/brain-domain-adapter.types.js';
 import type { BrainCapabilityCard } from './brain-capability.types.js';
 import { findForbiddenCapabilityIdentityArg } from './brain-capability-identity-args.js';
 
 export const BRAIN_CAPABILITY_EXECUTORS = Symbol('BRAIN_CAPABILITY_EXECUTORS');
+const READ_ONLY_EXECUTION_CACHE_TTL_MS = 60_000;
+const MAX_CACHED_RUNS = 512;
 
 export type BrainCapabilityExecutorKind = 'semantic' | 'domain' | 'action';
 
@@ -16,6 +24,7 @@ export interface BrainCapabilityExecutionInput {
   planId?: string;
   question: string;
   answerShape?: BrainSemanticAnswerShape;
+  actionProvenance?: BrainActionExecutionProvenance;
   args: Record<string, unknown>;
 }
 
@@ -29,6 +38,9 @@ export interface BrainCapabilityToolArgs extends Record<string, unknown> {
   filters: unknown[];
   orderBy: unknown[];
   limit?: number;
+  actionRef?: BrainDefinitionRef<'action'>;
+  actionModality?: BrainSemanticActionModality;
+  actionSlots?: BrainSemanticActionSlot[];
 }
 
 export interface BrainCapabilityExecutor {
@@ -40,6 +52,10 @@ export interface BrainCapabilityExecutor {
 @Injectable()
 export class BrainCapabilityExecutorRegistryService {
   private readonly executorsByKey = new Map<string, BrainCapabilityExecutor>();
+  private readonly readOnlyExecutionsByRun = new Map<
+    number,
+    { expiresAt: number; executions: Map<string, Promise<BrainDomainAnswer>> }
+  >();
 
   constructor(@Optional() @Inject(BRAIN_CAPABILITY_EXECUTORS) executors: BrainCapabilityExecutor[] = []) {
     for (const executor of executors) {
@@ -66,6 +82,46 @@ export class BrainCapabilityExecutorRegistryService {
     this.assertNoIdentityArgs(input.args);
     this.assertCardDeclaration(input.card, executor.kind);
 
+    if (input.card.readOnly && !input.card.sideEffect) {
+      return this.executeReadOnlyOncePerRun(input, executor);
+    }
+    return this.executeWithLineage(input, executor);
+  }
+
+  private async executeReadOnlyOncePerRun(input: BrainCapabilityExecutionInput, executor: BrainCapabilityExecutor) {
+    const now = Date.now();
+    this.pruneReadOnlyExecutionCache(now);
+    let runCache = this.readOnlyExecutionsByRun.get(input.runId);
+    if (!runCache) {
+      if (this.readOnlyExecutionsByRun.size >= MAX_CACHED_RUNS) {
+        const oldestRunId = this.readOnlyExecutionsByRun.keys().next().value as number | undefined;
+        if (oldestRunId !== undefined) this.readOnlyExecutionsByRun.delete(oldestRunId);
+      }
+      runCache = { expiresAt: now + READ_ONLY_EXECUTION_CACHE_TTL_MS, executions: new Map() };
+      this.readOnlyExecutionsByRun.set(input.runId, runCache);
+    } else {
+      runCache.expiresAt = now + READ_ONLY_EXECUTION_CACHE_TTL_MS;
+    }
+    const executionKey = stableExecutionKey(input);
+    const existing = runCache.executions.get(executionKey);
+    if (existing) {
+      const answer = await existing;
+      return {
+        ...answer,
+        metadata: { ...(answer.metadata ?? {}), executionDeduplication: 'same_run_hit' },
+      };
+    }
+    const execution = this.executeWithLineage(input, executor);
+    runCache.executions.set(executionKey, execution);
+    try {
+      return await execution;
+    } catch (error) {
+      runCache.executions.delete(executionKey);
+      throw error;
+    }
+  }
+
+  private async executeWithLineage(input: BrainCapabilityExecutionInput, executor: BrainCapabilityExecutor) {
     const answer = await executor.execute(input);
     return {
       ...answer,
@@ -76,6 +132,12 @@ export class BrainCapabilityExecutorRegistryService {
         executorKind: executor.kind,
       },
     };
+  }
+
+  private pruneReadOnlyExecutionCache(now: number) {
+    for (const [runId, cache] of this.readOnlyExecutionsByRun) {
+      if (cache.expiresAt <= now) this.readOnlyExecutionsByRun.delete(runId);
+    }
   }
 
   private assertStoreScope(context: BrainRequestContext) {
@@ -125,4 +187,34 @@ export class BrainCapabilityExecutorRegistryService {
           : !card.readOnly && card.sideEffect && card.requiresConfirmation && card.idempotency === 'required';
     if (!valid) throw new Error(`invalid_capability_card:${kind}`);
   }
+}
+
+function stableExecutionKey(input: BrainCapabilityExecutionInput) {
+  return JSON.stringify(
+    canonicalize({
+      storeId: input.context.storeId,
+      userId: input.context.userId,
+      permissions: [...input.context.permissions].sort(),
+      deniedPermissions: [...input.context.deniedPermissions].sort(),
+      roles: [...(input.context.roles ?? [])].sort(),
+      capabilityKey: input.card.key,
+      capabilityVersion: input.card.version,
+      sourceFingerprint: input.card.sourceFingerprint,
+      answerShape: input.answerShape ?? null,
+      args: input.args,
+    }),
+  );
+}
+
+function canonicalize(value: unknown): unknown {
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, item]) => [key, canonicalize(item)]),
+    );
+  }
+  return value;
 }

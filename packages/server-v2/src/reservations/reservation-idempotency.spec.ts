@@ -11,7 +11,7 @@ describe('ReservationsService create idempotency', () => {
       customerId: 11,
       projectId: 21,
       beauticianId: 31,
-      appointmentTime: '2026-07-20T15:00:00.000Z',
+      appointmentTime: '2026-07-20T07:00:00.000Z',
       startTime: '15:00',
       duration: 60,
       bookingSource: 'ami_brain',
@@ -20,7 +20,7 @@ describe('ReservationsService create idempotency', () => {
     customerId: 11,
     projectId: 21,
     beauticianId: 31,
-    date: new Date('2026-07-20T15:00:00.000Z'),
+    date: new Date('2026-07-20T00:00:00.000Z'),
     startTime: '15:00',
     endTime: '16:00',
     status: 'pending',
@@ -44,11 +44,14 @@ describe('ReservationsService create idempotency', () => {
       $executeRaw: jest.fn().mockResolvedValue(0),
       reservation: {
         findUnique: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
         create: jest.fn().mockResolvedValue(existing),
       },
       customer: { findFirst: jest.fn().mockResolvedValue(existing.customer), create: jest.fn() },
       project: { findFirst: jest.fn().mockResolvedValue(existing.project) },
       beautician: { findFirst: jest.fn().mockResolvedValue(existing.beautician) },
+      beauticianTimeOff: { findMany: jest.fn().mockResolvedValue([]) },
+      beauticianAvailability: { findMany: jest.fn().mockResolvedValue([]) },
     };
     service = new ReservationsService(prisma, {} as never);
   });
@@ -58,7 +61,7 @@ describe('ReservationsService create idempotency', () => {
     customerId: 11,
     projectId: 21,
     beauticianId: 31,
-    appointmentTime: '2026-07-20T15:00:00.000Z',
+    appointmentTime: '2026-07-20T07:00:00.000Z',
     startTime: '15:00',
     duration: 60,
     bookingSource: 'ami_brain',
@@ -69,16 +72,18 @@ describe('ReservationsService create idempotency', () => {
     const result = await service.createIdempotent(input);
 
     expect(result).toMatchObject({ replayed: false, reservation: { id: 81, bookingSource: 'ami_brain' } });
-    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
-    expect(prisma.reservation.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        idempotencyKey: buildReservationIdempotencyKey(6, 'ami_brain', 'brain-action-81'),
-        creationFingerprint: existing.creationFingerprint,
-        bookingSource: 'ami_brain',
-        customerId: 11,
-        projectId: 21,
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(2);
+    expect(prisma.reservation.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          idempotencyKey: buildReservationIdempotencyKey(6, 'ami_brain', 'brain-action-81'),
+          creationFingerprint: existing.creationFingerprint,
+          bookingSource: 'ami_brain',
+          customerId: 11,
+          projectId: 21,
+        }),
       }),
-    }));
+    );
   });
 
   it('returns the original reservation without re-running create', async () => {

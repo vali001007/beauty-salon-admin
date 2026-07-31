@@ -1,4 +1,88 @@
 import { BrainActionConfirmationService } from './skills/brain-action-confirmation.service.js';
+import { createBrainActionSituationContext } from './cognition/brain-action-situation-context.js';
+import { BrainResultReferenceService } from './context/brain-result-reference.service.js';
+import { curatedActionInvariantRef } from '../semantic-data/brain-action-invariant-catalog.js';
+import { createTestBusinessDatabaseWriteSetEvidence } from '../common/database-write-set.testing.js';
+
+function actionProvenanceFor(
+  runId: number,
+  definitionKey = 'action.create_reservation',
+  gatewayActionKey = 'create_reservation',
+) {
+  const actionSituationContextProfileFingerprint =
+    definitionKey === 'action.create_reservation' ? '8'.repeat(64) : '7'.repeat(64);
+  const actionModalityPolicyFingerprint =
+    definitionKey === 'action.create_reservation' ? '6'.repeat(64) : '5'.repeat(64);
+  const actionInformationArtifactProfileFingerprint =
+    definitionKey === 'action.create_reservation' ? '4'.repeat(64) : '3'.repeat(64);
+  const actionSideEffectInvariantProfileFingerprint =
+    definitionKey === 'action.create_reservation' ? '2'.repeat(64) : '1'.repeat(64);
+  return {
+    schemaVersion: '1.0' as const,
+    actionRef: {
+      definitionType: 'action' as const,
+      definitionKey,
+      definitionVersion: 3,
+      definitionFingerprint: 'a'.repeat(64),
+      sourceFingerprint: 'b'.repeat(64),
+    },
+    actionBindingFingerprint: 'c'.repeat(64),
+    actionSituationContextProfileFingerprint,
+    actionModalityPolicyFingerprint,
+    actionInformationArtifactProfileFingerprint,
+    actionSideEffectInvariantProfileFingerprint,
+    ontologySnapshotFingerprint: 'd'.repeat(64),
+    situationContext: createBrainActionSituationContext({
+      profileFingerprint: actionSituationContextProfileFingerprint,
+      runId,
+      conversationId: 12,
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['core:store:reservations'],
+        deniedPermissions: [],
+        requestId: 'request-test',
+        timezone: 'Asia/Shanghai',
+      },
+      qualifiedRole: 'store_manager',
+    }),
+    informationArtifacts: [],
+    capability: {
+      key: 'reservation_action_preview',
+      version: 12,
+      sourceFingerprint: 'e'.repeat(64),
+    },
+    gatewayActionKey,
+    release: { releaseId: 417, releaseFingerprint: 'f'.repeat(64) },
+  };
+}
+const actionProvenance = actionProvenanceFor(7);
+const rescheduleActionProvenance = actionProvenanceFor(7, 'action.reschedule_reservation', 'reschedule_reservation');
+
+function previewGovernanceDependencies() {
+  return {
+    executionIdentity: {
+      assertCurrent: jest.fn().mockResolvedValue({
+        action: {
+          actionKey: 'action.create_reservation',
+          effects: ['reservation_created_in_context_store'],
+          situationContext: { fingerprint: actionProvenance.actionSituationContextProfileFingerprint },
+          modalityPolicy: { fingerprint: actionProvenance.actionModalityPolicyFingerprint },
+          informationArtifact: { fingerprint: actionProvenance.actionInformationArtifactProfileFingerprint },
+          sideEffectInvariant: {
+            fingerprint: actionProvenance.actionSideEffectInvariantProfileFingerprint,
+            gatewayEffectPolicy: 'exact_declared_effect_match',
+            invariantContractRef: curatedActionInvariantRef('action.create_reservation'),
+          },
+        },
+        card: {},
+      }),
+    },
+    predicateEffectEvaluator: { assertPreconditions: jest.fn().mockResolvedValue([]) },
+  };
+}
 
 describe('BrainActionConfirmationService', () => {
   it('stores a versioned approval envelope instead of loose model payload', async () => {
@@ -51,6 +135,690 @@ describe('BrainActionConfirmationService', () => {
         }),
       }),
     });
+  });
+
+  it('fails closed before persisting a governed preview whose preconditions are not satisfied', async () => {
+    const prisma = { brainActionConfirmation: { create: jest.fn() } };
+    const gateway = {
+      validateForExecution: jest.fn().mockReturnValue({
+        descriptor: { key: 'create_reservation', version: 2, riskLevel: 'medium' },
+        payload: { customerId: 11, projectId: 22 },
+      }),
+    };
+    const executionIdentity = previewGovernanceDependencies().executionIdentity;
+    const predicateEffectEvaluator = {
+      assertPreconditions: jest.fn().mockRejectedValue(new Error('action_precondition_violated')),
+    };
+    const service = new BrainActionConfirmationService(
+      prisma as never,
+      gateway as never,
+      undefined,
+      undefined,
+      executionIdentity as never,
+      predicateEffectEvaluator as never,
+    );
+
+    await expect(
+      service.createPreview({
+        runId: 7,
+        userId: 9,
+        storeId: 6,
+        skillKey: 'create_reservation',
+        capabilityVersion: 2,
+        riskLevel: 'medium',
+        preview: { summary: '创建预约' },
+        payload: { customerId: 11, projectId: 22 },
+        actionProvenance,
+      }),
+    ).rejects.toThrow('action_precondition_violated');
+    expect(prisma.brainActionConfirmation.create).not.toHaveBeenCalled();
+  });
+
+  it('freezes the reservation object version into the governed approval envelope', async () => {
+    const prisma = {
+      brainActionConfirmation: {
+        create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 1, ...data })),
+      },
+    };
+    const gateway = {
+      validateForExecution: jest.fn().mockReturnValue({
+        descriptor: { key: 'reschedule_reservation', version: 1, riskLevel: 'high' },
+        payload: { reservationId: 31, appointmentTime: '2026-08-01T10:00:00.000Z' },
+      }),
+    };
+    const executionIdentity = previewGovernanceDependencies().executionIdentity;
+    const predicateEffectEvaluator = {
+      captureApprovalEvidence: jest.fn().mockResolvedValue({
+        reservationId: 31,
+        appointmentTime: '2026-08-01T10:00:00.000Z',
+        expectedReservationUpdatedAt: '2026-07-30T10:00:00.000Z',
+      }),
+      assertPreconditions: jest.fn().mockResolvedValue([]),
+    };
+    const service = new BrainActionConfirmationService(
+      prisma as never,
+      gateway as never,
+      undefined,
+      undefined,
+      executionIdentity as never,
+      predicateEffectEvaluator as never,
+    );
+
+    await service.createPreview({
+      runId: 7,
+      userId: 9,
+      storeId: 6,
+      skillKey: 'reschedule_reservation',
+      capabilityVersion: 1,
+      riskLevel: 'high',
+      preview: { summary: '改期' },
+      payload: { reservationId: 31, appointmentTime: '2026-08-01T10:00:00.000Z' },
+      actionProvenance: rescheduleActionProvenance,
+    });
+
+    expect(predicateEffectEvaluator.assertPreconditions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        args: expect.objectContaining({ expectedReservationUpdatedAt: '2026-07-30T10:00:00.000Z' }),
+      }),
+    );
+    expect(prisma.brainActionConfirmation.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        payload: expect.objectContaining({
+          validatedArgs: expect.objectContaining({
+            expectedReservationUpdatedAt: '2026-07-30T10:00:00.000Z',
+          }),
+          argsDigest: expect.stringMatching(/^[a-f0-9]{64}$/),
+        }),
+      }),
+    });
+  });
+
+  it('persists immutable Action Ontology and action-invariant provenance in approval protocol 1.5', async () => {
+    const prisma = {
+      brainActionConfirmation: {
+        create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 1, ...data })),
+      },
+    };
+    const gateway = {
+      validateForExecution: jest.fn().mockReturnValue({
+        descriptor: { key: 'create_reservation', version: 2, riskLevel: 'medium' },
+        payload: { customerId: 11, projectId: 22 },
+      }),
+    };
+    const { executionIdentity, predicateEffectEvaluator } = previewGovernanceDependencies();
+    const service = new BrainActionConfirmationService(
+      prisma as never,
+      gateway as never,
+      undefined,
+      undefined,
+      executionIdentity as never,
+      predicateEffectEvaluator as never,
+    );
+
+    await service.createPreview({
+      runId: 7,
+      userId: 9,
+      storeId: 6,
+      skillKey: 'create_reservation',
+      capabilityVersion: 2,
+      riskLevel: 'medium',
+      preview: { summary: '创建预约' },
+      payload: { customerId: 11, projectId: 22 },
+      actionProvenance,
+    });
+
+    expect(prisma.brainActionConfirmation.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        actionDefinitionKey: 'action.create_reservation',
+        actionDefinitionVersion: 3,
+        actionDefinitionFingerprint: 'a'.repeat(64),
+        actionSourceFingerprint: 'b'.repeat(64),
+        actionBindingFingerprint: 'c'.repeat(64),
+        actionModalityPolicyFingerprint: actionProvenance.actionModalityPolicyFingerprint,
+        informationArtifactProfileFingerprint: actionProvenance.actionInformationArtifactProfileFingerprint,
+        sideEffectInvariantProfileFingerprint: actionProvenance.actionSideEffectInvariantProfileFingerprint,
+        informationArtifactFingerprints: [],
+        boundCapabilityKey: 'reservation_action_preview',
+        capabilityVersion: 12,
+        capabilitySourceFingerprint: 'e'.repeat(64),
+        ontologySnapshotFingerprint: 'd'.repeat(64),
+        releaseId: 417,
+        releaseFingerprint: 'f'.repeat(64),
+        payload: expect.objectContaining({
+          protocolVersion: '1.5',
+          actionProvenance,
+        }),
+      }),
+    });
+    expect(executionIdentity.assertCurrent).toHaveBeenCalledWith(actionProvenance);
+    expect(predicateEffectEvaluator.assertPreconditions).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires a new preview for governed approval protocol 1.3', async () => {
+    const action = {
+      actionId: 'act_protocol_13',
+      runId: 7,
+      userId: 9,
+      storeId: 6,
+      skillKey: 'create_reservation',
+      riskLevel: 'medium',
+      status: 'pending',
+      result: null,
+      preview: {},
+      payload: {
+        protocolVersion: '1.3',
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      },
+      createdAt: new Date(),
+    };
+    const prisma = {
+      brainActionConfirmation: { findFirst: jest.fn().mockResolvedValue(action) },
+      brainActionExecution: { findUnique: jest.fn().mockResolvedValue(null) },
+    };
+    const gateway = {
+      resolve: jest.fn().mockReturnValue({ version: 1, permission: 'core:store:reservations', riskLevel: 'medium' }),
+    };
+    const service = new BrainActionConfirmationService(prisma as never, gateway as never);
+
+    await expect(
+      service.confirmAndExecute({
+        actionId: action.actionId,
+        runId: 7,
+        userId: 9,
+        storeId: 6,
+        permissions: ['core:store:reservations'],
+      }),
+    ).rejects.toThrow('action_side_effect_invariant_upgrade_required');
+  });
+
+  it('requires a new preview for approval protocol 1.4 without the action invariant contract', async () => {
+    const action = {
+      actionId: 'act_protocol_14',
+      runId: 7,
+      userId: 9,
+      storeId: 6,
+      skillKey: 'create_reservation',
+      riskLevel: 'medium',
+      status: 'pending',
+      result: null,
+      preview: {},
+      payload: {
+        protocolVersion: '1.4',
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      },
+      createdAt: new Date(),
+    };
+    const prisma = {
+      brainActionConfirmation: { findFirst: jest.fn().mockResolvedValue(action) },
+      brainActionExecution: { findUnique: jest.fn().mockResolvedValue(null) },
+    };
+    const gateway = {
+      resolve: jest.fn().mockReturnValue({ version: 1, permission: 'core:store:reservations', riskLevel: 'medium' }),
+    };
+    const service = new BrainActionConfirmationService(prisma as never, gateway as never);
+
+    await expect(
+      service.confirmAndExecute({
+        actionId: action.actionId,
+        runId: action.runId,
+        userId: action.userId,
+        storeId: action.storeId,
+        permissions: ['core:store:reservations'],
+      }),
+    ).rejects.toThrow('action_invariant_contract_upgrade_required');
+  });
+
+  it('fails closed when the Gateway declared effect boundary drifts from the ActionDefinition', async () => {
+    const gateway = {
+      validateForExecution: jest.fn().mockImplementation((_key, _version, payload) => ({
+        descriptor: {
+          key: 'create_reservation',
+          version: 2,
+          permission: 'core:store:reservations',
+          riskLevel: 'medium',
+          effectKeys: ['reservation_cancelled'],
+        },
+        payload,
+      })),
+      resolve: jest.fn().mockReturnValue({
+        key: 'create_reservation',
+        version: 2,
+        permission: 'core:store:reservations',
+        riskLevel: 'medium',
+        effectKeys: ['reservation_cancelled'],
+      }),
+    };
+    const governance = previewGovernanceDependencies();
+    const bootstrapPrisma = {
+      brainActionConfirmation: {
+        create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 1, createdAt: new Date(), ...data })),
+      },
+    };
+    const created = await new BrainActionConfirmationService(
+      bootstrapPrisma as never,
+      gateway as never,
+      undefined,
+      undefined,
+      governance.executionIdentity as never,
+      governance.predicateEffectEvaluator as never,
+    ).createPreview({
+      runId: 7,
+      userId: 9,
+      storeId: 6,
+      skillKey: 'create_reservation',
+      capabilityVersion: 2,
+      riskLevel: 'medium',
+      preview: { summary: '创建预约' },
+      payload: { customerId: 11, projectId: 22 },
+      actionProvenance,
+    });
+    const prisma = {
+      brainActionConfirmation: { findFirst: jest.fn().mockResolvedValue({ ...created, status: 'pending' }) },
+      brainActionExecution: { findUnique: jest.fn().mockResolvedValue(null) },
+      brainRun: { findFirst: jest.fn().mockResolvedValue({ conversationId: 12 }) },
+      $transaction: jest.fn(),
+    };
+    const service = new BrainActionConfirmationService(
+      prisma as never,
+      gateway as never,
+      undefined,
+      undefined,
+      governance.executionIdentity as never,
+      governance.predicateEffectEvaluator as never,
+    );
+
+    await expect(
+      service.confirmAndExecute({
+        actionId: created.actionId,
+        runId: 7,
+        userId: 9,
+        storeId: 6,
+        permissions: ['core:store:reservations'],
+        roles: ['store_manager'],
+      }),
+    ).rejects.toThrow('action_gateway_effect_contract_drift');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when persisted action provenance no longer matches the approval envelope', async () => {
+    const bootstrapPrisma = {
+      brainActionConfirmation: {
+        create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 1, createdAt: new Date(), ...data })),
+      },
+    };
+    const gateway = {
+      validateForExecution: jest.fn().mockReturnValue({
+        descriptor: {
+          key: 'create_reservation',
+          version: 2,
+          riskLevel: 'medium',
+          permission: 'core:store:reservations',
+          effectKeys: ['reservation_created_in_context_store'],
+        },
+        payload: { customerId: 11, projectId: 22 },
+      }),
+      resolve: jest.fn().mockReturnValue({
+        key: 'create_reservation',
+        version: 2,
+        riskLevel: 'medium',
+        permission: 'core:store:reservations',
+      }),
+    };
+    const previewGovernance = previewGovernanceDependencies();
+    const created = await new BrainActionConfirmationService(
+      bootstrapPrisma as never,
+      gateway as never,
+      undefined,
+      undefined,
+      previewGovernance.executionIdentity as never,
+      previewGovernance.predicateEffectEvaluator as never,
+    ).createPreview({
+      runId: 7,
+      userId: 9,
+      storeId: 6,
+      skillKey: 'create_reservation',
+      capabilityVersion: 2,
+      riskLevel: 'medium',
+      preview: { summary: '创建预约' },
+      payload: { customerId: 11, projectId: 22 },
+      actionProvenance,
+    });
+    const action = {
+      ...created,
+      status: 'pending',
+      actionBindingFingerprint: '0'.repeat(64),
+    };
+    const prisma = {
+      brainActionConfirmation: { findFirst: jest.fn().mockResolvedValue(action) },
+      brainActionExecution: { findUnique: jest.fn().mockResolvedValue(null) },
+      brainRun: { findFirst: jest.fn().mockResolvedValue({ conversationId: 12 }) },
+      $transaction: jest.fn(),
+    };
+    const service = new BrainActionConfirmationService(prisma as never, gateway as never);
+
+    await expect(
+      service.confirmAndExecute({
+        actionId: action.actionId,
+        runId: 7,
+        userId: 9,
+        storeId: 6,
+        permissions: ['core:store:reservations'],
+      }),
+    ).rejects.toThrow('action_provenance_mismatch:actionBindingFingerprint');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('requires a new preview when the authenticated action role changes before confirmation', async () => {
+    const gateway = {
+      validateForExecution: jest.fn().mockReturnValue({
+        descriptor: {
+          key: 'create_reservation',
+          version: 2,
+          riskLevel: 'medium',
+          permission: 'core:store:reservations',
+          effectKeys: ['reservation_created_in_context_store'],
+        },
+        payload: { customerId: 11, projectId: 22 },
+      }),
+      resolve: jest.fn().mockReturnValue({
+        key: 'create_reservation',
+        version: 2,
+        riskLevel: 'medium',
+        permission: 'core:store:reservations',
+      }),
+    };
+    const bootstrapPrisma = {
+      brainActionConfirmation: {
+        create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 1, createdAt: new Date(), ...data })),
+      },
+    };
+    const previewGovernance = previewGovernanceDependencies();
+    const created = await new BrainActionConfirmationService(
+      bootstrapPrisma as never,
+      gateway as never,
+      undefined,
+      undefined,
+      previewGovernance.executionIdentity as never,
+      previewGovernance.predicateEffectEvaluator as never,
+    ).createPreview({
+      runId: 7,
+      userId: 9,
+      storeId: 6,
+      skillKey: 'create_reservation',
+      capabilityVersion: 2,
+      riskLevel: 'medium',
+      preview: { summary: '创建预约' },
+      payload: { customerId: 11, projectId: 22 },
+      actionProvenance,
+    });
+    const action = { ...created, status: 'pending' };
+    const prisma = {
+      brainActionConfirmation: { findFirst: jest.fn().mockResolvedValue(action) },
+      brainActionExecution: { findUnique: jest.fn().mockResolvedValue(null) },
+      brainRun: { findFirst: jest.fn().mockResolvedValue({ conversationId: 12 }) },
+      $transaction: jest.fn(),
+    };
+    const service = new BrainActionConfirmationService(
+      prisma as never,
+      gateway as never,
+      undefined,
+      undefined,
+      previewGovernance.executionIdentity as never,
+      previewGovernance.predicateEffectEvaluator as never,
+    );
+
+    await expect(
+      service.confirmAndExecute({
+        actionId: action.actionId,
+        runId: 7,
+        userId: 9,
+        storeId: 6,
+        permissions: ['core:store:reservations'],
+        roles: ['finance'],
+      }),
+    ).rejects.toThrow('action_situation_role_mismatch');
+    await expect(
+      service.confirmAndExecute({
+        actionId: action.actionId,
+        runId: 7,
+        userId: 9,
+        storeId: 6,
+        permissions: ['core:store:reservations'],
+        roles: [],
+      }),
+    ).rejects.toThrow('action_situation_role_mismatch');
+    await expect(
+      service.confirmAndExecute({
+        actionId: action.actionId,
+        runId: 7,
+        userId: 9,
+        storeId: 6,
+        permissions: ['core:store:reservations'],
+      }),
+    ).rejects.toThrow('action_situation_role_mismatch');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('requires a new preview when a referenced result item changes before confirmation', async () => {
+    const resultReferenceService = new BrainResultReferenceService();
+    const mappingOutputs = {
+      productRanking: [{ productId: 82, productName: '玻尿酸保湿精华', suggestedQuantity: 12 }],
+    };
+    const resultSets = resultReferenceService.buildResultSets({
+      runId: 191,
+      conversationId: 12,
+      userId: 9,
+      storeId: 6,
+      capabilityKey: 'inventory_risk_ranking',
+      capabilityVersion: 19,
+      adapterMetadata: { mappingOutputs },
+    });
+    const artifact = resultReferenceService.createInformationArtifact({
+      refId: 'run:191:productRanking:1',
+      resultSets,
+      scope: { conversationId: 12, userId: 9, storeId: 6 },
+      profileFingerprint: actionProvenance.actionInformationArtifactProfileFingerprint,
+    })!;
+    const artifactProvenance = { ...actionProvenance, informationArtifacts: [artifact] };
+    const gateway = {
+      validateForExecution: jest.fn().mockReturnValue({
+        descriptor: {
+          key: 'create_reservation',
+          version: 2,
+          riskLevel: 'medium',
+          permission: 'core:store:reservations',
+          effectKeys: ['reservation_created_in_context_store'],
+        },
+        payload: { customerId: 11, projectId: 22 },
+      }),
+      resolve: jest.fn().mockReturnValue({
+        key: 'create_reservation',
+        version: 2,
+        riskLevel: 'medium',
+        permission: 'core:store:reservations',
+      }),
+    };
+    const bootstrapPrisma = {
+      brainActionConfirmation: {
+        create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 1, createdAt: new Date(), ...data })),
+      },
+    };
+    const previewGovernance = previewGovernanceDependencies();
+    const created = await new BrainActionConfirmationService(
+      bootstrapPrisma as never,
+      gateway as never,
+      undefined,
+      undefined,
+      previewGovernance.executionIdentity as never,
+      previewGovernance.predicateEffectEvaluator as never,
+      resultReferenceService,
+    ).createPreview({
+      runId: 7,
+      userId: 9,
+      storeId: 6,
+      skillKey: 'create_reservation',
+      capabilityVersion: 2,
+      riskLevel: 'medium',
+      preview: { summary: '创建预约' },
+      payload: { customerId: 11, projectId: 22 },
+      actionProvenance: artifactProvenance,
+    });
+    const action = { ...created, status: 'pending' };
+    const prisma = {
+      brainActionConfirmation: { findFirst: jest.fn().mockResolvedValue(action) },
+      brainActionExecution: { findUnique: jest.fn().mockResolvedValue(null) },
+      brainRun: {
+        findFirst: jest.fn().mockResolvedValue({ conversationId: 12 }),
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 191,
+            output: {
+              adapterMetadata: {
+                mappingOutputs: {
+                  productRanking: [{ productId: 82, productName: '玻尿酸保湿精华', suggestedQuantity: 99 }],
+                },
+                resultSets,
+              },
+            },
+          },
+        ]),
+      },
+      $transaction: jest.fn(),
+    };
+    const service = new BrainActionConfirmationService(
+      prisma as never,
+      gateway as never,
+      undefined,
+      undefined,
+      previewGovernance.executionIdentity as never,
+      previewGovernance.predicateEffectEvaluator as never,
+      resultReferenceService,
+    );
+
+    await expect(
+      service.confirmAndExecute({
+        actionId: action.actionId,
+        runId: 7,
+        userId: 9,
+        storeId: 6,
+        permissions: ['core:store:reservations'],
+        roles: ['store_manager'],
+      }),
+    ).rejects.toThrow(`action_information_artifact_drift:${artifact.artifactKey}`);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('copies Action Ontology provenance and accepts reordered multi-role identity when the qualified role remains', async () => {
+    const gateway = {
+      validateForExecution: jest.fn().mockImplementation((_key, _version, payload) => ({
+        descriptor: {
+          key: 'create_reservation',
+          version: 2,
+          riskLevel: 'medium',
+          permission: 'core:store:reservations',
+          effectKeys: ['reservation_created_in_context_store'],
+        },
+        payload,
+      })),
+      resolve: jest.fn().mockReturnValue({
+        key: 'create_reservation',
+        version: 2,
+        riskLevel: 'medium',
+        permission: 'core:store:reservations',
+      }),
+      execute: jest.fn().mockResolvedValue({
+        capabilityKey: 'create_reservation',
+        businessObjectType: 'reservation',
+        businessObjectId: 101,
+        result: { id: 101 },
+      }),
+    };
+    const bootstrapPrisma = {
+      brainActionConfirmation: {
+        create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 1, createdAt: new Date(), ...data })),
+      },
+    };
+    const previewGovernance = previewGovernanceDependencies();
+    const created = await new BrainActionConfirmationService(
+      bootstrapPrisma as never,
+      gateway as never,
+      undefined,
+      undefined,
+      previewGovernance.executionIdentity as never,
+      previewGovernance.predicateEffectEvaluator as never,
+    ).createPreview({
+      runId: 7,
+      userId: 9,
+      storeId: 6,
+      skillKey: 'create_reservation',
+      capabilityVersion: 2,
+      riskLevel: 'medium',
+      preview: { summary: '创建预约' },
+      payload: { customerId: 11, projectId: 22 },
+      actionProvenance,
+    });
+    const action = { ...created, status: 'pending' };
+    const tx = {
+      brainActionConfirmation: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      brainActionExecution: { create: jest.fn().mockResolvedValue({ id: 71, status: 'executing' }) },
+    };
+    const prisma = {
+      brainActionConfirmation: {
+        findFirst: jest.fn().mockResolvedValue(action),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      brainActionExecution: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      brainRun: { findFirst: jest.fn().mockResolvedValue({ conversationId: 12 }) },
+      $transaction: jest.fn((callback: (client: typeof tx) => unknown) => callback(tx)),
+    };
+    const executionIdentity = previewGovernanceDependencies().executionIdentity;
+    const predicateEffectEvaluator = {
+      assertPreconditions: jest.fn().mockResolvedValue([]),
+      observeEffects: jest.fn().mockResolvedValue([]),
+    };
+    const service = new BrainActionConfirmationService(
+      prisma as never,
+      gateway as never,
+      undefined,
+      undefined,
+      executionIdentity as never,
+      predicateEffectEvaluator as never,
+    );
+
+    await service.confirmAndExecute({
+      actionId: action.actionId,
+      runId: 7,
+      userId: 9,
+      storeId: 6,
+      permissions: ['core:store:reservations'],
+      roles: ['finance', 'store_manager'],
+    });
+
+    expect(predicateEffectEvaluator.assertPreconditions).toHaveBeenCalledTimes(1);
+    expect(predicateEffectEvaluator.observeEffects).toHaveBeenCalledTimes(1);
+    expect(prisma.brainRun.findFirst).toHaveBeenCalledWith({
+      where: { id: 7, userId: 9, storeId: 6 },
+      select: { conversationId: true },
+    });
+
+    expect(tx.brainActionExecution.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        capabilityKey: 'create_reservation',
+        boundCapabilityKey: 'reservation_action_preview',
+        capabilityVersion: 12,
+        capabilitySourceFingerprint: 'e'.repeat(64),
+        actionDefinitionKey: 'action.create_reservation',
+        actionDefinitionVersion: 3,
+        actionBindingFingerprint: 'c'.repeat(64),
+        ontologySnapshotFingerprint: 'd'.repeat(64),
+        releaseId: 417,
+        releaseFingerprint: 'f'.repeat(64),
+      }),
+    });
+    expect(executionIdentity.assertCurrent).toHaveBeenCalledWith(actionProvenance);
   });
 
   it('rejects model-authored confirmation claims before a preview is persisted', async () => {
@@ -132,6 +900,63 @@ describe('BrainActionConfirmationService', () => {
     ]);
   });
 
+  it('exposes deadline-exhausted effect verification as non-retryable manual reconciliation', async () => {
+    const prisma = {
+      brainActionConfirmation: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            actionId: 'act_effect_manual',
+            skillKey: 'cancel_reservation',
+            status: 'partially_succeeded',
+            result: null,
+          },
+        ]),
+      },
+      brainActionExecution: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 39,
+            actionId: 'act_effect_manual',
+            status: 'partially_succeeded',
+            receiptPayload: {
+              status: 'partially_succeeded',
+              effectReconciliation: {
+                status: 'manual_reconcile_required',
+                attemptCount: 3,
+                maxAttempts: 3,
+                verificationDeadline: '2026-07-30T10:00:05.000Z',
+                lastAttemptAt: '2026-07-30T10:00:01.000Z',
+                nextAttemptAt: null,
+                reasonCode: 'effect_observation_attempts_exhausted',
+              },
+            },
+            errorCode: 'action_effect_reconciliation_required',
+            errorMessage: '预期效果仍未观测到。',
+            createdAt: new Date('2026-07-30T10:00:00.000Z'),
+          },
+        ]),
+      },
+    };
+    const gateway = {
+      resolve: jest.fn().mockReturnValue({ failureRecovery: 'safe_replay' }),
+    };
+    const service = new BrainActionConfirmationService(prisma as never, gateway as never);
+
+    const result = await service.listExecutionStatuses({ runId: 5, userId: 9, storeId: 6 });
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        actionId: 'act_effect_manual',
+        executionId: 39,
+        status: 'partially_succeeded',
+        retryable: false,
+        recovery: 'manual_reconcile',
+        // ami-brain-unit-only: persisted reconciliation response contract, not a product question.
+        error: { code: 'action_effect_reconciliation_required', message: '预期效果仍未观测到。' },
+      }),
+    ]);
+  });
+
   it('reconciles queued marketing execution receipts with the current business status', async () => {
     const confirmation = {
       actionId: 'act_marketing',
@@ -210,11 +1035,175 @@ describe('BrainActionConfirmationService', () => {
     ]);
   });
 
+  it('promotes a governed partial action only after a bounded read-only effect recheck succeeds', async () => {
+    const effectProvenance = actionProvenanceFor(51);
+    const effectObservation = {
+      effectKey: 'reservation_created_in_context_store',
+      version: 3,
+      fingerprint: '1'.repeat(64),
+      status: 'unobserved',
+      evidenceCode: 'reservation_creation_payload_mismatch',
+      observedAt: '2026-07-30T10:00:00.000Z',
+      verificationDeadline: '2026-07-30T10:00:05.000Z',
+    };
+    const reconciliation = {
+      status: 'pending',
+      attemptCount: 1,
+      maxAttempts: 3,
+      verificationDeadline: '2026-07-30T10:00:05.000Z',
+      lastAttemptAt: '2026-07-30T10:00:00.000Z',
+      nextAttemptAt: '2026-07-30T10:00:00.500Z',
+      reasonCode: 'effect_recheck_pending',
+    };
+    const action = {
+      actionId: 'act_effect_pending',
+      runId: 51,
+      userId: 9,
+      storeId: 6,
+      skillKey: 'create_reservation',
+      riskLevel: 'medium',
+      status: 'partially_succeeded',
+      result: null,
+      payload: {
+        protocolVersion: '1.5',
+        capabilityKey: 'create_reservation',
+        capabilityVersion: 2,
+        validatedArgs: { customerId: 11, projectId: 22, appointmentTime: '2026-08-01T10:00:00.000Z' },
+        actor: { userId: 9 },
+        store: { storeId: 6 },
+        riskLevel: 'medium',
+        idempotencyKey: 'effect-pending-1',
+        planId: 'run:51',
+        argsDigest: '9'.repeat(64),
+        expiresAt: '2026-07-30T10:15:00.000Z',
+        actionProvenance: effectProvenance,
+      },
+      createdAt: new Date('2026-07-30T10:00:00.000Z'),
+      actionDefinitionKey: effectProvenance.actionRef.definitionKey,
+      actionDefinitionVersion: effectProvenance.actionRef.definitionVersion,
+      actionDefinitionFingerprint: effectProvenance.actionRef.definitionFingerprint,
+      actionSourceFingerprint: effectProvenance.actionRef.sourceFingerprint,
+      actionBindingFingerprint: effectProvenance.actionBindingFingerprint,
+      actionModalityPolicyFingerprint: effectProvenance.actionModalityPolicyFingerprint,
+      informationArtifactProfileFingerprint: effectProvenance.actionInformationArtifactProfileFingerprint,
+      sideEffectInvariantProfileFingerprint: effectProvenance.actionSideEffectInvariantProfileFingerprint,
+      informationArtifactFingerprints: [],
+      situationContextProfileFingerprint: effectProvenance.actionSituationContextProfileFingerprint,
+      situationContextFingerprint: effectProvenance.situationContext.fingerprint,
+      boundCapabilityKey: effectProvenance.capability.key,
+      capabilityVersion: effectProvenance.capability.version,
+      capabilitySourceFingerprint: effectProvenance.capability.sourceFingerprint,
+      ontologySnapshotFingerprint: effectProvenance.ontologySnapshotFingerprint,
+      releaseId: effectProvenance.release.releaseId,
+      releaseFingerprint: effectProvenance.release.releaseFingerprint,
+    };
+    const execution = {
+      id: 61,
+      actionId: action.actionId,
+      runId: action.runId,
+      capabilityKey: action.skillKey,
+      status: 'partially_succeeded',
+      receiptPayload: {
+        capabilityKey: 'create_reservation',
+        businessObjectType: 'reservation',
+        businessObjectId: 101,
+        status: 'partially_succeeded',
+        result: { id: 101 },
+        databaseWriteSet: createTestBusinessDatabaseWriteSetEvidence({
+          capabilityKey: 'create_reservation',
+          idempotencyKey: 'effect-pending-1',
+          businessObjectId: 101,
+          entries: [
+            {
+              modelName: 'Reservation',
+              tableName: 'Reservation',
+              operation: 'create',
+              changedFields: ['id', 'storeId'],
+              afterStateFingerprint: '3'.repeat(64),
+            },
+          ],
+        }),
+        effectObservations: [effectObservation],
+        effectReconciliation: reconciliation,
+      },
+    };
+    const prisma = {
+      brainActionConfirmation: {
+        findMany: jest.fn().mockResolvedValue([action]),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      brainActionExecution: {
+        findMany: jest.fn().mockResolvedValue([execution]),
+        update: jest.fn().mockResolvedValue({}),
+      },
+    };
+    const gateway = {
+      resolve: jest.fn().mockReturnValue({ version: 2, failureRecovery: 'safe_replay' }),
+      execute: jest.fn(),
+    };
+    const executionIdentity = previewGovernanceDependencies().executionIdentity;
+    const predicateEffectEvaluator = {
+      reconcileEffects: jest.fn().mockResolvedValue({
+        effectObservations: [
+          { ...effectObservation, status: 'observed', evidenceCode: 'reservation_created_observed' },
+        ],
+        reconciliation: {
+          ...reconciliation,
+          status: 'succeeded',
+          attemptCount: 2,
+          nextAttemptAt: null,
+          reasonCode: 'all_effects_observed',
+        },
+      }),
+    };
+    const service = new BrainActionConfirmationService(
+      prisma as never,
+      gateway as never,
+      undefined,
+      undefined,
+      executionIdentity as never,
+      predicateEffectEvaluator as never,
+    );
+
+    const result = await service.listExecutionStatuses({ runId: 51, userId: 9, storeId: 6 });
+
+    expect(predicateEffectEvaluator.reconcileEffects).toHaveBeenCalledTimes(1);
+    expect(gateway.execute).not.toHaveBeenCalled();
+    expect(prisma.brainActionExecution.update).toHaveBeenCalledWith({
+      where: { id: 61 },
+      data: expect.objectContaining({
+        status: 'succeeded',
+        errorCode: null,
+        receiptPayload: expect.objectContaining({
+          effectReconciliation: expect.objectContaining({ status: 'succeeded', attemptCount: 2 }),
+        }),
+      }),
+    });
+    expect(prisma.brainActionConfirmation.update).toHaveBeenCalledWith({
+      where: { actionId: action.actionId },
+      data: expect.objectContaining({ status: 'succeeded' }),
+    });
+    expect(result).toEqual([
+      expect.objectContaining({
+        actionId: action.actionId,
+        executionId: 61,
+        status: 'succeeded',
+        // ami-brain-unit-only: persisted reconciliation response contract, not a product question.
+        receipt: expect.objectContaining({ message: '业务效果已在固定验证期限内完成确定性核对。' }),
+      }),
+    ]);
+  });
+
   it('does not offer safe replay after a marketing delivery batch reaches terminal failure', async () => {
     const prisma = {
       brainActionConfirmation: {
         findMany: jest.fn().mockResolvedValue([
-          { actionId: 'act_marketing_failed', skillKey: 'execute_marketing_strategy', status: 'executing', result: null },
+          {
+            actionId: 'act_marketing_failed',
+            skillKey: 'execute_marketing_strategy',
+            status: 'executing',
+            result: null,
+          },
         ]),
         update: jest.fn().mockResolvedValue({}),
       },
@@ -233,9 +1222,11 @@ describe('BrainActionConfirmationService', () => {
         update: jest.fn().mockResolvedValue({}),
       },
       marketingAutomationExecution: {
-        findMany: jest.fn().mockResolvedValue([
-          { id: 92, storeId: 6, status: 'failed', queuedCount: 2, reachedCount: 0, failedCount: 2, channel: 'sms' },
-        ]),
+        findMany: jest
+          .fn()
+          .mockResolvedValue([
+            { id: 92, storeId: 6, status: 'failed', queuedCount: 2, reachedCount: 0, failedCount: 2, channel: 'sms' },
+          ]),
       },
     };
     const gateway = {
@@ -357,12 +1348,15 @@ describe('BrainActionConfirmationService', () => {
       userId: 9,
       storeId: 6,
       permissions: ['core:store:reservations'],
+      roles: ['store_manager'],
     });
 
     expect(gateway.execute).toHaveBeenCalledTimes(1);
-    expect(gateway.execute).toHaveBeenCalledWith(expect.objectContaining({
-      context: expect.objectContaining({ idempotencyKey: 'act_3' }),
-    }));
+    expect(gateway.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: expect.objectContaining({ idempotencyKey: 'act_3' }),
+      }),
+    );
     expect(tx.brainActionConfirmation.updateMany).toHaveBeenCalledWith({
       where: { actionId: 'act_3', status: 'pending' },
       data: expect.objectContaining({ status: 'executing' }),
@@ -371,11 +1365,13 @@ describe('BrainActionConfirmationService', () => {
       where: { id: 71 },
       data: expect.objectContaining({ status: 'succeeded', businessObjectId: '101' }),
     });
-    expect(trace.recordStep).toHaveBeenCalledWith(expect.objectContaining({
-      stepKey: 'action_create_reservation',
-      layer: 'capability_gateway',
-      status: 'succeeded',
-    }));
+    expect(trace.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stepKey: 'action_create_reservation',
+        layer: 'capability_gateway',
+        status: 'succeeded',
+      }),
+    );
     expect(result).toMatchObject({ status: 'succeeded', receipt: { businessObjectId: 101 } });
   });
 
@@ -453,11 +1449,26 @@ describe('BrainActionConfirmationService', () => {
     };
     const gateway = {
       validateForExecution: jest.fn().mockReturnValue({
-        descriptor: { key: 'reschedule_reservation', version: 1, riskLevel: 'high', permission: 'core:store:reservations' },
+        descriptor: {
+          key: 'reschedule_reservation',
+          version: 1,
+          riskLevel: 'high',
+          permission: 'core:store:reservations',
+        },
         payload: validatedArgs,
       }),
-      resolve: jest.fn().mockReturnValue({ key: 'reschedule_reservation', version: 1, riskLevel: 'high', permission: 'core:store:reservations' }),
-      execute: jest.fn().mockResolvedValue({ capabilityKey: 'reschedule_reservation', businessObjectType: 'reservation', businessObjectId: 18, result: { id: 18 } }),
+      resolve: jest.fn().mockReturnValue({
+        key: 'reschedule_reservation',
+        version: 1,
+        riskLevel: 'high',
+        permission: 'core:store:reservations',
+      }),
+      execute: jest.fn().mockResolvedValue({
+        capabilityKey: 'reschedule_reservation',
+        businessObjectType: 'reservation',
+        businessObjectId: 18,
+        result: { id: 18 },
+      }),
     };
     const created = await new BrainActionConfirmationService(bootstrapPrisma as never, gateway as never).createPreview({
       runId: 7,
@@ -479,7 +1490,12 @@ describe('BrainActionConfirmationService', () => {
       $transaction: jest.fn((callback: (client: typeof tx) => unknown) => callback(tx)),
     };
     const targetResolver = { revalidateCapabilityTarget: jest.fn().mockResolvedValue(undefined) };
-    const service = new BrainActionConfirmationService(prisma as never, gateway as never, undefined, targetResolver as never);
+    const service = new BrainActionConfirmationService(
+      prisma as never,
+      gateway as never,
+      undefined,
+      targetResolver as never,
+    );
 
     await service.confirmAndExecute({
       actionId: action.actionId,
@@ -530,19 +1546,29 @@ describe('BrainActionConfirmationService', () => {
       brainActionExecution: { findUnique: jest.fn() },
     };
     const gateway = {
-      resolve: jest.fn().mockReturnValue({ key: 'create_reservation', version: 1, riskLevel: 'medium', permission: 'core:store:reservations' }),
-      validateForExecution: jest.fn().mockReturnValue({ descriptor: { key: 'create_reservation', version: 1, riskLevel: 'medium' }, payload: action.payload.validatedArgs }),
+      resolve: jest.fn().mockReturnValue({
+        key: 'create_reservation',
+        version: 1,
+        riskLevel: 'medium',
+        permission: 'core:store:reservations',
+      }),
+      validateForExecution: jest.fn().mockReturnValue({
+        descriptor: { key: 'create_reservation', version: 1, riskLevel: 'medium' },
+        payload: action.payload.validatedArgs,
+      }),
       execute: jest.fn(),
     };
     const service = new BrainActionConfirmationService(prisma as never, gateway as never);
 
-    await expect(service.confirmAndExecute({
-      actionId: action.actionId,
-      runId: 7,
-      userId: 9,
-      storeId: 6,
-      permissions: ['core:store:reservations'],
-    })).rejects.toThrow('action_args_digest_mismatch');
+    await expect(
+      service.confirmAndExecute({
+        actionId: action.actionId,
+        runId: 7,
+        userId: 9,
+        storeId: 6,
+        permissions: ['core:store:reservations'],
+      }),
+    ).rejects.toThrow('action_args_digest_mismatch');
     expect(gateway.execute).not.toHaveBeenCalled();
   });
 
@@ -583,28 +1609,33 @@ describe('BrainActionConfirmationService', () => {
     expect(result).toMatchObject({ status: 'succeeded', receipt: { businessObjectId: 102 }, duplicated: true });
   });
 
-  it('safely replays a failed reservation reschedule with the original approval envelope', async () => {
-    const validatedArgs = { reservationId: 18, appointmentTime: '2026-07-14T15:00:00+08:00' };
+  it('safely replays a failed idempotent reservation creation with the original approval envelope', async () => {
+    const validatedArgs = {
+      customerId: 11,
+      projectId: 22,
+      appointmentTime: '2026-08-14T15:00:00+08:00',
+    };
     const gateway = {
       validateForExecution: jest.fn().mockReturnValue({
         descriptor: {
-          key: 'reschedule_reservation',
+          key: 'create_reservation',
           version: 1,
-          riskLevel: 'high',
+          riskLevel: 'medium',
           permission: 'core:store:reservations',
           failureRecovery: 'safe_replay',
+          effectKeys: ['reservation_created_in_context_store'],
         },
         payload: validatedArgs,
       }),
       resolve: jest.fn().mockReturnValue({
-        key: 'reschedule_reservation',
+        key: 'create_reservation',
         version: 1,
-        riskLevel: 'high',
+        riskLevel: 'medium',
         permission: 'core:store:reservations',
         failureRecovery: 'safe_replay',
       }),
       execute: jest.fn().mockResolvedValue({
-        capabilityKey: 'reschedule_reservation',
+        capabilityKey: 'create_reservation',
         businessObjectType: 'reservation',
         businessObjectId: 18,
         result: { id: 18 },
@@ -619,10 +1650,10 @@ describe('BrainActionConfirmationService', () => {
       runId: 7,
       userId: 9,
       storeId: 6,
-      skillKey: 'reschedule_reservation',
+      skillKey: 'create_reservation',
       capabilityVersion: 1,
-      riskLevel: 'high',
-      preview: { summary: '改约' },
+      riskLevel: 'medium',
+      preview: { summary: '创建预约' },
       payload: validatedArgs,
     } as never);
     const action = { ...created, status: 'failed', createdAt: new Date() };
@@ -645,7 +1676,12 @@ describe('BrainActionConfirmationService', () => {
       $transaction: jest.fn((callback: (client: typeof tx) => unknown) => callback(tx)),
     };
     const targetResolver = { revalidateCapabilityTarget: jest.fn().mockResolvedValue(undefined) };
-    const service = new BrainActionConfirmationService(prisma as never, gateway as never, undefined, targetResolver as never);
+    const service = new BrainActionConfirmationService(
+      prisma as never,
+      gateway as never,
+      undefined,
+      targetResolver as never,
+    );
 
     const result = await service.retryFailedExecution({
       actionId: action.actionId,
@@ -665,6 +1701,125 @@ describe('BrainActionConfirmationService', () => {
     });
     expect(gateway.execute).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({ status: 'succeeded', executionId: 91, retried: true });
+  });
+
+  it('returns an already committed governed create effect before rechecking stale execution preconditions', async () => {
+    const validatedArgs = {
+      customerId: 11,
+      projectId: 22,
+      appointmentTime: '2026-08-14T07:00:00.000Z',
+    };
+    const gateway = {
+      validateForExecution: jest.fn().mockImplementation((_key, _version, payload) => ({
+        descriptor: {
+          key: 'create_reservation',
+          version: 1,
+          riskLevel: 'medium',
+          permission: 'core:store:reservations',
+          failureRecovery: 'safe_replay',
+          effectKeys: ['reservation_created_in_context_store'],
+        },
+        payload,
+      })),
+      resolve: jest.fn().mockReturnValue({
+        key: 'create_reservation',
+        version: 1,
+        riskLevel: 'medium',
+        permission: 'core:store:reservations',
+        failureRecovery: 'safe_replay',
+      }),
+      execute: jest.fn(),
+    };
+    const previewGovernance = previewGovernanceDependencies();
+    const bootstrapPrisma = {
+      brainActionConfirmation: {
+        create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 1, createdAt: new Date(), ...data })),
+      },
+    };
+    const created = await new BrainActionConfirmationService(
+      bootstrapPrisma as never,
+      gateway as never,
+      undefined,
+      undefined,
+      previewGovernance.executionIdentity as never,
+      previewGovernance.predicateEffectEvaluator as never,
+    ).createPreview({
+      runId: 7,
+      userId: 9,
+      storeId: 6,
+      skillKey: 'create_reservation',
+      capabilityVersion: 1,
+      riskLevel: 'medium',
+      preview: { summary: '创建预约' },
+      payload: validatedArgs,
+      actionProvenance,
+    });
+    const action = { ...created, status: 'failed', createdAt: new Date() };
+    const execution = { id: 92, status: 'failed', errorCode: 'upstream_timeout' };
+    const tx = {
+      brainActionConfirmation: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      brainActionExecution: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    };
+    const prisma = {
+      brainActionConfirmation: { findFirst: jest.fn().mockResolvedValue(action) },
+      brainActionExecution: { findUnique: jest.fn().mockResolvedValue(execution) },
+      brainRun: { findFirst: jest.fn().mockResolvedValue({ conversationId: 12 }) },
+      $transaction: jest.fn((callback: (client: typeof tx) => unknown) => callback(tx)),
+    };
+    const executionIdentity = previewGovernanceDependencies().executionIdentity;
+    const recoveredReceipt = {
+      capabilityKey: 'create_reservation',
+      businessObjectType: 'reservation',
+      businessObjectId: 18,
+      result: { id: 18, startTime: '15:00' },
+      status: 'succeeded' as const,
+      recovered: true as const,
+      effectObservations: [{ status: 'observed' }],
+      databaseWriteSet: createTestBusinessDatabaseWriteSetEvidence({
+        capabilityKey: 'create_reservation',
+        idempotencyKey: 'reservation-safe-replay',
+        businessObjectId: 18,
+        entries: [
+          {
+            modelName: 'Reservation',
+            tableName: 'Reservation',
+            operation: 'create',
+            changedFields: ['id', 'storeId'],
+            afterStateFingerprint: '3'.repeat(64),
+          },
+        ],
+      }),
+    };
+    const predicateEffectEvaluator = {
+      recoverCommittedEffect: jest.fn().mockResolvedValue(recoveredReceipt),
+      assertPreconditions: jest.fn(),
+    };
+    const service = new BrainActionConfirmationService(
+      prisma as never,
+      gateway as never,
+      undefined,
+      undefined,
+      executionIdentity as never,
+      predicateEffectEvaluator as never,
+    );
+
+    const result = await service.retryFailedExecution({
+      actionId: action.actionId,
+      runId: 7,
+      userId: 9,
+      storeId: 6,
+      permissions: ['core:store:reservations'],
+      roles: ['store_manager'],
+    });
+
+    expect(predicateEffectEvaluator.recoverCommittedEffect).toHaveBeenCalledTimes(1);
+    expect(predicateEffectEvaluator.assertPreconditions).not.toHaveBeenCalled();
+    expect(gateway.execute).not.toHaveBeenCalled();
+    expect(tx.brainActionExecution.updateMany).toHaveBeenCalledWith({
+      where: { id: 92, status: 'failed' },
+      data: expect.objectContaining({ status: 'succeeded', businessObjectId: '18' }),
+    });
+    expect(result).toMatchObject({ status: 'succeeded', executionId: 92, retried: true, recovered: true });
   });
 
   it('requires manual reconciliation for failed create actions instead of blind retry', async () => {
@@ -700,7 +1855,7 @@ describe('BrainActionConfirmationService', () => {
       runId: 8,
       userId: 9,
       storeId: 6,
-      permissions: ['core:supply:manage'],
+      permissions: ['core:inventory:purchase'],
     });
 
     expect(gateway.execute).not.toHaveBeenCalled();

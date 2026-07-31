@@ -10,6 +10,7 @@ describe('matchBrainCapabilityBoundary', () => {
     ['我想在每次服务结束后自动发一条感谢消息', 'service_completion_auto_message_not_connected'],
     ['帮我算一下盈亏平衡点，每月至少要做多少收入', 'break_even_definition_not_available'],
     ['员工最近情绪不好影响服务，同时营业额也在下滑，有关系吗', 'staff_emotion_revenue_attribution_not_available'],
+    ['哪个美容师最近三个月客户流失偏多', 'staff_customer_churn_attribution_not_available'],
     ['平均每个客人消耗多少耗材', 'material_consumption_per_customer_not_connected'],
     ['帮我列出所有客户的消费明细', 'bulk_customer_consumption_export_not_connected'],
     ['这次护理发现客人有一处皮肤问题，怎么记录和处理', 'service_skin_change_record_not_available'],
@@ -29,5 +30,6 @@ describe('matchBrainCapabilityBoundary', () => {
     expect(matchBrainCapabilityBoundary('帮我预测下个季度的营业额')).toBeUndefined();
     expect(matchBrainCapabilityBoundary('帮我设置一个客户45天没来自动发提醒的规则')).toBeUndefined();
     expect(matchBrainCapabilityBoundary('能不能在客户消费后自动给她推荐下一个适合的项目')).toBeUndefined();
+    expect(matchBrainCapabilityBoundary('哪些客户最近三个月可能流失')).toBeUndefined();
   });
 });

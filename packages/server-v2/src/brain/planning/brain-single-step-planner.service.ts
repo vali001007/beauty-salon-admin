@@ -15,6 +15,9 @@ export interface BrainSingleStepPlanArgs extends Record<string, unknown> {
   filters: BrainSemanticIntent['filters'];
   orderBy: BrainSemanticIntent['orderBy'];
   limit?: BrainSemanticIntent['limit'];
+  actionRef?: BrainSemanticIntent['actionRef'];
+  actionModality?: BrainSemanticIntent['actionModality'];
+  actionSlots?: BrainSemanticIntent['actionSlots'];
 }
 
 export interface BrainSingleStepPlan extends BrainExecutionPlan {
@@ -41,6 +44,9 @@ export class BrainSingleStepPlannerService {
     intent: BrainSemanticIntent;
     retrieval: BrainCapabilityRetrievalResult;
   }): BrainSingleStepPlanningResult {
+    if (input.intent.actionRef && input.intent.actionPolarity !== 'affirmative') {
+      return { status: 'not_planned', reason: 'action_polarity_not_executable' };
+    }
     if (input.retrieval.status !== 'selected') {
       return { status: 'not_planned', reason: input.retrieval.status };
     }
@@ -57,6 +63,9 @@ export class BrainSingleStepPlannerService {
       filters: input.intent.filters,
       orderBy: input.intent.orderBy,
       ...(input.intent.limit === undefined ? {} : { limit: input.intent.limit }),
+      ...(input.intent.actionRef ? { actionRef: input.intent.actionRef } : {}),
+      ...(input.intent.actionModality ? { actionModality: input.intent.actionModality } : {}),
+      ...(input.intent.actionSlots ? { actionSlots: input.intent.actionSlots } : {}),
     };
     return {
       status: 'planned',

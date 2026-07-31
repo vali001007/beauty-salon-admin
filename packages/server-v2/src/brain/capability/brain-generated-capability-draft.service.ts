@@ -202,7 +202,9 @@ async function detectWorkspaceRoot(): Promise<string> {
     try {
       await access(resolve(candidate, 'packages/server-v2/prisma/schema.prisma'));
       return candidate;
-    } catch {}
+    } catch {
+      continue;
+    }
   }
   throw new Error('generated_capability_workspace_root_not_found');
 }

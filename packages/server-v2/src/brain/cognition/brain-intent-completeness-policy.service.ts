@@ -120,6 +120,7 @@ export class BrainIntentCompletenessPolicyService {
     intent: BrainSemanticIntent,
     snapshot: ProductionReadyBusinessDefinitionSnapshot,
   ): string[] {
+    if (intent.metrics.some((metric) => this.isFinanceOrderProfitMetricDefinitionKey(metric.definitionKey))) return [];
     const normalizedQuestion = this.normalizeMetricQuestion(question, intent);
     if (normalizedQuestion.length < 2) return [];
     if (/(?:服务收入|服务业绩|销售业绩|销售额|服务次数|服务量|提成)/.test(normalizedQuestion)) return [];
@@ -173,6 +174,14 @@ export class BrainIntentCompletenessPolicyService {
       .replace(/(?:的|怎么样|如何|好不好|情况)$/g, '');
   }
 
+  private isFinanceOrderProfitMetricDefinitionKey(definitionKey: string): boolean {
+    const key = this.normalize(definitionKey);
+    return (
+      key.includes('order') &&
+      (key.includes('grossprofit') || key.includes('totalcost') || key.includes('cost') || key.includes('margin'))
+    );
+  }
+
   private hasUnresolvedPersonalReference(question: string, intent: BrainSemanticIntent): boolean {
     if (!/(?:她|他|这个客户|这位客户|这个客人|这位客人)/.test(question)) return false;
     return !intent.entities.some(
@@ -194,7 +203,7 @@ export class BrainIntentCompletenessPolicyService {
 
   private hasAmbiguousNamedPeriod(question: string): boolean {
     return (
-      /(?:国庆|春节|五一|劳动节|元旦|中秋)(?:期间|假期|前后)?/.test(question) &&
+      /(?:双十一|双十二|618|六一八|国庆|春节|五一|劳动节|元旦|中秋|端午|七夕)(?:期间|假期|前后)?/.test(question) &&
       !/(?:20\d{2}|今年|去年|前年)/.test(question)
     );
   }

@@ -74,7 +74,14 @@ export class BrainAnswerCompletionGuardService {
       }
       return;
     }
-    if (intent.answerShape === 'scalar') requireKind('kpi');
+    if (intent.answerShape === 'scalar') {
+      // A governed capability can return an auditable row set (for example, BOM lines or a member-tier list)
+      // whose summary answers a scalar request. Do not turn that completed, cited factual result into a false
+      // execution failure merely because the model selected `scalar` instead of `list`.
+      const hasGroundedScalarRows =
+        hasRows && envelope.citations.length > 0 && (kinds.has('table') || kinds.has('ranking'));
+      if (!kinds.has('kpi') && !hasGroundedScalarRows) requireKind('kpi');
+    }
     if (intent.answerShape === 'comparison') {
       const crossEntityComparison = intent.comparisonTarget?.type !== 'time' && (kinds.has('ranking') || kinds.has('table'));
       if (!crossEntityComparison) requireKind('comparison');

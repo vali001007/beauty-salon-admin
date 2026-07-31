@@ -323,7 +323,7 @@ describe('BrainCapabilityScannerService', () => {
 
     const workspaceRoot = join(process.cwd(), '..', '..');
     const real = await new BrainCapabilityScannerService().scan({ workspaceRoot, explicitOnly: true });
-    expect(real.capabilities).toHaveLength(42);
+    expect(real.capabilities).toHaveLength(44);
     expect(real.capabilities.every((item) => item.explicit)).toBe(true);
   }, 30_000);
 
@@ -741,11 +741,11 @@ describe('BrainCapabilityScannerService', () => {
     expect(byKey.get('customer_facts')?.requiredPermissions).toContain('core:customer:view');
   }, 30_000);
 
-  it('discovers forty-two explicit production executors without legacy anchor contamination', async () => {
+  it('discovers forty-four explicit production executors without legacy anchor contamination', async () => {
     const workspaceRoot = join(process.cwd(), '..', '..');
     const report = await new BrainCapabilityScannerService().scan({ workspaceRoot, explicitOnly: true });
 
-    expect(report.summary).toEqual({ total: 42, draft: 42, blocked: 0, explicit: 42 });
+    expect(report.summary).toEqual({ total: 44, draft: 44, blocked: 0, explicit: 44 });
     expect(report.capabilities.map((item) => item.key)).toEqual([
       'appointment_gap_list',
       'beautician_customer_card_progress',
@@ -753,6 +753,7 @@ describe('BrainCapabilityScannerService', () => {
       'beautician_personal_performance',
       'beautician_service_overview',
       'card_usage_action_preview',
+      'customer_create_preview',
       'customer_facts',
       'customer_feedback_overview',
       'customer_follow_up_draft',
@@ -784,6 +785,7 @@ describe('BrainCapabilityScannerService', () => {
       'project_material_consumption_analysis',
       'project_service_ranking',
       'purchase_order_draft',
+      'purchase_order_submit_for_approval_preview',
       'reservation_action_preview',
       'reservation_list',
       'service_record_completion_preview',
@@ -831,6 +833,40 @@ describe('BrainCapabilityScannerService', () => {
         'BrainActionConfirmationService',
         'BrainActionTargetResolverService',
       ]),
+    );
+    expect(byKey(report.capabilities, 'customer_create_preview')).toMatchObject({
+      readOnly: false,
+      sideEffect: true,
+      riskLevel: 'high',
+      storeScope: 'required',
+      requiresConfirmation: true,
+      idempotency: 'required',
+      requiredPermissions: ['core:brain:use', 'core:customer:create'],
+      allowedRoles: ['customer_service', 'receptionist', 'store_manager'],
+      issues: [],
+    });
+    expect(byKey(report.capabilities, 'customer_create_preview').businessDefinitionKeys).toEqual([
+      'action.create_customer',
+      'entity.customer',
+    ]);
+    expect(byKey(report.capabilities, 'purchase_order_draft').businessDefinitionKeys).toEqual([
+      'action.create_purchase_order',
+      'entity.product',
+    ]);
+    expect(byKey(report.capabilities, 'purchase_order_submit_for_approval_preview').businessDefinitionKeys).toEqual([
+      'action.submit_purchase_order_for_approval',
+      'entity.purchase_order',
+    ]);
+    expect(byKey(report.capabilities, 'reservation_action_preview').businessDefinitionKeys).toEqual([
+      'action.cancel_reservation',
+      'action.create_reservation',
+      'action.reschedule_reservation',
+      'entity.customer',
+      'entity.project',
+      'entity.reservation',
+    ]);
+    expect(byKey(report.capabilities, 'customer_create_preview').implementationDependencies).toEqual(
+      expect.arrayContaining(['BrainActionConfirmationService']),
     );
   }, 30_000);
 });

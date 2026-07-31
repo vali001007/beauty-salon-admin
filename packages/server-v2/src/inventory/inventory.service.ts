@@ -4,16 +4,39 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { TerminalDashboardCacheService } from '../terminal/terminal-dashboard-cache.service.js';
 import { CommissionService } from '../commission/commission.service.js';
 import { formatBusinessDate } from '../common/utils/business-time.js';
+import {
+  buildBusinessMutationReceipt,
+  buildBusinessMutationRequestFingerprint,
+  buildBusinessMutationStateFingerprint,
+  businessMutationChangedFields,
+  restoreBusinessMutationReceipt,
+  type BusinessMutationContext,
+  type BusinessMutationReceipt,
+} from '../common/mutation-receipt.js';
 import { SupplyPlatformService } from '../supply-platform/supply-platform.service.js';
 import {
   buildPurchaseOrderCreationFingerprint,
   buildPurchaseOrderIdempotencyKey,
   normalizePurchaseOrderSource,
 } from './purchase-order-idempotency.js';
+import {
+  beginBusinessDatabaseWriteSet,
+  finalizeBusinessDatabaseWriteSet,
+  loadBusinessDatabaseWriteSet,
+  type BusinessDatabaseWriteSetContext,
+  type BusinessDatabaseWriteSetEvidence,
+} from '../common/database-write-set.js';
 
 export type PurchaseOrderCreateResult = {
   purchaseOrder: any;
   replayed: boolean;
+  databaseWriteSet?: BusinessDatabaseWriteSetEvidence;
+};
+
+export type PurchaseOrderMutationResult = any & {
+  mutationReceipt?: BusinessMutationReceipt;
+  mutationReplayed?: boolean;
+  databaseWriteSet?: BusinessDatabaseWriteSetEvidence;
 };
 
 @Injectable()
@@ -167,7 +190,9 @@ export class InventoryService {
     moq?: number | null;
     leadDays?: number | null;
   }) {
-    const forecast7Days = Math.ceil(Math.max(input.consumed7Days, input.consumed30Days > 0 ? (input.consumed30Days / 30) * 7 : 0));
+    const forecast7Days = Math.ceil(
+      Math.max(input.consumed7Days, input.consumed30Days > 0 ? (input.consumed30Days / 30) * 7 : 0),
+    );
     const forecast30Days = Math.ceil(input.consumed30Days);
     const dailyConsumption = input.consumed30Days > 0 ? input.consumed30Days / 30 : 0;
     const hasConsumptionHistory = input.consumed30Days > 0;
@@ -177,11 +202,12 @@ export class InventoryService {
     const shortageQty = Math.max(0, Math.ceil(targetStock - input.currentStock - input.inTransit));
     const moq = this.toNumber(input.moq);
     const suggestedQty = shortageQty > 0 ? Math.max(shortageQty, moq > 0 ? moq : 0) : 0;
-    const daysUntilSafety = dailyConsumption > 0 && input.currentStock > input.safetyStock
-      ? Math.floor((input.currentStock - input.safetyStock) / dailyConsumption)
-      : input.currentStock <= input.safetyStock
-        ? 0
-        : null;
+    const daysUntilSafety =
+      dailyConsumption > 0 && input.currentStock > input.safetyStock
+        ? Math.floor((input.currentStock - input.safetyStock) / dailyConsumption)
+        : input.currentStock <= input.safetyStock
+          ? 0
+          : null;
     return {
       forecast7Days,
       forecast30Days,
@@ -195,9 +221,16 @@ export class InventoryService {
   }
 
   private getPurchaseOrderPayload(order: any) {
-    const payload = order.items && typeof order.items === 'object' && !Array.isArray(order.items)
-      ? order.items as { items?: unknown; storeId?: number | string; storeName?: string; expectedDate?: string; source?: string }
-      : undefined;
+    const payload =
+      order.items && typeof order.items === 'object' && !Array.isArray(order.items)
+        ? (order.items as {
+            items?: unknown;
+            storeId?: number | string;
+            storeName?: string;
+            expectedDate?: string;
+            source?: string;
+          })
+        : undefined;
     const rawItems = Array.isArray(order.items) ? order.items : Array.isArray(payload?.items) ? payload.items : [];
     const items = rawItems.map((raw: any, index: number) => {
       const quantity = this.toNumber(raw.quantity);
@@ -229,14 +262,18 @@ export class InventoryService {
     };
   }
 
-  private async findPurchaseOrderProduct(tx: any, item: { productId?: number; sku?: string; productName?: string }, storeId?: number) {
+  private async findPurchaseOrderProduct(
+    tx: any,
+    item: { productId?: number; sku?: string; productName?: string },
+    storeId: number,
+  ) {
     const productId = Number(item.productId);
     if (Number.isInteger(productId) && productId > 0) {
       const product = await tx.product.findFirst({
         where: {
           id: productId,
           deletedAt: null,
-          ...(storeId ? { storeId } : {}),
+          storeId,
         },
       });
       if (product) return product;
@@ -248,14 +285,14 @@ export class InventoryService {
         where: {
           sku,
           deletedAt: null,
-          ...(storeId ? { storeId } : {}),
+          storeId,
         },
       });
       if (product) return product;
     }
 
     const productName = String(item.productName ?? '').trim();
-    if (!productName || !storeId) return null;
+    if (!productName) return null;
     const products = await tx.product.findMany({
       where: {
         name: productName,
@@ -268,14 +305,16 @@ export class InventoryService {
     return products.length === 1 ? products[0] : null;
   }
 
-  async getStock(query: {
-    storeId?: number;
-    categoryId?: number;
-    status?: string;
-    keyword?: string;
-    page?: number;
-    pageSize?: number;
-  } = {}) {
+  async getStock(
+    query: {
+      storeId?: number;
+      categoryId?: number;
+      status?: string;
+      keyword?: string;
+      page?: number;
+      pageSize?: number;
+    } = {},
+  ) {
     const page = Number(query.page ?? 1);
     const pageSize = Number(query.pageSize ?? 20);
     const where: any = { deletedAt: null };
@@ -294,7 +333,8 @@ export class InventoryService {
       id: true,
       name: true,
       sku: true,
-      unit: true, specUnit: true,
+      unit: true,
+      specUnit: true,
       costPrice: true,
       supplier: true,
       currentStock: true,
@@ -345,13 +385,8 @@ export class InventoryService {
       const stock = this.toNonNegativeStock(batch.stock);
       const expiryDate = batch.expiryDate ? new Date(batch.expiryDate) : null;
       const remainingDays = expiryDate ? Math.ceil((expiryDate.getTime() - today.getTime()) / 86400000) : null;
-      const status = remainingDays === null
-        ? '正常'
-        : remainingDays < 0
-          ? '已过期'
-          : remainingDays <= 60
-            ? '临期'
-            : '正常';
+      const status =
+        remainingDays === null ? '正常' : remainingDays < 0 ? '已过期' : remainingDays <= 60 ? '临期' : '正常';
       return {
         ...batch,
         stock,
@@ -379,7 +414,8 @@ export class InventoryService {
               name: true,
               sku: true,
               storeId: true,
-              unit: true, specUnit: true,
+              unit: true,
+              specUnit: true,
               costPrice: true,
               retailPrice: true,
               supplier: true,
@@ -509,7 +545,8 @@ export class InventoryService {
     const expiryDate = data.expiryDate ? new Date(data.expiryDate) : undefined;
     if (productionDate && Number.isNaN(productionDate.getTime())) throw new BadRequestException('生产日期格式不正确');
     if (expiryDate && Number.isNaN(expiryDate.getTime())) throw new BadRequestException('过期日期格式不正确');
-    if (productionDate && expiryDate && expiryDate < productionDate) throw new BadRequestException('过期日期不能早于生产日期');
+    if (productionDate && expiryDate && expiryDate < productionDate)
+      throw new BadRequestException('过期日期不能早于生产日期');
 
     const { batch, storeId } = await this.prisma.$transaction(async (tx) => {
       const product = await tx.product.findUnique({ where: { id: productId } });
@@ -518,19 +555,23 @@ export class InventoryService {
       const beforeStock = this.toNonNegativeStock(product.currentStock);
       const afterStock = beforeStock + quantity;
       const rawUnitCost = data.unitCost;
-      const unitCost = rawUnitCost === undefined || rawUnitCost === null || rawUnitCost === ''
-        ? this.toNumber(product.costPrice)
-        : this.toNumber(rawUnitCost);
+      const unitCost =
+        rawUnitCost === undefined || rawUnitCost === null || rawUnitCost === ''
+          ? this.toNumber(product.costPrice)
+          : this.toNumber(rawUnitCost);
       const rawTotalAmount = data.totalAmount;
-      const totalAmount = rawTotalAmount === undefined || rawTotalAmount === null || rawTotalAmount === ''
-        ? unitCost * quantity
-        : this.toNumber(rawTotalAmount);
+      const totalAmount =
+        rawTotalAmount === undefined || rawTotalAmount === null || rawTotalAmount === ''
+          ? unitCost * quantity
+          : this.toNumber(rawTotalAmount);
       const supplier = String(data.supplier ?? product.supplier ?? '').trim();
       const costRemark = [
         Number.isFinite(unitCost) ? `成本单价 ¥${unitCost.toFixed(2)}` : null,
         Number.isFinite(totalAmount) ? `订单总价 ¥${totalAmount.toFixed(2)}` : null,
         supplier ? `供应商 ${supplier}` : null,
-      ].filter(Boolean).join('；');
+      ]
+        .filter(Boolean)
+        .join('；');
       const remark = [data.remark, costRemark].filter(Boolean).join('；');
 
       const existingBatch = await tx.stockBatch.findFirst({
@@ -613,14 +654,21 @@ export class InventoryService {
     const productId = Number(data.productId);
     const batchId = data.batchId ? Number(data.batchId) : undefined;
     const adjustmentType = String(data.adjustmentType ?? '').trim();
-    const allowedTypes = new Set(['manual_outbound', 'scrap_out', 'stocktake_gain', 'stocktake_loss', 'manual_correction']);
+    const allowedTypes = new Set([
+      'manual_outbound',
+      'scrap_out',
+      'stocktake_gain',
+      'stocktake_loss',
+      'manual_correction',
+    ]);
     if (!productId) throw new BadRequestException('请选择库存商品');
     if (!allowedTypes.has(adjustmentType)) throw new BadRequestException('库存调整类型不正确');
 
     const rawQuantity = this.toNumber(data.quantity);
-    const targetStock = data.targetStock === undefined || data.targetStock === null || data.targetStock === ''
-      ? undefined
-      : this.toNumber(data.targetStock);
+    const targetStock =
+      data.targetStock === undefined || data.targetStock === null || data.targetStock === ''
+        ? undefined
+        : this.toNumber(data.targetStock);
     if (adjustmentType !== 'manual_correction' && (!Number.isFinite(rawQuantity) || rawQuantity <= 0)) {
       throw new BadRequestException('调整数量必须大于 0');
     }
@@ -645,14 +693,15 @@ export class InventoryService {
       }
       if (requestedQty <= 0) throw new BadRequestException('调整后库存未发生变化');
 
-      const batch = batchId
-        ? await tx.stockBatch.findFirst({ where: { id: batchId, productId } })
-        : null;
+      const batch = batchId ? await tx.stockBatch.findFirst({ where: { id: batchId, productId } }) : null;
       if (batchId && !batch) throw new BadRequestException('批次不存在或不属于当前商品');
 
       const beforeBatchStock = batch ? this.toNonNegativeStock(batch.stock) : undefined;
       const appliedQty = isOutbound
-        ? Math.min(beforeStock, beforeBatchStock === undefined ? requestedQty : Math.min(beforeBatchStock, requestedQty))
+        ? Math.min(
+            beforeStock,
+            beforeBatchStock === undefined ? requestedQty : Math.min(beforeBatchStock, requestedQty),
+          )
         : requestedQty;
       if (isOutbound && appliedQty <= 0) {
         if (this.toNumber(product.currentStock) < 0) {
@@ -681,8 +730,14 @@ export class InventoryService {
         });
       }
 
-      const remark = this.buildShortageRemark([data.reason, data.remark].filter(Boolean).join('；'), requestedQty, appliedQty);
-      const sourceType = ['stocktake_gain', 'stocktake_loss'].includes(adjustmentType) ? 'stocktake' : 'inventory_adjustment';
+      const remark = this.buildShortageRemark(
+        [data.reason, data.remark].filter(Boolean).join('；'),
+        requestedQty,
+        appliedQty,
+      );
+      const sourceType = ['stocktake_gain', 'stocktake_loss'].includes(adjustmentType)
+        ? 'stocktake'
+        : 'inventory_adjustment';
       return tx.stockMovement.create({
         data: {
           storeId: product.storeId,
@@ -744,53 +799,76 @@ export class InventoryService {
   }
 
   // Purchase Orders
-  async getPurchaseOrders(page = 1, pageSize = 20) {
+  async getPurchaseOrders(storeIdInput: number | string, page = 1, pageSize = 20) {
+    const storeId = this.requirePurchaseOrderStoreId(storeIdInput);
+    const where = { storeId };
     const [items, total] = await Promise.all([
       this.prisma.purchaseOrder.findMany({
+        where,
         skip: (page - 1) * pageSize,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
       }),
-      this.prisma.purchaseOrder.count(),
+      this.prisma.purchaseOrder.count({ where }),
     ]);
     const viewItems = items.map((order) => this.mapPurchaseOrder(order));
     return { items: viewItems, data: viewItems, total, page, pageSize };
   }
 
   async createPurchaseOrder(data: any) {
-    return (await this.createPurchaseOrderIdempotent(data)).purchaseOrder;
+    const result = await this.createPurchaseOrderIdempotent(data);
+    return {
+      ...result.purchaseOrder,
+      ...(result.databaseWriteSet ? { databaseWriteSet: result.databaseWriteSet } : {}),
+    };
   }
 
   async recoverIdempotentPurchaseOrder(data: any): Promise<PurchaseOrderCreateResult | undefined> {
+    const storeId = this.requirePurchaseOrderStoreId(data.storeId);
     const source = normalizePurchaseOrderSource(data.source);
-    const idempotencyKey = buildPurchaseOrderIdempotencyKey(data.storeId, source, data.idempotencyKey);
+    const normalizedData = { ...data, storeId, source };
+    const idempotencyKey = buildPurchaseOrderIdempotencyKey(storeId, source, data.idempotencyKey);
     if (!idempotencyKey) return undefined;
-    const creationFingerprint = buildPurchaseOrderCreationFingerprint({ ...data, source });
-    const existing = await this.prisma.purchaseOrder.findUnique({ where: { idempotencyKey } });
+    const creationFingerprint = buildPurchaseOrderCreationFingerprint(normalizedData);
+    const existing = await this.prisma.purchaseOrder.findFirst({ where: { idempotencyKey, storeId } });
     if (!existing) return undefined;
     this.assertPurchaseOrderIdempotency(existing, creationFingerprint);
     return { purchaseOrder: this.mapPurchaseOrder(existing), replayed: true };
   }
 
   async createPurchaseOrderIdempotent(data: any): Promise<PurchaseOrderCreateResult> {
+    const storeId = this.requirePurchaseOrderStoreId(data.storeId);
     const source = normalizePurchaseOrderSource(data.source);
-    const idempotencyKey = buildPurchaseOrderIdempotencyKey(data.storeId, source, data.idempotencyKey);
-    const creationFingerprint = buildPurchaseOrderCreationFingerprint({ ...data, source });
+    const normalizedData = { ...data, storeId, source };
+    const idempotencyKey = buildPurchaseOrderIdempotencyKey(storeId, source, data.idempotencyKey);
+    const creationFingerprint = buildPurchaseOrderCreationFingerprint(normalizedData);
+    const databaseWriteSetContext = this.optionalDatabaseWriteSetContext(data.databaseWriteSetContext, storeId);
     if (!idempotencyKey) {
-      return { purchaseOrder: await this.createPurchaseOrderRecord({ ...data, source }, this.prisma), replayed: false };
+      return { purchaseOrder: await this.createPurchaseOrderRecord(normalizedData, this.prisma), replayed: false };
     }
     return this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${idempotencyKey}, 0))`);
-      const existing = await tx.purchaseOrder.findUnique({ where: { idempotencyKey } });
+      const existing = await tx.purchaseOrder.findFirst({ where: { idempotencyKey, storeId } });
       if (existing) {
         this.assertPurchaseOrderIdempotency(existing, creationFingerprint);
-        return { purchaseOrder: this.mapPurchaseOrder(existing), replayed: true };
+        const databaseWriteSet = databaseWriteSetContext
+          ? await loadBusinessDatabaseWriteSet(tx, databaseWriteSetContext)
+          : undefined;
+        return {
+          purchaseOrder: this.mapPurchaseOrder(existing),
+          replayed: true,
+          ...(databaseWriteSet ? { databaseWriteSet } : {}),
+        };
       }
+      const writeSet = databaseWriteSetContext
+        ? await beginBusinessDatabaseWriteSet(tx, databaseWriteSetContext)
+        : undefined;
       const purchaseOrder = await this.createPurchaseOrderRecord(
-        { ...data, source, idempotencyKey, creationFingerprint },
+        { ...normalizedData, idempotencyKey, creationFingerprint },
         tx,
       );
-      return { purchaseOrder, replayed: false };
+      const databaseWriteSet = writeSet ? await finalizeBusinessDatabaseWriteSet(tx, writeSet.writeSetId) : undefined;
+      return { purchaseOrder, replayed: false, ...(databaseWriteSet ? { databaseWriteSet } : {}) };
     });
   }
 
@@ -820,30 +898,40 @@ export class InventoryService {
       };
     });
     if (!items.length) throw new BadRequestException('采购单至少需要一条明细');
-    const storeId = Number(data.storeId);
-    if (Number.isInteger(storeId) && storeId > 0) {
-      const productIds = [...new Set(items.map((item) => item.productId).filter((value): value is number => Number.isInteger(value) && Number(value) > 0))];
-      if (productIds.length) {
-        const matched = await tx.product.count({ where: { id: { in: productIds }, storeId, deletedAt: null } });
-        if (matched !== productIds.length) throw new BadRequestException('采购商品不存在或不属于当前门店');
-      }
+    const storeId = this.requirePurchaseOrderStoreId(data.storeId);
+    const productIds = [
+      ...new Set(
+        items
+          .map((item) => item.productId)
+          .filter((value): value is number => Number.isInteger(value) && Number(value) > 0),
+      ),
+    ];
+    if (productIds.length) {
+      const matched = await tx.product.count({ where: { id: { in: productIds }, storeId, deletedAt: null } });
+      if (matched !== productIds.length) throw new BadRequestException('采购商品不存在或不属于当前门店');
     }
     const totalAmount = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+    const source = normalizePurchaseOrderSource(data.source);
+    const status = String(data.status ?? '草稿').trim() || '草稿';
+    if (source === 'ami_brain' && status !== '草稿') {
+      throw new BadRequestException('ami_brain_purchase_order_must_start_as_draft');
+    }
     const payload = {
       items,
-      storeId: data.storeId ? Number(data.storeId) : undefined,
+      storeId,
       storeName: data.storeName ?? '全部门店',
       expectedDate: data.expectedDate ?? '',
-      source: normalizePurchaseOrderSource(data.source),
+      source,
     };
     const order = await tx.purchaseOrder.create({
       data: {
+        storeId,
         idempotencyKey: data.idempotencyKey,
         creationFingerprint: data.creationFingerprint,
         orderNo,
         supplier: data.supplier,
         totalAmount,
-        status: data.status ?? '草稿',
+        status,
         items: payload,
       },
     });
@@ -864,18 +952,30 @@ export class InventoryService {
     }
   }
 
-  async updatePurchaseOrderStatus(id: number, data: { status?: string }) {
+  async updatePurchaseOrderStatus(id: number, storeIdInput: number | string, data: { status?: string }) {
+    const storeId = this.requirePurchaseOrderStoreId(storeIdInput);
     const status = String(data.status ?? '').trim();
-    const allowedStatuses = new Set(['草稿', '待审核', '已审核', '已下单', '已取消']);
+    if (status === '待审核') {
+      throw new BadRequestException('采购单提交审核必须使用专用送审接口');
+    }
+    const allowedStatuses = new Set(['已审核', '已下单', '已取消']);
     if (!allowedStatuses.has(status)) throw new BadRequestException('采购单状态不正确');
 
-    const order = await this.prisma.purchaseOrder.findUnique({ where: { id } });
+    const order = await this.prisma.purchaseOrder.findFirst({ where: { id, storeId } });
     if (!order) throw new NotFoundException('Purchase order not found');
-    if (['已收货', '已取消'].includes(String(order.status))) {
+    const currentStatus = String(order.status);
+    if (['已收货', '已取消'].includes(currentStatus)) {
       throw new BadRequestException('当前采购单状态不可再调整');
     }
-    if (String(order.status) === '部分收货' && status !== '已取消') {
-      throw new BadRequestException('部分收货采购单只能继续收货或取消');
+    const allowedTransitions = new Map<string, ReadonlySet<string>>([
+      ['草稿', new Set(['已取消'])],
+      ['待审核', new Set(['已审核', '已取消'])],
+      ['已审核', new Set(['已下单', '已取消'])],
+      ['已下单', new Set(['已取消'])],
+      ['部分收货', new Set(['已取消'])],
+    ]);
+    if (!allowedTransitions.get(currentStatus)?.has(status)) {
+      throw new BadRequestException(`采购单状态流转不合法:${currentStatus}->${status}`);
     }
 
     const updated = await this.prisma.purchaseOrder.update({
@@ -885,15 +985,267 @@ export class InventoryService {
     return this.mapPurchaseOrder(updated);
   }
 
-  async receivePurchaseOrder(id: number, data: {
-    items?: Array<{ sku?: string; receivedQty?: number | string; batchNo?: string; productionDate?: string; expiryDate?: string }>;
-    remark?: string;
-    storeId?: number | string;
-    operatorId?: number | string;
-  }) {
+  async submitPurchaseOrderForApproval(
+    id: number,
+    storeIdInput: number | string,
+    expectedUpdatedAtValue: unknown,
+    mutationContextValue: BusinessMutationContext,
+  ): Promise<PurchaseOrderMutationResult> {
+    const storeId = this.requirePurchaseOrderStoreId(storeIdInput);
+    const expectedUpdatedAt = this.purchaseOrderMutationTimestamp(expectedUpdatedAtValue);
+    const mutationContext = this.purchaseOrderMutationContext(mutationContextValue);
+    if (mutationContext.capabilityKey !== 'submit_purchase_order_for_approval') {
+      throw new BadRequestException('purchase_order_submission_capability_invalid');
+    }
+    if (mutationContext.mutationKind !== 'state_transition') {
+      throw new BadRequestException('purchase_order_submission_mutation_kind_invalid');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockPurchaseOrderMutation(tx, storeId, mutationContext);
+      const order = await tx.purchaseOrder.findFirst({ where: { id, storeId } });
+      if (!order) throw new NotFoundException('Purchase order not found');
+      const requestFingerprint = buildBusinessMutationRequestFingerprint({
+        capabilityKey: mutationContext.capabilityKey,
+        storeId,
+        businessObjectType: 'purchase_order',
+        businessObjectId: order.id,
+        requestPayload: mutationContext.requestPayload,
+      });
+      const replay = await this.replayPurchaseOrderMutation(tx, order, mutationContext, requestFingerprint);
+      if (replay) return replay;
+      if (String(order.status) !== '草稿') {
+        throw new BadRequestException('只有草稿采购单可以提交审核');
+      }
+      if (order.updatedAt.getTime() !== expectedUpdatedAt.getTime()) {
+        throw new ConflictException('采购单已发生变化，请重新确认后再提交审核');
+      }
+      const writeSet = await beginBusinessDatabaseWriteSet(tx, {
+        storeId,
+        capabilityKey: mutationContext.capabilityKey,
+        idempotencyKey: mutationContext.idempotencyKey,
+      });
+      const claimed = await tx.purchaseOrder.updateMany({
+        where: { id, storeId, status: '草稿', updatedAt: expectedUpdatedAt },
+        data: { status: '待审核' },
+      });
+      if (claimed.count !== 1) {
+        throw new ConflictException('采购单已发生变化，请重新确认后再提交审核');
+      }
+      const updated = await tx.purchaseOrder.findFirst({ where: { id, storeId } });
+      if (!updated) throw new NotFoundException('Purchase order not found');
+      const mutationReceipt = await this.persistPurchaseOrderMutationReceipt(tx, {
+        before: order,
+        after: updated,
+        context: mutationContext,
+        requestFingerprint,
+      });
+      const databaseWriteSet = await finalizeBusinessDatabaseWriteSet(tx, writeSet.writeSetId);
+      return {
+        ...this.mapPurchaseOrder(updated),
+        mutationReceipt,
+        mutationReplayed: false,
+        databaseWriteSet,
+      };
+    });
+  }
+
+  private async lockPurchaseOrderMutation(
+    tx: Prisma.TransactionClient,
+    storeId: number,
+    context: BusinessMutationContext,
+  ) {
+    const lockKey = `business-mutation:${storeId}:${context.capabilityKey}:${context.idempotencyKey}`;
+    await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
+  }
+
+  private async replayPurchaseOrderMutation(
+    tx: Prisma.TransactionClient,
+    order: any,
+    context: BusinessMutationContext,
+    requestFingerprint: string,
+  ): Promise<PurchaseOrderMutationResult | undefined> {
+    const existing = await tx.businessMutationReceipt.findUnique({
+      where: {
+        storeId_capabilityKey_idempotencyKey: {
+          storeId: order.storeId,
+          capabilityKey: context.capabilityKey,
+          idempotencyKey: context.idempotencyKey,
+        },
+      },
+    });
+    if (!existing) return undefined;
+    if (
+      existing.businessObjectType !== 'purchase_order' ||
+      existing.businessObjectId !== String(order.id) ||
+      existing.requestFingerprint !== requestFingerprint
+    ) {
+      throw new ConflictException('幂等键已用于另一笔采购单变更，请核对原执行记录');
+    }
+    const current = await tx.purchaseOrder.findFirst({ where: { id: order.id, storeId: order.storeId } });
+    if (!current) throw new NotFoundException('Purchase order not found');
+    const databaseWriteSet = await loadBusinessDatabaseWriteSet(tx, {
+      storeId: order.storeId,
+      capabilityKey: context.capabilityKey,
+      idempotencyKey: context.idempotencyKey,
+    });
+    return {
+      ...this.mapPurchaseOrder(current),
+      mutationReceipt: restoreBusinessMutationReceipt(existing),
+      mutationReplayed: true,
+      ...(databaseWriteSet ? { databaseWriteSet } : {}),
+    };
+  }
+
+  private optionalDatabaseWriteSetContext(
+    value: unknown,
+    expectedStoreId: number,
+  ): BusinessDatabaseWriteSetContext | undefined {
+    if (value === undefined || value === null) return undefined;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new BadRequestException('business_database_write_set_context_invalid');
+    }
+    const input = value as Record<string, unknown>;
+    const storeId = Number(input.storeId);
+    const capabilityKey = typeof input.capabilityKey === 'string' ? input.capabilityKey.trim() : '';
+    const idempotencyKey = typeof input.idempotencyKey === 'string' ? input.idempotencyKey.trim() : '';
+    if (storeId !== expectedStoreId || !capabilityKey || !idempotencyKey) {
+      throw new BadRequestException('business_database_write_set_context_invalid');
+    }
+    return { storeId, capabilityKey, idempotencyKey };
+  }
+
+  private async persistPurchaseOrderMutationReceipt(
+    tx: Prisma.TransactionClient,
+    input: {
+      before: any;
+      after: any;
+      context: BusinessMutationContext;
+      requestFingerprint: string;
+    },
+  ): Promise<BusinessMutationReceipt> {
+    const beforeVersion = input.before.updatedAt?.toISOString?.() ?? '';
+    const afterVersion = input.after.updatedAt?.toISOString?.() ?? '';
+    if (!beforeVersion || !afterVersion || beforeVersion === afterVersion) {
+      throw new ConflictException('采购单版本未发生变化，无法生成变更回执');
+    }
+    const beforeState = this.purchaseOrderMutationState(input.before);
+    const afterState = this.purchaseOrderMutationState(input.after);
+    const changedFields = businessMutationChangedFields(beforeState, afterState);
+    if (changedFields.length !== 1 || changedFields[0] !== 'status') {
+      throw new ConflictException('采购单提交审核产生了合同外变化，需人工核对');
+    }
+    const committedAt = new Date();
+    const receipt = buildBusinessMutationReceipt({
+      storeId: Number(input.after.storeId),
+      context: input.context,
+      businessObjectType: 'purchase_order',
+      businessObjectId: input.after.id,
+      requestFingerprint: input.requestFingerprint,
+      beforeVersion,
+      afterVersion,
+      beforeStateFingerprint: buildBusinessMutationStateFingerprint({
+        businessObjectType: 'purchase_order',
+        businessObjectId: input.before.id,
+        version: beforeVersion,
+        state: beforeState,
+      }),
+      afterStateFingerprint: buildBusinessMutationStateFingerprint({
+        businessObjectType: 'purchase_order',
+        businessObjectId: input.after.id,
+        version: afterVersion,
+        state: afterState,
+      }),
+      changedFields,
+      committedAt,
+    });
+    await tx.businessMutationReceipt.create({
+      data: {
+        storeId: receipt.storeId,
+        capabilityKey: input.context.capabilityKey,
+        idempotencyKey: input.context.idempotencyKey,
+        businessObjectType: receipt.businessObjectType,
+        businessObjectId: receipt.businessObjectId,
+        mutationKind: receipt.mutationKind,
+        requestFingerprint: receipt.requestFingerprint,
+        beforeVersion: receipt.before.version,
+        afterVersion: receipt.after.version,
+        beforeStateFingerprint: receipt.before.stateFingerprint,
+        afterStateFingerprint: receipt.after.stateFingerprint,
+        changedFields: [...receipt.changedFields],
+        actorId: input.context.actorId,
+        receiptFingerprint: receipt.receiptFingerprint,
+        committedAt,
+      },
+    });
+    return receipt;
+  }
+
+  private purchaseOrderMutationState(order: any): Record<string, unknown> {
+    return {
+      storeId: Number(order.storeId),
+      orderNo: String(order.orderNo ?? ''),
+      supplier: order.supplier ?? null,
+      totalAmount: Number(order.totalAmount ?? 0),
+      status: String(order.status ?? ''),
+    };
+  }
+
+  private purchaseOrderMutationTimestamp(value: unknown) {
+    const date = new Date(String(value ?? ''));
+    if (Number.isNaN(date.getTime())) {
+      throw new BadRequestException('采购单版本时间格式不正确');
+    }
+    return date;
+  }
+
+  private purchaseOrderMutationContext(value: unknown): BusinessMutationContext {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new BadRequestException('business_mutation_context_invalid');
+    }
+    const record = value as Record<string, unknown>;
+    const capabilityKey = typeof record.capabilityKey === 'string' ? record.capabilityKey.trim() : '';
+    const idempotencyKey = typeof record.idempotencyKey === 'string' ? record.idempotencyKey.trim() : '';
+    const requestPayload = record.requestPayload;
+    const actorId = Number(record.actorId);
+    if (
+      !capabilityKey ||
+      !idempotencyKey ||
+      record.mutationKind !== 'state_transition' ||
+      !requestPayload ||
+      typeof requestPayload !== 'object' ||
+      Array.isArray(requestPayload)
+    ) {
+      throw new BadRequestException('business_mutation_context_invalid');
+    }
+    return {
+      capabilityKey,
+      idempotencyKey,
+      mutationKind: 'state_transition',
+      requestPayload: requestPayload as Record<string, unknown>,
+      ...(Number.isInteger(actorId) && actorId > 0 ? { actorId } : {}),
+    };
+  }
+
+  async receivePurchaseOrder(
+    id: number,
+    storeIdInput: number | string,
+    data: {
+      items?: Array<{
+        sku?: string;
+        receivedQty?: number | string;
+        batchNo?: string;
+        productionDate?: string;
+        expiryDate?: string;
+      }>;
+      remark?: string;
+      operatorId?: number | string;
+    },
+  ) {
+    const storeId = this.requirePurchaseOrderStoreId(storeIdInput);
     const affectedStoreIds = new Set<number>();
     const updated = await this.prisma.$transaction(async (tx) => {
-      const order = await tx.purchaseOrder.findUnique({ where: { id } });
+      const order = await tx.purchaseOrder.findFirst({ where: { id, storeId } });
       if (!order) throw new NotFoundException('Purchase order not found');
       if (String(order.status) === '已取消') throw new BadRequestException('已取消采购单不可收货');
       if (String(order.status) === '已收货') throw new BadRequestException('采购单已完成收货');
@@ -902,10 +1254,12 @@ export class InventoryService {
       }
 
       const { payload, items } = this.getPurchaseOrderPayload(order);
-      const payloadStoreId = payload?.storeId ? Number(payload.storeId) : data.storeId ? Number(data.storeId) : undefined;
       if (!items.length) throw new BadRequestException('采购单没有可收货明细');
 
-      const requestedBySku = new Map<string, { receivedQty: number; batchNo?: string; productionDate?: string; expiryDate?: string }>();
+      const requestedBySku = new Map<
+        string,
+        { receivedQty: number; batchNo?: string; productionDate?: string; expiryDate?: string }
+      >();
       for (const item of data.items ?? []) {
         const sku = String(item.sku ?? '').trim();
         const receivedQty = this.toNumber(item.receivedQty);
@@ -924,13 +1278,17 @@ export class InventoryService {
       for (const item of items) {
         const remainingQty = Math.max(0, item.quantity - item.receivedQty);
         const request = requestedBySku.get(item.sku);
-        const receiveQty = request ? Math.min(remainingQty, request.receivedQty) : data.items?.length ? 0 : remainingQty;
+        const receiveQty = request
+          ? Math.min(remainingQty, request.receivedQty)
+          : data.items?.length
+            ? 0
+            : remainingQty;
         if (receiveQty <= 0) {
           nextItems.push(item);
           continue;
         }
 
-        const product = await this.findPurchaseOrderProduct(tx, item, payloadStoreId);
+        const product = await this.findPurchaseOrderProduct(tx, item, storeId);
         if (!product) throw new BadRequestException(`SKU ${item.sku} 未找到本地商品，无法收货入库`);
 
         const beforeStock = this.toNonNegativeStock(product.currentStock);
@@ -990,6 +1348,12 @@ export class InventoryService {
     return this.mapPurchaseOrder(updated);
   }
 
+  private requirePurchaseOrderStoreId(value: number | string) {
+    const storeId = Number(value);
+    if (!Number.isInteger(storeId) || storeId <= 0) throw new BadRequestException('采购单缺少有效门店范围');
+    return storeId;
+  }
+
   // Transfer Orders
   async getTransferSuggestions(targetStoreId?: number) {
     const products = await this.prisma.product.findMany({
@@ -1005,7 +1369,8 @@ export class InventoryService {
         name: true,
         currentStock: true,
         safetyStock: true,
-        unit: true, specUnit: true,
+        unit: true,
+        specUnit: true,
         store: { select: { id: true, name: true } },
       },
       orderBy: [{ sku: 'asc' }, { storeId: 'asc' }],
@@ -1261,7 +1626,10 @@ export class InventoryService {
           })
         : Promise.resolve([]),
       this.prisma.purchaseOrder.findMany({
-        where: { status: { in: ['待审核', '已审核', '已下单', '部分收货'] } },
+        where: {
+          ...(storeId ? { storeId } : {}),
+          status: { in: ['待审核', '已审核', '已下单', '部分收货'] },
+        },
         select: { status: true, items: true },
       }),
     ]);
@@ -1285,7 +1653,10 @@ export class InventoryService {
                     auditStatus: 'approved',
                     deletedAt: null,
                     stockStatus: { notIn: ['out_of_stock', 'unavailable'] },
-                    AND: [{ OR: [{ validFrom: null }, { validFrom: { lte: now } }] }, { OR: [{ validTo: null }, { validTo: { gte: now } }] }],
+                    AND: [
+                      { OR: [{ validFrom: null }, { validFrom: { lte: now } }] },
+                      { OR: [{ validTo: null }, { validTo: { gte: now } }] },
+                    ],
                   },
                   orderBy: [{ price: 'asc' }],
                   take: 1,
@@ -1316,7 +1687,7 @@ export class InventoryService {
         const platformInTransit = platformInTransitByProduct.get(product.id) ?? 0;
         const manualInTransit = manualInTransitBySku.get(product.sku) ?? 0;
         const inTransit = platformInTransit + manualInTransit;
-        const moq = platformAvailable ? platformQuote?.moq : product.minPurchaseQty ?? null;
+        const moq = platformAvailable ? platformQuote?.moq : (product.minPurchaseQty ?? null);
         const leadDays = platformAvailable ? platformQuote?.leadDays : null;
         const consumption = consumptionByProduct.get(product.id) ?? { consumed7Days: 0, consumed30Days: 0 };
         const decision = this.buildReplenishmentDecision({
@@ -1328,9 +1699,9 @@ export class InventoryService {
           moq,
           leadDays,
         });
-        const supplyPrice = Number(platformAvailable ? platformQuote?.price : product.costPrice ?? 0);
+        const supplyPrice = Number(platformAvailable ? platformQuote?.price : (product.costPrice ?? 0));
         const supplierId = platformAvailable ? platformSku?.supplierId : undefined;
-        const supplierName = platformAvailable ? platformSku?.supplier?.name : product.supplier ?? '手动采购';
+        const supplierName = platformAvailable ? platformSku?.supplier?.name : (product.supplier ?? '手动采购');
         const availabilityStatus = platformAvailable
           ? 'platform_available'
           : platformMapping

@@ -63,4 +63,42 @@ describe('HealthController', () => {
     await expect(controller.ready()).resolves.toMatchObject({ status: 'ready', database: 'connected' });
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
   });
+
+  it('reports the active Release ontology startup evidence when Brain warmup is ready', async () => {
+    prisma.$queryRaw.mockResolvedValueOnce([{ database_ready: 1 }]);
+    const brainWarmup = {
+      getStatus: jest.fn().mockReturnValue({
+        state: 'ready',
+        activeReleaseCount: 1,
+        warmedReleaseCount: 1,
+        latencyMs: 2300,
+        releases: [{ releaseId: 416, ontologyFingerprint: 'a'.repeat(64) }],
+      }),
+    };
+    const controller = new HealthController(prisma as any, brainWarmup as never);
+
+    await expect(controller.ready()).resolves.toMatchObject({
+      status: 'ready',
+      database: 'connected',
+      brainActiveReleaseWarmup: {
+        state: 'ready',
+        activeReleaseCount: 1,
+        warmedReleaseCount: 1,
+        releases: [{ releaseId: 416 }],
+      },
+    });
+  });
+
+  it('does not report ready while the active Release ontology warmup is incomplete', async () => {
+    prisma.$queryRaw.mockResolvedValueOnce([{ database_ready: 1 }]);
+    const controller = new HealthController(
+      prisma as any,
+      { getStatus: () => ({ state: 'failed' }) } as never,
+    );
+
+    await expect(controller.ready()).rejects.toMatchObject({
+      name: 'ServiceUnavailableException',
+      message: 'brain_active_release_ontology_warmup_not_ready:failed',
+    });
+  });
 });

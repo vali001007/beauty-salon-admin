@@ -1,8 +1,18 @@
 import type {
+  BusinessActionDefinitionSnapshot,
   BusinessDefinitionSnapshotInput,
   BusinessDefinitionSnapshotProvider,
   PrismaRuntimeDataModel,
 } from './business-definition-snapshot.types.js';
+import { createBusinessDefinitionProjectionFingerprint } from '../../semantic-data/business-definition-projection-compiler.service.js';
+import { createTestBusinessActionInformationArtifactProfile } from './business-action-information-artifact.testing.js';
+import { createTestBusinessActionLexicalFrame } from './business-action-lexical-frame.testing.js';
+import { createTestBusinessActionModalityPolicy } from './business-action-modality-policy.testing.js';
+import { createTestBusinessActionSideEffectInvariantProfile } from './business-action-side-effect-invariant.testing.js';
+import { createTestBusinessActionSituationContextProfile } from './business-action-situation-context.testing.js';
+import { createBusinessActionParticipantProfile } from './business-action-participant-profile.js';
+import { createBusinessActionRelationProfile } from './business-action-relation-profile.js';
+import { createBusinessActionInstitutionalEffectProfile } from './business-action-institutional-effect.js';
 import {
   BrainOntologyRuntimeService,
   buildProductionReadyBusinessDefinitionSnapshot,
@@ -81,6 +91,113 @@ function dimension(): BusinessDefinitionSnapshotInput['dimensions'][number] {
   };
 }
 
+function action(override: Partial<BusinessActionDefinitionSnapshot> = {}): BusinessActionDefinitionSnapshot {
+  const capabilityBindings = override.capabilityBindings ?? [
+    {
+      capabilityKey: 'purchase_order_draft',
+      bindingMode: 'preview_and_execute',
+      gatewayActionKey: 'create_purchase_order',
+      priority: 0,
+      enabled: true,
+    },
+  ];
+  const actionKey = override.actionKey ?? 'action.create_purchase_order';
+  const inputSlots: BusinessActionDefinitionSnapshot['inputSlots'] = [
+    {
+      slotKey: 'product',
+      label: '商品',
+      semanticRole: 'object',
+      valueType: 'entity_ref',
+      entityTypeRef: 'entity:product',
+      requiredAt: ['recognition', 'preview', 'execution'],
+      cardinality: 'one',
+      sensitive: false,
+      confirmationDisplay: true,
+    },
+    {
+      slotKey: 'quantity',
+      label: '采购数量',
+      semanticRole: 'quantity',
+      valueType: 'number',
+      unitPolicy: 'product_purchase_unit',
+      requiredAt: ['recognition', 'preview', 'execution'],
+      cardinality: 'one',
+      sensitive: false,
+      confirmationDisplay: true,
+    },
+  ];
+  const preconditions = override.preconditions ?? ['product_belongs_to_context_store', 'quantity_positive'];
+  const preconditionPredicateRefs = override.preconditionPredicateRefs ?? [
+    { key: 'product_belongs_to_context_store', version: 1, fingerprint: 'a'.repeat(64) },
+    { key: 'quantity_positive', version: 1, fingerprint: 'b'.repeat(64) },
+  ];
+  const effects = override.effects ?? ['purchase_order_created'];
+  const effectAssertionRefs = override.effectAssertionRefs ?? [
+    { key: 'purchase_order_created', version: 1, fingerprint: 'c'.repeat(64) },
+  ];
+  const participantProfile =
+    override.participantProfile ?? createBusinessActionParticipantProfile({ actionKey, inputSlots });
+  const relationProfile =
+    override.relationProfile ??
+    createBusinessActionRelationProfile({
+      actionKey,
+      actionClass: 'create',
+      targetEntityRefs: ['entity:product'],
+      participantProfile,
+    });
+  return {
+    definitionKey: actionKey,
+    definitionFingerprint: 'definition:action:create_purchase_order',
+    sourceFingerprint: 'source:action:create_purchase_order',
+    version: 1,
+    domain: 'inventory',
+    actionKey,
+    name: '创建采购单',
+    aliases: ['下采购单', '采购下单'],
+    description: '为商品创建待确认采购单预览',
+    actionClass: 'create',
+    targetEntityRefs: ['entity:product'],
+    inputSlots,
+    preconditions,
+    preconditionPredicateRefs,
+    effects,
+    effectAssertionRefs,
+    lexicalFrame:
+      override.lexicalFrame ??
+      createTestBusinessActionLexicalFrame({
+        actionKey,
+        actionClass: 'create',
+        name: '创建采购单',
+        aliases: ['下采购单', '采购下单'],
+        targetEntityRefs: ['entity:product'],
+        inputSlots,
+        preconditions: ['product_belongs_to_context_store', 'quantity_positive'],
+        effects: ['purchase_order_created'],
+      }),
+    situationContext: override.situationContext ?? createTestBusinessActionSituationContextProfile(actionKey),
+    modalityPolicy: override.modalityPolicy ?? createTestBusinessActionModalityPolicy(actionKey),
+    informationArtifact: override.informationArtifact ?? createTestBusinessActionInformationArtifactProfile(actionKey),
+    sideEffectInvariant:
+      override.sideEffectInvariant ??
+      createTestBusinessActionSideEffectInvariantProfile(actionKey, {
+        preconditions,
+        preconditionPredicateRefs,
+        effects,
+        effectAssertionRefs,
+      }),
+    participantProfile,
+    relationProfile,
+    triggeredByEventRefs: [],
+    emitsEventRefs: ['event.purchase_order_created'],
+    riskPolicy: 'high',
+    confirmationPolicy: 'required',
+    idempotencyPolicy: 'required',
+    capabilityBindings,
+    bindingFingerprint: createBusinessDefinitionProjectionFingerprint({ actionKey, capabilityBindings }),
+    ...override,
+  };
+}
+
 function runtimeDataModel(): PrismaRuntimeDataModel {
   return {
     models: {
@@ -153,6 +270,269 @@ function runtimeFor(
 }
 
 describe('BrainOntologyRuntimeService', () => {
+  it('accepts a governed action with typed roles and a deterministic capability binding', async () => {
+    const input = validInput();
+    input.actions = [action()];
+    const { runtime } = runtimeFor(input);
+
+    const snapshot = await runtime.loadProductionReadySnapshot();
+
+    expect(snapshot.actions).toEqual([
+      expect.objectContaining({
+        actionKey: 'action.create_purchase_order',
+        targetEntityRefs: ['entity:product'],
+        confirmationPolicy: 'required',
+        idempotencyPolicy: 'required',
+        situationContext: expect.objectContaining({
+          profileKey: 'action.create_purchase_order.situation_context',
+          tenantBoundary: 'current_store',
+        }),
+        modalityPolicy: expect.objectContaining({
+          policyKey: 'action.create_purchase_order.speech_act_modality',
+          supportedModalities: ['request'],
+        }),
+        informationArtifact: expect.objectContaining({
+          profileKey: 'action.create_purchase_order.information_artifact',
+          artifactTypePolicy: 'governed_result_reference',
+        }),
+        sideEffectInvariant: expect.objectContaining({
+          profileKey: 'action.create_purchase_order.side_effect_invariant',
+          successEvidencePolicy: 'all_declared_effects_observed',
+        }),
+        capabilityBindings: [
+          expect.objectContaining({
+            capabilityKey: 'purchase_order_draft',
+            gatewayActionKey: 'create_purchase_order',
+            enabled: true,
+          }),
+        ],
+      }),
+    ]);
+    expect(snapshot.productionReady).toBe(true);
+  });
+
+  it('preserves the governed institutional participant role order during runtime normalization', async () => {
+    const input = validInput();
+    const base = action();
+    const actionKey = 'action.cancel_reservation';
+    const preconditions = [...base.preconditions];
+    const participantProfile = createBusinessActionParticipantProfile({
+      actionKey,
+      inputSlots: base.inputSlots,
+    });
+    const relationProfile = createBusinessActionRelationProfile({
+      actionKey,
+      actionClass: 'transition',
+      targetEntityRefs: base.targetEntityRefs,
+      participantProfile,
+    });
+    const capabilityBindings = [
+      {
+        capabilityKey: 'reservation_action_preview',
+        bindingMode: 'preview_and_execute' as const,
+        gatewayActionKey: 'cancel_reservation',
+        priority: 0,
+        enabled: true,
+      },
+    ];
+    input.actions = [
+      action({
+        actionKey,
+        definitionKey: actionKey,
+        definitionFingerprint: 'definition:action:cancel_reservation',
+        sourceFingerprint: 'source:action:cancel_reservation',
+        name: '取消预约',
+        aliases: ['取消预约'],
+        actionClass: 'transition',
+        lexicalFrame: createTestBusinessActionLexicalFrame({
+          actionKey,
+          actionClass: 'transition',
+          name: '取消预约',
+          aliases: ['取消预约'],
+          targetEntityRefs: base.targetEntityRefs,
+          inputSlots: base.inputSlots,
+          preconditions,
+          effects: base.effects,
+        }),
+        situationContext: createTestBusinessActionSituationContextProfile(actionKey),
+        modalityPolicy: createTestBusinessActionModalityPolicy(actionKey),
+        informationArtifact: createTestBusinessActionInformationArtifactProfile(actionKey),
+        sideEffectInvariant: createTestBusinessActionSideEffectInvariantProfile(actionKey, {
+          preconditions,
+          preconditionPredicateRefs: base.preconditionPredicateRefs,
+          effects: base.effects,
+          effectAssertionRefs: base.effectAssertionRefs,
+        }),
+        participantProfile,
+        relationProfile,
+        institutionalEffect: createBusinessActionInstitutionalEffectProfile({ actionKey, preconditions }),
+        capabilityBindings,
+        bindingFingerprint: createBusinessDefinitionProjectionFingerprint({ actionKey, capabilityBindings }),
+      }),
+    ];
+
+    const { runtime } = runtimeFor(input);
+    const snapshot = await runtime.loadProductionReadySnapshot();
+
+    expect(snapshot.actions[0].institutionalEffect?.constitutionPolicy.requiredParticipantRoles).toEqual([
+      'requester',
+      'authorizer',
+      'performer',
+      'accountable_party',
+    ]);
+  });
+
+  it('keeps normalized predicate contract references aligned with their semantic keys', async () => {
+    const input = validInput();
+    input.actions = [
+      action({
+        preconditions: ['quantity_positive', 'product_belongs_to_context_store'],
+        preconditionPredicateRefs: [
+          { key: 'quantity_positive', version: 1, fingerprint: 'b'.repeat(64) },
+          { key: 'product_belongs_to_context_store', version: 1, fingerprint: 'a'.repeat(64) },
+        ],
+      }),
+    ];
+    const { runtime } = runtimeFor(input);
+
+    const snapshot = await runtime.loadProductionReadySnapshot();
+
+    expect(snapshot.actions[0].preconditions).toEqual(['product_belongs_to_context_store', 'quantity_positive']);
+    expect(snapshot.actions[0].preconditionPredicateRefs.map((item) => item.key)).toEqual(
+      snapshot.actions[0].preconditions,
+    );
+  });
+
+  it.each([
+    [
+      'missing target entity',
+      () => action({ targetEntityRefs: ['entity:purchase_order'] }),
+      'action action.create_purchase_order target entity:purchase_order is missing',
+    ],
+    [
+      'duplicate semantic slot',
+      () => {
+        const definition = action();
+        return action({ inputSlots: [...definition.inputSlots, definition.inputSlots[0]] });
+      },
+      'duplicate active action action.create_purchase_order slot key: product',
+    ],
+    [
+      'invalid binding fingerprint',
+      () => action({ bindingFingerprint: 'invalid-binding-fingerprint' }),
+      'action action.create_purchase_order binding fingerprint is invalid',
+    ],
+    [
+      'invalid lexical frame fingerprint',
+      () => {
+        const definition = action();
+        return action({ lexicalFrame: { ...definition.lexicalFrame, fingerprint: '0'.repeat(64) } });
+      },
+      'action action.create_purchase_order lexical frame fingerprint is invalid',
+    ],
+    [
+      'invalid situation context fingerprint',
+      () => {
+        const definition = action();
+        return action({ situationContext: { ...definition.situationContext, fingerprint: '0'.repeat(64) } });
+      },
+      'action action.create_purchase_order situation context fingerprint is invalid',
+    ],
+    [
+      'invalid modality policy fingerprint',
+      () => {
+        const definition = action();
+        return action({ modalityPolicy: { ...definition.modalityPolicy, fingerprint: '0'.repeat(64) } });
+      },
+      'action action.create_purchase_order modality policy fingerprint is invalid',
+    ],
+    [
+      'unsupported modality policy field',
+      () => {
+        const definition = action();
+        const modalityPolicy = { ...definition.modalityPolicy, modelMayExecuteDirectly: true } as never;
+        const fingerprintInput = { ...(modalityPolicy as any) };
+        delete fingerprintInput.fingerprint;
+        return action({
+          modalityPolicy: {
+            ...(modalityPolicy as any),
+            fingerprint: createBusinessDefinitionProjectionFingerprint(fingerprintInput),
+          },
+        });
+      },
+      'action action.create_purchase_order modality policy contains unsupported keys: modelMayExecuteDirectly',
+    ],
+    [
+      'invalid information artifact fingerprint',
+      () => {
+        const definition = action();
+        return action({
+          informationArtifact: { ...definition.informationArtifact, fingerprint: '0'.repeat(64) },
+        });
+      },
+      'action action.create_purchase_order information artifact fingerprint is invalid',
+    ],
+    [
+      'unsupported information artifact field',
+      () => {
+        const definition = action();
+        const informationArtifact = { ...definition.informationArtifact, trustModelValue: true } as never;
+        const fingerprintInput = { ...(informationArtifact as any) };
+        delete fingerprintInput.fingerprint;
+        return action({
+          informationArtifact: {
+            ...(informationArtifact as any),
+            fingerprint: createBusinessDefinitionProjectionFingerprint(fingerprintInput),
+          },
+        });
+      },
+      'action action.create_purchase_order information artifact profile contains unsupported keys: trustModelValue',
+    ],
+    [
+      'invalid side-effect invariant fingerprint',
+      () => {
+        const definition = action();
+        return action({
+          sideEffectInvariant: { ...definition.sideEffectInvariant, fingerprint: '0'.repeat(64) },
+        });
+      },
+      'action action.create_purchase_order side effect invariant fingerprint is invalid',
+    ],
+    [
+      'unsupported side-effect invariant field',
+      () => {
+        const definition = action();
+        const sideEffectInvariant = { ...definition.sideEffectInvariant, trustGatewaySuccess: true } as never;
+        const fingerprintInput = { ...(sideEffectInvariant as any) };
+        delete fingerprintInput.fingerprint;
+        return action({
+          sideEffectInvariant: {
+            ...(sideEffectInvariant as any),
+            fingerprint: createBusinessDefinitionProjectionFingerprint(fingerprintInput),
+          },
+        });
+      },
+      'action action.create_purchase_order side effect invariant profile contains unsupported keys: trustGatewaySuccess',
+    ],
+    [
+      'uncontrolled confirmation policy',
+      () => action({ confirmationPolicy: 'none' }),
+      'action action.create_purchase_order confirmation policy must be controlled',
+    ],
+    [
+      'missing idempotency policy',
+      () => action({ idempotencyPolicy: 'not_applicable' }),
+      'action action.create_purchase_order idempotency policy must be required',
+    ],
+  ])('rejects action ontology with %s', async (_name, makeAction, message) => {
+    const input = validInput();
+    input.actions = [makeAction()];
+    const { runtime } = runtimeFor(input);
+
+    await expect(runtime.loadProductionReadySnapshot()).rejects.toThrow(message);
+    expect(runtime.getSnapshot()).toBeNull();
+  });
+
   it.each([
     [
       'semantic_layer_mapping_required entity placeholder',

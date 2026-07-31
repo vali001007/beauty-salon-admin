@@ -148,8 +148,10 @@ export class BrainInspectionService {
     userId?: number;
     roles?: string[];
     enabledRulesOnly?: boolean;
-    take?: number;
+    take?: number | null;
   }) {
+    const finiteTake = typeof input.take === 'number' && Number.isFinite(input.take) ? Math.trunc(input.take) : 200;
+    const take = input.take === null ? undefined : Math.min(Math.max(finiteTake, 1), 200);
     const findings = await this.prisma.brainInspectionFinding.findMany({
       where: {
         storeId: input.storeId,
@@ -160,7 +162,7 @@ export class BrainInspectionService {
             : {}),
       },
       orderBy: [{ status: 'asc' }, { severity: 'desc' }, { lastDetectedAt: 'desc' }],
-      take: Math.min(Math.max(input.take ?? 200, 1), 200),
+      take,
     });
     const permissionFiltered = await this.filterFindingsByPermissions(
       findings,
@@ -184,8 +186,14 @@ export class BrainInspectionService {
     userId: number;
     roles: string[];
     limit?: number;
+    page?: number;
+    pageSize?: number;
   }) {
-    const limit = Math.min(Math.max(input.limit ?? 6, 1), 20);
+    const rawPageSize = input.pageSize ?? input.limit ?? 20;
+    const requestedPageSize = Number.isFinite(rawPageSize) ? Math.trunc(rawPageSize) : 20;
+    const pageSize = Math.min(Math.max(requestedPageSize, 1), 20);
+    const rawPage = input.page ?? 1;
+    const requestedPage = Math.max(Number.isFinite(rawPage) ? Math.trunc(rawPage) : 1, 1);
     const findings = await this.listFindings({
       storeId: input.storeId,
       statuses: ['open', 'in_progress'],
@@ -194,9 +202,23 @@ export class BrainInspectionService {
       userId: input.userId,
       roles: input.roles,
       enabledRulesOnly: true,
-      take: 100,
+      take: null,
     });
-    const items = findings.slice(0, limit).map((finding) => {
+    const sortedFindings = [...findings].sort((left, right) => {
+      const statusRank = { open: 0, in_progress: 1 } as Record<string, number>;
+      const severityRank = { critical: 0, high: 1, medium: 2, low: 3 } as Record<string, number>;
+      const statusDifference = (statusRank[left.status] ?? 99) - (statusRank[right.status] ?? 99);
+      if (statusDifference !== 0) return statusDifference;
+      const severityDifference = (severityRank[left.severity] ?? 99) - (severityRank[right.severity] ?? 99);
+      if (severityDifference !== 0) return severityDifference;
+      const detectedDifference = new Date(right.lastDetectedAt).getTime() - new Date(left.lastDetectedAt).getTime();
+      if (detectedDifference !== 0) return detectedDifference;
+      return right.id - left.id;
+    });
+    const totalPages = Math.max(1, Math.ceil(sortedFindings.length / pageSize));
+    const page = Math.min(requestedPage, totalPages);
+    const offset = (page - 1) * pageSize;
+    const items = sortedFindings.slice(offset, offset + pageSize).map((finding) => {
       const evidence = this.record(finding.evidence);
       const suggestion = this.record(finding.suggestion);
       const planning = this.record(suggestion.planning as Prisma.JsonValue);
@@ -223,13 +245,16 @@ export class BrainInspectionService {
     return {
       items,
       summary: {
-        total: findings.length,
-        critical: findings.filter((item) => item.severity === 'critical').length,
-        high: findings.filter((item) => item.severity === 'high').length,
-        medium: findings.filter((item) => item.severity === 'medium').length,
-        low: findings.filter((item) => item.severity === 'low').length,
+        total: sortedFindings.length,
+        critical: sortedFindings.filter((item) => item.severity === 'critical').length,
+        high: sortedFindings.filter((item) => item.severity === 'high').length,
+        medium: sortedFindings.filter((item) => item.severity === 'medium').length,
+        low: sortedFindings.filter((item) => item.severity === 'low').length,
       },
       storeId: input.storeId,
+      page,
+      pageSize,
+      totalPages,
     };
   }
 

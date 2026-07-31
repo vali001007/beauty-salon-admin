@@ -159,6 +159,97 @@ describe('BrainInspectionService', () => {
     expect(result.summary.total).toBe(0);
   });
 
+  it('sorts the inbox by status and severity before applying pagination', async () => {
+    const finding = (overrides: Record<string, unknown>) => ({
+      id: 1,
+      ruleKey: 'customer_churn_risk',
+      ruleVersion: 2,
+      domain: 'customer',
+      title: '风险',
+      severity: 'low',
+      status: 'open',
+      objectType: 'customer',
+      objectId: '1',
+      evidence: {},
+      suggestion: {},
+      firstDetectedAt: new Date('2026-07-20T01:00:00Z'),
+      lastDetectedAt: new Date('2026-07-21T01:00:00Z'),
+      ...overrides,
+    });
+    prisma.brainInspectionFinding.findMany.mockResolvedValueOnce([
+      finding({ id: 41, severity: 'low', status: 'open' }),
+      finding({ id: 42, severity: 'critical', status: 'in_progress' }),
+      finding({ id: 43, severity: 'high', status: 'open' }),
+      finding({ id: 44, severity: 'critical', status: 'open' }),
+    ]);
+    prisma.brainInspectionRule.findMany.mockResolvedValueOnce(rules);
+
+    const firstPage = await service.listInbox({
+      storeId: 6,
+      permissions: ['*'],
+      deniedPermissions: [],
+      userId: 9,
+      roles: ['store_manager'],
+      page: 1,
+      pageSize: 2,
+    });
+
+    expect(firstPage.items.map((item) => item.id)).toEqual([44, 43]);
+    expect(firstPage).toMatchObject({ page: 1, pageSize: 2, totalPages: 2 });
+    expect(firstPage.summary).toMatchObject({ total: 4, critical: 2, high: 1, low: 1 });
+
+    prisma.brainInspectionFinding.findMany.mockResolvedValueOnce([
+      finding({ id: 41, severity: 'low', status: 'open' }),
+      finding({ id: 42, severity: 'critical', status: 'in_progress' }),
+      finding({ id: 43, severity: 'high', status: 'open' }),
+      finding({ id: 44, severity: 'critical', status: 'open' }),
+    ]);
+    prisma.brainInspectionRule.findMany.mockResolvedValueOnce(rules);
+
+    const secondPage = await service.listInbox({
+      storeId: 6,
+      permissions: ['*'],
+      deniedPermissions: [],
+      userId: 9,
+      roles: ['store_manager'],
+      page: 2,
+      pageSize: 2,
+    });
+    expect(secondPage.items.map((item) => item.id)).toEqual([41, 42]);
+  });
+
+  it('loads the complete inbox before filtering and falls back from invalid pagination values', async () => {
+    prisma.brainInspectionFinding.findMany.mockResolvedValueOnce([{
+      id: 51,
+      ruleKey: 'customer_churn_risk',
+      ruleVersion: 2,
+      domain: 'customer',
+      title: '风险',
+      severity: 'high',
+      status: 'open',
+      objectType: 'customer',
+      objectId: '1',
+      evidence: {},
+      suggestion: {},
+      firstDetectedAt: new Date('2026-07-20T01:00:00Z'),
+      lastDetectedAt: new Date('2026-07-21T01:00:00Z'),
+    }]);
+    prisma.brainInspectionRule.findMany.mockResolvedValueOnce(rules);
+
+    const result = await service.listInbox({
+      storeId: 6,
+      permissions: ['*'],
+      deniedPermissions: [],
+      userId: 9,
+      roles: ['store_manager'],
+      page: Number.NaN,
+      pageSize: Number.NaN,
+    });
+
+    expect(prisma.brainInspectionFinding.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: undefined }));
+    expect(result).toMatchObject({ page: 1, pageSize: 20, totalPages: 1 });
+  });
+
   it('limits beautician findings to personally assigned service tasks and reservations', async () => {
     prisma.brainInspectionFinding.findMany.mockResolvedValueOnce([
       { id: 35, ruleKey: 'service_task_state_inconsistent', ruleVersion: 1, objectType: 'service_task', objectId: '201' },

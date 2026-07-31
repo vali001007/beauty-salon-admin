@@ -236,6 +236,9 @@ export class BrainController {
       userId: context.userId,
       storeId: context.storeId,
       permissions: context.permissions.filter((permission) => !context.deniedPermissions.includes(permission)),
+      roles: context.roles,
+      requestChannel: context.requestChannel,
+      deviceIdHash: context.deviceIdHash,
     });
     if (!result) {
       throw new NotFoundException('动作预览不存在或已处理');
@@ -271,6 +274,9 @@ export class BrainController {
       userId: context.userId,
       storeId: context.storeId,
       permissions: context.permissions.filter((permission) => !context.deniedPermissions.includes(permission)),
+      roles: context.roles,
+      requestChannel: context.requestChannel,
+      deviceIdHash: context.deviceIdHash,
     });
     if (!result) {
       throw new NotFoundException('动作执行记录不存在');
@@ -376,7 +382,18 @@ export class BrainController {
       this.governanceResourceService?.getSemanticGraph() ?? {
         nodes: [],
         edges: [],
-        summary: { entities: 0, relations: 0, metrics: 0, tables: 0, edges: 0 },
+        summary: {
+          entities: 0,
+          relations: 0,
+          metrics: 0,
+          actions: 0,
+          predicates: 0,
+          effects: 0,
+          events: 0,
+          roles: 0,
+          tables: 0,
+          edges: 0,
+        },
       }
     );
   }
@@ -586,10 +603,22 @@ export class BrainController {
 
   @Get('inspections/inbox')
   @Permissions('core:brain:use')
-  async listInspectionInbox(@Req() req: Request, @Query('limit') limit?: string) {
+  async listInspectionInbox(
+    @Req() req: Request,
+    @Query('limit') limit?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
     const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
     if (!this.inspectionService) {
-      return { items: [], summary: { total: 0, critical: 0, high: 0, medium: 0, low: 0 }, storeId: context.storeId };
+      return {
+        items: [],
+        summary: { total: 0, critical: 0, high: 0, medium: 0, low: 0 },
+        storeId: context.storeId,
+        page: 1,
+        pageSize: 20,
+        totalPages: 1,
+      };
     }
     return this.inspectionService.listInbox({
       storeId: context.storeId,
@@ -598,6 +627,8 @@ export class BrainController {
       userId: context.userId,
       roles: context.roles ?? [],
       limit: Number(limit) || undefined,
+      page: Number(page) || undefined,
+      pageSize: Number(pageSize) || undefined,
     });
   }
 
@@ -779,8 +810,12 @@ export class BrainController {
       role: query.role,
       type: query.type,
       difficulty: query.difficulty,
-      deterministic: query.deterministic === 'passed' || query.deterministic === 'failed' ? query.deterministic : undefined,
-      judge: query.judge === 'pass' || query.judge === 'fail' || query.judge === 'insufficient_evidence' ? query.judge : undefined,
+      deterministic:
+        query.deterministic === 'passed' || query.deterministic === 'failed' ? query.deterministic : undefined,
+      judge:
+        query.judge === 'pass' || query.judge === 'fail' || query.judge === 'insufficient_evidence'
+          ? query.judge
+          : undefined,
     });
   }
 
@@ -793,7 +828,11 @@ export class BrainController {
   ) {
     const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
     if (!this.evalService) throw new NotFoundException('评测服务不可用');
-    return this.evalService.getFullDomainSuiteResult({ storeId: context.storeId, evalRunId: Number(evalRunId), caseKey });
+    return this.evalService.getFullDomainSuiteResult({
+      storeId: context.storeId,
+      evalRunId: Number(evalRunId),
+      caseKey,
+    });
   }
 
   @Get('governance/evals/runs/:evalRunId')
@@ -863,9 +902,10 @@ export class BrainController {
       release?.rollout && typeof release.rollout === 'object' && !Array.isArray(release.rollout)
         ? (release.rollout as Record<string, unknown>)
         : {};
-    const catalogValidation = release?.id && this.releaseService && typeof this.releaseService.validateReleaseCatalog === 'function'
-      ? await this.releaseService.validateReleaseCatalog(release.id)
-      : null;
+    const catalogValidation =
+      release?.id && this.releaseService && typeof this.releaseService.validateReleaseCatalog === 'function'
+        ? await this.releaseService.validateReleaseCatalog(release.id)
+        : null;
 
     return {
       configured,
@@ -1042,6 +1082,7 @@ export class BrainController {
   }
 
   private semanticGovernanceResourceType(resource: string): BrainSemanticGovernanceResourceType {
+    if (resource === 'actions') return 'action';
     return this.semanticResourceType(resource) as BrainSemanticGovernanceResourceType;
   }
 

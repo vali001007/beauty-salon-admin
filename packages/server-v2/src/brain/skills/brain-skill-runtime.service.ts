@@ -23,13 +23,7 @@ export class BrainSkillRuntimeService {
     private readonly beauticianSkills: BrainBeauticianSkillsService,
   ) {}
 
-  composeSuggestion(input: {
-    conclusion: string;
-    evidence: string[];
-    action: string;
-    benefit: string;
-    entry: string;
-  }) {
+  composeSuggestion(input: { conclusion: string; evidence: string[]; action: string; benefit: string; entry: string }) {
     return input;
   }
 
@@ -53,6 +47,10 @@ export class BrainSkillRuntimeService {
     return this.managerSkills.buildStaffAnalysis(input);
   }
 
+  buildManagerStaffDirectoryFacts(input: Parameters<BrainManagerSkillsService['buildStaffDirectoryFacts']>[0]) {
+    return this.managerSkills.buildStaffDirectoryFacts(input);
+  }
+
   buildManagerRevenueForecastBaseline(input: Parameters<BrainManagerSkillsService['buildRevenueForecastBaseline']>[0]) {
     return this.managerSkills.buildRevenueForecastBaseline(input);
   }
@@ -69,7 +67,9 @@ export class BrainSkillRuntimeService {
     return this.receptionSkills.buildOperationsSnapshot(input);
   }
 
-  buildReceptionServiceOverrunAnalysis(input: Parameters<BrainReceptionSkillsService['buildServiceOverrunAnalysis']>[0]) {
+  buildReceptionServiceOverrunAnalysis(
+    input: Parameters<BrainReceptionSkillsService['buildServiceOverrunAnalysis']>[0],
+  ) {
     return this.receptionSkills.buildServiceOverrunAnalysis(input);
   }
 
@@ -101,12 +101,18 @@ export class BrainSkillRuntimeService {
     return this.marketingSkills.buildFollowUpPriorityRows(input);
   }
 
-  buildMarketingFollowUpPrioritySnapshot(input: Parameters<BrainMarketingSkillsService['buildFollowUpPrioritySnapshot']>[0]) {
+  buildMarketingFollowUpPrioritySnapshot(
+    input: Parameters<BrainMarketingSkillsService['buildFollowUpPrioritySnapshot']>[0],
+  ) {
     return this.marketingSkills.buildFollowUpPrioritySnapshot(input);
   }
 
   buildInventoryRiskSummary(input: Parameters<BrainInventorySkillsService['buildInventoryRiskSummary']>[0]) {
     return this.inventorySkills.buildInventoryRiskSummary(input);
+  }
+
+  buildInventoryStockRiskFacts(input: Parameters<BrainInventorySkillsService['buildInventoryStockRiskFacts']>[0]) {
+    return this.inventorySkills.buildInventoryStockRiskFacts(input);
   }
 
   buildInventoryDetailAnalysis(input: Parameters<BrainInventorySkillsService['buildInventoryDetailAnalysis']>[0]) {
@@ -119,6 +125,12 @@ export class BrainSkillRuntimeService {
 
   buildInventoryProcurementAnalysis(input: Parameters<BrainInventorySkillsService['buildProcurementAnalysis']>[0]) {
     return this.inventorySkills.buildProcurementAnalysis(input);
+  }
+
+  resolvePurchaseOrderActionTarget(
+    input: Parameters<BrainInventorySkillsService['resolvePurchaseOrderActionTarget']>[0],
+  ) {
+    return this.inventorySkills.resolvePurchaseOrderActionTarget(input);
   }
 
   composeInventoryDisposalAdvice() {
@@ -141,8 +153,22 @@ export class BrainSkillRuntimeService {
     return this.financeSkills.buildIncomeAnalysis(input);
   }
 
-  buildFinanceMemberBalanceFlowSummary(input: Parameters<BrainFinanceSkillsService['buildMemberBalanceFlowSummary']>[0]) {
+  buildFinanceMemberBalanceFlowSummary(
+    input: Parameters<BrainFinanceSkillsService['buildMemberBalanceFlowSummary']>[0],
+  ) {
     return this.financeSkills.buildMemberBalanceFlowSummary(input);
+  }
+
+  buildFinanceCardRecognitionRows(input: Parameters<BrainFinanceSkillsService['buildCardRecognitionRows']>[0]) {
+    return this.financeSkills.buildCardRecognitionRows(input);
+  }
+
+  buildFinanceOrderProfitRows(input: Parameters<BrainFinanceSkillsService['buildOrderProfitRows']>[0]) {
+    return this.financeSkills.buildOrderProfitRows(input);
+  }
+
+  buildFinanceStaffCommissionRows(input: Parameters<BrainFinanceSkillsService['buildStaffCommissionRows']>[0]) {
+    return this.financeSkills.buildStaffCommissionRows(input);
   }
 
   buildFinanceCostAnalysis(input: Parameters<BrainFinanceSkillsService['buildCostAnalysis']>[0]) {

@@ -1,6 +1,9 @@
 import { BadRequestException, ForbiddenException, Injectable, Optional } from '@nestjs/common';
 import type { BrainRiskLevel } from '@prisma/client';
 import { CardsService } from '../../cards/cards.service.js';
+import type { BusinessMutationReceipt } from '../../common/mutation-receipt.js';
+import type { BusinessDatabaseWriteSetEvidence } from '../../common/database-write-set.js';
+import { CustomersService } from '../../customers/customers.service.js';
 import { InventoryService } from '../../inventory/inventory.service.js';
 import { MarketingService } from '../../marketing/marketing.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
@@ -21,6 +24,8 @@ export interface BrainCapabilityReceipt {
   result: unknown;
   status?: 'executing' | 'succeeded' | 'partially_succeeded' | 'failed';
   message?: string;
+  mutationReceipt?: BusinessMutationReceipt;
+  databaseWriteSet?: BusinessDatabaseWriteSetEvidence;
 }
 
 export interface BrainCapabilityDescriptor {
@@ -32,6 +37,7 @@ export interface BrainCapabilityDescriptor {
   riskLevel: BrainRiskLevel;
   requiredFields: string[];
   allowedFields: string[];
+  effectKeys: string[];
   transactionBoundary: string;
   receiptType: string;
   failureRecovery: 'safe_replay' | 'manual_reconcile';
@@ -47,6 +53,7 @@ const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
     riskLevel: 'medium',
     requiredFields: ['customerId', 'projectId', 'appointmentTime'],
     allowedFields: ['customerId', 'projectId', 'appointmentTime', 'duration', 'beauticianId', 'remark'],
+    effectKeys: ['reservation_created_in_context_store'],
     transactionBoundary: 'ReservationsService.create',
     receiptType: 'reservation',
     failureRecovery: 'safe_replay',
@@ -59,7 +66,16 @@ const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
     permission: 'core:store:reservations',
     riskLevel: 'high',
     requiredFields: ['reservationId', 'appointmentTime'],
-    allowedFields: ['reservationId', 'appointmentTime', 'duration', 'beauticianId', 'reason', 'remark'],
+    allowedFields: [
+      'reservationId',
+      'appointmentTime',
+      'duration',
+      'beauticianId',
+      'reason',
+      'remark',
+      'expectedReservationUpdatedAt',
+    ],
+    effectKeys: ['reservation_time_updated'],
     transactionBoundary: 'ReservationsService.update',
     receiptType: 'reservation',
     failureRecovery: 'safe_replay',
@@ -72,7 +88,8 @@ const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
     permission: 'core:store:reservations',
     riskLevel: 'high',
     requiredFields: ['reservationId'],
-    allowedFields: ['reservationId', 'reason'],
+    allowedFields: ['reservationId', 'reason', 'expectedReservationUpdatedAt'],
+    effectKeys: ['reservation_cancelled'],
     transactionBoundary: 'ReservationsService.cancel',
     receiptType: 'reservation',
     failureRecovery: 'safe_replay',
@@ -86,6 +103,7 @@ const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
     riskLevel: 'medium',
     requiredFields: ['customerId'],
     allowedFields: ['customerId', 'title', 'note', 'script', 'channel'],
+    effectKeys: ['follow_up_task_created'],
     transactionBoundary: 'TerminalService.createFollowUpTask:idempotent',
     receiptType: 'follow_up_task',
     failureRecovery: 'safe_replay',
@@ -95,11 +113,26 @@ const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
     version: 1,
     endpoint: 'inventory/purchase-orders',
     method: 'POST',
-    permission: 'core:supply:manage',
+    permission: 'core:inventory:purchase',
     riskLevel: 'high',
     requiredFields: ['supplier', 'items'],
-    allowedFields: ['supplier', 'items', 'submitForApproval'],
+    allowedFields: ['supplier', 'items'],
+    effectKeys: ['purchase_order_draft_created_in_context_store'],
     transactionBoundary: 'InventoryService.createPurchaseOrderIdempotent',
+    receiptType: 'purchase_order',
+    failureRecovery: 'safe_replay',
+  },
+  submit_purchase_order_for_approval: {
+    key: 'submit_purchase_order_for_approval',
+    version: 1,
+    endpoint: 'inventory/purchase-orders/:id/submit-for-approval',
+    method: 'POST',
+    permission: 'core:inventory:purchase',
+    riskLevel: 'high',
+    requiredFields: ['purchaseOrderId', 'expectedPurchaseOrderUpdatedAt'],
+    allowedFields: ['purchaseOrderId', 'expectedPurchaseOrderUpdatedAt'],
+    effectKeys: ['purchase_order_submitted_for_approval'],
+    transactionBoundary: 'InventoryService.submitPurchaseOrderForApproval',
     receiptType: 'purchase_order',
     failureRecovery: 'safe_replay',
   },
@@ -112,6 +145,7 @@ const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
     riskLevel: 'medium',
     requiredFields: ['customerId', 'script'],
     allowedFields: ['customerId', 'title', 'note', 'script', 'channel'],
+    effectKeys: ['marketing_touch_draft_created'],
     transactionBoundary: 'TerminalService.createFollowUpTask:idempotent',
     receiptType: 'marketing_touch_draft',
     failureRecovery: 'safe_replay',
@@ -125,6 +159,7 @@ const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
     riskLevel: 'high',
     requiredFields: ['strategyId', 'approvedAudienceCount'],
     allowedFields: ['strategyId', 'strategyName', 'approvedAudienceCount'],
+    effectKeys: ['marketing_automation_execution_created'],
     transactionBoundary: 'MarketingService.executeStrategy:idempotent',
     receiptType: 'marketing_automation_execution',
     failureRecovery: 'safe_replay',
@@ -138,6 +173,7 @@ const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
     riskLevel: 'high',
     requiredFields: ['taskId', 'remark'],
     allowedFields: ['taskId', 'remark', 'consumptionItems', 'images', 'beauticianId'],
+    effectKeys: ['service_record_saved'],
     transactionBoundary: 'TerminalService.completeTask',
     receiptType: 'service_task',
     failureRecovery: 'manual_reconcile',
@@ -151,8 +187,23 @@ const CAPABILITY_MAP: Record<string, BrainCapabilityDescriptor> = {
     riskLevel: 'critical',
     requiredFields: ['customerCardId', 'customerId', 'projectId', 'projectName', 'times', 'beauticianId'],
     allowedFields: ['customerCardId', 'customerId', 'projectId', 'projectName', 'times', 'beauticianId', 'remark'],
+    effectKeys: ['card_usage_verified'],
     transactionBoundary: 'CardsService.verifyCardUsage',
     receiptType: 'card_usage_record',
+    failureRecovery: 'safe_replay',
+  },
+  create_customer: {
+    key: 'create_customer',
+    version: 1,
+    endpoint: 'customers',
+    method: 'POST',
+    permission: 'core:customer:create',
+    riskLevel: 'high',
+    requiredFields: ['name', 'phone'],
+    allowedFields: ['name', 'phone'],
+    effectKeys: ['customer_created_in_context_store'],
+    transactionBoundary: 'CustomersService.create',
+    receiptType: 'customer',
     failureRecovery: 'safe_replay',
   },
 };
@@ -166,6 +217,7 @@ export class BrainCapabilityGatewayService {
     @Optional() private readonly prisma?: PrismaService,
     @Optional() private readonly cardsService?: CardsService,
     @Optional() private readonly marketingService?: MarketingService,
+    @Optional() private readonly customersService?: CustomersService,
   ) {}
 
   resolve(skillKey: string) {
@@ -198,6 +250,8 @@ export class BrainCapabilityGatewayService {
         return this.createFollowUp(payload, input.context, 'brain_followup');
       case 'create_purchase_order':
         return this.createPurchaseOrder(payload, input.context);
+      case 'submit_purchase_order_for_approval':
+        return this.submitPurchaseOrderForApproval(payload, input.context);
       case 'create_marketing_touch_draft':
         return this.createFollowUp(payload, input.context, 'brain_marketing_touch_draft');
       case 'execute_marketing_strategy':
@@ -206,6 +260,8 @@ export class BrainCapabilityGatewayService {
         return this.saveServiceRecord(payload, input.context);
       case 'verify_card_usage':
         return this.verifyCardUsage(payload, input.context);
+      case 'create_customer':
+        return this.createCustomer(payload, input.context);
       default:
         throw new BadRequestException(`unsupported_capability:${input.skillKey}`);
     }
@@ -213,21 +269,69 @@ export class BrainCapabilityGatewayService {
 
   validateForExecution(skillKey: string, version: number, value: unknown) {
     const descriptor = this.resolve(skillKey);
-    if (descriptor.version !== version) throw new BadRequestException(`capability_version_mismatch:${skillKey}@${version}`);
+    if (descriptor.version !== version)
+      throw new BadRequestException(`capability_version_mismatch:${skillKey}@${version}`);
     this.assertNoConfirmationClaim(value);
+    if (
+      skillKey === 'create_purchase_order' &&
+      value &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      ('submitForApproval' in value || 'submissionMode' in value)
+    ) {
+      throw new BadRequestException('purchase_order_submission_requires_separate_action');
+    }
     return { descriptor, payload: this.validatePayload(descriptor, value) };
   }
 
   private async createReservation(payload: Record<string, unknown>, context: BrainCapabilityContext) {
     const service = this.requireService(this.reservationsService, 'ReservationsService');
+    const idempotencyKey = this.nonEmptyString(context.idempotencyKey, 'idempotencyKey');
     const result = await service.create({
       ...payload,
       storeId: context.storeId,
       status: 'pending',
       bookingSource: 'ami_brain',
-      idempotencyKey: context.idempotencyKey,
+      idempotencyKey,
+      databaseWriteSetContext: {
+        storeId: context.storeId,
+        capabilityKey: 'create_reservation',
+        idempotencyKey,
+      },
     });
-    return this.receipt('create_reservation', 'reservation', result.id, result);
+    return {
+      ...this.receipt('create_reservation', 'reservation', result.id, result),
+      ...(result.databaseWriteSet ? { databaseWriteSet: result.databaseWriteSet } : {}),
+    };
+  }
+
+  private async createCustomer(payload: Record<string, unknown>, context: BrainCapabilityContext) {
+    const service = this.requireService(this.customersService, 'CustomersService');
+    const name = this.nonEmptyString(payload.name, 'name');
+    const phone = this.nonEmptyString(payload.phone, 'phone');
+    if (/[xX*]/u.test(phone)) {
+      throw new BadRequestException(
+        'customer_phone_masked_requires_completion:请补充完整手机号后重新生成客户建档预览。',
+      );
+    }
+    if (!/^1\d{10}$/u.test(phone)) throw new BadRequestException('customer_phone_invalid');
+    if (this.prisma) {
+      const existing = await this.prisma.customer.findFirst({
+        where: { storeId: context.storeId, name, phone, deletedAt: null },
+      });
+      if (existing) {
+        throw new BadRequestException('customer_already_exists');
+      }
+    }
+    const idempotencyKey = this.nonEmptyString(context.idempotencyKey, 'idempotencyKey');
+    const result = await service.create(
+      { storeId: context.storeId, name, phone, source: 'Ami Brain' },
+      { storeId: context.storeId, capabilityKey: 'create_customer', idempotencyKey },
+    );
+    return {
+      ...this.receipt('create_customer', 'customer', result.id, result, '客户档案创建成功。'),
+      ...(result.databaseWriteSet ? { databaseWriteSet: result.databaseWriteSet } : {}),
+    };
   }
 
   private async rescheduleReservation(payload: Record<string, unknown>, context: BrainCapabilityContext) {
@@ -235,13 +339,27 @@ export class BrainCapabilityGatewayService {
     const reservationId = this.positiveInteger(payload.reservationId, 'reservationId');
     const current = await service.findById(reservationId);
     this.assertStore(current.storeId, context.storeId);
+    const idempotencyKey = this.nonEmptyString(context.idempotencyKey, 'idempotencyKey');
+    this.nonEmptyString(payload.expectedReservationUpdatedAt, 'expectedReservationUpdatedAt');
     const result = await service.update(reservationId, {
       appointmentTime: this.nonEmptyString(payload.appointmentTime, 'appointmentTime'),
       duration: payload.duration,
       beauticianId: payload.beauticianId,
       remark: payload.reason ?? payload.remark,
+      expectedUpdatedAt: payload.expectedReservationUpdatedAt,
+      mutationContext: {
+        capabilityKey: 'reschedule_reservation',
+        idempotencyKey,
+        mutationKind: 'update',
+        requestPayload: payload,
+        actorId: context.userId,
+      },
     });
-    return this.receipt('reschedule_reservation', 'reservation', result.id, result);
+    return {
+      ...this.receipt('reschedule_reservation', 'reservation', result.id, result),
+      ...(result.mutationReceipt ? { mutationReceipt: result.mutationReceipt } : {}),
+      ...(result.databaseWriteSet ? { databaseWriteSet: result.databaseWriteSet } : {}),
+    };
   }
 
   private async cancelReservation(payload: Record<string, unknown>, context: BrainCapabilityContext) {
@@ -249,11 +367,25 @@ export class BrainCapabilityGatewayService {
     const reservationId = this.positiveInteger(payload.reservationId, 'reservationId');
     const current = await service.findById(reservationId);
     this.assertStore(current.storeId, context.storeId);
-    if (current.status === 'cancelled' || current.status === 'canceled' || current.status === '已取消') {
-      return this.receipt('cancel_reservation', 'reservation', current.id, current);
-    }
-    const result = await service.cancel(reservationId, typeof payload.reason === 'string' ? payload.reason : undefined);
-    return this.receipt('cancel_reservation', 'reservation', result.id, result);
+    const idempotencyKey = this.nonEmptyString(context.idempotencyKey, 'idempotencyKey');
+    this.nonEmptyString(payload.expectedReservationUpdatedAt, 'expectedReservationUpdatedAt');
+    const result = await service.cancel(
+      reservationId,
+      typeof payload.reason === 'string' ? payload.reason : undefined,
+      payload.expectedReservationUpdatedAt,
+      {
+        capabilityKey: 'cancel_reservation',
+        idempotencyKey,
+        mutationKind: 'state_transition',
+        requestPayload: payload,
+        actorId: context.userId,
+      },
+    );
+    return {
+      ...this.receipt('cancel_reservation', 'reservation', result.id, result),
+      ...(result.mutationReceipt ? { mutationReceipt: result.mutationReceipt } : {}),
+      ...(result.databaseWriteSet ? { databaseWriteSet: result.databaseWriteSet } : {}),
+    };
   }
 
   private async createFollowUp(payload: Record<string, unknown>, context: BrainCapabilityContext, source: string) {
@@ -267,7 +399,12 @@ export class BrainCapabilityGatewayService {
         customerId,
         idempotencyKey: context.idempotencyKey,
         source,
-        title: typeof payload.title === 'string' ? payload.title : source === 'brain_followup' ? 'Ami Brain 客户跟进' : 'Ami Brain 营销触达草稿',
+        title:
+          typeof payload.title === 'string'
+            ? payload.title
+            : source === 'brain_followup'
+              ? 'Ami Brain 客户跟进'
+              : 'Ami Brain 营销触达草稿',
         note: typeof payload.note === 'string' ? payload.note : undefined,
         script: typeof payload.script === 'string' ? payload.script : undefined,
         channel: typeof payload.channel === 'string' ? payload.channel : 'phone',
@@ -292,23 +429,68 @@ export class BrainCapabilityGatewayService {
       });
       if (matched !== productIds.length) throw new ForbiddenException('cross_store_purchase_product');
     }
+    const idempotencyKey = this.nonEmptyString(context.idempotencyKey, 'idempotencyKey');
     const result = await service.createPurchaseOrder({
       ...payload,
       supplier: this.nonEmptyString(payload.supplier, 'supplier'),
       storeId: context.storeId,
-      status: payload.submitForApproval === true ? '待审核' : '草稿',
+      status: '草稿',
       source: 'ami_brain',
-      idempotencyKey: context.idempotencyKey,
+      idempotencyKey,
+      databaseWriteSetContext: {
+        storeId: context.storeId,
+        capabilityKey: 'create_purchase_order',
+        idempotencyKey,
+      },
       items,
     });
-    return this.receipt('create_purchase_order', 'purchase_order', result.id, result);
+    return {
+      ...this.receipt('create_purchase_order', 'purchase_order', result.id, result),
+      ...(result.databaseWriteSet ? { databaseWriteSet: result.databaseWriteSet } : {}),
+    };
+  }
+
+  private async submitPurchaseOrderForApproval(
+    payload: Record<string, unknown>,
+    context: BrainCapabilityContext,
+  ) {
+    const service = this.requireService(this.inventoryService, 'InventoryService');
+    const purchaseOrderId = this.positiveInteger(payload.purchaseOrderId, 'purchaseOrderId');
+    const expectedPurchaseOrderUpdatedAt = this.nonEmptyString(
+      payload.expectedPurchaseOrderUpdatedAt,
+      'expectedPurchaseOrderUpdatedAt',
+    );
+    const idempotencyKey = this.nonEmptyString(context.idempotencyKey, 'idempotencyKey');
+    const result = await service.submitPurchaseOrderForApproval(
+      purchaseOrderId,
+      context.storeId,
+      expectedPurchaseOrderUpdatedAt,
+      {
+        capabilityKey: 'submit_purchase_order_for_approval',
+        idempotencyKey,
+        mutationKind: 'state_transition',
+        requestPayload: payload,
+        actorId: context.userId,
+      },
+    );
+    return {
+      ...this.receipt(
+        'submit_purchase_order_for_approval',
+        'purchase_order',
+        result.id,
+        result,
+        '采购单已提交审核。',
+      ),
+      ...(result.mutationReceipt ? { mutationReceipt: result.mutationReceipt } : {}),
+      ...(result.databaseWriteSet ? { databaseWriteSet: result.databaseWriteSet } : {}),
+    };
   }
 
   private async executeMarketingStrategy(payload: Record<string, unknown>, context: BrainCapabilityContext) {
     const service = this.requireService(this.marketingService, 'MarketingService');
     const strategyId = this.positiveInteger(payload.strategyId, 'strategyId');
     const approvedAudienceCount = this.nonNegativeInteger(payload.approvedAudienceCount, 'approvedAudienceCount');
-    const preview = await service.previewAudience([], 'AND', strategyId, context.storeId) as Record<string, unknown>;
+    const preview = (await service.previewAudience([], 'AND', strategyId, context.storeId)) as Record<string, unknown>;
     const currentAudienceCount = this.nonNegativeInteger(
       preview.estimatedReachedCount ?? preview.estimatedCount ?? preview.total ?? 0,
       'currentAudienceCount',
@@ -391,14 +573,17 @@ export class BrainCapabilityGatewayService {
   }
 
   private validatePayload(descriptor: BrainCapabilityDescriptor, value: unknown) {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new BadRequestException('invalid_capability_payload');
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+      throw new BadRequestException('invalid_capability_payload');
     const source = value as Record<string, unknown>;
     const payload = Object.fromEntries(
       descriptor.allowedFields
         .filter((field) => Object.prototype.hasOwnProperty.call(source, field))
         .map((field) => [field, source[field]]),
     );
-    const missing = descriptor.requiredFields.filter((field) => payload[field] === undefined || payload[field] === null || payload[field] === '');
+    const missing = descriptor.requiredFields.filter(
+      (field) => payload[field] === undefined || payload[field] === null || payload[field] === '',
+    );
     if (missing.length) throw new BadRequestException(`missing_capability_fields:${missing.join(',')}`);
     return payload;
   }
@@ -412,7 +597,8 @@ export class BrainCapabilityGatewayService {
   private purchaseItems(value: unknown) {
     if (!Array.isArray(value) || value.length === 0) throw new BadRequestException('purchase_items_required');
     return value.map((raw, index) => {
-      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new BadRequestException(`invalid_purchase_item:${index}`);
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+        throw new BadRequestException(`invalid_purchase_item:${index}`);
       const item = raw as Record<string, unknown>;
       const productId = this.positiveInteger(item.productId, `items.${index}.productId`);
       const quantity = this.positiveNumber(item.quantity, `items.${index}.quantity`);

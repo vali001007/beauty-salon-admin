@@ -70,8 +70,14 @@ describe('BRAIN_SEMANTIC_INTENT_JSON_SCHEMA', () => {
           definitionKey: entity.definitionRef.definitionKey,
         },
       })),
-      metrics: baseIntent.metrics.map((ref) => ({ definitionType: ref.definitionType, definitionKey: ref.definitionKey })),
-      dimensions: baseIntent.dimensions.map((ref) => ({ definitionType: ref.definitionType, definitionKey: ref.definitionKey })),
+      metrics: baseIntent.metrics.map((ref) => ({
+        definitionType: ref.definitionType,
+        definitionKey: ref.definitionKey,
+      })),
+      dimensions: baseIntent.dimensions.map((ref) => ({
+        definitionType: ref.definitionType,
+        definitionKey: ref.definitionKey,
+      })),
       orderBy: baseIntent.orderBy.map((item) => ({
         ...item,
         definitionRef: {
@@ -85,10 +91,46 @@ describe('BRAIN_SEMANTIC_INTENT_JSON_SCHEMA', () => {
     expect(validateModel(compactIntent)).toBe(true);
     expect(validate(compactIntent)).toBe(false);
     expect(validateModel({ ...compactIntent, timeRange: baseIntent.timeRange })).toBe(false);
-    expect(validateModel({
-      ...compactIntent,
-      comparisonTarget: { type: 'time', timeRange: baseIntent.timeRange },
-    })).toBe(false);
+    expect(
+      validateModel({
+        ...compactIntent,
+        comparisonTarget: { type: 'time', timeRange: baseIntent.timeRange },
+      }),
+    ).toBe(false);
+  });
+
+  it('allows an advisory read-only capability selection only in the model schema', () => {
+    const modelIntent = {
+      ...baseIntent,
+      selectedCapabilityKey: 'finance_risk_overview',
+      entities: baseIntent.entities.map((entity) => ({
+        ...entity,
+        source: 'question',
+        definitionRef: {
+          definitionType: entity.definitionRef.definitionType,
+          definitionKey: entity.definitionRef.definitionKey,
+        },
+      })),
+      metrics: baseIntent.metrics.map((ref) => ({
+        definitionType: ref.definitionType,
+        definitionKey: ref.definitionKey,
+      })),
+      dimensions: baseIntent.dimensions.map((ref) => ({
+        definitionType: ref.definitionType,
+        definitionKey: ref.definitionKey,
+      })),
+      orderBy: baseIntent.orderBy.map((item) => ({
+        ...item,
+        definitionRef: {
+          definitionType: item.definitionRef.definitionType,
+          definitionKey: item.definitionRef.definitionKey,
+        },
+      })),
+    };
+    delete (modelIntent as { timeRange?: unknown }).timeRange;
+
+    expect(validateModel(modelIntent)).toBe(true);
+    expect(validate({ ...baseIntent, selectedCapabilityKey: 'finance_risk_overview' })).toBe(false);
   });
 
   it.each([
@@ -225,6 +267,54 @@ describe('BRAIN_SEMANTIC_INTENT_JSON_SCHEMA', () => {
     ).toBe(false);
   });
 
+  it('accepts a governed dimension value filter in canonical and compact model forms', () => {
+    expect(
+      validate({
+        ...baseIntent,
+        filters: [
+          {
+            fieldRef: definitionRef('dimension', 'dimension.product'),
+            operator: 'eq',
+            value: '护理',
+          },
+        ],
+      }),
+    ).toBe(true);
+
+    const compactIntent = {
+      ...baseIntent,
+      entities: baseIntent.entities.map((entity) => ({
+        ...entity,
+        source: 'question',
+        definitionRef: {
+          definitionType: entity.definitionRef.definitionType,
+          definitionKey: entity.definitionRef.definitionKey,
+        },
+      })),
+      metrics: baseIntent.metrics.map((ref) => ({ definitionType: ref.definitionType, definitionKey: ref.definitionKey })),
+      dimensions: baseIntent.dimensions.map((ref) => ({
+        definitionType: ref.definitionType,
+        definitionKey: ref.definitionKey,
+      })),
+      filters: [
+        {
+          fieldRef: { definitionType: 'dimension', definitionKey: 'dimension.product' },
+          operator: 'eq',
+          value: '护理',
+        },
+      ],
+      orderBy: baseIntent.orderBy.map((item) => ({
+        ...item,
+        definitionRef: {
+          definitionType: item.definitionRef.definitionType,
+          definitionKey: item.definitionRef.definitionKey,
+        },
+      })),
+    };
+    delete (compactIntent as { timeRange?: unknown }).timeRange;
+    expect(validateModel(compactIntent)).toBe(true);
+  });
+
   it('requires both immutable definition and source fingerprints on every reference', () => {
     const { definitionFingerprint: _definitionFingerprint, ...missingDefinitionFingerprint } = baseIntent.metrics[0];
     expect(validate({ ...baseIntent, metrics: [missingDefinitionFingerprint] })).toBe(false);
@@ -307,14 +397,77 @@ describe('BRAIN_SEMANTIC_INTENT_JSON_SCHEMA', () => {
     expect(
       validate({
         ...baseIntent,
+        schemaVersion: '1.1',
         intent: 'action',
         answerShape: 'action_preview',
         metrics: [],
         dimensions: [],
         orderBy: [],
+        actionRef: definitionRef('action', 'action.create_purchase_order'),
+        actionPolarity: 'affirmative',
+        actionModality: 'request',
+        actionSlots: [],
         successCriteria: [],
         missingSlots: ['successCriteria'],
       }),
     ).toBe(true);
+  });
+
+  it('requires explicit polarity whenever a governed actionRef exists', () => {
+    expect(
+      validate({
+        ...baseIntent,
+        schemaVersion: '1.1',
+        intent: 'action',
+        answerShape: 'action_preview',
+        metrics: [],
+        dimensions: [],
+        orderBy: [],
+        actionRef: definitionRef('action', 'action.create_purchase_order'),
+        actionModality: 'request',
+        actionSlots: [],
+      }),
+    ).toBe(false);
+  });
+
+  it('accepts a negated governed action without execution slots or success criteria', () => {
+    expect(
+      validate({
+        ...baseIntent,
+        schemaVersion: '1.1',
+        objective: '别下采购单',
+        intent: 'action',
+        answerShape: 'action_preview',
+        metrics: [],
+        dimensions: [],
+        orderBy: [],
+        actionRef: definitionRef('action', 'action.create_purchase_order'),
+        actionPolarity: 'negated',
+        actionModality: 'request',
+        successCriteria: [],
+      }),
+    ).toBe(true);
+    expect(validate.errors).toBeNull();
+  });
+
+  it('allows a recognized action to report an unpublished actionDefinition gap without guessing a ref', () => {
+    const gapIntent = {
+      ...baseIntent,
+      schemaVersion: '1.1',
+      objective: '把舒缓修护面膜调到二店',
+      intent: 'action',
+      answerShape: 'action_preview',
+      metrics: [],
+      dimensions: [],
+      orderBy: [],
+      missingSlots: ['actionDefinition'],
+    };
+
+    expect(validate(gapIntent)).toBe(true);
+    expect(validateModel(gapIntent)).toBe(false);
+
+    const compactGapIntent = { ...gapIntent } as Record<string, unknown>;
+    delete compactGapIntent.timeRange;
+    expect(validateModel(compactGapIntent)).toBe(true);
   });
 });

@@ -8,6 +8,13 @@ import type { BrainRequestContext } from './context/brain-request-context.js';
 import { BrainResultReferenceService } from './context/brain-result-reference.service.js';
 import { BrainAnswerComposerService } from './semantic/brain-answer-composer.service.js';
 import { BrainIntentCompletenessPolicyService } from './cognition/brain-intent-completeness-policy.service.js';
+import { BrainConversationContextService } from './context/brain-conversation-context.service.js';
+import { BrainTimeRangeParserService } from './cognition/brain-time-range-parser.service.js';
+import { BrainSemanticIntentCompilerService } from './cognition/brain-semantic-intent-compiler.service.js';
+import { createTestBusinessActionSituationContextProfile } from './cognition/business-action-situation-context.testing.js';
+import { createTestBusinessActionModalityPolicy } from './cognition/business-action-modality-policy.testing.js';
+import { createTestBusinessActionInformationArtifactProfile } from './cognition/business-action-information-artifact.testing.js';
+import { createTestBusinessActionSideEffectInvariantProfile } from './cognition/business-action-side-effect-invariant.testing.js';
 
 describe('BrainChatService', () => {
   const context: BrainRequestContext = {
@@ -51,6 +58,9 @@ describe('BrainChatService', () => {
     },
     brainRunStep: {
       findMany: jest.fn(),
+    },
+    beautician: {
+      findMany: jest.fn().mockResolvedValue([]),
     },
   });
 
@@ -418,6 +428,123 @@ describe('BrainChatService', () => {
     };
   };
 
+  it('resolves the BQ1332 named beautician only from the active current-store directory', async () => {
+    const { service, prisma } = createService();
+    prisma.beautician.findMany.mockResolvedValue([{ id: 19, name: '顾然' }]);
+    const entityDefinition = {
+      definitionKey: 'entity.beautician',
+      entityKey: 'beautician',
+      version: 3,
+      definitionFingerprint: 'a'.repeat(64),
+      sourceFingerprint: 'b'.repeat(64),
+      domain: 'beautician',
+      name: '美容师',
+      aliases: ['员工'],
+      attributes: {},
+      tableMap: {},
+    };
+    const intent = {
+      schemaVersion: '1.0',
+      objective: '顾然2026年6月22日至28日的提成构成',
+      domains: ['finance', 'beautician'],
+      intent: 'query',
+      entities: [],
+      metrics: [{ definitionKey: 'metric.staff_commission_component_amount' }],
+      dimensions: [{ definitionKey: 'dimension.commissionType' }],
+      filters: [],
+      orderBy: [],
+      answerShape: 'list',
+      successCriteria: ['返回提成构成'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 1,
+      decisionSummary: '查询指定美容师提成构成',
+    };
+
+    const resolved = await (service as any).enrichStoreScopedNamedEntityRefs({
+      intent,
+      question: '顾然2026年6月22日至28日的提成构成', // BQ1332
+      context: { ...context, storeId: 6, visibleStoreIds: [6] },
+      snapshot: { entities: [entityDefinition] },
+    });
+
+    expect(prisma.beautician.findMany).toHaveBeenCalledWith({
+      where: { storeId: 6, status: 'active' },
+      select: { id: true, name: true },
+      orderBy: { id: 'asc' },
+      take: 100,
+    });
+    expect(resolved.entities).toEqual([
+      expect.objectContaining({
+        entityType: 'beautician',
+        entityKey: '19',
+        mention: '顾然',
+        source: 'user',
+        definitionRef: expect.objectContaining({ definitionKey: 'entity.beautician', definitionVersion: 3 }),
+      }),
+    ]);
+  });
+
+  it('fails closed for absent, duplicate, or cross-store beautician directory matches', async () => {
+    const entityDefinition = {
+      definitionKey: 'entity.beautician',
+      entityKey: 'beautician',
+      version: 3,
+      definitionFingerprint: 'a'.repeat(64),
+      sourceFingerprint: 'b'.repeat(64),
+      domain: 'beautician',
+      name: '美容师',
+      aliases: ['员工'],
+      attributes: {},
+      tableMap: {},
+    };
+    const intent = {
+      schemaVersion: '1.0',
+      objective: '查询指定美容师提成',
+      domains: ['finance', 'beautician'],
+      intent: 'query',
+      entities: [{ entityType: 'beautician', entityKey: '999', mention: '顾然', source: 'user', confidence: 1 }],
+      metrics: [{ definitionKey: 'metric.staff_commission_component_amount' }],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'list',
+      successCriteria: ['返回提成'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 1,
+      decisionSummary: '查询提成',
+    };
+
+    const absent = createService();
+    absent.prisma.beautician.findMany.mockResolvedValue([]);
+    const unresolved = await (absent.service as any).enrichStoreScopedNamedEntityRefs({
+      intent,
+      question: '顾然的提成构成',
+      context: { ...context, storeId: 6, visibleStoreIds: [6] },
+      snapshot: { entities: [entityDefinition] },
+    });
+    expect(unresolved.entities).toEqual([
+      expect.objectContaining({ entityType: 'beautician', mention: '顾然', entityKey: undefined }),
+    ]);
+
+    const duplicate = createService();
+    duplicate.prisma.beautician.findMany.mockResolvedValue([
+      { id: 19, name: '顾然' },
+      { id: 29, name: '顾然' },
+    ]);
+    const ambiguous = await (duplicate.service as any).enrichStoreScopedNamedEntityRefs({
+      intent,
+      question: '顾然的提成构成',
+      context: { ...context, storeId: 6, visibleStoreIds: [6] },
+      snapshot: { entities: [entityDefinition] },
+    });
+    expect(ambiguous.entities.map((entity: any) => entity.entityKey)).toEqual(['19', '29']);
+    expect(duplicate.prisma.beautician.findMany.mock.calls[0][0].where).toEqual({ storeId: 6, status: 'active' });
+  });
+
   it('returns a deterministic no-campaign decision when the previous expiring product result is empty', () => {
     const { service } = createService();
     const resultSets = new BrainResultReferenceService().buildResultSets({
@@ -585,53 +712,182 @@ describe('BrainChatService', () => {
     expect(result.map((card: any) => card.key)).toEqual([selected.key, cards[4]!.key]);
   });
 
-  it('selects the narrow semantic-query capability from structured metric contracts before supervisor planning', () => {
+  it('keeps the verified continuation capability when the current wording topK misses it', () => {
     const { service } = createService();
-    const productRef = {
+    const continuation = { ...controlledDomainCard('order_revenue_analysis'), version: 22 };
+    const distractor = controlledDomainCard('store_operations_overview');
+    const conversationSlots = {
+      modelContext: { capability: { key: continuation.key, version: continuation.version } },
+      turnDirectives: {
+        mode: 'continue',
+        inherit: ['objective', 'metrics', 'timeRange', 'capability'],
+        doNotInherit: [],
+      },
+    };
+
+    const inherited = (service as any).modelContinuationCapabilityCard([continuation, distractor], conversationSlots);
+    const result = (service as any).modelCompilerCapabilityCards(
+      [continuation, distractor],
+      [{ card: distractor, score: 0.9, matchedFields: [] }],
+      undefined,
+      inherited,
+    );
+
+    expect(inherited).toBe(continuation);
+    expect(result.map((card: any) => card.key)).toEqual([continuation.key, distractor.key]);
+  });
+
+  it('keeps the project catalog capability when the current wording topK misses it', () => {
+    const { service } = createService();
+    const projectBomCard = {
+      ...controlledDomainCard('project_material_consumption_analysis'),
+      intents: ['query', 'ranking'],
+      readOnly: true,
+      sideEffect: false,
+    };
+    const projectServiceCard = {
+      ...controlledDomainCard('project_service_ranking'),
+      intents: ['ranking'],
+      readOnly: true,
+      sideEffect: false,
+    };
+    const distractor = controlledDomainCard('inventory_operations_overview');
+
+    const bomResult = (service as any).modelCompilerCapabilityCards(
+      [projectBomCard, projectServiceCard, distractor],
+      [{ card: distractor, score: 0.9, matchedFields: [] }],
+      undefined,
+      undefined,
+      '截至2026/07/29 12:45:51，胶原焕活提拉用到哪些耗材',
+    );
+    const serviceResult = (service as any).modelCompilerCapabilityCards(
+      [projectBomCard, projectServiceCard, distractor],
+      [{ card: distractor, score: 0.9, matchedFields: [] }],
+      undefined,
+      undefined,
+      '背部净透护理2026年6月1日至30日卖了多少',
+    );
+
+    expect(bomResult.map((card: any) => card.key)).toEqual([
+      'project_material_consumption_analysis',
+      'inventory_operations_overview',
+    ]);
+    expect(serviceResult.map((card: any) => card.key)).toEqual([
+      'project_service_ranking',
+      'inventory_operations_overview',
+    ]);
+  });
+
+  it('selects the project catalog capability deterministically from the active catalog', () => {
+    const { service } = createService();
+    const projectServiceCard = {
+      ...controlledDomainCard('project_service_ranking'),
+      intents: ['ranking'],
+      readOnly: true,
+      sideEffect: false,
+    };
+    const projectBomCard = {
+      ...controlledDomainCard('project_material_consumption_analysis'),
+      intents: ['query', 'ranking'],
+      readOnly: true,
+      sideEffect: false,
+    };
+
+    expect(
+      (service as any).findProjectCatalogCapabilityCard('背部净透护理2026年6月1日至30日卖了多少', { intent: 'query' }, [projectServiceCard]),
+    ).toBe(projectServiceCard);
+    expect(
+      (service as any).findProjectCatalogCapabilityCard('胶原焕活提拉标准配置了哪些耗材', { intent: 'query' }, [projectBomCard]),
+    ).toBe(projectBomCard);
+  });
+
+  it('accepts a model-selected delivery capability from the current active catalog and governed contract', () => {
+    const { service } = createService();
+    const projectRef = {
       definitionType: 'entity',
-      definitionKey: 'entity.product',
+      definitionKey: 'entity.project',
       definitionVersion: 1,
       definitionFingerprint: 'a'.repeat(64),
       sourceFingerprint: 'b'.repeat(64),
     };
-    const metric = {
-      ...productRef,
-      definitionType: 'metric',
-      definitionKey: 'metric.stock_risk_score',
+    const financeCard = {
+      ...controlledDomainCard('finance_risk_overview'),
+      intents: ['query', 'diagnosis'],
+      readOnly: true,
+      sideEffect: false,
+      grounding: 'domain_service',
+      domains: ['finance', 'project', 'product_order'],
+      definitionRefs: [projectRef],
     };
-    const dimension = {
-      ...productRef,
-      definitionType: 'dimension',
-      definitionKey: 'dimension.productName',
+    const projectCard = {
+      ...controlledDomainCard('project_margin_analysis'),
+      intents: ['query', 'ranking', 'diagnosis'],
+      readOnly: true,
+      sideEffect: false,
+      grounding: 'domain_service',
+      domains: ['project'],
+      definitionRefs: [projectRef],
     };
-    const riskCard = {
-      ...controlledDomainCard('inventory_risk_ranking'),
-      grounding: 'semantic_query',
-      intents: ['query', 'ranking'],
-      definitionRefs: [productRef, metric, dimension],
-    };
-    const overviewCard = {
-      ...controlledDomainCard('inventory_operations_overview'),
-      grounding: 'semantic_query',
-      intents: ['query'],
-      definitionRefs: [productRef, metric, dimension, { ...dimension, definitionKey: 'dimension.projectName' }],
-    };
-    const selected = (service as any).findDeterministicSemanticContractCard(
-      {
-        intent: 'query',
-        metrics: [metric],
-        dimensions: [dimension],
-        entities: [{ entityType: 'product', mention: '商品', source: 'system', confidence: 1, definitionRef: productRef }],
-      },
-      '缺货的产品有哪些',
-      [overviewCard, riskCard],
-      [
-        { card: overviewCard, score: 0.51, matchedFields: ['examples'] },
-        { card: riskCard, score: 0.49, matchedFields: ['examples'] },
+    const intent = {
+      intent: 'query',
+      metrics: [],
+      dimensions: [],
+      entities: [
+        {
+          entityType: 'project',
+          entityKey: '晒后舒缓修护',
+          mention: '晒后舒缓修护',
+          source: 'user',
+          confidence: 1,
+          definitionRef: projectRef,
+        },
       ],
-    );
+    };
 
-    expect(selected?.key).toBe('inventory_risk_ranking');
+    const selected = (service as any).resolveModelSelectedDeliveryCapability({
+      selectedCapabilityKey: 'finance_risk_overview',
+      intent,
+      question: '晒后舒缓修护订单2026年6月17日至30日的利润情况',
+      cards: [financeCard, projectCard],
+      catalogTopK: [
+        { card: projectCard, score: 0.31, matchedFields: ['description'] },
+      ],
+    });
+
+    expect(selected).toBe(financeCard);
+  });
+
+  it('rejects a model-selected delivery capability outside active catalog or with an incomplete definition contract', () => {
+    const { service } = createService();
+    const metric = {
+      definitionType: 'metric',
+      definitionKey: 'metric.paid_amount',
+      definitionVersion: 8,
+      definitionFingerprint: 'a'.repeat(64),
+      sourceFingerprint: 'b'.repeat(64),
+    };
+    const card = {
+      ...controlledDomainCard('finance_risk_overview'),
+      intents: ['query'],
+      readOnly: true,
+      sideEffect: false,
+      grounding: 'semantic_query',
+      definitionRefs: [],
+    };
+    const input = {
+      selectedCapabilityKey: 'finance_risk_overview',
+      intent: { intent: 'query', metrics: [metric], dimensions: [], entities: [] },
+      question: '本月实收多少',
+    };
+
+    expect((service as any).resolveModelSelectedDeliveryCapability({ ...input, cards: [], catalogTopK: [] })).toBeUndefined();
+    expect(
+      (service as any).resolveModelSelectedDeliveryCapability({
+        ...input,
+        cards: [card],
+        catalogTopK: [{ card, score: 0.4, matchedFields: ['description'] }],
+      }),
+    ).toBeUndefined();
   });
 
   it('resolves the top employee result reference before disclosing the missing notification capability', () => {
@@ -851,6 +1107,112 @@ describe('BrainChatService', () => {
       conversationSlots: { modelContext: { resultSets } },
     });
     expect(rejected.modelContext.resultSets).toEqual([]);
+  });
+
+  it('hydrates an action slot only from the exact model-selected governed refId', () => {
+    const { service } = createService();
+    const resultSets = new BrainResultReferenceService().buildResultSets({
+      runId: 191,
+      conversationId: 12,
+      userId: 9,
+      storeId: 2,
+      capabilityKey: 'inventory_risk_ranking',
+      capabilityVersion: 19,
+      adapterMetadata: {
+        mappingOutputs: {
+          productRanking: [
+            { productId: 82, productName: '玻尿酸保湿精华', suggestedQuantity: 12 },
+            { productId: 91, productName: '舒缓修护面膜', suggestedQuantity: 8 },
+          ],
+        },
+      },
+    });
+
+    const normalized = (service as any).normalizeConversationResultReferenceIntent({
+      intent: {
+        intent: 'action',
+        actionRef: { definitionKey: 'action.create_purchase_order' },
+        actionSlots: [
+          {
+            slotKey: 'product',
+            semanticRole: 'object',
+            source: 'conversation',
+            resultReferenceId: 'run:191:productRanking:2',
+            confidence: 0.8,
+          },
+        ],
+        missingSlots: [],
+        ambiguities: [],
+        assumptions: [],
+        confidence: 0.9,
+      },
+      // ami-brain-unit-only: deterministic result-reference normalization, not a product-eval input.
+      question: '给第二个商品补 8 件',
+      conversationSlots: { modelContext: { resultSets } },
+      scope: { conversationId: 12, userId: 9, storeId: 2 },
+    });
+
+    expect(normalized.actionSlots).toEqual([
+      expect.objectContaining({
+        slotKey: 'product',
+        resultReferenceId: 'run:191:productRanking:2',
+        source: 'conversation',
+        rawValue: '舒缓修护面膜',
+        entityKey: '91',
+        confidence: 1,
+      }),
+    ]);
+    expect(normalized.missingSlots).toEqual([]);
+    expect(normalized.assumptions).toContain('动作信息载体引用：product=run:191:productRanking:2。');
+  });
+
+  it('clarifies instead of executing when the model invents or crosses scope with a refId', () => {
+    const { service } = createService();
+    const resultSets = new BrainResultReferenceService().buildResultSets({
+      runId: 191,
+      conversationId: 12,
+      userId: 9,
+      storeId: 2,
+      adapterMetadata: {
+        mappingOutputs: { productRanking: [{ productId: 82, productName: '玻尿酸保湿精华' }] },
+      },
+    });
+
+    for (const [resultReferenceId, scope] of [
+      ['run:191:productRanking:99', { conversationId: 12, userId: 9, storeId: 2 }],
+      ['run:191:productRanking:1', { conversationId: 12, userId: 9, storeId: 6 }],
+    ] as const) {
+      const normalized = (service as any).normalizeConversationResultReferenceIntent({
+        intent: {
+          intent: 'action',
+          actionRef: { definitionKey: 'action.create_purchase_order' },
+          actionSlots: [
+            {
+              slotKey: 'product',
+              source: 'conversation',
+              resultReferenceId,
+              entityKey: '82',
+              confidence: 0.9,
+            },
+          ],
+          missingSlots: [],
+          ambiguities: [],
+          assumptions: [],
+          confidence: 0.9,
+        },
+        // ami-brain-unit-only: deterministic scoped-reference rejection, not a product-eval input.
+        question: '给它补货',
+        conversationSlots: { modelContext: { resultSets } },
+        scope,
+      });
+
+      expect(normalized.missingSlots).toContain('resultReference');
+      expect(normalized.actionSlots[0].entityKey).toBeUndefined();
+      expect(normalized.ambiguities).toEqual(
+        expect.arrayContaining([expect.objectContaining({ slot: 'resultReference' })]),
+      );
+      expect(normalized.confidence).toBeLessThanOrEqual(0.55);
+    }
   });
 
   it.each([
@@ -1118,6 +1480,77 @@ describe('BrainChatService', () => {
     expect(modelPipeline!.planner.plan).not.toHaveBeenCalled();
   });
 
+  it('clarifies BQ1965 before model compilation when the conversation has no prior business context', async () => {
+    const conversationContext = {
+      prepareModelTurn: jest.fn().mockResolvedValue({ dto: { message: '本月怎么样' } }), // BQ1965
+      updateAfterModelRun: jest.fn().mockResolvedValue(true),
+      updateAfterRun: jest.fn(),
+    };
+    const { prisma, trace, modelPipeline, service } = createService({ modelPipeline: {}, conversationContext });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create.mockResolvedValue({ id: 101 });
+    prisma.brainRun.create.mockResolvedValue({ id: 77 });
+    prisma.brainRun.update.mockResolvedValue({ id: 77 });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+
+    const response = await service.sendMessage(context, 12, { message: '本月怎么样' }); // BQ1965
+
+    expect(response).toMatchObject({
+      status: 'completed',
+      adapterMetadata: {
+        decisionCode: 'generic_objective_clarification_required',
+        completion: { status: 'partial', missingCriteria: ['objective'], recoverable: true },
+      },
+    });
+    expect(response.answer).toContain('请补充要检查的业务范围');
+    expect(modelPipeline!.compiler.compile).not.toHaveBeenCalled();
+    expect(modelPipeline!.catalog.listEnabledCapabilities).not.toHaveBeenCalled();
+    expect(trace.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({ stepKey: 'generic_objective_clarification_preflight', status: 'completed' }),
+    );
+  });
+
+  it('does not intercept BQ1965 as a generic first-turn question when usable prior context exists', async () => {
+    const previous = {
+      version: 1,
+      objective: '查看本月实收',
+      definitionRefs: [],
+      metrics: [],
+      dimensions: [],
+      entities: [],
+      intent: 'query',
+      answerShape: 'kpi',
+      resultSets: [],
+      lastCorrections: [],
+      updatedFromRunId: 76,
+      updatedAt: '2026-07-29T00:00:00.000Z',
+    };
+    const conversationContext = {
+      prepareModelTurn: jest.fn().mockResolvedValue({
+        dto: { message: '本月怎么样' }, // BQ1965
+        previous,
+        directives: {
+          mode: 'continue',
+          inherit: ['objective', 'metrics', 'dimensions', 'entities', 'timeRange', 'capability'],
+          doNotInherit: [],
+          corrections: [],
+        },
+      }),
+      updateAfterModelRun: jest.fn().mockResolvedValue(true),
+      updateAfterRun: jest.fn(),
+    };
+    const { prisma, modelPipeline, service } = createService({ modelPipeline: {}, conversationContext });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create.mockResolvedValue({ id: 101 });
+    prisma.brainRun.create.mockResolvedValue({ id: 77 });
+    prisma.brainRun.update.mockResolvedValue({ id: 77 });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+
+    await service.sendMessage(context, 12, { message: '本月怎么样' }); // BQ1965
+
+    expect(modelPipeline!.compiler.compile).toHaveBeenCalledTimes(1);
+  });
+
   it('uses the published model single-tool path after context preparation and persists governed metadata', async () => {
     const { prisma, cognition, roleIntentRouter, trace, modelPipeline, service } = createService({ modelPipeline: {} });
     prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
@@ -1167,10 +1600,23 @@ describe('BrainChatService', () => {
       }),
     );
     expect(roleIntentRouter.route).not.toHaveBeenCalled();
-    expect(trace.recordStep).toHaveBeenCalledWith(expect.objectContaining({ stepKey: 'model_intent_compile' }));
-    expect(trace.recordStep).toHaveBeenCalledWith(expect.objectContaining({ stepKey: 'capability_retrieval' }));
-    expect(trace.recordStep).toHaveBeenCalledWith(expect.objectContaining({ stepKey: 'single_step_plan' }));
-    expect(trace.recordStep).toHaveBeenCalledWith(expect.objectContaining({ stepKey: 'capability_execution' }));
+    for (const stepKey of [
+      'release_runtime_selection',
+      'release_ontology_snapshot_load',
+      'capability_catalog_snapshot',
+      'capability_catalog_discovery',
+      'model_intent_compile',
+      'model_intent_validation',
+      'capability_retrieval',
+      'single_step_plan',
+      'single_step_plan_validation',
+      'capability_execution',
+      'model_answer_compose',
+    ]) {
+      expect(trace.recordStep).toHaveBeenCalledWith(
+        expect.objectContaining({ stepKey, latencyMs: expect.any(Number) }),
+      );
+    }
     expect(prisma.brainRun.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -1198,6 +1644,293 @@ describe('BrainChatService', () => {
             provider: 'openai',
             model: 'gpt-test',
           }),
+        }),
+      }),
+    );
+  });
+
+  it('persists and reuses the exact BQ1933 capability through two BrainChat turns without a model call', async () => {
+    const paidAmountMetricRef = {
+      definitionType: 'metric' as const,
+      definitionKey: 'metric.paid_amount',
+      definitionVersion: 8,
+      definitionFingerprint: '7'.repeat(64),
+      sourceFingerprint: '8'.repeat(64),
+    };
+    const paidAmountMetric = {
+      definitionKey: paidAmountMetricRef.definitionKey,
+      version: paidAmountMetricRef.definitionVersion,
+      definitionFingerprint: paidAmountMetricRef.definitionFingerprint,
+      sourceFingerprint: paidAmountMetricRef.sourceFingerprint,
+      metricKey: 'paid_amount',
+      name: '实收金额',
+      aliases: ['流水'],
+      domain: 'payment',
+      formula: {},
+      source: {},
+      defaultFilters: [],
+      permissions: [],
+      description: '指定周期内当前门店支付成功记录的实收金额',
+    };
+    const snapshot = {
+      productionReady: true as const,
+      fingerprint: '9'.repeat(64),
+      entities: [],
+      relations: [],
+      metrics: [paidAmountMetric],
+      dimensions: [],
+      actions: [],
+    };
+    const card = {
+      ...controlledDomainCard('order_revenue_analysis'),
+      version: 22,
+      name: '订单收入分析',
+      description: '查询当前门店指定周期的实收金额',
+      domains: ['payment'],
+      intents: ['query', 'comparison'],
+      grounding: 'semantic_query' as const,
+      examples: ['先看上周流水'],
+      definitionRefs: [
+        {
+          definitionId: 1,
+          versionId: 8,
+          definitionKey: paidAmountMetricRef.definitionKey,
+          version: paidAmountMetricRef.definitionVersion,
+          definitionFingerprint: paidAmountMetricRef.definitionFingerprint,
+          sourceFingerprint: paidAmountMetricRef.sourceFingerprint,
+        },
+      ],
+    };
+    const competingCard = {
+      ...controlledDomainCard('store_operations_overview'),
+      version: 59,
+      name: '门店经营总览',
+      description: '查询门店综合经营情况',
+      domains: ['payment'],
+      intents: ['query', 'comparison'],
+      grounding: 'db_skill' as const,
+      examples: ['门店经营怎么样'],
+      definitionRefs: [...card.definitionRefs],
+    };
+    let contextSnapshot: unknown = {};
+    let contextVersion = 0;
+    const contextPrisma = {
+      brainConversation: {
+        findUnique: jest.fn(async () => ({ contextSnapshot })),
+        findFirst: jest.fn(async () => ({ contextSnapshot, contextVersion })),
+        update: jest.fn(async ({ data }: any) => {
+          contextSnapshot = data.contextSnapshot;
+          contextVersion = data.contextVersion;
+          return { id: 12, contextSnapshot, contextVersion };
+        }),
+      },
+    };
+    const conversationContext = new BrainConversationContextService(
+      contextPrisma as never,
+      new BrainTimeRangeParserService(),
+    );
+    const aiService = { generateStructured: jest.fn().mockRejectedValue(new Error('BQ1933 must not call the model')) };
+    const realCompiler = new BrainSemanticIntentCompilerService(
+      aiService as never,
+      { runtime: { modelTimeoutMs: 1_000 } } as never,
+      new BrainTimeRangeParserService(),
+    );
+    const firstIntent = {
+      schemaVersion: '1.0' as const,
+      objective: '先看上周流水',
+      domains: ['payment'],
+      intent: 'query' as const,
+      entities: [],
+      metrics: [paidAmountMetricRef],
+      dimensions: [],
+      filters: [],
+      timeRange: { label: '上周', preset: 'last_week', timezone: 'Asia/Shanghai' as const },
+      orderBy: [],
+      answerShape: 'scalar' as const,
+      successCriteria: ['返回上周实收金额'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 1,
+      decisionSummary: '使用实收金额口径。',
+    };
+    const compiler = {
+      compile: jest.fn(async (input: any) =>
+        input.question === '先看上周流水'
+          ? {
+              status: 'completed',
+              intent: firstIntent,
+              provider: 'governed_contract',
+              model: 'metric_phrase_fast_path',
+              usage: {
+                provider: 'governed_contract',
+                model: 'metric_phrase_fast_path',
+                inputTokens: 0,
+                outputTokens: 0,
+              },
+            }
+          : realCompiler.compile(input),
+      ),
+    };
+    const validator = {
+      validate: jest.fn((intent: any) => ({ status: 'valid', intent, snapshotFingerprint: snapshot.fingerprint })),
+    };
+    const retriever = {
+      discover: jest.fn(() => ({
+        status: 'selected',
+        selected: competingCard,
+        topK: [
+          { card: competingCard, score: 0.44, matchedFields: [] },
+          { card, score: 0.34, matchedFields: [] },
+        ],
+        confidence: 0.44,
+        margin: 0.1,
+        reason: 'test',
+      })),
+      retrieve: jest.fn(() => ({
+        status: 'selected',
+        selected: competingCard,
+        topK: [
+          { card: competingCard, score: 0.44, matchedFields: [] },
+          { card, score: 0.34, matchedFields: [] },
+        ],
+        confidence: 0.44,
+        margin: 0.1,
+        reason: 'test',
+      })),
+      retrieveTopKForSupervisor: jest.fn(() => [{ card, score: 1, matchedFields: ['conversation'] }]),
+    };
+    const planner = {
+      plan: jest.fn(({ intent, retrieval }: any) => ({
+        status: 'planned',
+        plan: {
+          schemaVersion: '1.0',
+          planId: `single:${retrieval.selected.key}:v${retrieval.selected.version}`,
+          objective: intent.objective,
+          isSingleStep: true,
+          replanCount: 0,
+          budgetMs: 1_000,
+          nodes: [
+            {
+              id: 'capability_1',
+              capabilityKey: retrieval.selected.key,
+              capabilityVersion: retrieval.selected.version,
+              dependsOn: [],
+              previewOnly: false,
+              args: {
+                objective: intent.objective,
+                entities: intent.entities,
+                metrics: intent.metrics,
+                dimensions: intent.dimensions,
+                filters: intent.filters,
+                ...(intent.timeRange ? { time: intent.timeRange } : {}),
+                ...(intent.comparisonTarget ? { comparisonTarget: intent.comparisonTarget } : {}),
+                orderBy: intent.orderBy,
+              },
+            },
+          ],
+        },
+      })),
+    };
+    const executor = {
+      execute: jest.fn().mockResolvedValue({
+        status: 'completed',
+        answer: '上周实收金额与昨天的对比结果。',
+        citations: [{ sourceType: 'business_definition', sourceId: 'metric.paid_amount@8' }],
+        grounding: 'metric_query',
+        metadata: { resultCount: 1 },
+      }),
+    };
+    const { prisma, cognition, trace, service } = createService({
+      conversationContext,
+      modelPipeline: {
+        compiler,
+        validator,
+        ontology: {
+          getSnapshot: jest.fn(() => snapshot),
+          loadEvaluationSnapshot: jest.fn().mockResolvedValue(snapshot),
+        },
+        catalog: { listEnabledCapabilities: jest.fn().mockResolvedValue([card, competingCard]) },
+        retriever,
+        planner,
+        executor,
+      },
+    });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create.mockResolvedValue({ id: 101 });
+    prisma.brainRun.create.mockResolvedValueOnce({ id: 77 }).mockResolvedValueOnce({ id: 78 });
+    prisma.brainRun.update.mockResolvedValue({});
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+    cognition.understand.mockReturnValue({
+      normalizedText: '流水',
+      terms: [],
+      metrics: [],
+      dimensions: [],
+      entities: [],
+      unsupportedTerms: [],
+      intent: { key: 'metric_query', confidence: 1, reason: 'test' },
+      needsClarification: false,
+    });
+
+    const first = await service.sendMessage(context, 12, {
+      message: '先看上周流水', // BQ1933
+      timezone: 'Asia/Shanghai',
+    });
+    const second = await service.sendMessage(context, 12, {
+      message: '跟昨天比呢', // BQ1933
+      timezone: 'Asia/Shanghai',
+    });
+
+    expect(first).toMatchObject({ capabilityKey: 'order_revenue_analysis', capabilityVersion: 22 });
+    expect(compiler.compile).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        question: '跟昨天比呢', // BQ1933
+        conversationSlots: expect.objectContaining({
+          modelContext: expect.objectContaining({
+            metrics: [paidAmountMetricRef],
+            capability: { key: 'order_revenue_analysis', version: 22 },
+          }),
+          turnDirectives: expect.objectContaining({
+            inherit: expect.arrayContaining(['objective', 'metrics', 'timeRange', 'capability']),
+            resolve: { comparisonTarget: expect.objectContaining({ label: '昨天' }) },
+          }),
+        }),
+        capabilitySummaries: expect.arrayContaining([expect.objectContaining({ key: 'order_revenue_analysis' })]),
+      }),
+    );
+    expect(second).toMatchObject({
+      status: 'completed',
+      model: 'conversation_continuation_fast_path',
+      capabilityKey: 'order_revenue_analysis',
+      capabilityVersion: 22,
+      semanticIntent: {
+        objective: '先看上周流水',
+        intent: 'comparison',
+        metrics: [paidAmountMetricRef],
+        timeRange: { preset: 'last_week', label: '上周' },
+        comparisonTarget: { type: 'time', timeRange: { preset: 'yesterday', label: '昨天' } },
+        missingSlots: [],
+      },
+    });
+    expect(aiService.generateStructured).not.toHaveBeenCalled();
+    expect(retriever.retrieve).not.toHaveBeenCalled();
+    expect(validator.validate).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        metrics: [paidAmountMetricRef],
+        comparisonTarget: { type: 'time', timeRange: expect.objectContaining({ label: '昨天' }) },
+      }),
+      expect.anything(),
+      snapshot,
+    );
+    expect(trace.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        runId: 78,
+        stepKey: 'model_conversation_context_read',
+        output: expect.objectContaining({
+          metricCount: 1,
+          capabilityKey: 'order_revenue_analysis',
+          capabilityVersion: 22,
+          hasComparisonTarget: true,
         }),
       }),
     );
@@ -1371,6 +2104,133 @@ describe('BrainChatService', () => {
         stepKey: 'business_semantic_evidence_capture',
         layer: 'semantic',
         status: 'failed',
+        latencyMs: expect.any(Number),
+        output: { timingScope: 'outside_brain_run' },
+      }),
+    );
+  });
+
+  it('publishes the persisted answer before semantic evidence post-processing completes', async () => {
+    let resolveEvidence!: (value: { capturedCount: number }) => void;
+    const evidenceCompletion = new Promise<{ capturedCount: number }>((resolve) => {
+      resolveEvidence = resolve;
+    });
+    const semanticEvidence = {
+      captureModelSuccess: jest.fn().mockReturnValue(evidenceCompletion),
+    };
+    const onAnswerReady = jest.fn();
+    const { prisma, service } = createService({ modelPipeline: {}, semanticEvidence });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create.mockResolvedValue({ id: 101 });
+    prisma.brainRun.create.mockResolvedValue({ id: 77 });
+    prisma.brainRun.update.mockResolvedValue({ id: 77 });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+
+    let settled = false;
+    const responsePromise = service
+      .sendMessage(
+        context,
+        12,
+        { message: '最近30天哪些产品动销好哪些差' }, // BQ1179
+        { onAnswerReady },
+      )
+      .finally(() => {
+        settled = true;
+      });
+
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    expect(onAnswerReady).toHaveBeenCalledWith(expect.objectContaining({ runId: 77, status: 'completed' }));
+    expect(semanticEvidence.captureModelSuccess).toHaveBeenCalled();
+    expect(settled).toBe(false);
+
+    resolveEvidence({ capturedCount: 1 });
+    await expect(responsePromise).resolves.toMatchObject({ runId: 77, status: 'completed' });
+  });
+
+  it('rejects a Supervisor plan whose selected capabilities do not declare the requested staff dimension', async () => {
+    const card = {
+      key: 'customer_facts',
+      version: 12,
+      name: '客户事实查询',
+      description: '客户名单和消费事实',
+      domains: ['customer'],
+      intents: ['query'],
+      readOnly: true,
+      sideEffect: false,
+      requiredPermissions: [],
+      definitionRefs: [definitionRef('dimension.customerName')],
+    };
+    const plan = {
+      schemaVersion: '1.0',
+      planId: 'supervisor:customer-facts-without-staff-attribution',
+      objective: '哪个美容师上个月客户流失偏多',
+      replanCount: 0,
+      budgetMs: 10_000,
+      nodes: [
+        {
+          id: 'customers',
+          capabilityKey: card.key,
+          capabilityVersion: card.version,
+          dependsOn: [],
+          previewOnly: false,
+          args: {},
+        },
+      ],
+    };
+    const orchestrator = {
+      createModelExecutionPlan: jest.fn().mockResolvedValue({
+        status: 'planned',
+        provider: 'openai',
+        model: 'gpt-test',
+        usage: {},
+        plan,
+      }),
+    };
+    const { modelPipeline, service, trace } = createService({ modelPipeline: {}, orchestrator });
+    const intent = {
+      schemaVersion: '1.0',
+      objective: '哪个美容师上个月客户流失偏多',
+      domains: ['customer', 'beautician'],
+      intent: 'query',
+      entities: [],
+      metrics: [],
+      dimensions: [definitionRef('dimension.beauticianName')],
+      filters: [],
+      orderBy: [],
+      answerShape: 'list',
+      successCriteria: ['返回美容师维度的客户变化'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 0.9,
+      decisionSummary: '美容师客户变化',
+    };
+
+    const response = await (service as any).buildModelSupervisorAnswer({
+      context,
+      dto: { message: '哪个美容师上个月客户流失偏多', timezone: 'Asia/Shanghai' }, // BQ0355
+      runId: 77,
+      intent,
+      cards: [card],
+      modelMetadata: (service as any).modelMetadata('retrieve'),
+      deadlineAt: Date.now() + 10_000,
+      topK: [{ card, score: 0.9, matchedFields: ['name'] }],
+    });
+
+    expect(response).toMatchObject({
+      status: 'failed',
+      modelMetadata: { failureCode: 'CAPABILITY_CONTRACT_MISMATCH' },
+    });
+    expect(response.answer).toContain('缺少该问题需要的业务对象或分析维度');
+    expect(modelPipeline!.bounded.execute).not.toHaveBeenCalled();
+    expect(trace.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stepKey: 'supervisor_plan_contract_validation',
+        status: 'failed',
+        output: expect.objectContaining({
+          missingDefinitions: ['dimension.beauticianName'],
+        }),
       }),
     );
   });
@@ -1467,6 +2327,7 @@ describe('BrainChatService', () => {
       status: 'completed',
       plan: workflowPlan,
       replanCount: 0,
+      timings: { capabilityExecutionMs: 8, completionVerificationMs: 3, replanningMs: 0 },
       completion: { status: 'complete', missingCriteria: [], recoverable: false },
       observations: [
         {
@@ -1509,6 +2370,7 @@ describe('BrainChatService', () => {
     expect(trace.recordStep).toHaveBeenCalledWith(
       expect.objectContaining({
         stepKey: 'supervisor_model_plan',
+        latencyMs: expect.any(Number),
         output: expect.objectContaining({
           plan: expect.objectContaining({ planId: 'workflow:gap-fill' }),
           candidateCapabilities: expect.arrayContaining([
@@ -1517,6 +2379,23 @@ describe('BrainChatService', () => {
           ]),
         }),
       }),
+    );
+    expect(trace.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stepKey: 'bounded_dag_execution',
+        latencyMs: expect.any(Number),
+        output: expect.objectContaining({
+          phaseLatencyMs: expect.objectContaining({
+            capabilityExecutionMs: 8,
+            completionVerificationMs: 3,
+            replanningMs: 0,
+            executorOverheadMs: expect.any(Number),
+          }),
+        }),
+      }),
+    );
+    expect(trace.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({ stepKey: 'supervisor_answer_compose', latencyMs: expect.any(Number) }),
     );
   });
 
@@ -1735,6 +2614,299 @@ describe('BrainChatService', () => {
     expect(response.failureCode).toBeNull();
   });
 
+  it('uses one model judgment and skips duplicate Supervisor planning for one fully governed action candidate', async () => {
+    const question = '给舒缓修护面膜下一个采购单，采156件'; // BQ1231
+    const actionRef = {
+      definitionType: 'action' as const,
+      definitionKey: 'action.create_purchase_order',
+      definitionVersion: 1,
+      definitionFingerprint: 'f'.repeat(64),
+      sourceFingerprint: 'e'.repeat(64),
+    };
+    const actionDefinition = {
+      definitionKey: actionRef.definitionKey,
+      version: actionRef.definitionVersion,
+      definitionFingerprint: actionRef.definitionFingerprint,
+      sourceFingerprint: actionRef.sourceFingerprint,
+      domain: 'product',
+      actionKey: actionRef.definitionKey,
+      name: '创建采购单',
+      aliases: ['下采购单'],
+      description: '创建采购单预览',
+      actionClass: 'create',
+      targetEntityRefs: [],
+      inputSlots: [],
+      preconditions: [],
+      preconditionPredicateRefs: [],
+      effects: ['purchase_order_created'],
+      effectAssertionRefs: [{ key: 'purchase_order_created', version: 1, fingerprint: 'c'.repeat(64) }],
+      situationContext: createTestBusinessActionSituationContextProfile(actionRef.definitionKey),
+      modalityPolicy: createTestBusinessActionModalityPolicy(actionRef.definitionKey),
+      informationArtifact: createTestBusinessActionInformationArtifactProfile(actionRef.definitionKey),
+      sideEffectInvariant: createTestBusinessActionSideEffectInvariantProfile(actionRef.definitionKey, {
+        effects: ['purchase_order_created'],
+        effectAssertionRefs: [{ key: 'purchase_order_created', version: 1, fingerprint: 'c'.repeat(64) }],
+      }),
+      triggeredByEventRefs: [],
+      emitsEventRefs: [],
+      riskPolicy: 'high',
+      confirmationPolicy: 'required',
+      idempotencyPolicy: 'required',
+      capabilityBindings: [
+        {
+          capabilityKey: 'purchase_order_draft',
+          bindingMode: 'preview_and_execute',
+          gatewayActionKey: 'create_purchase_order',
+          priority: 0,
+          enabled: true,
+        },
+      ],
+      bindingFingerprint: 'd'.repeat(64),
+    };
+    const card = {
+      key: 'purchase_order_draft',
+      version: 13,
+      name: '采购单预览',
+      description: '生成待确认的采购单预览',
+      domains: ['product'],
+      intents: ['action'],
+      examples: [],
+      synonyms: [],
+      negativeExamples: [],
+      readOnly: false,
+      sideEffect: true,
+      riskLevel: 'high',
+      requiresConfirmation: true,
+      idempotency: 'required',
+      grounding: 'preview_action',
+      definitionRefs: [
+        {
+          definitionId: 91,
+          versionId: 92,
+          definitionKey: actionRef.definitionKey,
+          version: actionRef.definitionVersion,
+          definitionFingerprint: actionRef.definitionFingerprint,
+          sourceFingerprint: actionRef.sourceFingerprint,
+        },
+      ],
+      requiredPermissions: [],
+      allowedRoles: [],
+      inputSchema: {},
+      outputSchema: {},
+      successSchema: {},
+      timeoutMs: 10_000,
+      sourceFingerprint: 'a'.repeat(64),
+    };
+    const orchestrator = { createModelExecutionPlan: jest.fn() };
+    const { prisma, modelPipeline, service } = createService({ modelPipeline: {}, orchestrator });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create.mockResolvedValue({ id: 101 });
+    prisma.brainRun.create.mockResolvedValue({ id: 77 });
+    prisma.brainRun.update.mockResolvedValue({ id: 77 });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+    modelPipeline!.catalog.listEnabledCapabilities.mockResolvedValue([card]);
+    const actionSnapshot = {
+      productionReady: true,
+      fingerprint: 'b'.repeat(64),
+      entities: [],
+      relations: [],
+      metrics: [],
+      dimensions: [],
+      actions: [actionDefinition],
+    };
+    modelPipeline!.ontology.getSnapshot.mockReturnValue(actionSnapshot as never);
+    modelPipeline!.ontology.loadEvaluationSnapshot.mockResolvedValue(actionSnapshot as never);
+    modelPipeline!.compiler.compile.mockResolvedValue({
+      status: 'completed',
+      provider: 'openai',
+      model: 'gpt-test',
+      usage: {},
+      intent: {
+        schemaVersion: '1.1',
+        objective: question,
+        domains: ['product'],
+        intent: 'action',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'action_preview',
+        actionRef,
+        actionPolarity: 'affirmative',
+        actionModality: 'request',
+        actionSlots: [
+          { slotKey: 'product', source: 'user', rawValue: '舒缓修护面膜', confidence: 0.99 },
+          { slotKey: 'quantity', source: 'user', numericValue: 156, unit: '件', confidence: 0.99 },
+        ],
+        successCriteria: ['生成待确认采购单预览'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.95,
+        decisionSummary: '采购单预览',
+      },
+    } as never);
+    modelPipeline!.retriever.retrieve.mockReturnValue({
+      status: 'selected',
+      selected: card,
+      topK: [{ card, score: 1, matchedFields: ['action_binding'] }],
+      confidence: 1,
+      margin: 1,
+      reason: 'action_binding_selected',
+    } as never);
+    modelPipeline!.planner.plan.mockReturnValue({
+      status: 'planned',
+      plan: {
+        schemaVersion: '1.0',
+        planId: 'single:purchase_order_draft:v13',
+        objective: question,
+        isSingleStep: true,
+        replanCount: 0,
+        budgetMs: 11_000,
+        nodes: [
+          {
+            id: 'capability_1',
+            capabilityKey: card.key,
+            capabilityVersion: card.version,
+            dependsOn: [],
+            previewOnly: true,
+            args: { objective: question, entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+          },
+        ],
+      },
+    } as never);
+    modelPipeline!.planValidator.validate.mockImplementation(({ plan }) => plan as never);
+    modelPipeline!.executor.execute.mockResolvedValue({
+      status: 'completed',
+      answer: '采购单预览已生成，确认前不会写入。',
+      citations: [{ sourceType: 'skill', sourceId: 'inventory_purchase_order_preview', label: '采购单执行预览' }],
+      suggestedActions: [
+        {
+          actionId: 'purchase-preview-1',
+          actionType: 'create_purchase_order',
+          riskLevel: 'high',
+          requiresConfirmation: true,
+          summary: '采购单待确认预览',
+        },
+      ],
+      grounding: 'preview_action',
+      metadata: {},
+    });
+
+    const actionContext = {
+      ...context,
+      governanceEvalReleaseSnapshot: {
+        releaseId: 417,
+        releaseStatus: 'draft',
+        releaseFingerprint: '9'.repeat(64),
+        declaredMode: 'model',
+        mode: 'model',
+        resourceVersionIds: [92],
+        capabilityKeys: [card.key],
+        capabilityCandidates: [card],
+      },
+    } as unknown as BrainRequestContext;
+    const response = await service.sendMessage(actionContext, 12, { message: question });
+
+    expect(response).toMatchObject({ status: 'completed', grounding: 'preview_action' });
+    expect(modelPipeline!.compiler.compile).toHaveBeenCalledTimes(1);
+    expect(modelPipeline!.retriever.retrieve).toHaveBeenCalledWith(
+      expect.objectContaining({ actionDefinition: expect.objectContaining({ actionKey: actionRef.definitionKey }) }),
+    );
+    expect(modelPipeline!.planner.plan).toHaveBeenCalledTimes(1);
+    expect(modelPipeline!.executor.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionProvenance: expect.objectContaining({
+          schemaVersion: '1.0',
+          actionRef,
+          actionBindingFingerprint: 'd'.repeat(64),
+          actionSituationContextProfileFingerprint: actionDefinition.situationContext.fingerprint,
+          actionModalityPolicyFingerprint: actionDefinition.modalityPolicy.fingerprint,
+          actionInformationArtifactProfileFingerprint: actionDefinition.informationArtifact.fingerprint,
+          actionSideEffectInvariantProfileFingerprint: actionDefinition.sideEffectInvariant.fingerprint,
+          ontologySnapshotFingerprint: 'b'.repeat(64),
+          situationContext: expect.objectContaining({
+            profileFingerprint: actionDefinition.situationContext.fingerprint,
+            runId: 77,
+            conversationId: 12,
+            storeId: 2,
+            actorUserId: 9,
+            timezone: 'Asia/Shanghai',
+            qualifiedRole: 'store_manager',
+          }),
+          informationArtifacts: [],
+          capability: {
+            key: 'purchase_order_draft',
+            version: 13,
+            sourceFingerprint: 'a'.repeat(64),
+          },
+          gatewayActionKey: 'create_purchase_order',
+          release: {
+            releaseId: 417,
+            releaseFingerprint: '9'.repeat(64),
+          },
+        }),
+      }),
+    );
+    expect(orchestrator.createModelExecutionPlan).not.toHaveBeenCalled();
+  });
+
+  it('returns a deterministic no-op for a model-judged negated action intent', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const actionRef = {
+      definitionType: 'action' as const,
+      definitionKey: 'action.create_purchase_order',
+      definitionVersion: 1,
+      definitionFingerprint: 'f'.repeat(64),
+      sourceFingerprint: 'e'.repeat(64),
+    };
+    const negatedResponse = (service as any).answerFromNegatedActionIntent({
+      intent: {
+        schemaVersion: '1.1',
+        objective: '别下采购单',
+        domains: ['product'],
+        intent: 'action',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'action_preview',
+        actionRef,
+        actionPolarity: 'negated',
+        actionModality: 'request',
+        actionSlots: [],
+        successCriteria: [],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.98,
+        decisionSummary: '用户明确否定创建采购单。',
+      },
+      snapshot: { actions: [{ ...actionRef, name: '创建采购单' }] },
+      modelMetadata: {},
+    });
+
+    expect(negatedResponse).toMatchObject({
+      status: 'completed',
+      grounding: 'none',
+      suggestedActions: [],
+      adapterMetadata: {
+        decisionCode: 'negated_action_noop',
+        businessStateChanged: false,
+        executionStatus: 'not_executed',
+        completion: { status: 'complete', recoverable: false },
+      },
+    });
+    expect(negatedResponse.answer).toContain('未生成动作预览');
+  });
+
+  it('does not retain the legacy low-confidence controlled-action promotion hook', () => {
+    const { service } = createService({ modelPipeline: {} });
+    expect((service as any).promoteModelResolvedControlledActionRetrieval).toBeUndefined();
+  });
+
   it('falls back to Supervisor when a multi-domain diagnosis has no single hard-filter match', async () => {
     const card = {
       key: 'finance_risk_overview',
@@ -1949,12 +3121,60 @@ describe('BrainChatService', () => {
       expect.objectContaining({
         question: '这个月呢',
         conversationSlots: expect.objectContaining({ modelContext: expect.objectContaining({ intent: 'ranking' }) }),
+        rankedCapabilityKeys: ['product_sales_ranking'],
       }),
     );
     const compilerInput = modelPipeline!.compiler.compile.mock.calls[0][0];
     expect(compilerInput.conversationSlots).not.toHaveProperty('roleHint');
     expect(compilerInput.conversationSlots).not.toHaveProperty('metrics');
     expect(JSON.stringify(compilerInput.conversationSlots)).not.toContain('paid_revenue');
+  });
+
+  it('passes catalog ranking to the compiler without promoting a clarify result to a preferred capability', async () => {
+    const { prisma, modelPipeline, service } = createService({ modelPipeline: {} });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create.mockResolvedValue({ id: 101 });
+    prisma.brainRun.create.mockResolvedValue({ id: 77 });
+    prisma.brainRun.update.mockResolvedValue({ id: 77 });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+    const orderCard = {
+      key: 'order_revenue_analysis',
+      version: 22,
+      name: '订单收入分析',
+      description: '按支付方式查询实收',
+      domains: ['payment'],
+      intents: ['query'],
+      readOnly: true,
+      sideEffect: false,
+      requiredPermissions: [],
+    };
+    const financeCard = {
+      ...orderCard,
+      key: 'finance_payment_breakdown',
+      version: 13,
+      name: '支付拆分',
+    };
+    modelPipeline!.catalog.listEnabledCapabilities.mockResolvedValue([financeCard, orderCard]);
+    modelPipeline!.retriever.discover.mockReturnValue({
+      status: 'clarify',
+      selected: undefined,
+      topK: [
+        { card: orderCard, score: 0.4594, matchedFields: ['description'] },
+        { card: financeCard, score: 0.4317, matchedFields: ['description'] },
+      ],
+      confidence: 0.4594,
+      margin: 0.0277,
+      reason: 'catalog_margin_below_threshold',
+    });
+
+    await service.sendMessage(context, 12, { message: '今天各支付方式的金额分别多少' }); // BQ0705
+
+    expect(modelPipeline!.compiler.compile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rankedCapabilityKeys: ['order_revenue_analysis', 'finance_payment_breakdown'],
+      }),
+    );
+    expect(modelPipeline!.compiler.compile.mock.calls[0][0]).not.toHaveProperty('preferredCapabilityKey');
   });
 
   it('drops stale model context before compilation and records a controlled trace code', async () => {
@@ -1991,6 +3211,13 @@ describe('BrainChatService', () => {
         layer: 'memory',
         status: 'completed',
         output: { code: 'MODEL_CONTEXT_STALE' },
+      }),
+    );
+    expect(trace.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stepKey: 'model_conversation_context_read',
+        status: 'completed',
+        latencyMs: expect.any(Number),
       }),
     );
   });
@@ -3134,7 +4361,7 @@ describe('BrainChatService', () => {
     expect(onAnswerReady.mock.invocationCallOrder[0]).toBeGreaterThan(
       prisma.brainMessage.create.mock.invocationCallOrder.at(-1)!,
     );
-    expect(onAnswerReady.mock.invocationCallOrder[0]).toBeGreaterThan(
+    expect(onAnswerReady.mock.invocationCallOrder[0]).toBeLessThan(
       prisma.brainConversation.update.mock.invocationCallOrder[0],
     );
   });
@@ -3255,6 +4482,19 @@ describe('BrainChatService', () => {
         }),
       );
       expect(JSON.stringify(trace.recordStep.mock.calls)).not.toContain('raw');
+      const timedFailureStep =
+        kind === 'unavailable'
+          ? 'model_intent_compile'
+          : kind === 'invalid'
+            ? 'model_intent_validation'
+            : kind === 'none' || kind === 'clarify'
+              ? 'capability_retrieval'
+              : kind === 'plan'
+                ? 'single_step_plan'
+                : 'capability_execution';
+      expect(trace.recordStep).toHaveBeenCalledWith(
+        expect.objectContaining({ stepKey: timedFailureStep, latencyMs: expect.any(Number) }),
+      );
       if (kind === 'unavailable') {
         expect(trace.recordStep).toHaveBeenCalledWith(
           expect.objectContaining({ output: expect.objectContaining({ diagnosticCode: 'PROVIDER_UNAVAILABLE' }) }),
@@ -3262,6 +4502,33 @@ describe('BrainChatService', () => {
       }
     },
   );
+
+  it('records the safe answer-contract suffix without exposing an arbitrary execution error', async () => {
+    const { prisma, trace, modelPipeline, service } = createService({ modelPipeline: {} });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create.mockResolvedValue({ id: 101 });
+    prisma.brainRun.create.mockResolvedValue({ id: 77 });
+    prisma.brainRun.update.mockResolvedValue({ id: 77 });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+    modelPipeline!.executor.execute.mockRejectedValue(
+      new Error('brain_response_answer_contract_mismatch:list:rows'),
+    );
+
+    const response = await service.sendMessage(context, 12, { message: '本月商品销售排行' });
+
+    expect(response).toMatchObject({ status: 'failed', failureCode: 'CAPABILITY_EXECUTION_FAILED' });
+    expect(response.answer).not.toContain('list:rows');
+    expect(trace.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stepKey: 'capability_execution',
+        output: expect.objectContaining({
+          code: 'CAPABILITY_EXECUTION_FAILED',
+          diagnosticCode: 'BRAIN_RESPONSE_ANSWER_CONTRACT_MISMATCH',
+          diagnosticDetail: 'brain_response_answer_contract_mismatch:list:rows',
+        }),
+      }),
+    );
+  });
 
   it('evaluates a draft release with its capability snapshots instead of the active catalog', async () => {
     const candidate = { key: 'customer_facts', version: 1 };
@@ -3294,6 +4561,147 @@ describe('BrainChatService', () => {
       expect.any(Object),
       expect.any(Object),
       expect.objectContaining({ fingerprint: 'evaluation-snapshot-1' }),
+    );
+  });
+
+  it('preloads the release capability catalog in parallel with the ontology snapshot', async () => {
+    const projectEntityRef = {
+      definitionKey: 'entity.project',
+      version: 1,
+      definitionFingerprint: '1'.repeat(64),
+      sourceFingerprint: '2'.repeat(64),
+    };
+    const projectMetricRef = {
+      definitionKey: 'metric.project_service_count',
+      version: 2,
+      definitionFingerprint: '3'.repeat(64),
+      sourceFingerprint: '4'.repeat(64),
+    };
+    const candidate = {
+      key: 'project_service_ranking',
+      version: 2,
+      definitionRefs: [projectEntityRef, projectMetricRef],
+    };
+    const releaseService = {
+      resolveRuntimeMode: jest.fn().mockResolvedValue({
+        mode: 'model',
+        release: { id: 21, status: 'active' },
+        capabilityCandidates: [candidate],
+      }),
+    };
+    const { prisma, trace, modelPipeline, service } = createService({ modelPipeline: {}, releaseService });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create.mockResolvedValue({ id: 101 });
+    prisma.brainRun.create.mockResolvedValue({ id: 77 });
+    prisma.brainRun.update.mockResolvedValue({ id: 77 });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+    modelPipeline!.compiler.compile.mockResolvedValue({
+      status: 'completed',
+      provider: 'governed_contract',
+      model: 'test',
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      intent: {
+        schemaVersion: '1.0',
+        objective: '查询本月项目销量排行',
+        domains: ['project', 'service'],
+        intent: 'ranking',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        limit: 10,
+        answerShape: 'ranking',
+        successCriteria: ['返回项目排行'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 1,
+        decisionSummary: '项目销量排行',
+      },
+    } as never);
+    modelPipeline!.planner.plan.mockReturnValue({
+      status: 'planned',
+      plan: {
+        schemaVersion: '1.0',
+        planId: 'single:project_service_ranking:v2',
+        objective: '查询本月项目销量排行',
+        isSingleStep: true,
+        replanCount: 0,
+        budgetMs: 1000,
+        nodes: [
+          {
+            id: 'capability_1',
+            capabilityKey: 'project_service_ranking',
+            capabilityVersion: 2,
+            dependsOn: [],
+            previewOnly: false,
+            args: {
+              objective: '查询本月项目销量排行',
+              entities: [],
+              metrics: [],
+              dimensions: [],
+              filters: [],
+              orderBy: [],
+            },
+          },
+        ],
+      },
+    } as never);
+    modelPipeline!.executor.execute.mockResolvedValue({
+      status: 'completed',
+      answer: '项目销量排行：补水护理第一。',
+      citations: [{ sourceType: 'business_definition', sourceId: 'metric.project_service_count@2' }],
+      grounding: 'metric_query',
+      metadata: { resultCount: 1 },
+    });
+    const events: string[] = [];
+    let resolveCatalog!: (value: readonly any[]) => void;
+    let resolveOntology!: (value: any) => void;
+    const catalogLoading = new Promise<readonly any[]>((resolve) => {
+      resolveCatalog = resolve;
+    });
+    const ontologyLoading = new Promise<any>((resolve) => {
+      resolveOntology = resolve;
+    });
+    modelPipeline!.catalog.listEnabledCapabilities.mockImplementation(() => {
+      events.push('catalog-start');
+      return catalogLoading;
+    });
+    modelPipeline!.ontology.loadEvaluationSnapshot.mockImplementation(() => {
+      events.push('ontology-start');
+      return ontologyLoading;
+    });
+
+    const responseLoading = service.sendMessage(context, 12, {
+      message: '本月各项目的销量排行', // BQ0500
+      timezone: 'Asia/Shanghai',
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(events).toEqual(['catalog-start', 'ontology-start']);
+
+    resolveOntology({ fingerprint: 'evaluation-snapshot-1', entities: [], relations: [], metrics: [], dimensions: [] });
+    resolveCatalog([
+      {
+        key: 'project_service_ranking',
+        version: 2,
+        name: '项目服务排行',
+        description: '按项目统计服务销量排行',
+        domains: ['project', 'service'],
+        intents: ['ranking'],
+        readOnly: true,
+        sideEffect: false,
+        requiredPermissions: [],
+        definitionRefs: [projectEntityRef, projectMetricRef],
+      },
+    ]);
+    await expect(responseLoading).resolves.toMatchObject({ status: 'completed' });
+    expect(modelPipeline!.catalog.listEnabledCapabilities).toHaveBeenCalledTimes(1);
+    expect(trace.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stepKey: 'capability_catalog_snapshot',
+        output: expect.objectContaining({ preloadStartedBeforeOntologySnapshot: true }),
+      }),
     );
   });
 
@@ -4457,6 +5865,130 @@ describe('BrainChatService', () => {
     ]);
   });
 
+  it('preserves governed finance order-profit metrics when the finance risk card omits metric refs', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const question = '2026年6月30日产品订单的成本和毛利';
+    const productOrderCostMetric = definitionRef('metric.product_order_total_cost_amount');
+    const productOrderGrossProfitMetric = definitionRef('metric.product_order_gross_profit_amount');
+    const intent = {
+      schemaVersion: '1.0',
+      objective: question,
+      domains: ['finance', 'order', 'product_order'],
+      intent: 'query',
+      entities: [],
+      metrics: [productOrderCostMetric, productOrderGrossProfitMetric],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'scalar',
+      successCriteria: ['执行已发布能力 finance_risk_overview 并返回可追溯结果'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 1,
+      decisionSummary: '订单利润指标唯一匹配已发布能力 finance_risk_overview。',
+    };
+
+    const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
+      intent,
+      question,
+      cards: [
+        {
+          key: 'finance_risk_overview',
+          version: 4,
+          name: '财务经营风险概览',
+          description: '查询订单粒度收入、成本和利润。',
+          domains: ['finance', 'order', 'product_order'],
+          intents: ['query', 'diagnosis'],
+          examples: [question],
+          synonyms: ['订单成本毛利'],
+          readOnly: true,
+          sideEffect: false,
+          grounding: 'domain_service',
+          definitionRefs: [],
+        },
+      ],
+    });
+
+    expect(normalized.metrics).toEqual([
+      expect.objectContaining({ definitionKey: 'metric.product_order_total_cost_amount' }),
+      expect.objectContaining({ definitionKey: 'metric.product_order_gross_profit_amount' }),
+    ]);
+    expect(normalized.ambiguities).toEqual([]);
+    expect(normalized.missingSlots).toEqual([]);
+    expect(normalized.assumptions).toContain('能力 finance_risk_overview 将采用并披露已治理的默认分析口径。');
+  });
+
+  it('prefers finance risk over customer facts for governed staff commission composition metrics', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const question = '顾然2026年6月22日至28日的提成构成';
+    const intent = {
+      schemaVersion: '1.0',
+      objective: question,
+      domains: ['finance', 'staff', 'beautician'],
+      intent: 'query',
+      entities: [],
+      metrics: [definitionRef('metric.staff_commission_component_amount')],
+      dimensions: [definitionRef('dimension.commissionType')],
+      filters: [],
+      orderBy: [],
+      answerShape: 'list',
+      successCriteria: ['返回提成构成'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 1,
+      decisionSummary: '查询指定美容师提成构成',
+    };
+
+    const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
+      intent,
+      question,
+      cards: [
+        {
+          key: 'customer_facts',
+          version: 60,
+          name: '客户事实',
+          description: '客户相关事实查询',
+          domains: ['customer', 'project', 'reservation', 'beautician'],
+          intents: ['query'],
+          examples: [question],
+          synonyms: ['客户事实'],
+          readOnly: true,
+          sideEffect: false,
+          grounding: 'domain_service',
+          definitionRefs: [],
+        },
+        {
+          key: 'finance_risk_overview',
+          version: 4,
+          name: '财务经营风险概览',
+          description: '查询员工提成构成',
+          domains: ['finance'],
+          intents: ['query'],
+          examples: [question],
+          synonyms: ['提成构成'],
+          readOnly: true,
+          sideEffect: false,
+          grounding: 'domain_service',
+          definitionRefs: [
+            definitionRef('metric.paid_amount'),
+            definitionRef('dimension.paymentMethod'),
+            definitionRef('dimension.productId'),
+            definitionRef('dimension.productName'),
+            definitionRef('dimension.projectName'),
+            definitionRef('entity.product'),
+            definitionRef('entity.project'),
+          ],
+        },
+      ],
+    });
+
+    expect(normalized.metrics).toEqual([expect.objectContaining({ definitionKey: 'metric.staff_commission_component_amount' })]);
+    expect(normalized.dimensions).toEqual([expect.objectContaining({ definitionKey: 'dimension.commissionType' })]);
+    expect(normalized.entities).toEqual([]);
+  });
+
   it('removes unsupported model-added metrics from a governed procurement recommendation', () => {
     const { service } = createService({ modelPipeline: {} });
     const salesMetric = definitionRef('metric.product_sales_quantity');
@@ -4611,6 +6143,92 @@ describe('BrainChatService', () => {
     expect(normalized.assumptions).toContain('能力 inventory_procurement_advice 将采用并披露已治理的默认分析口径。');
   });
 
+  it('prefers inventory risk ranking for explicit stock-risk questions', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const question = '2026年6月哪些产品缺货了';
+    const riskCard = {
+      key: 'inventory_risk_ranking',
+      domains: ['product'],
+      intents: ['query', 'ranking'],
+      readOnly: true,
+      sideEffect: false,
+      examples: [],
+      synonyms: [],
+      definitionRefs: [definitionRef('metric.stock_risk_score'), definitionRef('entity.product')],
+    };
+    const overviewCard = {
+      key: 'inventory_operations_overview',
+      domains: ['product'],
+      intents: ['query', 'ranking', 'diagnosis', 'recommendation'],
+      readOnly: true,
+      sideEffect: false,
+      examples: ['查询库存风险'],
+      synonyms: ['库存概览'],
+      definitionRefs: [definitionRef('metric.stock_risk_score')],
+    };
+    const matched = (service as any).findInventorySpecificCapabilityCard(question, [overviewCard, riskCard]);
+    expect(matched?.key).toBe('inventory_risk_ranking');
+
+    const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
+      intent: {
+        schemaVersion: '1.0',
+        objective: question,
+        domains: ['product'],
+        intent: 'query',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'list',
+        successCriteria: ['返回缺货商品'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.9,
+        decisionSummary: '库存缺货查询',
+      },
+      question,
+      cards: [overviewCard, riskCard],
+    });
+
+    expect(normalized.intent).toBe('query');
+    expect(normalized.answerShape).toBe('list');
+    expect(normalized.metrics).toEqual([expect.objectContaining({ definitionKey: 'metric.stock_risk_score' })]);
+    expect(normalized.assumptions).toContain('能力 inventory_risk_ranking 将采用并披露已治理的默认分析口径。');
+  });
+
+  it('prefers inventory procurement advice for explicit procurement questions and leaves generic inventory questions alone', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const procurementQuestion = '截至2026/07/29 12:45:54，有多少个供应商';
+    const genericQuestion = '查询库存金额';
+    const procurementCard = {
+      key: 'inventory_procurement_advice',
+      domains: ['product'],
+      intents: ['query', 'recommendation'],
+      readOnly: true,
+      sideEffect: false,
+      examples: [],
+      synonyms: [],
+      definitionRefs: [definitionRef('entity.product'), definitionRef('metric.stock_risk_score')],
+    };
+    const overviewCard = {
+      key: 'inventory_operations_overview',
+      domains: ['product'],
+      intents: ['query', 'ranking', 'diagnosis', 'recommendation'],
+      readOnly: true,
+      sideEffect: false,
+      examples: ['查询库存数量'],
+      synonyms: ['库存概览'],
+      definitionRefs: [definitionRef('metric.stock_risk_score')],
+    };
+
+    expect((service as any).findInventorySpecificCapabilityCard(procurementQuestion, [overviewCard, procurementCard])?.key).toBe(
+      'inventory_procurement_advice',
+    );
+    expect((service as any).findInventorySpecificCapabilityCard(genericQuestion, [overviewCard, procurementCard])).toBeUndefined();
+  });
+
   it('uses the single-capability path for a governed confirmation-gated action preview', () => {
     const { service } = createService({ modelPipeline: {} });
     const card = {
@@ -4627,6 +6245,35 @@ describe('BrainChatService', () => {
 
     expect((service as any).canUseSingleCapabilityFastPath(card, intent)).toBe(true);
   });
+
+  it.each([
+    ['order_revenue_analysis', 'query', ['finance', 'order']],
+    ['finance_payment_breakdown', 'query', ['finance', 'payment']],
+    ['product_sales_ranking', 'ranking', ['product', 'order']],
+    ['project_service_ranking', 'ranking', ['project', 'service']],
+    ['staff_performance_ranking', 'ranking', ['beautician', 'order']],
+    ['inventory_operations_overview', 'diagnosis', ['product']],
+    ['reservation_list', 'query', ['reservation']],
+    ['customer_facts', 'query', ['customer']],
+  ])(
+    'keeps the first performance-batch capability %s eligible for the governed Top-1 path',
+    (key, intentKey, domains) => {
+      const { service } = createService({ modelPipeline: {} });
+      const capabilityCard = {
+        key,
+        readOnly: true,
+        sideEffect: false,
+        requiresConfirmation: false,
+        idempotency: 'not_applicable',
+        grounding: 'domain_service',
+        intents: [intentKey],
+        domains,
+      };
+      const intent = { intent: intentKey, domains };
+
+      expect((service as any).canUseSingleCapabilityFastPath(capabilityCard, intent)).toBe(true);
+    },
+  );
 
   it('preserves an adapter-level action clarification instead of composing a fake completion message', async () => {
     const { prisma, modelPipeline, service } = createService({ modelPipeline: {} });
@@ -4973,6 +6620,105 @@ describe('BrainChatService', () => {
       'dimension.customerId',
       'dimension.projectName',
     ]);
+  });
+
+  it('preserves governed dimension filters when normalizing an exact customer-facts example', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const question = '一共有多少个钻石会员';
+    const customerLevelFilter = {
+      fieldRef: {
+        ...definitionRef('dimension.customerLevel'),
+        definitionVersion: 1,
+        definitionFingerprint: 'a'.repeat(64),
+        sourceFingerprint: 'b'.repeat(64),
+      },
+      operator: 'eq' as const,
+      value: '钻石',
+    };
+    const normalized = (service as any).normalizeGovernedCapabilityExampleIntent({
+      question,
+      snapshot: { entities: [], metrics: [], dimensions: [{ domain: 'customer' }] },
+      cards: [
+        {
+          key: 'customer_facts',
+          domains: ['customer'],
+          intents: ['query'],
+          examples: [question],
+          definitionRefs: [{ ...definitionRef('dimension.customerLevel'), version: 1 }],
+        },
+      ],
+      intent: {
+        schemaVersion: '1.0',
+        objective: question,
+        domains: ['customer'],
+        intent: 'query',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [customerLevelFilter],
+        orderBy: [],
+        answerShape: 'scalar',
+        successCriteria: ['返回钻石会员客户数量'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 1,
+        decisionSummary: '会员等级客户数量',
+      },
+    });
+
+    expect(normalized.filters).toEqual([customerLevelFilter]);
+  });
+
+  it('drops governed but executor-unsupported filters when normalizing an exact customer-facts example', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const question = '哪些客户的综合养护 20 次卡快到期还没预约';
+    const projectNameFilter = {
+      fieldRef: {
+        ...definitionRef('dimension.projectName'),
+        definitionVersion: 1,
+        definitionFingerprint: 'c'.repeat(64),
+        sourceFingerprint: 'd'.repeat(64),
+      },
+      operator: 'eq' as const,
+      value: '综合养护',
+    };
+    const normalized = (service as any).normalizeGovernedCapabilityExampleIntent({
+      question,
+      snapshot: { entities: [], metrics: [], dimensions: [{ domain: 'customer' }, { domain: 'project' }] },
+      cards: [
+        {
+          key: 'customer_facts',
+          domains: ['customer', 'project', 'reservation'],
+          intents: ['query'],
+          examples: [question],
+          definitionRefs: [
+            { ...definitionRef('dimension.customerLevel'), version: 1 },
+            { ...definitionRef('dimension.projectName'), version: 1 },
+          ],
+        },
+      ],
+      intent: {
+        schemaVersion: '1.0',
+        objective: question,
+        domains: ['customer', 'project', 'reservation'],
+        intent: 'query',
+        entities: [],
+        metrics: [],
+        dimensions: [definitionRef('dimension.customerName')],
+        filters: [projectNameFilter],
+        orderBy: [],
+        answerShape: 'list',
+        successCriteria: ['返回客户名单'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 1,
+        decisionSummary: '临期次卡未预约客户名单',
+      },
+    });
+
+    expect(normalized.filters).toEqual([]);
   });
 
   it('normalizes an exact fastest-consumption example to ranking', () => {
@@ -5678,6 +7424,85 @@ describe('BrainChatService', () => {
     expect(normalized.dimensions).toEqual([expect.objectContaining({ definitionKey: 'dimension.beauticianName' })]);
   });
 
+  it('routes staff directory, level, skill and schedule facts to manager_staff_overview', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const managerStaffCard = {
+      key: 'manager_staff_overview',
+      readOnly: true,
+      sideEffect: false,
+      intents: ['query', 'ranking'],
+      domains: ['staff', 'beautician'],
+    };
+    const reservationCard = {
+      key: 'reservation_list',
+      readOnly: true,
+      sideEffect: false,
+      intents: ['query'],
+      domains: ['reservation'],
+    };
+    const projectMarginCard = {
+      key: 'project_margin_analysis',
+      readOnly: true,
+      sideEffect: false,
+      intents: ['query', 'ranking'],
+      domains: ['project'],
+    };
+    const baseIntent = {
+      schemaVersion: '1.0',
+      objective: '',
+      domains: ['beautician', 'project'],
+      intent: 'query',
+      entities: [{ entityType: 'beautician', mention: '唐伊', confidence: 1, source: 'user' }],
+      metrics: [],
+      dimensions: [definitionRef('dimension.beauticianName')],
+      filters: [],
+      orderBy: [],
+      answerShape: 'list',
+      successCriteria: ['返回员工目录事实'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 0.9,
+      decisionSummary: '员工目录事实',
+    };
+
+    for (const question of [
+      '唐伊是什么职级',
+      '唐伊2026年5月的排班是怎样的',
+      '唐伊会做哪些项目',
+      '能做洗面护理的美容师2026年1月1日至6月30日有谁在岗',
+    ]) {
+      expect(
+        (service as any).findManagerStaffDirectoryCapabilityCard(question, baseIntent, [
+          reservationCard,
+          projectMarginCard,
+          managerStaffCard,
+        ]),
+      ).toEqual(managerStaffCard);
+    }
+
+    const normalized = (service as any).normalizeManagerStaffDirectoryCapabilityIntent(
+      {
+        ...baseIntent,
+        dimensions: [
+          definitionRef('dimension.customerLevel'),
+          definitionRef('dimension.customerName'),
+          definitionRef('dimension.projectName'),
+          definitionRef('dimension.beauticianName'),
+        ],
+        filters: [{ fieldRef: definitionRef('dimension.projectName'), operator: 'eq', value: '眼周紧致护理' }],
+        orderBy: [{ definitionRef: definitionRef('dimension.projectName'), direction: 'desc' }],
+        metrics: [definitionRef('metric.staff_service_count')],
+      },
+      managerStaffCard,
+      '唐伊会做哪些项目',
+    );
+    expect(normalized.domains).toEqual(['staff', 'beautician']);
+    expect(normalized.filters).toEqual([]);
+    expect(normalized.orderBy).toEqual([]);
+    expect(normalized.dimensions).toEqual([expect.objectContaining({ definitionKey: 'dimension.beauticianName' })]);
+  });
+
   it('binds a numeric marketing strategy target and discards a model-only customer domain', () => {
     const { service } = createService({ modelPipeline: {} });
     const intent = {
@@ -6338,7 +8163,7 @@ describe('BrainChatService', () => {
     ]);
     expect(domainAdapter.execute).toHaveBeenCalledWith(
       expect.objectContaining({
-        context,
+        context: { ...context, conversationId: 31 },
         runId: 96,
         plan: routePlan,
       }),
@@ -7095,6 +8920,128 @@ describe('BrainChatService', () => {
       select: { id: true, conversationId: true, status: true },
     });
   });
+
+  it('prefers reservation_list for reservation-project ranking intents over front desk example matches', () => {
+    const { service } = createService();
+    const projectNameRef = {
+      definitionType: 'dimension',
+      definitionKey: 'dimension.projectName',
+      definitionVersion: 2,
+      definitionFingerprint: 'f'.repeat(64),
+      sourceFingerprint: 'a'.repeat(64),
+    } as const;
+    const reservationCard = {
+      ...controlledDomainCard('reservation_list'),
+      domains: ['reservation', 'project'],
+      intents: ['query'],
+      definitionRefs: [projectNameRef],
+    };
+    const frontDeskCard = {
+      ...controlledDomainCard('front_desk_operations_overview'),
+      domains: ['reservation', 'project'],
+      intents: ['query'],
+      definitionRefs: [projectNameRef],
+      examples: ['2026年1月1日至6月30日哪个项目预约最多'],
+    };
+    const intent = {
+      schemaVersion: '1.0',
+      objective: '查询今年预约次数最多的服务项目',
+      domains: ['reservation', 'project'],
+      intent: 'ranking',
+      entities: [],
+      metrics: [],
+      dimensions: [projectNameRef],
+      filters: [],
+      orderBy: [],
+      answerShape: 'ranking',
+      successCriteria: [],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 0.96,
+      decisionSummary: 'test',
+    } as any;
+
+    expect(
+      (service as any).findReservationProjectRankingCapabilityCard(intent, [frontDeskCard, reservationCard]),
+    ).toMatchObject({ key: 'reservation_list' });
+  });
+
+  it('prefers reservation_list for reservation count and customer-list questions over front desk overview', () => {
+    const { service } = createService();
+    const reservationCard = {
+      ...controlledDomainCard('reservation_list'),
+      domains: ['reservation', 'customer'],
+      intents: ['query'],
+    };
+    const frontDeskCard = {
+      ...controlledDomainCard('front_desk_operations_overview'),
+      domains: ['reservation', 'customer', 'front_desk'],
+      intents: ['query', 'diagnosis'],
+      examples: ['2026年6月15日至21日有多少个预约', '2026年6月15日至21日的预约都有谁'],
+    };
+
+    expect(
+      (service as any).findGovernedCapabilityExampleCard('2026年6月15日至21日有多少个预约', [
+        frontDeskCard,
+        reservationCard,
+      ]),
+    ).toMatchObject({ key: 'reservation_list' });
+    expect(
+      (service as any).findGovernedCapabilityExampleCard('2026年6月15日至21日的预约都有谁', [
+        frontDeskCard,
+        reservationCard,
+      ]),
+    ).toMatchObject({ key: 'reservation_list' });
+  });
+
+  it('strips service-count metrics when reservation_list answers a reservation-project ranking', () => {
+    const { service } = createService();
+    const projectNameRef = {
+      definitionType: 'dimension',
+      definitionKey: 'dimension.projectName',
+      definitionVersion: 2,
+      definitionFingerprint: 'f'.repeat(64),
+      sourceFingerprint: 'a'.repeat(64),
+    } as const;
+    const projectServiceCountRef = {
+      definitionType: 'metric',
+      definitionKey: 'metric.project_service_count',
+      definitionVersion: 2,
+      definitionFingerprint: 'b'.repeat(64),
+      sourceFingerprint: 'c'.repeat(64),
+    } as const;
+    const card = {
+      ...controlledDomainCard('reservation_list'),
+      domains: ['reservation', 'project'],
+      intents: ['query'],
+      definitionRefs: [projectNameRef],
+    };
+    const intent = {
+      schemaVersion: '1.0',
+      objective: '查询今年预约次数最多的服务项目',
+      domains: ['reservation', 'project', 'order'],
+      intent: 'ranking',
+      entities: [],
+      metrics: [projectServiceCountRef],
+      dimensions: [projectNameRef],
+      filters: [],
+      orderBy: [{ definitionRef: projectServiceCountRef, direction: 'desc' }],
+      answerShape: 'ranking',
+      successCriteria: [],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 0.96,
+      decisionSummary: 'test',
+    } as any;
+
+    expect((service as any).normalizeReservationProjectRankingCapabilityIntent(intent, card)).toMatchObject({
+      domains: ['reservation', 'project'],
+      metrics: [],
+      orderBy: [],
+    });
+  });
 });
 
 describe('findCapabilityContractMissingDefinitions', () => {
@@ -7121,6 +9068,56 @@ describe('findCapabilityContractMissingDefinitions', () => {
     );
 
     expect(missing).toEqual(['dimension.projectName']);
+  });
+
+  it('rejects a same-domain capability that is not explicitly bound to the requested metric', () => {
+    const missing = findCapabilityContractMissingDefinitions(
+      {
+        intent: 'query',
+        metrics: [definitionRef('metric.new_customer_count')],
+        dimensions: [],
+      } as any,
+      {
+        key: 'customer_priority_recommendation',
+        domains: ['customer'],
+        grounding: 'semantic_query',
+        definitionRefs: [definitionRef('metric.follow_up_priority_score')],
+      } as any,
+      '昨天新增了多少个客户',
+    );
+
+    expect(missing).toEqual(['metric.new_customer_count']);
+  });
+
+  it('allows governed order-profit metrics for the finance risk overview contract', () => {
+    const allowed = findCapabilityContractMissingDefinitions(
+      {
+        intent: 'query',
+        metrics: [
+          definitionRef('metric.product_order_total_cost_amount'),
+          definitionRef('metric.product_order_gross_profit_amount'),
+        ],
+        dimensions: [],
+      } as any,
+      { key: 'finance_risk_overview', domains: ['finance', 'order', 'product_order'], definitionRefs: [] } as any,
+      '2026年6月30日产品订单的成本和毛利',
+    );
+
+    expect(allowed).toEqual([]);
+  });
+
+  it('allows governed staff commission composition for the finance risk overview contract', () => {
+    const allowed = findCapabilityContractMissingDefinitions(
+      {
+        intent: 'query',
+        metrics: [definitionRef('metric.staff_commission_component_amount')],
+        dimensions: [definitionRef('dimension.commissionType')],
+      } as any,
+      { key: 'finance_risk_overview', domains: ['finance'], definitionRefs: [] } as any,
+      '顾然2026年6月22日至28日的提成构成',
+    );
+
+    expect(allowed).toEqual([]);
   });
 
   it('allows a governed domain diagnosis to execute supported evidence and disclose unsupported dimensions', () => {
@@ -7162,6 +9159,17 @@ describe('findCapabilityContractMissingDefinitions', () => {
         { definitionRefs: [], domains: ['inventory'] } as any,
       ),
     ).toEqual([]);
+  });
+
+  it('requires Supervisor-selected capabilities to declare model intent dimensions explicitly', () => {
+    expect(
+      findCapabilityContractMissingDefinitions(
+        { metrics: [], dimensions: [definitionRef('dimension.beauticianName')] } as any,
+        { definitionRefs: [], domains: ['beautician'] } as any,
+        '',
+        { requireExplicitIntentDimensions: true },
+      ),
+    ).toEqual(['dimension.beauticianName']);
   });
 
   it('uses explicit business objects in the question when the model omitted a required dimension', () => {
@@ -7219,6 +9227,18 @@ describe('findUnresolvedBusinessDefinitionRequirements', () => {
       findUnresolvedBusinessDefinitionRequirements(
         { metrics: [definitionRef('metric.product_margin_amount')], dimensions: [] } as any,
         '哪些产品毛利最高',
+      ),
+    ).toEqual([]);
+    expect(
+      findUnresolvedBusinessDefinitionRequirements(
+        {
+          metrics: [
+            definitionRef('metric.product_order_total_cost_amount'),
+            definitionRef('metric.product_order_gross_profit_amount'),
+          ],
+          dimensions: [],
+        } as any,
+        '2026年6月30日产品订单的成本和毛利',
       ),
     ).toEqual([]);
   });

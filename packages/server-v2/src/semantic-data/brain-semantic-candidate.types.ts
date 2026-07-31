@@ -90,9 +90,9 @@ export interface CanonicalOntologyCandidateIdentity {
   definitionKey: string;
   domain: string;
   name: string;
-  ownerType: 'ami_core_semantic_scanner';
+  ownerType: 'ami_core_semantic_scanner' | 'ami_core_action_catalog';
   ownerId: string;
-  schemaVersion: '1.0';
+  schemaVersion: '1.0' | '1.1';
 }
 
 export function deriveCanonicalOntologyIdentity(

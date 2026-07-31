@@ -112,7 +112,10 @@ export function createGeneratedCapabilityProposalFingerprint(input: {
 
 export function renderGeneratedCapabilityBindingSource(binding: BrainGeneratedCapabilityExecutorBinding): string {
   const className = `${pascalCase(binding.capabilityKey)}GeneratedCapabilityBinding`;
-  const argsType = renderArgsType(binding.inputSchema);
+  const argsShape = renderArgsType(binding.inputSchema);
+  const argsType = binding.target.parameterCount === 0
+    ? argsShape
+    : `Parameters<TargetMethod>[0] & ${argsShape}`;
   const targetClass = binding.target.className;
   const targetMethod = binding.target.methodName;
   const targetMethodType = `Pick<${targetClass}, '${targetMethod}'>['${targetMethod}']`;
@@ -139,7 +142,7 @@ export function renderGeneratedCapabilityBindingSource(binding: BrainGeneratedCa
     `import type { ${targetClass} } from ${JSON.stringify(binding.targetImportPath)};`,
     `import { assertGeneratedCapabilityArgs } from '../../brain-generated-capability-binding.js';`,
     ``,
-    `export interface GeneratedCapabilityArgs ${argsType}`,
+    `export type GeneratedCapabilityArgs = ${argsType};`,
     ``,
     `type TargetMethod = ${targetMethodType};`,
     ``,

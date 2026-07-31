@@ -9,6 +9,16 @@ export interface InventoryRiskSummary {
   expiringProducts: Array<{ productId: number; name: string; stock: number; expiryDate?: string; estimatedValue: number }>;
 }
 
+export interface InventoryStockRiskFacts {
+  stockoutProducts: Array<{
+    productId: number;
+    name: string;
+    periodEndStock: number;
+    stockoutObservedAt?: string;
+  }>;
+  lowStockProducts: Array<{ productId: number; name: string; currentStock: number; safetyStock: number }>;
+}
+
 export interface InventoryDetailAnalysis {
   totalSku: number;
   totalStockValue: number;
@@ -53,6 +63,7 @@ export interface InventoryProcurementAnalysis {
     productId: number;
     sku: string;
     productName: string;
+    unit?: string;
     currentStock: number;
     safetyStock: number;
     suggestedQty: number;
@@ -61,13 +72,62 @@ export interface InventoryProcurementAnalysis {
     estimatedCost?: number;
     leadDays?: number;
   }>;
-  recentOrders: Array<{ orderNo: string; supplierName: string; amount: number; status: string; createdAt: string }>;
-  suppliers: Array<{ supplierName: string; qualificationStatus: string; leadDays?: number; quoteCount: number }>;
+  recentOrders: Array<{
+    orderNo: string;
+    supplierName: string;
+    amount: number;
+    netAmount: number;
+    status: string;
+    createdAt: string;
+    expectedArrivalDate?: string;
+    receivedAt?: string;
+    settledAt?: string;
+  }>;
+  orderItems?: Array<{
+    orderNo: string;
+    supplierName: string;
+    productName?: string;
+    categoryName: string;
+    quantity: number;
+    amount: number;
+    status: string;
+    createdAt: string;
+  }>;
+  suppliers: Array<{
+    supplierId?: number;
+    supplierName: string;
+    status?: string;
+    qualificationStatus: string;
+    leadDays?: number;
+    quoteCount: number;
+  }>;
 }
+
+export type PurchaseOrderActionTargetResolution =
+  | {
+      ok: true;
+      value: {
+        id: number;
+        orderNo: string;
+        supplier: string;
+        totalAmount: number;
+        status: string;
+        updatedAt: string;
+      };
+    }
+  | { ok: false; reason: string; message: string };
 
 @Injectable()
 export class BrainInventorySkillsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private firstMovementByProduct<T extends { productId: number }>(movements: T[]) {
+    const result = new Map<number, T>();
+    for (const movement of movements) {
+      if (!result.has(movement.productId)) result.set(movement.productId, movement);
+    }
+    return result;
+  }
 
   async buildInventoryRiskSummary(input: { storeId: number; expiringBefore: Date }): Promise<InventoryRiskSummary> {
     const [products, expiringBatches] = await Promise.all([
@@ -122,6 +182,116 @@ export class BrainInventorySkillsService {
       lowStockProducts,
       expiringProducts,
     };
+  }
+
+  async buildInventoryStockRiskFacts(input: {
+    storeId: number;
+    startDate: Date;
+    endExclusive: Date;
+  }): Promise<InventoryStockRiskFacts> {
+    const products = await this.prisma.product.findMany({
+      where: { storeId: input.storeId, deletedAt: null, status: 'active' },
+      select: { id: true, name: true, currentStock: true, safetyStock: true },
+      take: 1000,
+    });
+    const productIds = products.map((product) => product.id);
+    if (!productIds.length) return { stockoutProducts: [], lowStockProducts: [] };
+
+    const [periodMovements, beforeStartMovements, beforeEndMovements] = await Promise.all([
+      this.prisma.stockMovement.findMany({
+        where: {
+          storeId: input.storeId,
+          productId: { in: productIds },
+          occurredAt: { gte: input.startDate, lt: input.endExclusive },
+        },
+        select: { productId: true, beforeStock: true, afterStock: true, occurredAt: true },
+        orderBy: [{ productId: 'asc' }, { occurredAt: 'asc' }],
+        take: 10000,
+      }),
+      this.prisma.stockMovement.findMany({
+        where: {
+          storeId: input.storeId,
+          productId: { in: productIds },
+          occurredAt: { lt: input.startDate },
+        },
+        select: { productId: true, afterStock: true, occurredAt: true },
+        orderBy: [{ occurredAt: 'desc' }],
+        take: 10000,
+      }),
+      this.prisma.stockMovement.findMany({
+        where: {
+          storeId: input.storeId,
+          productId: { in: productIds },
+          occurredAt: { lt: input.endExclusive },
+        },
+        select: { productId: true, afterStock: true, occurredAt: true },
+        orderBy: [{ occurredAt: 'desc' }],
+        take: 10000,
+      }),
+    ]);
+
+    const latestBeforeStart = this.firstMovementByProduct(beforeStartMovements);
+    const latestBeforeEnd = this.firstMovementByProduct(beforeEndMovements);
+    const firstPeriodMovement = new Map<number, (typeof periodMovements)[number]>();
+    const stockoutObservedAt = new Map<number, string>();
+    for (const movement of periodMovements) {
+      if (!firstPeriodMovement.has(movement.productId)) {
+        firstPeriodMovement.set(movement.productId, movement);
+      }
+      if (
+        movement.afterStock != null &&
+        this.toNumber(movement.afterStock) <= 0 &&
+        !stockoutObservedAt.has(movement.productId)
+      ) {
+        stockoutObservedAt.set(movement.productId, movement.occurredAt.toISOString());
+      }
+    }
+
+    const stockoutProducts = products
+      .filter((product) => {
+        const latestBefore = latestBeforeStart.get(product.id);
+        const firstInPeriod = firstPeriodMovement.get(product.id);
+        const currentStock = this.toNumber(product.currentStock);
+        return (
+          currentStock <= 0 ||
+          (latestBefore?.afterStock != null && this.toNumber(latestBefore.afterStock) <= 0) ||
+          (firstInPeriod?.beforeStock != null && this.toNumber(firstInPeriod.beforeStock) <= 0) ||
+          stockoutObservedAt.has(product.id)
+        );
+      })
+      .map((product) => {
+        const latestBeforeEndMovement = latestBeforeEnd.get(product.id);
+        return {
+          productId: product.id,
+          name: product.name,
+          periodEndStock:
+            latestBeforeEndMovement?.afterStock != null
+              ? this.toNumber(latestBeforeEndMovement.afterStock)
+              : this.toNumber(product.currentStock),
+          ...(stockoutObservedAt.get(product.id)
+            ? { stockoutObservedAt: stockoutObservedAt.get(product.id)!.slice(0, 10) }
+            : {}),
+        };
+      })
+      .sort((left, right) => left.productId - right.productId);
+
+    const lowStockProducts = products
+      .map((product) => {
+        const latestBeforeEndMovement = latestBeforeEnd.get(product.id);
+        return {
+          productId: product.id,
+          name: product.name,
+          currentStock:
+            latestBeforeEndMovement?.afterStock != null
+              ? this.toNumber(latestBeforeEndMovement.afterStock)
+              : this.toNumber(product.currentStock),
+          safetyStock: this.toNumber(product.safetyStock),
+        };
+      })
+      .filter((product) => product.safetyStock > 0 && product.currentStock < product.safetyStock)
+      .sort((left, right) => left.productId - right.productId);
+
+    return { stockoutProducts, lowStockProducts };
   }
 
   composeDisposalAdvice() {
@@ -307,21 +477,34 @@ export class BrainInventorySkillsService {
     };
   }
 
-  async buildProcurementAnalysis(input: { storeId: number; keyword?: string }): Promise<InventoryProcurementAnalysis> {
+  async buildProcurementAnalysis(input: {
+    storeId: number;
+    keyword?: string;
+    productId?: number;
+  }): Promise<InventoryProcurementAnalysis> {
     const products = await this.prisma.product.findMany({
       where: {
         storeId: input.storeId,
         deletedAt: null,
         status: 'active',
+        ...(input.productId ? { id: input.productId } : {}),
         ...(input.keyword
           ? { OR: [{ name: { contains: input.keyword } }, { sku: { contains: input.keyword } }, { brand: { contains: input.keyword } }] }
           : {}),
       },
-      select: { id: true, sku: true, name: true, currentStock: true, safetyStock: true, minPurchaseQty: true },
+      select: {
+        id: true,
+        sku: true,
+        name: true,
+        unit: true,
+        currentStock: true,
+        safetyStock: true,
+        minPurchaseQty: true,
+      },
       take: 200,
     });
     const productIds = products.map((product) => product.id);
-    const [mappings, recentOrders] = await Promise.all([
+    const [mappings, recentOrders, procurementItems, suppliers] = await Promise.all([
       productIds.length
         ? this.prisma.supplyCatalogMapping.findMany({
             where: {
@@ -347,6 +530,35 @@ export class BrainInventorySkillsService {
         include: { supplier: { select: { name: true } } },
         orderBy: { createdAt: 'desc' },
         take: 10,
+      }),
+      this.prisma.procurementOrderItem.findMany({
+        where: { order: { storeId: input.storeId } },
+        select: {
+          quantity: true,
+          subtotal: true,
+          order: {
+            select: {
+              orderNo: true,
+              status: true,
+              createdAt: true,
+              supplier: { select: { name: true } },
+            },
+          },
+          product: {
+            select: {
+              name: true,
+              category: { select: { name: true } },
+            },
+          },
+        },
+        orderBy: { order: { createdAt: 'desc' } },
+        take: 200,
+      }),
+      this.prisma.supplySupplier.findMany({
+        where: { deletedAt: null },
+        select: { id: true, name: true, status: true, qualificationStatus: true },
+        orderBy: [{ status: 'asc' }, { id: 'asc' }],
+        take: 200,
       }),
     ]);
     const mappingsByProduct = new Map<number, typeof mappings>();
@@ -383,6 +595,7 @@ export class BrainInventorySkillsService {
           productId: product.id,
           sku: product.sku,
           productName: product.name,
+          unit: product.unit || undefined,
           currentStock,
           safetyStock,
           suggestedQty,
@@ -402,12 +615,107 @@ export class BrainInventorySkillsService {
         orderNo: order.orderNo,
         supplierName: order.supplier.name,
         amount: this.toNumber(order.totalAmount),
+        netAmount: this.toNumber(order.netAmount),
         status: order.status,
         createdAt: order.createdAt.toISOString().slice(0, 10),
+        expectedArrivalDate: order.expectedArrivalDate?.toISOString().slice(0, 10),
+        receivedAt: order.receivedAt?.toISOString().slice(0, 10),
+        settledAt: order.settledAt?.toISOString().slice(0, 10),
       })),
-      suppliers: [...supplierStats.entries()]
-        .map(([supplierName, value]) => ({ supplierName, ...value }))
-        .sort((left, right) => left.qualificationStatus.localeCompare(right.qualificationStatus) || (left.leadDays ?? 999) - (right.leadDays ?? 999)),
+      orderItems: procurementItems.map((item) => ({
+        orderNo: item.order.orderNo,
+        supplierName: item.order.supplier.name,
+        productName: item.product?.name,
+        categoryName: item.product?.category?.name ?? '未分类',
+        quantity: item.quantity,
+        amount: this.toNumber(item.subtotal),
+        status: item.order.status,
+        createdAt: item.order.createdAt.toISOString().slice(0, 10),
+      })),
+      suppliers: suppliers
+        .map((supplier) => {
+          const quoteStats = supplierStats.get(supplier.name);
+          return {
+            supplierId: supplier.id,
+            supplierName: supplier.name,
+            status: supplier.status,
+            qualificationStatus: supplier.qualificationStatus,
+            leadDays: quoteStats?.leadDays,
+            quoteCount: quoteStats?.quoteCount ?? 0,
+          };
+        })
+        .sort(
+          (left, right) =>
+            left.status.localeCompare(right.status) ||
+            left.qualificationStatus.localeCompare(right.qualificationStatus) ||
+            (left.leadDays ?? 999) - (right.leadDays ?? 999) ||
+            left.supplierName.localeCompare(right.supplierName),
+        ),
+    };
+  }
+
+  async resolvePurchaseOrderActionTarget(input: {
+    storeId: number;
+    purchaseOrderId?: number;
+    reference?: string;
+  }): Promise<PurchaseOrderActionTargetResolution> {
+    const reference = input.reference?.trim();
+    const numericReference = Number(reference);
+    const ids = [
+      input.purchaseOrderId,
+      Number.isInteger(numericReference) && numericReference > 0 ? numericReference : undefined,
+    ].filter((value): value is number => Number.isInteger(value) && Number(value) > 0);
+    const orderNumbers = reference && !/^\d+$/u.test(reference) ? [reference] : [];
+    if (!ids.length && !orderNumbers.length) {
+      return {
+        ok: false,
+        reason: 'purchase_order_target_missing',
+        message: '请提供要提交审核的采购单编号，例如 PUR20260730001。',
+      };
+    }
+    const matches = await this.prisma.purchaseOrder.findMany({
+      where: {
+        storeId: input.storeId,
+        OR: [
+          ...(ids.length ? [{ id: { in: [...new Set(ids)] } }] : []),
+          ...(orderNumbers.length ? [{ orderNo: { in: [...new Set(orderNumbers)] } }] : []),
+        ],
+      },
+      select: {
+        id: true,
+        orderNo: true,
+        supplier: true,
+        totalAmount: true,
+        status: true,
+        updatedAt: true,
+      },
+      take: 3,
+    });
+    if (!matches.length) {
+      return {
+        ok: false,
+        reason: 'purchase_order_not_in_context_store',
+        message: '当前门店没有找到该采购单，请核对采购单编号。',
+      };
+    }
+    if (matches.length !== 1) {
+      return {
+        ok: false,
+        reason: 'purchase_order_target_ambiguous',
+        message: '当前目标对应多张采购单，请明确唯一采购单编号。',
+      };
+    }
+    const order = matches[0];
+    return {
+      ok: true,
+      value: {
+        id: order.id,
+        orderNo: order.orderNo,
+        supplier: order.supplier ?? '未记录供应商',
+        totalAmount: this.toNumber(order.totalAmount),
+        status: String(order.status),
+        updatedAt: order.updatedAt.toISOString(),
+      },
     };
   }
 

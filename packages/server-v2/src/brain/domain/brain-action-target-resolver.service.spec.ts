@@ -19,17 +19,42 @@ describe('BrainActionTargetResolverService', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
+  it('accepts a complete customer-create target without querying another store', async () => {
+    await expect(
+      service.revalidateCapabilityTarget({
+        capabilityKey: 'create_customer',
+        storeId: 6,
+        args: { name: '王静怡', phone: '13800138807' },
+        idempotencyKey: 'customer-create-1',
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(prisma.customer.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('rejects a masked customer phone with a completion instruction', async () => {
+    await expect(
+      service.revalidateCapabilityTarget({
+        capabilityKey: 'create_customer',
+        storeId: 6,
+        args: { name: '王静怡', phone: '138xxxx807' },
+      }),
+    ).rejects.toThrow('请补充完整手机号后重新生成客户建档预览');
+  });
+
   it.each(['create_customer_followup', 'create_marketing_touch_draft'])(
     'recovers a committed %s task before mutable customer checks',
     async (capabilityKey) => {
       prisma.terminalFollowUpTask.findUnique.mockResolvedValue({ id: 31 });
 
-      await expect(service.revalidateCapabilityTarget({
-        capabilityKey,
-        storeId: 6,
-        args: { customerId: 11 },
-        idempotencyKey: 'follow-up-action-31',
-      })).resolves.toBeUndefined();
+      await expect(
+        service.revalidateCapabilityTarget({
+          capabilityKey,
+          storeId: 6,
+          args: { customerId: 11 },
+          idempotencyKey: 'follow-up-action-31',
+        }),
+      ).resolves.toBeUndefined();
 
       expect(prisma.customer.findFirst).not.toHaveBeenCalled();
     },
@@ -38,12 +63,14 @@ describe('BrainActionTargetResolverService', () => {
   it('recovers a committed purchase order before mutable product checks', async () => {
     prisma.purchaseOrder.findUnique.mockResolvedValue({ id: 88 });
 
-    await expect(service.revalidateCapabilityTarget({
-      capabilityKey: 'create_purchase_order',
-      storeId: 6,
-      args: { items: [{ productId: 11 }] },
-      idempotencyKey: 'purchase-action-88',
-    })).resolves.toBeUndefined();
+    await expect(
+      service.revalidateCapabilityTarget({
+        capabilityKey: 'create_purchase_order',
+        storeId: 6,
+        args: { items: [{ productId: 11 }] },
+        idempotencyKey: 'purchase-action-88',
+      }),
+    ).resolves.toBeUndefined();
 
     expect(prisma.product.count).not.toHaveBeenCalled();
   });
@@ -52,30 +79,36 @@ describe('BrainActionTargetResolverService', () => {
     prisma.purchaseOrder.findUnique.mockResolvedValue(null);
     prisma.product.count.mockResolvedValue(0);
 
-    await expect(service.revalidateCapabilityTarget({
-      capabilityKey: 'create_purchase_order',
-      storeId: 6,
-      args: { items: [{ productId: 11 }] },
-      idempotencyKey: 'purchase-action-new',
-    })).rejects.toThrow('cross_store_action_target');
+    await expect(
+      service.revalidateCapabilityTarget({
+        capabilityKey: 'create_purchase_order',
+        storeId: 6,
+        args: { items: [{ productId: 11 }] },
+        idempotencyKey: 'purchase-action-new',
+      }),
+    ).rejects.toThrow('cross_store_action_target');
   });
 
   it('resolves one enabled marketing strategy by exact name inside the current store', async () => {
-    prisma.marketingAutomationStrategy.findMany.mockResolvedValue([{
-      id: 12,
-      name: '沉睡客户唤醒',
-      status: 'enabled',
-      executionType: 'manual',
-      ruleRelation: 'AND',
-      actions: [{ channel: 'sms' }],
-      targetCount: 20,
-      lastExecutedAt: new Date('2026-07-10T08:00:00.000Z'),
-    }]);
+    prisma.marketingAutomationStrategy.findMany.mockResolvedValue([
+      {
+        id: 12,
+        name: '沉睡客户唤醒',
+        status: 'enabled',
+        executionType: 'manual',
+        ruleRelation: 'AND',
+        actions: [{ channel: 'sms' }],
+        targetCount: 20,
+        lastExecutedAt: new Date('2026-07-10T08:00:00.000Z'),
+      },
+    ]);
 
-    await expect(service.resolveMarketingStrategy({
-      storeId: 6,
-      message: '执行自动触达策略沉睡客户唤醒',
-    })).resolves.toEqual({
+    await expect(
+      service.resolveMarketingStrategy({
+        storeId: 6,
+        message: '执行自动触达策略沉睡客户唤醒',
+      }),
+    ).resolves.toEqual({
       ok: true,
       value: {
         id: 12,
@@ -88,22 +121,26 @@ describe('BrainActionTargetResolverService', () => {
         lastExecutedAt: '2026-07-10T08:00:00.000Z',
       },
     });
-    expect(prisma.marketingAutomationStrategy.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { storeId: 6 },
-    }));
+    expect(prisma.marketingAutomationStrategy.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { storeId: 6 },
+      }),
+    );
   });
 
   it('does not interpret digits inside a strategy name as a database id', async () => {
-    prisma.marketingAutomationStrategy.findMany.mockResolvedValue([{
-      id: 13,
-      name: '暑期召回策略 2026 第2期',
-      status: 'enabled',
-      executionType: 'manual',
-      ruleRelation: 'AND',
-      actions: [{ channel: 'in_app' }],
-      targetCount: 8,
-      lastExecutedAt: null,
-    }]);
+    prisma.marketingAutomationStrategy.findMany.mockResolvedValue([
+      {
+        id: 13,
+        name: '暑期召回策略 2026 第2期',
+        status: 'enabled',
+        executionType: 'manual',
+        ruleRelation: 'AND',
+        actions: [{ channel: 'in_app' }],
+        targetCount: 8,
+        lastExecutedAt: null,
+      },
+    ]);
 
     const result = await service.resolveMarketingStrategy({
       storeId: 6,
@@ -132,21 +169,27 @@ describe('BrainActionTargetResolverService', () => {
   });
 
   it('revalidates an enabled marketing strategy and safely accepts an existing execution', async () => {
-    prisma.marketingAutomationExecution.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 91, storeId: 6 });
+    prisma.marketingAutomationExecution.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 91, storeId: 6 });
     prisma.marketingAutomationStrategy.findFirst.mockResolvedValue({ id: 12, status: 'enabled' });
 
-    await expect(service.revalidateCapabilityTarget({
-      capabilityKey: 'execute_marketing_strategy',
-      storeId: 6,
-      args: { strategyId: 12, approvedAudienceCount: 20 },
-      idempotencyKey: 'brain-marketing-execution-91',
-    })).resolves.toBeUndefined();
-    await expect(service.revalidateCapabilityTarget({
-      capabilityKey: 'execute_marketing_strategy',
-      storeId: 6,
-      args: { strategyId: 12, approvedAudienceCount: 20 },
-      idempotencyKey: 'brain-marketing-execution-91',
-    })).resolves.toBeUndefined();
+    await expect(
+      service.revalidateCapabilityTarget({
+        capabilityKey: 'execute_marketing_strategy',
+        storeId: 6,
+        args: { strategyId: 12, approvedAudienceCount: 20 },
+        idempotencyKey: 'brain-marketing-execution-91',
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      service.revalidateCapabilityTarget({
+        capabilityKey: 'execute_marketing_strategy',
+        storeId: 6,
+        args: { strategyId: 12, approvedAudienceCount: 20 },
+        idempotencyKey: 'brain-marketing-execution-91',
+      }),
+    ).resolves.toBeUndefined();
 
     expect(prisma.marketingAutomationStrategy.findFirst).toHaveBeenCalledTimes(1);
   });
@@ -158,9 +201,11 @@ describe('BrainActionTargetResolverService', () => {
       ok: true,
       value: { id: 7, name: '张女士', maskedPhone: '***1234' },
     });
-    expect(prisma.customer.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ storeId: 6, deletedAt: null }),
-    }));
+    expect(prisma.customer.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ storeId: 6, deletedAt: null }),
+      }),
+    );
   });
 
   it.each(['把张女士的预约改到明天三点', '帮张女士把预约改到明天三点'])(
@@ -190,13 +235,17 @@ describe('BrainActionTargetResolverService', () => {
   it('resolves a customer by the natural phone-last-four expression', async () => {
     prisma.customer.findMany.mockResolvedValue([{ id: 9, name: '胡静怡', phone: '13800007636' }]);
 
-    await expect(service.resolveCustomer({
-      storeId: 6,
-      message: '手机号后四位是7636，继续生成预览',
-    })).resolves.toMatchObject({ ok: true, value: { id: 9, name: '胡静怡' } });
-    expect(prisma.customer.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ phone: { endsWith: '7636' } }),
-    }));
+    await expect(
+      service.resolveCustomer({
+        storeId: 6,
+        message: '手机号后四位是7636，继续生成预览',
+      }),
+    ).resolves.toMatchObject({ ok: true, value: { id: 9, name: '胡静怡' } });
+    expect(prisma.customer.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ phone: { endsWith: '7636' } }),
+      }),
+    );
   });
 
   it('combines the inherited customer name with the supplied phone tail', async () => {
@@ -208,11 +257,13 @@ describe('BrainActionTargetResolverService', () => {
       customerName: '胡静怡',
     });
 
-    expect(prisma.customer.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({
-        AND: [{ name: { contains: '胡静怡' } }, { phone: { endsWith: '7636' } }],
+    expect(prisma.customer.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          AND: [{ name: { contains: '胡静怡' } }, { phone: { endsWith: '7636' } }],
+        }),
       }),
-    }));
+    );
   });
 
   it('parses a precise relative appointment time but rejects a vague afternoon', () => {
@@ -238,13 +289,85 @@ describe('BrainActionTargetResolverService', () => {
   it('resolves one active reservation for an exact customer', async () => {
     prisma.customer.findMany.mockResolvedValue([{ id: 7, name: '张女士', phone: '13800001234' }]);
     prisma.reservation.findMany.mockResolvedValue([
-      { id: 18, date: new Date('2026-07-12T00:00:00.000Z'), startTime: '10:00', status: 'confirmed', project: { name: '补水护理' } },
+      {
+        id: 18,
+        date: new Date('2026-07-12T00:00:00.000Z'),
+        startTime: '10:00',
+        status: 'confirmed',
+        project: { name: '补水护理' },
+      },
     ]);
 
-    await expect(service.resolveReservation({ storeId: 6, message: '把张女士的预约改到明天下午3点' })).resolves.toEqual({
-      ok: true,
-      value: expect.objectContaining({ id: 18, customerId: 7, customerName: '张女士', projectName: '补水护理' }),
+    await expect(service.resolveReservation({ storeId: 6, message: '把张女士的预约改到明天下午3点' })).resolves.toEqual(
+      {
+        ok: true,
+        value: expect.objectContaining({ id: 18, customerId: 7, customerName: '张女士', projectName: '补水护理' }),
+      },
+    );
+  });
+
+  it('resolves a governed reservation instance directly inside the current store', async () => {
+    prisma.reservation.findFirst.mockResolvedValue({
+      id: 18,
+      customerId: 7,
+      date: new Date('2026-07-12T00:00:00.000Z'),
+      startTime: '10:00',
+      customer: { name: '张女士' },
+      project: { name: '补水护理' },
     });
+
+    await expect(
+      service.resolveReservation({
+        storeId: 6,
+        // ami-brain-unit-only: governed instance resolver contract, not a product-eval input.
+        message: '取消它',
+        reservationId: 18,
+        reservationReference: '上一轮第一条预约',
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      value: {
+        id: 18,
+        customerId: 7,
+        customerName: '张女士',
+        projectName: '补水护理',
+        appointmentTime: '2026-07-12T10:00:00',
+      },
+    });
+    expect(prisma.reservation.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 18, storeId: 6 }),
+      }),
+    );
+    expect(prisma.customer.findMany).not.toHaveBeenCalled();
+  });
+
+  it('does not treat a date word alone as enough to choose among multiple reservations', async () => {
+    prisma.customer.findMany.mockResolvedValue([{ id: 7, name: '张女士', phone: '13800001234' }]);
+    prisma.reservation.findMany.mockResolvedValue([
+      {
+        id: 18,
+        date: new Date('2026-07-12T00:00:00.000Z'),
+        startTime: '10:00',
+        status: 'confirmed',
+        project: { name: '补水护理' },
+      },
+      {
+        id: 19,
+        date: new Date('2026-07-12T00:00:00.000Z'),
+        startTime: '16:00',
+        status: 'confirmed',
+        project: { name: '肩颈护理' },
+      },
+    ]);
+
+    await expect(
+      service.resolveReservation({
+        storeId: 6,
+        // ami-brain-unit-only: resolver ambiguity contract, not a product-eval input.
+        message: '把张女士的预约取消，原时间明天下午四点',
+      }),
+    ).resolves.toMatchObject({ ok: false, reason: 'ambiguous_reservation' });
   });
 
   it('resolves only the current beautician own active service task', async () => {
@@ -285,11 +408,13 @@ describe('BrainActionTargetResolverService', () => {
 
   it('revalidates action targets inside the current store before confirmation', async () => {
     prisma.reservation.findFirst.mockResolvedValue({ id: 18 });
-    await expect(service.revalidateCapabilityTarget({
-      capabilityKey: 'reschedule_reservation',
-      storeId: 6,
-      args: { reservationId: 18, appointmentTime: '2026-07-14T15:00:00+08:00' },
-    })).resolves.toBeUndefined();
+    await expect(
+      service.revalidateCapabilityTarget({
+        capabilityKey: 'reschedule_reservation',
+        storeId: 6,
+        args: { reservationId: 18, appointmentTime: '2026-07-14T15:00:00+08:00' },
+      }),
+    ).resolves.toBeUndefined();
     expect(prisma.reservation.findFirst).toHaveBeenCalledWith({
       where: { id: 18, storeId: 6 },
       select: { id: true },
@@ -321,12 +446,14 @@ describe('BrainActionTargetResolverService', () => {
   it('accepts a committed reservation during safe replay before checking mutable targets', async () => {
     prisma.reservation.findUnique.mockResolvedValue({ id: 81 });
 
-    await expect(service.revalidateCapabilityTarget({
-      capabilityKey: 'create_reservation',
-      storeId: 6,
-      idempotencyKey: 'brain-reservation-81',
-      args: { customerId: 7, projectId: 101, appointmentTime: '2026-07-20T15:00:00+08:00' },
-    })).resolves.toBeUndefined();
+    await expect(
+      service.revalidateCapabilityTarget({
+        capabilityKey: 'create_reservation',
+        storeId: 6,
+        idempotencyKey: 'brain-reservation-81',
+        args: { customerId: 7, projectId: 101, appointmentTime: '2026-07-20T15:00:00+08:00' },
+      }),
+    ).resolves.toBeUndefined();
 
     expect(prisma.customer.findFirst).not.toHaveBeenCalled();
     expect(prisma.project.findFirst).not.toHaveBeenCalled();
@@ -334,23 +461,27 @@ describe('BrainActionTargetResolverService', () => {
 
   it('resolves one active customer card, project, usage count and beautician', async () => {
     prisma.customer.findMany.mockResolvedValue([{ id: 7, name: '张女士', phone: '13800001234' }]);
-    prisma.customerCard.findMany.mockResolvedValue([{
-      id: 66,
-      customerId: 7,
-      cardName: '补水护理 10 次卡',
-      totalTimes: 10,
-      remainingTimes: 5,
-      expiryDate: new Date('2026-12-31T00:00:00.000Z'),
-      card: { projects: [{ projectId: 101, projectName: '深层补水护理', timesPerCard: 10 }] },
-    }]);
+    prisma.customerCard.findMany.mockResolvedValue([
+      {
+        id: 66,
+        customerId: 7,
+        cardName: '补水护理 10 次卡',
+        totalTimes: 10,
+        remainingTimes: 5,
+        expiryDate: new Date('2026-12-31T00:00:00.000Z'),
+        card: { projects: [{ projectId: 101, projectName: '深层补水护理', timesPerCard: 10 }] },
+      },
+    ]);
     prisma.project.findFirst.mockResolvedValue({ id: 101, name: '深层补水护理' });
     prisma.cardUsageRecord.aggregate.mockResolvedValue({ _sum: { times: 3 } });
     prisma.beautician.findMany.mockResolvedValue([{ id: 2, name: '王美容师' }]);
 
-    await expect(service.resolveCardUsageTarget({
-      storeId: 6,
-      message: '给张女士的补水护理 10 次卡核销深层补水护理 1 次，王美容师服务',
-    })).resolves.toEqual({
+    await expect(
+      service.resolveCardUsageTarget({
+        storeId: 6,
+        message: '给张女士的补水护理 10 次卡核销深层补水护理 1 次，王美容师服务',
+      }),
+    ).resolves.toEqual({
       ok: true,
       value: {
         customerId: 7,
@@ -383,35 +514,64 @@ describe('BrainActionTargetResolverService', () => {
     prisma.project.findFirst.mockResolvedValue({ id: 101, name: '深层补水护理' });
     prisma.beautician.findFirst.mockResolvedValue({ id: 2 });
 
-    await expect(service.revalidateCapabilityTarget({
-      capabilityKey: 'verify_card_usage',
-      storeId: 6,
-      args: { customerCardId: 66, customerId: 7, projectId: 101, projectName: '深层补水护理', times: 1, beauticianId: 2 },
-    })).resolves.toBeUndefined();
-    expect(prisma.customerCard.findFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: 66, customer: { storeId: 6, deletedAt: null } },
-    }));
+    await expect(
+      service.revalidateCapabilityTarget({
+        capabilityKey: 'verify_card_usage',
+        storeId: 6,
+        args: {
+          customerCardId: 66,
+          customerId: 7,
+          projectId: 101,
+          projectName: '深层补水护理',
+          times: 1,
+          beauticianId: 2,
+        },
+      }),
+    ).resolves.toBeUndefined();
+    expect(prisma.customerCard.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 66, customer: { storeId: 6, deletedAt: null } },
+      }),
+    );
   });
 
   it('rejects a card usage target outside the current store', async () => {
     prisma.customerCard.findFirst.mockResolvedValue(null);
 
-    await expect(service.revalidateCapabilityTarget({
-      capabilityKey: 'verify_card_usage',
-      storeId: 6,
-      args: { customerCardId: 66, customerId: 7, projectId: 101, projectName: '深层补水护理', times: 1, beauticianId: 2 },
-    })).rejects.toThrow('cross_store_action_target');
+    await expect(
+      service.revalidateCapabilityTarget({
+        capabilityKey: 'verify_card_usage',
+        storeId: 6,
+        args: {
+          customerCardId: 66,
+          customerId: 7,
+          projectId: 101,
+          projectName: '深层补水护理',
+          times: 1,
+          beauticianId: 2,
+        },
+      }),
+    ).rejects.toThrow('cross_store_action_target');
   });
 
   it('accepts a committed card usage during safe replay before checking mutable card state', async () => {
     prisma.cardUsageRecord.findUnique.mockResolvedValue({ id: 88 });
 
-    await expect(service.revalidateCapabilityTarget({
-      capabilityKey: 'verify_card_usage',
-      storeId: 6,
-      idempotencyKey: 'brain-action-71',
-      args: { customerCardId: 66, customerId: 7, projectId: 101, projectName: '深层补水护理', times: 10, beauticianId: 2 },
-    })).resolves.toBeUndefined();
+    await expect(
+      service.revalidateCapabilityTarget({
+        capabilityKey: 'verify_card_usage',
+        storeId: 6,
+        idempotencyKey: 'brain-action-71',
+        args: {
+          customerCardId: 66,
+          customerId: 7,
+          projectId: 101,
+          projectName: '深层补水护理',
+          times: 10,
+          beauticianId: 2,
+        },
+      }),
+    ).resolves.toBeUndefined();
 
     expect(prisma.customerCard.findFirst).not.toHaveBeenCalled();
   });

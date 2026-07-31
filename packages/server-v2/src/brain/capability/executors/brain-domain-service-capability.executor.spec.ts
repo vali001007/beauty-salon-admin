@@ -1,5 +1,6 @@
 import { BrainTimeRangeParserService } from '../../cognition/brain-time-range-parser.service.js';
 import type { BrainCapabilityCard } from '../brain-capability.types.js';
+import type { BrainCapabilityExecutionInput } from '../brain-capability-executor.registry.js';
 import { BrainDomainServiceCapabilityExecutor } from './brain-domain-service-capability.executor.js';
 
 describe('BrainDomainServiceCapabilityExecutor store operations', () => {
@@ -82,7 +83,20 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     const executor = new BrainDomainServiceCapabilityExecutor(
       skillRuntime as never,
       {} as never,
-      new BrainTimeRangeParserService(),
+      {
+        parse: jest.fn().mockReturnValue({
+          mentionedTime: true,
+          filters: [],
+          requiresComparison: false,
+          unsupportedExpressions: [],
+          range: {
+            label: '上周',
+            startDate: new Date('2026-07-20T00:00:00.000+08:00'),
+            endDate: new Date('2026-07-26T23:59:59.999+08:00'),
+            granularity: 'week',
+          },
+        }),
+      } as never,
     );
 
     const result = await executor.execute({
@@ -128,7 +142,20 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     const executor = new BrainDomainServiceCapabilityExecutor(
       skillRuntime as never,
       {} as never,
-      new BrainTimeRangeParserService(),
+      {
+        parse: jest.fn().mockReturnValue({
+          mentionedTime: true,
+          filters: [],
+          requiresComparison: false,
+          unsupportedExpressions: [],
+          range: {
+            label: '上周',
+            startDate: new Date('2026-07-20T00:00:00.000+08:00'),
+            endDate: new Date('2026-07-26T23:59:59.999+08:00'),
+            granularity: 'week',
+          },
+        }),
+      } as never,
     );
 
     const result = await executor.execute({
@@ -564,6 +591,221 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     );
   });
 
+  it('executes a published customer-level dimension filter without relying on question keywords', async () => {
+    const customerLevelRef = {
+      definitionId: 143,
+      versionId: 143,
+      definitionKey: 'dimension.customerLevel',
+      version: 1,
+      definitionFingerprint: 'c'.repeat(64),
+      sourceFingerprint: 'd'.repeat(64),
+    };
+    const customerFacts = {
+      getCustomerMemberLevelSummary: jest.fn().mockResolvedValue({
+        memberLevels: ['钻石'],
+        total: 2,
+        rows: [
+          { customerId: 31, customerName: '李女士', memberLevel: '钻石', totalSpent: 8800, lastVisitDate: '2026-07-01' },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      customerFacts as never,
+      new BrainTimeRangeParserService(),
+    );
+    const context = {
+      userId: 9,
+      storeId: 6,
+      visibleStoreIds: [6],
+      roles: ['store_manager'],
+      permissions: ['core:brain:use', 'core:customer:view'],
+      deniedPermissions: [],
+      requestId: 'customer-level-filter-test',
+      timezone: 'Asia/Shanghai',
+    };
+    const filter = {
+      fieldRef: { definitionType: 'dimension', ...customerLevelRef },
+      operator: 'eq',
+      value: '钻石',
+    } as const;
+    const card = { ...storeCard(), key: 'customer_facts', definitionRefs: [customerLevelRef] };
+
+    const scalar = await executor.execute({
+      card,
+      context,
+      runId: 91,
+      question: '给我当前等级客户数量',
+      answerShape: 'scalar',
+      args: {
+        objective: '统计指定会员等级客户数量',
+        entities: [],
+        metrics: [],
+        dimensions: [{ definitionType: 'dimension', ...customerLevelRef }],
+        filters: [filter],
+        orderBy: [],
+      },
+    });
+    const list = await executor.execute({
+      card,
+      context,
+      runId: 92,
+      question: '列出当前等级客户',
+      answerShape: 'list',
+      args: {
+        objective: '列出指定会员等级客户',
+        entities: [],
+        metrics: [],
+        dimensions: [{ definitionType: 'dimension', ...customerLevelRef }],
+        filters: [filter],
+        orderBy: [],
+      },
+    });
+
+    expect(customerFacts.getCustomerMemberLevelSummary).toHaveBeenNthCalledWith(1, 6, ['钻石'], 10);
+    expect(scalar).toMatchObject({
+      answer: '当前门店共有 2 位钻石会员。',
+      metadata: {
+        answerScope: 'customer_member_level_summary',
+        filter: { definitionKey: 'dimension.customerLevel', operator: 'eq', values: ['钻石'] },
+      },
+      blocks: [expect.objectContaining({ kind: 'kpi' })],
+    });
+    expect(scalar.blocks?.some((block) => block.kind === 'table')).toBe(false);
+    expect(list.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'table',
+          rows: [expect.objectContaining({ customerName: '李女士', memberLevel: '钻石' })],
+        }),
+      ]),
+    );
+    await expect(
+      executor.execute({
+        card,
+        context,
+        runId: 93,
+        question: '列出当前等级客户',
+        args: {
+          objective: '列出指定会员等级客户',
+          entities: [],
+          metrics: [],
+          dimensions: [{ definitionType: 'dimension', ...customerLevelRef }],
+          filters: [{ ...filter, operator: 'contains' }],
+          orderBy: [],
+        },
+      }),
+    ).rejects.toThrow('domain_filter_args_unsupported:customer_facts');
+  });
+
+  it('answers customer gold count and list questions with structured KPI/table blocks', async () => {
+    const customerFacts = {
+      getVisitedCustomerSummary: jest.fn().mockResolvedValue({
+        total: 77,
+        rows: [],
+      }),
+      getVisitedMemberTierCustomers: jest.fn().mockResolvedValue({
+        total: 2,
+        minimumMemberLevel: '金卡',
+        tierOrder: ['无', '普通', '普通会员', '银卡', '金卡', '钻石', '钻石会员'],
+        rows: [
+          {
+            customerId: 3807,
+            customerName: '李女士',
+            memberLevel: '金卡',
+            lastVisitDate: '2026-06-28',
+            latestArrivalDate: '2026-06-28',
+            arrivalCount: 1,
+          },
+          {
+            customerId: 3810,
+            customerName: '王女士',
+            memberLevel: '钻石会员',
+            lastVisitDate: '2026-06-27',
+            latestArrivalDate: '2026-06-27',
+            arrivalCount: 1,
+          },
+        ],
+      }),
+      getCardHoldersWithoutVisit: jest.fn().mockResolvedValue({
+        total: 1,
+        cardNameQuery: '综合养护 20 次卡',
+        rows: [
+          {
+            customerId: 3753,
+            customerName: '陈女士',
+            memberLevel: '普通会员',
+            cardName: '综合养护 20 次卡',
+            lastVisitDate: '2026-06-01',
+          },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      customerFacts as never,
+      new BrainTimeRangeParserService(),
+    );
+    const context = {
+      userId: 9,
+      storeId: 6,
+      visibleStoreIds: [6],
+      roles: ['store_manager'],
+      permissions: ['core:brain:use', 'core:customer:view'],
+      deniedPermissions: [],
+      requestId: 'customer-gold-structured-test',
+      timezone: 'Asia/Shanghai',
+    };
+    const args = { objective: '客户事实', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] };
+
+    const count = await executor.execute({
+      card: { ...storeCard(), key: 'customer_facts' },
+      context,
+      runId: 94,
+      question: '2026年6月1日至30日到店的客户有多少',
+      answerShape: 'scalar',
+      args,
+    });
+    const tierSet = await executor.execute({
+      card: { ...storeCard(), key: 'customer_facts' },
+      context,
+      runId: 95,
+      question: '2026年6月22日至28日到店的客户里有哪些是金卡以上',
+      answerShape: 'list',
+      args,
+    });
+    const noVisit = await executor.execute({
+      card: { ...storeCard(), key: 'customer_facts' },
+      context,
+      runId: 96,
+      question: '办了综合养护 20 次卡但2026年6月15日至21日没来的客户名单',
+      answerShape: 'list',
+      args,
+    });
+
+    expect(count.blocks).toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: 'kpi', items: [{ label: '实际到店客户', value: '77 人' }] })]),
+    );
+    expect(tierSet.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'table',
+          columns: expect.arrayContaining(['customerId']),
+          rows: expect.arrayContaining([expect.objectContaining({ customerId: 3807 })]),
+        }),
+      ]),
+    );
+    expect(noVisit.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'table',
+          columns: expect.arrayContaining(['customerId']),
+          rows: expect.arrayContaining([expect.objectContaining({ customerId: 3753 })]),
+        }),
+      ]),
+    );
+  });
+
   it('returns structured clarification when an exact customer mention matches multiple records', async () => {
     const customerFacts = {
       answerCustomerQuestion: jest
@@ -991,6 +1233,67 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       cohortDefinition: 'Customer.createdAt within requested period',
       conversionDefinition: 'first valid positive-net ProductOrder between customer creation and period end',
     });
+  });
+
+  it('returns a cited KPI for a scalar new-customer count query', async () => {
+    const customerFacts = {
+      getNewCustomerConversionSummary: jest.fn().mockResolvedValue({
+        newCustomerCount: 3,
+        convertedCustomerCount: 1,
+        unconvertedCustomerCount: 2,
+        conversionRate: 1 / 3,
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      customerFacts as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'customer_facts' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'new-customer-count-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 5,
+      question: '昨天新增了多少个客户', // BQ0001
+      answerShape: 'scalar',
+      args: {
+        objective: '查询昨天新增客户数',
+        time: { label: '昨天', timezone: 'Asia/Shanghai', startDate: '2026-07-16', endDate: '2026-07-16' },
+        entities: [],
+        metrics: [{ definitionKey: 'metric.new_customer_count', definitionVersion: 1 }],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(customerFacts.getNewCustomerConversionSummary).toHaveBeenCalledWith({
+      storeId: 6,
+      startDate: new Date('2026-07-15T16:00:00.000Z'),
+      endDate: new Date('2026-07-16T15:59:59.999Z'),
+    });
+    expect(result.answer).toContain('新增客户 3 人');
+    expect(result.blocks).toEqual([
+      expect.objectContaining({
+        kind: 'kpi',
+        items: [{ label: '新增客户', value: '3 人' }],
+      }),
+    ]);
+    expect(result.citations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sourceId: 'metric.new_customer_count@1' }),
+        expect.objectContaining({ sourceId: 'customer_acquisition_conversion_summary' }),
+      ]),
+    );
   });
 
   it('returns an aggregate-only arrived-customer age distribution', async () => {
@@ -1458,6 +1761,229 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       answerScope: 'staff_leave_reception_impact',
       leaveStaffCount: 1,
       availableStaffCount: 1,
+    });
+  });
+
+  it('answers active count, level and project skills from the existing Ami Core staff directory facts', async () => {
+    const directory = {
+      staff: [
+        {
+          beauticianId: 1,
+          name: '唐伊',
+          level: { levelId: 3, name: '高级美容师' },
+          projectSkills: [
+            {
+              projectId: 20,
+              projectName: '肩颈舒压养护',
+              skillLevel: 2,
+              certified: true,
+              priority: 1,
+            },
+          ],
+          schedules: [],
+          timeOffs: [],
+        },
+        {
+          beauticianId: 2,
+          name: '宋乔',
+          level: { levelId: 2, name: '中级美容师' },
+          projectSkills: [],
+          schedules: [],
+          timeOffs: [],
+        },
+      ],
+    };
+    const skillRuntime = { buildManagerStaffDirectoryFacts: jest.fn().mockResolvedValue(directory) };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+    const base = {
+      card: { ...storeCard(), key: 'manager_staff_overview', intents: ['query'] },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'staff-directory-test',
+        timezone: 'Asia/Shanghai',
+      },
+      answerShape: 'list' as const,
+      args: { objective: '员工目录事实', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    };
+
+    const count = await executor.execute({ ...base, runId: 42, question: '店里现在有多少个在职美容师' }); // BQ0241
+    const level = await executor.execute({ ...base, runId: 43, question: '唐伊是什么职级' }); // BQ0242
+    const skills = await executor.execute({ ...base, runId: 44, question: '唐伊会做哪些项目' }); // BQ0247
+
+    expect(count).toMatchObject({
+      answer: '当前门店共有 2 位在职美容师。',
+      metadata: { answerScope: 'active_beautician_count', activeBeauticianCount: 2 },
+    });
+    expect(level).toMatchObject({
+      answer: '唐伊当前职级为：高级美容师。',
+      metadata: { answerScope: 'staff_level', beauticianId: 1, levelId: 3 },
+    });
+    expect(skills).toMatchObject({
+      answer: '唐伊当前配置可做项目：肩颈舒压养护。',
+      metadata: { answerScope: 'staff_project_skills', beauticianId: 1, projectIds: [20] },
+    });
+  });
+
+  it('uses strict schedules, approved time off and project skills for staff on-duty answers', async () => {
+    const skillRuntime = {
+      buildManagerStaffDirectoryFacts: jest.fn().mockResolvedValue({
+        staff: [
+          {
+            beauticianId: 1,
+            name: '唐伊',
+            level: null,
+            projectSkills: [
+              {
+                projectId: 20,
+                projectName: '肩颈舒压养护',
+                skillLevel: 1,
+                certified: true,
+                priority: 0,
+              },
+            ],
+            schedules: [
+              {
+                scheduleId: 10,
+                date: '2026-06-29',
+                startTime: '09:00',
+                endTime: '18:00',
+                status: 'published',
+                source: 'manual',
+              },
+            ],
+            timeOffs: [
+              {
+                timeOffId: 11,
+                date: '2026-06-29',
+                startTime: '14:00',
+                endTime: '16:00',
+                reason: '培训',
+              },
+            ],
+          },
+          {
+            beauticianId: 2,
+            name: '宋乔',
+            level: null,
+            projectSkills: [
+              {
+                projectId: 20,
+                projectName: '肩颈舒压养护',
+                skillLevel: 1,
+                certified: true,
+                priority: 0,
+              },
+            ],
+            schedules: [
+              {
+                scheduleId: 12,
+                date: '2026-06-29',
+                startTime: '09:00',
+                endTime: '18:00',
+                status: 'published',
+                source: 'manual',
+              },
+            ],
+            timeOffs: [
+              {
+                timeOffId: 13,
+                date: '2026-06-29',
+                startTime: '09:00',
+                endTime: '18:00',
+                reason: '请假',
+              },
+            ],
+          },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'manager_staff_overview', intents: ['query'] },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'staff-on-duty-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 45,
+      question: '能做肩颈舒压养护的美容师2026年6月29日有谁在岗', // BQ2001
+      answerShape: 'list',
+      args: { objective: '技能与在岗交集', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('唐伊');
+    expect(result.answer).not.toContain('宋乔');
+    expect(result.metadata).toMatchObject({
+      answerScope: 'staff_on_duty_list',
+      projectName: '肩颈舒压养护',
+      beauticianIds: [1],
+    });
+  });
+
+  it('answers a named staff service-customer count instead of returning the generic ranking winner', async () => {
+    const skillRuntime = {
+      buildManagerStaffAnalysis: jest.fn().mockResolvedValue({
+        staff: [
+          {
+            beauticianId: 1,
+            name: '顾然',
+            serviceCount: 8,
+            completedCount: 8,
+            uniqueCustomerCount: 6,
+            repeatCustomerCount: 2,
+            revenueAmount: 5000,
+            commissionAmount: 320,
+            timeOffHours: 0,
+          },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'manager_staff_overview', intents: ['query'] },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'staff-customer-point-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 46,
+      question: '顾然这半年服务了多少个客户', // BQ0276
+      answerShape: 'scalar',
+      args: { objective: '员工服务客户数', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('顾然服务了 6 位独立客户');
+    expect(result.metadata).toMatchObject({
+      answerScope: 'staff_unique_customer_count_point_lookup',
+      beauticianId: 1,
+      uniqueCustomerCount: 6,
     });
   });
 
@@ -2070,6 +2596,286 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     );
   });
 
+  it('answers supplier count from procurement supplier facts with list rows', async () => {
+    const skillRuntime = {
+      buildInventoryProcurementAnalysis: jest.fn().mockResolvedValue({
+        suggestions: [],
+        recentOrders: [],
+        suppliers: [
+          {
+            supplierId: 1,
+            supplierName: '供应商A',
+            status: 'active',
+            qualificationStatus: 'approved',
+            quoteCount: 2,
+            leadDays: 3,
+          },
+          {
+            supplierId: 2,
+            supplierName: '供应商B',
+            status: 'active',
+            qualificationStatus: 'approved',
+            quoteCount: 0,
+          },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'inventory_procurement_advice', intents: ['query'] },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'supplier-count-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 55,
+      question: '有多少个供应商',
+      answerShape: 'list',
+      args: { objective: '供应商数量', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('当前供应商主档共 2 家');
+    expect(result.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'table',
+          rows: expect.arrayContaining([expect.objectContaining({ supplierName: '供应商A', quoteCount: 2 })]),
+        }),
+      ]),
+    );
+    expect(result.metadata).toMatchObject({
+      capabilityKey: 'inventory_procurement_advice',
+      answerScope: 'supplier_count',
+      supplierCount: 2,
+      quotedSupplierCount: 1,
+    });
+  });
+
+  it('answers pending receipt procurement orders without counting supplier-confirmation orders as receivable', async () => {
+    const skillRuntime = {
+      buildInventoryProcurementAnalysis: jest.fn().mockResolvedValue({
+        suggestions: [],
+        suppliers: [],
+        recentOrders: [
+          {
+            orderNo: 'PO-SHIPPED',
+            supplierName: '供应商A',
+            amount: 600,
+            netAmount: 580,
+            status: 'shipped',
+            createdAt: '2026-07-16',
+            expectedArrivalDate: '2026-07-18',
+          },
+          {
+            orderNo: 'PO-PENDING',
+            supplierName: '供应商B',
+            amount: 400,
+            netAmount: 390,
+            status: 'pending_supplier_confirm',
+            createdAt: '2026-07-17',
+          },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'inventory_procurement_advice', intents: ['query'] },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'pending-receipt-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 56,
+      question: '有几个待收货的采购单',
+      answerShape: 'list',
+      args: { objective: '待收货采购单数量', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('当前有 1 张待收货采购单');
+    expect(result.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'kpi', items: expect.arrayContaining([expect.objectContaining({ value: '1 张' })]) }),
+        expect.objectContaining({
+          kind: 'table',
+          rows: [expect.objectContaining({ orderNo: 'PO-SHIPPED', status: '已发货待收货' })],
+        }),
+      ]),
+    );
+    expect(result.metadata).toMatchObject({
+      capabilityKey: 'inventory_procurement_advice',
+      answerScope: 'pending_receipt_procurement_orders',
+      orderCount: 1,
+      pendingSupplierConfirmationCount: 1,
+    });
+  });
+
+  it('filters unpaid procurement orders by time range when the question includes a time window', async () => {
+    const skillRuntime = {
+      buildInventoryProcurementAnalysis: jest.fn().mockResolvedValue({
+        suggestions: [],
+        suppliers: [],
+        recentOrders: [
+          {
+            orderNo: 'PO-THIS-WEEK',
+            supplierName: '供应商A',
+            amount: 500,
+            netAmount: 480,
+            status: 'received',
+            createdAt: '2026-07-23',
+            receivedAt: '2026-07-24',
+            settledAt: null,
+          },
+          {
+            orderNo: 'PO-LAST-MONTH',
+            supplierName: '供应商B',
+            amount: 700,
+            netAmount: 680,
+            status: 'received',
+            createdAt: '2026-06-17',
+            receivedAt: '2026-06-18',
+            settledAt: null,
+          },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'inventory_procurement_advice', intents: ['query'] },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'unpaid-time-range-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 57,
+      question: '上周采购结算待付款多少',
+      answerShape: 'list',
+      args: { objective: '待付款采购单金额', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('上周');
+    expect(result.answer).toContain('480.00 元');
+    expect(result.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'table',
+          rows: [expect.objectContaining({ orderNo: 'PO-THIS-WEEK', netAmount: 480 })],
+        }),
+      ]),
+    );
+    expect(result.metadata).toMatchObject({
+      capabilityKey: 'inventory_procurement_advice',
+      answerScope: 'unpaid_procurement_orders',
+      orderCount: 1,
+      totalAmount: 480,
+    });
+  });
+
+  it('answers procurement category cost ranking from order items', async () => {
+    const skillRuntime = {
+      buildInventoryProcurementAnalysis: jest.fn().mockResolvedValue({
+        suggestions: [],
+        suppliers: [],
+        recentOrders: [],
+        orderItems: [
+          {
+            orderNo: 'PO-THIS-MONTH-1',
+            supplierName: '供应商A',
+            productName: '玻尿酸保湿精华',
+            categoryName: '精华安瓶',
+            quantity: 5,
+            amount: 60,
+            status: 'received',
+            createdAt: '2026-07-03',
+          },
+          {
+            orderNo: 'PO-LAST-MONTH-1',
+            supplierName: '供应商B',
+            productName: '舒缓修护面膜',
+            categoryName: '面膜软膜',
+            quantity: 20,
+            amount: 1720,
+            status: 'received',
+            createdAt: '2026-06-17',
+          },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      {
+        parse: jest.fn().mockReturnValue({
+          mentionedTime: true,
+          filters: [],
+          requiresComparison: false,
+          unsupportedExpressions: [],
+          range: {
+            label: '本月',
+            startDate: new Date('2026-07-01T00:00:00.000+08:00'),
+            endDate: new Date('2026-07-31T23:59:59.999+08:00'),
+            granularity: 'month',
+          },
+        }),
+      } as never,
+    );
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'inventory_procurement_advice', intents: ['query', 'ranking'] },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'procurement-category-cost-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 58,
+      question: '本月采购成本最高的品类',
+      answerShape: 'ranking',
+      args: { objective: '采购品类成本排行', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('精华安瓶');
+    expect(result.blocks?.[0]).toMatchObject({
+      kind: 'ranking',
+      rows: expect.arrayContaining([expect.objectContaining({ categoryName: '精华安瓶', amount: 60 })]),
+    });
+    expect(result.metadata).toMatchObject({
+      capabilityKey: 'inventory_procurement_advice',
+      answerScope: 'procurement_category_cost_ranking',
+      topCategoryName: '精华安瓶',
+      topCategoryAmount: 60,
+    });
+  });
+
   it('ranks consumables by real outbound quantity', async () => {
     const skillRuntime = {
       buildInventoryRiskSummary: jest
@@ -2378,6 +3184,652 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       metadata: { unsupportedReason: 'net_profit_definition_not_published' },
     });
     expect(result.answer).toContain('无法用毛利、实收或风险概览替代净利润');
+  });
+
+  it('uses governed order-profit metrics instead of question text to return per-order rows', async () => {
+    const skillRuntime = {
+      buildFinanceOrderProfitRows: jest.fn().mockResolvedValue([
+        {
+          orderId: 1045,
+          orderNo: 'O-1045',
+          orderKind: 'product',
+          businessType: 'product',
+          totalCost: 200,
+          grossProfit: 489.46,
+          negativeMarginFlag: 0,
+        },
+        {
+          orderId: 1046,
+          orderNo: 'O-1046',
+          orderKind: 'project',
+          businessType: 'project',
+          totalCost: 100,
+          grossProfit: 205.6,
+          negativeMarginFlag: 0,
+        },
+      ]),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'finance_risk_overview', name: '财务经营风险概览' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'structured-order-profit-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 72,
+      question: '把当天各单贡献展开给我看',
+      answerShape: 'list',
+      args: {
+        objective: '查看订单级经营贡献',
+        time: { label: '2026年6月30日', timezone: 'Asia/Shanghai', startDate: '2026-06-30', endDate: '2026-06-30' },
+        entities: [],
+        metrics: [{ definitionKey: 'metric.order_gross_profit_amount', definitionVersion: 1 }],
+        dimensions: [{ definitionKey: 'dimension.orderId', definitionVersion: 1 }],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(skillRuntime.buildFinanceOrderProfitRows).toHaveBeenCalledWith(expect.objectContaining({ scope: 'all' }));
+    expect(result.blocks).toEqual([
+      expect.objectContaining({
+        kind: 'table',
+        rows: [
+          { orderId: 1045, grossProfit: 489.46 },
+          { orderId: 1046, grossProfit: 205.6 },
+        ],
+        columns: ['orderId', 'grossProfit'],
+      }),
+    ]);
+  });
+
+  it('returns an empty governed order-id table when no order has negative margin', async () => {
+    const skillRuntime = {
+      buildFinanceOrderProfitRows: jest.fn().mockResolvedValue([
+        {
+          orderId: 1045,
+          orderNo: 'O-1045',
+          orderKind: 'product',
+          businessType: 'product',
+          totalCost: 200,
+          grossProfit: 10,
+          negativeMarginFlag: 0,
+        },
+      ]),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'finance_risk_overview', name: '财务经营风险概览' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'structured-negative-margin-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 73,
+      question: '把风险订单挑出来',
+      answerShape: 'list',
+      args: {
+        objective: '筛选负毛利订单',
+        entities: [],
+        metrics: [{ definitionKey: 'metric.negative_margin_order_count', definitionVersion: 1 }],
+        dimensions: [{ definitionKey: 'dimension.orderId', definitionVersion: 1 }],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(result.answer).toContain('没有负毛利订单');
+    expect(result.blocks).toEqual([
+      expect.objectContaining({ kind: 'table', rows: [], columns: ['orderId', 'grossProfit'] }),
+    ]);
+  });
+
+  it('returns the governed product-order cost and gross-profit record', async () => {
+    const skillRuntime = {
+      buildFinanceOrderProfitRows: jest.fn().mockResolvedValue([
+        {
+          orderId: 1045,
+          orderNo: 'O-1045',
+          orderKind: 'product',
+          businessType: 'product',
+          totalCost: 300,
+          grossProfit: 400,
+          negativeMarginFlag: 0,
+        },
+        {
+          orderId: 1046,
+          orderNo: 'O-1046',
+          orderKind: 'product',
+          businessType: 'product',
+          totalCost: 282.81,
+          grossProfit: 211.39,
+          negativeMarginFlag: 0,
+        },
+      ]),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'finance_risk_overview', name: '财务经营风险概览' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'structured-product-order-profit-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 74,
+      question: '看看当天零售经营结果',
+      answerShape: 'scalar',
+      args: {
+        objective: '商品订单经营结果',
+        entities: [],
+        metrics: [
+          { definitionKey: 'metric.product_order_total_cost_amount', definitionVersion: 1 },
+          { definitionKey: 'metric.product_order_gross_profit_amount', definitionVersion: 1 },
+        ],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(skillRuntime.buildFinanceOrderProfitRows).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: 'product' }),
+    );
+    expect(result.blocks).toEqual([
+      expect.objectContaining({
+        kind: 'table',
+        rows: [{ totalCost: 582.81, grossProfit: 611.39 }],
+        columns: ['totalCost', 'grossProfit'],
+      }),
+    ]);
+  });
+
+  it('answers governed finance scalars and reconciliation from the formal cost contract', async () => {
+    const buildFinanceCostAnalysis = jest.fn().mockResolvedValue({
+      revenue: 1000,
+      materialCost: 200,
+      commissionCost: 100,
+      operatingCost: 50,
+      grossProfit: 667.8,
+      grossMarginRate: 0.6678,
+      operatingProfit: 517.8,
+      costIncomeRatio: 0.35,
+      storedValueLiability: 1164127.56,
+      unfulfilledCardLiability: 1066931.14,
+      settlementCount: 1,
+      reconciledSettlementCount: 1,
+      cashShiftReconciliationRate: 1,
+      cardLiability: 1066931.14,
+      costCategories: [],
+    });
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      { buildFinanceCostAnalysis } as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+    const base: Omit<BrainCapabilityExecutionInput, 'answerShape' | 'args'> = {
+      card: { ...storeCard(), key: 'finance_risk_overview', name: '财务经营风险概览' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'structured-finance-scalar-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 75,
+      question: '给我正式结算结果',
+    };
+
+    const scalar = await executor.execute({
+      ...base,
+      answerShape: 'scalar',
+      args: {
+        objective: '查询毛利率和负债',
+        entities: [],
+        metrics: [
+          { definitionKey: 'metric.gross_margin_rate', definitionVersion: 1 },
+          { definitionKey: 'metric.stored_value_liability', definitionVersion: 1 },
+        ],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+    expect(scalar.answer).toContain('毛利率 66.78%');
+    expect(scalar.answer).toContain('储值负债 1164127.56 元');
+
+    const inferredScalar = await executor.execute({
+      ...base,
+      runId: 751,
+      question: '2026年1月1日至6月30日的毛利是多少',
+      answerShape: 'scalar',
+      args: {
+        objective: '查询毛利',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+    expect(inferredScalar.answer).toContain('毛利 667.80 元');
+    expect(inferredScalar.blocks).toEqual([
+      expect.objectContaining({ kind: 'kpi', items: [{ label: '毛利', value: '667.80 元' }] }),
+    ]);
+
+    const ratioScalar = await executor.execute({
+      ...base,
+      runId: 752,
+      question: '2026年6月成本占收入的比例',
+      answerShape: 'scalar',
+      args: {
+        objective: '查询成本收入比',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+    expect(ratioScalar.answer).toContain('成本收入比 35.00%');
+
+    const reconciliation = await executor.execute({
+      ...base,
+      runId: 76,
+      answerShape: 'scalar',
+      args: {
+        objective: '查询收银对平状态',
+        entities: [],
+        metrics: [{ definitionKey: 'metric.cash_shift_reconciliation_rate', definitionVersion: 1 }],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+    expect(reconciliation.answer).toContain('已对平');
+    expect(reconciliation.blocks).toEqual([
+      expect.objectContaining({ kind: 'kpi', items: [{ label: '收银对平状态', value: '已对平' }] }),
+    ]);
+  });
+
+  it('uses a controlled beautician entity id for commission composition without matching the question text', async () => {
+    const skillRuntime = {
+      buildFinanceStaffCommissionRows: jest.fn().mockResolvedValue([
+        { beauticianId: 19, beauticianName: '顾然', commissionType: 'project', amount: 152.91 },
+        { beauticianId: 19, beauticianName: '顾然', commissionType: 'product', amount: 45.3 },
+      ]),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'finance_risk_overview', name: '财务经营风险概览' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'structured-commission-composition-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 77,
+      question: '把她这段时间的组成拆开',
+      answerShape: 'list',
+      args: {
+        objective: '查看员工收入组成',
+        entities: [{ entityType: 'beautician', entityKey: '19', mention: '顾然', source: 'user' }],
+        metrics: [{ definitionKey: 'metric.staff_commission_component_amount', definitionVersion: 1 }],
+        dimensions: [{ definitionKey: 'dimension.commissionType', definitionVersion: 1 }],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(skillRuntime.buildFinanceStaffCommissionRows).toHaveBeenCalledWith(
+      expect.objectContaining({ beauticianId: 19 }),
+    );
+    expect(result.blocks).toEqual([
+      expect.objectContaining({
+        kind: 'table',
+        rows: [
+          { type: 'project', amount: 152.91 },
+          { type: 'product', amount: 45.3 },
+        ],
+        columns: ['type', 'amount'],
+      }),
+    ]);
+  });
+
+  it('clarifies instead of choosing one when commission composition contains multiple controlled beauticians', async () => {
+    const skillRuntime = { buildFinanceStaffCommissionRows: jest.fn() };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'finance_risk_overview', name: '财务经营风险概览' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'ambiguous-commission-composition-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 78,
+      question: '顾然和宋乔的提成构成',
+      answerShape: 'list',
+      args: {
+        objective: '查看员工收入组成',
+        entities: [
+          { entityType: 'beautician', entityKey: '19', mention: '顾然', source: 'user' },
+          { entityType: 'beautician', entityKey: '12', mention: '宋乔', source: 'user' },
+        ],
+        metrics: [{ definitionKey: 'metric.staff_commission_component_amount', definitionVersion: 1 }],
+        dimensions: [{ definitionKey: 'dimension.commissionType', definitionVersion: 1 }],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(skillRuntime.buildFinanceStaffCommissionRows).not.toHaveBeenCalled();
+    expect(result.metadata).toMatchObject({ unsupportedReason: 'beautician_entity_reference_ambiguous' });
+    expect(result.answer).toContain('一次只能查询一位美容师');
+  });
+
+  it('returns recognized revenue for the longest matching card name at an explicit cutoff timestamp', async () => {
+    const prisma = {
+      cardUsageRecord: {
+        findMany: jest
+          .fn()
+          .mockResolvedValueOnce([{ cardName: '综合养护' }, { cardName: '综合养护 20 次卡' }])
+          .mockResolvedValueOnce([
+            {
+              id: 1,
+              customerId: 11,
+              customerCardId: 21,
+              projectId: 31,
+              cardName: '综合养护 20 次卡',
+              times: 2,
+              recognizedUnitValue: 100,
+              recognizedAmount: 0,
+              verifiedAt: new Date('2026-07-20T04:00:00.000Z'),
+            },
+            {
+              id: 2,
+              customerId: 12,
+              customerCardId: 22,
+              projectId: 32,
+              cardName: '综合养护 20 次卡',
+              times: 1,
+              recognizedUnitValue: 100,
+              recognizedAmount: 1285,
+              verifiedAt: new Date('2026-07-29T04:00:00.000Z'),
+            },
+          ]),
+      },
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+      undefined,
+      undefined,
+      prisma as never,
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'finance_risk_overview', name: '财务经营风险概览' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'card-recognized-revenue-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 7,
+      question: '综合养护 20 次卡的确认收入进度', // BQ0828
+      answerShape: 'scalar',
+      args: {
+        objective: '查询指定卡项确认收入',
+        time: { label: '截至2026年7月29日 12:45:41', timezone: 'Asia/Shanghai' },
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(result.answer).toContain('综合养护 20 次卡确认收入 1485.00 元');
+    expect(result.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'kpi', items: [{ label: '确认收入', value: '1485.00 元' }] }),
+      ]),
+    );
+    expect(result.metadata).toMatchObject({
+      capabilityKey: 'finance_risk_overview',
+      answerScope: 'card_recognized_revenue',
+      cardName: '综合养护 20 次卡',
+      sourceRowCount: 2,
+      recognizedRevenue: 1485,
+    });
+  });
+
+  it('returns total card recognized revenue when no specific card name is requested', async () => {
+    const prisma = {
+      cardUsageRecord: {
+        findMany: jest
+          .fn()
+          .mockResolvedValueOnce([{ cardName: '综合养护 20 次卡' }, { cardName: '焕肤清洁 12 次卡' }])
+          .mockResolvedValueOnce([
+            {
+              id: 1,
+              customerId: 11,
+              customerCardId: 21,
+              projectId: 31,
+              cardName: '综合养护 20 次卡',
+              times: 2,
+              recognizedUnitValue: 100,
+              recognizedAmount: 0,
+              verifiedAt: new Date('2026-06-30T04:00:00.000Z'),
+            },
+            {
+              id: 2,
+              customerId: 12,
+              customerCardId: 22,
+              projectId: 32,
+              cardName: '焕肤清洁 12 次卡',
+              times: 1,
+              recognizedUnitValue: 100,
+              recognizedAmount: 645.66,
+              verifiedAt: new Date('2026-06-30T05:00:00.000Z'),
+            },
+          ]),
+      },
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+      undefined,
+      undefined,
+      prisma as never,
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'finance_risk_overview', name: '财务经营风险概览' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'total-card-recognized-revenue-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 8,
+      question: '2026年6月30日次卡核销确认的收入有多少', // BQ0855
+      answerShape: 'scalar',
+      args: {
+        objective: '查询次卡核销确认收入',
+        entities: [],
+        metrics: [{ definitionKey: 'metric.card_recognized_revenue_amount', definitionVersion: 1 }],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(result.answer).toContain('次卡核销确认收入 845.66 元');
+    expect(result.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'kpi', items: [{ label: '确认收入', value: '845.66 元' }] }),
+      ]),
+    );
+    expect(result.metadata).toMatchObject({
+      capabilityKey: 'finance_risk_overview',
+      answerScope: 'card_recognized_revenue',
+      sourceRowCount: 2,
+      recognizedRevenue: 845.66,
+    });
+  });
+
+  it('reuses the formal project margin service for a named project order profit range', async () => {
+    const operationProfit = {
+      getProjectMargins: jest.fn().mockResolvedValue({
+        items: [
+          {
+            projectId: 81,
+            projectName: '晒后舒缓修护',
+            sourceOrders: [
+              {
+                orderId: 901,
+                orderNo: 'O-901',
+                orderedAt: '2026-06-20',
+                quantity: 1,
+                amount: 0,
+                materialCost: 0,
+                commissionCost: 0,
+                totalCost: 0,
+                grossProfit: 0,
+              },
+            ],
+          },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      operationProfit as never,
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'finance_risk_overview', name: '财务经营风险概览' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'project-order-profit-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 7,
+      question: '晒后舒缓修护订单最近14天的利润情况', // BQ0846
+      answerShape: 'scalar',
+      args: {
+        objective: '查询指定项目订单利润',
+        time: {
+          label: '2026年6月17日至2026年6月30日',
+          timezone: 'Asia/Shanghai',
+          startDate: '2026-06-17',
+          endDate: '2026-06-30',
+        },
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(operationProfit.getProjectMargins).toHaveBeenCalledWith({
+      storeId: 6,
+      from: '2026-06-17',
+      to: '2026-06-30',
+      page: 1,
+      pageSize: 10_000,
+    });
+    expect(result.answer).toContain('晒后舒缓修护订单利润 0.00 元');
+    expect(result.blocks).toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: 'kpi', items: [{ label: '利润', value: '0.00 元' }] })]),
+    );
+    expect(result.metadata).toMatchObject({
+      capabilityKey: 'finance_risk_overview',
+      answerScope: 'project_order_profit',
+      projectId: 81,
+      projectName: '晒后舒缓修护',
+      sourceRowCount: 1,
+      orderProfit: 0,
+    });
   });
 
   it('returns only the requested refund scalar metrics instead of the full finance overview', async () => {
@@ -2778,6 +4230,113 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     expect(result.blocks).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'table' })]));
   });
 
+  it('returns a no-data limitation when no expiring high-balance cards match', async () => {
+    const customerFacts = {
+      getExpiringHighBalanceCards: jest.fn().mockResolvedValue({
+        total: 0,
+        windowDays: 30,
+        rows: [],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      customerFacts as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'customer_facts', intents: ['query', 'ranking', 'diagnosis'] },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'expiring-card-no-data-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 57,
+      question: '有没有次卡即将过期但客户还有很多余量',
+      answerShape: 'list',
+      args: { objective: '次卡临期高余量名单', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('没有符合“临期且余量较高”的次卡');
+    expect(result.blocks).toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: 'limitations', items: expect.arrayContaining([expect.stringContaining('no_data:')]) })]),
+    );
+  });
+
+  it('answers expiring card customers without upcoming reservations from structured facts', async () => {
+    const customerFacts = {
+      getExpiringCardCustomersWithoutUpcomingReservation: jest.fn().mockResolvedValue({
+        total: 1,
+        windowDays: 30,
+        cardNameQuery: '综合养护 20 次卡',
+        rows: [
+          {
+            customerId: 1,
+            customerName: '李女士',
+            cardName: '综合养护 20 次卡',
+            totalTimes: 20,
+            remainingTimes: 8,
+            expiryDate: new Date('2026-07-25T00:00:00.000Z'),
+            daysToExpiry: 7,
+            lastVisitDate: '2026-06-01',
+          },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      customerFacts as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'customer_facts', intents: ['query', 'ranking', 'diagnosis'] },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'expiring-card-no-reservation-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 59,
+      question: '哪些客户的综合养护 20 次卡快到期还没预约',
+      answerShape: 'list',
+      args: {
+        objective: '临期次卡未预约客户名单',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [
+          {
+            fieldRef: { definitionType: 'dimension', definitionKey: 'dimension.projectName' },
+            operator: 'eq',
+            value: '综合养护',
+          },
+        ],
+        orderBy: [],
+      },
+    });
+
+    expect(result.answer).toContain('活跃次卡临期且无未来预约');
+    expect(result.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'table',
+          columns: expect.arrayContaining(['customerId']),
+          rows: expect.arrayContaining([expect.objectContaining({ customerId: 1 })]),
+        }),
+      ]),
+    );
+  });
+
   it('compares governed paid amounts across two structured time ranges', async () => {
     const skillRuntime = {
       buildFinanceIncomeAnalysis: jest
@@ -3115,12 +4674,22 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
 
   it('returns only the requested store gross-margin scalar', async () => {
     const skillRuntime = {
-      buildFinanceRiskSummary: jest.fn().mockResolvedValue({
-        refundAmount: 88,
-        refundCount: 2,
-        discountAmount: 30,
+      buildFinanceCostAnalysis: jest.fn().mockResolvedValue({
+        revenue: 1000,
+        materialCost: 200,
+        commissionCost: 100,
+        operatingCost: 50,
+        grossProfit: 595,
         grossMarginRate: 0.595,
-        riskItems: [],
+        operatingProfit: 445,
+        costIncomeRatio: 0.35,
+        storedValueLiability: 0,
+        unfulfilledCardLiability: 0,
+        settlementCount: 1,
+        reconciledSettlementCount: 1,
+        cashShiftReconciliationRate: 1,
+        cardLiability: 0,
+        costCategories: [],
       }),
     };
     const executor = new BrainDomainServiceCapabilityExecutor(
@@ -3154,15 +4723,18 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       },
     });
 
-    expect(result.answer).toContain('毛利率为 59.5%');
+    expect(result.answer).toContain('本月毛利率 59.50%');
     expect(result.answer).not.toContain('会员卡负债');
     expect(result.blocks).toEqual([
       expect.objectContaining({
         kind: 'kpi',
-        items: [{ label: '毛利率', value: '59.5%' }],
+        items: [{ label: '毛利率', value: '59.50%' }],
       }),
     ]);
-    expect(result.metadata).toMatchObject({ answerScope: 'gross_margin_rate_scalar' });
+    expect(result.metadata).toMatchObject({
+      answerScope: 'structured_finance_metrics',
+      requestedMetricKeys: ['metric.gross_margin_rate'],
+    });
   });
 
   it('returns satisfaction KPIs without treating missing ratings as zero', async () => {
@@ -3652,6 +5224,70 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     expect(result.metadata).toMatchObject({ answerScope: 'filtered_reservation_list', exactTime: '15:00', count: 1 });
   });
 
+  it('does not treat generic who/which reservation-list words as a customer entity filter', async () => {
+    const skillRuntime = {
+      listReceptionReservations: jest.fn().mockResolvedValue({
+        count: 2,
+        reservations: [
+          reservationFact({ reservationId: 1, customerId: 501, customerName: '王女士' }),
+          reservationFact({ reservationId: 2, customerId: 502, customerName: '李女士' }),
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'reservation_list', name: '门店预约清单' },
+      context: {
+        userId: 31,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['receptionist'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'generic-who-reservation-list-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 75,
+      question: '2026年6月15日至21日的预约都有谁',
+      answerShape: 'list',
+      args: {
+        objective: '查询预约客户名单',
+        time: { label: '2026年6月15日至21日', timezone: 'Asia/Shanghai', startDate: '2026-06-15', endDate: '2026-06-21' },
+        entities: [{ entityType: 'customer', mention: '谁', source: 'user', confidence: 0.82 }],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(result.answer).toContain('有效预约共 2 个');
+    expect(result.answer).toContain('王女士');
+    expect(result.answer).toContain('李女士');
+    expect(result.metadata).toMatchObject({ answerScope: 'reservation_schedule_list', count: 2 });
+    expect(result.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'kpi',
+          items: expect.arrayContaining([expect.objectContaining({ label: '2026年6月15日至21日有效预约', value: '2 个' })]),
+        }),
+        expect.objectContaining({
+          kind: 'table',
+          columns: expect.arrayContaining(['customerId', 'reservationId', 'customerName']),
+          rows: expect.arrayContaining([
+            expect.objectContaining({ customerId: 501, reservationId: 1, customerName: '王女士' }),
+            expect.objectContaining({ customerId: 502, reservationId: 2, customerName: '李女士' }),
+          ]),
+        }),
+      ]),
+    );
+  });
+
   it('returns explicit gaps for missing notification receipts and no-show prediction', async () => {
     const skillRuntime = { listReceptionReservations: jest.fn().mockResolvedValue({ count: 0, reservations: [] }) };
     const executor = new BrainDomainServiceCapabilityExecutor(
@@ -3738,6 +5374,53 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     expect(result.answer).toContain('功效面部护理 2 个');
     expect(result.answer).toContain('身体护理 1 个');
     expect(result.metadata).toMatchObject({ answerScope: 'reservation_project_type_breakdown', count: 3 });
+  });
+
+  it('answers reservation project rankings with a ranking block', async () => {
+    const skillRuntime = {
+      listReceptionReservations: jest.fn().mockResolvedValue({
+        count: 3,
+        reservations: [
+          reservationFact({ reservationId: 1, projectId: 84, projectName: '综合养护' }),
+          reservationFact({ reservationId: 2, projectId: 84, projectName: '综合养护', startTime: '11:00' }),
+          reservationFact({ reservationId: 3, projectId: 85, projectName: '肩颈舒压', startTime: '14:00' }),
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'reservation_list' },
+      context: {
+        userId: 31,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['receptionist'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'reservation-project-ranking-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 79,
+      question: '今年哪个项目预约最多',
+      answerShape: 'ranking',
+      args: { objective: '项目预约排行', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.answer).toContain('预约最多的项目是 综合养护');
+    expect(result.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'ranking',
+          rows: [expect.objectContaining({ projectId: 84, projectName: '综合养护', count: 2 })],
+        }),
+      ]),
+    );
+    expect(result.metadata).toMatchObject({ answerScope: 'reservation_project_ranking', count: 3 });
   });
 
   it('answers beautician gaps and previous service from the signed-in beautician facts', async () => {

@@ -5,6 +5,19 @@ import { formatBrainMoney, toBrainNumber } from './brain-domain-formatters.js';
 import { extractCustomerPhoneTail, extractSpecificCustomerNameFromMention } from './brain-customer-identity.js';
 import { CUSTOMER_MONETARY_TIERS, customerMonetaryTier } from '../../customers/customer-value-segmentation.js';
 
+const ARRIVED_CUSTOMER_STATUSES = [
+  'checked_in',
+  'in_service',
+  'arrived',
+  'completed',
+  'served',
+  '已到店',
+  '服务中',
+  '已完成',
+];
+
+const CUSTOMER_MEMBER_TIER_ORDER = ['无', '普通', '普通会员', '银卡', '银卡会员', '金卡', '金卡会员', '钻石', '钻石会员'];
+
 export interface BrainNewCustomerSourceDistribution {
   total: number;
   missingSourceCount: number;
@@ -59,6 +72,18 @@ export interface BrainExpiringCardBalanceRow {
   unfulfilledValue: number;
 }
 
+export interface BrainExpiringCardNoReservationRow {
+  [key: string]: unknown;
+  customerId: number;
+  customerName: string;
+  cardName: string;
+  totalTimes: number;
+  remainingTimes: number;
+  expiryDate: Date;
+  daysToExpiry: number;
+  lastVisitDate: string | null;
+}
+
 export interface BrainVipCustomerSummary {
   total: number;
   rows: Array<{
@@ -66,6 +91,41 @@ export interface BrainVipCustomerSummary {
     customerName: string;
     memberLevel: string;
     totalSpent: number;
+    lastVisitDate: string | null;
+  }>;
+}
+
+export interface BrainCustomerMemberLevelSummary extends BrainVipCustomerSummary {
+  memberLevels: string[];
+}
+
+export interface BrainVisitedCustomerSummary {
+  total: number;
+  rows: Array<{
+    customerId: number;
+    customerName: string;
+    memberLevel: string;
+    lastVisitDate: string | null;
+    latestArrivalDate: string | null;
+    arrivalCount: number;
+  }>;
+}
+
+export interface BrainVisitedMemberTierCustomerSummary extends BrainVisitedCustomerSummary {
+  minimumMemberLevel: string;
+  tierOrder: string[];
+  rangeStart: Date;
+  rangeEnd: Date;
+}
+
+export interface BrainCardHoldersWithoutVisitSummary {
+  total: number;
+  cardNameQuery: string | null;
+  rows: Array<{
+    customerId: number;
+    customerName: string;
+    memberLevel: string;
+    cardName: string;
     lastVisitDate: string | null;
   }>;
 }
@@ -149,6 +209,140 @@ export class BrainCustomerFactResolverService {
         totalSpent: toBrainNumber(customer.totalSpent),
         lastVisitDate: customer.lastVisitDate?.toISOString().slice(0, 10) ?? null,
       })),
+    };
+  }
+
+  async getCustomerMemberLevelSummary(
+    storeId: number,
+    memberLevels: string[],
+    limit = 10,
+  ): Promise<BrainCustomerMemberLevelSummary> {
+    const normalizedLevels = [...new Set(memberLevels.map((value) => value.trim()).filter(Boolean))];
+    if (!normalizedLevels.length) throw new Error('customer_member_level_filter_required');
+    const where = { storeId, deletedAt: null, memberLevel: { in: normalizedLevels } };
+    const [total, customers] = await Promise.all([
+      this.prisma.customer.count({ where }),
+      this.prisma.customer.findMany({
+        where,
+        orderBy: [{ totalSpent: 'desc' }],
+        select: { id: true, name: true, memberLevel: true, totalSpent: true, lastVisitDate: true },
+        take: limit,
+      }),
+    ]);
+    return {
+      memberLevels: normalizedLevels,
+      total,
+      rows: customers.map((customer) => ({
+        customerId: customer.id,
+        customerName: customer.name,
+        memberLevel: customer.memberLevel,
+        totalSpent: toBrainNumber(customer.totalSpent),
+        lastVisitDate: customer.lastVisitDate?.toISOString().slice(0, 10) ?? null,
+      })),
+    };
+  }
+
+  async getVisitedCustomerSummary(input: {
+    storeId: number;
+    startDate: Date;
+    endDate: Date;
+    limit?: number;
+  }): Promise<BrainVisitedCustomerSummary> {
+    const arrivalSummary = await this.arrivedCustomerSummary({
+      storeId: input.storeId,
+      startDate: input.startDate,
+      endDate: input.endDate,
+    });
+    return {
+      total: arrivalSummary.total,
+      rows: arrivalSummary.rows.slice(0, input.limit ?? 500),
+    };
+  }
+
+  async getVisitedMemberTierCustomers(input: {
+    storeId: number;
+    startDate: Date;
+    endDate: Date;
+    minimumMemberLevel?: string;
+    useStoreOpeningStart?: boolean;
+    limit?: number;
+  }): Promise<BrainVisitedMemberTierCustomerSummary> {
+    let rangeStart = input.startDate;
+    if (input.useStoreOpeningStart) {
+      const store = await this.prisma.store.findUnique({
+        where: { id: input.storeId },
+        select: { createdAt: true },
+      });
+      if (store?.createdAt) rangeStart = store.createdAt;
+    }
+    const rangeEnd = input.endDate;
+    const minimumMemberLevel = input.minimumMemberLevel ?? '金卡';
+    const minimumRank = this.customerMemberTierRank(minimumMemberLevel);
+    const arrivalSummary = await this.arrivedCustomerSummary({
+      storeId: input.storeId,
+      startDate: rangeStart,
+      endDate: rangeEnd,
+    });
+    const rows = arrivalSummary.rows
+      .filter((row) => this.customerMemberTierRank(row.memberLevel) >= minimumRank)
+      .sort((left, right) => left.customerId - right.customerId);
+    return {
+      total: rows.length,
+      rows: rows.slice(0, input.limit ?? 500),
+      minimumMemberLevel,
+      tierOrder: [...CUSTOMER_MEMBER_TIER_ORDER],
+      rangeStart,
+      rangeEnd,
+    };
+  }
+
+  async getCardHoldersWithoutVisit(input: {
+    storeId: number;
+    message: string;
+    startDate: Date;
+    endDate: Date;
+    cardName?: string;
+    limit?: number;
+  }): Promise<BrainCardHoldersWithoutVisitSummary> {
+    const cardNameQuery = input.cardName?.trim() || this.extractCardNameQuery(input.message);
+    if (!cardNameQuery) throw new Error('customer_card_name_required');
+    const cards = await this.prisma.customerCard.findMany({
+      where: {
+        cardName: cardNameQuery,
+        customer: { storeId: input.storeId, deletedAt: null },
+      },
+      select: {
+        customerId: true,
+        cardName: true,
+        customer: { select: { id: true, name: true, memberLevel: true, lastVisitDate: true } },
+      },
+      orderBy: { id: 'asc' },
+      take: 20_000,
+    });
+    const customerIds = [...new Set(cards.map((card) => card.customerId))];
+    const visits = customerIds.length
+      ? await this.arrivedReservations({
+          storeId: input.storeId,
+          startDate: input.startDate,
+          endDate: input.endDate,
+          customerIds,
+        })
+      : [];
+    const visitedCustomerIds = new Set(visits.map((reservation) => reservation.customerId));
+    const rows = cards
+      .filter((card) => !visitedCustomerIds.has(card.customerId))
+      .map((card) => ({
+        customerId: card.customer.id,
+        customerName: card.customer.name,
+        memberLevel: card.customer.memberLevel,
+        cardName: card.cardName,
+        lastVisitDate: card.customer.lastVisitDate?.toISOString().slice(0, 10) ?? null,
+      }))
+      .sort((left, right) => left.customerId - right.customerId);
+    return {
+      total: rows.length,
+      cardNameQuery,
+      rows: rows.slice(0, input.limit ?? 500),
     };
   }
 
@@ -590,16 +784,6 @@ export class BrainCustomerFactResolverService {
     startDate: Date;
     endDate: Date;
   }): Promise<BrainArrivedCustomerAgeDistribution> {
-    const arrivedStatuses = [
-      'checked_in',
-      'in_service',
-      'arrived',
-      'completed',
-      'served',
-      '已到店',
-      '服务中',
-      '已完成',
-    ];
     const reservations = await this.prisma.reservation.findMany({
       where: {
         storeId: input.storeId,
@@ -608,7 +792,7 @@ export class BrainCustomerFactResolverService {
           {
             checkedInAt: null,
             date: { gte: input.startDate, lte: input.endDate },
-            status: { in: arrivedStatuses },
+            status: { in: ARRIVED_CUSTOMER_STATUSES },
           },
         ],
       },
@@ -769,6 +953,160 @@ export class BrainCustomerFactResolverService {
       .filter((row) => row.remainingTimes >= 3 || row.remainingRate >= 0.3)
       .sort((left, right) => left.daysToExpiry - right.daysToExpiry || right.remainingTimes - left.remainingTimes);
     return { total: rows.length, windowDays, rows: rows.slice(0, input.limit ?? 10) };
+  }
+
+  async getExpiringCardCustomersWithoutUpcomingReservation(input: {
+    storeId: number;
+    message: string;
+    asOf: Date;
+    windowDays?: number;
+    limit?: number;
+  }): Promise<{
+    total: number;
+    windowDays: number;
+    cardNameQuery: string | null;
+    rows: BrainExpiringCardNoReservationRow[];
+  }> {
+    const windowDays = Math.max(1, Math.min(180, input.windowDays ?? 30));
+    const end = new Date(input.asOf.getTime() + windowDays * 86_400_000);
+    const cardNameQuery = this.extractCardNameQuery(input.message);
+    const cards = await this.prisma.customerCard.findMany({
+      where: {
+        status: 'active',
+        remainingTimes: { gt: 0 },
+        expiryDate: { gte: input.asOf, lte: end },
+        ...(cardNameQuery ? { cardName: { contains: cardNameQuery, mode: 'insensitive' as const } } : {}),
+        customer: { storeId: input.storeId, deletedAt: null },
+      },
+      select: {
+        customerId: true,
+        cardName: true,
+        totalTimes: true,
+        remainingTimes: true,
+        expiryDate: true,
+        customer: { select: { id: true, name: true, lastVisitDate: true } },
+      },
+      orderBy: [{ expiryDate: 'asc' }, { remainingTimes: 'desc' }],
+      take: 5_000,
+    });
+    const customerIds = [...new Set(cards.map((card) => card.customerId))];
+    const futureReservations = customerIds.length
+      ? await this.prisma.reservation.findMany({
+          where: {
+            storeId: input.storeId,
+            customerId: { in: customerIds },
+            date: { gte: input.asOf },
+            status: { notIn: ['cancelled', 'canceled', '已取消', '取消'] },
+          },
+          select: { customerId: true },
+          take: 5_000,
+        })
+      : [];
+    const reservedCustomerIds = new Set(futureReservations.map((reservation) => reservation.customerId));
+    const rows = cards
+      .filter((card) => !reservedCustomerIds.has(card.customerId))
+      .map((card) => ({
+        customerId: card.customer.id,
+        customerName: card.customer.name,
+        cardName: card.cardName,
+        totalTimes: card.totalTimes,
+        remainingTimes: card.remainingTimes,
+        expiryDate: card.expiryDate,
+        daysToExpiry: Math.max(0, Math.ceil((card.expiryDate.getTime() - input.asOf.getTime()) / 86_400_000)),
+        lastVisitDate: card.customer.lastVisitDate?.toISOString().slice(0, 10) ?? null,
+      }))
+      .sort((left, right) => left.daysToExpiry - right.daysToExpiry || right.remainingTimes - left.remainingTimes);
+    return {
+      total: rows.length,
+      windowDays,
+      cardNameQuery: cardNameQuery ?? null,
+      rows: rows.slice(0, input.limit ?? 10),
+    };
+  }
+
+  private extractCardNameQuery(message: string) {
+    const normalized = message.replace(/\s+/g, ' ').trim();
+    const match =
+      normalized.match(/([\p{Script=Han}A-Za-z0-9 ]+?\d+\s*次卡)/u) ??
+      normalized.match(/([\p{Script=Han}A-Za-z0-9 ]+?次卡)/u) ??
+      normalized.match(/([\p{Script=Han}A-Za-z0-9 ]+?卡项)/u);
+    if (!match?.[1]) return undefined;
+    return match[1]
+      .replace(/^(哪些|哪个|有没有|帮我|找一下|查询|客户的|客户|的)+/u, '')
+      .replace(/^(办了|持有|有|开了)+/u, '')
+      .replace(/(?:快到期|快过期|即将过期|临期|还没预约|没有预约|未预约|没预约).*$/u, '')
+      .trim();
+  }
+
+  private async arrivedCustomerSummary(input: {
+    storeId: number;
+    startDate: Date;
+    endDate: Date;
+  }): Promise<BrainVisitedCustomerSummary> {
+    const arrivals = await this.arrivedReservations(input);
+    const arrivalByCustomer = new Map<number, { latestArrivalAt: Date; arrivalCount: number }>();
+    for (const arrival of arrivals) {
+      const arrivedAt = arrival.checkedInAt ?? arrival.date;
+      const current = arrivalByCustomer.get(arrival.customerId);
+      if (!current) {
+        arrivalByCustomer.set(arrival.customerId, { latestArrivalAt: arrivedAt, arrivalCount: 1 });
+        continue;
+      }
+      current.arrivalCount += 1;
+      if (arrivedAt > current.latestArrivalAt) current.latestArrivalAt = arrivedAt;
+    }
+    const customerIds = [...arrivalByCustomer.keys()];
+    const customers = customerIds.length
+      ? await this.prisma.customer.findMany({
+          where: { storeId: input.storeId, id: { in: customerIds }, deletedAt: null },
+          select: { id: true, name: true, memberLevel: true, lastVisitDate: true },
+          orderBy: { id: 'asc' },
+          take: 20_000,
+        })
+      : [];
+    const rows = customers.map((customer) => {
+      const arrival = arrivalByCustomer.get(customer.id);
+      return {
+        customerId: customer.id,
+        customerName: customer.name,
+        memberLevel: customer.memberLevel,
+        lastVisitDate: customer.lastVisitDate?.toISOString().slice(0, 10) ?? null,
+        latestArrivalDate: arrival?.latestArrivalAt.toISOString().slice(0, 10) ?? null,
+        arrivalCount: arrival?.arrivalCount ?? 0,
+      };
+    });
+    return { total: arrivalByCustomer.size, rows };
+  }
+
+  private async arrivedReservations(input: {
+    storeId: number;
+    startDate: Date;
+    endDate: Date;
+    customerIds?: number[];
+  }) {
+    return this.prisma.reservation.findMany({
+      where: {
+        storeId: input.storeId,
+        ...(input.customerIds ? { customerId: { in: [...new Set(input.customerIds)] } } : {}),
+        OR: [
+          { checkedInAt: { gte: input.startDate, lt: input.endDate } },
+          {
+            checkedInAt: null,
+            date: { gte: input.startDate, lt: input.endDate },
+            status: { in: ARRIVED_CUSTOMER_STATUSES },
+          },
+        ],
+      },
+      select: { id: true, customerId: true, checkedInAt: true, date: true },
+      orderBy: { id: 'asc' },
+      take: 20_000,
+    });
+  }
+
+  private customerMemberTierRank(value: string) {
+    const normalized = value.replace(/\s+/g, '').toLowerCase();
+    const ranks = CUSTOMER_MEMBER_TIER_ORDER.map((tier) => tier.replace(/\s+/g, '').toLowerCase());
+    return ranks.lastIndexOf(normalized);
   }
 
   private async todayImportantVisitors(storeId: number) {

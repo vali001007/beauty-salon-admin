@@ -206,6 +206,8 @@ describe('BrainEvalService', () => {
     };
     const releaseService = { freezeEvaluationRelease: jest.fn().mockResolvedValue(releaseSnapshot) };
     const timeoutSpy = jest.spyOn(global, 'setTimeout').mockImplementation((() => 0) as never);
+    const previousRuntimeCommit = process.env.ZEABUR_GIT_COMMIT_SHA;
+    process.env.ZEABUR_GIT_COMMIT_SHA = 'f'.repeat(40);
     const service = new BrainEvalService(
       prisma as never,
       undefined,
@@ -233,6 +235,7 @@ describe('BrainEvalService', () => {
           summary: expect.objectContaining({
             gateMode: 'release_gate',
             releaseFingerprint: 'a'.repeat(64),
+            runtimeCommit: 'f'.repeat(40),
             requiredCapabilityKeys: ['customer_facts', 'reservation_list'],
             coverageComplete: true,
             canRelease: false,
@@ -242,6 +245,8 @@ describe('BrainEvalService', () => {
       expect(releaseService.freezeEvaluationRelease).toHaveBeenCalledTimes(1);
     } finally {
       timeoutSpy.mockRestore();
+      if (previousRuntimeCommit === undefined) delete process.env.ZEABUR_GIT_COMMIT_SHA;
+      else process.env.ZEABUR_GIT_COMMIT_SHA = previousRuntimeCommit;
     }
   });
 

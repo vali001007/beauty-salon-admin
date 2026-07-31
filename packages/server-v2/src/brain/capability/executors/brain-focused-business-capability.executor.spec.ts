@@ -160,6 +160,89 @@ describe('BrainFocusedBusinessCapabilityExecutor', () => {
     ]);
   });
 
+  it('returns the specific project BOM item list instead of actual consumption or outbound data', async () => {
+    const prisma = {
+      project: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 21,
+            name: '胶原焕活提拉',
+            bomItems: [
+              { id: 101, productId: 110, standardQty: 1, unit: '片', product: { id: 110, name: '胶原面膜', sku: 'M110', unit: '片', costPrice: 12 } },
+              { id: 102, productId: 125, standardQty: 2, unit: 'ml', product: { id: 125, name: '焕活精华', sku: 'M125', unit: 'ml', costPrice: 8.5 } },
+            ],
+          },
+        ]),
+      },
+    };
+    const executor = createExecutor({ prisma });
+
+    const result = await executor.execute(
+      input('project_material_consumption_analysis', '胶原焕活提拉标准配置了哪些耗材', 'list'),
+    );
+
+    expect(prisma.project.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ storeId: 6, deletedAt: null }) }),
+    );
+    expect(result).toMatchObject({
+      grounding: 'db_skill',
+      metadata: {
+        capabilityKey: 'project_material_consumption_analysis',
+        answerScope: 'project_bom_items',
+        projectId: 21,
+      },
+    });
+    expect(result.answer).toContain('胶原焕活提拉 已维护 2 个 BOM 耗材');
+    expect(result.blocks).toEqual([
+      expect.objectContaining({
+        kind: 'table',
+        rows: [
+          expect.objectContaining({ productId: 110, productName: '胶原面膜', itemCost: 12 }),
+          expect.objectContaining({ productId: 125, productName: '焕活精华', itemCost: 17 }),
+        ],
+      }),
+    ]);
+  });
+
+  it('returns the specific project BOM cost scalar instead of a generic material cost summary', async () => {
+    const prisma = {
+      project: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 22,
+            name: '全身精油 SPA',
+            bomItems: [
+              { id: 201, productId: 210, standardQty: 1, unit: '瓶', product: { id: 210, name: '舒缓精油', sku: 'M210', unit: '瓶', costPrice: 18.2 } },
+              { id: 202, productId: 211, standardQty: 2, unit: '片', product: { id: 211, name: '护理面膜', sku: 'M211', unit: '片', costPrice: 10.7 } },
+            ],
+          },
+        ]),
+      },
+    };
+    const executor = createExecutor({ prisma });
+
+    const result = await executor.execute(
+      input('project_material_consumption_analysis', '全身精油 SPA的BOM成本是多少', 'scalar'),
+    );
+
+    expect(result).toMatchObject({
+      grounding: 'db_skill',
+      metadata: {
+        answerScope: 'project_bom_cost_scalar',
+        bomItemCount: 2,
+      },
+    });
+    expect(result.answer).toContain('全身精油 SPA 的标准 BOM 成本是 39.60 元');
+    expect(result.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'kpi',
+          items: expect.arrayContaining([expect.objectContaining({ label: 'BOM成本', value: '39.60 元' })]),
+        }),
+      ]),
+    );
+  });
+
   it('returns material cost rather than operating cost for a material cost question', async () => {
     const skillRuntime = {
       buildFinanceCostAnalysis: jest.fn().mockResolvedValue({

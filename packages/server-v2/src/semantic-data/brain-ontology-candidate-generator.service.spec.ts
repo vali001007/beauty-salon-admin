@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { BrainOntologyCandidateGeneratorService } from './brain-ontology-candidate-generator.service.js';
 import { BrainSemanticCandidateVerifierService } from './brain-semantic-candidate-verifier.service.js';
 
@@ -127,6 +129,52 @@ describe('BrainOntologyCandidateGeneratorService', () => {
       kind: 'status_dictionary',
       payload: expect.objectContaining({ enumName: 'EntityStatus', values: ['active', 'disabled', 'archived'] }),
     });
+  });
+
+  it('adds only the six governed actions from the curated catalog instead of inferring actions from Prisma', () => {
+    const actions = new BrainOntologyCandidateGeneratorService()
+      .generate({ datamodel: datamodel as any })
+      .filter((candidate) => candidate.kind === 'action');
+
+    expect(actions.map((candidate) => candidate.definitionKey)).toEqual([
+      'action.cancel_reservation',
+      'action.create_customer',
+      'action.create_purchase_order',
+      'action.create_reservation',
+      'action.reschedule_reservation',
+      'action.submit_purchase_order_for_approval',
+    ]);
+    expect(actions.find((candidate) => candidate.definitionKey === 'action.create_purchase_order')).toMatchObject({
+      ownerType: 'ami_core_action_catalog',
+      ownerId: 'curated_action:action.create_purchase_order',
+      storeScope: { mode: 'current_store' },
+      payload: expect.objectContaining({
+        actionKey: 'action.create_purchase_order',
+        targetEntityRefs: ['entity.product', 'entity.purchase_order'],
+        capabilityBindings: [
+          expect.objectContaining({
+            capabilityKey: 'purchase_order_draft',
+            gatewayActionKey: 'create_purchase_order',
+          }),
+        ],
+      }),
+      evidence: expect.arrayContaining([
+        expect.objectContaining({ evidenceKind: 'product_management_entry' }),
+        expect.objectContaining({ evidenceKind: 'backend_api_contract' }),
+        expect.objectContaining({ evidenceKind: 'business_data_model' }),
+        expect.objectContaining({ evidenceKind: 'capability_binding_contract' }),
+        expect.objectContaining({ evidenceKind: 'gateway_execution_contract' }),
+      ]),
+    });
+
+    const workspaceRoot = existsSync(resolve(process.cwd(), 'packages/server-v2/prisma/schema.prisma'))
+      ? process.cwd()
+      : resolve(process.cwd(), '../..');
+    for (const candidate of actions) {
+      for (const evidence of candidate.evidence) {
+        expect(existsSync(resolve(workspaceRoot, evidence.sourcePath))).toBe(true);
+      }
+    }
   });
 
   it('does not infer store scope through reverse list relations', () => {

@@ -320,6 +320,9 @@ describe('BrainController', () => {
       userId: 9,
       storeId: 2,
       permissions: ['core:brain:use'],
+      roles: [],
+      requestChannel: undefined,
+      deviceIdHash: undefined,
     });
   });
 
@@ -373,6 +376,9 @@ describe('BrainController', () => {
       userId: 9,
       storeId: 2,
       permissions: ['core:brain:use'],
+      roles: [],
+      requestChannel: undefined,
+      deviceIdHash: undefined,
     });
   });
 
@@ -493,6 +499,14 @@ describe('BrainController', () => {
     await expect(semanticController.listSemanticGovernanceHistory('entities', 'card', '20')).resolves.toMatchObject({
       items: [{ resourceKey: 'card', version: 2 }],
     });
+    await expect(semanticController.listSemanticGovernanceSummaries(request, 'actions', '25')).resolves.toMatchObject({
+      items: [{ resourceKey: 'card', hitRate: 0.25 }],
+    });
+    await expect(
+      semanticController.listSemanticGovernanceHistory('actions', 'action.create_customer', '10'),
+    ).resolves.toMatchObject({
+      items: [{ resourceKey: 'card', version: 2 }],
+    });
     await expect(
       semanticController.setPublishedSemanticEnabled('entities', 'card', { enabled: false }),
     ).resolves.toMatchObject({ enabled: false });
@@ -509,6 +523,16 @@ describe('BrainController', () => {
       resourceType: 'ontology_entity',
       resourceKey: 'card',
       take: 20,
+    });
+    expect(governanceResourceService.listSemanticGovernanceSummaries).toHaveBeenCalledWith({
+      resourceType: 'action',
+      storeId: 2,
+      take: 25,
+    });
+    expect(governanceResourceService.listSemanticGovernanceHistory).toHaveBeenCalledWith({
+      resourceType: 'action',
+      resourceKey: 'action.create_customer',
+      take: 10,
     });
     expect(governanceResourceService.setPublishedSemanticEnabled).toHaveBeenCalledWith({
       resourceType: 'ontology_entity',
@@ -568,6 +592,8 @@ describe('BrainController', () => {
       userId: 9,
       roles: [],
       limit: 3,
+      page: undefined,
+      pageSize: undefined,
     });
     expect(inspectionService.updateFinding).toHaveBeenCalledWith({
       storeId: 2,

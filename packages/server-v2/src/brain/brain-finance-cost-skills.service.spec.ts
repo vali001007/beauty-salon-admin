@@ -5,7 +5,17 @@ describe('BrainFinanceSkillsService cost analysis', () => {
     const prisma = {
       dailySettlement: {
         findMany: jest.fn().mockResolvedValue([
-          { totalRevenue: 10000, materialCost: 2000, grossProfit: 8000, commissionTotal: 900 },
+          {
+            settleDate: new Date('2026-07-01T00:00:00.000Z'),
+            totalRevenue: 10000,
+            materialCost: 2000,
+            grossProfit: 8000,
+            commissionTotal: 900,
+            status: 'confirmed',
+            reconciliationStatus: 'passed',
+            confirmedAt: new Date('2026-07-02T00:00:00.000Z'),
+            updatedAt: new Date('2026-07-02T00:00:00.000Z'),
+          },
         ]),
       },
       operatingCost: {
@@ -16,9 +26,10 @@ describe('BrainFinanceSkillsService cost analysis', () => {
       },
       commissionRecord: { findMany: jest.fn().mockResolvedValue([{ amount: 1000 }]) },
       customerCard: {
-        findMany: jest.fn().mockResolvedValue([
-          { remainingTimes: 10, recognizedUnitValue: 500 },
-        ]),
+        findMany: jest.fn().mockResolvedValue([{ remainingTimes: 10, recognizedUnitValue: 500 }]),
+      },
+      customerBalanceAccount: {
+        findMany: jest.fn().mockResolvedValue([{ cashBalance: 800, giftBalance: 200 }]),
       },
     };
     const service = new BrainFinanceSkillsService(prisma as never);
@@ -36,6 +47,13 @@ describe('BrainFinanceSkillsService cost analysis', () => {
       operatingCost: 1500,
       grossProfit: 8000,
       grossMarginRate: 0.8,
+      operatingProfit: 5500,
+      costIncomeRatio: 0.45,
+      storedValueLiability: 1000,
+      unfulfilledCardLiability: 5000,
+      settlementCount: 1,
+      reconciledSettlementCount: 1,
+      cashShiftReconciliationRate: 1,
       cardLiability: 5000,
     });
   });

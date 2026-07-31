@@ -13,6 +13,7 @@ import { CustomerFeedbackService } from '../../../customer-feedback/customer-fee
 import { CustomerWaitingService } from '../../../reservations/customer-waiting.service.js';
 import { GapOpportunityService } from '../../../scheduling/gap-opportunity.service.js';
 import { AgentV2BusinessMetricQueryService } from '../../../agent-v2/tools/agent-v2-business-metric-query.service.js';
+import { OperationProfitService } from '../../../operation-profit/operation-profit.service.js';
 import type { BrainDomainAnswer } from '../../domain/brain-domain-adapter.types.js';
 import {
   BrainDataQualityGuardService,
@@ -106,6 +107,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     @Optional() private readonly customerLifecycle?: CustomerLifecycleOntologyService,
     @Optional() private readonly gapOpportunities?: GapOpportunityService,
     @Optional() private readonly sharedBusinessMetrics?: AgentV2BusinessMetricQueryService,
+    @Optional() private readonly operationProfit?: OperationProfitService,
   ) {}
 
   @BrainCapability({
@@ -175,7 +177,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     mappingOutputs: ['staffRanking'],
     name: '店长员工运营分析',
     description:
-      '按当前门店和时间范围分析美容师服务次数、独立客户数、客户复购率、业绩、提成、请假时长、排班忙闲和可用空档，支持按用户明确指定的员工指标排行、对比和工作饱和度诊断。试用期、转正待办和客户归属变更没有后台事实闭环时必须明确拒答，不得用通用员工排行替代。客户投诉与满意度由专用客户反馈能力处理。',
+      '按当前门店和时间范围查询在职美容师、职级、项目技能、严格排班、请假、在岗状态，并分析服务次数、独立客户数、客户复购率、业绩、提成、排班忙闲和可用空档。支持按用户明确指定的员工指标排行、对比和工作饱和度诊断。试用期、转正待办和客户归属变更没有后台事实闭环时必须明确拒答，不得用通用员工排行替代。客户投诉与满意度由专用客户反馈能力处理。',
     intents: ['query', 'ranking', 'comparison', 'diagnosis'],
     examples: [
       '这个月谁的业绩最好',
@@ -187,6 +189,11 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '这个月提成最高的是谁，大概多少',
       '本月员工总提成大概多少',
       '今天谁请假了，有没有影响接待',
+      '店里现在有多少个在职美容师',
+      '唐伊是什么职级',
+      '唐伊会做哪些项目',
+      '唐伊上个月的排班是怎样的',
+      '能做肩颈舒压养护的美容师昨天有谁在岗',
       '有没有员工这周业绩明显下滑',
       '新员工试用期表现怎么样',
       '有没有员工到期转正需要我处理',
@@ -201,6 +208,10 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '员工客户复购率排行',
       '员工提成排行',
       '员工排班空档',
+      '员工职级',
+      '美容师项目技能',
+      '美容师严格排班',
+      '美容师在岗名单',
       '员工工作饱和度',
       '员工业绩下滑',
       '员工转正待办',
@@ -544,7 +555,8 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
   @BrainCapability({
     key: 'finance_risk_overview',
     name: '财务经营风险概览',
-    description: '组合实收、支付方式、收入趋势、退款、优惠、成本、毛利和会员卡负债，返回可追溯的财务经营风险概览。',
+    description:
+      '组合实收、支付方式、收入趋势、退款、优惠、成本、毛利和会员卡负债；同时承接指定卡项的核销确认收入，以及指定项目下订单粒度的收入、成本和利润查询。项目汇总毛利和订单粒度利润是不同交付合同。',
     intents: ['query', 'comparison', 'diagnosis'],
     examples: [
       '本月财务情况和风险怎么样',
@@ -563,6 +575,13 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '查一下毛利异常是折扣、成本还是项目结构造成的',
       '储值卡余额总计多少，如果客户都来消费我们能撑住吗',
       '这个月次卡销售了多少金额',
+      '本月毛利、经营利润和成本收入比分别多少',
+      '截至现在储值负债和次卡未履约负债各有多少',
+      '哪些订单毛利为负，每张订单毛利分别多少',
+      '商品订单的成本和毛利是多少',
+      '某位美容师本周的提成构成',
+      '查某张次卡截至指定时点的核销确认收入',
+      '查某个项目的订单在指定期间的利润情况',
       '帮我统计一下本月折扣总金额和折扣率',
       '本月退款和上月比增加了多少',
     ],
@@ -590,6 +609,21 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       'metric.refund_count',
       'metric.discount_amount',
       'metric.operating_cost_amount',
+      'metric.gross_profit_amount',
+      'metric.gross_margin_rate',
+      'metric.operating_profit_amount',
+      'metric.cost_income_ratio',
+      'metric.cash_shift_reconciliation_rate',
+      'metric.stored_value_liability',
+      'metric.unfulfilled_card_liability',
+      'metric.card_recognized_revenue_amount',
+      'metric.order_gross_profit_amount',
+      'metric.order_total_cost_amount',
+      'metric.negative_margin_order_count',
+      'metric.prepaid_order_gross_profit_amount',
+      'metric.product_order_total_cost_amount',
+      'metric.product_order_gross_profit_amount',
+      'metric.staff_commission_component_amount',
       'metric.product_gross_margin_rate',
       'metric.product_below_cost_sale_count',
       'entity.product',
@@ -597,6 +631,14 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       'entity.product_order',
       'entity.project',
       'dimension.projectName',
+      'dimension.orderId',
+      'dimension.orderNo',
+      'dimension.orderKind',
+      'dimension.orderBusinessType',
+      'dimension.cardName',
+      'dimension.commissionType',
+      'dimension.beauticianId',
+      'dimension.beauticianName',
       'dimension.productId',
       'dimension.productName',
       'dimension.paymentMethod',
@@ -808,6 +850,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       'entity.beautician',
       'dimension.customerId',
       'dimension.customerName',
+      'dimension.customerLevel',
       'dimension.customerSource',
       'dimension.customerAgeGroup',
       'dimension.projectName',
@@ -1756,6 +1799,305 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
               completion: { status: 'complete', missingCriteria: [], recoverable: false },
             },
           };
+        }
+        const strictDirectoryQuestion =
+          /在职美容师|是什么职级|会做哪些项目|排班是怎样|有哪些美容师请假|谁在上班|谁在岗/.test(input.question) &&
+          !/请假.*影响接待|影响接待.*请假/.test(input.question);
+        if (strictDirectoryQuestion) {
+          const directory = await this.skillRuntime.buildManagerStaffDirectoryFacts({
+            storeId: input.context.storeId,
+            startDate: range.startDate,
+            endDate: range.endDate,
+          });
+          const citation = {
+            sourceType: 'db_skill',
+            sourceId: 'manager_staff_directory_facts',
+            label: '员工目录、职级、项目技能、排班与请假事实',
+          };
+          if (/在职美容师/.test(input.question)) {
+            return this.applyDataQualityGuard(
+              {
+                status: 'completed',
+                answer: `当前门店共有 ${directory.staff.length} 位在职美容师。`,
+                citations: [citation],
+                grounding: 'db_skill',
+                blocks: [
+                  {
+                    kind: 'kpi',
+                    items: [{ label: '在职美容师', value: `${directory.staff.length} 人` }],
+                    citationIds: [citation.sourceId],
+                  },
+                  {
+                    kind: 'table',
+                    rows: directory.staff.map((staff) => ({
+                      beauticianId: staff.beauticianId,
+                      staff: staff.name,
+                      level: staff.level?.name ?? '未配置',
+                    })),
+                    columns: ['beauticianId', 'staff', 'level'],
+                    citationIds: [citation.sourceId],
+                  },
+                ],
+                metadata: {
+                  capabilityKey: 'manager_staff_overview',
+                  answerScope: 'active_beautician_count',
+                  activeBeauticianCount: directory.staff.length,
+                  completionCriteria: ['active_staff_directory_loaded'],
+                },
+              },
+              dataQuality,
+            );
+          }
+
+          const mentionedStaff = this.resolveMentionedManagerStaff(directory.staff, input.question);
+          if (/是什么职级|会做哪些项目|排班是怎样/.test(input.question)) {
+            if (mentionedStaff.length !== 1) {
+              const question = mentionedStaff.length
+                ? `当前门店有 ${mentionedStaff.length} 位同名美容师，请补充员工编号后继续。`
+                : '没有在当前门店的在职美容师中识别到姓名，请补充完整姓名后继续。';
+              return {
+                status: 'completed',
+                answer: question,
+                citations: [citation],
+                grounding: 'db_skill',
+                blocks: [
+                  {
+                    kind: 'clarification',
+                    question,
+                    options: mentionedStaff.map((staff) => ({
+                      id: String(staff.beauticianId),
+                      label: `${staff.name}（员工编号 ${staff.beauticianId}）`,
+                      value: { beauticianId: staff.beauticianId },
+                    })),
+                  },
+                ],
+                metadata: {
+                  capabilityKey: 'manager_staff_overview',
+                  answerScope: 'staff_identity_clarification',
+                  completion: { status: 'partial', missingCriteria: ['unique_staff_identity'], recoverable: true },
+                },
+              };
+            }
+            const staff = mentionedStaff[0]!;
+            if (/是什么职级/.test(input.question)) {
+              const levelName = staff.level?.name ?? '未配置职级';
+              return this.applyDataQualityGuard(
+                {
+                  status: 'completed',
+                  answer: `${staff.name}当前职级为：${levelName}。`,
+                  citations: [citation],
+                  grounding: 'db_skill',
+                  blocks: [
+                    {
+                      kind: 'table',
+                      rows: [
+                        {
+                          beauticianId: staff.beauticianId,
+                          staff: staff.name,
+                          levelId: staff.level?.levelId ?? null,
+                          level: levelName,
+                        },
+                      ],
+                      columns: ['beauticianId', 'staff', 'levelId', 'level'],
+                      citationIds: [citation.sourceId],
+                    },
+                  ],
+                  metadata: {
+                    capabilityKey: 'manager_staff_overview',
+                    answerScope: 'staff_level',
+                    beauticianId: staff.beauticianId,
+                    levelId: staff.level?.levelId ?? null,
+                    completionCriteria: ['staff_level_loaded'],
+                  },
+                },
+                dataQuality,
+              );
+            }
+            if (/会做哪些项目/.test(input.question)) {
+              const names = staff.projectSkills.map((skill) => skill.projectName);
+              return this.applyDataQualityGuard(
+                {
+                  status: 'completed',
+                  answer: names.length
+                    ? `${staff.name}当前配置可做项目：${names.join('、')}。`
+                    : `${staff.name}当前没有配置可做项目。`,
+                  citations: [citation],
+                  grounding: 'db_skill',
+                  blocks: [
+                    {
+                      kind: 'table',
+                      rows: staff.projectSkills.map((skill) => ({
+                        beauticianId: staff.beauticianId,
+                        staff: staff.name,
+                        projectId: skill.projectId,
+                        projectName: skill.projectName,
+                        skillLevel: skill.skillLevel,
+                        certified: skill.certified,
+                      })),
+                      columns: ['beauticianId', 'staff', 'projectId', 'projectName', 'skillLevel', 'certified'],
+                      citationIds: [citation.sourceId],
+                    },
+                  ],
+                  metadata: {
+                    capabilityKey: 'manager_staff_overview',
+                    answerScope: 'staff_project_skills',
+                    beauticianId: staff.beauticianId,
+                    projectIds: staff.projectSkills.map((skill) => skill.projectId),
+                    completionCriteria: ['staff_project_skills_loaded'],
+                  },
+                },
+                dataQuality,
+              );
+            }
+            const scheduleRows = staff.schedules.map((schedule) => ({ staff: staff.name, ...schedule }));
+            const timeOffRows = staff.timeOffs.map((timeOff) => ({ staff: staff.name, ...timeOff }));
+            return this.applyDataQualityGuard(
+              {
+                status: 'completed',
+                answer: scheduleRows.length
+                  ? `${range.label}${staff.name}共有 ${scheduleRows.length} 条有效排班记录${timeOffRows.length ? `，另有 ${timeOffRows.length} 条已批准请假记录` : ''}。`
+                  : `${range.label}${staff.name}没有有效排班记录${timeOffRows.length ? `，但有 ${timeOffRows.length} 条已批准请假记录` : ''}。`,
+                citations: [citation],
+                grounding: 'db_skill',
+                blocks: [
+                  {
+                    kind: 'table',
+                    rows: scheduleRows,
+                    columns: ['staff', 'date', 'startTime', 'endTime', 'status', 'source', 'scheduleId'],
+                    citationIds: [citation.sourceId],
+                  },
+                  ...(timeOffRows.length
+                    ? [
+                        {
+                          kind: 'table' as const,
+                          rows: timeOffRows,
+                          columns: ['staff', 'date', 'startTime', 'endTime', 'reason', 'timeOffId'],
+                          citationIds: [citation.sourceId],
+                        },
+                      ]
+                    : []),
+                ],
+                metadata: {
+                  capabilityKey: 'manager_staff_overview',
+                  answerScope: 'staff_schedule_detail',
+                  beauticianId: staff.beauticianId,
+                  rangeLabel: range.label,
+                  scheduleCount: scheduleRows.length,
+                  timeOffCount: timeOffRows.length,
+                  completionCriteria: ['staff_schedule_rows_loaded', 'staff_time_off_rows_loaded'],
+                },
+              },
+              dataQuality,
+            );
+          }
+
+          if (/有哪些美容师请假/.test(input.question)) {
+            const rows = directory.staff.flatMap((staff) =>
+              staff.timeOffs.map((timeOff) => ({ beauticianId: staff.beauticianId, staff: staff.name, ...timeOff })),
+            );
+            const names = [...new Set(rows.map((row) => row.staff))];
+            return this.applyDataQualityGuard(
+              {
+                status: 'completed',
+                answer: names.length
+                  ? `${range.label}请假的美容师有：${names.join('、')}。`
+                  : `${range.label}没有已批准的美容师请假记录。`,
+                citations: [citation],
+                grounding: 'db_skill',
+                blocks: [
+                  {
+                    kind: 'table',
+                    rows,
+                    columns: ['beauticianId', 'staff', 'date', 'startTime', 'endTime', 'reason', 'timeOffId'],
+                    citationIds: [citation.sourceId],
+                  },
+                ],
+                metadata: {
+                  capabilityKey: 'manager_staff_overview',
+                  answerScope: 'staff_time_off_list',
+                  rangeLabel: range.label,
+                  beauticianIds: [...new Set(rows.map((row) => row.beauticianId))],
+                  completionCriteria: ['approved_staff_time_off_loaded'],
+                },
+              },
+              dataQuality,
+            );
+          }
+
+          const projectName = this.resolveMentionedStaffProject(directory.staff, input.question);
+          const rows = directory.staff
+            .filter((staff) => !projectName || staff.projectSkills.some((skill) => skill.projectName === projectName))
+            .filter((staff) => this.hasEffectiveStaffSchedule(staff))
+            .map((staff) => ({
+              beauticianId: staff.beauticianId,
+              staff: staff.name,
+              projectName: projectName ?? '',
+              scheduleCount: staff.schedules.filter((schedule) =>
+                ['available', 'working', 'published'].includes(schedule.status),
+              ).length,
+            }));
+          return this.applyDataQualityGuard(
+            {
+              status: 'completed',
+              answer: rows.length
+                ? `${range.label}${projectName ? `能做${projectName}且` : ''}有有效在岗排班的美容师有：${rows.map((row) => row.staff).join('、')}。`
+                : `${range.label}没有找到${projectName ? `能做${projectName}且` : ''}有有效在岗排班的美容师。`,
+              citations: [citation],
+              grounding: 'db_skill',
+              blocks: [
+                {
+                  kind: 'table',
+                  rows,
+                  columns: ['beauticianId', 'staff', 'projectName', 'scheduleCount'],
+                  citationIds: [citation.sourceId],
+                },
+              ],
+              metadata: {
+                capabilityKey: 'manager_staff_overview',
+                answerScope: 'staff_on_duty_list',
+                rangeLabel: range.label,
+                projectName: projectName ?? null,
+                beauticianIds: rows.map((row) => row.beauticianId),
+                completionCriteria: ['staff_schedule_rows_loaded', 'approved_staff_time_off_loaded'],
+              },
+            },
+            dataQuality,
+          );
+        }
+        if (/服务了多少个客户/.test(input.question)) {
+          const staffAnalysis = await this.skillRuntime.buildManagerStaffAnalysis({
+            storeId: input.context.storeId,
+            startDate: range.startDate,
+            endDate: range.endDate,
+          });
+          const matches = this.resolveMentionedManagerStaff(staffAnalysis.staff, input.question);
+          if (matches.length === 1) {
+            const staff = matches[0]!;
+            return this.applyDataQualityGuard(
+              {
+                status: 'completed',
+                answer: `${range.label}${staff.name}服务了 ${staff.uniqueCustomerCount} 位独立客户。`,
+                citations: [{ sourceType: 'db_skill', sourceId: 'manager_staff_analysis', label: '员工服务客户事实' }],
+                grounding: 'db_skill',
+                blocks: [
+                  {
+                    kind: 'kpi',
+                    items: [{ label: `${staff.name}服务客户数`, value: `${staff.uniqueCustomerCount} 人` }],
+                    citationIds: ['manager_staff_analysis'],
+                  },
+                ],
+                metadata: {
+                  capabilityKey: 'manager_staff_overview',
+                  answerScope: 'staff_unique_customer_count_point_lookup',
+                  beauticianId: staff.beauticianId,
+                  uniqueCustomerCount: staff.uniqueCustomerCount,
+                  rangeLabel: range.label,
+                  completionCriteria: ['staff_service_customers_loaded'],
+                },
+              },
+              dataQuality,
+            );
+          }
         }
         if (/(?:业绩|实收).*(?:明显)?(?:下滑|下降)|(?:下滑|下降).*(?:业绩|实收)/.test(input.question)) {
           const durationMs = Math.max(1, range.endDate.getTime() - range.startDate.getTime() + 1);
@@ -3346,6 +3688,12 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         }
         const diagnosisAnswer = input.answerShape === 'diagnosis';
         const diagnosisRange = diagnosisAnswer ? this.resolveFinanceDiagnosisRange(input, range) : range;
+        const cardRecognizedRevenue = await this.buildCardRecognizedRevenueAnswer(input, diagnosisRange);
+        if (cardRecognizedRevenue) return cardRecognizedRevenue;
+        const structuredFinanceAnswer = await this.buildStructuredFinanceMetricAnswer(input, diagnosisRange);
+        if (structuredFinanceAnswer) return structuredFinanceAnswer;
+        const projectOrderProfit = await this.buildProjectOrderProfitAnswer(input, diagnosisRange);
+        if (projectOrderProfit) return projectOrderProfit;
         if (/(?:次卡|套餐卡).*(?:销售|开卡).*(?:金额|多少)|(?:次卡|套餐卡).*(?:卖了多少)/.test(input.question)) {
           if (!this.sharedBusinessMetrics) throw new Error('shared_business_metric_service_unavailable');
           const result = await this.sharedBusinessMetrics.execute(
@@ -4275,11 +4623,31 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             grounding: 'db_skill',
             blocks: [
               {
+                kind: 'kpi',
+                items: [
+                  {
+                    label: `${range.label}有效预约`,
+                    value: `${activeReservations.length} 个`,
+                  },
+                ],
+                citationIds: ['capability_reservation_list'],
+              },
+              {
                 kind: 'table',
                 rows: activeReservations
                   .slice(0, this.resolveLimit(input.args.limit, 100))
                   .map((item) => this.reservationRow(item)),
-                columns: ['date', 'startTime', 'endTime', 'customerName', 'projectName', 'beauticianName', 'status'],
+                columns: [
+                  'customerId',
+                  'reservationId',
+                  'date',
+                  'startTime',
+                  'endTime',
+                  'customerName',
+                  'projectName',
+                  'beauticianName',
+                  'status',
+                ],
                 citationIds: ['capability_reservation_list'],
               },
             ],
@@ -4333,6 +4701,208 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
               completion: { status: 'complete', missingCriteria: [], recoverable: false },
             },
           };
+        }
+        const memberLevelFilter = this.readCustomerMemberLevelFilter(input);
+        if (memberLevelFilter) {
+          const result = await this.customerFacts.getCustomerMemberLevelSummary(
+            input.context.storeId,
+            memberLevelFilter.values,
+            this.resolveLimit(input.args.limit, 10),
+          );
+          const memberLevelLabel = result.memberLevels.join('、');
+          const definitionCitationId = `${memberLevelFilter.definitionKey}@${memberLevelFilter.definitionVersion}`;
+          const factCitationId = 'customer_member_level_summary';
+          const answer = `当前门店共有 ${result.total} 位${memberLevelLabel}会员。`;
+          return this.answer({
+            answer,
+            citationId: factCitationId,
+            citationLabel: '当前门店客户会员等级事实',
+            citations: [
+              {
+                sourceType: 'business_definition',
+                sourceId: definitionCitationId,
+                label: '业务定义：客户会员等级',
+              },
+            ],
+            blocks: [
+              {
+                kind: 'kpi',
+                items: [{ label: `${memberLevelLabel}会员`, value: `${result.total} 人` }],
+                citationIds: [definitionCitationId, factCitationId],
+              },
+              ...(input.answerShape === 'scalar'
+                ? []
+                : [
+                    {
+                      kind: 'table' as const,
+                      rows: result.rows,
+                      columns: ['customerName', 'memberLevel', 'totalSpent', 'lastVisitDate'],
+                      citationIds: [definitionCitationId, factCitationId],
+                    },
+                  ]),
+            ],
+            metadata: {
+              capabilityKey: 'customer_facts',
+              answerScope: 'customer_member_level_summary',
+              total: result.total,
+              memberLevels: result.memberLevels,
+              filter: {
+                definitionKey: memberLevelFilter.definitionKey,
+                operator: memberLevelFilter.operator,
+                values: result.memberLevels,
+              },
+            },
+          });
+        }
+        if (
+          /钻石会员/.test(input.question) &&
+          /(?:多少|几个|一共|共有|总数)/.test(input.question) &&
+          !/(?:有哪些|名单|列出|明细|分别)/.test(input.question)
+        ) {
+          const result = await this.customerFacts.getCustomerMemberLevelSummary(input.context.storeId, ['钻石会员'], 500);
+          return this.answer({
+            answer: `当前门店共有 ${result.total} 位钻石会员。`,
+            citationId: 'customer_member_level_summary',
+            citationLabel: '当前门店客户会员等级事实',
+            blocks: [
+              {
+                kind: 'kpi',
+                items: [{ label: '钻石会员人数', value: `${result.total} 人` }],
+                citationIds: ['customer_member_level_summary'],
+              },
+            ],
+            metadata: {
+              capabilityKey: 'customer_facts',
+              answerScope: 'customer_member_level_count',
+              memberLevel: '钻石会员',
+              total: result.total,
+            },
+          });
+        }
+        if (
+          /(?:到店|来店).*?(?:客户|客人).*?(?:有多少|多少个|一共|共有|总数)|(?:有多少|多少个|一共|共有|总数).*?(?:到店|来店).*?(?:客户|客人)|到店的客户有多少|来店的客户有多少/.test(
+            input.question,
+          )
+        ) {
+          const result = await this.customerFacts.getVisitedCustomerSummary({
+            storeId: input.context.storeId,
+            startDate: range.startDate,
+            endDate: range.endDate,
+            limit: 500,
+          });
+          return this.answer({
+            answer: `${range.label}实际到店客户 ${result.total} 人。`,
+            citationId: 'customer_visited_count_facts',
+            citationLabel: '客户到店事实',
+            blocks: [
+              {
+                kind: 'kpi',
+                items: [{ label: '实际到店客户', value: `${result.total} 人` }],
+                citationIds: ['customer_visited_count_facts'],
+              },
+            ],
+            metadata: {
+              capabilityKey: 'customer_facts',
+              answerScope: 'visited_customer_count',
+              rangeLabel: range.label,
+              total: result.total,
+            },
+          });
+        }
+        if (
+          /(?:到店|来店).*(?:金卡以上|金卡及以上|金卡及其以上)|(?:金卡以上|金卡及以上|金卡及其以上).*(?:到店|来店)/.test(
+            input.question,
+          ) ||
+          /开业至今.*(?:金卡以上|金卡及以上|金卡及其以上)/.test(input.question)
+        ) {
+          const useStoreOpeningStart = /开业至今/.test(input.question);
+          const result = await this.customerFacts.getVisitedMemberTierCustomers({
+            storeId: input.context.storeId,
+            startDate: range.startDate,
+            endDate: range.endDate,
+            minimumMemberLevel: '金卡',
+            useStoreOpeningStart,
+            limit: 500,
+          });
+          const answer = result.rows.length
+            ? `${useStoreOpeningStart ? '开业至今' : range.label}到店客户中，金卡以上有 ${result.total} 人。`
+            : `${useStoreOpeningStart ? '开业至今' : range.label}到店客户中没有金卡以上客户。`;
+          return this.answer({
+            answer,
+            citationId: 'customer_visited_member_tier_facts',
+            citationLabel: '到店金卡以上客户事实',
+            blocks: [
+              {
+                kind: 'kpi',
+                items: [{ label: '金卡以上到店客户', value: `${result.total} 人` }],
+                citationIds: ['customer_visited_member_tier_facts'],
+              },
+              {
+                kind: 'table',
+                rows: result.rows.map((row) => ({
+                  ...row,
+                  lastVisitDate: row.lastVisitDate ?? null,
+                  latestArrivalDate: row.latestArrivalDate ?? null,
+                })),
+                columns: [
+                  'customerId',
+                  'customerName',
+                  'memberLevel',
+                  'lastVisitDate',
+                  'latestArrivalDate',
+                  'arrivalCount',
+                ],
+                citationIds: ['customer_visited_member_tier_facts'],
+              },
+            ],
+            metadata: {
+              capabilityKey: 'customer_facts',
+              answerScope: 'visited_member_tier_set',
+              minimumMemberLevel: '金卡',
+              rangeLabel: useStoreOpeningStart ? '开业至今' : range.label,
+              total: result.total,
+            },
+          });
+        }
+        if (
+          /(?:办了|持有|有|开了).*(?:综合养护 20 次卡).*?(?:没来|没来的客户名单|没有来|未到店)/.test(input.question) ||
+          /综合养护 20 次卡.*(?:没来|没来的客户名单|没有来|未到店)/.test(input.question)
+        ) {
+          const result = await this.customerFacts.getCardHoldersWithoutVisit({
+            storeId: input.context.storeId,
+            message: input.question,
+            startDate: range.startDate,
+            endDate: range.endDate,
+            limit: 500,
+          });
+          return this.answer({
+            answer:
+              result.rows.length === 0
+                ? `办了 ${result.cardNameQuery ?? '指定'} 的客户在 ${range.label} 没有到店记录。`
+                : `办了 ${result.cardNameQuery ?? '指定'} 的客户在 ${range.label} 没来的人共 ${result.total} 人。`,
+            citationId: 'customer_card_holders_without_visit_facts',
+            citationLabel: '客户卡项与到店事实',
+            blocks: [
+              {
+                kind: 'kpi',
+                items: [{ label: '未到店客户', value: `${result.total} 人` }],
+                citationIds: ['customer_card_holders_without_visit_facts'],
+              },
+              {
+                kind: 'table',
+                rows: result.rows,
+                columns: ['customerId', 'customerName', 'memberLevel', 'cardName', 'lastVisitDate'],
+                citationIds: ['customer_card_holders_without_visit_facts'],
+              },
+            ],
+            metadata: {
+              capabilityKey: 'customer_facts',
+              answerScope: 'card_holders_without_visit',
+              cardNameQuery: result.cardNameQuery,
+              total: result.total,
+              rangeLabel: range.label,
+            },
+          });
         }
         if (/(?:沉睡客户.*(?:唤醒|回流).*(?:迹象|信号)|(?:唤醒|回流).*(?:迹象|信号).*沉睡客户)/.test(input.question)) {
           if (!this.customerLifecycle) throw new Error('customer_lifecycle_service_not_configured');
@@ -4504,6 +5074,52 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                 ? 'conversion_result_only_without_cause_attribution'
                 : 'not_requested',
               completionCriteria: ['new_customer_count_loaded', 'new_customer_conversion_count_loaded'],
+            },
+          };
+        }
+        if (
+          input.answerShape === 'scalar' &&
+          Boolean(structuredDefinitionRef(input.args.metrics, 'metric.new_customer_count'))
+        ) {
+          const summary = await this.customerFacts.getNewCustomerConversionSummary({
+            storeId: input.context.storeId,
+            startDate: range.startDate,
+            endDate: range.endDate,
+          });
+          const metricRef = structuredDefinitionRef(input.args.metrics, 'metric.new_customer_count');
+          const metricCitationId = metricRef
+            ? `${metricRef.definitionKey}@${metricRef.definitionVersion}`
+            : 'metric.new_customer_count';
+          const factCitationId = 'customer_acquisition_conversion_summary';
+          return {
+            status: 'completed',
+            answer: `${range.label}新增客户 ${summary.newCustomerCount} 人。`,
+            citations: [
+              {
+                sourceType: 'business_definition',
+                sourceId: metricCitationId,
+                label: '业务定义：周期新增客户数',
+              },
+              {
+                sourceType: 'db_skill',
+                sourceId: factCitationId,
+                label: '当前门店客户建档事实',
+              },
+            ],
+            grounding: 'db_skill',
+            blocks: [
+              {
+                kind: 'kpi',
+                items: [{ label: '新增客户', value: `${summary.newCustomerCount} 人` }],
+                citationIds: [metricCitationId, factCitationId],
+              },
+            ],
+            metadata: {
+              capabilityKey: 'customer_facts',
+              rangeLabel: range.label,
+              metricKey: 'new_customer_count',
+              cohortDefinition: 'Customer.createdAt within requested period',
+              completionCriteria: ['new_customer_count_loaded'],
             },
           };
         }
@@ -4755,6 +5371,70 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           };
         }
         if (
+          this.isExpiringCardNoReservationQuestion(input.question)
+        ) {
+          const result = await this.customerFacts.getExpiringCardCustomersWithoutUpcomingReservation({
+            storeId: input.context.storeId,
+            message: input.question,
+            asOf: new Date(),
+            windowDays: 30,
+            limit: this.resolveLimit(input.args.limit, 10),
+          });
+          const factCitationId = 'customer_card_expiry_no_upcoming_reservation_facts';
+          const cardScope = result.cardNameQuery ? `${result.cardNameQuery} ` : '';
+          const noData = result.rows.length === 0;
+          return this.answer({
+            answer: noData
+              ? `未来 ${result.windowDays} 天内没有符合“${cardScope}活跃次卡临期且无未来预约”的客户。`
+              : `未来 ${result.windowDays} 天内有 ${result.total} 位客户符合“${cardScope}活跃次卡临期且无未来预约”：${result.rows
+                  .map((row, index) => `${index + 1}. ${row.customerName}：${row.cardName}，剩余 ${row.remainingTimes}/${row.totalTimes} 次，${row.daysToExpiry} 天后到期`)
+                  .join('；')}。`,
+            citationId: factCitationId,
+            citationLabel: '客户次卡有效期与未来预约事实',
+            blocks: [
+              {
+                kind: 'kpi',
+                items: [{ label: '临期未预约客户', value: `${result.total} 人`, hint: `未来 ${result.windowDays} 天` }],
+                citationIds: [factCitationId],
+              },
+              {
+                kind: 'table' as const,
+                rows: result.rows.map((row) => ({
+                  ...row,
+                  expiryDate: row.expiryDate.toISOString(),
+                })),
+                columns: [
+                  'customerId',
+                  'customerName',
+                  'cardName',
+                  'remainingTimes',
+                  'totalTimes',
+                  'daysToExpiry',
+                  'expiryDate',
+                  'lastVisitDate',
+                ],
+                citationIds: [factCitationId],
+              },
+              ...(noData
+                ? [
+                    {
+                      kind: 'limitations' as const,
+                      items: [`no_data:未来 ${result.windowDays} 天内没有符合条件的临期未预约次卡客户。`],
+                    },
+                  ]
+                : []),
+            ],
+            metadata: {
+              capabilityKey: 'customer_facts',
+              answerScope: 'expiring_card_without_upcoming_reservation',
+              windowDays: result.windowDays,
+              cardNameQuery: result.cardNameQuery,
+              definition:
+                'active CustomerCard expiring within 30 days, remainingTimes > 0, and no non-cancelled future Reservation for the same customer in current store',
+            },
+          });
+        }
+        if (
           /(?:次卡|卡项).*(?:即将过期|快过期|临期).*(?:余量|剩余|次数)|(?:余量|剩余|次数).*(?:多|很多).*(?:次卡|卡项).*(?:过期|临期)/.test(
             input.question,
           )
@@ -4765,8 +5445,11 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             windowDays: 30,
             limit: this.resolveLimit(input.args.limit, 10),
           });
+          const noData = result.rows.length === 0;
           return this.answer({
-            answer: `未来 ${result.windowDays} 天内有 ${result.total} 张活跃次卡临期且余量较高。统一口径：剩余至少 3 次，或剩余比例不低于 30%。${result.rows.length ? `\n${result.rows.map((row, index) => `${index + 1}. ${row.customerName}：${row.cardName}，剩余 ${row.remainingTimes}/${row.totalTimes} 次（${(row.remainingRate * 100).toFixed(1)}%），${row.daysToExpiry} 天后到期，估算未履约 ${row.unfulfilledValue.toFixed(2)} 元`).join('\n')}` : ''}`,
+            answer: noData
+              ? `未来 ${result.windowDays} 天内没有符合“临期且余量较高”的次卡。统一口径：剩余至少 3 次，或剩余比例不低于 30%。`
+              : `未来 ${result.windowDays} 天内有 ${result.total} 张活跃次卡临期且余量较高。统一口径：剩余至少 3 次，或剩余比例不低于 30%。${result.rows.length ? `\n${result.rows.map((row, index) => `${index + 1}. ${row.customerName}：${row.cardName}，剩余 ${row.remainingTimes}/${row.totalTimes} 次（${(row.remainingRate * 100).toFixed(1)}%），${row.daysToExpiry} 天后到期，估算未履约 ${row.unfulfilledValue.toFixed(2)} 元`).join('\n')}` : ''}`,
             citationId: 'customer_card_expiry_balance_facts',
             citationLabel: '客户次卡有效期与剩余次数事实',
             blocks: [
@@ -4775,26 +5458,35 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                 items: [{ label: '临期高余量次卡', value: `${result.total} 张`, hint: `未来 ${result.windowDays} 天` }],
                 citationIds: ['customer_card_expiry_balance_facts'],
               },
-              {
-                kind: 'table',
-                rows: result.rows.map((row) => ({
-                  ...row,
-                  remainingRate: `${(row.remainingRate * 100).toFixed(1)}%`,
-                  expiryDate: row.expiryDate.toISOString(),
-                  unfulfilledValue: row.unfulfilledValue.toFixed(2),
-                })),
-                columns: [
-                  'customerName',
-                  'cardName',
-                  'remainingTimes',
-                  'totalTimes',
-                  'remainingRate',
-                  'daysToExpiry',
-                  'expiryDate',
-                  'unfulfilledValue',
-                ],
-                citationIds: ['customer_card_expiry_balance_facts'],
-              },
+              ...(noData
+                ? [
+                    {
+                      kind: 'limitations' as const,
+                      items: ['no_data:未来 30 天内没有符合“临期且余量较高”的次卡。'],
+                    },
+                  ]
+                : [
+                    {
+                      kind: 'table' as const,
+                      rows: result.rows.map((row) => ({
+                        ...row,
+                        remainingRate: `${(row.remainingRate * 100).toFixed(1)}%`,
+                        expiryDate: row.expiryDate.toISOString(),
+                        unfulfilledValue: row.unfulfilledValue.toFixed(2),
+                      })),
+                      columns: [
+                        'customerName',
+                        'cardName',
+                        'remainingTimes',
+                        'totalTimes',
+                        'remainingRate',
+                        'daysToExpiry',
+                        'expiryDate',
+                        'unfulfilledValue',
+                      ],
+                      citationIds: ['customer_card_expiry_balance_facts'],
+                    },
+                  ]),
             ],
             metadata: {
               capabilityKey: 'customer_facts',
@@ -5347,6 +6039,281 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                 String(item.productId) === productReference.entityKey || item.productName === productReference.mention,
             )
           : analysis.suggestions;
+        const procurementCitationId = 'capability_inventory_procurement_advice';
+        const procurementStatusLabel = (status: string) =>
+          (
+            {
+              pending_supplier_confirm: '待供应商确认',
+              accepted: '供应商已确认',
+              shipped: '已发货待收货',
+              partial_received: '部分收货',
+              received: '已收货',
+              settled: '已结算',
+            } as Record<string, string>
+          )[status] ?? status;
+        const orderRows = analysis.recentOrders.map((order) => ({
+          createdAt: order.createdAt,
+          orderNo: order.orderNo,
+          supplierName: order.supplierName,
+          amount: Number(order.amount.toFixed(2)),
+          netAmount: Number(order.netAmount.toFixed(2)),
+          status: procurementStatusLabel(order.status),
+          expectedArrivalDate: order.expectedArrivalDate ?? null,
+          receivedAt: order.receivedAt ?? null,
+          settledAt: order.settledAt ?? null,
+        }));
+        const procurementOrderInRange = (
+          order: { createdAt: string; receivedAt?: string | null },
+          dateKey: 'createdAt' | 'receivedAt' = 'createdAt',
+        ) => {
+          const dateValue = order[dateKey] || order.createdAt;
+          const occurredAt = new Date(`${dateValue}T00:00:00.000+08:00`).getTime();
+          return occurredAt >= range.startDate.getTime() && occurredAt <= range.endDate.getTime();
+        };
+        if (/(?:供应商).*(?:多少|几个|数量)|(?:多少|几个|几家).*(?:供应商)/.test(input.question)) {
+          const rows = analysis.suppliers.map((supplier) => ({
+            supplierId: supplier.supplierId ?? null,
+            supplierName: supplier.supplierName,
+            status: supplier.status ?? '未记录',
+            qualificationStatus: supplier.qualificationStatus,
+            quoteCount: supplier.quoteCount,
+            leadDays: supplier.leadDays ?? null,
+          }));
+          return this.applyDataQualityGuard(
+            this.answer({
+              answer: rows.length
+                ? `当前供应商主档共 ${rows.length} 家，其中可用于采购分析的报价供应商 ${rows.filter((row) => row.quoteCount > 0).length} 家。`
+                : '当前没有供应商主档记录。',
+              citationId: procurementCitationId,
+              citationLabel: '供应商主档、报价与采购分析',
+              blocks: [
+                {
+                  kind: 'kpi',
+                  items: [
+                    { label: '供应商主档', value: `${rows.length} 家` },
+                    { label: '有报价供应商', value: `${rows.filter((row) => row.quoteCount > 0).length} 家` },
+                  ],
+                  citationIds: [procurementCitationId],
+                },
+                {
+                  kind: 'table',
+                  rows,
+                  columns: ['supplierId', 'supplierName', 'status', 'qualificationStatus', 'quoteCount', 'leadDays'],
+                  citationIds: [procurementCitationId],
+                },
+                ...(rows.length ? [] : [{ kind: 'limitations' as const, items: ['no_data:supplier_master_empty'] }]),
+              ],
+              metadata: {
+                capabilityKey: 'inventory_procurement_advice',
+                rangeLabel: range.label,
+                answerScope: 'supplier_count',
+                supplierCount: rows.length,
+                quotedSupplierCount: rows.filter((row) => row.quoteCount > 0).length,
+                completionCriteria: ['supplier_master_loaded', 'supplier_quote_mapping_loaded'],
+              },
+            }),
+            dataQuality,
+          );
+        }
+        if (/待收货|未收货|待到货/.test(input.question)) {
+          const receivableRows = orderRows.filter((order) => ['已发货待收货', '部分收货', '供应商已确认'].includes(String(order.status)));
+          const pendingConfirmationCount = orderRows.filter((order) => order.status === '待供应商确认').length;
+          return this.applyDataQualityGuard(
+            this.answer({
+              answer: receivableRows.length
+                ? `当前有 ${receivableRows.length} 张待收货采购单。`
+                : `当前没有待收货采购单${pendingConfirmationCount ? `；另有 ${pendingConfirmationCount} 张待供应商确认，尚未进入待收货` : ''}。`,
+              citationId: procurementCitationId,
+              citationLabel: '采购单状态与收货进度',
+              blocks: [
+                {
+                  kind: 'kpi',
+                  items: [
+                    { label: '待收货采购单', value: `${receivableRows.length} 张` },
+                    ...(pendingConfirmationCount ? [{ label: '待供应商确认', value: `${pendingConfirmationCount} 张` }] : []),
+                  ],
+                  citationIds: [procurementCitationId],
+                },
+                {
+                  kind: 'table',
+                  rows: receivableRows,
+                  columns: ['createdAt', 'orderNo', 'supplierName', 'amount', 'status', 'expectedArrivalDate'],
+                  citationIds: [procurementCitationId],
+                },
+                ...(receivableRows.length
+                  ? []
+                  : [{ kind: 'limitations' as const, items: ['no_data:procurement_receiving_orders_empty'] }]),
+              ],
+              metadata: {
+                capabilityKey: 'inventory_procurement_advice',
+                rangeLabel: range.label,
+                answerScope: 'pending_receipt_procurement_orders',
+                orderCount: receivableRows.length,
+                pendingSupplierConfirmationCount: pendingConfirmationCount,
+                completionCriteria: ['procurement_order_status_loaded'],
+              },
+            }),
+            dataQuality,
+          );
+        }
+        if (/待付款|待结算|结算待付款/.test(input.question)) {
+          const timeScoped = /今天|昨日|昨天|本周|这周|上周|本月|这个月|上月|最近\d+天|最近[一二三四五六七八九十]+天|截至|\d{4}[/-]\d{1,2}[/-]\d{1,2}/.test(
+            input.question,
+          );
+          const unpaidRows = orderRows.filter(
+            (order) =>
+              ['已收货', '部分收货'].includes(String(order.status)) &&
+              !order.settledAt &&
+              (!timeScoped || procurementOrderInRange(order, 'receivedAt')),
+          );
+          const totalAmount = unpaidRows.reduce((sum, order) => sum + Number(order.netAmount || order.amount || 0), 0);
+          return this.applyDataQualityGuard(
+            this.answer({
+              answer: unpaidRows.length
+                ? `${timeScoped ? range.label : '当前'}采购结算待付款 ${totalAmount.toFixed(2)} 元，涉及 ${unpaidRows.length} 张采购单。`
+                : `${timeScoped ? range.label : '当前'}没有采购结算待付款采购单。`,
+              citationId: procurementCitationId,
+              citationLabel: '采购单收货与结算状态',
+              blocks: [
+                {
+                  kind: 'kpi',
+                  items: [{ label: '采购待付款', value: `${totalAmount.toFixed(2)} 元`, hint: `${unpaidRows.length} 张` }],
+                  citationIds: [procurementCitationId],
+                },
+                {
+                  kind: 'table',
+                  rows: unpaidRows,
+                  columns: ['createdAt', 'orderNo', 'supplierName', 'netAmount', 'status', 'receivedAt'],
+                  citationIds: [procurementCitationId],
+                },
+                ...(unpaidRows.length ? [] : [{ kind: 'limitations' as const, items: ['no_data:procurement_unpaid_orders_empty'] }]),
+              ],
+              metadata: {
+                capabilityKey: 'inventory_procurement_advice',
+                rangeLabel: range.label,
+                answerScope: 'unpaid_procurement_orders',
+                orderCount: unpaidRows.length,
+                totalAmount,
+                completionCriteria: ['procurement_order_settlement_status_loaded'],
+              },
+            }),
+            dataQuality,
+          );
+        }
+        if (/(?:采购成本|采购金额|采购额).*(?:品类|类别|分类)|(?:品类|类别|分类).*(?:采购成本|采购金额|采购额|最高)/.test(input.question)) {
+          const categoryRows = [
+            ...(analysis.orderItems ?? [])
+              .filter((item) => procurementOrderInRange(item))
+              .reduce((map, item) => {
+                const current = map.get(item.categoryName) ?? {
+                  categoryName: item.categoryName,
+                  amount: 0,
+                  quantity: 0,
+                  itemCount: 0,
+                  orderNos: new Set<string>(),
+                };
+                current.amount += Number(item.amount || 0);
+                current.quantity += Number(item.quantity || 0);
+                current.itemCount += 1;
+                current.orderNos.add(item.orderNo);
+                map.set(item.categoryName, current);
+                return map;
+              }, new Map<string, { categoryName: string; amount: number; quantity: number; itemCount: number; orderNos: Set<string> }>())
+              .values(),
+          ]
+            .map((row) => ({
+              categoryName: row.categoryName,
+              amount: Number(row.amount.toFixed(2)),
+              quantity: row.quantity,
+              itemCount: row.itemCount,
+              orderCount: row.orderNos.size,
+            }))
+            .sort((left, right) => right.amount - left.amount || left.categoryName.localeCompare(right.categoryName));
+          const top = categoryRows[0];
+          return this.applyDataQualityGuard(
+            this.answer({
+              answer: top
+                ? `${range.label}采购成本最高的品类是 ${top.categoryName}，金额 ${top.amount.toFixed(2)} 元。`
+                : `${range.label}没有采购品类成本记录。`,
+              citationId: procurementCitationId,
+              citationLabel: '采购明细、商品品类与采购成本',
+              blocks: [
+                {
+                  kind: 'ranking',
+                  rows: categoryRows,
+                  columns: ['categoryName', 'amount', 'quantity', 'itemCount', 'orderCount'],
+                  citationIds: [procurementCitationId],
+                },
+                ...(categoryRows.length ? [] : [{ kind: 'limitations' as const, items: ['no_data:procurement_category_cost_empty'] }]),
+              ],
+              metadata: {
+                capabilityKey: 'inventory_procurement_advice',
+                rangeLabel: range.label,
+                answerScope: 'procurement_category_cost_ranking',
+                categoryCount: categoryRows.length,
+                topCategoryName: top?.categoryName ?? null,
+                topCategoryAmount: top?.amount ?? 0,
+                completionCriteria: ['procurement_order_items_loaded', 'product_category_loaded'],
+              },
+            }),
+            dataQuality,
+          );
+        }
+        if (/采购(?:总额|金额|成本)|采购.*(?:多少钱|多少金额|花了多少)|各供应商.*采购金额|采购金额.*供应商/.test(input.question)) {
+          const inRangeRows = orderRows.filter((order) => procurementOrderInRange(order));
+          const grouped = [...inRangeRows.reduce((map, order) => {
+            const current = map.get(order.supplierName) ?? { supplierName: order.supplierName, amount: 0, netAmount: 0, orderCount: 0 };
+            current.amount += Number(order.amount || 0);
+            current.netAmount += Number(order.netAmount || 0);
+            current.orderCount += 1;
+            map.set(order.supplierName, current);
+            return map;
+          }, new Map<string, { supplierName: string; amount: number; netAmount: number; orderCount: number }>()).values()].map((row) => ({
+            supplierName: row.supplierName,
+            amount: Number(row.amount.toFixed(2)),
+            netAmount: Number(row.netAmount.toFixed(2)),
+            orderCount: row.orderCount,
+          }));
+          const totalAmount = inRangeRows.reduce((sum, order) => sum + Number(order.amount || 0), 0);
+          const supplierBreakdown = /供应商/.test(input.question);
+          return this.applyDataQualityGuard(
+            this.answer({
+              answer: inRangeRows.length
+                ? supplierBreakdown
+                  ? `${range.label}各供应商采购金额合计 ${totalAmount.toFixed(2)} 元，涉及 ${grouped.length} 家供应商。`
+                  : `${range.label}采购总额 ${totalAmount.toFixed(2)} 元，涉及 ${inRangeRows.length} 张采购单。`
+                : `${range.label}没有采购单金额记录。`,
+              citationId: procurementCitationId,
+              citationLabel: '采购单、供应商与采购金额',
+              blocks: [
+                {
+                  kind: 'kpi',
+                  items: [{ label: `${range.label}采购总额`, value: `${totalAmount.toFixed(2)} 元`, hint: `${inRangeRows.length} 张` }],
+                  citationIds: [procurementCitationId],
+                },
+                {
+                  kind: 'table',
+                  rows: supplierBreakdown ? grouped : inRangeRows,
+                  columns: supplierBreakdown
+                    ? ['supplierName', 'amount', 'netAmount', 'orderCount']
+                    : ['createdAt', 'orderNo', 'supplierName', 'amount', 'netAmount', 'status'],
+                  citationIds: [procurementCitationId],
+                },
+                ...(inRangeRows.length ? [] : [{ kind: 'limitations' as const, items: ['no_data:procurement_orders_in_range_empty'] }]),
+              ],
+              metadata: {
+                capabilityKey: 'inventory_procurement_advice',
+                rangeLabel: range.label,
+                answerScope: supplierBreakdown ? 'procurement_amount_by_supplier' : 'procurement_amount',
+                orderCount: inRangeRows.length,
+                supplierCount: grouped.length,
+                totalAmount,
+                completionCriteria: ['procurement_orders_loaded', 'procurement_amount_summarized'],
+              },
+            }),
+            dataQuality,
+          );
+        }
         const suggestions = scopedSuggestions
           .slice(0, this.resolveLimit(input.args.limit, 12))
           .map(
@@ -5636,6 +6603,59 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         metadata: {
           capabilityKey: input.card.key,
           answerScope: 'reservation_daily_ranking',
+          rangeLabel: range.label,
+          count: active.length,
+        },
+      };
+    }
+
+    if (
+      /(?:哪个|哪些|什么).*(?:项目).*(?:预约最多|最忙|最多预约)|(?:预约最多|最忙|最多预约).*(?:项目)/.test(
+        question,
+      )
+    ) {
+      const grouped = new Map<string, { projectId?: number; projectName: string; count: number }>();
+      for (const item of active) {
+        const key = item.projectId != null ? `projectId:${item.projectId}` : `projectName:${item.projectName}`;
+        const current = grouped.get(key);
+        if (current) {
+          current.count += 1;
+        } else {
+          grouped.set(key, {
+            ...(item.projectId != null ? { projectId: item.projectId } : {}),
+            projectName: item.projectName,
+            count: 1,
+          });
+        }
+      }
+      const rows = [...grouped.values()].sort((left, right) => {
+        const projectIdComparison = (left.projectId ?? 0) - (right.projectId ?? 0);
+        return right.count - left.count || projectIdComparison || left.projectName.localeCompare(right.projectName, 'zh-CN');
+      });
+      const topRows = rows.slice(0, 1);
+      return {
+        status: 'completed',
+        answer: topRows.length
+          ? `${range.label}预约最多的项目是 ${topRows[0]!.projectName}，共 ${topRows[0]!.count} 个预约。`
+          : `${range.label}没有有效预约，无法形成项目排行。`,
+        citations,
+        grounding: 'db_skill',
+        blocks: [
+          topRows.length
+            ? {
+                kind: 'ranking' as const,
+                rows: topRows,
+                columns: ['projectId', 'projectName', 'count'],
+                citationIds,
+              }
+            : {
+                kind: 'limitations' as const,
+                items: ['no_data:当前时间范围没有有效预约，无法形成项目排行。'],
+              },
+        ],
+        metadata: {
+          capabilityKey: input.card.key,
+          answerScope: 'reservation_project_ranking',
           rangeLabel: range.label,
           count: active.length,
         },
@@ -6067,6 +7087,8 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     rows: Awaited<ReturnType<BrainSkillRuntimeService['listReceptionReservations']>>['reservations'],
     citationIds: string[],
     columns = [
+      'customerId',
+      'reservationId',
       'date',
       'startTime',
       'endTime',
@@ -6085,6 +7107,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
   ) {
     const attentionItems = item.attentionItems ?? [];
     return {
+      customerId: item.customerId,
       reservationId: item.reservationId,
       date: item.date,
       startTime: item.startTime,
@@ -6118,17 +7141,23 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     const cleaned = String(mention ?? '')
       .replace(/(?:美容师|老师|客户|顾客|女士|先生)$/g, '')
       .trim();
-    if (cleaned && !/^(这个|那个|某个|哪个|各个|每个|所有|全部|当前|下一个|下一位)$/.test(cleaned)) return cleaned;
+    if (cleaned && !this.isGenericEntityMention(cleaned)) return cleaned;
     if (entityType === 'customer') {
       const matched = input.question.match(/([\u4e00-\u9fa5]{2,4})的预约/);
       const candidate = matched?.[1];
-      if (candidate && !/^(这个|那个|客户|顾客|所有|全部|今天|明天|下午|上午)$/.test(candidate)) return candidate;
+      if (candidate && !this.isGenericEntityMention(candidate)) return candidate;
     } else {
       const matched = input.question.match(/([\u4e00-\u9fa5]{1,4})(?:美容师|老师)/);
       const candidate = matched?.[1];
-      if (candidate && !/^(哪个|某个|这个|各个|每个|所有|全部)$/.test(candidate)) return candidate;
+      if (candidate && !this.isGenericEntityMention(candidate)) return candidate;
     }
     return undefined;
+  }
+
+  private isGenericEntityMention(value: string) {
+    return /^(这个|那个|某个|哪个|哪些|哪位|哪几位|各个|每个|所有|全部|当前|下一个|下一位|谁|有谁|都有谁|顾客|客户|客人|美容师|员工|技师|今天|明天|下午|上午)$/.test(
+      value,
+    );
   }
 
   private resolveQuestionTimeWindow(
@@ -6676,8 +7705,805 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     return `${normalized > 0 ? '+' : ''}${normalized.toFixed(digits)}`;
   }
 
+  private async buildStructuredFinanceMetricAnswer(
+    input: BrainCapabilityExecutionInput,
+    range: BrainDateRange,
+  ): Promise<BrainDomainAnswer | undefined> {
+    const metricKeys = new Set([
+      ...structuredDefinitionKeys(input.args.metrics),
+      ...this.inferFinanceRiskScalarMetricKeys(input.question),
+    ]);
+    const supported = new Set([
+      'metric.gross_profit_amount',
+      'metric.gross_margin_rate',
+      'metric.operating_profit_amount',
+      'metric.cost_income_ratio',
+      'metric.cash_shift_reconciliation_rate',
+      'metric.stored_value_liability',
+      'metric.unfulfilled_card_liability',
+      'metric.card_recognized_revenue_amount',
+      'metric.order_gross_profit_amount',
+      'metric.order_total_cost_amount',
+      'metric.negative_margin_order_count',
+      'metric.prepaid_order_gross_profit_amount',
+      'metric.product_order_total_cost_amount',
+      'metric.product_order_gross_profit_amount',
+      'metric.staff_commission_component_amount',
+    ]);
+    if (![...metricKeys].some((key) => supported.has(key))) return undefined;
+    const definitionCitations = [...metricKeys]
+      .filter((key) => supported.has(key))
+      .map((key) => {
+        const ref = structuredDefinitionRef(input.args.metrics, key);
+        return {
+          sourceType: 'business_definition',
+          sourceId: ref ? `${ref.definitionKey}@${ref.definitionVersion}` : key,
+          label: `业务定义：${key}`,
+        };
+      });
+    const citationIds = definitionCitations.map((citation) => citation.sourceId);
+
+    if (metricKeys.has('metric.staff_commission_component_amount')) {
+      const beauticians = structuredEntityMentions(input.args as BrainCapabilityToolArgs).filter(
+        (entity) => entity.entityType === 'beautician' && /^\d+$/u.test(String(entity.entityKey ?? '')),
+      );
+      if (beauticians.length !== 1) {
+        const limitation =
+          beauticians.length > 1
+            ? '一次只能查询一位美容师的提成构成，请明确选择其中一位。'
+            : '提成构成必须绑定当前门店受控的美容师实体，请先选择具体美容师。';
+        return {
+          status: 'completed',
+          answer: limitation,
+          citations: definitionCitations,
+          grounding: 'none',
+          blocks: [{ kind: 'limitations', items: [limitation] }],
+          metadata: {
+            capabilityKey: 'finance_risk_overview',
+            answerScope: 'staff_commission_composition',
+            unsupportedReason:
+              beauticians.length > 1
+                ? 'beautician_entity_reference_ambiguous'
+                : 'beautician_entity_reference_required',
+          },
+        };
+      }
+      const beautician = beauticians[0]!;
+      const rows = await this.skillRuntime.buildFinanceStaffCommissionRows({
+        storeId: input.context.storeId,
+        startDate: range.startDate,
+        endDate: range.endDate,
+        beauticianId: Number(beautician.entityKey),
+      });
+      const displayRows = rows.map((row) => ({ type: row.commissionType, amount: row.amount }));
+      const total = rows.reduce((sum, row) => sum + row.amount, 0);
+      const name = rows[0]?.beauticianName ?? beautician.mention;
+      return {
+        status: 'completed',
+        answer: `${range.label}${name}提成共 ${total.toFixed(2)} 元，按提成类型列示如下。`,
+        citations: [
+          ...definitionCitations,
+          { sourceType: 'db_skill', sourceId: 'finance_staff_commission_rows', label: '员工有效提成构成' },
+        ],
+        grounding: 'db_skill',
+        blocks: [
+          {
+            kind: 'table',
+            rows: displayRows,
+            columns: ['type', 'amount'],
+            citationIds: ['finance_staff_commission_rows'],
+          },
+        ],
+        metadata: {
+          capabilityKey: 'finance_risk_overview',
+          answerScope: 'staff_commission_composition',
+          beauticianId: Number(beautician.entityKey),
+          sourceRowCount: rows.length,
+          ...this.executionTimeRange(range, input.context.timezone),
+        },
+      };
+    }
+
+    if (metricKeys.has('metric.card_recognized_revenue_amount')) {
+      const rows = await this.skillRuntime.buildFinanceCardRecognitionRows({
+        storeId: input.context.storeId,
+        startDate: range.startDate,
+        endDate: range.endDate,
+      });
+      const total = rows.reduce((sum, row) => sum + row.recognizedAmount, 0);
+      return {
+        status: 'completed',
+        answer: `${range.label}次卡核销确认收入 ${total.toFixed(2)} 元。`,
+        citations: [
+          ...definitionCitations,
+          { sourceType: 'db_skill', sourceId: 'finance_card_recognition_rows', label: '次卡核销确认收入明细' },
+        ],
+        grounding: 'db_skill',
+        blocks: [
+          {
+            kind: 'kpi',
+            items: [{ label: '确认收入', value: `${total.toFixed(2)} 元` }],
+            citationIds: [...citationIds, 'finance_card_recognition_rows'],
+          },
+        ],
+        metadata: {
+          capabilityKey: 'finance_risk_overview',
+          answerScope: 'card_recognized_revenue',
+          sourceRowCount: rows.length,
+          recognizedRevenue: total,
+          ...this.executionTimeRange(range, input.context.timezone),
+        },
+      };
+    }
+
+    const requestsGenericOrders = [
+      'metric.order_gross_profit_amount',
+      'metric.order_total_cost_amount',
+      'metric.negative_margin_order_count',
+    ].some((key) => metricKeys.has(key));
+    if (requestsGenericOrders) {
+      const rows = await this.skillRuntime.buildFinanceOrderProfitRows({
+        storeId: input.context.storeId,
+        startDate: range.startDate,
+        endDate: range.endDate,
+        scope: 'all',
+      });
+      if (metricKeys.has('metric.negative_margin_order_count')) {
+        const negativeRows = rows.filter((row) => row.grossProfit < 0);
+        return {
+          status: 'completed',
+          answer: negativeRows.length
+            ? `${range.label}共有 ${negativeRows.length} 张负毛利订单。`
+            : `${range.label}没有负毛利订单。`,
+          citations: [
+            ...definitionCitations,
+            { sourceType: 'db_skill', sourceId: 'finance_order_profit_rows', label: '订单毛利明细' },
+          ],
+          grounding: 'db_skill',
+          blocks: [
+            {
+              kind: 'table',
+              rows: negativeRows.map((row) => ({ orderId: row.orderId, grossProfit: row.grossProfit })),
+              columns: ['orderId', 'grossProfit'],
+              citationIds: ['finance_order_profit_rows'],
+            },
+          ],
+          metadata: {
+            capabilityKey: 'finance_risk_overview',
+            answerScope: 'negative_margin_orders',
+            sourceRowCount: rows.length,
+            negativeOrderCount: negativeRows.length,
+            ...this.executionTimeRange(range, input.context.timezone),
+          },
+        };
+      }
+      const includeCost = metricKeys.has('metric.order_total_cost_amount');
+      const displayRows = rows.map((row) => ({
+        orderId: row.orderId,
+        ...(includeCost ? { totalCost: row.totalCost } : {}),
+        grossProfit: row.grossProfit,
+      }));
+      return {
+        status: 'completed',
+        answer: `${range.label}已按订单 ID 列出 ${rows.length} 张订单的${includeCost ? '成本和' : ''}毛利。`,
+        citations: [
+          ...definitionCitations,
+          { sourceType: 'db_skill', sourceId: 'finance_order_profit_rows', label: '订单成本与毛利明细' },
+        ],
+        grounding: 'db_skill',
+        blocks: [
+          {
+            kind: 'table',
+            rows: displayRows,
+            columns: includeCost ? ['orderId', 'totalCost', 'grossProfit'] : ['orderId', 'grossProfit'],
+            citationIds: ['finance_order_profit_rows'],
+          },
+        ],
+        metadata: {
+          capabilityKey: 'finance_risk_overview',
+          answerScope: 'order_profit_rows',
+          sourceRowCount: rows.length,
+          ...this.executionTimeRange(range, input.context.timezone),
+        },
+      };
+    }
+
+    if (metricKeys.has('metric.prepaid_order_gross_profit_amount')) {
+      const rows = await this.skillRuntime.buildFinanceOrderProfitRows({
+        storeId: input.context.storeId,
+        startDate: range.startDate,
+        endDate: range.endDate,
+        scope: 'prepaid',
+      });
+      const grossProfit = rows.reduce((sum, row) => sum + row.grossProfit, 0);
+      return {
+        status: 'completed',
+        answer: `${range.label}开卡和卡销售订单在收款时不确认经营收入，经营毛利为 ${grossProfit.toFixed(2)} 元。`,
+        citations: [
+          ...definitionCitations,
+          { sourceType: 'db_skill', sourceId: 'finance_prepaid_order_profit_rows', label: '预收订单经营毛利' },
+        ],
+        grounding: 'db_skill',
+        blocks: [{ kind: 'kpi', items: [{ label: '经营毛利', value: `${grossProfit.toFixed(2)} 元` }] }],
+        metadata: {
+          capabilityKey: 'finance_risk_overview',
+          answerScope: 'prepaid_order_gross_profit',
+          sourceRowCount: rows.length,
+          ...this.executionTimeRange(range, input.context.timezone),
+        },
+      };
+    }
+
+    if (
+      metricKeys.has('metric.product_order_total_cost_amount') ||
+      metricKeys.has('metric.product_order_gross_profit_amount')
+    ) {
+      const rows = await this.skillRuntime.buildFinanceOrderProfitRows({
+        storeId: input.context.storeId,
+        startDate: range.startDate,
+        endDate: range.endDate,
+        scope: 'product',
+      });
+      const totalCost = rows.reduce((sum, row) => sum + row.totalCost, 0);
+      const grossProfit = rows.reduce((sum, row) => sum + row.grossProfit, 0);
+      return {
+        status: 'completed',
+        answer: `${range.label}商品订单总成本 ${totalCost.toFixed(2)} 元，毛利 ${grossProfit.toFixed(2)} 元。`,
+        citations: [
+          ...definitionCitations,
+          { sourceType: 'db_skill', sourceId: 'finance_product_order_profit_rows', label: '商品订单成本与毛利' },
+        ],
+        grounding: 'db_skill',
+        blocks: [
+          {
+            kind: 'table',
+            rows: [{ totalCost, grossProfit }],
+            columns: ['totalCost', 'grossProfit'],
+            citationIds: ['finance_product_order_profit_rows'],
+          },
+        ],
+        metadata: {
+          capabilityKey: 'finance_risk_overview',
+          answerScope: 'product_order_cost_and_gross_profit',
+          sourceRowCount: rows.length,
+          ...this.executionTimeRange(range, input.context.timezone),
+        },
+      };
+    }
+
+    const costMetricKeys = [
+      'metric.gross_profit_amount',
+      'metric.gross_margin_rate',
+      'metric.operating_profit_amount',
+      'metric.cost_income_ratio',
+      'metric.cash_shift_reconciliation_rate',
+      'metric.stored_value_liability',
+      'metric.unfulfilled_card_liability',
+    ].filter((key) => metricKeys.has(key));
+    if (!costMetricKeys.length) return undefined;
+    const cost = await this.skillRuntime.buildFinanceCostAnalysis({
+      storeId: input.context.storeId,
+      startDate: range.startDate,
+      endDate: range.endDate,
+    });
+    if (metricKeys.has('metric.cash_shift_reconciliation_rate')) {
+      const reconciled = cost.settlementCount > 0 && cost.reconciledSettlementCount === cost.settlementCount;
+      return {
+        status: 'completed',
+        answer: `${range.label}收银班次${reconciled ? '已对平' : '未对平'}，权威日结 ${cost.reconciledSettlementCount}/${cost.settlementCount} 个营业日通过。`,
+        citations: [
+          ...definitionCitations,
+          { sourceType: 'db_skill', sourceId: 'finance_cost_analysis', label: '权威日结对平状态' },
+        ],
+        grounding: 'db_skill',
+        blocks: [
+          {
+            kind: 'kpi',
+            items: [{ label: '收银对平状态', value: reconciled ? '已对平' : '未对平' }],
+            citationIds: ['finance_cost_analysis'],
+          },
+        ],
+        metadata: {
+          capabilityKey: 'finance_risk_overview',
+          answerScope: 'cash_shift_reconciliation',
+          settlementCount: cost.settlementCount,
+          reconciledSettlementCount: cost.reconciledSettlementCount,
+          ...this.executionTimeRange(range, input.context.timezone),
+        },
+      };
+    }
+    const scalarMap: Record<string, { label: string; value: number; formatted: string }> = {
+      'metric.gross_profit_amount': {
+        label: '毛利',
+        value: cost.grossProfit,
+        formatted: `${cost.grossProfit.toFixed(2)} 元`,
+      },
+      'metric.gross_margin_rate': {
+        label: '毛利率',
+        value: cost.grossMarginRate ?? 0,
+        formatted: `${((cost.grossMarginRate ?? 0) * 100).toFixed(2)}%`,
+      },
+      'metric.operating_profit_amount': {
+        label: '经营利润',
+        value: cost.operatingProfit,
+        formatted: `${cost.operatingProfit.toFixed(2)} 元`,
+      },
+      'metric.cost_income_ratio': {
+        label: '成本收入比',
+        value: cost.costIncomeRatio,
+        formatted: `${(cost.costIncomeRatio * 100).toFixed(2)}%`,
+      },
+      'metric.stored_value_liability': {
+        label: '储值负债',
+        value: cost.storedValueLiability,
+        formatted: `${cost.storedValueLiability.toFixed(2)} 元`,
+      },
+      'metric.unfulfilled_card_liability': {
+        label: '次卡未履约负债',
+        value: cost.unfulfilledCardLiability,
+        formatted: `${cost.unfulfilledCardLiability.toFixed(2)} 元`,
+      },
+    };
+    const items = costMetricKeys.flatMap((key) => (scalarMap[key] ? [scalarMap[key]] : []));
+    return {
+      status: 'completed',
+      answer: `${range.label}${items.map((item) => `${item.label} ${item.formatted}`).join('，')}。`,
+      citations: [
+        ...definitionCitations,
+        { sourceType: 'db_skill', sourceId: 'finance_cost_analysis', label: '权威日结、成本、提成与负债分析' },
+      ],
+      grounding: 'db_skill',
+      blocks: [
+        {
+          kind: 'kpi',
+          items: items.map((item) => ({ label: item.label, value: item.formatted })),
+          citationIds: ['finance_cost_analysis'],
+        },
+      ],
+      metadata: {
+        capabilityKey: 'finance_risk_overview',
+        answerScope: 'structured_finance_metrics',
+        requestedMetricKeys: costMetricKeys,
+        ...this.executionTimeRange(range, input.context.timezone),
+      },
+    };
+  }
+
+  private inferFinanceRiskScalarMetricKeys(question: string): string[] {
+    const normalized = question.replace(/\s+/gu, '');
+    const inferred = new Set<string>();
+    if (/收银(?:班次)?(?:对平|对账)|(?:对平|对账)了?吗/u.test(normalized)) {
+      inferred.add('metric.cash_shift_reconciliation_rate');
+    }
+    if (
+      /(?:储值|会员卡|会员余额|储值余额).*(?:负债|未履约|余额|总额|总计|合计)/u.test(normalized) &&
+      !/(?:撑住|集中消费|都来消费|偿付压力)/u.test(normalized)
+    ) {
+      inferred.add('metric.stored_value_liability');
+    }
+    if (/(?:次卡|套餐卡|卡项).*(?:未履约|未核销|负债)/u.test(normalized)) {
+      inferred.add('metric.unfulfilled_card_liability');
+    }
+    if (/哪些订单毛利为负|毛利为负|负毛利/u.test(normalized)) {
+      inferred.add('metric.negative_margin_order_count');
+    }
+    if (/每张订单|分别多少/u.test(normalized) && /毛利/u.test(normalized)) {
+      inferred.add('metric.order_gross_profit_amount');
+    }
+    if (/(?:产品|商品)订单.*(?:成本和毛利|毛利和成本)/u.test(normalized)) {
+      inferred.add('metric.product_order_total_cost_amount');
+      inferred.add('metric.product_order_gross_profit_amount');
+    }
+    if (/开卡订单|次卡订单|套餐卡订单/u.test(normalized)) {
+      inferred.add('metric.prepaid_order_gross_profit_amount');
+    }
+    if (/经营利润/u.test(normalized)) {
+      inferred.add('metric.operating_profit_amount');
+    }
+    if (/成本(?:占|\/|比).*收入|收入.*成本(?:占|\/|比)|成本收入比/u.test(normalized)) {
+      inferred.add('metric.cost_income_ratio');
+    }
+    if (/毛利(?!率)/u.test(normalized) && !/(?:订单|项目|产品|商品|货品|开卡|卡销售)/u.test(normalized)) {
+      inferred.add('metric.gross_profit_amount');
+    }
+    if (/毛利率/u.test(normalized) && !/(?:订单|项目|产品|商品|货品)/u.test(normalized)) {
+      inferred.add('metric.gross_margin_rate');
+    }
+    return [...inferred];
+  }
+
+  private async buildCardRecognizedRevenueAnswer(
+    input: BrainCapabilityExecutionInput,
+    range: BrainDateRange,
+  ): Promise<BrainDomainAnswer | undefined> {
+    const semanticText = `${input.question} ${String(input.args.objective ?? '')}`;
+    if (!/(?:确认(?:的)?收入|收入确认)/.test(semanticText) || !/(?:次卡|套餐卡|卡项)/.test(semanticText)) {
+      return undefined;
+    }
+    if (!this.prisma) throw new Error('prisma_service_unavailable');
+
+    const cardNames = await this.prisma.cardUsageRecord.findMany({
+      where: {
+        storeId: input.context.storeId,
+        verifiedAt: { gte: range.startDate, lte: range.endDate },
+      },
+      select: { cardName: true },
+      distinct: ['cardName'],
+    });
+    const matchedCardName = cardNames
+      .map((item) => String(item.cardName ?? '').trim())
+      .filter((name) => name && input.question.includes(name))
+      .sort((left, right) => right.length - left.length || left.localeCompare(right, 'zh-CN'))[0];
+    if (!matchedCardName) {
+      const hasCardRevenueCue = /(?:次卡|套餐卡|卡项).*(?:核销|确认收入|收入确认|确认的收入|确认收入进度)/.test(semanticText);
+      const hasSpecificCardLabelCue = /\d+\s*次卡/.test(semanticText);
+      if (!hasCardRevenueCue) return undefined;
+      if (hasSpecificCardLabelCue) {
+        const limitation = '当前问题没有唯一匹配到本门店已有核销记录中的卡项名称，请补充完整卡名后再查询确认收入。';
+        return {
+          status: 'completed',
+          answer: limitation,
+          citations: [],
+          grounding: 'none',
+          blocks: [{ kind: 'limitations', items: [limitation] }],
+          metadata: {
+            capabilityKey: 'finance_risk_overview',
+            answerScope: 'card_recognized_revenue',
+            unsupportedReason: 'card_name_unresolved',
+            rangeLabel: range.label,
+          },
+        };
+      }
+      const rows = await this.prisma.cardUsageRecord.findMany({
+        where: {
+          storeId: input.context.storeId,
+          verifiedAt: { gte: range.startDate, lte: range.endDate },
+        },
+        select: {
+          id: true,
+          customerId: true,
+          customerCardId: true,
+          projectId: true,
+          cardName: true,
+          times: true,
+          recognizedUnitValue: true,
+          recognizedAmount: true,
+          verifiedAt: true,
+        },
+        orderBy: { id: 'asc' },
+      });
+      const recognizedRevenue = rows.reduce((sum, row) => {
+        const recognizedAmount = Number(row.recognizedAmount ?? 0);
+        const fallbackAmount = Number(row.recognizedUnitValue ?? 0) * Number(row.times ?? 0);
+        return sum + (recognizedAmount > 0 ? recognizedAmount : fallbackAmount);
+      }, 0);
+      const value = Math.round((recognizedRevenue + Number.EPSILON) * 100) / 100;
+      const citationId = 'card_usage_recognized_revenue';
+      return {
+        status: 'completed',
+        answer: `${range.label}次卡核销确认收入 ${value.toFixed(2)} 元，共 ${rows.length} 条核销记录。`,
+        citations: [
+          {
+            sourceType: 'db_skill',
+            sourceId: citationId,
+            label: '当前门店次卡核销确认收入',
+          },
+        ],
+        grounding: 'db_skill',
+        blocks: [
+          {
+            kind: 'kpi',
+            items: [{ label: '确认收入', value: `${value.toFixed(2)} 元` }],
+            citationIds: [citationId],
+          },
+          {
+            kind: 'table',
+            rows: rows.map((row) => ({
+              usageRecordId: row.id,
+              customerId: row.customerId,
+              customerCardId: row.customerCardId,
+              projectId: row.projectId,
+              cardName: row.cardName,
+              times: row.times,
+              recognizedAmount:
+                Number(row.recognizedAmount ?? 0) > 0
+                  ? Number(row.recognizedAmount)
+                  : Number(row.recognizedUnitValue ?? 0) * Number(row.times ?? 0),
+              verifiedAt: row.verifiedAt,
+            })),
+            columns: [
+              'usageRecordId',
+              'customerId',
+              'customerCardId',
+              'projectId',
+              'cardName',
+              'times',
+              'recognizedAmount',
+              'verifiedAt',
+            ],
+            citationIds: [citationId],
+          },
+        ],
+        metadata: {
+          capabilityKey: 'finance_risk_overview',
+          answerScope: 'card_recognized_revenue',
+          rangeLabel: range.label,
+          sourceRowCount: rows.length,
+          recognizedRevenue: value,
+          ...this.executionTimeRange(range, input.context.timezone),
+          completionCriteria: ['card_usage_records_loaded', 'recognized_revenue_calculated'],
+        },
+      };
+    }
+
+    const rows = await this.prisma.cardUsageRecord.findMany({
+      where: {
+        storeId: input.context.storeId,
+        cardName: matchedCardName,
+        verifiedAt: { gte: range.startDate, lte: range.endDate },
+      },
+      select: {
+        id: true,
+        customerId: true,
+        customerCardId: true,
+        projectId: true,
+        cardName: true,
+        times: true,
+        recognizedUnitValue: true,
+        recognizedAmount: true,
+        verifiedAt: true,
+      },
+      orderBy: { id: 'asc' },
+    });
+    const recognizedRevenue = rows.reduce((sum, row) => {
+      const recognizedAmount = Number(row.recognizedAmount ?? 0);
+      const fallbackAmount = Number(row.recognizedUnitValue ?? 0) * Number(row.times ?? 0);
+      return sum + (recognizedAmount > 0 ? recognizedAmount : fallbackAmount);
+    }, 0);
+    const value = Math.round((recognizedRevenue + Number.EPSILON) * 100) / 100;
+    const citationId = 'card_usage_recognized_revenue';
+    return {
+      status: 'completed',
+      answer: `${range.label}${matchedCardName}确认收入 ${value.toFixed(2)} 元，共 ${rows.length} 条核销记录。`,
+      citations: [
+        {
+          sourceType: 'db_skill',
+          sourceId: citationId,
+          label: '当前门店卡项核销确认收入',
+        },
+      ],
+      grounding: 'db_skill',
+      blocks: [
+        {
+          kind: 'kpi',
+          items: [{ label: '确认收入', value: `${value.toFixed(2)} 元` }],
+          citationIds: [citationId],
+        },
+        {
+          kind: 'table',
+          rows: rows.map((row) => ({
+            usageRecordId: row.id,
+            customerId: row.customerId,
+            customerCardId: row.customerCardId,
+            projectId: row.projectId,
+            cardName: row.cardName,
+            times: row.times,
+            recognizedAmount:
+              Number(row.recognizedAmount ?? 0) > 0
+                ? Number(row.recognizedAmount)
+                : Number(row.recognizedUnitValue ?? 0) * Number(row.times ?? 0),
+            verifiedAt: row.verifiedAt,
+          })),
+          columns: [
+            'usageRecordId',
+            'customerId',
+            'customerCardId',
+            'projectId',
+            'cardName',
+            'times',
+            'recognizedAmount',
+            'verifiedAt',
+          ],
+          citationIds: [citationId],
+        },
+      ],
+      metadata: {
+        capabilityKey: 'finance_risk_overview',
+        answerScope: 'card_recognized_revenue',
+        rangeLabel: range.label,
+        cardName: matchedCardName,
+        sourceRowCount: rows.length,
+        recognizedRevenue: value,
+        ...this.executionTimeRange(range, input.context.timezone),
+        completionCriteria: ['card_name_resolved', 'card_usage_records_loaded', 'recognized_revenue_calculated'],
+      },
+    };
+  }
+
+  private async buildProjectOrderProfitAnswer(
+    input: BrainCapabilityExecutionInput,
+    range: BrainDateRange,
+  ): Promise<BrainDomainAnswer | undefined> {
+    const semanticText = `${input.question} ${String(input.args.objective ?? '')}`;
+    if (!/(?:订单).*(?:利润|毛利)|(?:利润|毛利).*(?:订单)/.test(semanticText)) return undefined;
+    if (!this.operationProfit) throw new Error('operation_profit_service_unavailable');
+
+    const result = await this.operationProfit.getProjectMargins({
+      storeId: input.context.storeId,
+      from: this.shanghaiDateKey(range.startDate),
+      to: this.shanghaiDateKey(range.endDate),
+      page: 1,
+      pageSize: 10_000,
+    });
+    const projects = result.items as Array<{
+      projectId: number;
+      projectName: string;
+      sourceOrders?: Array<{
+        orderId?: number;
+        orderNo?: string;
+        orderedAt?: string;
+        customerName?: string;
+        quantity?: number;
+        amount?: number;
+        materialCost?: number;
+        commissionCost?: number;
+        totalCost?: number;
+        grossProfit?: number;
+      }>;
+    }>;
+    const project = projects
+      .filter((item) => item.projectName && input.question.includes(item.projectName))
+      .sort(
+        (left, right) =>
+          right.projectName.length - left.projectName.length ||
+          left.projectName.localeCompare(right.projectName, 'zh-CN'),
+      )[0];
+    if (!project) {
+      const limitation = '当前问题没有唯一匹配到本门店项目档案中的项目名称，请补充完整项目名后再查询订单利润。';
+      return {
+        status: 'completed',
+        answer: limitation,
+        citations: [],
+        grounding: 'none',
+        blocks: [{ kind: 'limitations', items: [limitation] }],
+        metadata: {
+          capabilityKey: 'finance_risk_overview',
+          answerScope: 'project_order_profit',
+          unsupportedReason: 'project_name_unresolved',
+          rangeLabel: range.label,
+        },
+      };
+    }
+
+    const sourceOrders = project.sourceOrders ?? [];
+    const totalProfit = sourceOrders.reduce((sum, row) => sum + Number(row.grossProfit ?? 0), 0);
+    const value = Math.round((totalProfit + Number.EPSILON) * 100) / 100;
+    const citationId = 'operation_profit_project_margins';
+    return {
+      status: 'completed',
+      answer: `${range.label}${project.projectName}订单利润 ${value.toFixed(2)} 元，共 ${sourceOrders.length} 条订单明细。`,
+      citations: [
+        {
+          sourceType: 'db_skill',
+          sourceId: citationId,
+          label: '经营利润项目毛利正式接口',
+        },
+      ],
+      grounding: 'db_skill',
+      blocks: [
+        {
+          kind: 'kpi',
+          items: [{ label: '利润', value: `${value.toFixed(2)} 元` }],
+          citationIds: [citationId],
+        },
+        {
+          kind: 'table',
+          rows: sourceOrders,
+          columns: [
+            'orderId',
+            'orderNo',
+            'orderedAt',
+            'customerName',
+            'quantity',
+            'amount',
+            'materialCost',
+            'commissionCost',
+            'totalCost',
+            'grossProfit',
+          ],
+          citationIds: [citationId],
+        },
+      ],
+      metadata: {
+        capabilityKey: 'finance_risk_overview',
+        answerScope: 'project_order_profit',
+        rangeLabel: range.label,
+        projectId: project.projectId,
+        projectName: project.projectName,
+        sourceRowCount: sourceOrders.length,
+        orderProfit: value,
+        ...this.executionTimeRange(range, input.context.timezone),
+        completionCriteria: ['project_name_resolved', 'project_margin_rows_loaded', 'order_profit_calculated'],
+      },
+    };
+  }
+
+  private resolveMentionedManagerStaff<T extends { name: string }>(staff: T[], question: string): T[] {
+    const matches = staff.filter((item) => item.name && question.includes(item.name));
+    if (!matches.length) return [];
+    const longestName = Math.max(...matches.map((item) => item.name.length));
+    return matches
+      .filter((item) => item.name.length === longestName)
+      .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
+  }
+
+  private resolveMentionedStaffProject(
+    staff: Awaited<ReturnType<BrainSkillRuntimeService['buildManagerStaffDirectoryFacts']>>['staff'],
+    question: string,
+  ) {
+    const names = [
+      ...new Set(staff.flatMap((item) => item.projectSkills.map((skill) => skill.projectName)).filter(Boolean)),
+    ].filter((name) => question.includes(name));
+    return names.sort((left, right) => right.length - left.length || left.localeCompare(right, 'zh-CN'))[0];
+  }
+
+  private hasEffectiveStaffSchedule(
+    staff: Awaited<ReturnType<BrainSkillRuntimeService['buildManagerStaffDirectoryFacts']>>['staff'][number],
+  ) {
+    return staff.schedules.some((schedule) => {
+      if (!['available', 'working', 'published'].includes(schedule.status)) return false;
+      const scheduleStart = this.staffClockMinutes(schedule.startTime);
+      let scheduleEnd = this.staffClockMinutes(schedule.endTime);
+      if (scheduleEnd <= scheduleStart) scheduleEnd += 24 * 60;
+      const coveredIntervals = staff.timeOffs
+        .filter((timeOff) => timeOff.date === schedule.date)
+        .map((timeOff) => {
+          const start = Math.max(scheduleStart, this.staffClockMinutes(timeOff.startTime));
+          let end = this.staffClockMinutes(timeOff.endTime);
+          if (end <= this.staffClockMinutes(timeOff.startTime)) end += 24 * 60;
+          return [start, Math.min(scheduleEnd, end)] as const;
+        })
+        .filter(([start, end]) => end > start)
+        .sort((left, right) => left[0] - right[0]);
+      let coveredMinutes = 0;
+      let cursorStart = -1;
+      let cursorEnd = -1;
+      for (const [start, end] of coveredIntervals) {
+        if (cursorStart < 0) {
+          cursorStart = start;
+          cursorEnd = end;
+          continue;
+        }
+        if (start <= cursorEnd) {
+          cursorEnd = Math.max(cursorEnd, end);
+          continue;
+        }
+        coveredMinutes += cursorEnd - cursorStart;
+        cursorStart = start;
+        cursorEnd = end;
+      }
+      if (cursorStart >= 0) coveredMinutes += cursorEnd - cursorStart;
+      return coveredMinutes < scheduleEnd - scheduleStart;
+    });
+  }
+
+  private staffClockMinutes(value: string) {
+    const [hours = 0, minutes = 0] = value.split(':').map((item) => Number(item));
+    return hours * 60 + minutes;
+  }
+
   private assertStructuredArgsSupported(input: BrainCapabilityExecutionInput) {
-    if (Array.isArray(input.args.filters) && input.args.filters.length) {
+    if (input.args.filters !== undefined && !Array.isArray(input.args.filters)) {
+      throw new Error(`domain_filter_args_unsupported:${input.card.key}`);
+    }
+    const acceptsQuestionScopedCustomerCardFilters =
+      input.card.key === 'customer_facts' && this.isExpiringCardNoReservationQuestion(input.question);
+    if (
+      Array.isArray(input.args.filters) &&
+      input.args.filters.length &&
+      !this.readCustomerMemberLevelFilter(input) &&
+      !acceptsQuestionScopedCustomerCardFilters
+    ) {
       throw new Error(`domain_filter_args_unsupported:${input.card.key}`);
     }
     if (Array.isArray(input.args.orderBy) && input.args.orderBy.length) this.assertOrderArgsSupported(input);
@@ -6690,16 +8516,90 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     const specificEntities = structuredEntityMentions(input.args as BrainCapabilityToolArgs).filter(
       (entity) => entity.entityKey && entity.entityKey !== entity.entityType,
     );
-    const supportsVerifiedReference =
+    const supportsConversationReference =
       specificEntities.length > 0 &&
       specificEntities.every((entity) => entity.source === 'conversation') &&
       ((input.card.key === 'inventory_procurement_advice' &&
         specificEntities.every((entity) => entity.entityType === 'product')) ||
         (input.card.key === 'marketing_message_draft' &&
           specificEntities.every((entity) => entity.entityType === 'customer')));
+    const supportsStaffReference =
+      specificEntities.length > 0 &&
+      input.card.key === 'manager_staff_overview' &&
+      specificEntities.every((entity) => entity.entityType === 'beautician' && input.question.includes(entity.mention));
+    const supportsFinanceReference =
+      specificEntities.length > 0 &&
+      input.card.key === 'finance_risk_overview' &&
+      specificEntities.every(
+        (entity) =>
+          ['beautician', 'project'].includes(entity.entityType) && /^\d+$/u.test(String(entity.entityKey ?? '')),
+      );
+    const supportsVerifiedReference =
+      supportsConversationReference || supportsStaffReference || supportsFinanceReference;
     if (input.card.key !== 'customer_facts' && specificEntities.length > 0 && !supportsVerifiedReference) {
       throw new Error(`domain_entity_filter_args_unsupported:${input.card.key}`);
     }
+  }
+
+  private isExpiringCardNoReservationQuestion(question: string) {
+    return /(?:次卡|卡项).*(?:快到期|快过期|即将过期|临期).*(?:还没预约|没有预约|未预约|没预约)|(?:还没预约|没有预约|未预约|没预约).*(?:次卡|卡项).*(?:快到期|快过期|即将过期|临期)/.test(
+      question,
+    );
+  }
+
+  private readCustomerMemberLevelFilter(input: BrainCapabilityExecutionInput):
+    | { definitionKey: 'dimension.customerLevel'; definitionVersion: number; operator: 'eq' | 'in'; values: string[] }
+    | undefined {
+    if (!Array.isArray(input.args.filters) || input.args.filters.length === 0) return undefined;
+    if (input.card.key !== 'customer_facts' || input.args.filters.length !== 1) return undefined;
+    const [rawFilter] = input.args.filters;
+    if (!rawFilter || typeof rawFilter !== 'object' || Array.isArray(rawFilter)) return undefined;
+    const filter = rawFilter as Record<string, unknown>;
+    if (Reflect.ownKeys(filter).some((key) => typeof key !== 'string' || !['fieldRef', 'operator', 'value'].includes(key))) {
+      return undefined;
+    }
+    if (filter.operator !== 'eq' && filter.operator !== 'in') return undefined;
+    const rawRef = filter.fieldRef;
+    if (!rawRef || typeof rawRef !== 'object' || Array.isArray(rawRef)) return undefined;
+    const ref = rawRef as Record<string, unknown>;
+    const requiredRefKeys = new Set([
+      'definitionId',
+      'definitionType',
+      'definitionKey',
+      'definitionVersion',
+      'version',
+      'versionId',
+      'definitionFingerprint',
+      'sourceFingerprint',
+    ]);
+    if (Reflect.ownKeys(ref).some((key) => typeof key !== 'string' || !requiredRefKeys.has(key))) return undefined;
+    if (
+      ref.definitionType !== 'dimension' ||
+      ref.definitionKey !== 'dimension.customerLevel' ||
+      (!Number.isInteger(ref.definitionVersion) && !Number.isInteger(ref.version)) ||
+      typeof ref.definitionFingerprint !== 'string' ||
+      typeof ref.sourceFingerprint !== 'string'
+    ) {
+      return undefined;
+    }
+    const definitionVersion = (Number.isInteger(ref.definitionVersion) ? ref.definitionVersion : ref.version) as number;
+    const cardDefinition = input.card.definitionRefs.find(
+      (candidate) =>
+        candidate.definitionKey === ref.definitionKey &&
+        candidate.version === definitionVersion &&
+        candidate.definitionFingerprint === ref.definitionFingerprint &&
+        candidate.sourceFingerprint === ref.sourceFingerprint,
+    );
+    if (!cardDefinition) return undefined;
+    const rawValues = filter.operator === 'eq' ? [filter.value] : Array.isArray(filter.value) ? filter.value : [];
+    const values = [...new Set(rawValues.flatMap((value) => (typeof value === 'string' ? [value.trim()] : [])).filter(Boolean))];
+    if (!values.length || values.length > 20 || values.some((value) => value.length > 100)) return undefined;
+    return {
+      definitionKey: 'dimension.customerLevel',
+      definitionVersion,
+      operator: filter.operator,
+      values,
+    };
   }
 
   private assertOrderArgsSupported(input: BrainCapabilityExecutionInput) {

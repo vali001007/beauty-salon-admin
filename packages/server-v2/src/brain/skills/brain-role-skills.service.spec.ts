@@ -106,6 +106,63 @@ describe('Brain role skills', () => {
     expect(result.lowStockProducts[0]).toMatchObject({ productId: 1, name: '补水面膜' });
   });
 
+  it('separates historical stockout facts from period-end safety stock facts', async () => {
+    const prisma = {
+      product: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 1, name: '周期内断货面膜', currentStock: 9, safetyStock: 5 },
+          { id: 2, name: '期初缺货精华', currentStock: 9, safetyStock: 3 },
+          { id: 3, name: '期初零库存水乳', currentStock: 9, safetyStock: 4 },
+          { id: 4, name: '期末低库存冻膜', currentStock: 9, safetyStock: 5 },
+          { id: 5, name: '当前零库存安瓶', currentStock: 0, safetyStock: 0 },
+        ]),
+      },
+      stockMovement: {
+        findMany: jest
+          .fn()
+          .mockResolvedValueOnce([
+            {
+              productId: 1,
+              beforeStock: 2,
+              afterStock: 0,
+              occurredAt: new Date('2026-06-12T08:00:00.000Z'),
+            },
+            {
+              productId: 3,
+              beforeStock: 0,
+              afterStock: 3,
+              occurredAt: new Date('2026-06-18T08:00:00.000Z'),
+            },
+            {
+              productId: 4,
+              beforeStock: 8,
+              afterStock: 4,
+              occurredAt: new Date('2026-06-20T08:00:00.000Z'),
+            },
+          ])
+          .mockResolvedValueOnce([
+            { productId: 2, afterStock: 0, occurredAt: new Date('2026-05-30T08:00:00.000Z') },
+            { productId: 4, afterStock: 8, occurredAt: new Date('2026-05-30T08:00:00.000Z') },
+          ])
+          .mockResolvedValueOnce([
+            { productId: 4, afterStock: 4, occurredAt: new Date('2026-06-20T08:00:00.000Z') },
+            { productId: 3, afterStock: 3, occurredAt: new Date('2026-06-18T08:00:00.000Z') },
+            { productId: 1, afterStock: 0, occurredAt: new Date('2026-06-12T08:00:00.000Z') },
+            { productId: 2, afterStock: 5, occurredAt: new Date('2026-06-10T08:00:00.000Z') },
+          ]),
+      },
+    };
+
+    const result = await new BrainInventorySkillsService(prisma as any).buildInventoryStockRiskFacts({
+      storeId: 6,
+      startDate: new Date('2026-06-01T00:00:00.000Z'),
+      endExclusive: new Date('2026-07-01T00:00:00.000Z'),
+    });
+
+    expect(result.stockoutProducts.map((product) => product.productId)).toEqual([1, 2, 3, 5]);
+    expect(result.lowStockProducts.map((product) => product.productId)).toEqual([1, 3, 4]);
+  });
+
   it('ranks inventory aging candidates from batch age and outbound velocity', async () => {
     const prisma = {
       product: {

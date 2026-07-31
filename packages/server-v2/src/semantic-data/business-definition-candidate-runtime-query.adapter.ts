@@ -11,7 +11,10 @@ import type {
   BusinessDefinitionFixtureCase,
 } from './business-definition-canonical-verifier.service.js';
 import type { BusinessDefinitionVersionRecord } from './business-definition-projection-compiler.service.js';
-import { AMI_CORE_BUSINESS_DIMENSION_CONTRACTS, AMI_CORE_BUSINESS_METRIC_CONTRACTS } from './ami-core-business-semantic-contracts.js';
+import {
+  AMI_CORE_BUSINESS_DIMENSION_CONTRACTS,
+  AMI_CORE_BUSINESS_METRIC_CONTRACTS,
+} from './ami-core-business-semantic-contracts.js';
 import {
   evaluateBusinessMetricResolver,
   type BusinessMetricResolverRowSource,
@@ -50,7 +53,7 @@ export class BusinessDefinitionCandidateRuntimeQueryAdapter implements BusinessD
     const metricKey = parseMetricKey(canonicalQueryRef);
     return Boolean(
       metricKey &&
-        (DIRECT_METRIC_KEYS.has(metricKey) || (RESOLVER_METRIC_KEYS.has(metricKey) && this.resolverRowSource)),
+      (DIRECT_METRIC_KEYS.has(metricKey) || (RESOLVER_METRIC_KEYS.has(metricKey) && this.resolverRowSource)),
     );
   }
 
@@ -85,13 +88,25 @@ export class BusinessDefinitionCandidateRuntimeQueryAdapter implements BusinessD
     const scopePath = joinSteps(scope.joinPath);
     const terminalModel = scopePath.at(-1)?.toModel ?? requiredString(scope.model, 'metric_store_scope_model_invalid');
     const runtimeQuery: BusinessMetricRuntimeQuery = {
-      aggregation: requiredString(measure.aggregation, 'metric_aggregation_invalid') as BusinessMetricRuntimeQuery['aggregation'],
+      aggregation: requiredString(
+        measure.aggregation,
+        'metric_aggregation_invalid',
+      ) as BusinessMetricRuntimeQuery['aggregation'],
       joinPath,
       dimensions: dimensions.map((dimension) => dimension.key),
       filters: recordArray(payload.filters, 'business_definition_filters_invalid'),
-      capabilityKeys: stringArray(record(payload.bindings, 'business_definition_bindings_invalid').capability, 'metric_capability_bindings_invalid').map(stripBindingPrefix),
-      executorKeys: stringArray(record(payload.bindings, 'business_definition_bindings_invalid').executor, 'metric_executor_bindings_invalid'),
-      outputFields: stringArray(record(payload.bindings, 'business_definition_bindings_invalid').outputField, 'metric_output_bindings_invalid'),
+      capabilityKeys: stringArray(
+        record(payload.bindings, 'business_definition_bindings_invalid').capability,
+        'metric_capability_bindings_invalid',
+      ).map(stripBindingPrefix),
+      executorKeys: stringArray(
+        record(payload.bindings, 'business_definition_bindings_invalid').executor,
+        'metric_executor_bindings_invalid',
+      ),
+      outputFields: stringArray(
+        record(payload.bindings, 'business_definition_bindings_invalid').outputField,
+        'metric_output_bindings_invalid',
+      ),
       sort: optionalSort(record(payload.bindings, 'business_definition_bindings_invalid').sort),
       timePolicy: timePolicy(payload.timePolicy),
       storeScope: {
@@ -123,7 +138,7 @@ export class BusinessDefinitionCandidateRuntimeQueryAdapter implements BusinessD
         storeScope: runtimeQuery.storeScope,
         rows,
       });
-      return formatMetricResult(metricKey, result);
+      return formatMetricResult(metricKey, result, rows.length);
     }
     const result = await this.engine.executeMetric({
       metric: {
@@ -167,7 +182,11 @@ function metricResolver(value: unknown): NonNullable<BusinessMetricRuntimeQuery[
 
 function formatMetricResult(
   metricKey: string,
-  result: { outputField: string; groups: Array<{ dimensions: Record<string, unknown>; value: number }>; overallValue: number },
+  result: {
+    outputField: string;
+    groups: Array<{ dimensions: Record<string, unknown>; value: number }>;
+    overallValue: number;
+  },
   scannedRows = result.groups.length,
 ) {
   const rows = result.groups.map((group) => ({
@@ -223,9 +242,10 @@ function joinSteps(value: unknown): BusinessMetricRuntimeQuery['joinPath'] {
 
 function timePolicy(value: unknown): BusinessMetricRuntimeQuery['timePolicy'] {
   const policy = record(value, 'business_definition_time_policy_invalid');
+  const mode = requiredString(policy.mode, 'business_definition_time_mode_invalid') as 'event_time' | 'as_of_snapshot';
   return {
-    mode: requiredString(policy.mode, 'business_definition_time_mode_invalid') as 'event_time' | 'as_of_snapshot',
-    field: requiredString(policy.field, 'business_definition_time_field_invalid'),
+    mode,
+    ...(mode === 'event_time' ? { field: requiredString(policy.field, 'business_definition_time_field_invalid') } : {}),
     boundary: requiredString(policy.boundary, 'business_definition_time_boundary_invalid') as '[start,end)' | 'as_of',
     timezone: requiredString(policy.timezone, 'business_definition_time_timezone_invalid') as 'Asia/Shanghai' | 'UTC',
   };
@@ -263,7 +283,8 @@ function isoDate(value: unknown): Date {
     throw new BadRequestException('business_definition_fixture_time_range_invalid');
   }
   const parsed = new Date(`${value}T00:00:00+08:00`);
-  if (!Number.isFinite(parsed.getTime())) throw new BadRequestException('business_definition_fixture_time_range_invalid');
+  if (!Number.isFinite(parsed.getTime()))
+    throw new BadRequestException('business_definition_fixture_time_range_invalid');
   return parsed;
 }
 

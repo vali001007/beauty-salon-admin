@@ -108,6 +108,7 @@ const EXCLUDED_BACKEND_METRIC_SOURCES = new Set([
   'packages/server-v2/src/semantic-data/business-metric-catalog.testing.ts',
   'packages/server-v2/src/semantic-query/query-template-registry.service.ts',
 ]);
+const GOVERNED_AMI_CORE_METRIC_KEYS = new Set(AMI_CORE_BUSINESS_METRIC_CONTRACTS.map((contract) => contract.metricKey));
 
 type WorkspaceMetricEvidenceSourceType = 'report_service' | 'metric_card';
 
@@ -177,12 +178,16 @@ export class BrainMetricSourceAdapters {
       ...discoverStaticMetricMetadataKeys(workspaceMetricSources),
     ]);
     const capabilities = await scanBrainCapabilitySources(workspaceRoot);
+    const sourceObservations = this.observeTypeScriptSources({ knownMetricKeys, sources: trustedSources }).filter(
+      (observation) =>
+        observation.sourceKind === 'language_evidence' || !GOVERNED_AMI_CORE_METRIC_KEYS.has(observation.metricKey),
+    );
     const observations = [
       ...observePublishedDefinitions(publishedSnapshot.definitions),
       ...observeAmiCoreMetricContracts(capabilities.evidence),
       ...observeLegacyMetricFixture(metricDefinitions),
       ...observeTemplateRegistry(templates),
-      ...this.observeTypeScriptSources({ knownMetricKeys, sources: trustedSources }),
+      ...sourceObservations,
       ...observeWorkspaceMetricLanguageEvidence(workspaceMetricSources, knownMetricKeys),
     ].map((observation) => ({
       ...observation,
@@ -246,7 +251,7 @@ function observeAmiCoreMetricContracts(
         executorRef: contract.payload.bindings.executor[0],
         outputField: contract.payload.bindings.outputField[0],
         permissionAllOf: contractPermissions,
-        dateField: contract.payload.timePolicy.field,
+        ...(contract.payload.timePolicy.field ? { dateField: contract.payload.timePolicy.field } : {}),
       },
       ...(reasons.length ? { blockedReasons: reasons } : {}),
       evidence: {
@@ -358,7 +363,7 @@ async function collectWorkspaceMetricEvidenceRoot(
   if (state.directoriesVisited >= state.limits.maxDirectories) {
     throw new Error('metric_evidence_directory_limit_exceeded');
   }
-  const directoryRealPath = await metricEvidenceRealPath(absoluteDirectory, true);
+  const directoryRealPath = await optionalMetricEvidenceRealPath(absoluteDirectory);
   if (directoryRealPath === undefined) return;
   assertMetricEvidencePathInside(state.workspaceRealRoot, directoryRealPath);
   state.directoriesVisited += 1;
@@ -381,7 +386,7 @@ async function collectWorkspaceMetricEvidenceRoot(
   for (const entry of entries) {
     const absolutePath = resolve(absoluteDirectory, entry.name);
     if (entry.isSymbolicLink()) {
-      const linkedRealPath = await metricEvidenceRealPath(absolutePath, false);
+      const linkedRealPath = await metricEvidenceRealPath(absolutePath);
       assertMetricEvidencePathInside(state.workspaceRealRoot, linkedRealPath);
       continue;
     }
@@ -398,7 +403,7 @@ async function collectWorkspaceMetricEvidenceRoot(
       throw new Error('metric_evidence_file_limit_exceeded');
     }
     state.filesVisited += 1;
-    const sourceRealPath = await metricEvidenceRealPath(absolutePath, false);
+    const sourceRealPath = await metricEvidenceRealPath(absolutePath);
     assertMetricEvidencePathInside(state.workspaceRealRoot, sourceRealPath);
     let content: string | undefined;
     try {
@@ -417,13 +422,19 @@ async function collectWorkspaceMetricEvidenceRoot(
   }
 }
 
-function metricEvidenceRealPath(path: string, allowMissing: false): Promise<string>;
-function metricEvidenceRealPath(path: string, allowMissing: true): Promise<string | undefined>;
-async function metricEvidenceRealPath(path: string, allowMissing: boolean): Promise<string | undefined> {
+async function metricEvidenceRealPath(path: string): Promise<string> {
+  try {
+    return await realpath(path);
+  } catch {
+    throw new Error('metric_evidence_source_realpath_invalid');
+  }
+}
+
+async function optionalMetricEvidenceRealPath(path: string): Promise<string | undefined> {
   try {
     return await realpath(path);
   } catch (error) {
-    if (allowMissing && isMissingPathError(error)) return undefined;
+    if (isMissingPathError(error)) return undefined;
     throw new Error('metric_evidence_source_realpath_invalid');
   }
 }
@@ -606,7 +617,9 @@ function observePublishedDefinitions(definitions: unknown[]): BrainMetricSourceO
   return observations;
 }
 
-function observeLegacyMetricFixture(metrics: readonly LegacySemanticMetricDefinition[]): BrainMetricSourceObservation[] {
+function observeLegacyMetricFixture(
+  metrics: readonly LegacySemanticMetricDefinition[],
+): BrainMetricSourceObservation[] {
   return metrics.flatMap((metric) => {
     const payload: BrainMetricPayloadFragment = {
       description: metric.description,

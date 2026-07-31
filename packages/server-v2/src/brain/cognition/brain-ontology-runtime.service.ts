@@ -4,6 +4,7 @@ import { BrainRuntimeConfigService } from '../config/brain-runtime-config.servic
 import {
   BUSINESS_DEFINITION_SNAPSHOT_PROVIDER,
   type BusinessDefinitionKind,
+  type BusinessActionDefinitionSnapshot,
   type BusinessDefinitionRef,
   type BusinessDefinitionSnapshotInput,
   type BusinessDefinitionSnapshotProvider,
@@ -17,6 +18,13 @@ import {
   type ProductionReadyBusinessDefinitionSnapshot,
 } from './business-definition-snapshot.types.js';
 import { evaluateBusinessMetricResolver } from '../../semantic-data/business-metric-resolver-contract.js';
+import { validateBusinessActionSemanticPredicates } from './business-action-lexical-semantics.js';
+import { resolveCuratedActionInvariantContract } from '../../semantic-data/brain-action-invariant-catalog.js';
+import { resolveCuratedActionRelationDefinition } from '../../semantic-data/brain-action-relation-catalog.js';
+import {
+  createBusinessActionInstitutionalEffectProfile,
+  INSTITUTIONAL_EFFECT_ACTION_KEYS,
+} from './business-action-institutional-effect.js';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -32,16 +40,112 @@ interface EntityAliasIndex {
 
 const METRIC_FORMULA_KEYS = new Set(['type', 'model', 'field']);
 const METRIC_FORMULA_TYPES = new Set(['sum', 'count', 'count_distinct', 'avg', 'min', 'max']);
+const ACTION_LEXICAL_DISCRIMINATOR_DIMENSIONS = new Set([
+  'modality',
+  'action_class',
+  'target_entity',
+  'required_role',
+  'required_slot',
+  'precondition',
+  'effect',
+  'state_transition',
+  'resource_flow',
+  'spatial_direction',
+  'responsibility',
+  'commitment',
+]);
+const ACTION_MODALITY_POLICY_KEYS = new Set([
+  'schemaVersion',
+  'policyKey',
+  'supportedModalities',
+  'unsupportedModalityPolicy',
+  'confirmationReferencePolicy',
+  'schedulePolicy',
+  'cancellationReferencePolicy',
+  'fingerprint',
+]);
+const ACTION_INFORMATION_ARTIFACT_KEYS = new Set([
+  'schemaVersion',
+  'profileKey',
+  'referencePolicy',
+  'artifactTypePolicy',
+  'sourcePolicy',
+  'versionPolicy',
+  'contentIntegrityPolicy',
+  'supersessionPolicy',
+  'fingerprint',
+]);
+const ACTION_SIDE_EFFECT_INVARIANT_KEYS = new Set([
+  'schemaVersion',
+  'profileKey',
+  'guardContractFingerprint',
+  'effectContractFingerprint',
+  'invariantContractRef',
+  'undeclaredSideEffectPolicy',
+  'gatewayEffectPolicy',
+  'mutationFootprintEvidencePolicy',
+  'successEvidencePolicy',
+  'partialSuccessPolicy',
+  'recoveryPolicy',
+  'compensationPolicy',
+  'outcomeObservationPolicy',
+  'fingerprint',
+]);
+const ACTION_PARTICIPANT_PROFILE_KEYS = new Set([
+  'schemaVersion',
+  'profileKey',
+  'actorAliasPolicy',
+  'unboundRolePolicy',
+  'roleBindings',
+  'fingerprint',
+]);
+const ACTION_PARTICIPANT_BINDING_KEYS = new Set([
+  'role',
+  'source',
+  'slotKey',
+  'requiredAt',
+  'qualificationPolicy',
+  'runtimeVisibility',
+]);
+const ACTION_RELATION_PROFILE_KEYS = new Set([
+  'schemaVersion',
+  'profileKey',
+  'unknownRelationPolicy',
+  'inferencePolicy',
+  'relationRefs',
+  'fingerprint',
+]);
+const ACTION_RELATION_REF_KEYS = new Set([
+  'relationDefinitionRef',
+  'fromRef',
+  'toRef',
+  'qualificationKeys',
+  'slotKey',
+  'participantRole',
+  'truthStatusPolicy',
+]);
+const ACTION_INSTITUTIONAL_EFFECT_KEYS = new Set([
+  'schemaVersion',
+  'profileKey',
+  'effectKind',
+  'requiredPermission',
+  'empoweredRolePolicy',
+  'authorizationBasis',
+  'constitutionPolicy',
+  'formalStateTransition',
+  'effectivenessPolicy',
+  'effectiveAtPolicy',
+  'truthPolicy',
+  'invalidityPolicy',
+  'fingerprint',
+]);
 const PHYSICAL_SOURCE_KEYS = new Set(['model', 'field']);
 
 @Injectable()
 export class BrainOntologyRuntimeService implements OnModuleInit {
   private snapshot: ProductionReadyBusinessDefinitionSnapshot | null = null;
   private aliasIndex: EntityAliasIndex | null = null;
-  private readonly evaluationSnapshotCache = new Map<
-    string,
-    Promise<ProductionReadyBusinessDefinitionSnapshot>
-  >();
+  private readonly evaluationSnapshotCache = new Map<string, Promise<ProductionReadyBusinessDefinitionSnapshot>>();
 
   constructor(
     @Inject(BUSINESS_DEFINITION_SNAPSHOT_PROVIDER)
@@ -97,9 +201,7 @@ export class BrainOntologyRuntimeService implements OnModuleInit {
     query: string,
     snapshotOverride?: ProductionReadyBusinessDefinitionSnapshot,
   ): EntityAliasResolution {
-    const aliasIndex = snapshotOverride
-      ? buildEntityAliasIndex(snapshotOverride.entities)
-      : this.requireAliasIndex();
+    const aliasIndex = snapshotOverride ? buildEntityAliasIndex(snapshotOverride.entities) : this.requireAliasIndex();
     const normalizedQuery = normalizeAlias(query);
     if (!normalizedQuery) {
       return { status: 'not_found', refs: [] };
@@ -237,7 +339,9 @@ export function buildProductionReadyBusinessDefinitionSnapshot(
   return deepFreeze({ ...normalized, productionReady: true as const, fingerprint });
 }
 
-function normalizeSnapshot(input: BusinessDefinitionSnapshotInput): BusinessDefinitionSnapshotInput {
+function normalizeSnapshot(
+  input: BusinessDefinitionSnapshotInput,
+): BusinessDefinitionSnapshotInput & { actions: BusinessActionDefinitionSnapshot[] } {
   return {
     entities: input.entities
       .map((entity) => ({
@@ -259,7 +363,46 @@ function normalizeSnapshot(input: BusinessDefinitionSnapshotInput): BusinessDefi
         permissions: canonicalStringArray(dimension.permissions, true),
       }))
       .sort(compareDefinition),
-  } as BusinessDefinitionSnapshotInput;
+    actions: (input.actions ?? [])
+      .map((action) => ({
+        ...sortObjectKeys(action),
+        aliases: uniqueSortedStrings(action.aliases),
+        targetEntityRefs: uniqueSortedStrings(action.targetEntityRefs),
+        preconditions: uniqueSortedStrings(action.preconditions),
+        preconditionPredicateRefs: [...action.preconditionPredicateRefs]
+          .map(sortObjectKeys)
+          .sort((left, right) => left.key.localeCompare(right.key)),
+        effects: uniqueSortedStrings(action.effects),
+        effectAssertionRefs: [...action.effectAssertionRefs]
+          .map(sortObjectKeys)
+          .sort((left, right) => left.key.localeCompare(right.key)),
+        lexicalFrame: normalizeActionLexicalFrame(action.lexicalFrame),
+        situationContext: normalizeActionSituationContext(action.actionKey, action.situationContext),
+        modalityPolicy: normalizeActionModalityPolicy(action.actionKey, action.modalityPolicy),
+        informationArtifact: normalizeActionInformationArtifact(action.actionKey, action.informationArtifact),
+        sideEffectInvariant: normalizeActionSideEffectInvariant(action.actionKey, action.sideEffectInvariant),
+        participantProfile: normalizeActionParticipantProfile(action.actionKey, action.participantProfile),
+        relationProfile: normalizeActionRelationProfile(action.actionKey, action.relationProfile),
+        ...(action.institutionalEffect
+          ? { institutionalEffect: normalizeActionInstitutionalEffect(action.actionKey, action.institutionalEffect) }
+          : {}),
+        triggeredByEventRefs: uniqueSortedStrings(action.triggeredByEventRefs),
+        emitsEventRefs: uniqueSortedStrings(action.emitsEventRefs),
+        inputSlots: [...action.inputSlots]
+          .map((slot) => ({ ...sortObjectKeys(slot), requiredAt: uniqueSortedStrings(slot.requiredAt) }))
+          .sort((left, right) => left.slotKey.localeCompare(right.slotKey)),
+        capabilityBindings: [...action.capabilityBindings]
+          .map(sortObjectKeys)
+          .sort(
+            (left, right) => left.priority - right.priority || left.capabilityKey.localeCompare(right.capabilityKey),
+          ),
+      }))
+      .sort(compareDefinition),
+  } as BusinessDefinitionSnapshotInput & { actions: BusinessActionDefinitionSnapshot[] };
+}
+
+function uniqueSortedStrings(value: readonly string[]): string[] {
+  return [...new Set(value.map((item) => item.trim()).filter(Boolean))].sort();
 }
 
 function canonicalStringArray(value: unknown, deduplicate: boolean): unknown {
@@ -282,6 +425,7 @@ function validateDefinitions(snapshot: BusinessDefinitionSnapshotInput, dataMode
   rejectDuplicateKeys(snapshot.relations, 'relation', (item) => item.relationKey);
   rejectDuplicateKeys(snapshot.metrics, 'metric', (item) => item.metricKey);
   rejectDuplicateKeys(snapshot.dimensions, 'dimension', (item) => item.dimensionKey);
+  rejectDuplicateKeys(snapshot.actions ?? [], 'action', (item) => item.actionKey);
 
   const entities = new Map(snapshot.entities.map((entity) => [entity.entityKey, entity]));
   for (const entity of snapshot.entities) {
@@ -315,6 +459,563 @@ function validateDefinitions(snapshot: BusinessDefinitionSnapshotInput, dataMode
   for (const dimension of snapshot.dimensions) {
     validateDimensionSource(dimension.dimensionKey, dimension.source, dataModel);
   }
+  for (const action of snapshot.actions ?? []) {
+    validateActionDefinition(action, snapshot.entities);
+  }
+}
+
+function validateActionDefinition(
+  action: BusinessActionDefinitionSnapshot,
+  entities: readonly BusinessEntityDefinitionSnapshot[],
+): void {
+  if (action.actionKey !== action.definitionKey || !action.actionKey.startsWith('action.')) {
+    throw new Error(`action ${action.definitionKey} key is invalid`);
+  }
+  const entityDefinitionKeys = new Set(entities.map((entity) => entity.definitionKey));
+  for (const targetRef of action.targetEntityRefs) {
+    if (!entityDefinitionKeys.has(targetRef)) {
+      throw new Error(`action ${action.actionKey} target ${targetRef} is missing`);
+    }
+  }
+  rejectDuplicateKeys(action.inputSlots, `action ${action.actionKey} slot`, (slot) => slot.slotKey);
+  for (const slot of action.inputSlots) {
+    if (!/^[a-z][a-zA-Z0-9_]{0,63}$/.test(slot.slotKey)) {
+      throw new Error(`action ${action.actionKey} slot ${slot.slotKey} is invalid`);
+    }
+    if (slot.valueType === 'entity_ref') {
+      if (!slot.entityTypeRef || !entityDefinitionKeys.has(slot.entityTypeRef)) {
+        throw new Error(`action ${action.actionKey} slot ${slot.slotKey} entity reference is missing`);
+      }
+    } else if (slot.entityTypeRef) {
+      throw new Error(`action ${action.actionKey} slot ${slot.slotKey} cannot declare entityTypeRef`);
+    }
+  }
+  validateActionSemanticContractKeys(
+    action.actionKey,
+    'predicate',
+    action.preconditions,
+    action.preconditionPredicateRefs,
+  );
+  validateActionSemanticContractKeys(action.actionKey, 'effect', action.effects, action.effectAssertionRefs);
+  validateActionLexicalFrame(action);
+  validateActionSituationContext(action);
+  validateActionModalityPolicy(action);
+  validateActionInformationArtifact(action);
+  validateActionSideEffectInvariant(action);
+  validateActionParticipantProfile(action);
+  validateActionRelationProfile(action);
+  validateActionInstitutionalEffect(action);
+  rejectDuplicateKeys(
+    action.capabilityBindings,
+    `action ${action.actionKey} binding`,
+    (binding) => binding.capabilityKey,
+  );
+  if (!action.capabilityBindings.some((binding) => binding.enabled)) {
+    throw new Error(`action ${action.actionKey} has no enabled capability binding`);
+  }
+  const expectedBindingFingerprint = createHash('sha256')
+    .update(stableStringify({ actionKey: action.actionKey, capabilityBindings: action.capabilityBindings }))
+    .digest('hex');
+  if (action.bindingFingerprint !== expectedBindingFingerprint) {
+    throw new Error(`action ${action.actionKey} binding fingerprint is invalid`);
+  }
+  if (action.confirmationPolicy === 'none') {
+    throw new Error(`action ${action.actionKey} confirmation policy must be controlled`);
+  }
+  if (action.idempotencyPolicy !== 'required') {
+    throw new Error(`action ${action.actionKey} idempotency policy must be required`);
+  }
+}
+
+function normalizeActionParticipantProfile(
+  actionKey: string,
+  profile: BusinessActionDefinitionSnapshot['participantProfile'] | undefined,
+) {
+  if (!profile) throw new Error(`action ${actionKey} participant profile is missing`);
+  return {
+    ...sortObjectKeys(profile),
+    roleBindings: [...profile.roleBindings]
+      .map((binding) => ({
+        ...sortObjectKeys(binding),
+        requiredAt: uniqueSortedStrings(binding.requiredAt),
+      }))
+      .sort(
+        (left, right) => left.role.localeCompare(right.role) || (left.slotKey ?? '').localeCompare(right.slotKey ?? ''),
+      ),
+  };
+}
+
+function validateActionParticipantProfile(action: BusinessActionDefinitionSnapshot): void {
+  const profile = action.participantProfile;
+  if (!profile) throw new Error(`action ${action.actionKey} participant profile is missing`);
+  rejectUnsupportedKeys(
+    asRecord(profile),
+    ACTION_PARTICIPANT_PROFILE_KEYS,
+    `action ${action.actionKey} participant profile`,
+  );
+  if (
+    profile.schemaVersion !== '1.0' ||
+    profile.profileKey !== `${action.actionKey}.participant` ||
+    profile.actorAliasPolicy !== 'legacy_requester_only' ||
+    profile.unboundRolePolicy !== 'fail_closed'
+  ) {
+    throw new Error(`action ${action.actionKey} participant profile is invalid`);
+  }
+  const slots = new Map(action.inputSlots.map((slot) => [slot.slotKey, slot]));
+  const seen = new Set<string>();
+  for (const binding of profile.roleBindings) {
+    rejectUnsupportedKeys(
+      asRecord(binding),
+      ACTION_PARTICIPANT_BINDING_KEYS,
+      `action ${action.actionKey} participant binding`,
+    );
+    const key = `${binding.role}:${binding.slotKey ?? binding.source}`;
+    if (seen.has(key)) throw new Error(`action ${action.actionKey} participant binding ${key} is duplicated`);
+    seen.add(key);
+    if (!validParticipantBindingSource(binding.role, binding.source)) {
+      throw new Error(`action ${action.actionKey} participant ${binding.role} source is invalid`);
+    }
+    if (binding.source === 'action_slot') {
+      const slot = binding.slotKey ? slots.get(binding.slotKey) : undefined;
+      if (!slot || slot.semanticRole !== binding.role) {
+        throw new Error(`action ${action.actionKey} participant slot ${binding.slotKey ?? 'missing'} is invalid`);
+      }
+    } else if (binding.slotKey) {
+      throw new Error(`action ${action.actionKey} participant ${binding.role} cannot bind a slot`);
+    }
+  }
+  for (const role of ['requester', 'authorizer', 'performer', 'accountable_party'] as const) {
+    if (!profile.roleBindings.some((binding) => binding.role === role)) {
+      throw new Error(`action ${action.actionKey} participant role ${role} is missing`);
+    }
+  }
+  const { fingerprint, ...fingerprintInput } = profile;
+  const expectedFingerprint = createHash('sha256').update(stableStringify(fingerprintInput)).digest('hex');
+  if (fingerprint !== expectedFingerprint) {
+    throw new Error(`action ${action.actionKey} participant profile fingerprint is invalid`);
+  }
+}
+
+function validParticipantBindingSource(role: string, source: string) {
+  const fixedSources: Record<string, string> = {
+    requester: 'authenticated_user',
+    authorizer: 'confirmation_actor',
+    performer: 'gateway_executor',
+    accountable_party: 'confirmation_actor',
+  };
+  return fixedSources[role]
+    ? fixedSources[role] === source
+    : source === 'action_slot' || source === 'workflow_assignment';
+}
+
+function normalizeActionRelationProfile(
+  actionKey: string,
+  profile: BusinessActionDefinitionSnapshot['relationProfile'] | undefined,
+) {
+  if (!profile) throw new Error(`action ${actionKey} relation profile is missing`);
+  return {
+    ...sortObjectKeys(profile),
+    relationRefs: [...profile.relationRefs]
+      .map((relation) => ({
+        ...sortObjectKeys(relation),
+        relationDefinitionRef: sortObjectKeys(relation.relationDefinitionRef),
+        qualificationKeys: uniqueSortedStrings(relation.qualificationKeys),
+      }))
+      .sort(
+        (left, right) =>
+          left.relationDefinitionRef.key.localeCompare(right.relationDefinitionRef.key) ||
+          left.fromRef.localeCompare(right.fromRef) ||
+          left.toRef.localeCompare(right.toRef),
+      ),
+  };
+}
+
+function validateActionRelationProfile(action: BusinessActionDefinitionSnapshot): void {
+  const profile = action.relationProfile;
+  if (!profile) throw new Error(`action ${action.actionKey} relation profile is missing`);
+  if (!action.participantProfile) throw new Error(`action ${action.actionKey} participant profile is missing`);
+  rejectUnsupportedKeys(asRecord(profile), ACTION_RELATION_PROFILE_KEYS, `action ${action.actionKey} relation profile`);
+  if (
+    profile.schemaVersion !== '1.0' ||
+    profile.profileKey !== `${action.actionKey}.relations` ||
+    profile.unknownRelationPolicy !== 'fail_closed' ||
+    profile.inferencePolicy !== 'explicit_only'
+  ) {
+    throw new Error(`action ${action.actionKey} relation profile is invalid`);
+  }
+  const participantRoles = new Set(action.participantProfile.roleBindings.map((binding) => binding.role));
+  const relationKeys = new Set<string>();
+  for (const relation of profile.relationRefs) {
+    rejectUnsupportedKeys(asRecord(relation), ACTION_RELATION_REF_KEYS, `action ${action.actionKey} relation ref`);
+    const definition = resolveCuratedActionRelationDefinition(relation.relationDefinitionRef);
+    if (!definition) throw new Error(`action ${action.actionKey} relation definition is unresolved`);
+    const key = `${definition.relationKey}:${relation.fromRef}:${relation.toRef}:${relation.slotKey ?? ''}`;
+    if (relationKeys.has(key)) throw new Error(`action ${action.actionKey} relation ${key} is duplicated`);
+    relationKeys.add(key);
+    if (
+      JSON.stringify([...relation.qualificationKeys].sort()) !==
+      JSON.stringify([...definition.qualificationPolicy.requiredKeys].sort())
+    ) {
+      throw new Error(`action ${action.actionKey} relation ${definition.relationKey} qualification is invalid`);
+    }
+    const expectedTruthPolicy = definition.truthMode === 'declared' ? 'declared_only' : 'runtime_evaluator_required';
+    if (relation.truthStatusPolicy !== expectedTruthPolicy) {
+      throw new Error(`action ${action.actionKey} relation ${definition.relationKey} truth policy is invalid`);
+    }
+    if (relation.participantRole && !participantRoles.has(relation.participantRole)) {
+      throw new Error(`action ${action.actionKey} relation participant ${relation.participantRole} is invalid`);
+    }
+    if (relation.slotKey) {
+      const binding = action.participantProfile.roleBindings.find(
+        (item) => item.role === relation.participantRole && item.slotKey === relation.slotKey,
+      );
+      if (!binding) throw new Error(`action ${action.actionKey} relation slot ${relation.slotKey} is invalid`);
+    }
+  }
+  if (
+    !profile.relationRefs.some(
+      (relation) =>
+        relation.relationDefinitionRef.key === 'action_relation.occurrence_of' &&
+        relation.fromRef === '$action_execution' &&
+        relation.toRef === action.actionKey,
+    )
+  ) {
+    throw new Error(`action ${action.actionKey} occurrence relation is missing`);
+  }
+  for (const targetRef of action.targetEntityRefs) {
+    if (
+      !profile.relationRefs.some(
+        (relation) =>
+          relation.relationDefinitionRef.key === 'action_relation.acts_on' &&
+          relation.fromRef === action.actionKey &&
+          relation.toRef === targetRef,
+      )
+    ) {
+      throw new Error(`action ${action.actionKey} target relation ${targetRef} is missing`);
+    }
+  }
+  const institutionalEffectRelations = profile.relationRefs.filter(
+    (relation) => relation.relationDefinitionRef.key === 'action_relation.institutional_effect',
+  );
+  const requiresInstitutionalEffect = INSTITUTIONAL_EFFECT_ACTION_KEYS.includes(action.actionKey);
+  if (
+    (requiresInstitutionalEffect &&
+      (institutionalEffectRelations.length !== 1 ||
+        institutionalEffectRelations[0].fromRef !== '$action_execution' ||
+        institutionalEffectRelations[0].toRef !== `${action.actionKey}.institutional_effect`)) ||
+    (!requiresInstitutionalEffect && institutionalEffectRelations.length)
+  ) {
+    throw new Error(`action ${action.actionKey} institutional effect relation is invalid`);
+  }
+  const { fingerprint, ...fingerprintInput } = profile;
+  const expectedFingerprint = createHash('sha256').update(stableStringify(fingerprintInput)).digest('hex');
+  if (fingerprint !== expectedFingerprint) {
+    throw new Error(`action ${action.actionKey} relation profile fingerprint is invalid`);
+  }
+}
+
+function normalizeActionInstitutionalEffect(
+  actionKey: string,
+  profile: BusinessActionDefinitionSnapshot['institutionalEffect'],
+) {
+  if (!profile) throw new Error(`action ${actionKey} institutional effect profile is missing`);
+  return {
+    ...sortObjectKeys(profile),
+    constitutionPolicy: {
+      ...sortObjectKeys(profile.constitutionPolicy),
+      requiredPreconditionKeys: uniqueSortedStrings(profile.constitutionPolicy.requiredPreconditionKeys),
+      requiredChangedFields: uniqueSortedStrings(profile.constitutionPolicy.requiredChangedFields),
+      requiredParticipantRoles: [...profile.constitutionPolicy.requiredParticipantRoles],
+    },
+    formalStateTransition: sortObjectKeys(profile.formalStateTransition),
+  };
+}
+
+function validateActionInstitutionalEffect(action: BusinessActionDefinitionSnapshot): void {
+  const expected = createBusinessActionInstitutionalEffectProfile({
+    actionKey: action.actionKey,
+    preconditions: action.preconditions,
+  });
+  const profile = action.institutionalEffect;
+  if (!expected) {
+    if (profile) throw new Error(`action ${action.actionKey} institutional effect profile is unexpected`);
+    return;
+  }
+  if (!profile) throw new Error(`action ${action.actionKey} institutional effect profile is missing`);
+  rejectUnsupportedKeys(
+    asRecord(profile),
+    ACTION_INSTITUTIONAL_EFFECT_KEYS,
+    `action ${action.actionKey} institutional effect profile`,
+  );
+  if (stableStringify(profile) !== stableStringify(expected)) {
+    throw new Error(`action ${action.actionKey} institutional effect profile is invalid`);
+  }
+}
+
+function normalizeActionModalityPolicy(
+  actionKey: string,
+  policy: BusinessActionDefinitionSnapshot['modalityPolicy'] | undefined,
+) {
+  if (!policy) throw new Error(`action ${actionKey} modality policy is missing`);
+  return {
+    ...sortObjectKeys(policy),
+    supportedModalities: uniqueSortedStrings(policy.supportedModalities),
+  };
+}
+
+function validateActionModalityPolicy(action: BusinessActionDefinitionSnapshot): void {
+  const policy = action.modalityPolicy;
+  rejectUnsupportedKeys(asRecord(policy), ACTION_MODALITY_POLICY_KEYS, `action ${action.actionKey} modality policy`);
+  if (
+    policy.schemaVersion !== '1.0' ||
+    policy.policyKey !== `${action.actionKey}.speech_act_modality` ||
+    policy.supportedModalities.length !== 1 ||
+    policy.supportedModalities[0] !== 'request' ||
+    policy.unsupportedModalityPolicy !== 'fail_closed' ||
+    policy.confirmationReferencePolicy !== 'existing_confirmation_required' ||
+    policy.schedulePolicy !== 'action_plan_required' ||
+    policy.cancellationReferencePolicy !== 'existing_preview_or_plan_required'
+  ) {
+    throw new Error(`action ${action.actionKey} modality policy is invalid`);
+  }
+  const { fingerprint, ...fingerprintInput } = policy;
+  const expectedFingerprint = createHash('sha256').update(stableStringify(fingerprintInput)).digest('hex');
+  if (fingerprint !== expectedFingerprint) {
+    throw new Error(`action ${action.actionKey} modality policy fingerprint is invalid`);
+  }
+}
+
+function normalizeActionInformationArtifact(
+  actionKey: string,
+  profile: BusinessActionDefinitionSnapshot['informationArtifact'] | undefined,
+) {
+  if (!profile) throw new Error(`action ${actionKey} information artifact profile is missing`);
+  return sortObjectKeys(profile);
+}
+
+function validateActionInformationArtifact(action: BusinessActionDefinitionSnapshot): void {
+  const profile = action.informationArtifact;
+  rejectUnsupportedKeys(
+    asRecord(profile),
+    ACTION_INFORMATION_ARTIFACT_KEYS,
+    `action ${action.actionKey} information artifact profile`,
+  );
+  if (
+    profile.schemaVersion !== '1.0' ||
+    profile.profileKey !== `${action.actionKey}.information_artifact` ||
+    profile.referencePolicy !== 'bind_if_present' ||
+    profile.artifactTypePolicy !== 'governed_result_reference' ||
+    profile.sourcePolicy !== 'completed_brain_run_same_conversation_store_user' ||
+    profile.versionPolicy !== 'source_run_and_capability_version' ||
+    profile.contentIntegrityPolicy !== 'canonical_content_fingerprint' ||
+    profile.supersessionPolicy !== 'explicit_new_reference_only'
+  ) {
+    throw new Error(`action ${action.actionKey} information artifact profile is invalid`);
+  }
+  const { fingerprint, ...fingerprintInput } = profile;
+  const expectedFingerprint = createHash('sha256').update(stableStringify(fingerprintInput)).digest('hex');
+  if (fingerprint !== expectedFingerprint) {
+    throw new Error(`action ${action.actionKey} information artifact fingerprint is invalid`);
+  }
+}
+
+function normalizeActionSideEffectInvariant(
+  actionKey: string,
+  profile: BusinessActionDefinitionSnapshot['sideEffectInvariant'] | undefined,
+) {
+  if (!profile) throw new Error(`action ${actionKey} side effect invariant profile is missing`);
+  return sortObjectKeys(profile);
+}
+
+function validateActionSideEffectInvariant(action: BusinessActionDefinitionSnapshot): void {
+  const profile = action.sideEffectInvariant;
+  rejectUnsupportedKeys(
+    asRecord(profile),
+    ACTION_SIDE_EFFECT_INVARIANT_KEYS,
+    `action ${action.actionKey} side effect invariant profile`,
+  );
+  const expectedGuardContractFingerprint = createHash('sha256')
+    .update(
+      stableStringify({
+        actionKey: action.actionKey,
+        preconditions: action.preconditions,
+        predicateRefs: action.preconditionPredicateRefs,
+      }),
+    )
+    .digest('hex');
+  const expectedEffectContractFingerprint = createHash('sha256')
+    .update(
+      stableStringify({
+        actionKey: action.actionKey,
+        effects: action.effects,
+        effectRefs: action.effectAssertionRefs,
+      }),
+    )
+    .digest('hex');
+  if (
+    profile.schemaVersion !== '1.2' ||
+    profile.profileKey !== `${action.actionKey}.side_effect_invariant` ||
+    profile.guardContractFingerprint !== expectedGuardContractFingerprint ||
+    profile.effectContractFingerprint !== expectedEffectContractFingerprint ||
+    !resolveCuratedActionInvariantContract(profile.invariantContractRef) ||
+    resolveCuratedActionInvariantContract(profile.invariantContractRef)?.actionKey !== action.actionKey ||
+    profile.undeclaredSideEffectPolicy !== 'forbid' ||
+    profile.gatewayEffectPolicy !== 'exact_declared_effect_match' ||
+    profile.mutationFootprintEvidencePolicy !== 'exact_database_trigger_observed_write_set' ||
+    profile.successEvidencePolicy !== 'all_declared_effects_observed' ||
+    profile.partialSuccessPolicy !== 'explicit_partially_succeeded' ||
+    profile.recoveryPolicy !== 'gateway_declared_strategy_only' ||
+    profile.compensationPolicy !== 'explicit_compensation_action_required' ||
+    profile.outcomeObservationPolicy !== 'required_for_async_effects'
+  ) {
+    throw new Error(`action ${action.actionKey} side effect invariant profile is invalid`);
+  }
+  const { fingerprint, ...fingerprintInput } = profile;
+  const expectedFingerprint = createHash('sha256').update(stableStringify(fingerprintInput)).digest('hex');
+  if (fingerprint !== expectedFingerprint) {
+    throw new Error(`action ${action.actionKey} side effect invariant fingerprint is invalid`);
+  }
+}
+
+function normalizeActionSituationContext(
+  actionKey: string,
+  profile: BusinessActionDefinitionSnapshot['situationContext'] | undefined,
+) {
+  if (!profile?.businessTimePolicy || !profile.actorPolicy) {
+    throw new Error(`action ${actionKey} situation context is missing`);
+  }
+  return {
+    ...sortObjectKeys(profile),
+    businessTimePolicy: sortObjectKeys(profile.businessTimePolicy),
+    actorPolicy: sortObjectKeys(profile.actorPolicy),
+  };
+}
+
+function validateActionSituationContext(action: BusinessActionDefinitionSnapshot): void {
+  const profile = action.situationContext;
+  if (
+    profile.schemaVersion !== '1.0' ||
+    profile.profileKey !== `${action.actionKey}.situation_context` ||
+    profile.tenantBoundary !== 'current_store' ||
+    profile.requestChannelPolicy !== 'bind_if_present' ||
+    profile.devicePolicy !== 'bind_if_present' ||
+    profile.conversationPolicy !== 'same_conversation' ||
+    profile.businessTimePolicy.timezone !== 'Asia/Shanghai' ||
+    profile.businessTimePolicy.businessDatePolicy !== 'same_business_date' ||
+    profile.businessTimePolicy.clockSource !== 'server' ||
+    profile.actorPolicy.subjectPolicy !== 'same_authenticated_user' ||
+    profile.actorPolicy.qualificationPolicy !== 'revalidate_current_role_and_permission'
+  ) {
+    throw new Error(`action ${action.actionKey} situation context is invalid`);
+  }
+  const { fingerprint, ...fingerprintInput } = profile;
+  const expectedFingerprint = createHash('sha256').update(stableStringify(fingerprintInput)).digest('hex');
+  if (fingerprint !== expectedFingerprint) {
+    throw new Error(`action ${action.actionKey} situation context fingerprint is invalid`);
+  }
+}
+
+function normalizeActionLexicalFrame(frame: BusinessActionDefinitionSnapshot['lexicalFrame']) {
+  return {
+    ...sortObjectKeys(frame),
+    lexicalUnits: uniqueSortedStrings(frame.lexicalUnits),
+    thematicRoles: [...frame.thematicRoles]
+      .map((role) => ({ ...sortObjectKeys(role), slotKeys: uniqueSortedStrings(role.slotKeys) }))
+      .sort((left, right) => left.semanticRole.localeCompare(right.semanticRole)),
+    semanticPredicates: uniqueSortedStrings(frame.semanticPredicates),
+    contrasts: [...frame.contrasts]
+      .map((contrast) => ({
+        ...sortObjectKeys(contrast),
+        discriminators: [...contrast.discriminators]
+          .map(sortObjectKeys)
+          .sort(
+            (left, right) =>
+              left.dimension.localeCompare(right.dimension) ||
+              left.currentActionValue.localeCompare(right.currentActionValue) ||
+              left.contrastActionValue.localeCompare(right.contrastActionValue),
+          ),
+      }))
+      .sort((left, right) => left.conceptKey.localeCompare(right.conceptKey)),
+  };
+}
+
+function validateActionLexicalFrame(action: BusinessActionDefinitionSnapshot): void {
+  const frame = action.lexicalFrame;
+  if (frame.schemaVersion !== '1.0' || frame.frameKey !== `${action.actionKey}.lexical_frame`) {
+    throw new Error(`action ${action.actionKey} lexical frame identity is invalid`);
+  }
+  if (!frame.lexicalUnits.length || !frame.lexicalUnits.includes(action.name)) {
+    throw new Error(`action ${action.actionKey} lexical units are incomplete`);
+  }
+  for (const alias of action.aliases) {
+    if (!frame.lexicalUnits.includes(alias))
+      throw new Error(`action ${action.actionKey} lexical alias ${alias} is missing`);
+  }
+  const slotsByKey = new Map(action.inputSlots.map((slot) => [slot.slotKey, slot]));
+  const coveredSlots = new Set<string>();
+  for (const role of frame.thematicRoles) {
+    if (!role.slotKeys.length) throw new Error(`action ${action.actionKey} lexical role ${role.semanticRole} is empty`);
+    for (const slotKey of role.slotKeys) {
+      const slot = slotsByKey.get(slotKey);
+      if (!slot || slot.semanticRole !== role.semanticRole || coveredSlots.has(slotKey)) {
+        throw new Error(`action ${action.actionKey} lexical role slot ${slotKey} is invalid`);
+      }
+      coveredSlots.add(slotKey);
+    }
+  }
+  if (coveredSlots.size !== action.inputSlots.length || !frame.semanticPredicates.length || !frame.contrasts.length) {
+    throw new Error(`action ${action.actionKey} lexical frame is incomplete`);
+  }
+  const semanticErrors = validateBusinessActionSemanticPredicates(frame.semanticPredicates, {
+    actionKey: action.actionKey,
+    actionClass: action.actionClass,
+    targetEntityRefs: action.targetEntityRefs,
+    preconditions: action.preconditions,
+    effects: action.effects,
+  });
+  if (semanticErrors.length) {
+    throw new Error(`action ${action.actionKey} lexical semantics are invalid: ${semanticErrors.join(',')}`);
+  }
+  const contrastKeys = new Set<string>();
+  for (const contrast of frame.contrasts) {
+    if (
+      !/^(?:action|speech)\.[a-z][a-z0-9_]*$/u.test(contrast.conceptKey) ||
+      contrast.conceptKey === action.actionKey ||
+      contrastKeys.has(contrast.conceptKey) ||
+      !contrast.name.trim() ||
+      !contrast.discriminators.length
+    ) {
+      throw new Error(`action ${action.actionKey} lexical contrast ${contrast.conceptKey} is invalid`);
+    }
+    contrastKeys.add(contrast.conceptKey);
+    for (const discriminator of contrast.discriminators) {
+      if (
+        !ACTION_LEXICAL_DISCRIMINATOR_DIMENSIONS.has(discriminator.dimension) ||
+        !discriminator.currentActionValue.trim() ||
+        !discriminator.contrastActionValue.trim()
+      ) {
+        throw new Error(`action ${action.actionKey} lexical discriminator is invalid`);
+      }
+    }
+  }
+  const { fingerprint, ...fingerprintInput } = frame;
+  const expectedFingerprint = createHash('sha256').update(stableStringify(fingerprintInput)).digest('hex');
+  if (fingerprint !== expectedFingerprint) {
+    throw new Error(`action ${action.actionKey} lexical frame fingerprint is invalid`);
+  }
+}
+
+function validateActionSemanticContractKeys(
+  actionKey: string,
+  kind: 'predicate' | 'effect',
+  keys: readonly string[],
+  refs: readonly { key: string }[],
+): void {
+  rejectDuplicateKeys(refs, `action ${actionKey} ${kind} contract`, (ref) => ref.key);
+  const refKeys = refs.map((ref) => ref.key).sort();
+  if (JSON.stringify([...keys].sort()) !== JSON.stringify(refKeys)) {
+    throw new Error(`action ${actionKey} ${kind} contract keys do not match`);
+  }
 }
 
 function validateResolverMetric(metric: BusinessMetricDefinitionSnapshot, dataModel: PrismaRuntimeDataModel): void {
@@ -347,9 +1048,7 @@ function validateResolverMetric(metric: BusinessMetricDefinitionSnapshot, dataMo
   }
   const scopeModel = dataModel.models[runtimeQuery.storeScope.model];
   if (!scopeModel?.fields.some((field) => field.name === runtimeQuery.storeScope.field)) {
-    throw new Error(
-      `Prisma field ${runtimeQuery.storeScope.model}.${runtimeQuery.storeScope.field} does not exist`,
-    );
+    throw new Error(`Prisma field ${runtimeQuery.storeScope.model}.${runtimeQuery.storeScope.field} does not exist`);
   }
   evaluateBusinessMetricResolver({
     metricKey: metric.metricKey,
@@ -512,11 +1211,7 @@ function validateDimensionSource(dimensionKey: string, source: unknown, dataMode
   }
 }
 
-function rejectDuplicateKeys<T>(
-  definitions: T[],
-  kind: BusinessDefinitionKind,
-  getKey: (definition: T) => string,
-): void {
+function rejectDuplicateKeys<T>(definitions: readonly T[], kind: string, getKey: (definition: T) => string): void {
   const seen = new Set<string>();
   for (const definition of definitions) {
     const key = getKey(definition);

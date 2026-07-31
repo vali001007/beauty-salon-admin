@@ -148,6 +148,7 @@ function fixture(): { capability: BrainCapabilityCandidate; proposal: BrainCapab
     outputSchema: { type: 'array', items: { type: 'object' } },
   });
   const bindingSource = renderGeneratedCapabilityBindingSource(executorBinding);
+  expect(bindingSource).toContain('export type GeneratedCapabilityArgs = Parameters<TargetMethod>[0] & {');
   const contractTestSource = renderGeneratedCapabilityContractTestSource(executorBinding);
   const manifest = {
     key: capability.key,

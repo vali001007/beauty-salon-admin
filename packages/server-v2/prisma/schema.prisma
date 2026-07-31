@@ -132,6 +132,7 @@ model Store {
   reservationStatusEvents                  ReservationStatusEvent[]
   metricTargets                            StoreMetricTarget[]
   metricSnapshots                          StoreMetricSnapshot[]
+  purchaseOrders                           PurchaseOrder[]
 
   @@index([status])
 }
@@ -490,6 +491,7 @@ model StockBatch {
 
 model PurchaseOrder {
   id                  Int      @id @default(autoincrement())
+  storeId             Int
   idempotencyKey      String?  @unique
   creationFingerprint String?  @db.VarChar(64)
   orderNo             String   @unique
@@ -500,7 +502,11 @@ model PurchaseOrder {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
+  store Store @relation(fields: [storeId], references: [id], onDelete: Restrict)
+
   @@index([status])
+  @@index([storeId, createdAt])
+  @@index([storeId, status])
 }
 
 model TransferOrder {
@@ -4588,6 +4594,7 @@ enum BusinessDefinitionKind {
   relation
   metric
   dimension
+  action
   status_dictionary
   time_policy
   query_definition
@@ -5671,6 +5678,24 @@ model BrainActionConfirmation {
   storeId     Int
   skillKey    String
   riskLevel   BrainRiskLevel
+  actionDefinitionKey                   String?
+  actionDefinitionVersion               Int?
+  actionDefinitionFingerprint           String?
+  actionSourceFingerprint               String?
+  actionBindingFingerprint              String?
+  situationContextProfileFingerprint    String?
+  situationContextFingerprint           String?
+  actionModalityPolicyFingerprint       String?
+  informationArtifactProfileFingerprint String?
+  sideEffectInvariantProfileFingerprint String?
+  institutionalEffectProfileFingerprint String?
+  informationArtifactFingerprints       Json?
+  boundCapabilityKey                    String?
+  capabilityVersion                     Int?
+  capabilitySourceFingerprint           String?
+  ontologySnapshotFingerprint           String?
+  releaseId                             Int?
+  releaseFingerprint                    String?
   preview     Json
   payload     Json
   status      String         @default("pending")
@@ -5681,6 +5706,8 @@ model BrainActionConfirmation {
   updatedAt   DateTime       @updatedAt
 
   @@index([runId, status])
+  @@index([actionDefinitionKey, actionDefinitionVersion])
+  @@index([releaseId, releaseFingerprint])
   @@map("brain_action_confirmation")
 }
 
@@ -5692,6 +5719,24 @@ model BrainActionExecution {
   storeId            Int
   userId             Int
   capabilityKey      String
+  boundCapabilityKey                    String?
+  capabilityVersion                     Int?
+  capabilitySourceFingerprint           String?
+  actionDefinitionKey                   String?
+  actionDefinitionVersion               Int?
+  actionDefinitionFingerprint           String?
+  actionSourceFingerprint               String?
+  actionBindingFingerprint              String?
+  situationContextProfileFingerprint    String?
+  situationContextFingerprint           String?
+  actionModalityPolicyFingerprint       String?
+  informationArtifactProfileFingerprint String?
+  sideEffectInvariantProfileFingerprint String?
+  institutionalEffectProfileFingerprint String?
+  informationArtifactFingerprints       Json?
+  ontologySnapshotFingerprint           String?
+  releaseId                             Int?
+  releaseFingerprint                    String?
   idempotencyKey     String
   riskLevel          BrainRiskLevel
   status             String         @default("queued")
@@ -5710,6 +5755,74 @@ model BrainActionExecution {
   @@unique([storeId, capabilityKey, idempotencyKey])
   @@index([confirmationId])
   @@index([actionId])
+  @@index([actionDefinitionKey, actionDefinitionVersion])
+  @@index([releaseId, releaseFingerprint])
   @@index([status, createdAt])
   @@map("brain_action_execution")
+}
+
+model BusinessMutationReceipt {
+  id                     Int      @id @default(autoincrement())
+  storeId                Int
+  capabilityKey          String
+  idempotencyKey         String
+  businessObjectType     String
+  businessObjectId       String
+  mutationKind           String
+  requestFingerprint     String   @db.VarChar(64)
+  beforeVersion          String
+  afterVersion           String
+  beforeStateFingerprint String   @db.VarChar(64)
+  afterStateFingerprint  String   @db.VarChar(64)
+  changedFields          Json
+  actorId                Int?
+  receiptFingerprint     String   @unique @db.VarChar(64)
+  committedAt            DateTime @default(now())
+  createdAt              DateTime @default(now())
+
+  @@unique([storeId, capabilityKey, idempotencyKey])
+  @@index([businessObjectType, businessObjectId, committedAt])
+  @@map("business_mutation_receipt")
+}
+
+model BusinessDatabaseWriteSet {
+  id                    String    @id @db.Uuid
+  storeId               Int
+  capabilityKey         String
+  idempotencyKey        String
+  databaseTransactionId BigInt
+  status                String    @default("collecting")
+  coverageBoundary      String
+  monitorTableCount     Int
+  monitorFingerprint    String    @db.VarChar(64)
+  entryCount            Int       @default(0)
+  writeSetFingerprint   String?   @db.VarChar(64)
+  startedAt             DateTime  @default(now())
+  finalizedAt           DateTime?
+
+  entries BusinessDatabaseWriteSetEntry[]
+
+  @@unique([storeId, capabilityKey, idempotencyKey])
+  @@index([storeId, startedAt])
+  @@map("business_database_write_set")
+}
+
+model BusinessDatabaseWriteSetEntry {
+  id                     BigInt   @id @default(autoincrement())
+  writeSetId             String   @db.Uuid
+  databaseTransactionId  BigInt
+  modelName              String
+  tableName              String
+  operation              String
+  rowIdentity            Json
+  changedFields          Json
+  beforeStateFingerprint String?  @db.VarChar(64)
+  afterStateFingerprint  String?  @db.VarChar(64)
+  occurredAt             DateTime @default(now())
+
+  writeSet BusinessDatabaseWriteSet @relation(fields: [writeSetId], references: [id], onDelete: Cascade)
+
+  @@index([writeSetId, id])
+  @@index([modelName, operation, occurredAt])
+  @@map("business_database_write_set_entry")
 }

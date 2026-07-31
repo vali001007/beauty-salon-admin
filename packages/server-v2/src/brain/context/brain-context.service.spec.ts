@@ -33,6 +33,33 @@ describe('BrainContextService', () => {
     expect(context.visibleStoreIds).toEqual([6]);
   });
 
+  it('binds an explicit client channel and hashes the device identifier without retaining the raw value', () => {
+    const context = service.fromRequest({
+      headers: {
+        'x-store-id': '6',
+        'x-ami-client-channel': 'admin_web',
+        'x-ami-device-id': 'mac-front-desk-01',
+      },
+      user: { id: 9, permissions: ['core:brain:use'], storeIds: [6] },
+    } as never);
+
+    expect(context.requestChannel).toBe('admin_web');
+    expect(context.deviceIdHash).toMatch(/^[a-f0-9]{64}$/u);
+    expect(context.deviceIdHash).not.toContain('mac-front-desk-01');
+  });
+
+  it('does not bind an unregistered caller-supplied channel', () => {
+    const context = service.fromRequest({
+      headers: {
+        'x-store-id': '2',
+        'x-ami-client-channel': 'forged_partner_portal',
+      },
+      user: { id: 9, permissions: ['core:brain:use'], storeIds: [2] },
+    } as never);
+
+    expect(context.requestChannel).toBeUndefined();
+  });
+
   it('rejects a store outside the authenticated user scope', () => {
     expect(() =>
       service.fromRequest({

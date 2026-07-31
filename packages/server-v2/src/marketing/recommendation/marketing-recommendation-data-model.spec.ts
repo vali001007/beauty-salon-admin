@@ -40,7 +40,7 @@ describe('marketing recommendation v2 data model', () => {
     const schema = readFileSync(join(process.cwd(), 'prisma', 'schema.prisma'), 'utf8');
     const activityModel = schema.match(/model MarketingActivity \{[\s\S]*?\n\}/)?.[0] ?? '';
 
-    expect(activityModel).toContain('storeId                Int');
+    expect(activityModel).toMatch(/^\s*storeId\s+Int\s*$/m);
     expect(activityModel).toContain('@@index([storeId, status])');
   });
 

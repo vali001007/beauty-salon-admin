@@ -14,8 +14,7 @@ import { LEGACY_SEMANTIC_METRICS } from './legacy-semantic-metric.fixture.js';
 import { AMI_CORE_BUSINESS_DIMENSION_CONTRACTS } from './ami-core-business-semantic-contracts.js';
 import type { CandidateSourceFile, SemanticLabelEvidence } from './brain-semantic-candidate.types.js';
 
-const EVAL_QUESTIONS_PATH =
-  'docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-eval-questions.md';
+const EVAL_QUESTIONS_PATH = 'docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-eval-questions.md';
 const TYPESCRIPT_ROOTS = ['packages/server-v2/src', 'src/app'];
 const MAX_SOURCE_FILES = 5000;
 const MAX_SOURCE_BYTES = 2 * 1024 * 1024;
@@ -41,6 +40,8 @@ export class BrainSemanticCandidateWorkspaceScanner {
     const metricResult = new BrainMetricCandidateGeneratorService().generate(metricScan);
     const ontologyGenerator = new BrainOntologyCandidateGeneratorService();
     const sources = await loadOntologySources(workspaceRoot);
+    const sourcePaths = new Set(sources.map((source) => source.path));
+    const sourceFiles = new Map(sources.map((source) => [source.path, source.content]));
     const codeEvidence = ontologyGenerator.extractTypeScriptEvidence(sources);
     const semanticEvidence = [
       ...codeEvidence,
@@ -49,11 +50,15 @@ export class BrainSemanticCandidateWorkspaceScanner {
     const verifier = new BrainSemanticCandidateVerifierService();
     const ontologyCandidates = ontologyGenerator
       .generate({ datamodel: metricScan.datamodel, semanticEvidence })
-      .map((candidate) => verifier.verify(candidate, { datamodel: metricScan.datamodel, semanticEvidence }));
-    const dimensionCandidates = buildAmiCoreDimensionCandidates(
-      metricScan.datamodel,
-      metricScan.registeredPermissions,
-    );
+      .map((candidate) =>
+        verifier.verify(candidate, {
+          datamodel: metricScan.datamodel,
+          semanticEvidence,
+          sourcePaths,
+          sourceFiles,
+        }),
+      );
+    const dimensionCandidates = buildAmiCoreDimensionCandidates(metricScan.datamodel, metricScan.registeredPermissions);
     const candidates = [
       ...metricResult.candidates,
       ...dimensionCandidates,
@@ -70,9 +75,7 @@ export class BrainSemanticCandidateWorkspaceScanner {
     return {
       candidates,
       summary,
-      scanFingerprint: createHash('sha256')
-        .update(canonicalizeBusinessDefinition(candidates))
-        .digest('hex'),
+      scanFingerprint: createHash('sha256').update(canonicalizeBusinessDefinition(candidates)).digest('hex'),
     };
   }
 }

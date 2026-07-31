@@ -78,6 +78,7 @@ export class BrainCustomerServiceDomainAdapter implements BrainDomainAdapter {
       storeId: input.context.storeId,
       skillKey: actionType,
       planId: input.plan.executionPlanId,
+      ...(input.plan.actionProvenance ? { actionProvenance: input.plan.actionProvenance } : {}),
       riskLevel,
       preview: {
         actionType,

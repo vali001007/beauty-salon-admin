@@ -1021,7 +1021,10 @@ export class DashboardService {
         },
       }),
       this.prisma.purchaseOrder.count({
-        where: { status: { in: ['pending', 'ordered', 'draft', '待处理', '待入库'] } },
+        where: {
+          ...storeScope,
+          status: { in: ['pending', 'ordered', 'draft', '待处理', '待入库'] },
+        },
       }),
       this.prisma.transferOrder.count({
         where: {

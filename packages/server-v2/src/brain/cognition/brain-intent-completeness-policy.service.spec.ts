@@ -113,6 +113,29 @@ describe('BrainIntentCompletenessPolicyService', () => {
     );
   });
 
+  it('does not clarify a governed order-profit metric already selected by the model', () => {
+    const orderSnapshot = {
+      ...snapshot,
+      metrics: [
+        metric('negative_margin_order_count', '负毛利订单', ['订单毛利']),
+        metric('order_gross_profit_amount', '订单毛利', ['毛利']),
+      ],
+    };
+    const result = service.assess({
+      intent: baseIntent({
+        objective: '看下哪些订单毛利为负',
+        domains: ['finance', 'order', 'product_order'],
+        metrics: [metricRef('negative_margin_order_count')],
+      }),
+      question: '2026年6月30日哪些订单毛利为负',
+      snapshot: orderSnapshot as never,
+      catalogAmbiguous: false,
+      conversationSlots: {},
+    });
+
+    expect(result.missingSlots).not.toContain('metric');
+  });
+
   it.each(['看下唐伊的服务收入', '看下唐伊的销售业绩', '看下唐伊的服务次数', '看下唐伊的提成'])(
     'does not clarify a specific staff performance metric: %s',
     (question) => {
@@ -267,7 +290,7 @@ describe('BrainIntentCompletenessPolicyService', () => {
     expect(result.missingSlots).not.toEqual(expect.arrayContaining(['entity', 'timeRange']));
   });
 
-  it.each(['跟国庆期间比呢', '和国庆假期比较一下', '对比国庆前后怎么样'])(
+  it.each(['跟国庆期间比呢', '和国庆假期比较一下', '对比国庆前后怎么样', '跟双十一期间比呢'])(
     'requires an explicit year for a named holiday comparison period: %s',
     (question) => {
       const result = service.assess({

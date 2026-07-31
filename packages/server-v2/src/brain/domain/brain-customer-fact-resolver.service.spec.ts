@@ -1,6 +1,146 @@
 import { BrainCustomerFactResolverService } from './brain-customer-fact-resolver.service.js';
 
 describe('BrainCustomerFactResolverService', () => {
+  it('queries exact governed member-level values inside the current store', async () => {
+    const count = jest.fn().mockResolvedValue(2);
+    const findMany = jest.fn().mockResolvedValue([
+      {
+        id: 31,
+        name: '李女士',
+        memberLevel: '钻石会员',
+        totalSpent: 8800,
+        lastVisitDate: new Date('2026-07-01T00:00:00.000Z'),
+      },
+    ]);
+    const service = new BrainCustomerFactResolverService({ customer: { count, findMany } } as never);
+
+    await expect(service.getCustomerMemberLevelSummary(6, [' 钻石会员 ', '钻石会员'], 5)).resolves.toEqual({
+      memberLevels: ['钻石会员'],
+      total: 2,
+      rows: [
+        {
+          customerId: 31,
+          customerName: '李女士',
+          memberLevel: '钻石会员',
+          totalSpent: 8800,
+          lastVisitDate: '2026-07-01',
+        },
+      ],
+    });
+    expect(count).toHaveBeenCalledWith({
+      where: { storeId: 6, deletedAt: null, memberLevel: { in: ['钻石会员'] } },
+    });
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { storeId: 6, deletedAt: null, memberLevel: { in: ['钻石会员'] } },
+        take: 5,
+      }),
+    );
+  });
+
+  it('summarizes arrived customers with governed arrival statuses', async () => {
+    const reservationFindMany = jest.fn().mockResolvedValue([
+      { id: 1, customerId: 101, checkedInAt: new Date('2026-06-02T02:00:00.000Z'), date: new Date('2026-06-02T00:00:00.000Z') },
+      { id: 2, customerId: 101, checkedInAt: null, date: new Date('2026-06-03T00:00:00.000Z') },
+      { id: 3, customerId: 102, checkedInAt: null, date: new Date('2026-06-04T00:00:00.000Z') },
+    ]);
+    const customerFindMany = jest.fn().mockResolvedValue([
+      { id: 101, name: '李女士', memberLevel: '金卡', lastVisitDate: new Date('2026-06-03T00:00:00.000Z') },
+      { id: 102, name: '王女士', memberLevel: '钻石会员', lastVisitDate: null },
+    ]);
+    const service = new BrainCustomerFactResolverService({
+      reservation: { findMany: reservationFindMany },
+      customer: { findMany: customerFindMany },
+    } as never);
+
+    await expect(service.getVisitedCustomerSummary({
+      storeId: 6,
+      startDate: new Date('2026-06-01T16:00:00.000Z'),
+      endDate: new Date('2026-06-30T16:00:00.000Z'),
+    })).resolves.toMatchObject({
+      total: 2,
+      rows: [
+        { customerId: 101, customerName: '李女士', arrivalCount: 2, latestArrivalDate: '2026-06-03' },
+        { customerId: 102, customerName: '王女士', arrivalCount: 1, latestArrivalDate: '2026-06-04' },
+      ],
+    });
+    expect(reservationFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        storeId: 6,
+        OR: expect.arrayContaining([
+          { checkedInAt: { gte: new Date('2026-06-01T16:00:00.000Z'), lt: new Date('2026-06-30T16:00:00.000Z') } },
+        ]),
+      }),
+    }));
+  });
+
+  it('returns gold-tier visited customer rows with customer ids', async () => {
+    const reservationFindMany = jest.fn().mockResolvedValue([
+      { id: 1, customerId: 101, checkedInAt: new Date('2026-06-22T02:00:00.000Z'), date: new Date('2026-06-22T00:00:00.000Z') },
+      { id: 2, customerId: 102, checkedInAt: null, date: new Date('2026-06-23T00:00:00.000Z') },
+      { id: 3, customerId: 103, checkedInAt: null, date: new Date('2026-06-24T00:00:00.000Z') },
+      { id: 4, customerId: 104, checkedInAt: null, date: new Date('2026-06-25T00:00:00.000Z') },
+    ]);
+    const customerFindMany = jest.fn().mockResolvedValue([
+      { id: 101, name: '李女士', memberLevel: '银卡', lastVisitDate: null },
+      { id: 102, name: '王女士', memberLevel: '金卡', lastVisitDate: null },
+      { id: 103, name: '赵女士', memberLevel: '钻石会员', lastVisitDate: null },
+      { id: 104, name: '陈女士', memberLevel: '金卡会员', lastVisitDate: null },
+    ]);
+    const service = new BrainCustomerFactResolverService({
+      reservation: { findMany: reservationFindMany },
+      customer: { findMany: customerFindMany },
+    } as never);
+
+    await expect(service.getVisitedMemberTierCustomers({
+      storeId: 6,
+      startDate: new Date('2026-06-21T16:00:00.000Z'),
+      endDate: new Date('2026-06-28T16:00:00.000Z'),
+      minimumMemberLevel: '金卡',
+    })).resolves.toMatchObject({
+      total: 3,
+      rows: [
+        { customerId: 102, customerName: '王女士', memberLevel: '金卡' },
+        { customerId: 103, customerName: '赵女士', memberLevel: '钻石会员' },
+        { customerId: 104, customerName: '陈女士', memberLevel: '金卡会员' },
+      ],
+    });
+  });
+
+  it('lists exact-card holders without visits in the requested period', async () => {
+    const customerCardFindMany = jest.fn().mockResolvedValue([
+      {
+        customerId: 101,
+        cardName: '综合养护 20 次卡',
+        customer: { id: 101, name: '李女士', memberLevel: '普通会员', lastVisitDate: null },
+      },
+      {
+        customerId: 102,
+        cardName: '综合养护 20 次卡',
+        customer: { id: 102, name: '王女士', memberLevel: '金卡', lastVisitDate: new Date('2026-06-20T00:00:00.000Z') },
+      },
+    ]);
+    const reservationFindMany = jest.fn().mockResolvedValue([{ id: 9, customerId: 102, checkedInAt: null, date: new Date('2026-06-16T00:00:00.000Z') }]);
+    const service = new BrainCustomerFactResolverService({
+      customerCard: { findMany: customerCardFindMany },
+      reservation: { findMany: reservationFindMany },
+    } as never);
+
+    await expect(service.getCardHoldersWithoutVisit({
+      storeId: 6,
+      message: '办了综合养护 20 次卡但2026年6月15日至21日没来的客户名单',
+      startDate: new Date('2026-06-14T16:00:00.000Z'),
+      endDate: new Date('2026-06-21T16:00:00.000Z'),
+    })).resolves.toMatchObject({
+      total: 1,
+      cardNameQuery: '综合养护 20 次卡',
+      rows: [{ customerId: 101, customerName: '李女士', cardName: '综合养护 20 次卡' }],
+    });
+    expect(customerCardFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ cardName: '综合养护 20 次卡' }),
+    }));
+  });
+
   it('extracts an exact customer name after a customer label', async () => {
     const findMany = jest.fn().mockResolvedValue([]);
     const service = new BrainCustomerFactResolverService({ customer: { findMany } } as never);
@@ -467,6 +607,63 @@ describe('BrainCustomerFactResolverService', () => {
     expect(result.rows).toEqual([
       expect.objectContaining({ customerName: '李女士', remainingTimes: 6, remainingRate: 0.6, daysToExpiry: 7, unfulfilledValue: 1200 }),
       expect.objectContaining({ customerName: '赵女士', remainingTimes: 2, remainingRate: 0.4, daysToExpiry: 14, unfulfilledValue: 600 }),
+    ]);
+  });
+
+  it('returns expiring card customers without upcoming reservations inside the current store', async () => {
+    const asOf = new Date('2026-07-18T00:00:00.000Z');
+    const customerCardFindMany = jest.fn().mockResolvedValue([
+      {
+        customerId: 1,
+        cardName: '综合养护 20 次卡',
+        totalTimes: 20,
+        remainingTimes: 8,
+        expiryDate: new Date('2026-07-25T00:00:00.000Z'),
+        customer: { id: 1, name: '李女士', lastVisitDate: new Date('2026-06-01T00:00:00.000Z') },
+      },
+      {
+        customerId: 2,
+        cardName: '综合养护 20 次卡',
+        totalTimes: 20,
+        remainingTimes: 5,
+        expiryDate: new Date('2026-07-28T00:00:00.000Z'),
+        customer: { id: 2, name: '王女士', lastVisitDate: null },
+      },
+    ]);
+    const reservationFindMany = jest.fn().mockResolvedValue([{ customerId: 2 }]);
+    const service = new BrainCustomerFactResolverService({
+      customerCard: { findMany: customerCardFindMany },
+      reservation: { findMany: reservationFindMany },
+    } as never);
+
+    const result = await service.getExpiringCardCustomersWithoutUpcomingReservation({
+      storeId: 6,
+      message: '哪些客户的综合养护 20 次卡快到期还没预约',
+      asOf,
+      windowDays: 30,
+      limit: 10,
+    });
+
+    expect(customerCardFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          cardName: { contains: '综合养护 20 次卡', mode: 'insensitive' },
+          customer: { storeId: 6, deletedAt: null },
+        }),
+      }),
+    );
+    expect(reservationFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          storeId: 6,
+          customerId: { in: [1, 2] },
+          status: { notIn: ['cancelled', 'canceled', '已取消', '取消'] },
+        }),
+      }),
+    );
+    expect(result.total).toBe(1);
+    expect(result.rows).toEqual([
+      expect.objectContaining({ customerId: 1, customerName: '李女士', cardName: '综合养护 20 次卡', daysToExpiry: 7 }),
     ]);
   });
 

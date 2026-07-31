@@ -17,6 +17,11 @@ export interface BrainBoundedExecutionResult {
   observations: BrainObservation[];
   completion: BrainCompletionResult;
   replanCount: number;
+  timings: {
+    capabilityExecutionMs: number;
+    completionVerificationMs: number;
+    replanningMs: number;
+  };
 }
 
 @Injectable()
@@ -42,10 +47,26 @@ export class BrainBoundedExecutorService {
     let plan = this.planValidator.validate({ plan: input.plan, cards, context: input.context });
     let budgetState = this.budget.start(plan);
     const history: BrainObservation[] = [];
+    const timings = { capabilityExecutionMs: 0, completionVerificationMs: 0, replanningMs: 0 };
+    const result = (
+      status: BrainBoundedExecutionResult['status'],
+      observations: BrainObservation[],
+      completion: BrainCompletionResult,
+    ): BrainBoundedExecutionResult => ({
+      status,
+      plan,
+      observations,
+      completion,
+      replanCount: plan.replanCount,
+      timings: { ...timings },
+    });
 
     while (true) {
+      const capabilityExecutionStartedAt = Date.now();
       const observations = await this.executePlan({ ...input, plan, cards, budgetState, history });
+      timings.capabilityExecutionMs += Date.now() - capabilityExecutionStartedAt;
       history.push(...observations.filter((item) => !history.some((previous) => sameObservation(previous, item))));
+      const completionVerificationStartedAt = Date.now();
       const completion = await this.completionVerifier.verify({
         plan,
         observations,
@@ -54,18 +75,20 @@ export class BrainBoundedExecutorService {
         successCriteria: input.intent.successCriteria,
         audit: { userId: input.context.userId, storeId: input.context.storeId },
       });
+      timings.completionVerificationMs += Date.now() - completionVerificationStartedAt;
       if (completion.status === 'complete') {
-        return { status: 'completed', plan, observations, completion, replanCount: plan.replanCount };
+        return result('completed', observations, completion);
       }
       if (completion.status === 'rejected') {
-        return { status: 'rejected', plan, observations, completion, replanCount: plan.replanCount };
+        return result('rejected', observations, completion);
       }
       if (!completion.recoverable || !this.replanner || plan.replanCount >= 2) {
-        return { status: 'partial', plan, observations, completion, replanCount: plan.replanCount };
+        return result('partial', observations, completion);
       }
       if (this.budget.remainingMs(budgetState) <= 0) {
-        return { status: 'partial', plan, observations, completion, replanCount: plan.replanCount };
+        return result('partial', observations, completion);
       }
+      const replanningStartedAt = Date.now();
       const replanning = await this.replanner.replan({
         question: input.question,
         intent: input.intent,
@@ -76,11 +99,12 @@ export class BrainBoundedExecutorService {
         reasons: completion.missingCriteria,
         deadlineAt: budgetState.deadlineMs,
       });
+      timings.replanningMs += Date.now() - replanningStartedAt;
       if (replanning.status !== 'planned') {
-        return { status: 'partial', plan, observations, completion, replanCount: plan.replanCount };
+        return result('partial', observations, completion);
       }
       if (this.budget.remainingMs(budgetState) <= 0) {
-        return { status: 'partial', plan, observations, completion, replanCount: plan.replanCount };
+        return result('partial', observations, completion);
       }
       budgetState = this.budget.consumeReplan(budgetState);
       plan = this.planValidator.validate({ plan: replanning.plan, cards, context: input.context });

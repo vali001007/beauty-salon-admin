@@ -5,6 +5,11 @@ import { UpdateCustomerDto } from './dto/update-customer.dto.js';
 import { QueryCustomersDto } from './dto/query-customers.dto.js';
 import { formatBusinessDate, formatBusinessDateTime } from '../common/utils/business-time.js';
 import { scoreCustomerMonetary } from './customer-value-segmentation.js';
+import {
+  beginBusinessDatabaseWriteSet,
+  finalizeBusinessDatabaseWriteSet,
+  type BusinessDatabaseWriteSetContext,
+} from '../common/database-write-set.js';
 
 type ConsumptionNameMaps = {
   projects?: Map<number, string>;
@@ -927,9 +932,12 @@ export class CustomersService {
     return this.toCustomerView(customer);
   }
 
-  async create(dto: CreateCustomerDto) {
+  async create(dto: CreateCustomerDto, databaseWriteSetContext?: BusinessDatabaseWriteSetContext) {
     const data = this.normalizeCustomerPayload(dto);
     return this.prisma.$transaction(async (tx) => {
+      const writeSet = databaseWriteSetContext
+        ? await beginBusinessDatabaseWriteSet(tx, databaseWriteSetContext)
+        : undefined;
       const customer = await tx.customer.create({ data: data as any });
       await tx.customerHealthProfile.create({
         data: {
@@ -939,7 +947,10 @@ export class CustomersService {
           allergyHistory: data.hasAllergy,
         },
       });
-      return customer;
+      const databaseWriteSet = writeSet
+        ? await finalizeBusinessDatabaseWriteSet(tx, writeSet.writeSetId)
+        : undefined;
+      return { ...customer, ...(databaseWriteSet ? { databaseWriteSet } : {}) };
     });
   }
 

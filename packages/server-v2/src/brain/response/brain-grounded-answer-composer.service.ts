@@ -284,6 +284,7 @@ function renderLimitation(value: string) {
   if (value === 'no_data:touch_preview') {
     return '当前能力只能为唯一客户生成触达预览，不能把上一轮客户群体直接群发；请改用已启用的自动触达策略并在发送前审批受众与渠道';
   }
+  if (value.startsWith('no_data:')) return value.slice('no_data:'.length).replace(/[。；;]+$/u, '');
   return value.replace(/[。；;]+$/u, '');
 }
 

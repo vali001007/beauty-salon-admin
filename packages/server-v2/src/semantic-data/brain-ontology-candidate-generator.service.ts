@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { extname } from 'node:path';
 import * as ts from 'typescript';
+import { createCuratedActionCandidates } from './brain-action-candidate-catalog.js';
 import {
   createPrismaStoreScopeResolver,
   deriveCanonicalOntologyIdentity,
@@ -108,6 +109,8 @@ export class BrainOntologyCandidateGeneratorService {
         }),
       );
     }
+
+    candidates.push(...createCuratedActionCandidates());
 
     return candidates.sort((left, right) => left.definitionKey.localeCompare(right.definitionKey));
   }

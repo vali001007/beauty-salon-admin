@@ -8,6 +8,14 @@ export interface BusinessMetricResolverContract {
     | 'manager_staff_analysis'
     | 'manager_operations_analysis'
     | 'finance_cost_analysis'
+    | 'finance_settlement_cost_analysis'
+    | 'finance_card_recognition_rows'
+    | 'finance_order_profit_rows'
+    | 'finance_product_order_profit_rows'
+    | 'finance_prepaid_order_profit_rows'
+    | 'finance_staff_commission_rows'
+    | 'finance_stored_value_liability_summary'
+    | 'finance_unfulfilled_card_liability_summary'
     | 'inventory_risk_summary'
     | 'inventory_consumption_rows'
     | 'product_margin_rows'
@@ -74,6 +82,12 @@ const CONTRACTS: Readonly<Record<BusinessMetricResolverContract['key'], Business
       key: 'finance_cost_analysis' as const,
       storeModel: 'ProductOrder',
       dimensionFields: Object.freeze([]),
+      numericExpressionFields: Object.freeze(['revenue', 'materialCost']),
+    }),
+    finance_settlement_cost_analysis: Object.freeze({
+      key: 'finance_settlement_cost_analysis' as const,
+      storeModel: 'DailySettlement',
+      dimensionFields: Object.freeze([]),
       numericExpressionFields: Object.freeze([
         'revenue',
         'materialCost',
@@ -81,8 +95,57 @@ const CONTRACTS: Readonly<Record<BusinessMetricResolverContract['key'], Business
         'operatingCost',
         'grossProfit',
         'grossMarginRate',
+        'operatingProfit',
+        'costIncomeRatio',
+        'storedValueLiability',
+        'unfulfilledCardLiability',
+        'settlementCount',
+        'reconciledSettlementCount',
+        'cashShiftReconciliationRate',
         'cardLiability',
       ]),
+    }),
+    finance_card_recognition_rows: Object.freeze({
+      key: 'finance_card_recognition_rows' as const,
+      storeModel: 'CardUsageRecord',
+      dimensionFields: Object.freeze(['usageRecordId', 'cardName', 'projectId']),
+      numericExpressionFields: Object.freeze(['times', 'recognizedAmount']),
+    }),
+    finance_order_profit_rows: Object.freeze({
+      key: 'finance_order_profit_rows' as const,
+      storeModel: 'ProductOrder',
+      dimensionFields: Object.freeze(['orderId', 'orderNo', 'orderKind', 'businessType']),
+      numericExpressionFields: Object.freeze(['totalCost', 'grossProfit', 'negativeMarginFlag']),
+    }),
+    finance_product_order_profit_rows: Object.freeze({
+      key: 'finance_product_order_profit_rows' as const,
+      storeModel: 'ProductOrder',
+      dimensionFields: Object.freeze(['orderId', 'orderNo', 'orderKind', 'businessType']),
+      numericExpressionFields: Object.freeze(['totalCost', 'grossProfit', 'negativeMarginFlag']),
+    }),
+    finance_prepaid_order_profit_rows: Object.freeze({
+      key: 'finance_prepaid_order_profit_rows' as const,
+      storeModel: 'ProductOrder',
+      dimensionFields: Object.freeze(['orderId', 'orderNo', 'orderKind', 'businessType']),
+      numericExpressionFields: Object.freeze(['totalCost', 'grossProfit', 'negativeMarginFlag']),
+    }),
+    finance_staff_commission_rows: Object.freeze({
+      key: 'finance_staff_commission_rows' as const,
+      storeModel: 'CommissionRecord',
+      dimensionFields: Object.freeze(['beauticianId', 'beauticianName', 'commissionType']),
+      numericExpressionFields: Object.freeze(['amount']),
+    }),
+    finance_stored_value_liability_summary: Object.freeze({
+      key: 'finance_stored_value_liability_summary' as const,
+      storeModel: 'CustomerBalanceAccount',
+      dimensionFields: Object.freeze([]),
+      numericExpressionFields: Object.freeze(['storedValueLiability']),
+    }),
+    finance_unfulfilled_card_liability_summary: Object.freeze({
+      key: 'finance_unfulfilled_card_liability_summary' as const,
+      storeModel: 'Customer',
+      dimensionFields: Object.freeze([]),
+      numericExpressionFields: Object.freeze(['unfulfilledCardLiability']),
     }),
     inventory_risk_summary: Object.freeze({
       key: 'inventory_risk_summary' as const,
@@ -101,8 +164,13 @@ const CONTRACTS: Readonly<Record<BusinessMetricResolverContract['key'], Business
       storeModel: 'Product',
       dimensionFields: Object.freeze(['productId', 'productName']),
       numericExpressionFields: Object.freeze([
-        'quantity', 'netRevenue', 'costAmount', 'grossProfit', 'grossMarginRate',
-        'belowCostSaleCount', 'costCoverageRate',
+        'quantity',
+        'netRevenue',
+        'costAmount',
+        'grossProfit',
+        'grossMarginRate',
+        'belowCostSaleCount',
+        'costCoverageRate',
       ]),
     }),
     marketing_follow_up_opportunities: Object.freeze({
@@ -247,8 +315,25 @@ export function evaluateBusinessMetricResolver(
     }
   }
 
-  const groups: BusinessMetricResolverEvaluationResult['groups'] = [];
-  const seen = new Set<string>();
+  if (!input.dimensions.length) {
+    const values = input.rows.map((row) =>
+      normalizeCalculatedNumber(evaluateExpression(input.resolver.expression, row, 0)),
+    );
+    return {
+      outputField: input.outputField,
+      groups: [],
+      overallValue: normalizeCalculatedNumber(aggregateResolvedValues(input.resolver.overallAggregation, values)),
+    };
+  }
+
+  const groupedValues = new Map<
+    string,
+    {
+      dimensions: Record<string, unknown>;
+      values: number[];
+    }
+  >();
+  const overallValues: number[] = [];
   for (const row of input.rows) {
     const dimensions = Object.fromEntries(
       input.dimensions.map((dimensionKey) => {
@@ -260,22 +345,23 @@ export function evaluateBusinessMetricResolver(
       }),
     );
     const groupKey = JSON.stringify(dimensions);
-    if (seen.has(groupKey)) throw new Error(`semantic_resolver_duplicate_dimension:${groupKey}`);
-    seen.add(groupKey);
-    groups.push({
-      dimensions,
-      value: normalizeCalculatedNumber(evaluateExpression(input.resolver.expression, row, 0)),
-    });
+    const value = normalizeCalculatedNumber(evaluateExpression(input.resolver.expression, row, 0));
+    overallValues.push(value);
+    const group = groupedValues.get(groupKey);
+    if (group) {
+      group.values.push(value);
+      continue;
+    }
+    groupedValues.set(groupKey, { dimensions, values: [value] });
   }
+  const groups = [...groupedValues.values()].map((group) => ({
+    dimensions: group.dimensions,
+    value: normalizeCalculatedNumber(aggregateResolvedValues(input.resolver.overallAggregation, group.values)),
+  }));
   return {
     outputField: input.outputField,
     groups,
-    overallValue: normalizeCalculatedNumber(
-      aggregateResolvedValues(
-        input.resolver.overallAggregation,
-        groups.map((group) => group.value),
-      ),
-    ),
+    overallValue: normalizeCalculatedNumber(aggregateResolvedValues(input.resolver.overallAggregation, overallValues)),
   };
 }
 

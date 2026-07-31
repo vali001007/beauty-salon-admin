@@ -94,6 +94,37 @@ describe('business metric resolver runtime', () => {
       metricKey: 'material_cost_rate',
       resolver: {
         kind: 'domain_service',
+        key: 'finance_settlement_cost_analysis',
+        dimensionFields: {},
+        expression: {
+          op: 'divide',
+          numerator: { op: 'field', field: 'materialCost' },
+          denominator: { op: 'field', field: 'revenue' },
+          zero: 'zero',
+        },
+        overallAggregation: 'avg',
+      },
+      dimensions: [],
+      outputField: 'material_cost_rate',
+      sourceModels: ['DailySettlement', 'OperatingCost', 'CommissionRecord'],
+      storeScope: {
+        mode: 'current_store',
+        anchorModel: 'DailySettlement',
+        model: 'DailySettlement',
+        field: 'storeId',
+        joinPath: [],
+      },
+      rows: [{ revenue: 1000, materialCost: 240 }],
+    });
+
+    expect(result.overallValue).toBe(0.24);
+  });
+
+  it('keeps the historical ProductOrder material cost resolver compatible', () => {
+    const result = evaluateBusinessMetricResolver({
+      metricKey: 'material_cost_rate',
+      resolver: {
+        kind: 'domain_service',
         key: 'finance_cost_analysis',
         dimensionFields: {},
         expression: {
@@ -106,7 +137,7 @@ describe('business metric resolver runtime', () => {
       },
       dimensions: [],
       outputField: 'material_cost_rate',
-      sourceModels: ['ProductOrder', 'OrderItem', 'ServiceTask'],
+      sourceModels: ['ProductOrder', 'OrderItem', 'ProjectBomItem', 'StockMovement'],
       storeScope: {
         mode: 'current_store',
         anchorModel: 'ProductOrder',
@@ -118,6 +149,107 @@ describe('business metric resolver runtime', () => {
     });
 
     expect(result.overallValue).toBe(0.24);
+  });
+
+  it('aggregates multiple resolver rows without creating duplicate empty-dimension groups', () => {
+    const result = evaluateBusinessMetricResolver({
+      metricKey: 'card_recognized_revenue_amount',
+      resolver: {
+        kind: 'domain_service',
+        key: 'finance_card_recognition_rows',
+        dimensionFields: {},
+        expression: { op: 'field', field: 'recognizedAmount' },
+        overallAggregation: 'sum',
+      },
+      dimensions: [],
+      outputField: 'card_recognized_revenue_amount',
+      sourceModels: ['CardUsageRecord'],
+      storeScope: {
+        mode: 'current_store',
+        anchorModel: 'CardUsageRecord',
+        model: 'CardUsageRecord',
+        field: 'storeId',
+        joinPath: [],
+      },
+      rows: [{ recognizedAmount: 80 }, { recognizedAmount: 120 }],
+    });
+
+    expect(result).toEqual({
+      outputField: 'card_recognized_revenue_amount',
+      groups: [],
+      overallValue: 200,
+    });
+  });
+
+  it('aggregates repeated commission dimensions instead of rejecting valid multi-staff rows', () => {
+    const result = evaluateBusinessMetricResolver({
+      metricKey: 'staff_commission_component_amount',
+      resolver: {
+        kind: 'domain_service',
+        key: 'finance_staff_commission_rows',
+        dimensionFields: { commissionType: 'commissionType' },
+        expression: { op: 'field', field: 'amount' },
+        overallAggregation: 'sum',
+      },
+      dimensions: ['commissionType'],
+      outputField: 'staff_commission_component_amount',
+      sourceModels: ['CommissionRecord', 'Beautician'],
+      storeScope: {
+        mode: 'current_store',
+        anchorModel: 'CommissionRecord',
+        model: 'CommissionRecord',
+        field: 'storeId',
+        joinPath: [],
+      },
+      rows: [
+        { beauticianId: 19, commissionType: 'project', amount: 100 },
+        { beauticianId: 20, commissionType: 'project', amount: 52.91 },
+        { beauticianId: 19, commissionType: 'product', amount: 45.3 },
+      ],
+    });
+
+    expect(result).toEqual({
+      outputField: 'staff_commission_component_amount',
+      groups: [
+        { dimensions: { commissionType: 'project' }, value: 152.91 },
+        { dimensions: { commissionType: 'product' }, value: 45.3 },
+      ],
+      overallValue: 198.21,
+    });
+  });
+
+  it('calculates overall averages from source rows rather than averaged groups', () => {
+    const result = evaluateBusinessMetricResolver({
+      metricKey: 'product_gross_margin_rate',
+      resolver: {
+        kind: 'domain_service',
+        key: 'product_margin_rows',
+        dimensionFields: { productName: 'productName' },
+        expression: { op: 'field', field: 'grossMarginRate' },
+        overallAggregation: 'avg',
+      },
+      dimensions: ['productName'],
+      outputField: 'product_gross_margin_rate',
+      sourceModels: ['ProductOrder', 'OrderItem', 'RefundItem', 'Product'],
+      storeScope: {
+        mode: 'current_store',
+        anchorModel: 'Product',
+        model: 'Product',
+        field: 'storeId',
+        joinPath: [],
+      },
+      rows: [
+        { productName: '精华', grossMarginRate: 0.1 },
+        { productName: '精华', grossMarginRate: 0.2 },
+        { productName: '面膜', grossMarginRate: 0.9 },
+      ],
+    });
+
+    expect(result.groups).toEqual([
+      { dimensions: { productName: '精华' }, value: 0.15 },
+      { dimensions: { productName: '面膜' }, value: 0.9 },
+    ]);
+    expect(result.overallValue).toBe(0.4);
   });
 
   it('evaluates the governed new-customer conversion rate from the shared customer fact row', () => {
@@ -150,7 +282,7 @@ describe('business metric resolver runtime', () => {
 
     expect(result).toEqual({
       outputField: 'new_customer_conversion_rate',
-      groups: [{ dimensions: {}, value: 0.11111111 }],
+      groups: [],
       overallValue: 0.11111111,
     });
   });
@@ -228,9 +360,11 @@ describe('business metric resolver runtime', () => {
     const result = evaluateBusinessMetricResolver({
       metricKey: 'product_gross_margin_rate',
       resolver: {
-        kind: 'domain_service', key: 'product_margin_rows',
+        kind: 'domain_service',
+        key: 'product_margin_rows',
         dimensionFields: { productId: 'productId', productName: 'productName' },
-        expression: { op: 'field', field: 'grossMarginRate' }, overallAggregation: 'avg',
+        expression: { op: 'field', field: 'grossMarginRate' },
+        overallAggregation: 'avg',
       },
       dimensions: ['productId', 'productName'],
       outputField: 'product_gross_margin_rate',

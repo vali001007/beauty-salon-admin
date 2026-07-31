@@ -233,6 +233,7 @@ export class BrainMarketingDomainAdapter implements BrainDomainAdapter {
       storeId: input.context.storeId,
       skillKey: 'execute_marketing_strategy',
       planId: input.plan.executionPlanId,
+      ...(input.plan.actionProvenance ? { actionProvenance: input.plan.actionProvenance } : {}),
       riskLevel: 'high',
       preview: {
         actionType: 'execute_marketing_strategy',
@@ -303,6 +304,7 @@ export class BrainMarketingDomainAdapter implements BrainDomainAdapter {
       storeId: input.context.storeId,
       skillKey: 'create_marketing_touch_draft',
       planId: input.plan.executionPlanId,
+      ...(input.plan.actionProvenance ? { actionProvenance: input.plan.actionProvenance } : {}),
       riskLevel: 'medium',
       preview: {
         actionType: 'create_marketing_touch_draft',
@@ -373,6 +375,7 @@ export class BrainMarketingDomainAdapter implements BrainDomainAdapter {
       storeId: input.context.storeId,
       skillKey: 'create_marketing_touch_draft',
       planId: input.plan.executionPlanId,
+      ...(input.plan.actionProvenance ? { actionProvenance: input.plan.actionProvenance } : {}),
       riskLevel: 'medium',
       preview: {
         actionType: 'create_marketing_touch_draft',

@@ -39,16 +39,30 @@ export class BrainTimeRangeParserService {
   parse(message: string, options: BrainTimeRangeParseOptions = {}): BrainTimeRangeParseResult {
     const now = options.now ? new Date(options.now) : new Date();
     const text = message.trim();
+    const hasExplicitComparison = /同比|相比|对比|比较|差多少|跟.*比|和.*比/.test(text);
+    const absoluteRange = hasExplicitComparison ? undefined : this.parseAbsoluteRange(text);
+    if (absoluteRange) {
+      return {
+        mentionedTime: true,
+        filters: [this.toFilter(absoluteRange)],
+        range: absoluteRange,
+        requiresComparison: false,
+        unsupportedExpressions: [],
+      };
+    }
     const comparisonRange = this.parseComparison(text, now);
     if (comparisonRange) {
+      const unsupportedExpressions =
+        comparisonRange.comparison || comparisonRange.incompleteComparison
+          ? []
+          : [...new Set([comparisonRange.range.label, ...this.detectUnsupportedTimeExpressions(text)])];
       return {
         mentionedTime: true,
         filters: [],
         range: comparisonRange.range,
         comparison: comparisonRange.comparison,
         requiresComparison: true,
-        unsupportedExpressions:
-          comparisonRange.comparison || comparisonRange.incompleteComparison ? [] : [comparisonRange.range.label],
+        unsupportedExpressions,
       };
     }
 
@@ -160,6 +174,26 @@ export class BrainTimeRangeParserService {
   }
 
   private incompleteComparisonAnchor(text: string, now: Date): BrainDateRange | undefined {
+    if (text.includes('昨天')) return this.dayRange('昨天', now, -1);
+    if (text.includes('上周')) return this.previousWeekRange(now);
+    if (text.includes('上个月') || text.includes('上月')) return this.previousMonthRange(now);
+    if (text.includes('上季度')) {
+      const currentQuarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+      return {
+        label: '上季度',
+        startDate: new Date(now.getFullYear(), currentQuarterStartMonth - 3, 1, 0, 0, 0, 0),
+        endDate: new Date(now.getFullYear(), currentQuarterStartMonth, 0, 23, 59, 59, 999),
+        granularity: 'quarter',
+      };
+    }
+    if (text.includes('去年')) {
+      return {
+        label: '去年',
+        startDate: new Date(now.getFullYear() - 1, 0, 1, 0, 0, 0, 0),
+        endDate: new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59, 999),
+        granularity: 'year',
+      };
+    }
     if (text.includes('本月') || text.includes('这个月')) return this.currentMonthRange(now);
     if (text.includes('本周') || text.includes('这周')) return this.currentWeekRange(now);
     if (text.includes('今天')) return this.dayRange('今天', now, 0);
@@ -337,6 +371,169 @@ export class BrainTimeRangeParserService {
     return undefined;
   }
 
+  private parseAbsoluteRange(text: string): BrainDateRange | undefined {
+    const cutoff = text.match(
+      /(?:截至|截止)\s*(\d{4})\s*(?:年|[/-])\s*(\d{1,2})\s*(?:月|[/-])\s*(\d{1,2})\s*日?(?:\s*[T ]?\s*(\d{1,2})\s*[:：]\s*(\d{1,2})(?:\s*[:：]\s*(\d{1,2}))?)?/u,
+    );
+    if (cutoff) {
+      const endDate = this.validLocalDate(
+        Number(cutoff[1]),
+        Number(cutoff[2]),
+        Number(cutoff[3]),
+        Number(cutoff[4] ?? 23),
+        Number(cutoff[5] ?? 59),
+        Number(cutoff[6] ?? 59),
+        cutoff[4] ? 0 : 999,
+      );
+      if (endDate) {
+        const label = cutoff[4]
+          ? `截至${this.dateLabel(endDate)} ${this.clockLabel(endDate)}`
+          : `截至${this.dateLabel(endDate)}`;
+        return {
+          label,
+          startDate: new Date(0),
+          endDate,
+          granularity: cutoff[4] ? 'hour' : 'day',
+        };
+      }
+    }
+
+    const chineseRange = text.match(
+      /(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(?:至|到|—|~|～)\s*(?:(\d{4})\s*年\s*)?(?:(\d{1,2})\s*月\s*)?(\d{1,2})\s*日/u,
+    );
+    if (chineseRange) {
+      const start = this.validLocalDate(Number(chineseRange[1]), Number(chineseRange[2]), Number(chineseRange[3]));
+      const end = this.validLocalDate(
+        Number(chineseRange[4] ?? chineseRange[1]),
+        Number(chineseRange[5] ?? chineseRange[2]),
+        Number(chineseRange[6]),
+      );
+      const range = this.absoluteDayRange(start, end);
+      if (range) return range;
+    }
+
+    const numericRange = text.match(
+      /(\d{4})\s*([/-])\s*(\d{1,2})\s*\2\s*(\d{1,2})\s*(?:至|到|—|~|～)\s*(?:(\d{4})\s*([/-])\s*)?(\d{1,2})\s*(?:[/-])\s*(\d{1,2})/u,
+    );
+    if (numericRange) {
+      const start = this.validLocalDate(Number(numericRange[1]), Number(numericRange[3]), Number(numericRange[4]));
+      const end = this.validLocalDate(
+        Number(numericRange[5] ?? numericRange[1]),
+        Number(numericRange[7]),
+        Number(numericRange[8]),
+      );
+      const range = this.absoluteDayRange(start, end);
+      if (range) return range;
+    }
+
+    const chineseDay = text.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/u);
+    if (chineseDay) {
+      const date = this.validLocalDate(Number(chineseDay[1]), Number(chineseDay[2]), Number(chineseDay[3]));
+      if (date) return this.absoluteSingleDay(date);
+    }
+
+    const numericDay = text.match(/(\d{4})\s*[/-]\s*(\d{1,2})\s*[/-]\s*(\d{1,2})/u);
+    if (numericDay) {
+      const date = this.validLocalDate(Number(numericDay[1]), Number(numericDay[2]), Number(numericDay[3]));
+      if (date) return this.absoluteSingleDay(date);
+    }
+
+    const chineseMonth = text.match(/(\d{4})\s*年\s*(\d{1,2})\s*月(?!\s*\d{1,2}\s*日)/u);
+    if (chineseMonth) {
+      const year = Number(chineseMonth[1]);
+      const month = Number(chineseMonth[2]);
+      const start = this.validLocalDate(year, month, 1);
+      const end = this.validLocalDate(year, month, new Date(year, month, 0).getDate(), 23, 59, 59, 999);
+      if (start && end) return this.absoluteMonthRange(year, month, start, end);
+    }
+
+    const numericMonth = text.match(/(\d{4})\s*[/-]\s*(\d{1,2})(?!\s*[/-]\s*\d{1,2})/u);
+    if (numericMonth) {
+      const year = Number(numericMonth[1]);
+      const month = Number(numericMonth[2]);
+      const start = this.validLocalDate(year, month, 1);
+      const end = this.validLocalDate(year, month, new Date(year, month, 0).getDate(), 23, 59, 59, 999);
+      if (start && end) return this.absoluteMonthRange(year, month, start, end);
+    }
+    return undefined;
+  }
+
+  private absoluteSingleDay(date: Date): BrainDateRange {
+    return {
+      label: this.dateLabel(date),
+      startDate: this.startOfDay(date),
+      endDate: this.endOfDay(date),
+      granularity: 'day',
+    };
+  }
+
+  private absoluteMonthRange(year: number, month: number, start: Date, end: Date): BrainDateRange {
+    return {
+      label: `${year}年${month}月`,
+      startDate: start,
+      endDate: end,
+      granularity: 'month',
+    };
+  }
+
+  private absoluteDayRange(start: Date | undefined, end: Date | undefined): BrainDateRange | undefined {
+    if (!start || !end || start > end) return undefined;
+    return {
+      label: `${this.dateLabel(start)}至${this.dateLabel(end)}`,
+      startDate: this.startOfDay(start),
+      endDate: this.endOfDay(end),
+      granularity: 'day',
+    };
+  }
+
+  private validLocalDate(
+    year: number,
+    month: number,
+    day: number,
+    hour = 0,
+    minute = 0,
+    second = 0,
+    millisecond = 0,
+  ): Date | undefined {
+    if (
+      !Number.isInteger(year) ||
+      !Number.isInteger(month) ||
+      !Number.isInteger(day) ||
+      !Number.isInteger(hour) ||
+      !Number.isInteger(minute) ||
+      !Number.isInteger(second) ||
+      month < 1 ||
+      month > 12 ||
+      day < 1 ||
+      day > 31 ||
+      hour < 0 ||
+      hour > 23 ||
+      minute < 0 ||
+      minute > 59 ||
+      second < 0 ||
+      second > 59
+    ) {
+      return undefined;
+    }
+    const value = new Date(year, month - 1, day, hour, minute, second, millisecond);
+    return value.getFullYear() === year &&
+      value.getMonth() === month - 1 &&
+      value.getDate() === day &&
+      value.getHours() === hour &&
+      value.getMinutes() === minute &&
+      value.getSeconds() === second
+      ? value
+      : undefined;
+  }
+
+  private dateLabel(date: Date) {
+    return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+  }
+
+  private clockLabel(date: Date) {
+    return [date.getHours(), date.getMinutes(), date.getSeconds()].map((part) => String(part).padStart(2, '0')).join(':');
+  }
+
   private currentPeriodToNow(text: string, now: Date): BrainDateRange | undefined {
     if (!/(截至|截止|到|至).*(现在|目前)|截至目前|至今/.test(text)) return undefined;
     const endDate = new Date(now);
@@ -434,7 +631,31 @@ export class BrainTimeRangeParserService {
   }
 
   private detectUnsupportedTimeExpressions(text: string) {
-    const patterns = ['前天', '后天', '凌晨', '早上', '中午', '晚上', '最近', '近', '过去', '未来', '同期'];
+    const patterns = [
+      '前天',
+      '后天',
+      '凌晨',
+      '早上',
+      '中午',
+      '晚上',
+      '最近',
+      '近',
+      '过去',
+      '未来',
+      '同期',
+      '双十一',
+      '双十二',
+      '618',
+      '六一八',
+      '国庆',
+      '春节',
+      '五一',
+      '劳动节',
+      '元旦',
+      '中秋',
+      '端午',
+      '七夕',
+    ];
     return patterns.filter((pattern) => text.includes(pattern));
   }
 

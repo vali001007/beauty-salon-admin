@@ -3,7 +3,11 @@ import { Prisma } from '@prisma/client';
 import type { BrainDateRange } from '../../cognition/brain-time-range-parser.service.js';
 import { BrainTimeRangeParserService } from '../../cognition/brain-time-range-parser.service.js';
 import { BrainSkillRuntimeService } from '../../skills/brain-skill-runtime.service.js';
-import type { BrainDomainAdapter, BrainDomainAdapterExecution, BrainDomainAnswer } from '../brain-domain-adapter.types.js';
+import type {
+  BrainDomainAdapter,
+  BrainDomainAdapterExecution,
+  BrainDomainAnswer,
+} from '../brain-domain-adapter.types.js';
 import { defaultBrainDateRange, formatBrainMoney } from '../brain-domain-formatters.js';
 import { BrainActionConfirmationService } from '../../skills/brain-action-confirmation.service.js';
 
@@ -26,11 +30,16 @@ export class BrainInventoryDomainAdapter implements BrainDomainAdapter {
   async execute(input: BrainDomainAdapterExecution): Promise<BrainDomainAnswer | undefined> {
     const message = input.dto.message;
     if (input.plan.capabilityKey === 'purchase_order_draft') {
+      const target = this.purchaseOrderTarget(input);
+      if (!target.ok) return this.actionClarification(target.message);
       const analysis = await this.skillRuntime.buildInventoryProcurementAnalysis({
         storeId: input.context.storeId,
-        keyword: this.extractProductKeyword(message),
+        ...(target.productId ? { productId: target.productId } : { keyword: target.productName }),
       });
-      return this.previewPurchaseOrder(input, analysis);
+      return this.previewPurchaseOrder(input, analysis, target);
+    }
+    if (input.plan.capabilityKey === 'purchase_order_submit_for_approval_preview') {
+      return this.previewPurchaseOrderSubmission(input);
     }
     if (/(临期|过期|快过期).*(怎么|如何|处理|规定|办法|方案|消化|优惠|减少|合适)/.test(message)) {
       return {
@@ -60,21 +69,30 @@ export class BrainInventoryDomainAdapter implements BrainDomainAdapter {
       const orderLines = analysis.recentOrders.length
         ? analysis.recentOrders
             .slice(0, 8)
-            .map((item, index) => `${index + 1}. ${item.createdAt} ${item.orderNo}，${item.supplierName}，${formatBrainMoney(item.amount)}，${item.status}。`)
+            .map(
+              (item, index) =>
+                `${index + 1}. ${item.createdAt} ${item.orderNo}，${item.supplierName}，${formatBrainMoney(item.amount)}，${item.status}。`,
+            )
             .join('\n')
         : '当前门店没有采购订单记录。';
       if (/(创建|生成|新建|提交|下单).*(采购单|采购订单)|采购单.*(创建|生成|提交|审批)/.test(message)) {
-        return this.previewPurchaseOrder(input, analysis);
+        return this.actionClarification('创建采购单必须通过已发布 ActionDefinition 解析具体商品、数量和目标状态。');
       }
       return {
         status: 'completed',
         answer: `采购与供应商分析：\n${suggestionLines}\n最近采购：\n${orderLines}\n建议数量按“补到约 2 倍安全库存、最低采购量和报价 MOQ 取最大值”计算；提交采购前仍需人工确认库存占用和预算。`,
-        citations: [{ sourceType: 'skill', sourceId: 'inventory_procurement_analysis', label: '采购数量、报价与供应商分析' }],
+        citations: [
+          { sourceType: 'skill', sourceId: 'inventory_procurement_analysis', label: '采购数量、报价与供应商分析' },
+        ],
         grounding: 'db_skill',
         metadata: { adapterKey: this.key, rangeLabel: range.label },
       };
     }
-    if (/(库存整体|库存金额|库存货值|还有多少|库存加起来|用了多少|用量|消耗|够用多久|够用多少|周转|进出库|需求突然增加|系列产品|精华液|洗面奶|防晒产品|仓库里有多少货|有什么产品可以卖|产品可以卖)/.test(message)) {
+    if (
+      /(库存整体|库存金额|库存货值|还有多少|库存加起来|用了多少|用量|消耗|够用多久|够用多少|周转|进出库|需求突然增加|系列产品|精华液|洗面奶|防晒产品|仓库里有多少货|有什么产品可以卖|产品可以卖)/.test(
+        message,
+      )
+    ) {
       const detail = await this.skillRuntime.buildInventoryDetailAnalysis({
         storeId: input.context.storeId,
         startDate: range.startDate,
@@ -93,13 +111,53 @@ export class BrainInventoryDomainAdapter implements BrainDomainAdapter {
       const movementLines = detail.movements.length
         ? detail.movements
             .slice(0, 10)
-            .map((item, index) => `${index + 1}. ${item.occurredAt.slice(0, 16).replace('T', ' ')} ${item.productName} ${item.type} ${item.quantity}`)
+            .map(
+              (item, index) =>
+                `${index + 1}. ${item.occurredAt.slice(0, 16).replace('T', ' ')} ${item.productName} ${item.type} ${item.quantity}`,
+            )
             .join('\n')
         : '当前时间范围没有进出库记录。';
       return {
         status: 'completed',
         answer: `库存明细：共 ${detail.totalSku} 个 SKU，当前估算库存货值 ${formatBrainMoney(detail.totalStockValue)}。\n${productLines}\n进出库记录：\n${movementLines}`,
-        citations: [{ sourceType: 'skill', sourceId: 'inventory_detail_analysis', label: '库存 SKU、消耗与进出库分析' }],
+        citations: [
+          { sourceType: 'skill', sourceId: 'inventory_detail_analysis', label: '库存 SKU、消耗与进出库分析' },
+        ],
+        grounding: 'db_skill',
+        metadata: { adapterKey: this.key, rangeLabel: range.label },
+      };
+    }
+    if (/(缺货|断货)/.test(message) || /(低于安全库存|低库存|安全库存)/.test(message)) {
+      const facts = await this.skillRuntime.buildInventoryStockRiskFacts({
+        storeId: input.context.storeId,
+        startDate: range.startDate,
+        endExclusive: range.endDate,
+      });
+      const stockoutLines =
+        facts.stockoutProducts.length > 0
+          ? facts.stockoutProducts
+              .slice(0, 10)
+              .map(
+                (item, index) =>
+                  `${index + 1}. ${item.name}：期末库存 ${item.periodEndStock}${item.stockoutObservedAt ? `，曾在 ${item.stockoutObservedAt} 缺货` : ''}。`,
+              )
+              .join('\n')
+          : '当前时间范围没有缺货产品。';
+      const lowStockLines =
+        facts.lowStockProducts.length > 0
+          ? facts.lowStockProducts
+              .slice(0, 10)
+              .map(
+                (item, index) => `${index + 1}. ${item.name}：期末库存 ${item.currentStock}，安全库存 ${item.safetyStock}。`,
+              )
+              .join('\n')
+          : '当前没有低于安全库存的产品。';
+      return {
+        status: 'completed',
+        answer: /(?:缺货|断货)/.test(message)
+          ? `缺货产品：\n${stockoutLines}`
+          : `低库存产品：\n${lowStockLines}`,
+        citations: [{ sourceType: 'skill', sourceId: 'inventory_stock_risk_fact', label: '库存缺货与低库存事实' }],
         grounding: 'db_skill',
         metadata: { adapterKey: this.key, rangeLabel: range.label },
       };
@@ -113,7 +171,10 @@ export class BrainInventoryDomainAdapter implements BrainDomainAdapter {
         summary.lowStockProducts.length > 0
           ? summary.lowStockProducts
               .slice(0, 10)
-              .map((item, index) => `${index + 1}. ${item.name}：当前 ${item.currentStock}，安全库存 ${item.safetyStock}，建议人工复核后补货。`)
+              .map(
+                (item, index) =>
+                  `${index + 1}. ${item.name}：当前 ${item.currentStock}，安全库存 ${item.safetyStock}，建议人工复核后补货。`,
+              )
               .join('\n')
           : '1. 当前没有低于安全库存的产品。';
       return {
@@ -129,14 +190,19 @@ export class BrainInventoryDomainAdapter implements BrainDomainAdapter {
       summary.lowStockProducts.length > 0
         ? summary.lowStockProducts
             .slice(0, 10)
-            .map((item, index) => `${index + 1}. ${item.name}：当前 ${item.currentStock}，安全库存 ${item.safetyStock}。`)
+            .map(
+              (item, index) => `${index + 1}. ${item.name}：当前 ${item.currentStock}，安全库存 ${item.safetyStock}。`,
+            )
             .join('\n')
         : '当前没有低于安全库存的产品。';
     const expiryLines =
       summary.expiringProducts.length > 0
         ? summary.expiringProducts
             .slice(0, 10)
-            .map((item, index) => `${index + 1}. ${item.name}：剩余 ${item.stock}，到期日 ${item.expiryDate ?? '未记录'}，估算货值 ${formatBrainMoney(item.estimatedValue)}。`)
+            .map(
+              (item, index) =>
+                `${index + 1}. ${item.name}：剩余 ${item.stock}，到期日 ${item.expiryDate ?? '未记录'}，估算货值 ${formatBrainMoney(item.estimatedValue)}。`,
+            )
             .join('\n')
         : '当前没有命中临期或过期库存批次。';
     return {
@@ -153,44 +219,78 @@ export class BrainInventoryDomainAdapter implements BrainDomainAdapter {
   private async previewPurchaseOrder(
     input: BrainDomainAdapterExecution,
     analysis: Awaited<ReturnType<BrainSkillRuntimeService['buildInventoryProcurementAnalysis']>>,
+    governedTarget: {
+      productId?: number;
+      productName: string;
+      quantity: number;
+      supplier?: string;
+    },
   ): Promise<BrainDomainAnswer> {
-    if (!input.context.permissions.includes('*') && !input.context.permissions.includes('core:supply:manage')) {
-      throw new ForbiddenException('missing_permission:core:supply:manage');
+    if (!input.context.permissions.includes('*') && !input.context.permissions.includes('core:inventory:purchase')) {
+      throw new ForbiddenException('missing_permission:core:inventory:purchase');
     }
     if (!this.actionConfirmation) return this.actionClarification('动作确认服务未就绪，请稍后重试。');
-    const first = analysis.suggestions.find((item) => item.supplierName && item.unitPrice != null && item.suggestedQty > 0);
-    if (!first?.supplierName) return this.actionClarification('当前采购建议缺少已映射供应商或有效报价，不能生成采购单。');
-    const items = analysis.suggestions
-      .filter((item) => item.supplierName === first.supplierName && item.unitPrice != null && item.suggestedQty > 0)
-      .map((item) => ({
-        productId: item.productId,
-        productName: item.productName,
-        sku: item.sku,
-        quantity: item.suggestedQty,
-        unitPrice: item.unitPrice!,
-      }));
+    const requested = analysis.suggestions.filter((item) =>
+      governedTarget.productId
+        ? item.productId === governedTarget.productId
+        : item.productName.trim() === governedTarget.productName.trim() ||
+          item.sku.trim() === governedTarget.productName.trim(),
+    );
+    if (requested.length !== 1) {
+      return this.actionClarification(
+        requested.length
+          ? '当前门店匹配到多个同名采购商品，请先明确具体 SKU。'
+          : `当前门店没有找到采购商品“${governedTarget.productName}”，请核对商品名称或 SKU。`,
+      );
+    }
+    const first = requested.find(
+      (item) =>
+        item.supplierName &&
+        item.unitPrice != null &&
+        (!governedTarget.supplier || item.supplierName === governedTarget.supplier),
+    );
+    if (!first?.supplierName) {
+      return this.actionClarification(
+        governedTarget.supplier
+          ? `当前商品没有匹配供应商“${governedTarget.supplier}”的有效报价，请重新选择供应商。`
+          : '当前采购商品缺少已映射供应商或有效报价，不能生成采购单。',
+      );
+    }
+    const items = [
+      {
+        productId: first.productId,
+        productName: first.productName,
+        sku: first.sku,
+        quantity: governedTarget.quantity,
+        unitPrice: first.unitPrice!,
+      },
+    ];
     if (!items.length) return this.actionClarification('当前没有同时具备产品、数量、供应商和报价的采购项。');
     const totalAmount = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-    const submitForApproval = /提交|审批/.test(input.dto.message);
-    const summary = `${submitForApproval ? '创建并提交审批' : '创建草稿'}：供应商 ${first.supplierName}，${items.length} 个 SKU，预计 ${formatBrainMoney(totalAmount)}`;
+    const quantitySummary = `，${first.productName} ${governedTarget.quantity}${first.unit ? ` ${first.unit}` : ''}`;
+    const summary = `创建采购草稿：供应商 ${first.supplierName}${quantitySummary}，${items.length} 个 SKU，预计 ${formatBrainMoney(totalAmount)}`;
     const confirmation = await this.actionConfirmation.createPreview({
       runId: input.runId,
       userId: input.context.userId,
       storeId: input.context.storeId,
       skillKey: 'create_purchase_order',
       planId: input.plan.executionPlanId,
+      ...(input.plan.actionProvenance ? { actionProvenance: input.plan.actionProvenance } : {}),
       riskLevel: 'high',
       preview: {
         actionType: 'create_purchase_order',
         summary,
         riskLevel: 'high',
         amount: totalAmount,
-        impactItems: items.map((item) => ({ objectType: 'product', objectId: String(item.productId), label: `${item.productName} x ${item.quantity}` })),
+        impactItems: items.map((item) => ({
+          objectType: 'product',
+          objectId: String(item.productId),
+          label: `${item.productName} x ${item.quantity}`,
+        })),
       } as Prisma.InputJsonValue,
       payload: {
         supplier: first.supplierName,
         items,
-        submitForApproval,
         sourceMessage: input.dto.message,
       } as Prisma.InputJsonValue,
     });
@@ -198,15 +298,87 @@ export class BrainInventoryDomainAdapter implements BrainDomainAdapter {
       status: 'completed',
       answer: `采购单预览：${summary}。确认后将通过采购业务服务创建，不会直接修改库存。`,
       citations: [{ sourceType: 'skill', sourceId: 'inventory_purchase_order_preview', label: '采购单执行预览' }],
-      suggestedActions: [{
-        actionId: confirmation.actionId,
-        actionType: 'create_purchase_order',
-        riskLevel: 'high',
-        requiresConfirmation: true,
-        summary,
-      }],
+      suggestedActions: [
+        {
+          actionId: confirmation.actionId,
+          actionType: 'create_purchase_order',
+          riskLevel: 'high',
+          requiresConfirmation: true,
+          summary,
+        },
+      ],
       grounding: 'preview_action',
       metadata: { adapterKey: this.key, amount: totalAmount },
+    };
+  }
+
+  private async previewPurchaseOrderSubmission(input: BrainDomainAdapterExecution): Promise<BrainDomainAnswer> {
+    if (!input.context.permissions.includes('*') && !input.context.permissions.includes('core:inventory:purchase')) {
+      throw new ForbiddenException('missing_permission:core:inventory:purchase');
+    }
+    if (!this.actionConfirmation) return this.actionClarification('动作确认服务未就绪，请稍后重试。');
+    const slot = input.plan.actionSlots?.find((candidate) => candidate.slotKey === 'purchaseOrder');
+    const purchaseOrderId = this.positiveEntityId(slot?.entityKey, 'purchase_order');
+    const resolved = await this.skillRuntime.resolvePurchaseOrderActionTarget({
+      storeId: input.context.storeId,
+      ...(purchaseOrderId ? { purchaseOrderId } : {}),
+      ...(slot?.rawValue?.trim() ? { reference: slot.rawValue.trim() } : {}),
+    });
+    if (!resolved.ok) return this.actionClarification(resolved.message);
+    if (resolved.value.status !== '草稿') {
+      return this.actionClarification(
+        `采购单 ${resolved.value.orderNo} 当前状态为“${resolved.value.status}”，只有草稿采购单可以提交审核。`,
+      );
+    }
+    const summary = `提交采购单审核：${resolved.value.orderNo}，供应商 ${resolved.value.supplier}，金额 ${formatBrainMoney(resolved.value.totalAmount)}，状态将从“草稿”变为“待审核”`;
+    const confirmation = await this.actionConfirmation.createPreview({
+      runId: input.runId,
+      userId: input.context.userId,
+      storeId: input.context.storeId,
+      skillKey: 'submit_purchase_order_for_approval',
+      planId: input.plan.executionPlanId,
+      ...(input.plan.actionProvenance ? { actionProvenance: input.plan.actionProvenance } : {}),
+      riskLevel: 'high',
+      preview: {
+        actionType: 'submit_purchase_order_for_approval',
+        summary,
+        riskLevel: 'high',
+        amount: resolved.value.totalAmount,
+        impactItems: [
+          {
+            objectType: 'purchase_order',
+            objectId: String(resolved.value.id),
+            label: resolved.value.orderNo,
+          },
+        ],
+      } as Prisma.InputJsonValue,
+      payload: {
+        purchaseOrderId: resolved.value.id,
+        expectedPurchaseOrderUpdatedAt: resolved.value.updatedAt,
+        sourceMessage: input.dto.message,
+      } as Prisma.InputJsonValue,
+    });
+    return {
+      status: 'completed',
+      answer: `${summary}。确认后才会执行状态转换。`,
+      citations: [
+        {
+          sourceType: 'skill',
+          sourceId: 'purchase_order_submit_for_approval_preview',
+          label: '采购单提交审核预览',
+        },
+      ],
+      suggestedActions: [
+        {
+          actionId: confirmation.actionId,
+          actionType: 'submit_purchase_order_for_approval',
+          riskLevel: 'high',
+          requiresConfirmation: true,
+          summary,
+        },
+      ],
+      grounding: 'preview_action',
+      metadata: { adapterKey: this.key, amount: resolved.value.totalAmount },
     };
   }
 
@@ -219,6 +391,48 @@ export class BrainInventoryDomainAdapter implements BrainDomainAdapter {
       grounding: 'none',
       metadata: { adapterKey: this.key, unsupportedReason: 'purchase_action_requires_complete_quote' },
     };
+  }
+
+  private purchaseOrderTarget(input: BrainDomainAdapterExecution):
+    | {
+        ok: true;
+        productId?: number;
+        productName: string;
+        quantity: number;
+        supplier?: string;
+      }
+    | { ok: false; message: string } {
+    const product = input.plan.actionSlots?.find((slot) => slot.slotKey === 'product');
+    const quantity = input.plan.actionSlots?.find((slot) => slot.slotKey === 'quantity');
+    const supplier = input.plan.actionSlots?.find((slot) => slot.slotKey === 'supplier')?.rawValue?.trim();
+    const submissionModeSlot = input.plan.actionSlots?.find((slot) => slot.slotKey === 'submissionMode');
+    if (submissionModeSlot) {
+      return { ok: false, message: '提交审核是独立动作；创建采购单只能先生成草稿。' };
+    }
+    const productName = product?.rawValue?.trim();
+    const productId = this.positiveEntityId(product?.entityKey, 'product');
+    if (!productName && !productId) {
+      return { ok: false, message: '请明确当前门店要采购的具体商品名称或 SKU。' };
+    }
+    if (!Number.isInteger(quantity?.numericValue) || Number(quantity?.numericValue) <= 0) {
+      return { ok: false, message: '请明确大于 0 的整数采购数量。' };
+    }
+    return {
+      ok: true,
+      ...(productId ? { productId } : {}),
+      productName: productName || `商品 #${productId}`,
+      quantity: Number(quantity!.numericValue),
+      ...(supplier ? { supplier } : {}),
+    };
+  }
+
+  private positiveEntityId(value: string | undefined, expectedType: 'product' | 'purchase_order') {
+    const normalized = value?.trim();
+    const typed = normalized?.match(/^([a-zA-Z][a-zA-Z0-9_-]*)[:#](\d+)$/);
+    const normalizedType = expectedType.replace(/[\s_-]+/g, '');
+    if (typed && typed[1].toLocaleLowerCase('en-US').replace(/[\s_-]+/g, '') !== normalizedType) return undefined;
+    const id = Number(typed?.[2] ?? normalized);
+    return Number.isInteger(id) && id > 0 ? id : undefined;
   }
 
   private resolveRange(message: string): BrainDateRange {

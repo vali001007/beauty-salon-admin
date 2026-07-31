@@ -4,7 +4,11 @@ import type { BrainDateRange } from '../../cognition/brain-time-range-parser.ser
 import { BrainTimeRangeParserService } from '../../cognition/brain-time-range-parser.service.js';
 import { BrainActionConfirmationService } from '../../skills/brain-action-confirmation.service.js';
 import { BrainSkillRuntimeService } from '../../skills/brain-skill-runtime.service.js';
-import type { BrainDomainAdapter, BrainDomainAdapterExecution, BrainDomainAnswer } from '../brain-domain-adapter.types.js';
+import type {
+  BrainDomainAdapter,
+  BrainDomainAdapterExecution,
+  BrainDomainAnswer,
+} from '../brain-domain-adapter.types.js';
 import { BrainActionTargetResolverService } from '../brain-action-target-resolver.service.js';
 import { defaultBrainDateRange } from '../brain-domain-formatters.js';
 import { BrainCustomerFactResolverService } from '../brain-customer-fact-resolver.service.js';
@@ -28,7 +32,10 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
   }
 
   async execute(input: BrainDomainAdapterExecution): Promise<BrainDomainAnswer | undefined> {
-    if (input.plan.capabilityKey === 'reservation_action_preview' || input.plan.capabilityKey === 'card_usage_action_preview') {
+    if (
+      input.plan.capabilityKey === 'reservation_action_preview' ||
+      input.plan.capabilityKey === 'card_usage_action_preview'
+    ) {
       return this.previewAction(input);
     }
     const message = input.dto.message;
@@ -53,7 +60,9 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
       return {
         status: 'completed',
         answer: `${range.label}服务超时分析：超时 ${analysis.overrunCount} 个，其中影响后续预约 ${analysis.impactedCount} 个。\n${lines}`,
-        citations: [{ sourceType: 'skill', sourceId: 'front_desk_service_overrun_analysis', label: '服务超时与预约影响分析' }],
+        citations: [
+          { sourceType: 'skill', sourceId: 'front_desk_service_overrun_analysis', label: '服务超时与预约影响分析' },
+        ],
         grounding: 'db_skill',
         metadata: { adapterKey: this.key, rangeLabel: range.label },
       };
@@ -66,15 +75,28 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
         endDate: range.endDate,
       });
       const pendingLines = snapshot.pendingCustomers.length
-        ? snapshot.pendingCustomers.map((item, index) => `${index + 1}. ${item.startTime} ${item.customerName} - ${item.projectName}（${item.status}）`).join('\n')
+        ? snapshot.pendingCustomers
+            .map(
+              (item, index) =>
+                `${index + 1}. ${item.startTime} ${item.customerName} - ${item.projectName}（${item.status}）`,
+            )
+            .join('\n')
         : '当前没有待到店客户。';
       const resourceLines = snapshot.resources.length
-        ? snapshot.resources.map((item, index) => `${index + 1}. ${item.name}（${item.type}）：${item.booked ? '已占用' : '当前未占用'}`).join('\n')
+        ? snapshot.resources
+            .map(
+              (item, index) => `${index + 1}. ${item.name}（${item.type}）：${item.booked ? '已占用' : '当前未占用'}`,
+            )
+            .join('\n')
         : '门店尚未配置床位/房间资源。';
       const staffLines = snapshot.staff.length
         ? snapshot.staff
             .map((item, index) => {
-              const status = item.onTimeOff ? '请假/不在岗' : item.inService ? `服务中${item.nextAvailableAt ? `，预计 ${item.nextAvailableAt} 后可接单` : ''}` : '可接新单';
+              const status = item.onTimeOff
+                ? '请假/不在岗'
+                : item.inService
+                  ? `服务中${item.nextAvailableAt ? `，预计 ${item.nextAvailableAt} 后可接单` : ''}`
+                  : '可接新单';
               return `${index + 1}. ${item.name}：${status}，本时段预约 ${item.appointmentCount} 个。`;
             })
             .join('\n')
@@ -88,11 +110,14 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
             ? availableResources.map((item) => item.name).join('、')
             : '没有空闲床位/房间'
           : '门店未配置床位/房间资源';
-        const canArrange = availableStaff.length > 0 && (snapshot.resources.length === 0 || availableResources.length > 0);
+        const canArrange =
+          availableStaff.length > 0 && (snapshot.resources.length === 0 || availableResources.length > 0);
         return {
           status: 'completed',
           answer: `临时到店安排判断：${canArrange ? '当前具备初步接待条件' : '当前资源不足，不能直接承诺安排'}。可接单美容师：${staffText}；可用资源：${resourceText}。安排前还需确认客户项目、预计时长和禁忌信息。`,
-          citations: [{ sourceType: 'skill', sourceId: 'front_desk_walk_in_availability', label: '临时到店资源可用性' }],
+          citations: [
+            { sourceType: 'skill', sourceId: 'front_desk_walk_in_availability', label: '临时到店资源可用性' },
+          ],
           grounding: 'db_skill',
           metadata: { adapterKey: this.key, rangeLabel: range.label },
         };
@@ -100,7 +125,10 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
       if (/(可能爽约|需要提前联系)/.test(message)) {
         const riskLines = snapshot.pendingCustomers.length
           ? snapshot.pendingCustomers
-              .map((item, index) => `${index + 1}. ${item.startTime} ${item.customerName} - ${item.projectName}（${item.status}），建议到店前确认。`)
+              .map(
+                (item, index) =>
+                  `${index + 1}. ${item.startTime} ${item.customerName} - ${item.projectName}（${item.status}），建议到店前确认。`,
+              )
               .join('\n')
           : '当前没有待到店预约。';
         return {
@@ -114,7 +142,10 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
       if (/所有到店客人|到店客人.*基本信息/.test(message)) {
         const arrivedLines = snapshot.arrivedCustomers.length
           ? snapshot.arrivedCustomers
-              .map((item, index) => `${index + 1}. ${item.startTime} ${item.customerName} - ${item.projectName}（${item.status}）`)
+              .map(
+                (item, index) =>
+                  `${index + 1}. ${item.startTime} ${item.customerName} - ${item.projectName}（${item.status}）`,
+              )
               .join('\n')
           : '当前没有已到店客户。';
         return {
@@ -134,12 +165,25 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
       };
     }
     if (this.isCatalogLookup(message)) {
-      const catalog = await this.skillRuntime.buildReceptionCatalogSnapshot({ storeId: input.context.storeId, now: new Date() });
+      const catalog = await this.skillRuntime.buildReceptionCatalogSnapshot({
+        storeId: input.context.storeId,
+        now: new Date(),
+      });
       const cardLines = catalog.cards.length
-        ? catalog.cards.map((card, index) => `${index + 1}. ${card.name}：${card.totalTimes} 次，${card.price.toFixed(2)} 元，有效 ${card.validDays} 天。`).join('\n')
+        ? catalog.cards
+            .map(
+              (card, index) =>
+                `${index + 1}. ${card.name}：${card.totalTimes} 次，${card.price.toFixed(2)} 元，有效 ${card.validDays} 天。`,
+            )
+            .join('\n')
         : '当前门店没有启用中的卡项套餐。';
       const promotionLines = catalog.promotions.length
-        ? catalog.promotions.map((promotion, index) => `${index + 1}. ${promotion.name}：${promotion.discountText}${promotion.endAt ? `，截止 ${promotion.endAt}` : ''}。`).join('\n')
+        ? catalog.promotions
+            .map(
+              (promotion, index) =>
+                `${index + 1}. ${promotion.name}：${promotion.discountText}${promotion.endAt ? `，截止 ${promotion.endAt}` : ''}。`,
+            )
+            .join('\n')
         : '当前门店没有生效中的优惠活动。';
       return {
         status: 'completed',
@@ -181,13 +225,15 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
       startDate: range.startDate,
       endDate: range.endDate,
     });
-    const beauticianName = Array.from(new Set(schedule.reservations.map((item) => item.beauticianName).filter(Boolean))).find((name) =>
-      message.includes(name as string),
-    );
+    const beauticianName = Array.from(
+      new Set(schedule.reservations.map((item) => item.beauticianName).filter(Boolean)),
+    ).find((name) => message.includes(name as string));
     if (beauticianName && /预约安排|预约情况/.test(message)) {
       const rows = schedule.reservations.filter((item) => item.beauticianName === beauticianName);
       const lines = rows.length
-        ? rows.map((item, index) => `${index + 1}. ${item.startTime} ${item.customerName} - ${item.projectName}`).join('\n')
+        ? rows
+            .map((item, index) => `${index + 1}. ${item.startTime} ${item.customerName} - ${item.projectName}`)
+            .join('\n')
         : `${range.label}没有找到${beauticianName}的预约。`;
       return {
         status: 'completed',
@@ -198,8 +244,12 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
       };
     }
     if (/面部.*身体|身体.*面部/.test(message)) {
-      const faceCount = schedule.reservations.filter((item) => /面部|皮肤|脸|补水|清洁|祛痘|美白/.test(`${item.projectTypeName ?? ''}${item.projectName}`)).length;
-      const bodyCount = schedule.reservations.filter((item) => /身体|背部|肩颈|按摩|塑形|胸|腹/.test(`${item.projectTypeName ?? ''}${item.projectName}`)).length;
+      const faceCount = schedule.reservations.filter((item) =>
+        /面部|皮肤|脸|补水|清洁|祛痘|美白/.test(`${item.projectTypeName ?? ''}${item.projectName}`),
+      ).length;
+      const bodyCount = schedule.reservations.filter((item) =>
+        /身体|背部|肩颈|按摩|塑形|胸|腹/.test(`${item.projectTypeName ?? ''}${item.projectName}`),
+      ).length;
       return {
         status: 'completed',
         answer: `${range.label}预约项目分类：面部 ${faceCount} 个，身体 ${bodyCount} 个，其他/未分类 ${Math.max(0, schedule.count - faceCount - bodyCount)} 个。`,
@@ -226,7 +276,10 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
     if (/特别准备|准备物品|准备什么/.test(message)) {
       const lines = schedule.reservations.length
         ? schedule.reservations
-            .map((item, index) => `${index + 1}. ${item.startTime} ${item.customerName} - ${item.projectName}：${item.remark || '未记录特殊准备事项'}。`)
+            .map(
+              (item, index) =>
+                `${index + 1}. ${item.startTime} ${item.customerName} - ${item.projectName}：${item.remark || '未记录特殊准备事项'}。`,
+            )
             .join('\n')
         : '当前时间范围没有预约。';
       return {
@@ -270,13 +323,13 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
 
   private async previewAction(input: BrainDomainAdapterExecution): Promise<BrainDomainAnswer> {
     const message = input.dto.message;
-    if (/核销|次卡|扣次|划扣/.test(message)) {
+    if (input.plan.capabilityKey === 'card_usage_action_preview') {
       return this.previewCardUsage(input);
     }
-    if (/收银|结账/.test(message)) {
+    if (input.plan.capabilityKey && input.plan.capabilityKey !== 'reservation_action_preview') {
       return {
         status: 'completed',
-        answer: '收银结账尚未开放 Ami Brain 真实执行。请在现有收银页面选择客户、订单和支付明细；当前不会生成不可执行的确认按钮。',
+        answer: '当前动作能力尚未开放，不能生成可执行确认。',
         citations: [],
         suggestedActions: [],
         grounding: 'none',
@@ -285,23 +338,30 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
     }
     if (!this.actionTargets) return this.actionClarification('动作目标解析服务未就绪，请稍后重试。');
 
-    const actionType = /取消.*预约/.test(message)
-      ? 'cancel_reservation'
-      : /改约|改期|改到|调整/.test(message)
-        ? 'reschedule_reservation'
-        : 'create_reservation';
+    const actionType = this.reservationActionType(input);
+    if (!actionType) {
+      return this.actionClarification('当前动作语义不能直接生成新的预约预览，请在原预览中完成确认或撤销。', {
+        unsupportedReason: 'action_modality_requires_existing_preview',
+      });
+    }
+    const customerName = this.actionSlotText(input, 'customer');
+    const projectName = this.actionSlotText(input, 'project');
+    const reason = this.actionSlotText(input, 'reason');
     let payload: Record<string, unknown>;
     let summary: string;
     let impactItems: Array<{ objectType: string; objectId: string; label: string }>;
     if (actionType === 'create_reservation') {
       const [customer, project] = await Promise.all([
-        this.actionTargets.resolveCustomer({ storeId: input.context.storeId, message }),
-        this.actionTargets.resolveProject({ storeId: input.context.storeId, message }),
+        this.actionTargets.resolveCustomer({ storeId: input.context.storeId, message, customerName }),
+        this.actionTargets.resolveProject({ storeId: input.context.storeId, message, projectName }),
       ]);
       if (!customer.ok) return this.actionClarification(customer.message);
       if (!project.ok) return this.actionClarification(project.message);
-      const appointmentTime = this.actionTargets.resolveAppointmentTime(message);
-      if (!appointmentTime) return this.actionClarification('请提供具体预约日期和时间，例如“明天下午 3 点”；仅写“明天下午”不会自动猜测时刻。');
+      const appointmentTime = this.actionAppointmentTime(input, message);
+      if (!appointmentTime)
+        return this.actionClarification(
+          '请提供具体预约日期和时间，例如“明天下午 3 点”；仅写“明天下午”不会自动猜测时刻。',
+        );
       payload = {
         customerId: customer.value.id,
         projectId: project.value.id,
@@ -312,11 +372,20 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
       summary = `创建预约：${customer.value.name}，${project.value.name}，${appointmentTime.toLocaleString('zh-CN', { hour12: false })}`;
       impactItems = [{ objectType: 'customer', objectId: String(customer.value.id), label: customer.value.name }];
     } else {
-      const reservation = await this.actionTargets.resolveReservation({ storeId: input.context.storeId, message });
+      const reservationSlot = input.plan.actionSlots?.find((slot) => slot.slotKey === 'reservation');
+      const reservation = await this.actionTargets.resolveReservation({
+        storeId: input.context.storeId,
+        message,
+        reservationId: this.positiveEntityId(reservationSlot?.entityKey),
+        reservationReference: reservationSlot?.rawValue?.trim(),
+      });
       if (!reservation.ok) return this.actionClarification(reservation.message);
-      payload = { reservationId: reservation.value.id, reason: `Ami Brain ${actionType === 'cancel_reservation' ? '取消' : '改期'}：${message}` };
+      payload = {
+        reservationId: reservation.value.id,
+        reason: reason || `Ami Brain ${actionType === 'cancel_reservation' ? '取消' : '改期'}：${message}`,
+      };
       if (actionType === 'reschedule_reservation') {
-        const appointmentTime = this.actionTargets.resolveAppointmentTime(message);
+        const appointmentTime = this.actionAppointmentTime(input, message);
         if (!appointmentTime) return this.actionClarification('请提供改约后的具体日期和时间，例如“明天下午 3 点”。');
         payload.appointmentTime = appointmentTime.toISOString();
         summary = `改期预约：${reservation.value.customerName}的${reservation.value.projectName}改至 ${appointmentTime.toLocaleString('zh-CN', { hour12: false })}`;
@@ -339,6 +408,7 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
       storeId: input.context.storeId,
       skillKey: preview.actionType,
       planId: input.plan.executionPlanId,
+      ...(input.plan.actionProvenance ? { actionProvenance: input.plan.actionProvenance } : {}),
       riskLevel: preview.riskLevel as BrainRiskLevel,
       preview: preview as unknown as Prisma.InputJsonValue,
       payload: {
@@ -401,6 +471,7 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
       storeId: input.context.storeId,
       skillKey: preview.actionType,
       planId: input.plan.executionPlanId,
+      ...(input.plan.actionProvenance ? { actionProvenance: input.plan.actionProvenance } : {}),
       riskLevel: preview.riskLevel,
       preview: preview as unknown as Prisma.InputJsonValue,
       payload: {
@@ -423,15 +494,62 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
     };
   }
 
-  private actionClarification(answer: string): BrainDomainAnswer {
+  private actionClarification(answer: string, metadata: Record<string, unknown> = {}): BrainDomainAnswer {
     return {
       status: 'completed',
       answer,
       citations: [],
       suggestedActions: [],
       grounding: 'none',
-      metadata: { adapterKey: this.key, unsupportedReason: 'action_target_requires_clarification' },
+      metadata: {
+        adapterKey: this.key,
+        unsupportedReason: 'action_target_requires_clarification',
+        ...metadata,
+      },
     };
+  }
+
+  private reservationActionType(
+    input: BrainDomainAdapterExecution,
+  ): 'create_reservation' | 'reschedule_reservation' | 'cancel_reservation' | undefined {
+    const provenance = input.plan.actionProvenance;
+    if (provenance) {
+      if (input.plan.actionModality !== 'request' && input.plan.actionModality !== 'proposal') return undefined;
+      const gatewayActionKey = provenance.gatewayActionKey;
+      if (
+        gatewayActionKey === 'create_reservation' ||
+        gatewayActionKey === 'reschedule_reservation' ||
+        gatewayActionKey === 'cancel_reservation'
+      ) {
+        return gatewayActionKey;
+      }
+      return undefined;
+    }
+    const message = input.dto.message;
+    return /取消.*预约/.test(message)
+      ? 'cancel_reservation'
+      : /改约|改期|改到|调整/.test(message)
+        ? 'reschedule_reservation'
+        : 'create_reservation';
+  }
+
+  private actionSlotText(input: BrainDomainAdapterExecution, slotKey: string) {
+    const slot = input.plan.actionSlots?.find((candidate) => candidate.slotKey === slotKey);
+    return slot?.rawValue?.trim() || undefined;
+  }
+
+  private positiveEntityId(value: string | undefined) {
+    const id = Number(value?.match(/(?:^|[:#])(\d+)$/)?.[1] ?? value);
+    return Number.isInteger(id) && id > 0 ? id : undefined;
+  }
+
+  private actionAppointmentTime(input: BrainDomainAdapterExecution, message: string) {
+    const value = input.plan.actionSlots?.find((slot) => slot.slotKey === 'appointmentTime')?.timeValue;
+    if (value) {
+      const parsed = new Date(value);
+      if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
+    return input.plan.actionProvenance ? undefined : this.actionTargets?.resolveAppointmentTime(message);
   }
 
   private resolveRange(message: string): BrainDateRange {
@@ -449,19 +567,26 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
   }
 
   private isServiceAdvice(message: string) {
-    return /(洗手间|怎么回应|怎么处理|怎么操作|开发票|发票|收据|投诉|礼品卡|解释一下|效果不好|新项目|等待时间|补偿|安抚|新客人.*介绍|新客.*介绍|停车指引|门店位置)/.test(message);
+    return /(洗手间|怎么回应|怎么处理|怎么操作|开发票|发票|收据|投诉|礼品卡|解释一下|效果不好|新项目|等待时间|补偿|安抚|新客人.*介绍|新客.*介绍|停车指引|门店位置)/.test(
+      message,
+    );
   }
 
   private isActionRequest(message: string) {
     if (/(改约|改期|帮我约|预约到|安排.*预约|取消.*预约|收银|结账)/.test(message)) return true;
-    return /(?:给|为|帮|把)[^。！？]{0,40}(?:核销|扣次|划扣)|(?:核销|扣次|划扣)[^。！？]{0,20}(?:[1-9]\d*|[一二两三四五六七八九十])\s*次/.test(message);
+    return /(?:给|为|帮|把)[^。！？]{0,40}(?:核销|扣次|划扣)|(?:核销|扣次|划扣)[^。！？]{0,20}(?:[1-9]\d*|[一二两三四五六七八九十])\s*次/.test(
+      message,
+    );
   }
 
   private isCustomerLookup(message: string) {
     if (/(升级会员|消费满多少|会员规则)/.test(message)) return false;
     if (/(预约情况|预约安排|预约密度|预约最多|赵美容师|李美容师|哪个美容师)/.test(message)) return false;
-    return /(这个客人|这个客户|这位客人|她上次|她的皮肤|她喜欢|手机尾号|会员等级|消费记录|储值余额|办过卡|标签和备注|叫[\u4e00-\u9fa5]{2,4})/.test(message) ||
-      this.hasAnchoredCustomerReservation(message);
+    return (
+      /(这个客人|这个客户|这位客人|她上次|她的皮肤|她喜欢|手机尾号|会员等级|消费记录|储值余额|办过卡|标签和备注|叫[\u4e00-\u9fa5]{2,4})/.test(
+        message,
+      ) || this.hasAnchoredCustomerReservation(message)
+    );
   }
 
   private hasAnchoredCustomerReservation(message: string) {
@@ -474,7 +599,9 @@ export class BrainFrontDeskDomainAdapter implements BrainDomainAdapter {
   }
 
   private isReservationOperations(message: string) {
-    return /(还没来|未到店|爽约|取消了|临时取消|到店|(?:还有|当前|现在|几个).*在店|客人.*在店|临时来了没预约|临时到店|空余.*床位|空闲.*床位|床位.*空|预约确认|预约.*改期|待到店|在忙|可以接新单|没到岗|带朋友.*同时安排|哪个时段可以加客)/.test(message);
+    return /(还没来|未到店|爽约|取消了|临时取消|到店|(?:还有|当前|现在|几个).*在店|客人.*在店|临时来了没预约|临时到店|空余.*床位|空闲.*床位|床位.*空|预约确认|预约.*改期|待到店|在忙|可以接新单|没到岗|带朋友.*同时安排|哪个时段可以加客)/.test(
+      message,
+    );
   }
 
   private composeServiceAdvice(message: string) {
