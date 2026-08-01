@@ -1,8 +1,9 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, Optional } from '@nestjs/common';
 import { ServiceTaskStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { STORE_METRIC_KEYS } from '../store-metrics/store-metric-definitions.js';
 import { StoreMetricsService } from '../store-metrics/store-metrics.service.js';
+import { DashboardStatsRepository } from './dashboard-stats.repository.js';
 import type {
   AdminWorkbenchRole,
   DashboardWorkbenchContext,
@@ -55,9 +56,31 @@ type CommonStats = {
   offlineTerminals: number;
 };
 
+export type DashboardStatsMode = 'legacy' | 'shadow' | 'batched';
+
+export function resolveDashboardStatsMode(value = process.env.DASHBOARD_STATS_MODE): DashboardStatsMode {
+  return value === 'shadow' || value === 'batched' ? value : 'legacy';
+}
+
 @Injectable()
 export class DashboardService {
-  constructor(private prisma: PrismaService, private readonly storeMetrics: StoreMetricsService) {}
+  private readonly logger = new Logger(DashboardService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private readonly storeMetrics: StoreMetricsService,
+    @Optional() private readonly statsRepository?: DashboardStatsRepository,
+  ) {}
+
+  async measureDatabaseQueries<T>(task: () => Promise<T>): Promise<{ data: T; databaseQueryCount: number; databaseDurationMs: number }> {
+    const startedAt = performance.now();
+    const measured = await this.prisma.runWithQueryCounter(task);
+    return {
+      data: measured.value,
+      databaseQueryCount: measured.queryCount,
+      databaseDurationMs: Math.round((performance.now() - startedAt) * 100) / 100,
+    };
+  }
 
   async getOverview(storeId?: number) {
     const scopedStore = storeId
@@ -895,6 +918,39 @@ export class DashboardService {
   }
 
   private async collectCommonStats(context: DashboardWorkbenchContext, ranges: DateRanges): Promise<CommonStats> {
+    const mode = resolveDashboardStatsMode();
+    if (mode === 'legacy' || !this.statsRepository) return this.collectCommonStatsLegacy(context, ranges);
+
+    const collectBatched = () =>
+      this.statsRepository!.collect(
+        {
+          storeId: context.scope.storeId,
+          accessibleStoreIds: context.accessibleStoreIds,
+          isSuperAdmin: context.isSuperAdmin,
+        },
+        ranges,
+      );
+    if (mode === 'batched') return collectBatched();
+
+    const [legacy, batched] = await Promise.all([
+      this.collectCommonStatsLegacy(context, ranges),
+      collectBatched(),
+    ]);
+    const differences = diffCommonStats(legacy, batched);
+    if (differences.length) {
+      this.logger.warn(
+        JSON.stringify({
+          event: 'dashboard_stats_shadow_diff',
+          storeId: context.scope.storeId,
+          role: context.actor.currentRole,
+          differences,
+        }),
+      );
+    }
+    return legacy;
+  }
+
+  private async collectCommonStatsLegacy(context: DashboardWorkbenchContext, ranges: DateRanges): Promise<CommonStats> {
     const storeScope = this.storeScope(context);
     const customerWhere = { deletedAt: null, ...storeScope };
     const productWhere = { deletedAt: null, ...storeScope };
@@ -1352,4 +1408,12 @@ export class DashboardService {
     const sign = value >= 0 ? '+' : '';
     return `${sign}${(value * 100).toFixed(1)}%`;
   }
+}
+
+function diffCommonStats(left: CommonStats, right: CommonStats): string[] {
+  const differences: string[] = [];
+  for (const key of Object.keys(left) as Array<keyof CommonStats>) {
+    if (left[key] !== right[key]) differences.push(`${String(key)}:${String(left[key])}!=${String(right[key])}`);
+  }
+  return differences;
 }
