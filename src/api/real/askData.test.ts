@@ -25,7 +25,7 @@ describe('ask data real API contract', () => {
 
     await queryAskData(payload);
 
-    expect(apiClientMock.post).toHaveBeenCalledWith('/ask-data/query', payload);
+    expect(apiClientMock.post).toHaveBeenCalledWith('/ask-data/free-sql', payload);
   });
 
   it('loads the query catalog from ask-data endpoint', async () => {
@@ -33,6 +33,6 @@ describe('ask data real API contract', () => {
 
     await getAskDataCatalog();
 
-    expect(apiClientMock.get).toHaveBeenCalledWith('/ask-data/catalog');
+    expect(apiClientMock.get).toHaveBeenCalledWith('/ask-data/free-sql/catalog');
   });
 });

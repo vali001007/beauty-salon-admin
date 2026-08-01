@@ -5,21 +5,30 @@ import { getAskDataCatalog, queryAskData } from '@/api/askData';
 import type { AskDataCatalogResponse, AskDataHistoryItem, AskDataQueryResponse } from '@/types/askData';
 import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/UI';
 
-const fallbackExamples = ['上个月收入按项目看', '库存低于安全库存的商品有哪些', '张三最近消费了什么', '本月预约取消率是多少'];
+const fallbackExamples = [
+  '上个月收入按项目看',
+  '库存低于安全库存的商品有哪些',
+  '张三最近消费了什么',
+  '本月预约取消率是多少',
+];
 
 function statusLabel(status?: string) {
   if (status === 'success') return '已查询';
   if (status === 'clarification') return '需要追问';
   if (status === 'no_data') return '暂无数据';
+  if (status === 'blocked') return '已阻断';
+  if (status === 'feature_disabled') return '固定模板';
   if (status === 'unsupported') return '暂未支持';
-  if (status === 'error') return '查询失败';
+  if (status === 'error' || status === 'failed') return '查询失败';
   return '等待提问';
 }
 
 function statusTone(status?: string) {
   if (status === 'success') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
   if (status === 'clarification') return 'border-amber-200 bg-amber-50 text-amber-700';
-  if (status === 'unsupported' || status === 'error') return 'border-red-200 bg-red-50 text-red-700';
+  if (status === 'unsupported' || status === 'error' || status === 'failed' || status === 'blocked')
+    return 'border-red-200 bg-red-50 text-red-700';
+  if (status === 'feature_disabled') return 'border-blue-200 bg-blue-50 text-blue-700';
   return 'border-slate-200 bg-slate-50 text-slate-700';
 }
 
@@ -59,7 +68,13 @@ export function AskDataWorkbench() {
       setHistory((prev) => [
         ...prev.slice(-8),
         { role: 'user', content: text },
-        { role: 'assistant', content: response.summary, queryPlan: response.queryPlan, rows: response.rows },
+        {
+          role: 'assistant',
+          content: response.summary,
+          queryPlan: response.queryPlan,
+          rows: response.rows,
+          queryMeta: response.queryMeta,
+        },
       ]);
       setQuestion('');
     } catch (error) {
@@ -79,9 +94,13 @@ export function AskDataWorkbench() {
             <Sparkles className="h-5 w-5 text-primary" />
             智能问数
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">基础版只读验证：先覆盖客户、订单、预约、库存、财务和人效相关经营问数。</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            受控自由查询：模型生成 SQL，经权限和只读安全校验后执行，再组织经营回答。
+          </p>
         </div>
-        <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${statusTone(result?.status)}`}>
+        <span
+          className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${statusTone(result?.status)}`}
+        >
           {statusLabel(result?.status)}
         </span>
       </div>
@@ -105,7 +124,11 @@ export function AskDataWorkbench() {
               placeholder="例如：上个月收入按项目看"
             />
             <div className="flex md:w-28 md:flex-col">
-              <Button className="w-full gap-2" onClick={() => void submitQuestion()} disabled={loading || !question.trim()}>
+              <Button
+                className="w-full gap-2"
+                onClick={() => void submitQuestion()}
+                disabled={loading || !question.trim()}
+              >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 查询
               </Button>
@@ -130,9 +153,18 @@ export function AskDataWorkbench() {
             <Database className="h-4 w-4" />
             覆盖目录
           </div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {catalog?.mode === 'execute'
+              ? catalog.connectionMode === 'development_admin'
+                ? '开发冒烟：管理员库只读事务'
+                : '自由查询已就绪'
+              : catalog?.mode === 'dry_run'
+                ? '自由查询演练模式'
+                : '当前使用固定模板'}
+          </div>
           <div className="mt-2 max-h-32 overflow-auto text-xs leading-6 text-muted-foreground">
             {(catalog?.tables ?? []).slice(0, 14).map((table) => (
-              <span key={table.model} className="mr-2 inline-block">
+              <span key={table.viewName ?? table.model ?? table.label} className="mr-2 inline-block">
                 {table.label}
               </span>
             ))}
@@ -144,18 +176,47 @@ export function AskDataWorkbench() {
         <section className="flex flex-col gap-4">
           <div className="rounded-lg border border-border bg-muted/20 p-4">
             <div className="flex items-start gap-3">
-              {result.status === 'clarification' ? <MessageSquare className="mt-0.5 h-5 w-5 text-amber-600" /> : <AlertCircle className="mt-0.5 h-5 w-5 text-primary" />}
+              {result.status === 'clarification' ? (
+                <MessageSquare className="mt-0.5 h-5 w-5 text-amber-600" />
+              ) : (
+                <AlertCircle className="mt-0.5 h-5 w-5 text-primary" />
+              )}
               <div>
                 <div className="text-sm font-medium text-foreground">查询摘要</div>
                 <p className="mt-1 text-sm text-muted-foreground">{result.summary}</p>
+                {result.keyFindings?.length ? (
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-foreground">
+                    {result.keyFindings.map((finding) => (
+                      <li key={finding}>{finding}</li>
+                    ))}
+                  </ul>
+                ) : null}
                 {result.clarificationQuestion ? (
                   <p className="mt-2 text-sm font-medium text-amber-700">{result.clarificationQuestion}</p>
                 ) : null}
                 <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                  <span>模板：{result.queryPlan?.templateId ?? '-'}</span>
-                  <span>规划：{result.queryPlan?.planner ?? '-'}</span>
+                  <span>
+                    方式：
+                    {result.queryPlan?.planner === 'llm'
+                      ? '自由 SQL'
+                      : result.queryPlan?.planner === 'legacy'
+                        ? '固定模板'
+                        : (result.queryPlan?.planner ?? '-')}
+                  </span>
                   {result.queryPlan?.dateRange?.label ? <span>时间：{result.queryPlan.dateRange.label}</span> : null}
+                  {result.queryMeta?.timeRange ? <span>范围：{result.queryMeta.timeRange}</span> : null}
+                  {result.queryMeta?.executionMs !== undefined ? (
+                    <span>耗时：{result.queryMeta.executionMs}ms</span>
+                  ) : null}
                 </div>
+                {result.queryMeta?.generatedSql ? (
+                  <details className="mt-3 rounded border border-border bg-background p-2 text-xs text-muted-foreground">
+                    <summary className="cursor-pointer font-medium text-foreground">管理员调试 SQL</summary>
+                    <pre className="mt-2 overflow-auto whitespace-pre-wrap break-all">
+                      {result.queryMeta.generatedSql}
+                    </pre>
+                  </details>
+                ) : null}
               </div>
             </div>
           </div>
@@ -187,6 +248,17 @@ export function AskDataWorkbench() {
             </div>
           ) : null}
 
+          {result.limitations?.length ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              <div className="font-medium">查询限制</div>
+              <ul className="mt-1 list-disc space-y-1 pl-5">
+                {result.limitations.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
           <div className="rounded-lg border border-border p-4">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-medium text-foreground">来源</div>
@@ -198,7 +270,10 @@ export function AskDataWorkbench() {
             {result.sources.length ? (
               <div className="grid gap-3 md:grid-cols-2">
                 {result.sources.map((source) => (
-                  <div key={`${source.model}-${source.reason}`} className="rounded-md border border-border bg-background p-3">
+                  <div
+                    key={`${source.model}-${source.reason}`}
+                    className="rounded-md border border-border bg-background p-3"
+                  >
                     <div className="text-sm font-semibold text-foreground">{source.model}</div>
                     <div className="mt-1 text-xs text-muted-foreground">{source.reason}</div>
                     <div className="mt-2 text-xs text-muted-foreground">字段：{source.fields.join('、')}</div>

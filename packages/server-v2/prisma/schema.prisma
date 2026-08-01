@@ -4416,6 +4416,35 @@ model AgentV3TextToSqlFeedback {
   @@map("agent_v3_text_to_sql_feedback")
 }
 
+// ─── Ask Data Free SQL V1 ──────────────────────────────────────────────────
+
+model AskDataFreeSqlRun {
+  id                   Int      @id @default(autoincrement())
+  question             String   @db.Text
+  userId               Int?
+  storeId              Int
+  storeScopeJson       Json
+  selectedViewsJson    Json
+  generatedSqlHash     String?
+  redactedSql          String?  @db.Text
+  safeSqlHash          String?
+  status               String
+  blockedReason        String?
+  rowCount             Int      @default(0)
+  executionMs          Int?
+  estimatedCost        Float?
+  answerJson           Json?
+  queryMetaJson        Json?
+  createdAt            DateTime @default(now())
+
+  @@index([status])
+  @@index([userId])
+  @@index([storeId, createdAt])
+  @@index([blockedReason])
+  @@index([createdAt])
+  @@map("ask_data_free_sql_runs")
+}
+
 model AgentV3SemanticKgSnapshot {
   id                   Int       @id @default(autoincrement())
   version              String    @unique

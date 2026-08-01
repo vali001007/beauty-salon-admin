@@ -2,9 +2,9 @@ import type { AskDataCatalogResponse, AskDataQueryRequest, AskDataQueryResponse 
 import apiClient from '../client';
 
 export async function queryAskData(data: AskDataQueryRequest): Promise<AskDataQueryResponse> {
-  return apiClient.post('/ask-data/query', data);
+  return apiClient.post('/ask-data/free-sql', data);
 }
 
 export async function getAskDataCatalog(): Promise<AskDataCatalogResponse> {
-  return apiClient.get('/ask-data/catalog');
+  return apiClient.get('/ask-data/free-sql/catalog');
 }

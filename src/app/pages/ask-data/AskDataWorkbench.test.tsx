@@ -57,6 +57,66 @@ describe('AskDataWorkbench', () => {
     expect(screen.getByText('OrderItem')).toBeInTheDocument();
   });
 
+  it('renders free SQL findings, query scope and limitations', async () => {
+    apiMocks.getAskDataCatalog.mockResolvedValueOnce({
+      enabled: true,
+      executeReady: true,
+      mode: 'execute',
+      tables: [
+        {
+          viewName: 'agent_v3_project_service_sales_view',
+          label: '项目服务销售',
+          domain: 'project',
+          description: '项目收入',
+        },
+      ],
+      examples: ['本月哪个项目收入最高？'],
+    });
+    apiMocks.queryAskData.mockResolvedValueOnce({
+      status: 'success',
+      summary: '补水护理净销售额为 1280。',
+      keyFindings: ['补水护理排名第一。'],
+      columns: [
+        { key: 'project_name', label: '项目' },
+        { key: 'revenue', label: '收入' },
+      ],
+      rows: [{ project_name: '补水护理', revenue: 1280 }],
+      sources: [
+        {
+          model: 'agent_v3_project_service_sales_view',
+          fields: ['project_name', 'net_amount'],
+          filters: ['门店权限'],
+          reason: '项目服务销售',
+        },
+      ],
+      limitations: ['仅查询已登记视图。'],
+      queryMeta: {
+        viewNames: ['agent_v3_project_service_sales_view'],
+        timeRange: '2026-07-01 至 2026-08-01',
+        storeScope: '门店 6',
+        truncated: false,
+        executionMs: 12,
+        generatedSql: 'SELECT project_name, SUM(net_amount) FROM agent_v3_project_service_sales_view',
+      },
+      queryPlan: { planner: 'llm', explanation: '按项目汇总' },
+    });
+
+    render(<AskDataWorkbench />);
+    fireEvent.change(screen.getByPlaceholderText('例如：上个月收入按项目看'), {
+      target: { value: '本月哪个项目收入最高？' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '查询' }));
+
+    expect(await screen.findByText('补水护理净销售额为 1280。')).toBeInTheDocument();
+    expect(screen.getByText('补水护理排名第一。')).toBeInTheDocument();
+    expect(screen.getByText('自由查询已就绪')).toBeInTheDocument();
+    expect(screen.getByText('方式：自由 SQL')).toBeInTheDocument();
+    expect(screen.getByText('范围：2026-07-01 至 2026-08-01')).toBeInTheDocument();
+    expect(screen.getByText('耗时：12ms')).toBeInTheDocument();
+    expect(screen.getByText('仅查询已登记视图。')).toBeInTheDocument();
+    expect(screen.getByText('管理员调试 SQL')).toBeInTheDocument();
+  });
+
   it('shows clarification question and candidates when the backend needs follow-up', async () => {
     apiMocks.queryAskData.mockResolvedValueOnce({
       status: 'clarification',
@@ -83,6 +143,21 @@ describe('AskDataWorkbench', () => {
     expect(await screen.findByText('找到多个客户，请选择客户。')).toBeInTheDocument();
     expect(screen.getByText('张三丰')).toBeInTheDocument();
     expect(screen.getByText('Customer')).toBeInTheDocument();
+  });
+
+  it('labels the development admin database mode as a smoke test', async () => {
+    apiMocks.getAskDataCatalog.mockResolvedValueOnce({
+      enabled: true,
+      executeReady: true,
+      mode: 'execute',
+      connectionMode: 'development_admin',
+      tables: [],
+      examples: [],
+    });
+
+    render(<AskDataWorkbench />);
+
+    expect(await screen.findByText('开发冒烟：管理员库只读事务')).toBeInTheDocument();
   });
 
   it('keeps previous result visible when the next request fails', async () => {
