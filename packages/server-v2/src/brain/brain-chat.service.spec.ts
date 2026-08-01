@@ -783,6 +783,7 @@ describe('BrainChatService', () => {
 
   it('keeps an exact governed action capability when catalog TopK misses it', () => {
     const { service } = createService();
+    // ami-brain-unit-only: capability-selection fixture; not a release-eval input.
     const question = '把一位客户的预约改到明天下午三点';
     const actionCard = {
       ...controlledDomainCard('reservation_action_preview'),
@@ -4287,6 +4288,7 @@ describe('BrainChatService', () => {
     expect(
       (service as any).normalizeExactCustomerFactIntent({
         intent: cardUsageActionIntent,
+        // ami-brain-unit-only: intent-normalization fixture; not a release-eval input.
         question: '预览为指定客户划扣一次卡项并归属到指定美容师',
       }),
     ).toBe(cardUsageActionIntent);
@@ -7638,6 +7640,7 @@ describe('BrainChatService', () => {
 
   it('keeps an unpublished actionDefinition gap after capability contract normalization', () => {
     const { service } = createService({ modelPipeline: {} });
+    // ami-brain-unit-only: contract-normalization fixture; not a release-eval input.
     const question = '给指定客户准备一个待确认跟进任务';
     const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
       question,
@@ -7746,6 +7749,7 @@ describe('BrainChatService', () => {
 
   it('prefers an exact governed example over inventory procurement heuristics', () => {
     const { service } = createService({ modelPipeline: {} });
+    // ami-brain-unit-only: capability-selection fixture; not a release-eval input.
     const question = '哪些产品该补货了';
     const exactCard = {
       key: 'inventory_operations_overview',

@@ -1,12 +1,12 @@
 {
   "schemaVersion": "ami-brain-product-loop-data-facts/v1",
-  "generatedAt": "2026-07-30T16:17:00.279Z",
+  "generatedAt": "2026-08-01T16:42:19.204Z",
   "environment": "approved_supabase_development_read_only",
   "databaseHost": "aws-1-ap-northeast-1.pooler.supabase.com",
   "storeId": 6,
   "schemaPath": "packages/server-v2/prisma/schema.prisma",
-  "schemaChecksum": "2db10b11288ba118269cd3769229ed746698fa8d32370fef9fd37984cd130c3f",
-  "snapshotChecksum": "3c6bdfae26ed54379fe9fcd353d3137f5f1732e27057b5b2a02480c769ec547f",
+  "schemaChecksum": "042aab4a622df408c914f5244611e93ac7b19bc3cd219d04f20e34b8e9212550",
+  "snapshotChecksum": "176075481dff65b7d201d10723ba8390840eb5a3006876fdbc9e8518a1a9c57a",
   "summary": {
     "featureCount": 32,
     "present": 32,
@@ -855,7 +855,7 @@
         {
           "model": "DailySettlement",
           "status": "queried",
-          "count": 41,
+          "count": 42,
           "scope": "storeId=6"
         },
         {
@@ -899,7 +899,7 @@
         {
           "model": "DailySettlement",
           "status": "queried",
-          "count": 41,
+          "count": 42,
           "scope": "storeId=6"
         },
         {
@@ -1055,7 +1055,7 @@
         {
           "model": "MarketingRecommendationSnapshot",
           "status": "queried",
-          "count": 42,
+          "count": 43,
           "scope": "storeId=6"
         }
       ]
@@ -1167,19 +1167,19 @@
         {
           "model": "BrainConversation",
           "status": "queried",
-          "count": 39258,
+          "count": 40688,
           "scope": "storeId=6"
         },
         {
           "model": "BrainRun",
           "status": "queried",
-          "count": 39635,
+          "count": 41068,
           "scope": "storeId=6"
         },
         {
           "model": "BrainRelease",
           "status": "queried",
-          "count": 418,
+          "count": 452,
           "scope": "global"
         }
       ]
@@ -1196,19 +1196,19 @@
         {
           "model": "BrainConversation",
           "status": "queried",
-          "count": 39258,
+          "count": 40688,
           "scope": "storeId=6"
         },
         {
           "model": "BrainRun",
           "status": "queried",
-          "count": 39635,
+          "count": 41068,
           "scope": "storeId=6"
         },
         {
           "model": "BrainRelease",
           "status": "queried",
-          "count": 418,
+          "count": 452,
           "scope": "global"
         }
       ]
@@ -1225,19 +1225,19 @@
         {
           "model": "BrainConversation",
           "status": "queried",
-          "count": 39258,
+          "count": 40688,
           "scope": "storeId=6"
         },
         {
           "model": "BrainRun",
           "status": "queried",
-          "count": 39635,
+          "count": 41068,
           "scope": "storeId=6"
         },
         {
           "model": "BrainRelease",
           "status": "queried",
-          "count": 418,
+          "count": 452,
           "scope": "global"
         }
       ]

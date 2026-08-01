@@ -137,6 +137,25 @@ test('allows an explicit unit-only marker without weakening product-question reg
   );
 });
 
+test('excludes independent Ask Data fixtures from the Ami Brain release-gate denominator', () => {
+  const repoRoot = fixtureRoot();
+  const fixtureDir = resolve(repoRoot, 'packages/server-v2/src/ask-data-free-sql');
+  mkdirSync(fixtureDir, { recursive: true });
+  writeFileSync(
+    resolve(fixtureDir, 'ask-data-free-sql.service.spec.ts'),
+    "const input = { question: '本月哪个项目收入最高？' };\n",
+    'utf8',
+  );
+
+  const result = validateFixture({
+    repoRoot,
+    eligibility: eligibilityFixture(),
+    legacyBaseline: emptyBaseline(),
+    roots: ['.'],
+  });
+  assert.equal(result.candidates, 0);
+});
+
 test('rejects unit-only on a question sent through the Brain execution entrypoint', () => {
   const repoRoot = fixtureRoot();
   const eligibility = eligibilityFixture();

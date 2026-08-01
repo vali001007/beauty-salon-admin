@@ -5026,6 +5026,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 16,
+      // ami-brain-unit-only: executor response-shaping fixture; not a release-eval input.
       question: 'VIP 和沉睡客户分别有多少人',
       args: { objective: '统计客户分群', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
     });

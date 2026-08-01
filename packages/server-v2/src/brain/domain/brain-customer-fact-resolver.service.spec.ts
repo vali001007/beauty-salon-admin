@@ -699,6 +699,7 @@ describe('BrainCustomerFactResolverService', () => {
     const service = new BrainCustomerFactResolverService({ customer: { count: customerCount } } as never);
 
     await expect(
+      // ami-brain-unit-only: resolver unit fixture; not a release-eval input.
       service.getStructuredMarketingSegment({ storeId: 6, message: 'VIP 和沉睡客户分别有多少人' }),
     ).resolves.toMatchObject({
       columns: ['segment', 'customerCount', 'definition'],
