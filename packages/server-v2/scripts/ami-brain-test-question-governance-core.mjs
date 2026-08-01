@@ -21,6 +21,10 @@ const DEFAULT_MANAGED_QUESTION_SOURCES = [
   'packages/server-v2/src/brain/eval/brain-adversarial-eval-cases.ts',
   'packages/server-v2/src/brain/eval/brain-release-eval-gate.ts',
 ];
+const EXCLUDED_NON_BRAIN_TEST_PATH_PREFIXES = [
+  'packages/server-v2/src/ask-data-free-sql/',
+  'packages/server-v2/src/read-only-sql-kernel/',
+];
 const TEST_FILE_PATTERN = /(?:\.test|\.spec)\.(?:ts|tsx|js|jsx|mjs)$/u;
 const QUESTION_PROPERTY_NAMES = new Set(['question', 'message', 'command', 'input', 'userInput']);
 const QUESTION_CALL_NAMES = new Set(['sendMessage', 'submitQuestion', 'askQuestion']);
@@ -239,6 +243,7 @@ function scanAmiBrainTestQuestions({ repoRoot, casesById, roots, managedQuestion
       .filter((path) => isFile(path)),
   );
   const files = [...new Set([...roots.flatMap((root) => listTestFiles(resolve(repoRoot, root))), ...managedSourcePaths])]
+    .filter((filePath) => !isExcludedNonBrainTestFile(repoRoot, filePath))
     .sort();
   const unmarked = new Map();
   const dynamic = new Map();
@@ -344,6 +349,11 @@ function scanAmiBrainTestQuestions({ repoRoot, casesById, roots, managedQuestion
     }
   }
   return { scannedFiles: files.length, candidates, registered, unitOnly, historicalOnly, unmarked, dynamic, violations };
+}
+
+function isExcludedNonBrainTestFile(repoRoot, filePath) {
+  const relativePath = relative(repoRoot, filePath);
+  return EXCLUDED_NON_BRAIN_TEST_PATH_PREFIXES.some((prefix) => relativePath.startsWith(prefix));
 }
 
 function listTestFiles(root) {

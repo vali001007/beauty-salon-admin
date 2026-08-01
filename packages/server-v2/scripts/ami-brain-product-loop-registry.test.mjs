@@ -213,7 +213,7 @@ test('rejects a next-iteration review that contradicts an existing management an
     evidenceReview: { managementEntry: 'missing', backendApi: 'missing', dataFacts: 'present' },
     decisionEvidence: {
       path: 'AGENTS.md',
-      anchor: '所有用于判断 Ami Brain 产品或业务能力的自然语言测试题',
+      anchor: '用于当前产品能力通过率的测试题',
     },
   };
   const result = resolveProductLoopEligibility(item, {
@@ -244,7 +244,7 @@ test('rejects an unregistered missing feature key even when the review has a val
     evidenceReview: { managementEntry: 'missing', backendApi: 'missing', dataFacts: 'missing' },
     decisionEvidence: {
       path: 'AGENTS.md',
-      anchor: '所有用于判断 Ami Brain 产品或业务能力的自然语言测试题',
+      anchor: '用于当前产品能力通过率的测试题',
     },
   };
   const result = resolveProductLoopEligibility(item, {
