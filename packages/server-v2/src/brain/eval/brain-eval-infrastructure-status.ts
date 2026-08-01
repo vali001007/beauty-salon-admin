@@ -1,10 +1,21 @@
 export function isBrainProviderUnavailableOutput(value: unknown) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const failureCode = String((value as Record<string, unknown>).failureCode ?? '');
+  const record = value as Record<string, unknown>;
+  const failureCode = String(record.failureCode ?? '');
+  const diagnosticCode = String(record.diagnosticCode ?? '');
   return failureCode === 'MODEL_INTENT_UNAVAILABLE' ||
     failureCode === 'MODEL_CATALOG_UNAVAILABLE' ||
     failureCode === 'PROVIDER_UNAVAILABLE' ||
-    failureCode === 'PROVIDER_AUTH_FAILED';
+    failureCode === 'PROVIDER_AUTH_FAILED' ||
+    (failureCode === 'CAPABILITY_EXECUTION_FAILED' &&
+      [
+        'TIMEOUT_EXCEEDED_WHEN_TRYING_TO_CONNECT',
+        'CONNECTION_TERMINATED_UNEXPECTEDLY',
+        'CONNECTION_TIMEOUT',
+        'CONNECT_TIMEOUT',
+        'ECONNRESET',
+        'ETIMEDOUT',
+      ].includes(diagnosticCode));
 }
 
 export class BrainEvalProviderFailureBreaker {

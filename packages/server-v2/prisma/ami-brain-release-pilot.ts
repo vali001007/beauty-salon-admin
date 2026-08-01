@@ -12,6 +12,7 @@ import { loadWorkspaceEnvironment } from '../src/brain/capability/brain-capabili
 import { BrainEvalService } from '../src/brain/governance/brain-eval.service.js';
 import { BrainGovernanceApprovalService } from '../src/brain/governance/brain-governance-approval.service.js';
 import { BrainCapabilityRegenerationWorkerService } from '../src/brain/governance/brain-capability-regeneration-worker.service.js';
+import { extractBrainReleaseDefinitionVersionIds } from '../src/brain/governance/brain-release-definition-versions.js';
 import { BrainReleaseService } from '../src/brain/governance/brain-release.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 
@@ -31,6 +32,7 @@ type PilotOptions = {
   caseKeys: string[];
   archiveOnFailure: boolean;
   regenerationRequirement?: string;
+  evaluationReleaseId?: number;
 };
 
 async function main() {
@@ -38,6 +40,7 @@ async function main() {
   const options = parseOptions(process.argv.slice(2));
   process.env.BRAIN_COGNITION_MODE = 'model';
   process.env.BRAIN_PLANNER_MODE = 'model';
+  process.env.BRAIN_RELEASE_PILOT_MODE = 'true';
   process.env.TERMINAL_AUTOMATION_SCHEDULER = 'disabled';
   if (options.preferFallback) preferConfiguredFallbackAsPrimary();
   process.stderr.write('[ami-brain-release-pilot] bootstrapping application context\n');
@@ -76,7 +79,9 @@ async function main() {
       return;
     }
     process.stderr.write('[ami-brain-release-pilot] creating rollout sequence\n');
-    const sequence = await loadOrCreateSequence(prisma, releaseService, options);
+    const sequence = options.evaluationReleaseId
+      ? await loadExistingEvaluationRelease(prisma, options)
+      : await loadOrCreateSequence(prisma, releaseService, options);
     const shadow = (sequence.items as Array<{ id: number; releaseKey: string }>)[0];
     if (!shadow) throw new Error('shadow_release_not_created');
     const releaseSnapshot = await releaseService.freezeEvaluationRelease(shadow.id);
@@ -129,18 +134,9 @@ async function main() {
     if (!catalogReport.valid) {
       throw new Error(`candidate_catalog_invalid:${JSON.stringify(catalogReport.issues)}`);
     }
-    const definitionVersionIds = [
-      ...new Set(
-        releaseSnapshot.capabilityCandidates.flatMap((candidate) => {
-          if (!Array.isArray(candidate.definitionRefs)) return [];
-          return candidate.definitionRefs.flatMap((ref) => {
-            if (!ref || typeof ref !== 'object' || Array.isArray(ref)) return [];
-            const versionId = Number((ref as Record<string, unknown>).versionId);
-            return Number.isInteger(versionId) && versionId > 0 ? [versionId] : [];
-          });
-        }),
-      ),
-    ];
+    const definitionVersionIds = extractBrainReleaseDefinitionVersionIds(
+      releaseSnapshot.capabilityCandidates,
+    );
     await ontologyRuntime.loadEvaluationSnapshot(definitionVersionIds);
 
     const run = resumedRun ?? await evalService.createEvalRun({
@@ -187,6 +183,7 @@ async function main() {
       }, null, 2));
       return;
     }
+    if (options.evaluationReleaseId) throw new Error('evaluation_only_release_cannot_activate');
 
     const activated = await releaseService.activateRelease({
       releaseId: shadow.id,
@@ -275,8 +272,42 @@ async function loadOrCreateSequence(
   };
 }
 
+async function loadExistingEvaluationRelease(prisma: PrismaService, options: PilotOptions) {
+  const release = await prisma.brainRelease.findUnique({
+    where: { id: options.evaluationReleaseId },
+    select: {
+      id: true,
+      releaseKey: true,
+      status: true,
+      scope: true,
+      rollout: true,
+      items: { select: { resourceVersionId: true } },
+    },
+  });
+  if (!release) throw new Error('evaluation_release_not_found');
+  const rollout = asRecord(release.rollout);
+  const actualResourceVersionIds = release.items.map((item) => item.resourceVersionId).sort((left, right) => left - right);
+  const expectedResourceVersionIds = [...options.resourceVersionIds].sort((left, right) => left - right);
+  if (
+    release.status !== 'draft' ||
+    release.scope !== 'percentage' ||
+    rollout.stage !== 'shadow' ||
+    rollout.mode !== 'shadow' ||
+    rollout.evaluationOnly !== true ||
+    JSON.stringify(actualResourceVersionIds) !== JSON.stringify(expectedResourceVersionIds)
+  ) {
+    throw new Error('evaluation_release_contract_invalid');
+  }
+  if (!options.evaluateOnly) throw new Error('evaluation_release_requires_evaluate_only');
+  return { items: [release], stages: ['shadow'] };
+}
+
 async function waitForEval(prisma: PrismaService, evalRunId: number) {
-  const deadline = Date.now() + 15 * 60_000;
+  const timeoutMs = positiveInteger(
+    process.env.BRAIN_RELEASE_PILOT_WAIT_TIMEOUT_MS,
+    60 * 60_000,
+  );
+  const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const run = await prisma.brainEvalRun.findUnique({ where: { id: evalRunId } });
     if (!run) throw new Error(`eval_run_not_found:${evalRunId}`);
@@ -284,6 +315,11 @@ async function waitForEval(prisma: PrismaService, evalRunId: number) {
     await new Promise((resolve) => setTimeout(resolve, 1_000));
   }
   throw new Error(`eval_run_timeout:${evalRunId}`);
+}
+
+function positiveInteger(value: string | undefined, fallback: number) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function parseOptions(args: string[]): PilotOptions {
@@ -302,6 +338,7 @@ function parseOptions(args: string[]): PilotOptions {
   const storeId = Number(required(values.get('store-id'), 'store-id'));
   const userId = Number(required(values.get('user-id'), 'user-id'));
   const resumeEvalRunId = values.get('resume-eval-run-id') ? Number(values.get('resume-eval-run-id')) : undefined;
+  const evaluationReleaseId = values.get('evaluation-release-id') ? Number(values.get('evaluation-release-id')) : undefined;
   if (resourceVersionIds.some((value) => !Number.isInteger(value) || value <= 0)) {
     throw new Error('resource-version-ids must contain positive integers');
   }
@@ -309,6 +346,9 @@ function parseOptions(args: string[]): PilotOptions {
   if (!Number.isInteger(userId) || userId <= 0) throw new Error('user-id must be a positive integer');
   if (resumeEvalRunId !== undefined && (!Number.isInteger(resumeEvalRunId) || resumeEvalRunId <= 0)) {
     throw new Error('resume-eval-run-id must be a positive integer');
+  }
+  if (evaluationReleaseId !== undefined && (!Number.isInteger(evaluationReleaseId) || evaluationReleaseId <= 0)) {
+    throw new Error('evaluation-release-id must be a positive integer');
   }
   return {
     releaseKey,
@@ -323,6 +363,7 @@ function parseOptions(args: string[]): PilotOptions {
     caseKeys: (values.get('case-keys') ?? '').split(',').map((item) => item.trim()).filter(Boolean),
     archiveOnFailure: values.get('archive-on-failure') === 'true',
     regenerationRequirement: values.get('regeneration-requirement')?.trim() || undefined,
+    evaluationReleaseId,
   };
 }
 

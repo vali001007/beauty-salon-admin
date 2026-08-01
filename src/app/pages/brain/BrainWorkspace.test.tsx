@@ -210,7 +210,7 @@ describe('BrainWorkspace', () => {
             status: 'completed',
             citations: [{ sourceType: 'metric', sourceId: 'paid_revenue', label: '实收流水' }],
           },
-          createdAt: '2026-07-11T01:00:01.000Z',
+          createdAt: '2026-07-11T01:00:22.000Z',
         },
       ],
     });
@@ -221,6 +221,8 @@ describe('BrainWorkspace', () => {
     expect(apiMocks.listBrainMessages).toHaveBeenCalledWith(42);
     expect(apiMocks.getBrainRunEvents).toHaveBeenCalledWith(100);
     expect(await screen.findByText('实收流水')).toBeInTheDocument();
+    expect(screen.getAllByText(/消息时间 \d{2}时\d{2}分\d{2}秒/)).toHaveLength(2);
+    expect(screen.getByText('问答耗时 22秒')).toBeInTheDocument();
   });
 
   it('does not render clarification choices as confirmable actions', async () => {

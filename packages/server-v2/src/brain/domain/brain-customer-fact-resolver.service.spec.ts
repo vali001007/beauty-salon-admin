@@ -694,6 +694,31 @@ describe('BrainCustomerFactResolverService', () => {
       });
   });
 
+  it('returns structured independent counts for VIP and dormant customer segments', async () => {
+    const customerCount = jest.fn().mockResolvedValueOnce(12).mockResolvedValueOnce(37);
+    const service = new BrainCustomerFactResolverService({ customer: { count: customerCount } } as never);
+
+    await expect(
+      service.getStructuredMarketingSegment({ storeId: 6, message: 'VIP 和沉睡客户分别有多少人' }),
+    ).resolves.toMatchObject({
+      columns: ['segment', 'customerCount', 'definition'],
+      rows: [
+        expect.objectContaining({ segment: 'VIP/高等级客户', customerCount: 12 }),
+        expect.objectContaining({ segment: '近60天未到店或无到店记录', customerCount: 37 }),
+      ],
+    });
+    expect(customerCount).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: expect.objectContaining({ storeId: 6, memberLevel: { notIn: ['无', '普通', '普通会员', ''] } }),
+      }),
+    );
+    expect(customerCount).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ where: expect.objectContaining({ storeId: 6, OR: expect.any(Array) }) }),
+    );
+  });
+
   it('finds discount-sensitive customers from real order discount facts', async () => {
     const service = new BrainCustomerFactResolverService({
       productOrder: {

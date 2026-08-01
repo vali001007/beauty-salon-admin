@@ -80,7 +80,7 @@ export class BrainAnswerCompletionGuardService {
       // execution failure merely because the model selected `scalar` instead of `list`.
       const hasGroundedScalarRows =
         hasRows && envelope.citations.length > 0 && (kinds.has('table') || kinds.has('ranking'));
-      if (!kinds.has('kpi') && !hasGroundedScalarRows) requireKind('kpi');
+      if (!kinds.has('kpi') && !hasGroundedScalarRows && !hasNoData) requireKind('kpi');
     }
     if (intent.answerShape === 'comparison') {
       const crossEntityComparison = intent.comparisonTarget?.type !== 'time' && (kinds.has('ranking') || kinds.has('table'));

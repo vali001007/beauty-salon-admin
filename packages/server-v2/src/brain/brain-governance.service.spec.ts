@@ -511,6 +511,32 @@ describe('BrainEvalService', () => {
     expect(result).toMatchObject({ total: 1, passed: 1, failed: 0, providerUnavailable: 0 });
   });
 
+  it('classifies a database connection timeout trace as infrastructure unavailable', async () => {
+    const prisma = {
+      brainRunStep: {
+        findFirst: jest.fn().mockResolvedValue({
+          output: {
+            code: 'CAPABILITY_EXECUTION_FAILED',
+            diagnosticCode: 'TIMEOUT_EXCEEDED_WHEN_TRYING_TO_CONNECT',
+          },
+        }),
+      },
+    };
+    const service = new BrainEvalService(prisma as never);
+
+    await expect((service as any).isProviderUnavailable({
+      runId: 901,
+      status: 'failed',
+      failureCode: 'CAPABILITY_EXECUTION_FAILED',
+    })).resolves.toBe(true);
+
+    expect(prisma.brainRunStep.findFirst).toHaveBeenCalledWith({
+      where: { runId: 901, status: 'failed' },
+      select: { output: true },
+      orderBy: { id: 'desc' },
+    });
+  });
+
   it('retries an explicitly requested failed release-gate checkpoint without rerunning passed cases', async () => {
     const releaseSnapshot = {
       releaseId: 21,

@@ -311,6 +311,7 @@ describe('BrainReleaseService', () => {
     ]);
 
     expect(findMany).toHaveBeenCalledWith({
+      where: { scope: { in: ['global', 'store', 'user', 'role', 'percentage'] } },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
@@ -346,6 +347,72 @@ describe('BrainReleaseService', () => {
     await expect(service.activateRelease({ releaseId: 21, activatedBy: 9 })).rejects.toMatchObject({
       message: 'release_evaluation_only',
     });
+  });
+
+  it('does not allow the runtime release service to create governance policy snapshots', async () => {
+    const service = new BrainReleaseService({} as never);
+
+    await expect(service.createRelease({
+      releaseKey: 'governance-v1',
+      scope: 'governance_policy',
+      rollout: {},
+      resourceVersionIds: [1],
+      createdBy: 9,
+    })).rejects.toMatchObject({ message: 'runtime_release_scope_invalid' });
+  });
+
+  it('accepts a complete active governance shadow binding for a runtime release', async () => {
+    const service = new BrainReleaseService({
+      brainRelease: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 429,
+          scope: 'governance_policy',
+          status: 'active',
+          rollout: { policySnapshotChecksum: 'policy-checksum' },
+          items: [
+            {
+              resourceType: 'capability_policy',
+              resourceKey: 'customer_query',
+              snapshot: { runtimeEnforcementStatus: 'shadow' },
+            },
+          ],
+        }),
+      },
+    } as never);
+
+    await expect((service as any).assertGovernancePolicyBinding((service as any).prisma, {
+      rollout: {
+        governancePolicyReleaseId: 429,
+        governancePolicyMode: 'shadow',
+        governancePolicySnapshotChecksum: 'policy-checksum',
+      },
+      items: [{ resourceType: 'skill', resourceKey: 'customer_query' }],
+    })).resolves.toBeUndefined();
+  });
+
+  it('rejects a runtime release when the bound policy is still pending runtime', async () => {
+    const service = new BrainReleaseService({
+      brainRelease: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 429,
+          scope: 'governance_policy',
+          status: 'active',
+          rollout: {},
+          items: [
+            {
+              resourceType: 'capability_policy',
+              resourceKey: 'customer_query',
+              snapshot: { runtimeEnforcementStatus: 'pending_runtime' },
+            },
+          ],
+        }),
+      },
+    } as never);
+
+    await expect((service as any).assertGovernancePolicyBinding((service as any).prisma, {
+      rollout: { governancePolicyReleaseId: 429, governancePolicyMode: 'shadow' },
+      items: [{ resourceType: 'skill', resourceKey: 'customer_query' }],
+    })).rejects.toMatchObject({ message: 'release_governance_policy_mode_mismatch' });
   });
 
   it('activates a production canary with a passing evaluation-only release sharing the exact fingerprint', async () => {
@@ -1136,7 +1203,11 @@ describe('BrainReleaseService', () => {
       data: { status: 'rolled_back', rolledBackAt: expect.any(Date), failureReason: 'emergency' },
     });
     expect(tx.brainRelease.updateMany).toHaveBeenCalledWith({
-      where: { status: 'active', id: { not: 10 } },
+      where: {
+        status: 'active',
+        scope: { in: ['global', 'store', 'user', 'role', 'percentage'] },
+        id: { not: 10 },
+      },
       data: { status: 'archived' },
     });
   });
@@ -1262,6 +1333,7 @@ describe('BrainReleaseService', () => {
       where: { id: 21 },
       select: {
         id: true,
+        scope: true,
         status: true,
         rollout: true,
         items: {
@@ -1388,6 +1460,86 @@ describe('BrainReleaseService', () => {
     expect(Object.isFrozen(resolved.capabilityCandidates?.[0])).toBe(true);
     expect(cached).toMatchObject({ release: { id: 23 }, capabilityCandidates: [candidate] });
     expect(prisma.brainRelease.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('loads a bound governance policy in shadow mode without filtering runtime capabilities', async () => {
+    const release = {
+      id: 430,
+      releaseKey: 'runtime-governance-shadow',
+      status: 'active',
+      scope: 'global',
+      activatedAt: new Date('2026-08-01T00:00:00.000Z'),
+      rollout: { mode: 'model', governancePolicyReleaseId: 429, governancePolicyMode: 'shadow' },
+      items: [
+        { resourceType: 'skill', resourceKey: 'customer_facts', version: 1, snapshot: { key: 'customer_facts' } },
+        { resourceType: 'skill', resourceKey: 'refund_preview', version: 1, snapshot: { key: 'refund_preview' } },
+      ],
+    };
+    const prisma = {
+      brainRelease: {
+        findMany: jest.fn().mockResolvedValue([release]),
+        findUnique: jest.fn().mockResolvedValue({
+          id: 429,
+          releaseKey: 'policy-shadow',
+          scope: 'governance_policy',
+          status: 'active',
+          rollout: {},
+          items: [
+            { resourceType: 'capability_policy', resourceKey: 'customer_facts', snapshot: { riskLevel: 'low', whitelistStatus: 'approved', runtimeEnforcementStatus: 'shadow' } },
+            { resourceType: 'capability_policy', resourceKey: 'refund_preview', snapshot: { riskLevel: 'high', whitelistStatus: 'not_allowed', runtimeEnforcementStatus: 'shadow' } },
+          ],
+        }),
+      },
+    };
+    const service = new BrainReleaseService(prisma as never);
+
+    await expect(service.resolveRuntimeMode({ storeId: 6, userId: 28, roleKey: 'store_manager' })).resolves.toMatchObject({
+      mode: 'model',
+      capabilityCandidates: [{ key: 'customer_facts' }, { key: 'refund_preview' }],
+      governancePolicy: {
+        releaseId: 429,
+        mode: 'shadow',
+        allowedCapabilityKeys: ['customer_facts'],
+        blockedCapabilityKeys: ['refund_preview'],
+      },
+    });
+  });
+
+  it('filters non-admitted runtime capabilities only when governance policy mode is enforced', async () => {
+    const release = {
+      id: 431,
+      releaseKey: 'runtime-governance-enforced',
+      status: 'active',
+      scope: 'global',
+      activatedAt: new Date('2026-08-01T00:00:00.000Z'),
+      rollout: { mode: 'model', governancePolicyReleaseId: 430, governancePolicyMode: 'enforced' },
+      items: [
+        { resourceType: 'skill', resourceKey: 'customer_facts', version: 1, snapshot: { key: 'customer_facts' } },
+        { resourceType: 'skill', resourceKey: 'refund_preview', version: 1, snapshot: { key: 'refund_preview' } },
+      ],
+    };
+    const prisma = {
+      brainRelease: {
+        findMany: jest.fn().mockResolvedValue([release]),
+        findUnique: jest.fn().mockResolvedValue({
+          id: 430,
+          releaseKey: 'policy-enforced',
+          scope: 'governance_policy',
+          status: 'active',
+          rollout: {},
+          items: [
+            { resourceType: 'capability_policy', resourceKey: 'customer_facts', snapshot: { riskLevel: 'low', whitelistStatus: 'approved', runtimeEnforcementStatus: 'enforced' } },
+            { resourceType: 'capability_policy', resourceKey: 'refund_preview', snapshot: { riskLevel: 'high', whitelistStatus: 'not_allowed', runtimeEnforcementStatus: 'enforced' } },
+          ],
+        }),
+      },
+    };
+    const service = new BrainReleaseService(prisma as never);
+
+    await expect(service.resolveRuntimeMode({ storeId: 6, userId: 28, roleKey: 'store_manager' })).resolves.toMatchObject({
+      capabilityCandidates: [{ key: 'customer_facts' }],
+      governancePolicy: { blockedCapabilityKeys: ['refund_preview'] },
+    });
   });
 
   it('serves the stale active runtime cache while refreshing it after TTL', async () => {
@@ -1533,7 +1685,7 @@ describe('BrainReleaseService', () => {
       release: { id: 24, releaseKey: 'brain-r2-canary' },
     });
     expect(findMany).toHaveBeenCalledWith({
-      where: { status: 'active' },
+      where: { status: 'active', scope: { in: ['global', 'store', 'user', 'role', 'percentage'] } },
       orderBy: { activatedAt: 'desc' },
       select: {
         id: true,
@@ -1704,7 +1856,7 @@ describe('BrainReleaseService', () => {
     expect(prisma.$transaction).toHaveBeenLastCalledWith(expect.any(Function), {
       isolationLevel: 'Serializable',
       maxWait: 10_000,
-      timeout: 30_000,
+      timeout: 300_000,
     });
     expect(tx.brainRelease.updateMany).toHaveBeenCalledWith({
       where: { id: 21, status: 'draft' },
@@ -1931,12 +2083,17 @@ describe('BrainReleaseService', () => {
   });
 
   it('revalidates generated capability lineage and canonical semantics before activation', async () => {
+    const evaluationSnapshot = { definitions: [], snapshotFingerprint: 'e'.repeat(64) };
     const resourceVersion = {
       id: 11,
       resourceType: 'skill',
       resourceKey: 'product_sales_ranking',
       sourceResourceId: 31,
-      snapshot: { generatedCapability: true, sourceFingerprint: 'a'.repeat(64) },
+      snapshot: {
+        generatedCapability: true,
+        sourceFingerprint: 'a'.repeat(64),
+        definitionRefs: [{ versionId: 71 }],
+      },
     };
     const sourceRow = {
       id: 31,
@@ -1945,6 +2102,7 @@ describe('BrainReleaseService', () => {
       sourceFingerprint: 'tampered',
     };
     const semanticVerifier = {
+      loadEvaluationSnapshot: jest.fn().mockResolvedValue(evaluationSnapshot),
       verifyStoredCapabilities: jest.fn().mockRejectedValue(new Error('generated_capability_source_snapshot_mismatch')),
     };
     const release = {
@@ -1978,23 +2136,27 @@ describe('BrainReleaseService', () => {
       'generated_capability_source_snapshot_mismatch',
     );
     expect(prisma.brainSkillRegistry.findMany).toHaveBeenCalledWith({ where: { id: { in: [31] } } });
-    expect(semanticVerifier.verifyStoredCapabilities).toHaveBeenCalledWith([
-      { snapshot: resourceVersion.snapshot, sourceRow },
-    ]);
+    expect(semanticVerifier.loadEvaluationSnapshot).toHaveBeenCalledWith([71]);
+    expect(semanticVerifier.verifyStoredCapabilities).toHaveBeenCalledWith(
+      [{ snapshot: resourceVersion.snapshot, sourceRow }],
+      evaluationSnapshot,
+    );
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('batch-loads generated source rows and invokes one semantic snapshot verification per release operation', async () => {
+    const evaluationSnapshot = { definitions: [], snapshotFingerprint: 'e'.repeat(64) };
     const versions = [1, 2].map((id) => ({
       id,
       checksum: String(id).repeat(64),
       resourceType: 'skill',
       resourceKey: `generated_${id}`,
       sourceResourceId: id + 30,
-      snapshot: { generatedCapability: true },
+      snapshot: { generatedCapability: true, definitionRefs: [{ versionId: id + 70 }] },
     }));
     const sourceRows = versions.map((version) => ({ id: version.sourceResourceId, skillKey: version.resourceKey }));
     const semanticVerifier = {
+      loadEvaluationSnapshot: jest.fn().mockResolvedValue(evaluationSnapshot),
       verifyStoredCapabilities: jest.fn().mockRejectedValue(new Error('stop_after_batch_verification')),
     };
     const release = {
@@ -2025,10 +2187,14 @@ describe('BrainReleaseService', () => {
     expect(prisma.brainSkillRegistry.findMany).toHaveBeenCalledTimes(1);
     expect(prisma.brainSkillRegistry.findMany).toHaveBeenCalledWith({ where: { id: { in: [31, 32] } } });
     expect(semanticVerifier.verifyStoredCapabilities).toHaveBeenCalledTimes(1);
-    expect(semanticVerifier.verifyStoredCapabilities).toHaveBeenCalledWith([
-      { snapshot: versions[0]!.snapshot, sourceRow: sourceRows[0] },
-      { snapshot: versions[1]!.snapshot, sourceRow: sourceRows[1] },
-    ]);
+    expect(semanticVerifier.loadEvaluationSnapshot).toHaveBeenCalledWith([71, 72]);
+    expect(semanticVerifier.verifyStoredCapabilities).toHaveBeenCalledWith(
+      [
+        { snapshot: versions[0]!.snapshot, sourceRow: sourceRows[0] },
+        { snapshot: versions[1]!.snapshot, sourceRow: sourceRows[1] },
+      ],
+      evaluationSnapshot,
+    );
   });
 
   it('rejects mixed activation when the second release item is semantic even if its resource version is not', async () => {
@@ -2488,7 +2654,10 @@ describe('BrainReleaseService', () => {
       brainSkillRegistry: { findMany: jest.fn().mockResolvedValue([sourceRow]) },
       $transaction: jest.fn(),
     };
-    const snapshotSource = { loadPublishedSnapshot: jest.fn().mockResolvedValue(publishedSnapshot) };
+    const snapshotSource = {
+      loadPublishedSnapshot: jest.fn().mockResolvedValue(publishedSnapshot),
+      loadEvaluationSnapshot: jest.fn().mockResolvedValue(publishedSnapshot),
+    };
     const semanticVerifier = new BrainCapabilitySemanticVerifierService(snapshotSource as never);
     const service = new BrainReleaseService(prisma as never, semanticVerifier);
 
@@ -2497,7 +2666,10 @@ describe('BrainReleaseService', () => {
     });
 
     expect(prisma.brainSkillRegistry.findMany).toHaveBeenCalledWith({ where: { id: { in: [sourceRow.id] } } });
-    expect(snapshotSource.loadPublishedSnapshot).toHaveBeenCalledTimes(1);
+    expect(snapshotSource.loadEvaluationSnapshot).toHaveBeenCalledWith(
+      staleManifest.definitionRefs.map((ref) => ref.versionId),
+    );
+    expect(snapshotSource.loadPublishedSnapshot).not.toHaveBeenCalled();
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 

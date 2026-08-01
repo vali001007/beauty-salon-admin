@@ -665,6 +665,47 @@ export class BrainCustomerFactResolverService {
     columns: string[];
     limitation?: string;
   } | undefined> {
+    if (
+      /VIP/i.test(input.message) &&
+      /(?:沉睡|不活跃|好久没来)/.test(input.message) &&
+      /(?:分别|各有|多少|几人|人数)/.test(input.message)
+    ) {
+      const sleepingBefore = new Date();
+      sleepingBefore.setDate(sleepingBefore.getDate() - 60);
+      const [vipCount, dormantCount] = await Promise.all([
+        this.prisma.customer.count({
+          where: {
+            storeId: input.storeId,
+            deletedAt: null,
+            memberLevel: { notIn: ['无', '普通', '普通会员', ''] },
+          },
+        }),
+        this.prisma.customer.count({
+          where: {
+            storeId: input.storeId,
+            deletedAt: null,
+            OR: [{ lastVisitDate: null }, { lastVisitDate: { lt: sleepingBefore } }],
+          },
+        }),
+      ]);
+      const rows = [
+        {
+          segment: 'VIP/高等级客户',
+          customerCount: vipCount,
+          definition: '会员等级不属于无、普通、普通会员或空值',
+        },
+        {
+          segment: '近60天未到店或无到店记录',
+          customerCount: dormantCount,
+          definition: '最后到店早于60天前，或没有到店记录',
+        },
+      ];
+      return {
+        answer: `VIP/高等级客户 ${vipCount} 人；近 60 天未到店或无到店记录客户 ${dormantCount} 人。两个分群独立统计，客户可能同时属于两类。`,
+        rows,
+        columns: ['segment', 'customerCount', 'definition'],
+      };
+    }
     if (/(?:按|根据)?消费金额.*(?:分层|分一下层|分组)|客户.*消费金额.*层/.test(input.message)) {
       return this.customerSpendingTierResult(input.storeId);
     }

@@ -6,7 +6,7 @@ import { PermissionGuard } from './components/PermissionGuard';
 import { lazyWithRetry } from './components/LazyRetry';
 import { PageSkeleton } from '@/app/components/ui/loading-skeleton';
 import { RouteErrorPage } from './pages/RouteErrorPage';
-import { BRAIN_GOVERNANCE_SECTIONS, DEFAULT_BRAIN_GOVERNANCE_PATH } from './pages/brain/brainGovernanceNavigation';
+import { BRAIN_GOVERNANCE_ROUTE_SECTIONS, DEFAULT_BRAIN_GOVERNANCE_PATH } from './pages/brain/brainGovernanceNavigation';
 
 // Lazy-loaded page components
 const LoginPage = lazyWithRetry(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })), 'LoginPage');
@@ -265,7 +265,7 @@ export const router = createBrowserRouter([
       { path: 'system/agent-governance/debug', element: withGuard('core:agent-governance:view', AgentGovernanceCenter) },
       { path: 'system/agent-capabilities', element: withGuard('core:agent-governance:view', AgentCapabilityCenter) },
       { path: 'brain-governance', element: <Navigate to={DEFAULT_BRAIN_GOVERNANCE_PATH} replace /> },
-      ...BRAIN_GOVERNANCE_SECTIONS.map((section) => ({
+      ...BRAIN_GOVERNANCE_ROUTE_SECTIONS.map((section) => ({
         path: section.path.slice(1),
         element: withGuard('core:brain-governance:view', BrainGovernanceCenter),
       })),

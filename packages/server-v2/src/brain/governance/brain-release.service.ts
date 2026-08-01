@@ -15,8 +15,10 @@ import { caseIdsChecksum } from '../eval/ami-brain-suite-manifest.js';
 import type { BrainEvaluationReleaseSnapshot } from './brain-evaluation-release-snapshot.js';
 import { BrainActiveReleaseWarmupService } from './brain-active-release-warmup.service.js';
 import { createReleaseFingerprint, lockReleaseResources } from './brain-capability-regeneration-fingerprint.js';
+import { extractBrainReleaseDefinitionVersionIds } from './brain-release-definition-versions.js';
 
 const ACTIVE_RUNTIME_RELEASE_CACHE_TTL_MS = 1_000;
+const RUNTIME_RELEASE_SCOPES = ['global', 'store', 'user', 'role', 'percentage'] as const;
 const PERFORMANCE_BUCKET_POLICY = {
   quick: { count: 20, budgetsMs: { p50: 1500, p95: 3000, max: 5000 } },
   single: { count: 20, budgetsMs: { p50: 3000, p95: 8000, max: 12000 } },
@@ -33,6 +35,7 @@ const APPROVED_PERFORMANCE_MANIFESTS: Record<string, { manifestChecksum: string;
 @Injectable()
 export class BrainReleaseService implements OnModuleInit {
   private readonly evaluationReleaseSnapshotCache = new Map<number, Promise<BrainEvaluationReleaseSnapshot>>();
+  private readonly governancePolicySnapshotCache = new Map<number, Promise<GovernancePolicyRuntimeSnapshot>>();
   private activeRuntimeReleaseCache?: {
     expiresAt: number;
     fingerprint: string;
@@ -119,7 +122,7 @@ export class BrainReleaseService implements OnModuleInit {
     const release = await this.selectRelease(input);
     const rollout = release ? this.record(release.rollout) : {};
     const declaredMode = rollout.mode;
-    const capabilityCandidates =
+    const releaseCapabilityCandidates =
       release && (declaredMode === 'model' || declaredMode === 'shadow')
         ? deepCloneFreeze(
             release.items
@@ -127,10 +130,21 @@ export class BrainReleaseService implements OnModuleInit {
               .map((item) => this.record(item.snapshot) as unknown as BrainCapabilityCandidate),
           )
         : undefined;
+    const governancePolicy = release
+      ? await this.resolveGovernancePolicyRuntime(release, releaseCapabilityCandidates)
+      : undefined;
+    const capabilityCandidates =
+      governancePolicy?.mode === 'enforced' && releaseCapabilityCandidates
+        ? deepCloneFreeze(
+            releaseCapabilityCandidates.filter((candidate) =>
+              governancePolicy.allowedCapabilityKeys.includes(String(candidate.key ?? '')),
+            ),
+          )
+        : releaseCapabilityCandidates;
     const mode = declaredMode;
     return mode === 'rules' || mode === 'shadow' || mode === 'model'
-      ? { mode, declaredMode, release, capabilityCandidates }
-      : { mode: undefined, declaredMode: undefined, release, capabilityCandidates };
+      ? { mode, declaredMode, release, capabilityCandidates, governancePolicy }
+      : { mode: undefined, declaredMode: undefined, release, capabilityCandidates, governancePolicy };
   }
 
   async freezeEvaluationRelease(releaseId: number): Promise<BrainEvaluationReleaseSnapshot> {
@@ -215,6 +229,10 @@ export class BrainReleaseService implements OnModuleInit {
   }) {
     const prisma = this.requirePrisma();
     const releaseKey = this.nonEmpty(input.releaseKey, 'releaseKey');
+    const scope = input.scope || 'global';
+    if (!(RUNTIME_RELEASE_SCOPES as readonly string[]).includes(scope)) {
+      throw new BadRequestException('runtime_release_scope_invalid');
+    }
     const versions = await prisma.brainResourceVersion.findMany({ where: { id: { in: input.resourceVersionIds } } });
     if (!versions.length || versions.length !== new Set(input.resourceVersionIds).size) {
       throw new BadRequestException('release_resource_versions_incomplete');
@@ -227,7 +245,7 @@ export class BrainReleaseService implements OnModuleInit {
       duplicateKeys.add(key);
     }
     const previous = await prisma.brainRelease.findFirst({
-      where: { status: 'active' },
+      where: { status: 'active', scope: { in: [...RUNTIME_RELEASE_SCOPES] } },
       orderBy: { activatedAt: 'desc' },
     });
     const versionMap = Object.fromEntries(
@@ -241,7 +259,7 @@ export class BrainReleaseService implements OnModuleInit {
       const release = await tx.brainRelease.create({
         data: {
           releaseKey,
-          scope: input.scope || 'global',
+          scope,
           rollout: this.toJson(rollout),
           versionMap: this.toJson(versionMap),
           status: 'draft',
@@ -270,6 +288,7 @@ export class BrainReleaseService implements OnModuleInit {
       include: { items: { include: { resourceVersion: true } } },
     });
     if (!release || release.status !== 'draft') throw new BadRequestException('release_not_draft');
+    if (release.scope === 'governance_policy') throw new BadRequestException('policy_snapshot_requires_policy_publish');
     if (this.record(release.rollout).evaluationOnly === true) {
       throw new BadRequestException('release_evaluation_only');
     }
@@ -292,6 +311,7 @@ export class BrainReleaseService implements OnModuleInit {
     this.assertReleaseItemsConsistent(release.items);
     this.assertDeployableRuntimeRelease(release);
     this.assertSemanticSnapshotFingerprint(release);
+    await this.assertGovernancePolicyBinding(prisma, release);
     await this.assertCapabilitySourceFreshness(
       release.items
         .filter((item) => item.resourceType === 'skill')
@@ -315,6 +335,7 @@ export class BrainReleaseService implements OnModuleInit {
       const lockedFingerprint = createReleaseFingerprint(lockedRelease.items);
       this.assertDeployableRuntimeRelease(lockedRelease);
       this.assertSemanticSnapshotFingerprint(lockedRelease);
+      await this.assertGovernancePolicyBinding(tx as unknown as PrismaService, lockedRelease);
       await this.assertReleaseEvalEvidence(tx as unknown as PrismaService, lockedRelease, lockedFingerprint);
       const modification = await tx.brainCapabilityRegenerationJob.findFirst({
         where: { releaseFingerprint: lockedFingerprint },
@@ -329,7 +350,11 @@ export class BrainReleaseService implements OnModuleInit {
       if (claim.count !== 1) throw new ConflictException('release_activation_conflict');
       if (lockedRelease.scope === 'global') {
         await tx.brainRelease.updateMany({
-          where: { status: 'active', id: { not: lockedRelease.id } },
+          where: {
+            status: 'active',
+            scope: { in: [...RUNTIME_RELEASE_SCOPES] },
+            id: { not: lockedRelease.id },
+          },
           data: { status: 'archived' },
         });
       }
@@ -349,7 +374,7 @@ export class BrainReleaseService implements OnModuleInit {
         data: { activatedAt, failureReason: null },
         include: { items: true },
       });
-    });
+    }, 300_000);
     this.invalidateActiveRuntimeReleaseCache();
     return activated;
   }
@@ -399,6 +424,7 @@ export class BrainReleaseService implements OnModuleInit {
       include: { items: { include: { resourceVersion: true } } },
     });
     if (!current || current.status !== 'active') throw new BadRequestException('release_not_active');
+    if (current.scope === 'governance_policy') throw new BadRequestException('policy_snapshot_requires_policy_rollback');
     const previous = current.previousReleaseId
       ? await prisma.brainRelease.findUnique({
           where: { id: current.previousReleaseId },
@@ -458,6 +484,7 @@ export class BrainReleaseService implements OnModuleInit {
       include: { items: { include: { resourceVersion: true } } },
     });
     if (!current || current.status !== 'active') throw new BadRequestException('release_not_active');
+    if (current.scope === 'governance_policy') throw new BadRequestException('policy_snapshot_requires_policy_rollback');
     if (this.record(current.rollout).mode === 'rules') throw new BadRequestException('release_already_rules');
 
     let previousReleaseId = current.previousReleaseId;
@@ -493,7 +520,11 @@ export class BrainReleaseService implements OnModuleInit {
       });
       if (claim.count !== 1) throw new ConflictException('release_rules_rollback_conflict');
       await tx.brainRelease.updateMany({
-        where: { status: 'active', id: { not: target.id } },
+        where: {
+          status: 'active',
+          scope: { in: [...RUNTIME_RELEASE_SCOPES] },
+          id: { not: target.id },
+        },
         data: { status: 'archived' },
       });
       await this.deactivateSupersededResources(tx, current.items ?? [], target.items, rolledBackAt);
@@ -527,6 +558,7 @@ export class BrainReleaseService implements OnModuleInit {
     const take = Math.max(1, Math.min(100, Number(input?.take) || 30));
     if (input?.includeSnapshot === false) {
       const releases = await this.requirePrisma().brainRelease.findMany({
+        where: { scope: { in: [...RUNTIME_RELEASE_SCOPES] } },
         orderBy: { createdAt: 'desc' },
         select: {
           id: true,
@@ -547,6 +579,7 @@ export class BrainReleaseService implements OnModuleInit {
       return releases.map(({ _count, ...release }) => ({ ...release, itemCount: _count.items, items: [] }));
     }
     return this.requirePrisma().brainRelease.findMany({
+      where: { scope: { in: [...RUNTIME_RELEASE_SCOPES] } },
       orderBy: { createdAt: 'desc' },
       include: { items: true },
       take,
@@ -558,7 +591,12 @@ export class BrainReleaseService implements OnModuleInit {
     const declaredMode = release ? this.record(release.rollout).mode : undefined;
     const mode =
       declaredMode === 'rules' || declaredMode === 'shadow' || declaredMode === 'model' ? declaredMode : undefined;
-    return { mode, declaredMode: mode, release };
+    return {
+      mode,
+      declaredMode: mode,
+      release,
+      governancePolicy: release ? governancePolicyBindingSummary(this.record(release.rollout)) : undefined,
+    };
   }
 
   async selectRelease(input: { storeId: number; userId: number; roleKey: string }) {
@@ -584,7 +622,7 @@ export class BrainReleaseService implements OnModuleInit {
     const generation = this.activeRuntimeReleaseCacheGeneration;
     const loading = this.requirePrisma()
       .brainRelease.findMany({
-        where: { status: 'active' },
+        where: { status: 'active', scope: { in: [...RUNTIME_RELEASE_SCOPES] } },
         orderBy: { activatedAt: 'desc' },
         include: { items: true },
       })
@@ -615,7 +653,7 @@ export class BrainReleaseService implements OnModuleInit {
 
   private async selectReleaseSummary(input: { storeId: number; userId: number; roleKey: string }) {
     const releases = await this.requirePrisma().brainRelease.findMany({
-      where: { status: 'active' },
+      where: { status: 'active', scope: { in: [...RUNTIME_RELEASE_SCOPES] } },
       orderBy: { activatedAt: 'desc' },
       select: { id: true, releaseKey: true, scope: true, rollout: true, status: true, activatedAt: true },
     });
@@ -628,6 +666,7 @@ export class BrainReleaseService implements OnModuleInit {
       where: { id: releaseId },
       select: {
         id: true,
+        scope: true,
         status: true,
         rollout: true,
         items: {
@@ -641,6 +680,7 @@ export class BrainReleaseService implements OnModuleInit {
       },
     });
     if (!release) throw new BadRequestException('evaluation_release_not_found');
+    if (release.scope === 'governance_policy') throw new BadRequestException('policy_snapshot_not_evaluable');
     if (release.status !== 'draft' && release.status !== 'active') {
       throw new BadRequestException('evaluation_release_not_evaluable');
     }
@@ -1190,17 +1230,30 @@ export class BrainReleaseService implements OnModuleInit {
       if (!sourceRow) throw new BadRequestException('generated_capability_source_missing');
       return { snapshot: version.snapshot, sourceRow };
     });
-    await this.semanticVerifier.verifyStoredCapabilities(inputs);
+    const definitionVersionIds = extractBrainReleaseDefinitionVersionIds(
+      generatedVersions.map(
+        (version) => this.record(version.snapshot) as unknown as BrainCapabilityCandidate,
+      ),
+    );
+    if (!definitionVersionIds.length) {
+      throw new BadRequestException('generated_capability_definition_refs_missing');
+    }
+    const definitionSnapshot = await this.semanticVerifier.loadEvaluationSnapshot(definitionVersionIds);
+    await this.semanticVerifier.verifyStoredCapabilities(inputs, definitionSnapshot);
   }
 
-  private async runSerializable<T>(conflictCode: string, operation: (tx: Prisma.TransactionClient) => Promise<T>) {
+  private async runSerializable<T>(
+    conflictCode: string,
+    operation: (tx: Prisma.TransactionClient) => Promise<T>,
+    timeoutMs = 30_000,
+  ) {
     const prisma = this.requirePrisma();
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
         return await prisma.$transaction(operation, {
           isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
           maxWait: 10_000,
-          timeout: 30_000,
+          timeout: timeoutMs,
         });
       } catch (error) {
         if (isPrismaCode(error, 'P2034') && attempt < 3) continue;
@@ -1358,6 +1411,123 @@ export class BrainReleaseService implements OnModuleInit {
     }
   }
 
+  private async assertGovernancePolicyBinding(
+    prisma: PrismaService,
+    release: BrainReleaseWithItems,
+  ): Promise<void> {
+    const rollout = this.record(release.rollout);
+    const binding = governancePolicyBinding(rollout);
+    if (!binding) {
+      if (rollout.governancePolicyReleaseId !== undefined || rollout.governancePolicyMode !== undefined) {
+        throw new BadRequestException('release_governance_policy_binding_invalid');
+      }
+      return;
+    }
+    const policyRelease = await prisma.brainRelease.findUnique({
+      where: { id: binding.releaseId },
+      include: { items: true },
+    });
+    if (!policyRelease || policyRelease.scope !== 'governance_policy' || policyRelease.status !== 'active') {
+      throw new BadRequestException('release_governance_policy_not_active');
+    }
+    if (!policyRelease.items.length || policyRelease.items.some((item) => item.resourceType !== 'capability_policy')) {
+      throw new BadRequestException('release_governance_policy_snapshot_invalid');
+    }
+    const expectedChecksum = this.record(policyRelease.rollout).policySnapshotChecksum;
+    if (
+      typeof rollout.governancePolicySnapshotChecksum === 'string' &&
+      rollout.governancePolicySnapshotChecksum !== expectedChecksum
+    ) {
+      throw new BadRequestException('release_governance_policy_checksum_mismatch');
+    }
+    const policies = policyRelease.items.map((item) => runtimePolicy(item.resourceKey, item.snapshot));
+    if (policies.some((policy) => policy.runtimeEnforcementStatus !== binding.mode)) {
+      throw new BadRequestException('release_governance_policy_mode_mismatch');
+    }
+    const policyKeys = new Set(policies.map((policy) => policy.capabilityKey));
+    const missingPolicyKeys = release.items
+      .filter((item) => item.resourceType === 'skill')
+      .map((item) => item.resourceKey)
+      .filter((key) => !policyKeys.has(key));
+    if (missingPolicyKeys.length) {
+      throw new BadRequestException(`release_governance_policy_incomplete:${missingPolicyKeys.sort().join(',')}`);
+    }
+  }
+
+  private async resolveGovernancePolicyRuntime(
+    release: ActiveRuntimeRelease,
+    candidates?: readonly BrainCapabilityCandidate[],
+  ): Promise<GovernancePolicyRuntimeResolution | undefined> {
+    const binding = governancePolicyBinding(this.record(release.rollout));
+    if (!binding) return undefined;
+    const snapshot = await this.loadGovernancePolicySnapshot(binding.releaseId);
+    if (snapshot.mode !== binding.mode) throw new BadRequestException('runtime_governance_policy_mode_mismatch');
+    const candidateKeys = (candidates ?? [])
+      .map((candidate) => String(candidate.key ?? ''))
+      .filter(Boolean);
+    const decisions = candidateKeys.map((capabilityKey) => {
+      const policy = snapshot.policyByCapabilityKey.get(capabilityKey);
+      return governancePolicyDecision(capabilityKey, policy);
+    });
+    return deepCloneFreeze({
+      releaseId: snapshot.releaseId,
+      releaseKey: snapshot.releaseKey,
+      mode: snapshot.mode,
+      status: snapshot.status,
+      policyCount: snapshot.policyCount,
+      matchedCapabilityCount: decisions.filter((decision) => decision.policyFound).length,
+      allowedCapabilityKeys: decisions.filter((decision) => decision.allowed).map((decision) => decision.capabilityKey),
+      blockedCapabilityKeys: decisions.filter((decision) => !decision.allowed).map((decision) => decision.capabilityKey),
+      decisions,
+    });
+  }
+
+  private async loadGovernancePolicySnapshot(releaseId: number): Promise<GovernancePolicyRuntimeSnapshot> {
+    const cached = this.governancePolicySnapshotCache.get(releaseId);
+    if (cached) return cached;
+    const loading = this.requirePrisma().brainRelease.findUnique({
+      where: { id: releaseId },
+      select: {
+        id: true,
+        releaseKey: true,
+        scope: true,
+        status: true,
+        rollout: true,
+        items: {
+          select: { resourceType: true, resourceKey: true, snapshot: true },
+          orderBy: { resourceKey: 'asc' },
+        },
+      },
+    }).then((release) => {
+      if (!release || release.scope !== 'governance_policy') {
+        throw new BadRequestException('runtime_governance_policy_not_found');
+      }
+      if (!release.items.length || release.items.some((item) => item.resourceType !== 'capability_policy')) {
+        throw new BadRequestException('runtime_governance_policy_snapshot_invalid');
+      }
+      const policies = release.items.map((item) => runtimePolicy(item.resourceKey, item.snapshot));
+      const modes = [...new Set(policies.map((policy) => policy.runtimeEnforcementStatus))];
+      if (modes.length !== 1 || (modes[0] !== 'shadow' && modes[0] !== 'enforced')) {
+        throw new BadRequestException('runtime_governance_policy_status_invalid');
+      }
+      return {
+        releaseId: release.id,
+        releaseKey: release.releaseKey,
+        status: release.status,
+        mode: modes[0],
+        policyCount: policies.length,
+        policyByCapabilityKey: new Map(policies.map((policy) => [policy.capabilityKey, policy])),
+      } satisfies GovernancePolicyRuntimeSnapshot;
+    });
+    this.governancePolicySnapshotCache.set(releaseId, loading);
+    try {
+      return await loading;
+    } catch (error) {
+      this.governancePolicySnapshotCache.delete(releaseId);
+      throw error;
+    }
+  }
+
   private assertResourceManagedHere(resourceType: string) {
     if (resourceType === 'metric' || resourceType === 'ontology_entity' || resourceType === 'ontology_relation') {
       throw new BadRequestException(`business_definition_registry_required:${resourceType}`);
@@ -1503,6 +1673,83 @@ function canonicalizeForFingerprint(value: unknown): unknown {
   return value;
 }
 
+function governancePolicyBinding(value: Record<string, unknown>): GovernancePolicyBinding | undefined {
+  const releaseId = Number(value.governancePolicyReleaseId);
+  const mode = value.governancePolicyMode;
+  if (!Number.isInteger(releaseId) || releaseId <= 0 || (mode !== 'shadow' && mode !== 'enforced')) {
+    return undefined;
+  }
+  return { releaseId, mode };
+}
+
+function governancePolicyBindingSummary(value: Record<string, unknown>) {
+  const binding = governancePolicyBinding(value);
+  return binding
+    ? {
+        releaseId: binding.releaseId,
+        mode: binding.mode,
+        snapshotChecksum:
+          typeof value.governancePolicySnapshotChecksum === 'string'
+            ? value.governancePolicySnapshotChecksum
+            : undefined,
+      }
+    : undefined;
+}
+
+function runtimePolicy(capabilityKey: string, value: unknown): GovernanceRuntimePolicy {
+  const snapshot = value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  const riskLevel = String(snapshot.riskLevel ?? 'unclassified');
+  const whitelistStatus = String(snapshot.whitelistStatus ?? 'not_allowed');
+  const runtimeEnforcementStatus = String(snapshot.runtimeEnforcementStatus ?? 'pending_runtime');
+  return {
+    capabilityKey,
+    riskLevel,
+    whitelistStatus,
+    runtimeEnforcementStatus,
+  };
+}
+
+function governancePolicyDecision(
+  capabilityKey: string,
+  policy: GovernanceRuntimePolicy | undefined,
+): GovernancePolicyRuntimeDecision {
+  if (!policy) {
+    return { capabilityKey, policyFound: false, allowed: false, reason: 'policy_missing' };
+  }
+  if (policy.runtimeEnforcementStatus === 'shadow') {
+    const reason = governanceEnforcementBlockReason(policy);
+    return {
+      capabilityKey,
+      policyFound: true,
+      allowed: reason === 'allowed',
+      reason,
+      riskLevel: policy.riskLevel,
+      whitelistStatus: policy.whitelistStatus,
+    };
+  }
+  const reason = governanceEnforcementBlockReason(policy);
+  return {
+    capabilityKey,
+    policyFound: true,
+    allowed: reason === 'allowed',
+    reason,
+    riskLevel: policy.riskLevel,
+    whitelistStatus: policy.whitelistStatus,
+  };
+}
+
+function governanceEnforcementBlockReason(policy: GovernanceRuntimePolicy): string {
+  if (policy.runtimeEnforcementStatus !== 'shadow' && policy.runtimeEnforcementStatus !== 'enforced') {
+    return 'runtime_status_not_ready';
+  }
+  if (policy.riskLevel === 'unclassified') return 'risk_unclassified';
+  if (policy.riskLevel === 'high' || policy.riskLevel === 'critical') return 'risk_not_executable';
+  if (policy.whitelistStatus !== 'approved') return `whitelist_${policy.whitelistStatus}`;
+  return 'allowed';
+}
+
 type BrainReleaseWithItems = Prisma.BrainReleaseGetPayload<{
   include: { items: { include: { resourceVersion: true } } };
 }>;
@@ -1510,3 +1757,45 @@ type BrainReleaseWithItems = Prisma.BrainReleaseGetPayload<{
 type ActiveRuntimeRelease = Prisma.BrainReleaseGetPayload<{
   include: { items: true };
 }>;
+
+type GovernancePolicyBinding = {
+  releaseId: number;
+  mode: 'shadow' | 'enforced';
+};
+
+type GovernanceRuntimePolicy = {
+  capabilityKey: string;
+  riskLevel: string;
+  whitelistStatus: string;
+  runtimeEnforcementStatus: string;
+};
+
+type GovernancePolicyRuntimeDecision = {
+  capabilityKey: string;
+  policyFound: boolean;
+  allowed: boolean;
+  reason: string;
+  riskLevel?: string;
+  whitelistStatus?: string;
+};
+
+type GovernancePolicyRuntimeSnapshot = {
+  releaseId: number;
+  releaseKey: string;
+  status: string;
+  mode: 'shadow' | 'enforced';
+  policyCount: number;
+  policyByCapabilityKey: Map<string, GovernanceRuntimePolicy>;
+};
+
+type GovernancePolicyRuntimeResolution = {
+  releaseId: number;
+  releaseKey: string;
+  status: string;
+  mode: 'shadow' | 'enforced';
+  policyCount: number;
+  matchedCapabilityCount: number;
+  allowedCapabilityKeys: string[];
+  blockedCapabilityKeys: string[];
+  decisions: GovernancePolicyRuntimeDecision[];
+};

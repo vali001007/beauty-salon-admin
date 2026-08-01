@@ -15,7 +15,8 @@ export interface RegisteredPermissionDefinition {
 const REGISTERED_PERMISSION_CODE_LIST = [
   'core:dashboard:view', 'core:agent:view', 'core:agent-governance:view', 'core:agent-governance:manage',
   'core:brain:use', 'core:brain:execute', 'core:brain:beautician-view', 'core:brain:sensitive:view',
-  'core:brain-governance:view', 'core:brain-governance:manage', 'core:customer:view', 'core:customer:create',
+  'core:brain-governance:view', 'core:brain-governance:manage', 'core:brain-governance:approve',
+  'core:brain-governance:publish', 'core:brain-governance:release', 'core:customer:view', 'core:customer:create',
   'core:customer:update', 'core:customer:delete', 'core:customer:export', 'core:customer:profile',
   'core:customer:script', 'core:marketing:view', 'core:marketing:create', 'core:marketing:update',
   'core:marketing:delete', 'core:marketing:recommend', 'core:marketing:template', 'core:marketing:analytics',

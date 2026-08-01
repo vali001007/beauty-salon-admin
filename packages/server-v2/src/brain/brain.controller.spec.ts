@@ -53,6 +53,23 @@ describe('BrainController', () => {
     expect(governancePermissions).toEqual(['core:brain-governance:view']);
   });
 
+  it('splits governance approval, policy publishing and runtime release permissions', () => {
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.classifyCapabilityPolicy))
+      .toEqual(['core:brain-governance:manage']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.approveCapabilityPolicy))
+      .toEqual(['core:brain-governance:approve']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.publishPolicySnapshot))
+      .toEqual(['core:brain-governance:publish']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.rollbackPolicySnapshot))
+      .toEqual(['core:brain-governance:publish']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.activateRelease))
+      .toEqual(['core:brain-governance:release']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.rejectRelease))
+      .toEqual(['core:brain-governance:release']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.rollbackRelease))
+      .toEqual(['core:brain-governance:release']);
+  });
+
   it('creates a conversation through the real chat service with injected store context', async () => {
     chatService.createConversation.mockResolvedValue({ id: 42, title: '晨会经营复盘', storeId: 2 });
 

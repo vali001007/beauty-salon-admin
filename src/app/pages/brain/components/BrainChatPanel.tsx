@@ -34,7 +34,32 @@ interface BrainChatPanelProps {
 function formatTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit' }).format(date);
+  const hour = String(date.getHours()).padStart(2, '0');
+  const minute = String(date.getMinutes()).padStart(2, '0');
+  const second = String(date.getSeconds()).padStart(2, '0');
+  return `${hour}时${minute}分${second}秒`;
+}
+
+function formatQuestionDuration(messages: BrainMessage[], answerIndex: number) {
+  const answer = messages[answerIndex];
+  if (answer?.role !== 'assistant') return '';
+  const answerAt = Date.parse(answer.createdAt);
+  if (!Number.isFinite(answerAt)) return '';
+
+  for (let index = answerIndex - 1; index >= 0; index -= 1) {
+    const candidate = messages[index];
+    if (candidate.role === 'assistant') break;
+    if (candidate.role !== 'user') continue;
+    const questionAt = Date.parse(candidate.createdAt);
+    if (!Number.isFinite(questionAt) || answerAt < questionAt) return '';
+    const elapsedMs = answerAt - questionAt;
+    if (elapsedMs < 1000) return '<1秒';
+    const totalSeconds = Math.round(elapsedMs / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return minutes > 0 ? `${minutes}分${seconds}秒` : `${seconds}秒`;
+  }
+  return '';
 }
 
 export function BrainChatPanel({
@@ -144,9 +169,10 @@ export function BrainChatPanel({
           </div>
         ) : (
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-            {messages.map((item) => {
+            {messages.map((item, index) => {
               const assistant = item.role === 'assistant';
               const interactive = assistant && item.id === interactiveAssistantId && item.id > 0 && !sending;
+              const questionDuration = formatQuestionDuration(messages, index);
               return (
                 <div
                   key={item.id}
@@ -185,9 +211,10 @@ export function BrainChatPanel({
                     <div
                       className={`mt-2 flex items-center justify-between gap-3 text-xs ${assistant ? 'text-muted-foreground' : 'text-primary-foreground/70'}`}
                     >
-                      <span>
-                        {formatTime(item.createdAt)}
-                        {assistant && item.metadata?.adapterKey ? ` · ${item.metadata.adapterKey}` : ''}
+                      <span className="flex flex-wrap items-center gap-x-2">
+                        <span>消息时间 {formatTime(item.createdAt)}</span>
+                        {questionDuration ? <span>问答耗时 {questionDuration}</span> : null}
+                        {assistant && item.metadata?.adapterKey ? <span>{item.metadata.adapterKey}</span> : null}
                       </span>
                       {assistant && item.metadata?.runId ? (
                         <button

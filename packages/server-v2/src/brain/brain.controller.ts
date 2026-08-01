@@ -31,6 +31,7 @@ import {
   type BrainSemanticGovernanceResourceType,
 } from './governance/brain-governance-resource.service.js';
 import { BrainGovernanceApprovalService } from './governance/brain-governance-approval.service.js';
+import { BrainGovernanceControlPlaneService } from './governance/brain-governance-control-plane.service.js';
 import { BrainCapabilityRegenerationService } from './governance/brain-capability-regeneration.service.js';
 import { BrainInspectionService } from './inspection/brain-inspection.service.js';
 import {
@@ -69,6 +70,7 @@ export class BrainController {
     private readonly runtimeConfigService?: BrainRuntimeConfigService,
     private readonly capabilityRegenerationService?: BrainCapabilityRegenerationService,
     private readonly inspectionRepairPreviewService?: BrainInspectionRepairPreviewService,
+    private readonly governanceControlPlaneService?: BrainGovernanceControlPlaneService,
   ) {}
 
   @Post('conversations')
@@ -842,6 +844,156 @@ export class BrainController {
     return this.evalService?.getRun({ storeId: context.storeId, evalRunId: Number(evalRunId) }) ?? null;
   }
 
+  @Get('governance/overview')
+  @Permissions('core:brain-governance:view')
+  getGovernanceOverview() {
+    return this.governanceControlPlaneService?.getOverview() ?? { pending: {}, risk: {}, whitelist: {}, runtimePending: 0 };
+  }
+
+  @Get('governance/capability-policies')
+  @Permissions('core:brain-governance:view')
+  listCapabilityPolicies(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
+    @Query('riskLevel') riskLevel?: string,
+    @Query('mode') mode?: string,
+    @Query('whitelistStatus') whitelistStatus?: string,
+    @Query('runtimeStatus') runtimeStatus?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.governanceControlPlaneService?.listCapabilityPolicies({
+      page: Number(page),
+      pageSize: Number(pageSize),
+      search,
+      riskLevel,
+      mode,
+      whitelistStatus,
+      runtimeStatus,
+      status,
+    }) ?? { items: [], total: 0, page: 1, pageSize: 20 };
+  }
+
+  @Get('governance/capability-policies/:key')
+  @Permissions('core:brain-governance:view')
+  getCapabilityPolicy(@Param('key') key: string) {
+    if (!this.governanceControlPlaneService) throw new NotFoundException('治理控制面服务不可用');
+    return this.governanceControlPlaneService.getCapabilityPolicy(key);
+  }
+
+  @Post('governance/capability-policies/:key/classify')
+  @Permissions('core:brain-governance:manage')
+  classifyCapabilityPolicy(
+    @Req() req: Request,
+    @Param('key') key: string,
+    @Body() body: { riskLevel?: string; mode?: string; reason?: string; permissions?: string[]; owners?: Record<string, unknown> },
+  ) {
+    const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
+    if (!this.governanceControlPlaneService) throw new NotFoundException('治理控制面服务不可用');
+    return this.governanceControlPlaneService.classifyCapability({
+      capabilityKey: key,
+      riskLevel: String(body.riskLevel ?? ''),
+      mode: String(body.mode ?? ''),
+      reason: String(body.reason ?? ''),
+      permissions: body.permissions,
+      owners: body.owners,
+      actorId: context.userId,
+      actorPermissions: context.permissions.filter((permission) => !context.deniedPermissions.includes(permission)),
+    });
+  }
+
+  @Post('governance/capability-policies/:key/evaluate')
+  @Permissions('core:brain-governance:manage')
+  evaluateCapabilityPolicy(@Req() req: Request, @Param('key') key: string, @Body() body: { stage?: string }) {
+    const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
+    if (!this.governanceControlPlaneService) throw new NotFoundException('治理控制面服务不可用');
+    return this.governanceControlPlaneService.evaluateCapability({ capabilityKey: key, stage: String(body.stage ?? 'candidate'), actorId: context.userId });
+  }
+
+  @Post('governance/capability-policies/:key/approve')
+  @Permissions('core:brain-governance:approve')
+  approveCapabilityPolicy(@Req() req: Request, @Param('key') key: string, @Body() body: { decision?: string; reason?: string }) {
+    const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
+    if (!this.governanceControlPlaneService) throw new NotFoundException('治理控制面服务不可用');
+    return this.governanceControlPlaneService.approveCapability({
+      capabilityKey: key,
+      decision: String(body.decision ?? ''),
+      reason: String(body.reason ?? ''),
+      actorId: context.userId,
+    });
+  }
+
+  @Get('governance/tasks')
+  @Permissions('core:brain-governance:view')
+  listGovernanceTasks(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('status') status?: string,
+    @Query('resourceKey') resourceKey?: string,
+    @Query('taskType') taskType?: string,
+    @Query('search') search?: string,
+    @Query('riskLevel') riskLevel?: string,
+  ) {
+    return this.governanceControlPlaneService?.listTasks({ page: Number(page), pageSize: Number(pageSize), status, resourceKey, taskType, search, riskLevel })
+      ?? { items: [], total: 0, page: 1, pageSize: 20 };
+  }
+
+  @Get('governance/tasks/:id')
+  @Permissions('core:brain-governance:view')
+  getGovernanceTask(@Param('id') id: string) {
+    if (!this.governanceControlPlaneService) throw new NotFoundException('治理控制面服务不可用');
+    return this.governanceControlPlaneService.getTask(Number(id));
+  }
+
+  @Post('governance/tasks/:id/retry')
+  @Permissions('core:brain-governance:manage')
+  retryGovernanceTask(@Param('id') id: string) {
+    if (!this.governanceControlPlaneService) throw new NotFoundException('治理控制面服务不可用');
+    return this.governanceControlPlaneService.retryTask(Number(id));
+  }
+
+  @Post('governance/gate-receipts')
+  @Permissions('core:brain-governance:manage')
+  ingestGovernanceReceipt(@Req() req: Request, @Body() body: Record<string, unknown>) {
+    const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
+    if (!this.governanceControlPlaneService) throw new NotFoundException('治理控制面服务不可用');
+    return this.governanceControlPlaneService.ingestReceipt(body, context.userId);
+  }
+
+  @Get('governance/policy-snapshots')
+  @Permissions('core:brain-governance:view')
+  listPolicySnapshots(@Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('status') status?: string, @Query('search') search?: string) {
+    return this.governanceControlPlaneService?.listPolicySnapshots({ page: Number(page), pageSize: Number(pageSize), status, search })
+      ?? { items: [], total: 0, page: 1, pageSize: 20 };
+  }
+
+  @Post('governance/policy-snapshots')
+  @Permissions('core:brain-governance:manage')
+  createPolicySnapshot(@Req() req: Request, @Body() body: { releaseKey?: string; resourceVersionIds?: number[]; note?: string }) {
+    const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
+    if (!this.governanceControlPlaneService) throw new NotFoundException('治理控制面服务不可用');
+    return this.governanceControlPlaneService.createPolicySnapshot({
+      releaseKey: String(body.releaseKey ?? ''),
+      resourceVersionIds: body.resourceVersionIds,
+      note: body.note,
+      actorId: context.userId,
+    });
+  }
+
+  @Post('governance/policy-snapshots/:id/publish')
+  @Permissions('core:brain-governance:publish')
+  publishPolicySnapshot(@Param('id') id: string) {
+    if (!this.governanceControlPlaneService) throw new NotFoundException('治理控制面服务不可用');
+    return this.governanceControlPlaneService.publishPolicySnapshot(Number(id));
+  }
+
+  @Post('governance/policy-snapshots/:id/rollback')
+  @Permissions('core:brain-governance:publish')
+  rollbackPolicySnapshot(@Param('id') id: string, @Body() body: { reason?: string }) {
+    if (!this.governanceControlPlaneService) throw new NotFoundException('治理控制面服务不可用');
+    return this.governanceControlPlaneService.rollbackPolicySnapshot(Number(id), String(body.reason ?? 'manual_policy_rollback'));
+  }
+
   @Post('governance/releases')
   @Permissions('core:brain-governance:manage')
   createRelease(
@@ -921,7 +1073,7 @@ export class BrainController {
   }
 
   @Post('governance/releases/:releaseId/activate')
-  @Permissions('core:brain-governance:manage')
+  @Permissions('core:brain-governance:release')
   activateRelease(@Req() req: Request, @Param('releaseId') releaseId: string) {
     const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
     if (!this.releaseService) throw new NotFoundException('发布服务不可用');
@@ -929,7 +1081,7 @@ export class BrainController {
   }
 
   @Post('governance/releases/:releaseId/rollback')
-  @Permissions('core:brain-governance:manage')
+  @Permissions('core:brain-governance:release')
   rollbackRelease(@Param('releaseId') releaseId: string, @Body() body: { reason?: string }) {
     if (!this.releaseService) throw new NotFoundException('发布服务不可用');
     return this.releaseService.rollbackRelease({
@@ -939,7 +1091,7 @@ export class BrainController {
   }
 
   @Post('governance/releases/:releaseId/rollback-to-rules')
-  @Permissions('core:brain-governance:manage')
+  @Permissions('core:brain-governance:release')
   rollbackReleaseToRules(@Param('releaseId') releaseId: string, @Body() body: { reason?: string }) {
     if (!this.releaseService) throw new NotFoundException('发布服务不可用');
     return this.releaseService.rollbackToRules({
@@ -949,7 +1101,7 @@ export class BrainController {
   }
 
   @Post('governance/releases/:releaseId/rollback-to-baseline')
-  @Permissions('core:brain-governance:manage')
+  @Permissions('core:brain-governance:release')
   rollbackReleaseToBaseline(@Param('releaseId') releaseId: string, @Body() body: { reason?: string }) {
     if (!this.releaseService) throw new NotFoundException('发布服务不可用');
     return this.releaseService.rollbackToProductionBaseline({
@@ -959,7 +1111,7 @@ export class BrainController {
   }
 
   @Post('governance/releases/:releaseId/reject')
-  @Permissions('core:brain-governance:manage')
+  @Permissions('core:brain-governance:release')
   rejectRelease(@Param('releaseId') releaseId: string, @Body() body: { reason?: string }) {
     if (!this.releaseService) throw new NotFoundException('发布服务不可用');
     return this.releaseService.rejectRelease({

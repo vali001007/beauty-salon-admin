@@ -451,6 +451,22 @@ describe('BrainGroundedAnswerComposerService', () => {
     ).toThrow('brain_response_answer_contract_mismatch:scalar:kpi');
   });
 
+  it('accepts an explicit no-data limitation for a governed scalar response', () => {
+    const guard = new BrainAnswerCompletionGuardService();
+    expect(() =>
+      guard.assertMatchesIntent(
+        { intent: 'query', answerShape: 'scalar' },
+        {
+          answer: '当前时间范围没有可计算的已完成记录。',
+          citations: [],
+          suggestedActions: [],
+          completion: { status: 'complete', missingCriteria: [] },
+          blocks: [{ kind: 'limitations', items: ['no_data:completed_record_not_found'] }],
+        },
+      ),
+    ).not.toThrow();
+  });
+
   it('accepts a grounded draft text response', () => {
     const guard = new BrainAnswerCompletionGuardService();
     expect(() =>

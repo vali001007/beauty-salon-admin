@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "sensitivePrefixes": [
+    "packages/server-v2/src/brain/",
+    "packages/server-v2/prisma/",
+    "packages/server-v2/scripts/ami-brain-",
+    "src/app/pages/brain/",
+    "src/api/real/brain.ts",
+    "src/api/brain.ts",
+    "src/types/brain.ts",
+    "src/config/permissions.ts",
+    "packages/server-v2/src/permissions/permission-catalog.ts",
+    ".github/workflows/"
+  ],
+  "rules": [
+    {
+      "id": "brain-runtime",
+      "patterns": ["packages/server-v2/src/brain/**"],
+      "riskLevel": "medium",
+      "capabilities": ["brain_runtime"],
+      "contracts": ["brain_unit", "brain_catalog"],
+      "gates": {
+        "dev": ["brain_unit"],
+        "candidate": ["backend_build", "brain_contract"],
+        "release": ["release_acceptance"],
+        "observe": ["full_domain_observe"]
+      }
+    },
+    {
+      "id": "brain-actions",
+      "patterns": [
+        "packages/server-v2/src/brain/action/**",
+        "packages/server-v2/src/brain/capability/executors/**",
+        "packages/server-v2/prisma/ami-brain-*-action-acceptance.ts"
+      ],
+      "riskLevel": "high",
+      "capabilities": ["brain_actions"],
+      "contracts": ["action_contract", "mutation_receipt"],
+      "gates": {
+        "dev": ["brain_unit", "action_contract"],
+        "candidate": ["backend_build", "brain_contract", "action_contract"],
+        "release": ["release_acceptance", "action_contract"],
+        "observe": ["full_domain_observe"]
+      }
+    },
+    {
+      "id": "brain-governance-api",
+      "patterns": [
+        "packages/server-v2/src/brain/brain.controller.ts",
+        "packages/server-v2/src/brain/brain.module.ts",
+        "packages/server-v2/src/brain/governance/**",
+        "packages/server-v2/src/brain/dto/**"
+      ],
+      "riskLevel": "high",
+      "capabilities": ["brain_governance"],
+      "contracts": ["governance_api", "release_scope"],
+      "gates": {
+        "dev": ["governance_unit"],
+        "candidate": ["backend_build", "brain_contract"],
+        "release": ["release_acceptance"],
+        "observe": ["full_domain_observe"]
+      }
+    },
+    {
+      "id": "brain-admin-ui",
+      "patterns": [
+        "src/app/pages/brain/**",
+        "src/api/real/brain.ts",
+        "src/api/brain.ts",
+        "src/types/brain.ts",
+        "src/app/routes.tsx",
+        "src/app/components/Layout.tsx"
+      ],
+      "riskLevel": "medium",
+      "capabilities": ["brain_governance_ui"],
+      "contracts": ["brain_admin_types", "brain_admin_routes"],
+      "gates": {
+        "dev": ["frontend_brain_unit"],
+        "candidate": ["frontend_typecheck", "frontend_brain_unit", "cross_client_contract"],
+        "release": ["cross_client_contract"],
+        "observe": []
+      }
+    },
+    {
+      "id": "brain-permissions",
+      "patterns": [
+        "src/config/permissions.ts",
+        "src/test/permissions.test.ts",
+        "packages/server-v2/src/permissions/permission-catalog.ts",
+        "packages/server-v2/src/common/guards/**"
+      ],
+      "riskLevel": "critical",
+      "capabilities": ["brain_permissions"],
+      "contracts": ["permission_registry", "permission_guard"],
+      "gates": {
+        "dev": ["permission_unit"],
+        "candidate": ["backend_build", "frontend_typecheck", "permission_unit", "brain_contract"],
+        "release": ["release_acceptance"],
+        "observe": []
+      }
+    },
+    {
+      "id": "brain-migration",
+      "patterns": [
+        "packages/server-v2/prisma/schema.prisma",
+        "packages/server-v2/prisma/migrations/**",
+        "packages/server-v2/src/brain/governance/brain-pending-migration-preflight*"
+      ],
+      "riskLevel": "critical",
+      "capabilities": ["brain_storage"],
+      "contracts": ["prisma_schema", "migration_preflight"],
+      "gates": {
+        "dev": ["prisma_validate", "governance_unit"],
+        "candidate": ["prisma_validate", "backend_build", "migration_contract"],
+        "release": ["migration_contract", "release_acceptance"],
+        "observe": []
+      }
+    },
+    {
+      "id": "brain-evaluation",
+      "patterns": [
+        "packages/server-v2/src/brain/eval/**",
+        "packages/server-v2/scripts/ami-brain-*-acceptance*",
+        "packages/server-v2/scripts/ami-brain-*-governance*",
+        "packages/server-v2/prisma/ami-brain-*eval*"
+      ],
+      "riskLevel": "medium",
+      "capabilities": ["brain_evaluation"],
+      "contracts": ["question_registry", "gold_standard"],
+      "gates": {
+        "dev": ["brain_contract"],
+        "candidate": ["brain_contract"],
+        "release": ["release_acceptance"],
+        "observe": ["full_domain_observe"]
+      }
+    },
+    {
+      "id": "brain-ci",
+      "patterns": [
+        ".github/workflows/**",
+        "packages/server-v2/package.json",
+        "package.json",
+        "packages/server-v2/scripts/ami-brain-check*"
+      ],
+      "riskLevel": "medium",
+      "capabilities": ["brain_delivery"],
+      "contracts": ["gate_orchestration"],
+      "gates": {
+        "dev": ["brain_check_unit"],
+        "candidate": ["brain_check_unit", "brain_contract"],
+        "release": ["release_acceptance"],
+        "observe": []
+      }
+    }
+  ]
+}

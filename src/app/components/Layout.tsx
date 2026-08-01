@@ -35,7 +35,12 @@ type MenuItem = {
   children: MenuChild[];
 };
 
-const BRAIN_GOVERNANCE_ICONS: Record<(typeof BRAIN_GOVERNANCE_SECTIONS)[number]['key'], LucideIcon> = {
+const BRAIN_GOVERNANCE_ICONS: Record<string, LucideIcon> = {
+  overview: LayoutGrid,
+  capabilities: Sparkles,
+  tasks: ClipboardList,
+  'policy-snapshots': ShieldCheck,
+  'runtime-releases': Zap,
   planning: BrainCircuit,
   semantic: Database,
   roles: Users,

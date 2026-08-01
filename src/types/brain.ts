@@ -793,6 +793,118 @@ export interface BrainGovernanceRelease {
   rolledBackAt?: string | null;
 }
 
+export type BrainGovernanceRiskLevel = 'low' | 'medium' | 'high' | 'critical' | 'unclassified';
+export type BrainGovernanceMode = 'readonly' | 'preview' | 'advisory' | 'alert';
+export type BrainWhitelistStatus = 'not_allowed' | 'pending' | 'approved' | 'suspended' | 'expired';
+export type BrainRuntimeEnforcementStatus = 'pending_runtime' | 'shadow' | 'enforced';
+export type BrainGovernanceTaskStatus =
+  | 'pending'
+  | 'validating'
+  | 'classifying'
+  | 'evaluating'
+  | 'pending_approval'
+  | 'revision_required'
+  | 'approved'
+  | 'rejected'
+  | 'failed'
+  | 'cancelled';
+
+export interface BrainCapabilityPolicy {
+  schemaVersion: 1;
+  capabilityKey: string;
+  riskLevel: BrainGovernanceRiskLevel;
+  mode: BrainGovernanceMode;
+  whitelistStatus: BrainWhitelistStatus;
+  runtimeEnforcementStatus: BrainRuntimeEnforcementStatus;
+  permissions: string[];
+  owners: Record<string, unknown>;
+  evidence: Array<Record<string, unknown>>;
+  impact: Record<string, unknown>;
+  reason: string;
+  updatedAt: string;
+}
+
+export interface BrainCapabilityPolicyVersion {
+  id: number;
+  resourceKey: string;
+  version: number;
+  status: string;
+  createdBy: number;
+  createdAt: string;
+  activatedAt?: string | null;
+  policy: BrainCapabilityPolicy;
+}
+
+export interface BrainCapabilityPolicyListResponse {
+  items: BrainCapabilityPolicyVersion[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface BrainCapabilityPolicyDetailResponse {
+  current: BrainCapabilityPolicyVersion;
+  history: BrainCapabilityPolicyVersion[];
+  evidence: Array<Record<string, unknown>>;
+}
+
+export interface BrainGovernanceTask {
+  id: number;
+  idempotencyKey: string;
+  taskType: string;
+  stage: string;
+  resourceType?: string | null;
+  resourceKey?: string | null;
+  riskLevel: BrainGovernanceRiskLevel | string;
+  status: BrainGovernanceTaskStatus;
+  payload: Record<string, unknown>;
+  result?: Record<string, unknown> | null;
+  transitionLog: Array<Record<string, unknown>>;
+  attemptCount: number;
+  maxAttempts: number;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BrainGovernanceTaskListResponse {
+  items: BrainGovernanceTask[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface BrainGovernanceOverview {
+  pending: { unclassified: number; evaluating: number; pendingApproval: number; revisionRequired: number };
+  risk: Record<BrainGovernanceRiskLevel, number>;
+  whitelist: Record<BrainWhitelistStatus, number>;
+  runtimePending: number;
+  latestPolicySnapshot: (BrainGovernanceRelease & { itemCount?: number }) | null;
+  runtimeRelease: BrainGovernanceRelease | null;
+  runtimeConsistency: 'aligned' | 'policy_published_runtime_pending' | 'drift';
+  runtimeGovernance: {
+    policyReleaseId: number;
+    mode: 'shadow' | 'enforced';
+    aligned: boolean;
+  } | null;
+  efficiency: {
+    completed7d: number;
+    p50DurationMs: number | null;
+    p95DurationMs: number | null;
+    autoAdmissionRate: number | null;
+    manualOverrideRate: number | null;
+  };
+}
+
+export interface BrainPolicySnapshotListResponse {
+  items: BrainGovernanceRelease[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface BrainGovernanceTraceStep {
   id: number;
   runId: number;

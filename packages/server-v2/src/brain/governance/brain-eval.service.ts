@@ -513,7 +513,7 @@ export class BrainEvalService {
           && citations.length === 0
           && answer.trim().length > 0
           && !errorMessage;
-        const providerUnavailable = isBrainProviderUnavailableOutput(runtimeResponse);
+        const providerUnavailable = await this.isProviderUnavailable(runtimeResponse);
         const passed = providerUnavailable ? false : evalCase.securityExpectation
           ? this.securityExpectationPassed({
               expectation: evalCase.securityExpectation,
@@ -936,6 +936,25 @@ export class BrainEvalService {
 
   private record(value: unknown): Record<string, unknown> {
     return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+  }
+
+  private async isProviderUnavailable(runtimeResponse: Record<string, unknown>) {
+    if (isBrainProviderUnavailableOutput(runtimeResponse)) return true;
+    if (runtimeResponse.failureCode !== 'CAPABILITY_EXECUTION_FAILED') return false;
+    const runId = Number(runtimeResponse.runId);
+    if (!Number.isInteger(runId) || runId <= 0) return false;
+    const findFirst = this.prisma.brainRunStep?.findFirst;
+    if (typeof findFirst !== 'function') return false;
+    const failedStep = await findFirst.call(this.prisma.brainRunStep, {
+      where: { runId, status: 'failed' },
+      select: { output: true },
+      orderBy: { id: 'desc' },
+    });
+    const diagnosticCode = this.record(failedStep?.output).diagnosticCode;
+    return isBrainProviderUnavailableOutput({
+      failureCode: runtimeResponse.failureCode,
+      diagnosticCode,
+    });
   }
 
   private stringArray(value: unknown): string[] {

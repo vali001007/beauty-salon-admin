@@ -63,9 +63,13 @@ export class BrainSingleStepPlannerService {
       filters: input.intent.filters,
       orderBy: input.intent.orderBy,
       ...(input.intent.limit === undefined ? {} : { limit: input.intent.limit }),
-      ...(input.intent.actionRef ? { actionRef: input.intent.actionRef } : {}),
-      ...(input.intent.actionModality ? { actionModality: input.intent.actionModality } : {}),
-      ...(input.intent.actionSlots ? { actionSlots: input.intent.actionSlots } : {}),
+      ...(input.intent.actionRef
+        ? {
+            actionRef: input.intent.actionRef,
+            ...(input.intent.actionModality ? { actionModality: input.intent.actionModality } : {}),
+            ...(input.intent.actionSlots ? { actionSlots: input.intent.actionSlots } : {}),
+          }
+        : {}),
     };
     return {
       status: 'planned',

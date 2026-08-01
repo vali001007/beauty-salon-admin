@@ -4994,6 +4994,57 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     expect(result.metadata).toMatchObject({ structuredResult: true });
   });
 
+  it('returns a cited table for VIP and dormant customer counts', async () => {
+    const customerFacts = {
+      getStructuredMarketingSegment: jest.fn().mockResolvedValue({
+        answer: 'VIP/高等级客户 2 人；近 60 天未到店或无到店记录客户 5 人。',
+        rows: [
+          { segment: 'VIP/高等级客户', customerCount: 2 },
+          { segment: '近60天未到店或无到店记录', customerCount: 5 },
+        ],
+        columns: ['segment', 'customerCount'],
+      }),
+      answerCustomerFactQuestion: jest.fn(),
+      summarizeCustomerSegments: jest.fn(),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      customerFacts as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'marketing_customer_segment', name: '营销客户分群摘要' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['marketing'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'marketing-segment-count-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 16,
+      question: 'VIP 和沉睡客户分别有多少人',
+      args: { objective: '统计客户分群', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'table',
+          rows: [
+            expect.objectContaining({ segment: 'VIP/高等级客户', customerCount: 2 }),
+            expect.objectContaining({ segment: '近60天未到店或无到店记录', customerCount: 5 }),
+          ],
+          citationIds: ['capability_marketing_customer_segment'],
+        }),
+      ]),
+    );
+    expect(customerFacts.answerCustomerFactQuestion).not.toHaveBeenCalled();
+  });
+
   it('answers reception capacity from overruns, pending arrivals and available staff', async () => {
     const skillRuntime = {
       buildReceptionOperationsSnapshot: jest.fn().mockResolvedValue({

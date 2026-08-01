@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, randomInt } from 'node:crypto';
 import {
   cpSync,
   existsSync,
@@ -21,9 +21,7 @@ const packageRoot = resolve(import.meta.dirname, '..');
 const prismaRoot = join(packageRoot, 'prisma');
 const migrationsRoot = join(prismaRoot, 'migrations');
 const schemaPath = join(prismaRoot, 'schema.prisma');
-const defaultContainer = 'ami-brain-migration-r231';
-const defaultPort = 55435;
-const defaultBaselineCount = 95;
+const defaultBaselineMigration = '20260718234500_supply_platform_idempotency';
 const postgresUser = 'ami_migration';
 const postgresPassword = 'ami_migration_test_only';
 const emptyDatabase = 'ami_migration_empty';
@@ -117,9 +115,9 @@ function runPrisma(args, databaseUrl, schema = schemaPath, timeout = 240000) {
 }
 
 function validateOptions() {
-  const container = argValue('container') ?? defaultContainer;
-  const port = Number(argValue('port') ?? defaultPort);
-  const baselineCount = Number(argValue('baseline-count') ?? defaultBaselineCount);
+  const container = argValue('container') ?? `ami-brain-migration-${Date.now().toString(36)}-${randomInt(1000, 9999)}`;
+  const port = Number(argValue('port') ?? randomInt(40000, 49999));
+  const baselineMigration = argValue('baseline-migration') ?? defaultBaselineMigration;
   if (!/^ami-brain-migration-[a-z0-9-]+$/.test(container)) {
     throw new Error(
       'Container name must start with ami-brain-migration- and contain lowercase letters, digits or hyphens.',
@@ -127,9 +125,10 @@ function validateOptions() {
   }
   if (!Number.isInteger(port) || port < 1024 || port > 65535)
     throw new Error('Port must be an integer from 1024 to 65535.');
-  if (!Number.isInteger(baselineCount) || baselineCount < 1)
-    throw new Error('baseline-count must be a positive integer.');
-  return { container, port, baselineCount };
+  if (!/^\d{14}_[a-z0-9_]+$/.test(baselineMigration)) {
+    throw new Error('baseline-migration must be a Prisma migration directory name.');
+  }
+  return { container, port, baselineMigration };
 }
 
 function databaseUrl(port, database) {
@@ -161,16 +160,16 @@ function createDatabase(container, database) {
   runDocker(['exec', container, 'createdb', '-U', postgresUser, database]);
 }
 
-function createBaselinePrismaDirectory(inventory, baselineCount) {
-  if (baselineCount >= inventory.count) {
-    throw new Error(`baseline-count ${baselineCount} must be less than current migration count ${inventory.count}.`);
-  }
+function createBaselinePrismaDirectory(inventory, baselineMigration) {
+  const baselineIndex = inventory.migrations.findIndex((migration) => migration.name === baselineMigration);
+  if (baselineIndex < 0) throw new Error(`Baseline migration is not in inventory: ${baselineMigration}`);
+  if (baselineIndex >= inventory.count - 1) throw new Error(`Baseline migration must precede the latest migration: ${baselineMigration}`);
   const root = mkdtempSync(join(tmpdir(), 'ami-brain-migration-baseline-'));
   const baselinePrismaRoot = join(root, 'prisma');
   const baselineMigrationsRoot = join(baselinePrismaRoot, 'migrations');
   mkdirSync(baselineMigrationsRoot, { recursive: true });
   cpSync(schemaPath, join(baselinePrismaRoot, 'schema.prisma'));
-  for (const migration of inventory.migrations.slice(0, baselineCount)) {
+  for (const migration of inventory.migrations.slice(0, baselineIndex + 1)) {
     cpSync(join(migrationsRoot, migration.name), join(baselineMigrationsRoot, migration.name), { recursive: true });
   }
   return { root, schemaPath: join(baselinePrismaRoot, 'schema.prisma') };
@@ -191,11 +190,6 @@ async function seedIncrementalBaseline(connectionString) {
     await client.query(`
       INSERT INTO "Store" ("id", "name", "status", "createdAt", "updatedAt")
       VALUES (900001, 'Migration Acceptance Store', 'active', NOW(), NOW());
-
-      INSERT INTO "Role" ("key", "name", "permissions", "status", "createdAt", "updatedAt")
-      VALUES
-        ('store_manager', 'Store Manager', ARRAY['core:brain:use', 'existing:store-manager']::text[], 'active', NOW(), NOW()),
-        ('beautician', 'Beautician', ARRAY['existing:beautician']::text[], 'active', NOW(), NOW());
 
       INSERT INTO "Customer" ("id", "storeId", "name", "tags", "createdAt", "updatedAt")
       VALUES (900001, 900001, 'Baseline Customer', ARRAY['baseline']::text[], NOW(), NOW());
@@ -246,11 +240,6 @@ async function seedIncrementalBaseline(connectionString) {
         900001, 'SPO-BASELINE-900001', 900001, 900001, 'pending_supplier_confirm', 200, 'manual', NOW(), NOW()
       );
 
-      INSERT INTO "brain_store_operating_target" (
-        "id", "storeId", "periodType", "periodStart", "periodEnd", "revenueTarget", "status", "createdAt", "updatedAt"
-      ) VALUES (
-        900001, 900001, 'month', TIMESTAMP '2026-07-01 00:00:00', TIMESTAMP '2026-08-01 00:00:00', 123456.78, 'active', NOW(), NOW()
-      );
     `);
   });
 }
@@ -284,24 +273,16 @@ async function migrationHistory(connectionString, inventory) {
 async function structuralEvidence(connectionString) {
   return withClient(connectionString, async (client) => {
     const requiredTables = [
-      'brain_conversation',
-      'brain_message',
-      'brain_run',
+      'ask_data_free_sql_runs',
       'brain_action_execution',
-      'brain_ontology_entity',
+      'brain_action_confirmation',
+      'brain_gate_receipt',
+      'brain_governance_task',
       'business_definition',
-      'business_semantic_evidence',
-      'brain_capability_regeneration_job',
-      'store_metric_target',
-      'store_metric_snapshot',
-      'customer_service_feedback',
-      'customer_waiting_episode',
-      'CardUsageRecord',
+      'business_database_write_set',
+      'business_database_write_set_entry',
+      'business_mutation_receipt',
       'PurchaseOrder',
-      'Reservation',
-      'TerminalFollowUpTask',
-      'ProcurementOrder',
-      'ProcurementReceipt',
     ];
     const tables = await client.query(
       `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY($1::text[])`,
@@ -309,24 +290,23 @@ async function structuralEvidence(connectionString) {
     );
     const foundTables = new Set(tables.rows.map((row) => row.table_name));
     const requiredColumns = [
-      ['CardUsageRecord', 'idempotencyKey'],
-      ['PurchaseOrder', 'idempotencyKey'],
-      ['PurchaseOrder', 'creationFingerprint'],
-      ['Reservation', 'idempotencyKey'],
-      ['Reservation', 'creationFingerprint'],
-      ['Reservation', 'bookingSource'],
-      ['TerminalFollowUpTask', 'idempotencyKey'],
-      ['TerminalFollowUpTask', 'creationFingerprint'],
-      ['ProcurementOrder', 'idempotencyKey'],
-      ['ProcurementOrder', 'creationFingerprint'],
-      ['ProcurementOrder', 'batchIdempotencyKey'],
-      ['ProcurementOrder', 'batchCreationFingerprint'],
-      ['ProcurementReceipt', 'idempotencyKey'],
-      ['ProcurementReceipt', 'creationFingerprint'],
-      ['ProcurementReceipt', 'items'],
-      ['store_metric_target', 'definitionVersion'],
-      ['customer_service_feedback', 'rating'],
-      ['customer_waiting_episode', 'outcome'],
+      ['PurchaseOrder', 'storeId'],
+      ['brain_action_confirmation', 'actionDefinitionKey'],
+      ['brain_action_confirmation', 'boundCapabilityKey'],
+      ['brain_action_confirmation', 'situationContextFingerprint'],
+      ['brain_action_confirmation', 'informationArtifactFingerprints'],
+      ['brain_action_confirmation', 'sideEffectInvariantProfileFingerprint'],
+      ['brain_action_confirmation', 'institutionalEffectProfileFingerprint'],
+      ['brain_action_execution', 'actionDefinitionKey'],
+      ['brain_action_execution', 'boundCapabilityKey'],
+      ['brain_action_execution', 'situationContextFingerprint'],
+      ['brain_action_execution', 'informationArtifactFingerprints'],
+      ['brain_action_execution', 'sideEffectInvariantProfileFingerprint'],
+      ['brain_action_execution', 'institutionalEffectProfileFingerprint'],
+      ['business_database_write_set_entry', 'afterStateFingerprint'],
+      ['brain_governance_task', 'transitionLog'],
+      ['brain_gate_receipt', 'resultChecksum'],
+      ['ask_data_free_sql_runs', 'safeSqlHash'],
     ];
     const columns = await client.query(`
       SELECT table_name, column_name
@@ -334,252 +314,265 @@ async function structuralEvidence(connectionString) {
       WHERE table_schema = 'public'
     `);
     const columnSet = new Set(columns.rows.map((row) => `${row.table_name}.${row.column_name}`));
-    const indexes = await client.query(`
-      SELECT indexname FROM pg_indexes
-      WHERE schemaname = 'public'
-        AND indexname IN ('CardUsageRecord_idempotencyKey_key', 'PurchaseOrder_idempotencyKey_key', 'Reservation_idempotencyKey_key', 'TerminalFollowUpTask_idempotencyKey_key', 'ProcurementOrder_idempotencyKey_key', 'ProcurementOrder_batchIdempotencyKey_idx', 'ProcurementReceipt_idempotencyKey_key')
-    `);
+    const requiredIndexes = [
+      'PurchaseOrder_storeId_createdAt_idx',
+      'PurchaseOrder_storeId_status_idx',
+      'brain_action_confirmation_actionDefinitionKey_actionDefinitionVersion_idx',
+      'brain_action_execution_actionDefinitionKey_actionDefinitionVersion_idx',
+      'business_mutation_receipt_receiptFingerprint_key',
+      'business_mutation_receipt_storeId_capabilityKey_idempotencyKey_key',
+      'business_database_write_set_storeId_capabilityKey_idempotencyKey_key',
+      'business_database_write_set_entry_writeSetId_id_idx',
+      'brain_governance_task_idempotencyKey_key',
+      'brain_gate_receipt_receiptKey_key',
+      'ask_data_free_sql_runs_storeId_createdAt_idx',
+    ];
+    const indexes = await client.query(
+      `SELECT indexname FROM pg_indexes WHERE schemaname = 'public'`,
+    );
     const indexSet = new Set(indexes.rows.map((row) => row.indexname));
+    const indexPresent = (expectedName) =>
+      indexSet.has(expectedName) ||
+      [...indexSet].some((actualName) => actualName.length === 63 && expectedName.startsWith(actualName));
+    const requiredFunctions = [
+      'ami_business_write_set_capture_row()',
+      'ami_pgcrypto_digest(text,text)',
+      'ami_refresh_business_write_set_triggers()',
+      'business_definition_canonical_jsonb(jsonb)',
+      'business_definition_capability_bindings(text,jsonb)',
+      'validate_business_definition_projection_lineage()',
+    ];
+    const functions = await client.query(
+      `SELECT function_name, to_regprocedure(function_name) IS NOT NULL AS present FROM unnest($1::text[]) AS function_name`,
+      [requiredFunctions],
+    );
+    const purchaseOrderStoreColumn = await client.query(`
+      SELECT is_nullable
+      FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'PurchaseOrder' AND column_name = 'storeId'
+    `);
+    const purchaseOrderForeignKey = await client.query(`
+      SELECT COUNT(*)::int AS count
+      FROM information_schema.table_constraints
+      WHERE table_schema = 'public'
+        AND table_name = 'PurchaseOrder'
+        AND constraint_name = 'PurchaseOrder_storeId_fkey'
+        AND constraint_type = 'FOREIGN KEY'
+    `);
+    const writeSetTrigger = await client.query(`
+      SELECT COUNT(*)::int AS count
+      FROM pg_trigger trigger_record
+      JOIN pg_class table_record ON table_record.oid = trigger_record.tgrelid
+      JOIN pg_namespace schema_record ON schema_record.oid = table_record.relnamespace
+      WHERE schema_record.nspname = 'public'
+        AND table_record.relname = 'PurchaseOrder'
+        AND trigger_record.tgname = 'ami_business_write_set_capture_row'
+        AND NOT trigger_record.tgisinternal
+    `);
+    const actionEnum = await client.query(`
+      SELECT COUNT(*)::int AS count
+      FROM pg_enum enum_record
+      JOIN pg_type type_record ON type_record.oid = enum_record.enumtypid
+      WHERE type_record.typname = 'BusinessDefinitionKind' AND enum_record.enumlabel = 'action'
+    `);
     return {
       missingTables: requiredTables.filter((name) => !foundTables.has(name)),
       missingColumns: requiredColumns
         .map(([table, column]) => `${table}.${column}`)
         .filter((name) => !columnSet.has(name)),
-      missingIndexes: [
-        'CardUsageRecord_idempotencyKey_key',
-        'PurchaseOrder_idempotencyKey_key',
-        'Reservation_idempotencyKey_key',
-        'TerminalFollowUpTask_idempotencyKey_key',
-        'ProcurementOrder_idempotencyKey_key',
-        'ProcurementOrder_batchIdempotencyKey_idx',
-        'ProcurementReceipt_idempotencyKey_key',
-      ].filter((name) => !indexSet.has(name)),
+      missingIndexes: requiredIndexes.filter((name) => !indexPresent(name)),
+      missingFunctions: functions.rows.filter((row) => !row.present).map((row) => row.function_name),
+      purchaseOrderStoreNotNull: purchaseOrderStoreColumn.rows[0]?.is_nullable === 'NO',
+      purchaseOrderStoreForeignKey: purchaseOrderForeignKey.rows[0]?.count === 1,
+      purchaseOrderWriteSetTrigger: writeSetTrigger.rows[0]?.count === 1,
+      actionDefinitionKindAvailable: actionEnum.rows[0]?.count === 1,
     };
   });
 }
 
-async function expectConstraintViolation(client, sql, expectedConstraint) {
-  try {
-    await client.query(sql);
-  } catch (error) {
-    if (error?.constraint === expectedConstraint || String(error?.message ?? '').includes(expectedConstraint))
-      return true;
-    throw error;
-  }
-  return false;
-}
-
 async function incrementalDataEvidence(connectionString) {
   return withClient(connectionString, async (client) => {
-    const roles = await client.query(
-      `SELECT "key", "permissions" FROM "Role" WHERE "key" IN ('store_manager', 'beautician') ORDER BY "key"`,
-    );
-    const metric = await client.query(`
-      SELECT "metricKey", "periodType", "targetValue"::text AS "targetValue"
-      FROM "store_metric_target"
-      WHERE "storeId" = 900001
+    const historicalRows = await client.query(`
+      SELECT
+        (SELECT COUNT(*)::int FROM "Reservation" WHERE "id" = 900001) AS "reservationCount",
+        (SELECT COUNT(*)::int FROM "CardUsageRecord" WHERE "id" = 900001) AS "cardUsageCount",
+        (SELECT COUNT(*)::int FROM "TerminalFollowUpTask" WHERE "id" = 900001) AS "followUpTaskCount",
+        (SELECT COUNT(*)::int FROM "ProcurementOrder" WHERE "id" = 900001) AS "procurementOrderCount",
+        (SELECT COUNT(*)::int FROM "PurchaseOrder" WHERE "id" = 900001) AS "purchaseOrderCount",
+        (SELECT "storeId" FROM "PurchaseOrder" WHERE "id" = 900001) AS "purchaseOrderStoreId",
+        (SELECT "status" FROM "PurchaseOrder" WHERE "id" = 900001) AS "purchaseOrderStatus"
     `);
-    const reservation = await client.query(`
-      SELECT COUNT(*)::int AS count,
-             COUNT("idempotencyKey")::int AS "idempotencyPopulated",
-             COUNT("creationFingerprint")::int AS "fingerprintPopulated",
-             MIN("bookingSource") AS "bookingSource"
-      FROM "Reservation"
-      WHERE "id" = 900001
-    `);
-    const cardUsage = await client.query(`
-      SELECT COUNT(*)::int AS count, COUNT("idempotencyKey")::int AS "idempotencyPopulated"
-      FROM "CardUsageRecord"
-      WHERE "id" = 900001
-    `);
-    const purchaseOrder = await client.query(`
-      SELECT COUNT(*)::int AS count,
-             COUNT("idempotencyKey")::int AS "idempotencyPopulated",
-             COUNT("creationFingerprint")::int AS "fingerprintPopulated",
-             MIN("status") AS status
-      FROM "PurchaseOrder"
-      WHERE "id" = 900001
-    `);
-    const followUpTask = await client.query(`
-      SELECT COUNT(*)::int AS count,
-             COUNT("idempotencyKey")::int AS "idempotencyPopulated",
-             COUNT("creationFingerprint")::int AS "fingerprintPopulated",
-             MIN("status") AS status
-      FROM "TerminalFollowUpTask"
-      WHERE "id" = 900001
-    `);
-    const procurementOrder = await client.query(`
-      SELECT COUNT(*)::int AS count,
-             COUNT("idempotencyKey")::int AS "idempotencyPopulated",
-             COUNT("creationFingerprint")::int AS "fingerprintPopulated",
-             COUNT("batchIdempotencyKey")::int AS "batchKeyPopulated",
-             MIN("status") AS status
-      FROM "ProcurementOrder"
-      WHERE "id" = 900001
+    const functionContracts = await client.query(`
+      SELECT
+        business_definition_canonical_jsonb('{"b":2,"A":1}'::jsonb) AS "canonicalJson",
+        business_definition_capability_bindings(
+          'action',
+          '{"bindings":{"capability":["legacy_action"]},"capabilityBindings":[{"capabilityKey":"purchase_order_draft","enabled":true},{"capabilityKey":"disabled_action","enabled":false}]}'::jsonb
+        )::text AS "capabilityBindings",
+        position(
+          'parent_kind IN (''entity'', ''relation'', ''dimension'', ''action'')'
+          IN pg_get_functiondef('validate_business_definition_projection_lineage()'::regprocedure)
+        ) > 0 AS "actionLineageEnabled"
     `);
 
-    await client.query(`
-      INSERT INTO "customer_service_feedback" ("storeId", "feedbackType", "rating", "content")
-      VALUES (900001, 'satisfaction', 5, 'migration acceptance');
-      INSERT INTO "customer_waiting_episode" ("storeId", "status", "expectedWaitMinutes")
-      VALUES (900001, 'waiting', 10);
-    `);
-    const feedbackCount = await client.query(
-      `SELECT COUNT(*)::int AS count FROM "customer_service_feedback" WHERE "storeId" = 900001`,
-    );
-    const waitingCount = await client.query(
-      `SELECT COUNT(*)::int AS count FROM "customer_waiting_episode" WHERE "storeId" = 900001`,
-    );
-    const feedbackConstraintRejected = await expectConstraintViolation(
-      client,
-      `INSERT INTO "customer_service_feedback" ("storeId", "feedbackType", "rating") VALUES (900001, 'satisfaction', 6)`,
-      'customer_service_feedback_rating_check',
-    );
-    const waitingConstraintRejected = await expectConstraintViolation(
-      client,
-      `INSERT INTO "customer_waiting_episode" ("storeId", "status", "outcome") VALUES (900001, 'waiting', 'served')`,
-      'customer_waiting_episode_end_check',
-    );
-
+    const writeSetId = '00000000-0000-4000-8000-000000000001';
+    let writeSetCapture;
     await client.query('BEGIN');
-    let reservationUniqueRejected = false;
-    try {
-      await client.query(`UPDATE "Reservation" SET "idempotencyKey" = 'reservation-r231-key' WHERE "id" = 900001`);
-      await client.query(`
-        INSERT INTO "Reservation" (
-          "storeId", "customerId", "projectId", "date", "startTime", "status", "idempotencyKey", "creationFingerprint", "createdAt", "updatedAt"
-        ) VALUES (
-          900001, 900001, 900001, TIMESTAMP '2026-07-19 00:00:00', '12:00', 'pending', 'reservation-r231-key', repeat('a', 64), NOW(), NOW()
-        )
-      `);
-    } catch (error) {
-      reservationUniqueRejected = error?.constraint === 'Reservation_idempotencyKey_key';
-    } finally {
-      await client.query('ROLLBACK');
-    }
-
-    await client.query('BEGIN');
-    let cardUsageUniqueRejected = false;
-    try {
-      await client.query(`UPDATE "CardUsageRecord" SET "idempotencyKey" = 'card-r231-key' WHERE "id" = 900001`);
-      await client.query(`
-        INSERT INTO "CardUsageRecord" (
-          "customerId", "customerName", "cardName", "projectName", "times", "remainingTimes", "idempotencyKey", "verifiedAt"
-        ) VALUES (
-          900001, 'Baseline Customer', 'Baseline Card', 'Baseline Project', 1, 8, 'card-r231-key', NOW()
-        )
-      `);
-    } catch (error) {
-      cardUsageUniqueRejected = error?.constraint === 'CardUsageRecord_idempotencyKey_key';
-    } finally {
-      await client.query('ROLLBACK');
-    }
-
-    await client.query('BEGIN');
-    let purchaseOrderUniqueRejected = false;
-    try {
-      await client.query(`UPDATE "PurchaseOrder" SET "idempotencyKey" = 'purchase-r232-key' WHERE "id" = 900001`);
-      await client.query(`
-        INSERT INTO "PurchaseOrder" (
-          "orderNo", "supplier", "totalAmount", "status", "items", "idempotencyKey", "creationFingerprint", "createdAt", "updatedAt"
-        ) VALUES (
-          'PUR-DUPLICATE-R232', 'Baseline Supplier', 200, '草稿', '{}'::jsonb, 'purchase-r232-key', repeat('a', 64), NOW(), NOW()
-        )
-      `);
-    } catch (error) {
-      purchaseOrderUniqueRejected = error?.constraint === 'PurchaseOrder_idempotencyKey_key';
-    } finally {
-      await client.query('ROLLBACK');
-    }
-
-    await client.query('BEGIN');
-    let followUpTaskUniqueRejected = false;
     try {
       await client.query(
-        `UPDATE "TerminalFollowUpTask" SET "idempotencyKey" = 'follow-up-r234-key' WHERE "id" = 900001`,
+        `INSERT INTO "business_database_write_set" (
+          "id", "storeId", "capabilityKey", "idempotencyKey", "databaseTransactionId", "coverageBoundary", "monitorTableCount", "monitorFingerprint"
+        ) VALUES ($1::uuid, 900001, 'migration_acceptance', 'migration-write-set', txid_current(), 'PurchaseOrder', 1, repeat('a', 64))`,
+        [writeSetId],
       );
-      await client.query(`
-        INSERT INTO "TerminalFollowUpTask" (
-          "storeId", "customerId", "source", "title", "status", "idempotencyKey", "creationFingerprint", "createdAt", "updatedAt"
-        ) VALUES (
-          900001, 900001, 'manual', 'Duplicate Follow-up', 'pending', 'follow-up-r234-key', repeat('a', 64), NOW(), NOW()
-        )
-      `);
-    } catch (error) {
-      followUpTaskUniqueRejected = error?.constraint === 'TerminalFollowUpTask_idempotencyKey_key';
+      await client.query(`SELECT set_config('ami.business_write_set_context', $1, true)`, [
+        JSON.stringify({ schemaVersion: '1.0', writeSetId }),
+      ]);
+      await client.query(`UPDATE "PurchaseOrder" SET "status" = 'migration-write-set-probe' WHERE "id" = 900001`);
+      const captured = await client.query(
+        `SELECT COUNT(*)::int AS count,
+                MIN("modelName") AS "modelName",
+                MIN("operation") AS operation,
+                BOOL_AND("changedFields" @> '["status"]'::jsonb) AS "statusCaptured",
+                BOOL_AND(length("beforeStateFingerprint") = 64) AS "beforeFingerprintValid",
+                BOOL_AND(length("afterStateFingerprint") = 64) AS "afterFingerprintValid"
+         FROM "business_database_write_set_entry"
+         WHERE "writeSetId" = $1::uuid`,
+        [writeSetId],
+      );
+      writeSetCapture = captured.rows[0];
     } finally {
       await client.query('ROLLBACK');
     }
 
+    let mutationReceiptUniqueRejected = false;
+    let mutationReceiptInserted = false;
     await client.query('BEGIN');
-    let procurementOrderUniqueRejected = false;
     try {
-      await client.query(
-        `UPDATE "ProcurementOrder" SET "idempotencyKey" = 'supply-order-r236-key' WHERE "id" = 900001`,
-      );
-      await client.query(`
-        INSERT INTO "ProcurementOrder" (
-          "orderNo", "storeId", "supplierId", "status", "totalAmount", "sourceType", "idempotencyKey", "creationFingerprint", "createdAt", "updatedAt"
+      const inserted = await client.query(`
+        INSERT INTO "business_mutation_receipt" (
+          "storeId", "capabilityKey", "idempotencyKey", "businessObjectType", "businessObjectId", "mutationKind",
+          "requestFingerprint", "beforeVersion", "afterVersion", "beforeStateFingerprint", "afterStateFingerprint",
+          "changedFields", "receiptFingerprint"
         ) VALUES (
-          'SPO-DUPLICATE-R236', 900001, 900001, 'pending_supplier_confirm', 200, 'manual', 'supply-order-r236-key', repeat('a', 64), NOW(), NOW()
+          900001, 'migration_acceptance', 'receipt-key', 'PurchaseOrder', '900001', 'update',
+          repeat('a', 64), '1', '2', repeat('b', 64), repeat('c', 64), '["status"]'::jsonb, repeat('d', 64)
+        )
+      `);
+      mutationReceiptInserted = inserted.rowCount === 1;
+      await client.query(`
+        INSERT INTO "business_mutation_receipt" (
+          "storeId", "capabilityKey", "idempotencyKey", "businessObjectType", "businessObjectId", "mutationKind",
+          "requestFingerprint", "beforeVersion", "afterVersion", "beforeStateFingerprint", "afterStateFingerprint",
+          "changedFields", "receiptFingerprint"
+        ) VALUES (
+          900001, 'migration_acceptance', 'receipt-key', 'PurchaseOrder', '900001', 'update',
+          repeat('e', 64), '2', '3', repeat('f', 64), repeat('1', 64), '["status"]'::jsonb, repeat('2', 64)
         )
       `);
     } catch (error) {
-      procurementOrderUniqueRejected = error?.constraint === 'ProcurementOrder_idempotencyKey_key';
+      const expectedConstraint = 'business_mutation_receipt_storeId_capabilityKey_idempotencyKey_key';
+      mutationReceiptUniqueRejected =
+        error?.constraint === expectedConstraint ||
+        (String(error?.constraint ?? '').length === 63 && expectedConstraint.startsWith(error.constraint));
     } finally {
       await client.query('ROLLBACK');
     }
 
+    let governanceTask;
+    let governanceTaskUniqueRejected = false;
     await client.query('BEGIN');
-    let procurementReceiptUniqueRejected = false;
     try {
-      await client.query(`
-        INSERT INTO "ProcurementReceipt" (
-          "orderId", "storeId", "idempotencyKey", "creationFingerprint", "items", "createdAt", "updatedAt"
-        ) VALUES (
-          900001, 900001, 'supply-receipt-r236-key', repeat('b', 64), '[]'::jsonb, NOW(), NOW()
-        )
+      const inserted = await client.query(`
+        INSERT INTO "brain_governance_task" (
+          "idempotencyKey", "taskType", "stage", "payload", "createdBy", "updatedAt"
+        ) VALUES ('migration-task-key', 'migration_acceptance', 'preflight', '{}'::jsonb, 900001, NOW())
+        RETURNING "status", "riskLevel", "attemptCount", "transitionLog"::text AS "transitionLog"
       `);
+      governanceTask = inserted.rows[0];
       await client.query(`
-        INSERT INTO "ProcurementReceipt" (
-          "orderId", "storeId", "idempotencyKey", "creationFingerprint", "items", "createdAt", "updatedAt"
-        ) VALUES (
-          900001, 900001, 'supply-receipt-r236-key', repeat('c', 64), '[]'::jsonb, NOW(), NOW()
-        )
+        INSERT INTO "brain_governance_task" (
+          "idempotencyKey", "taskType", "stage", "payload", "createdBy", "updatedAt"
+        ) VALUES ('migration-task-key', 'migration_acceptance', 'preflight', '{}'::jsonb, 900001, NOW())
       `);
     } catch (error) {
-      procurementReceiptUniqueRejected = error?.constraint === 'ProcurementReceipt_idempotencyKey_key';
+      governanceTaskUniqueRejected = error?.constraint === 'brain_governance_task_idempotencyKey_key';
     } finally {
       await client.query('ROLLBACK');
     }
+
+    let gateReceipt;
+    let gateReceiptUniqueRejected = false;
+    await client.query('BEGIN');
+    try {
+      const inserted = await client.query(`
+        INSERT INTO "brain_gate_receipt" (
+          "receiptKey", "stage", "riskLevel", "changedFilesChecksum", "diffChecksum", "sourceFingerprint",
+          "suiteChecksum", "resultChecksum", "status", "result", "expiresAt"
+        ) VALUES (
+          'migration-gate-key', 'preflight', 'low', repeat('a', 64), repeat('b', 64), repeat('c', 64),
+          repeat('d', 64), repeat('e', 64), 'passed', '{}', NOW() + INTERVAL '1 hour'
+        ) RETURNING "status", "stage"
+      `);
+      gateReceipt = inserted.rows[0];
+      await client.query(`
+        INSERT INTO "brain_gate_receipt" (
+          "receiptKey", "stage", "riskLevel", "changedFilesChecksum", "diffChecksum", "sourceFingerprint",
+          "suiteChecksum", "resultChecksum", "status", "result", "expiresAt"
+        ) VALUES (
+          'migration-gate-key', 'preflight', 'low', repeat('1', 64), repeat('2', 64), repeat('3', 64),
+          repeat('4', 64), repeat('5', 64), 'passed', '{}', NOW() + INTERVAL '1 hour'
+        )
+      `);
+    } catch (error) {
+      gateReceiptUniqueRejected = error?.constraint === 'brain_gate_receipt_receiptKey_key';
+    } finally {
+      await client.query('ROLLBACK');
+    }
+
+    let freeSqlRun;
+    await client.query('BEGIN');
+    try {
+      const inserted = await client.query(`
+        INSERT INTO "ask_data_free_sql_runs" (
+          "question", "userId", "storeId", "storeScopeJson", "selectedViewsJson", "status"
+        ) VALUES (
+          'migration acceptance', 900001, 900001, '[900001]'::jsonb, '["orders"]'::jsonb, 'blocked'
+        ) RETURNING "status", "rowCount", "storeId"
+      `);
+      freeSqlRun = inserted.rows[0];
+    } finally {
+      await client.query('ROLLBACK');
+    }
+
+    const purchaseOrderAfterProbes = await client.query(
+      `SELECT "status", "storeId" FROM "PurchaseOrder" WHERE "id" = 900001`,
+    );
 
     return {
-      roles: roles.rows,
-      metric: metric.rows,
-      reservation: reservation.rows[0],
-      cardUsage: cardUsage.rows[0],
-      purchaseOrder: purchaseOrder.rows[0],
-      followUpTask: followUpTask.rows[0],
-      procurementOrder: procurementOrder.rows[0],
-      feedbackCount: feedbackCount.rows[0].count,
-      waitingCount: waitingCount.rows[0].count,
-      feedbackConstraintRejected,
-      waitingConstraintRejected,
-      reservationUniqueRejected,
-      cardUsageUniqueRejected,
-      purchaseOrderUniqueRejected,
-      followUpTaskUniqueRejected,
-      procurementOrderUniqueRejected,
-      procurementReceiptUniqueRejected,
+      historicalRows: historicalRows.rows[0],
+      functionContracts: functionContracts.rows[0],
+      writeSetCapture,
+      mutationReceipt: {
+        inserted: mutationReceiptInserted,
+        uniqueRejected: mutationReceiptUniqueRejected,
+      },
+      governanceTask: {
+        ...governanceTask,
+        uniqueRejected: governanceTaskUniqueRejected,
+      },
+      gateReceipt: {
+        ...gateReceipt,
+        uniqueRejected: gateReceiptUniqueRejected,
+      },
+      freeSqlRun,
+      purchaseOrderAfterProbes: purchaseOrderAfterProbes.rows[0],
     };
   });
 }
 
 function assertAcceptance(summary) {
-  const storeManager = summary.incrementalData.roles.find((role) => role.key === 'store_manager');
-  const beautician = summary.incrementalData.roles.find((role) => role.key === 'beautician');
-  const storeManagerPermissions = storeManager?.permissions ?? [];
-  const beauticianPermissions = beautician?.permissions ?? [];
+  const historicalRows = summary.incrementalData.historicalRows;
   const checks = {
     emptyHistoryAligned:
       summary.emptyHistory.appliedCount === summary.inventory.count &&
@@ -596,49 +589,48 @@ function assertAcceptance(summary) {
     structureAligned:
       summary.structure.missingTables.length === 0 &&
       summary.structure.missingColumns.length === 0 &&
-      summary.structure.missingIndexes.length === 0,
+      summary.structure.missingIndexes.length === 0 &&
+      summary.structure.missingFunctions.length === 0 &&
+      summary.structure.purchaseOrderStoreNotNull &&
+      summary.structure.purchaseOrderStoreForeignKey &&
+      summary.structure.purchaseOrderWriteSetTrigger &&
+      summary.structure.actionDefinitionKindAvailable,
     historicalRowsPreserved:
-      summary.incrementalData.reservation.count === 1 &&
-      summary.incrementalData.reservation.idempotencyPopulated === 0 &&
-      summary.incrementalData.reservation.fingerprintPopulated === 0 &&
-      summary.incrementalData.reservation.bookingSource === 'manual' &&
-      summary.incrementalData.cardUsage.count === 1 &&
-      summary.incrementalData.cardUsage.idempotencyPopulated === 0 &&
-      summary.incrementalData.purchaseOrder.count === 1 &&
-      summary.incrementalData.purchaseOrder.idempotencyPopulated === 0 &&
-      summary.incrementalData.purchaseOrder.fingerprintPopulated === 0 &&
-      summary.incrementalData.purchaseOrder.status === '草稿' &&
-      summary.incrementalData.followUpTask.count === 1 &&
-      summary.incrementalData.followUpTask.idempotencyPopulated === 0 &&
-      summary.incrementalData.followUpTask.fingerprintPopulated === 0 &&
-      summary.incrementalData.followUpTask.status === 'pending' &&
-      summary.incrementalData.procurementOrder.count === 1 &&
-      summary.incrementalData.procurementOrder.idempotencyPopulated === 0 &&
-      summary.incrementalData.procurementOrder.fingerprintPopulated === 0 &&
-      summary.incrementalData.procurementOrder.batchKeyPopulated === 0 &&
-      summary.incrementalData.procurementOrder.status === 'pending_supplier_confirm',
-    metricBackfilled:
-      summary.incrementalData.metric.length === 1 &&
-      summary.incrementalData.metric[0].metricKey === 'store.operating_revenue.month' &&
-      Number(summary.incrementalData.metric[0].targetValue) === 123456.78,
-    permissionsMerged:
-      storeManagerPermissions.includes('existing:store-manager') &&
-      storeManagerPermissions.includes('core:supply:manage') &&
-      beauticianPermissions.includes('existing:beautician') &&
-      beauticianPermissions.includes('core:brain:use') &&
-      beauticianPermissions.includes('core:brain:beautician-view') &&
-      beauticianPermissions.includes('core:store:reservations'),
-    keyDataContracts:
-      summary.incrementalData.feedbackCount === 1 &&
-      summary.incrementalData.waitingCount === 1 &&
-      summary.incrementalData.feedbackConstraintRejected &&
-      summary.incrementalData.waitingConstraintRejected &&
-      summary.incrementalData.reservationUniqueRejected &&
-      summary.incrementalData.cardUsageUniqueRejected &&
-      summary.incrementalData.purchaseOrderUniqueRejected &&
-      summary.incrementalData.followUpTaskUniqueRejected &&
-      summary.incrementalData.procurementOrderUniqueRejected &&
-      summary.incrementalData.procurementReceiptUniqueRejected,
+      historicalRows.reservationCount === 1 &&
+      historicalRows.cardUsageCount === 1 &&
+      historicalRows.followUpTaskCount === 1 &&
+      historicalRows.procurementOrderCount === 1 &&
+      historicalRows.purchaseOrderCount === 1 &&
+      historicalRows.purchaseOrderStoreId === 900001 &&
+      historicalRows.purchaseOrderStatus === '草稿' &&
+      summary.incrementalData.purchaseOrderAfterProbes.storeId === 900001 &&
+      summary.incrementalData.purchaseOrderAfterProbes.status === '草稿',
+    actionProjectionContracts:
+      summary.incrementalData.functionContracts.canonicalJson === '{"A":1,"b":2}' &&
+      summary.incrementalData.functionContracts.capabilityBindings === '["legacy_action", "purchase_order_draft"]' &&
+      summary.incrementalData.functionContracts.actionLineageEnabled,
+    writeSetCapture:
+      summary.incrementalData.writeSetCapture.count === 1 &&
+      summary.incrementalData.writeSetCapture.modelName === 'PurchaseOrder' &&
+      summary.incrementalData.writeSetCapture.operation === 'update' &&
+      summary.incrementalData.writeSetCapture.statusCaptured &&
+      summary.incrementalData.writeSetCapture.beforeFingerprintValid &&
+      summary.incrementalData.writeSetCapture.afterFingerprintValid,
+    mutationReceiptContracts:
+      summary.incrementalData.mutationReceipt.inserted && summary.incrementalData.mutationReceipt.uniqueRejected,
+    governanceContracts:
+      summary.incrementalData.governanceTask.status === 'pending' &&
+      summary.incrementalData.governanceTask.riskLevel === 'unclassified' &&
+      summary.incrementalData.governanceTask.attemptCount === 0 &&
+      summary.incrementalData.governanceTask.transitionLog === '[]' &&
+      summary.incrementalData.governanceTask.uniqueRejected &&
+      summary.incrementalData.gateReceipt.status === 'passed' &&
+      summary.incrementalData.gateReceipt.stage === 'preflight' &&
+      summary.incrementalData.gateReceipt.uniqueRejected,
+    freeSqlRunContracts:
+      summary.incrementalData.freeSqlRun.status === 'blocked' &&
+      summary.incrementalData.freeSqlRun.rowCount === 0 &&
+      summary.incrementalData.freeSqlRun.storeId === 900001,
   };
   const failedChecks = Object.entries(checks)
     .filter(([, passed]) => !passed)
@@ -651,12 +643,8 @@ async function main() {
   const options = validateOptions();
   const outputDir = resolve(process.cwd(), argValue('output-dir') ?? 'migration-acceptance-output');
   const inventory = inspectMigrations();
-  if (inventory.count !== 105) {
-    throw new Error(
-      `Expected the current frozen chain to contain 105 migrations, found ${inventory.count}. Update the gate deliberately.`,
-    );
-  }
-  const baseline = createBaselinePrismaDirectory(inventory, options.baselineCount);
+  if (!inventory.count) throw new Error('Migration inventory is empty.');
+  const baseline = createBaselinePrismaDirectory(inventory, options.baselineMigration);
   let containerStarted = false;
   const startedAt = new Date().toISOString();
   const emptyUrl = databaseUrl(options.port, emptyDatabase);
@@ -676,7 +664,7 @@ async function main() {
       '-p',
       `127.0.0.1:${options.port}:5432`,
       '-d',
-      'postgres:16-alpine',
+      'postgres:17-bookworm',
     ]);
     containerStarted = true;
     waitForPostgres(options.container);
@@ -701,13 +689,13 @@ async function main() {
       startedAt,
       status: 'pending_assertion',
       environment: {
-        postgresImage: 'postgres:16-alpine',
+        postgresImage: 'postgres:17-bookworm',
         host: '127.0.0.1',
         port: options.port,
         container: options.container,
         emptyDatabase,
         incrementalDatabase,
-        productionDatabaseWriteCount: 0,
+        remoteDatabaseWriteCount: 0,
       },
       inventory: {
         count: inventory.count,
@@ -718,8 +706,8 @@ async function main() {
         duplicateTimestampPrefixes: inventory.duplicateTimestampPrefixes,
       },
       baseline: {
-        migrationCount: options.baselineCount,
-        latestMigration: inventory.migrations[options.baselineCount - 1].name,
+        migrationCount: inventory.migrations.findIndex((migration) => migration.name === options.baselineMigration) + 1,
+        latestMigration: options.baselineMigration,
       },
       commands: {
         validate: validate.stdout,

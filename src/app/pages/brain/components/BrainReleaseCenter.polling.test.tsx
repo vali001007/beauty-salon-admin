@@ -8,6 +8,7 @@ const api = vi.hoisted(() => ({
   listBrainReleases: vi.fn(),
   listBrainCapabilityRegenerationJobs: vi.fn(),
 }));
+const permissionState = vi.hoisted(() => ({ denied: new Set<string>() }));
 
 vi.mock('@/api/brain', () => ({
   ...api,
@@ -18,6 +19,7 @@ vi.mock('@/api/brain', () => ({
   rollbackBrainReleaseToRules: vi.fn(),
   submitBrainReleaseModification: vi.fn(),
 }));
+vi.mock('@/hooks/usePermission', () => ({ usePermission: (permission: string) => !permissionState.denied.has(permission) }));
 
 const queuedJob = {
   id: 501,
@@ -54,6 +56,7 @@ describe('BrainReleaseCenter regeneration polling', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-14T00:00:00.000Z'));
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+    permissionState.denied = new Set();
     api.listBrainResourceVersions.mockResolvedValue({ items: [] });
     api.listBrainReleases.mockResolvedValue({ items: [] });
     api.listBrainCapabilityRegenerationJobs.mockResolvedValue({ items: [queuedJob] });
@@ -128,5 +131,30 @@ describe('BrainReleaseCenter regeneration polling', () => {
     await act(async () => { vi.advanceTimersByTime(3_000); });
 
     expect(screen.getByText('自动刷新已运行 10 分钟，请人工刷新查看最新状态。')).toBeInTheDocument();
+  });
+
+  it('hides runtime activation, rejection and rollback commands without release permission', async () => {
+    permissionState.denied = new Set(['core:brain-governance:release']);
+    api.listBrainCapabilityRegenerationJobs.mockResolvedValue({ items: [] });
+    api.listBrainReleases.mockResolvedValue({
+      items: [{
+        id: 61,
+        releaseKey: 'runtime-draft-v1',
+        scope: 'percentage',
+        rollout: { stage: 'shadow', mode: 'shadow', userPercentage: 100 },
+        status: 'draft',
+        previousReleaseId: 60,
+        createdAt: '2026-08-01T00:00:00.000Z',
+        items: [],
+      }],
+    });
+
+    renderReleaseCenter();
+    await flush();
+
+    expect(screen.getByText('runtime-draft-v1')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '批准发布' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '拒绝' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '修改要求' })).toBeInTheDocument();
   });
 });

@@ -20,6 +20,32 @@ function releaseFixture(input: {
 }
 
 describe('BrainActiveReleaseWarmupService', () => {
+  it('skips unrelated active runtime warmup inside the release pilot process', async () => {
+    const previous = process.env.BRAIN_RELEASE_PILOT_MODE;
+    process.env.BRAIN_RELEASE_PILOT_MODE = 'true';
+    const findMany = jest.fn();
+    const service = new BrainActiveReleaseWarmupService(
+      { brainRelease: { findMany } } as never,
+      { loadEvaluationSnapshot: jest.fn() } as never,
+      { listEnabledCapabilities: jest.fn() } as never,
+    );
+
+    try {
+      await expect(service.onApplicationBootstrap()).resolves.toBeUndefined();
+      expect(findMany).not.toHaveBeenCalled();
+      expect(service.getStatus()).toMatchObject({
+        state: 'ready',
+        activeReleaseCount: 0,
+        warmedReleaseCount: 0,
+        releases: [],
+        failureReason: null,
+      });
+    } finally {
+      if (previous === undefined) delete process.env.BRAIN_RELEASE_PILOT_MODE;
+      else process.env.BRAIN_RELEASE_PILOT_MODE = previous;
+    }
+  });
+
   it('warms every active model release before bootstrap is ready and skips rules releases', async () => {
     const activeModel = releaseFixture({ id: 416, definitionVersionIds: [12, 11, 12] });
     const activeRules = releaseFixture({ id: 415, mode: 'rules', definitionVersionIds: [] });

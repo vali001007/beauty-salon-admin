@@ -2192,7 +2192,14 @@ function exactCapabilityAnswerShape(intent: BrainSemanticIntent['intent']): Brai
 }
 
 function isExplicitListQuestion(question: string) {
-  return /(哪些|哪几|名单|列表|列出|找出|分别是谁|都有谁|最紧急的是什么|缺货最紧急)/.test(question);
+  const explicitListCue = /(哪些|哪几|名单|列表|列出|找出|分别是谁|各项目|每个项目|都有谁|最紧急的是什么|缺货最紧急)/.test(
+    question,
+  );
+  const entityBreakdownCue =
+    /(?:客户|客人|会员|预约|项目|商品|产品|员工|美容师).{0,24}分别|分别.{0,24}(?:客户|客人|会员|预约|项目|商品|产品|员工|美容师)/.test(
+      question,
+    );
+  return explicitListCue || entityBreakdownCue;
 }
 
 function applyQuestionSpeechActContract(intent: BrainSemanticIntent, question: string): BrainSemanticIntent {

@@ -53,6 +53,48 @@ describe('BrainCapabilityContractRefreshNarrativeService', () => {
     });
   });
 
+  it('uses the colocated source contract only for an explicitly selected governed capability', async () => {
+    const sourceCapability = {
+      ...(capability as Record<string, unknown>),
+      status: 'draft',
+      explicit: true,
+      riskLevel: 'low',
+      issues: [],
+      semanticHints: {
+        name: '实收分析',
+        description: '当前源码声明的实收分析边界。',
+        intents: ['query'],
+        examples: ['只查询门店实收'],
+        negativeExamples: ['不要执行退款'],
+        synonyms: ['门店实收'],
+      },
+    } as never;
+    const service = new BrainCapabilityContractRefreshNarrativeService(
+      new Map([['order_revenue_analysis', snapshot()]]),
+      new Set(['order_revenue_analysis']),
+    );
+
+    const semantics = service.resolve({
+      capability: sourceCapability,
+      definitions: [{ domain: 'payment' }] as never,
+      successSchema,
+    });
+    expect(semantics).toMatchObject({
+      description: '当前源码声明的实收分析边界。',
+      examples: ['只查询门店实收'],
+      negativeExamples: ['不要执行退款'],
+    });
+    await expect(service.generate({
+      capability: sourceCapability,
+      businessDefinitions: [],
+      canonicalSemantics: semantics,
+    })).resolves.toMatchObject({
+      positiveExamples: ['只查询门店实收'],
+      negativeExamples: ['不要执行退款'],
+      synonyms: ['门店实收'],
+    });
+  });
+
   it('accepts a permission-only contract refresh while using only current Scanner permissions', async () => {
     const narrowedCapability = {
       ...(capability as Record<string, unknown>),

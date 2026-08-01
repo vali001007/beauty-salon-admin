@@ -214,6 +214,45 @@ describe('BrainGeneratedCapabilityDraftService', () => {
     });
   });
 
+  it('binds the complete evaluation ontology version set and creates N+1 when it changes', async () => {
+    const generated = proposal();
+    const previous = {
+      id: 51,
+      version: 4,
+      snapshot: {
+        sourceProposalFingerprint: generated.proposalFingerprint,
+        sourceFingerprint: generated.sourceFingerprint,
+        definitionRefs: generated.manifest.definitionRefs,
+        ontologyDefinitionVersionIds: [21],
+      },
+    };
+    const verifier = { verify: jest.fn().mockResolvedValue({ manifest: generated.manifest }) };
+    const tx = {
+      brainSkillRegistry: { create: jest.fn().mockResolvedValue({ id: 32 }) },
+      brainResourceVersion: {
+        findFirst: jest.fn().mockResolvedValue(previous),
+        create: jest.fn().mockImplementation(({ data }) => ({ id: 52, ...data })),
+      },
+    };
+    const service = new BrainGeneratedCapabilityDraftService(
+      { $transaction: jest.fn((callback) => callback(tx)) } as never,
+      verifier as never,
+    );
+
+    await expect(
+      service.createDraft({
+        proposal: generated,
+        createdBy: 9,
+        ontologyDefinitionVersionIds: [46, 21, 46],
+      }),
+    ).resolves.toMatchObject({ id: 52, version: 5 });
+    expect(tx.brainResourceVersion.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        snapshot: expect.objectContaining({ ontologyDefinitionVersionIds: [21, 46] }),
+      }),
+    });
+  });
+
   it.each(['P2034', 'P2002'])('maps exhausted %s version races to ConflictException', async (code) => {
     const generated = proposal();
     const verifier = { verify: jest.fn().mockResolvedValue({ manifest: generated.manifest }) };

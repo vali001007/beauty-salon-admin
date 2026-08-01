@@ -234,6 +234,40 @@ describe('BrainSingleStepPlannerService', () => {
     });
   });
 
+  it('does not leak action-only args into a capability without a governed action ref', () => {
+    const result = planner.plan({
+      intent: {
+        ...intent,
+        schemaVersion: '1.1',
+        intent: 'action',
+        answerShape: 'action_preview',
+        actionPolarity: 'affirmative',
+        actionModality: 'request',
+        actionSlots: [],
+        missingSlots: ['actionDefinition'],
+      },
+      retrieval: retrieval(
+        'selected',
+        card({
+          key: 'gap_fill_touch_preview',
+          intents: ['action'],
+          readOnly: false,
+          sideEffect: true,
+          riskLevel: 'high',
+          requiresConfirmation: true,
+          idempotency: 'required',
+          grounding: 'preview_action',
+        }),
+      ),
+    });
+
+    expect(result).toMatchObject({ status: 'planned' });
+    if (result.status !== 'planned') throw new Error('expected_planned_result');
+    expect(result.plan.nodes[0].args).not.toHaveProperty('actionRef');
+    expect(result.plan.nodes[0].args).not.toHaveProperty('actionModality');
+    expect(result.plan.nodes[0].args).not.toHaveProperty('actionSlots');
+  });
+
   it('refuses to plan a selected capability for a negated action', () => {
     const actionRef = {
       definitionType: 'action' as const,

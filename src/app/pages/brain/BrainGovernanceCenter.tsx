@@ -10,6 +10,12 @@ import { BrainReleaseCenter } from './components/BrainReleaseCenter';
 import { BrainRoleGovernance } from './components/BrainRoleGovernance';
 import { BrainSemanticGovernance } from './components/BrainSemanticGovernance';
 import { BrainSkillGovernance } from './components/BrainSkillGovernance';
+import {
+  BrainCapabilityGovernancePage,
+  BrainGovernanceOverviewPage,
+  BrainGovernanceTasksPage,
+  BrainPolicySnapshotsPage,
+} from './components/BrainGovernanceWorkbench';
 import { resolveBrainGovernanceSection, type BrainGovernanceSectionKey } from './brainGovernanceNavigation';
 
 export function BrainGovernanceCenter() {
@@ -27,6 +33,16 @@ export function BrainGovernanceCenter() {
 
 function renderSection(activeSection: BrainGovernanceSectionKey) {
   switch (activeSection) {
+    case 'overview':
+      return <BrainGovernanceOverviewPage />;
+    case 'capabilities':
+      return <BrainCapabilityGovernancePage />;
+    case 'tasks':
+      return <BrainGovernanceTasksPage />;
+    case 'policy-snapshots':
+      return <BrainPolicySnapshotsPage />;
+    case 'runtime-releases':
+      return <BrainReleaseCenter />;
     case 'planning':
       return <BrainModelPlanningGovernance />;
     case 'semantic':

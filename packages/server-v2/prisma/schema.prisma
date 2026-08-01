@@ -5655,6 +5655,65 @@ model BrainReleaseItem {
   @@map("brain_release_item")
 }
 
+model BrainGovernanceTask {
+  id             Int       @id @default(autoincrement())
+  idempotencyKey String    @unique
+  taskType       String
+  stage          String
+  resourceType   String?
+  resourceKey    String?
+  riskLevel      String    @default("unclassified")
+  status         String    @default("pending")
+  payload        Json
+  result         Json?
+  transitionLog  Json      @default("[]")
+  attemptCount   Int       @default(0)
+  maxAttempts    Int       @default(3)
+  availableAt    DateTime  @default(now())
+  leasedAt       DateTime?
+  leaseExpiresAt DateTime?
+  leaseOwner     String?
+  errorCode      String?
+  errorMessage   String?
+  createdBy      Int
+  approvedBy     Int?
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, availableAt])
+  @@index([resourceType, resourceKey, status, createdAt])
+  @@index([stage, status, createdAt])
+  @@map("brain_governance_task")
+}
+
+model BrainGateReceipt {
+  id                    Int      @id @default(autoincrement())
+  receiptKey            String   @unique
+  stage                 String
+  riskLevel             String
+  changedFilesChecksum  String   @db.VarChar(64)
+  diffChecksum          String   @db.VarChar(64)
+  sourceFingerprint     String   @db.VarChar(64)
+  releaseFingerprint    String?
+  suiteChecksum         String   @db.VarChar(64)
+  dataSnapshot          String?
+  provider              String?
+  model                 String?
+  timeoutMs             Int?
+  resultChecksum        String   @db.VarChar(64)
+  status                String
+  result                Json
+  createdBy             Int?
+  createdAt             DateTime @default(now())
+  expiresAt             DateTime
+
+  @@index([stage, sourceFingerprint])
+  @@index([resultChecksum])
+  @@index([expiresAt, status])
+  @@map("brain_gate_receipt")
+}
+
 model BrainFeedback {
   id         Int      @id @default(autoincrement())
   runId      Int

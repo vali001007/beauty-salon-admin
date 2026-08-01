@@ -138,6 +138,28 @@ describe('BrainResultReferenceService', () => {
     expect(service.isFollowUpReferenceQuestion('跟宋乔比呢', [set!])).toBe(true);
   });
 
+  it.each([
+    '哪些商品卖得最好',
+    '哪个美容师退款率最高',
+    '哪些产品库存风险最大',
+    '员工里谁的业绩最多',
+  ])('does not require a prior result set for an independent ranking question: %s', (question) => {
+    expect(service.requiresPriorResultSelection(question)).toBe(false);
+  });
+
+  it.each(['其中最高那个怎么处理', '上轮第二个客户怎么召回', '刚才这些商品里最急的是哪个'])(
+    'still requires a prior result set for an explicit continuation: %s',
+    (question) => {
+      expect(service.requiresPriorResultSelection(question)).toBe(true);
+    },
+  );
+
+  it('does not mistake an exact-time reservation question for a prior-result selection', () => {
+    expect(service.requiresPriorResultSelection('下午3点那个预约是谁，有什么要注意的')).toBe(false);
+    expect(service.requiresPriorResultSelection('15:30那场预约是谁')).toBe(false);
+    expect(service.requiresPriorResultSelection('上轮那个预约有什么要注意的')).toBe(true);
+  });
+
   it('binds the requested rank instead of trusting a user-supplied entity id', () => {
     const [set] = service.buildResultSets({
       runId: 93,

@@ -45,6 +45,9 @@ describe('permission catalog helpers', () => {
         'core:brain:sensitive:view',
         'core:brain-governance:view',
         'core:brain-governance:manage',
+        'core:brain-governance:approve',
+        'core:brain-governance:publish',
+        'core:brain-governance:release',
       ]),
     );
     expect(hasPermission(ROLE_PERMISSIONS.store_manager, 'core:brain:use')).toBe(true);

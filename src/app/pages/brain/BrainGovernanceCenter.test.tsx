@@ -27,6 +27,7 @@ vi.mock('@/api/brain', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@/api/brain');
   return { ...actual, ...brainApi };
 });
+vi.mock('@/hooks/usePermission', () => ({ usePermission: () => true }));
 
 const capabilitySnapshot = {
   name: '商品销售排行',

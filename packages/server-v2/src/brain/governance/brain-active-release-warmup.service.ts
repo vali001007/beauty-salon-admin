@@ -60,6 +60,21 @@ export class BrainActiveReleaseWarmupService implements OnApplicationBootstrap {
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
+    if (process.env.BRAIN_RELEASE_PILOT_MODE === 'true') {
+      const completedAt = new Date().toISOString();
+      this.status = freezeStatus({
+        state: 'ready',
+        startedAt: completedAt,
+        completedAt,
+        latencyMs: 0,
+        activeReleaseCount: 0,
+        warmedReleaseCount: 0,
+        releases: [],
+        failureReason: null,
+      });
+      this.logger.log('active_release_ontology_warmup_skipped reason=release_pilot');
+      return;
+    }
     await this.warmActiveReleases();
   }
 

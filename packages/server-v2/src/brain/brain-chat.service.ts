@@ -727,6 +727,9 @@ export class BrainChatService {
         releaseId: releaseRuntime.releaseIdentity?.releaseId ?? null,
         releaseFingerprint: releaseRuntime.releaseIdentity?.releaseFingerprint ?? null,
         capabilityCandidateCount: releaseRuntime.capabilityCandidates?.length ?? null,
+        governancePolicyReleaseId: releaseRuntime.governancePolicy?.releaseId ?? null,
+        governancePolicyMode: releaseRuntime.governancePolicy?.mode ?? null,
+        governancePolicyWouldBlockCount: releaseRuntime.governancePolicy?.blockedCapabilityKeys.length ?? null,
         failureCode: releaseRuntime.failureCode ?? null,
       }),
     });
@@ -1187,6 +1190,11 @@ export class BrainChatService {
     mode?: 'rules' | 'shadow' | 'model';
     capabilityCandidates?: readonly BrainCapabilityCandidate[];
     releaseIdentity?: BrainActionReleaseIdentity;
+    governancePolicy?: {
+      releaseId: number;
+      mode: 'shadow' | 'enforced';
+      blockedCapabilityKeys: readonly string[];
+    };
     failureCode?: 'PRODUCTION_BASELINE_UNAVAILABLE' | 'PRODUCTION_BASELINE_INVALID';
   }> {
     if (context.governanceEvalReleaseSnapshot) {
@@ -1223,6 +1231,7 @@ export class BrainChatService {
         mode,
         capabilityCandidates: resolved.capabilityCandidates,
         ...(releaseIdentity ? { releaseIdentity } : {}),
+        ...(resolved.governancePolicy ? { governancePolicy: resolved.governancePolicy } : {}),
       };
     } catch (error) {
       if (context.governanceEvalReleaseId !== undefined) throw error;
@@ -1794,6 +1803,12 @@ export class BrainChatService {
         catalogAmbiguous: catalogDiscovery.status === 'clarify',
         conversationSlots: compilerInput.conversationSlots,
       }) ?? enrichedIntent;
+    enrichedIntent = this.normalizeExactGovernedCapabilityAfterCompleteness({
+      intent: enrichedIntent,
+      question: input.dto.message,
+      cards,
+      snapshot,
+    });
     await this.recordModelTrace({
       runId: input.runId,
       stepKey: 'model_intent_normalized',
@@ -1924,6 +1939,12 @@ export class BrainChatService {
             catalogAmbiguous: catalogDiscovery.status === 'clarify',
             conversationSlots: compilerInput.conversationSlots,
           }) ?? repairedIntent;
+        repairedIntent = this.normalizeExactGovernedCapabilityAfterCompleteness({
+          intent: repairedIntent,
+          question: input.dto.message,
+          cards,
+          snapshot,
+        });
         const repairedValidation = this.semanticIntentValidator!.validate(
           repairedIntent,
           governedValidationScope,
@@ -2788,8 +2809,12 @@ export class BrainChatService {
       (input.intent.intent === 'ranking' || orderedRankingIntent || productMarginRankingIntent)
         ? [{ definitionRef: governedMetrics[0]!, direction: 'desc' as const }]
         : input.intent.orderBy;
+    const actionDefinitionMissing = input.intent.intent === 'action' && !input.intent.actionRef;
     return {
       ...input.intent,
+      ...(actionDefinitionMissing
+        ? { schemaVersion: '1.1' as const, actionPolarity: input.intent.actionPolarity ?? ('affirmative' as const) }
+        : {}),
       ...(unorderedListIntent ? { intent: 'query' as const, answerShape: 'list' as const } : {}),
       ...(orderedRankingIntent ? { intent: 'ranking' as const, answerShape: 'ranking' as const } : {}),
       ...(diagnosisIntent ? { intent: 'diagnosis' as const, answerShape: 'diagnosis' as const } : {}),
@@ -2821,7 +2846,28 @@ export class BrainChatService {
       orderBy,
       filters,
       ambiguities: [],
-      missingSlots: [],
+      missingSlots: actionDefinitionMissing ? ['actionDefinition'] : [],
+    };
+  }
+
+  private normalizeExactGovernedCapabilityAfterCompleteness(input: {
+    intent: BrainSemanticIntent;
+    question: string;
+    cards: readonly BrainCapabilityCard[];
+    snapshot: ProductionReadyBusinessDefinitionSnapshot;
+  }): BrainSemanticIntent {
+    if (!this.findExactGovernedCapabilityExampleCard(input.question, input.cards)) return input.intent;
+    const normalized = this.normalizeGovernedCapabilityExampleIntent(input);
+    const preservedMissingSlots = input.intent.missingSlots.filter(
+      (slot) => slot.trim().toLocaleLowerCase('zh-CN') !== 'metric',
+    );
+    const preservedAmbiguities = input.intent.ambiguities.filter(
+      (ambiguity) => ambiguity.slot.trim().toLocaleLowerCase('zh-CN') !== 'metric',
+    );
+    return {
+      ...normalized,
+      missingSlots: [...new Set([...normalized.missingSlots, ...preservedMissingSlots])],
+      ambiguities: preservedAmbiguities,
     };
   }
 
@@ -2850,8 +2896,13 @@ export class BrainChatService {
     if (input.intent.intent !== 'action' && explicitSideEffect) {
       return {
         ...input.intent,
+        schemaVersion: '1.1',
         intent: 'action',
         answerShape: 'action_preview',
+        actionPolarity: input.intent.actionPolarity ?? 'affirmative',
+        missingSlots: input.intent.actionRef
+          ? input.intent.missingSlots
+          : [...new Set([...input.intent.missingSlots, 'actionDefinition'])],
         successCriteria: [...input.intent.successCriteria, '生成待确认操作预览，用户确认前不发送消息或写入业务数据'],
         assumptions: [
           ...input.intent.assumptions,
@@ -2924,7 +2975,22 @@ export class BrainChatService {
         normalized,
       ) ||
       /^(?:帮我|请|替我|给我|能不能|可以|是否可以)\s*(?:约|预约)(?:一下|一个|一位)?/.test(normalized) ||
-      /^(?:给|向).{0,20}发(?:个|一条)?.{0,12}(?:通知|消息|短信)/.test(normalized)
+      /^(?:给|向).{0,20}发(?:个|一条)?.{0,12}(?:通知|消息|短信)/.test(normalized) ||
+      /^(?:(?:帮我|请|直接|立即|马上|替我|给我|能不能|可以|是否可以)\s*)?(?:把|将).{1,48}(?:改到|改成|取消|提交)/.test(
+        normalized,
+      ) ||
+      /^(?:(?:帮我|请|直接|立即|马上|替我|给我)\s*)?(?:启动|执行|运行).{0,48}(?:策略|任务|流程|触达|方案)/.test(
+        normalized,
+      ) ||
+      /^(?:(?:帮我|请|替我|给我)\s*)?(?:生成|准备|创建).{0,48}(?:预览|待确认.{0,12}(?:任务|操作|方案)|确认方案)/.test(
+        normalized,
+      ) ||
+      /^(?:给|为).{0,24}(?:准备|生成|创建).{0,32}(?:预览|待确认.{0,12}(?:任务|操作|方案)|确认方案|预约方案)/.test(
+        normalized,
+      ) ||
+      /^(?:先)?预览.{0,48}(?:取消|完成|核销|划扣|预约|触达|任务|策略)/.test(
+        normalized,
+      )
     );
   }
 
@@ -3208,8 +3274,12 @@ export class BrainChatService {
       (metrics.length > 0 || orderBy.length > 0 || explicitRankingCue);
     const unorderedList =
       input.intent.intent === 'ranking' && metrics.length === 0 && orderBy.length === 0 && !implicitRankingContract;
+    const actionDefinitionMissing = isAction && !input.intent.actionRef;
     return {
       ...input.intent,
+      ...(actionDefinitionMissing
+        ? { schemaVersion: '1.1' as const, actionPolarity: input.intent.actionPolarity ?? ('affirmative' as const) }
+        : {}),
       ...(unorderedList ? { intent: 'query' as const, answerShape: 'list' as const } : {}),
       domains: supportedInputDomains.length ? supportedInputDomains : [...matched.card.domains],
       metrics,
@@ -3217,7 +3287,7 @@ export class BrainChatService {
       entities,
       orderBy,
       ambiguities: [],
-      missingSlots: [],
+      missingSlots: actionDefinitionMissing ? ['actionDefinition'] : [],
       assumptions: [...input.intent.assumptions, `能力 ${matched.card.key} 将采用并披露已治理的默认分析口径。`],
     };
   }
@@ -3899,12 +3969,14 @@ export class BrainChatService {
     continuationCapability?: BrainCapabilityCard,
     question = '',
   ): readonly BrainCapabilityCard[] {
+    const governedExampleCapability = this.findGovernedCapabilityExampleCard(question, cards);
     const customerLevelCapability = this.modelCustomerLevelCapabilityCard(cards, question);
     const managerStaffDirectoryCapability = this.modelManagerStaffDirectoryCapabilityCard(cards, question);
     const projectCatalogCapability = this.modelProjectCatalogCapabilityCard(cards, question);
     const ordered = [
       selected,
       continuationCapability,
+      governedExampleCapability,
       customerLevelCapability,
       managerStaffDirectoryCapability,
       projectCatalogCapability,
@@ -4848,10 +4920,12 @@ export class BrainChatService {
     question: string,
     cards: readonly BrainCapabilityCard[],
   ): BrainCapabilityCard | undefined {
-    const inventorySpecificCard = this.findInventorySpecificCapabilityCard(question, cards);
-    if (inventorySpecificCard) return inventorySpecificCard;
     const reservationListCard = this.findReservationListCapabilityCard(question, cards);
     if (reservationListCard) return reservationListCard;
+    const exactExampleCard = this.findExactGovernedCapabilityExampleCard(question, cards);
+    if (exactExampleCard) return exactExampleCard;
+    const inventorySpecificCard = this.findInventorySpecificCapabilityCard(question, cards);
+    if (inventorySpecificCard) return inventorySpecificCard;
     if (/(?:美容师|员工|技师).*(?:在忙|忙吗|还要多久|什么时候空|可接待)/.test(question)) {
       const frontDeskCard = cards.find(
         (card) => card.key === 'front_desk_operations_overview' && card.readOnly && card.intents.includes('query'),
@@ -4868,6 +4942,13 @@ export class BrainChatService {
       );
       if (paymentCard) return paymentCard;
     }
+    return undefined;
+  }
+
+  private findExactGovernedCapabilityExampleCard(
+    question: string,
+    cards: readonly BrainCapabilityCard[],
+  ): BrainCapabilityCard | undefined {
     const normalizedQuestion = this.normalizeGovernedExampleText(question);
     return cards.find((card) =>
       (card.examples ?? []).some((example) => this.normalizeGovernedExampleText(example) === normalizedQuestion),
@@ -5038,6 +5119,7 @@ export class BrainChatService {
   }
 
   private isSpecificCustomerFactQuestion(question: string, intent: BrainSemanticIntent) {
+    if (['action', 'workflow'].includes(intent.intent) || this.hasExplicitSideEffectRequest(question)) return false;
     if (/(?:预约).*(?:几点|时间|安排|改期|取消|确认)|(?:几点|时间|安排).*(?:预约)/.test(question)) {
       return false;
     }

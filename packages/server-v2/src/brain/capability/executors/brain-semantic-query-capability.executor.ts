@@ -284,7 +284,7 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
     this.assertTimezones(metrics, input.context.timezone);
     this.assertMatchingDimensions(metrics);
     this.assertUniqueOutputFields(metrics);
-    const sort = this.resolveSort(metrics);
+    const sort = this.resolveSort(metrics, input);
     this.assertStructuredOrderSupported(input, metrics, sort);
 
     const timeRange = this.resolveTimeRange(input.question, input.args, input.context.timezone);
@@ -296,14 +296,19 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
           input.context.timezone,
         )
       : undefined;
-    const [metricResults, comparisonMetricResults] = await Promise.all([
-      Promise.all(metrics.map((metric) => this.executeMetric(metric, snapshot, input.context.storeId, timeRange))),
-      comparisonRange
-        ? Promise.all(
-            metrics.map((metric) => this.executeMetric(metric, snapshot, input.context.storeId, comparisonRange)),
-          )
-        : Promise.resolve(undefined),
-    ]);
+    const countedExecution = await this.runWithDatabaseQueryCounter(async () => {
+      const [current, comparison] = await Promise.all([
+        this.executeMetricRange(metrics, snapshot, input.context.storeId, timeRange),
+        comparisonRange
+          ? this.executeMetricRange(metrics, snapshot, input.context.storeId, comparisonRange)
+          : Promise.resolve(undefined),
+      ]);
+      return { current, comparison };
+    });
+    const metricResults = countedExecution.value.current.results;
+    const comparisonMetricResults = countedExecution.value.comparison?.results;
+    const databaseQueryCount = countedExecution.queryCount ??
+      countedExecution.value.current.databaseQueryCount + (countedExecution.value.comparison?.databaseQueryCount ?? 0);
     const limit = this.resolveLimit(input.args.limit);
     const allRows = this.mergeMetricResults(metricResults, sort);
     const displayRows = allRows.slice(0, limit);
@@ -363,6 +368,7 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
       metadata: {
         mappingOutputs: { resultRows: displayRows },
         queryCount: metrics.length * (comparisonRange ? 2 : 1),
+        databaseQueryCount,
         resultCount: allRows.length,
         rangeLabel: timeRange.rangeLabel,
         timeRange: {
@@ -677,6 +683,55 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
       storeId,
       timeRange,
     });
+  }
+
+  private async executeMetricRange(
+    metrics: RuntimeMetric[],
+    snapshot: BusinessDefinitionSnapshotInput,
+    storeId: number,
+    timeRange: { startDate: Date; endExclusive: Date; rangeLabel: string },
+  ): Promise<{ results: Array<{ outputField: string; groups: MetricGroup[]; overallValue: number }>; databaseQueryCount: number }> {
+    const dimensions = snapshot.dimensions.map((dimension) => {
+      const source = this.asRecord(dimension.source, `semantic_dimension_source_invalid:${dimension.dimensionKey}`);
+      return {
+        key: dimension.dimensionKey,
+        name: dimension.name,
+        model: this.requiredString(source.model, `semantic_dimension_model_invalid:${dimension.dimensionKey}`),
+        field: this.requiredString(source.field, `semantic_dimension_field_invalid:${dimension.dimensionKey}`),
+      };
+    });
+    const results = new Array<{ outputField: string; groups: MetricGroup[]; overallValue: number }>(metrics.length);
+    const batchable = metrics
+      .map((metric, index) => ({ metric, index }))
+      .filter(({ metric }) => !metric.runtimeQuery.resolver);
+    const batchPromise = batchable.length
+      ? this.runtimeQueryEngine.executeMetrics({ metrics: batchable.map(({ metric }) => metric), dimensions, storeId, timeRange })
+      : Promise.resolve({ results: [], databaseQueryCount: 0 });
+    const resolved = metrics
+      .map((metric, index) => ({ metric, index }))
+      .filter(({ metric }) => Boolean(metric.runtimeQuery.resolver));
+    const resolvedPromise = Promise.all(
+      resolved.map(async ({ metric, index }) => ({ index, result: await this.executeMetric(metric, snapshot, storeId, timeRange) })),
+    );
+    const [batch, resolvedResults] = await Promise.all([batchPromise, resolvedPromise]);
+    batchable.forEach(({ index: targetIndex }, index) => {
+      results[targetIndex] = batch.results[index];
+    });
+    resolvedResults.forEach(({ index, result }) => {
+      results[index] = result;
+    });
+    return {
+      results,
+      databaseQueryCount: batch.databaseQueryCount + resolved.length,
+    };
+  }
+
+  private async runWithDatabaseQueryCounter<T>(task: () => Promise<T>): Promise<{ value: T; queryCount?: number }> {
+    const counter = (this.prisma as PrismaService & {
+      runWithQueryCounter?: <R>(callback: () => Promise<R>) => Promise<{ value: R; queryCount: number }>;
+    }).runWithQueryCounter;
+    if (typeof counter !== 'function') return { value: await task() };
+    return (await counter.call(this.prisma, task)) as { value: T; queryCount: number };
   }
 
   private async executeResolvedMetric(
@@ -1115,23 +1170,40 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
     });
   }
 
-  private resolveSort(metrics: RuntimeMetric[]): NonNullable<BusinessMetricRuntimeQuery['sort']> {
-    const declarations = metrics.map((metric) => metric.runtimeQuery.sort).filter(Boolean);
-    if (!declarations.length) {
-      if (metrics.length > 1) throw new Error('semantic_sort_binding_required');
-      return { outputField: metrics[0].runtimeQuery.outputFields[0], direction: 'desc', missing: 'error' };
-    }
-    if (declarations.length !== metrics.length) throw new Error('semantic_sort_binding_incomplete');
-    const expected = JSON.stringify(declarations[0]);
-    if (declarations.some((declaration) => JSON.stringify(declaration) !== expected)) {
-      throw new Error('semantic_sort_binding_mismatch');
-    }
-    const sort = declarations[0];
-    if (!sort || sort.missing !== 'error' || !['asc', 'desc'].includes(sort.direction)) {
-      throw new Error('semantic_sort_binding_invalid');
-    }
+  private resolveSort(
+    metrics: RuntimeMetric[],
+    input: BrainCapabilityExecutionInput,
+  ): NonNullable<BusinessMetricRuntimeQuery['sort']> {
     const outputFields = new Set(metrics.flatMap((metric) => metric.runtimeQuery.outputFields));
-    if (!outputFields.has(sort.outputField)) throw new Error(`semantic_sort_output_not_bound:${sort.outputField}`);
+    for (const metric of metrics) {
+      const declaration = metric.runtimeQuery.sort;
+      if (!declaration) continue;
+      if (declaration.missing !== 'error' || !['asc', 'desc'].includes(declaration.direction)) {
+        throw new Error('semantic_sort_binding_invalid');
+      }
+      if (!outputFields.has(declaration.outputField)) {
+        throw new Error(`semantic_sort_output_not_bound:${declaration.outputField}`);
+      }
+    }
+
+    const requestedOrder = Array.isArray(input.args.orderBy) && input.args.orderBy.length === 1
+      ? input.args.orderBy[0]
+      : undefined;
+    const requestedDefinitionKey =
+      requestedOrder && typeof requestedOrder === 'object' && !Array.isArray(requestedOrder)
+        ? this.asRecord(
+            this.asRecord(requestedOrder, 'semantic_order_args_invalid').definitionRef,
+            'semantic_order_definition_ref_invalid',
+          ).definitionKey
+        : undefined;
+    const primaryMetric =
+      metrics.find((metric) => metric.definitionKey === requestedDefinitionKey) ?? metrics[0];
+    const sort = primaryMetric.runtimeQuery.sort ?? {
+      outputField: primaryMetric.runtimeQuery.outputFields[0],
+      direction: 'desc' as const,
+      missing: 'error' as const,
+    };
+    if (!sort.outputField) throw new Error(`semantic_sort_output_not_bound:${primaryMetric.metricKey}`);
     return sort;
   }
 

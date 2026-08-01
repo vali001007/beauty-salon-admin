@@ -721,8 +721,66 @@ describe('BrainSemanticQueryCapabilityExecutor', () => {
     ]);
     expect(answer.metadata).toMatchObject({
       queryCount: 2,
+      databaseQueryCount: 2,
       comparisonRange: { label: '昨天', boundary: '[start,end)' },
     });
+  });
+
+  it('batches same-shape metrics with different declared sort fields and honors structured order', async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      { totalAmount: 120, netAmount: 90 },
+      { totalAmount: 80, netAmount: 70 },
+    ]);
+    const metrics = [
+      publishedMetric(
+        'gross_amount',
+        {
+          dimensions: [],
+          outputFields: ['grossAmount'],
+          sort: { outputField: 'grossAmount', direction: 'desc', missing: 'error' },
+        },
+        { formula: { type: 'sum', model: 'ProductOrder', field: 'totalAmount' } },
+      ),
+      publishedMetric(
+        'net_amount',
+        {
+          dimensions: [],
+          outputFields: ['netAmount'],
+          sort: { outputField: 'netAmount', direction: 'desc', missing: 'error' },
+        },
+        { formula: { type: 'sum', model: 'ProductOrder', field: 'netAmount' } },
+      ),
+    ];
+    const executor = new BrainSemanticQueryCapabilityExecutor(
+      provider(metrics) as never,
+      parser as never,
+      { productOrder: { findMany } } as never,
+    );
+
+    const answer = await executor.execute(
+      input(
+        card('product_sales_ranking', 'semantic', {
+          requiredPermissions: ['core:metric:view'],
+          intents: ['query', 'ranking'],
+        }),
+        {
+          args: {
+            metrics: metrics.map((metric) => ({ definitionKey: metric.definitionKey })),
+            orderBy: [
+              {
+                definitionRef: { definitionKey: 'metric.net_amount' },
+                direction: 'desc',
+              },
+            ],
+          },
+        },
+      ),
+    );
+
+    expect(findMany).toHaveBeenCalledTimes(1);
+    expect(findMany.mock.calls[0][0].select).toEqual({ totalAmount: true, netAmount: true });
+    expect(answer.metadata).toMatchObject({ queryCount: 2, databaseQueryCount: 1 });
+    expect((answer as any).blocks[0].rows).toEqual([{ grossAmount: 200, netAmount: 160 }]);
   });
 
   it('loads frozen validated metric definitions only for a server-owned evaluation release', async () => {
@@ -1760,16 +1818,10 @@ describe('BrainSemanticQueryCapabilityExecutor', () => {
   });
 
   it('sorts multi-metric rankings by the explicitly published primary output', async () => {
-    const findMany = jest
-      .fn()
-      .mockResolvedValueOnce([
-        { netAmount: 100, status: 'A' },
-        { netAmount: 50, status: 'B' },
-      ])
-      .mockResolvedValueOnce([
-        { totalAmount: 1, status: 'A' },
-        { totalAmount: 10, status: 'B' },
-      ]);
+    const findMany = jest.fn().mockResolvedValueOnce([
+      { netAmount: 100, totalAmount: 1, status: 'A' },
+      { netAmount: 50, totalAmount: 10, status: 'B' },
+    ]);
     const sort = { outputField: 'quantity', direction: 'desc', missing: 'error' };
     const executor = new BrainSemanticQueryCapabilityExecutor(
       provider(
@@ -1812,6 +1864,7 @@ describe('BrainSemanticQueryCapabilityExecutor', () => {
       { order_status: 'B', salesAmount: 50, quantity: 10 },
       { order_status: 'A', salesAmount: 100, quantity: 1 },
     ]);
+    expect(findMany).toHaveBeenCalledTimes(1);
   });
 
   it('enforces missing=error before sorting even when only one merged row exists', async () => {
@@ -1830,7 +1883,12 @@ describe('BrainSemanticQueryCapabilityExecutor', () => {
           ),
           publishedMetric(
             'sales_quantity',
-            { dimensions: ['order_status'], outputFields: ['quantity'], sort },
+            {
+              dimensions: ['order_status'],
+              outputFields: ['quantity'],
+              sort,
+              filters: [{ model: 'ProductOrder', field: 'status', operator: 'eq', value: 'completed' }],
+            },
             { formula: { type: 'sum', model: 'ProductOrder', field: 'totalAmount' } },
           ),
         ],

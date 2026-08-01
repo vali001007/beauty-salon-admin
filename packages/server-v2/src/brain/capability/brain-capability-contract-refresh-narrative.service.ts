@@ -21,7 +21,10 @@ type ContractSemanticSource = {
 export class BrainCapabilityContractRefreshNarrativeService
   implements BrainCapabilityNarrativeGenerator, BrainCapabilityCanonicalSemanticsSource
 {
-  constructor(private readonly snapshots: ReadonlyMap<string, Record<string, unknown>>) {}
+  constructor(
+    private readonly snapshots: ReadonlyMap<string, Record<string, unknown>>,
+    private readonly sourceContractKeys: ReadonlySet<string> = new Set(),
+  ) {}
 
   async generate(input: Parameters<BrainCapabilityNarrativeGenerator['generate']>[0]): Promise<BrainCapabilityNarrative> {
     const source = this.resolveSource(input.capability);
@@ -92,6 +95,10 @@ export class BrainCapabilityContractRefreshNarrativeService
 
   private resolveSource(capability: BrainCapabilityCandidate): ContractSemanticSource {
     const snapshot = this.snapshots.get(capability.key);
+    if (snapshot && this.sourceContractKeys.has(capability.key)) {
+      this.requireSnapshot(capability);
+      return { kind: 'source', ...this.requireSourceHints(capability) };
+    }
     if (snapshot) {
       const verified = this.requireSnapshot(capability);
       return {
@@ -109,6 +116,10 @@ export class BrainCapabilityContractRefreshNarrativeService
         riskLevel: verified.riskLevel,
       };
     }
+    return { kind: 'source', ...this.requireSourceHints(capability) };
+  }
+
+  private requireSourceHints(capability: BrainCapabilityCandidate) {
     const hints = capability.semanticHints;
     const governedSafetyContract =
       (capability.readOnly === true && capability.sideEffect === false && capability.requiresConfirmation === false &&
@@ -129,7 +140,7 @@ export class BrainCapabilityContractRefreshNarrativeService
     ) {
       throw new Error(`capability_contract_refresh_snapshot_missing:${capability.key}`);
     }
-    return { kind: 'source', ...hints };
+    return hints;
   }
 }
 

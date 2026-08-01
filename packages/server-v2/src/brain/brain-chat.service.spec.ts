@@ -781,6 +781,29 @@ describe('BrainChatService', () => {
     ]);
   });
 
+  it('keeps an exact governed action capability when catalog TopK misses it', () => {
+    const { service } = createService();
+    const question = '把一位客户的预约改到明天下午三点';
+    const actionCard = {
+      ...controlledDomainCard('reservation_action_preview'),
+      intents: ['action'],
+      readOnly: false,
+      sideEffect: true,
+      examples: [question],
+    };
+    const distractor = controlledDomainCard('reservation_list');
+
+    const result = (service as any).modelCompilerCapabilityCards(
+      [actionCard, distractor],
+      [{ card: distractor, score: 0.9, matchedFields: [] }],
+      undefined,
+      undefined,
+      question,
+    );
+
+    expect(result.map((card: any) => card.key)).toEqual(['reservation_action_preview', 'reservation_list']);
+  });
+
   it('selects the project catalog capability deterministically from the active catalog', () => {
     const { service } = createService();
     const projectServiceCard = {
@@ -3632,6 +3655,46 @@ describe('BrainChatService', () => {
     expect(normalized).toMatchObject({ intent: 'action', answerShape: 'action_preview' });
   });
 
+  it.each([
+    '把一位客户的预约改到明天下午三点',
+    '启动指定的自动触达策略',
+    '给指定客户准备一个待确认跟进任务',
+    '为当前客户生成服务记录待确认方案',
+    '预览取消指定客户下一次预约',
+  ])('keeps common governed preview wording as an action: %s', (question) => {
+    const { service } = createService({ modelPipeline: {} });
+    const normalized = (service as any).normalizeReadOnlyQuestionIntent({
+      intent: {
+        schemaVersion: '1.0',
+        objective: question,
+        domains: ['reservation'],
+        intent: 'query',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'list',
+        successCriteria: ['返回结果'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.8,
+        decisionSummary: '错误识别为查询',
+      },
+      question,
+      cards: [],
+    });
+
+    expect(normalized).toMatchObject({
+      schemaVersion: '1.1',
+      intent: 'action',
+      answerShape: 'action_preview',
+      actionPolarity: 'affirmative',
+      missingSlots: ['actionDefinition'],
+    });
+  });
+
   it('narrows model-added domains to the selected governed capability contract', () => {
     const { service } = createService({ modelPipeline: {} });
     const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
@@ -4212,6 +4275,21 @@ describe('BrainChatService', () => {
         question: '马美琳手机尾号6325的预约是几点',
       }),
     ).toBe(baseIntent);
+
+    const cardUsageActionIntent = {
+      ...baseIntent,
+      schemaVersion: '1.1',
+      intent: 'action',
+      answerShape: 'action_preview',
+      actionPolarity: 'affirmative',
+      missingSlots: ['actionDefinition'],
+    };
+    expect(
+      (service as any).normalizeExactCustomerFactIntent({
+        intent: cardUsageActionIntent,
+        question: '预览为指定客户划扣一次卡项并归属到指定美容师',
+      }),
+    ).toBe(cardUsageActionIntent);
 
     const reservationGroupIntent = {
       ...baseIntent,
@@ -5449,7 +5527,7 @@ describe('BrainChatService', () => {
       cards: [card],
     });
 
-    expect(normalized).toMatchObject({ ambiguities: [], missingSlots: [] });
+    expect(normalized).toMatchObject({ ambiguities: [], missingSlots: ['actionDefinition'] });
     expect(normalized.assumptions).toContain('能力 reservation_action_preview 将采用并披露已治理的默认分析口径。');
   });
 
@@ -5512,7 +5590,7 @@ describe('BrainChatService', () => {
       cards,
     });
 
-    expect(normalized).toMatchObject({ ambiguities: [], missingSlots: [] });
+    expect(normalized).toMatchObject({ ambiguities: [], missingSlots: ['actionDefinition'] });
     expect(normalized.assumptions).toContain('能力 reservation_action_preview 将采用并披露已治理的默认分析口径。');
   });
 
@@ -7555,6 +7633,136 @@ describe('BrainChatService', () => {
     expect(normalized.entities).toEqual([
       expect.objectContaining({ entityType: 'marketing_strategy', entityKey: '12', mention: '营销策略 12' }),
     ]);
+    expect(normalized.missingSlots).toEqual(['actionDefinition']);
+  });
+
+  it('keeps an unpublished actionDefinition gap after capability contract normalization', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const question = '给指定客户准备一个待确认跟进任务';
+    const normalized = (service as any).normalizeGovernedCapabilityContractIntent({
+      question,
+      cards: [
+        {
+          key: 'customer_follow_up_draft',
+          domains: ['customer'],
+          intents: ['action'],
+          examples: [question],
+          readOnly: false,
+          sideEffect: true,
+          requiresConfirmation: true,
+          definitionRefs: [],
+        },
+      ],
+      intent: {
+        schemaVersion: '1.1',
+        objective: question,
+        domains: ['customer'],
+        intent: 'action',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: 'action_preview',
+        successCriteria: ['只生成待确认预览'],
+        ambiguities: [],
+        missingSlots: ['actionDefinition'],
+        assumptions: [],
+        confidence: 1,
+        decisionSummary: '生成客户跟进任务预览',
+        actionPolarity: 'affirmative',
+      },
+    });
+
+    expect(normalized).toMatchObject({
+      schemaVersion: '1.1',
+      intent: 'action',
+      actionPolarity: 'affirmative',
+      missingSlots: ['actionDefinition'],
+    });
+  });
+
+  it.each([
+    ['耗材成本占收入比例多少', 'finance_material_cost_summary'],
+    ['这个月谁的业绩最好', 'manager_staff_overview'],
+  ])('reapplies the exact governed metric contract after completeness: %s', (question, capabilityKey) => {
+    const { service } = createService({ modelPipeline: {} });
+    const metricRef = {
+      ...definitionRef(
+        capabilityKey === 'finance_material_cost_summary'
+          ? 'metric.material_cost_ratio'
+          : 'metric.staff_service_revenue',
+      ),
+      version: 1,
+      definitionFingerprint: 'a'.repeat(64),
+      sourceFingerprint: 'b'.repeat(64),
+    };
+    const normalized = (service as any).normalizeExactGovernedCapabilityAfterCompleteness({
+      question,
+      cards: [
+        {
+          key: capabilityKey,
+          domains: capabilityKey === 'finance_material_cost_summary' ? ['finance'] : ['staff', 'beautician'],
+          intents: ['query', 'ranking'],
+          examples: [question],
+          readOnly: true,
+          sideEffect: false,
+          definitionRefs: [metricRef],
+        },
+      ],
+      snapshot: {
+        entities: [],
+        metrics: [
+          {
+            domain: capabilityKey === 'finance_material_cost_summary' ? 'finance' : 'staff',
+          },
+        ],
+        dimensions: [],
+      },
+      intent: {
+        schemaVersion: '1.0',
+        objective: question,
+        domains: capabilityKey === 'finance_material_cost_summary' ? ['finance'] : ['staff', 'beautician'],
+        intent: capabilityKey === 'manager_staff_overview' ? 'ranking' : 'query',
+        entities: [],
+        metrics: [metricRef],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+        answerShape: capabilityKey === 'manager_staff_overview' ? 'ranking' : 'scalar',
+        successCriteria: ['返回已治理口径结果'],
+        ambiguities: [{ slot: 'metric', reason: '模型重新加入了内部口径歧义', candidates: ['A', 'B'] }],
+        missingSlots: ['metric'],
+        assumptions: [],
+        confidence: 1,
+        decisionSummary: '精确治理正例',
+      },
+    });
+
+    expect(normalized.metrics).toEqual([expect.objectContaining({ definitionKey: metricRef.definitionKey })]);
+    expect(normalized.missingSlots).toEqual([]);
+    expect(normalized.ambiguities).toEqual([]);
+  });
+
+  it('prefers an exact governed example over inventory procurement heuristics', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const question = '哪些产品该补货了';
+    const exactCard = {
+      key: 'inventory_operations_overview',
+      readOnly: true,
+      sideEffect: false,
+      intents: ['query'],
+      examples: [question],
+    };
+    const heuristicCard = {
+      key: 'inventory_procurement_advice',
+      readOnly: true,
+      sideEffect: false,
+      intents: ['recommendation'],
+      examples: [],
+    };
+
+    expect((service as any).findGovernedCapabilityExampleCard(question, [heuristicCard, exactCard])).toBe(exactCard);
   });
 
   it('does not await a never-resolving shadow cognition completion before answering', async () => {

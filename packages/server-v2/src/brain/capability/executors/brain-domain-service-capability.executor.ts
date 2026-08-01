@@ -327,22 +327,23 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     key: 'front_desk_operations_overview',
     name: '前台现场运营概览',
     description:
-      '查询当前门店预约现场事实，支持待到店、已到店、待确认、指定客户、指定美容师、指定时点、首个/下一个/最后一个预约、项目分类、预约日期排行、员工忙闲、到店率、爽约率和服务超时。名单题必须返回客户、时间和项目，不用预约总数或通用概览替代。',
+      '查询当前门店前台现场的预约到店、员工忙闲、到店率、爽约率和服务超时等汇总与异常事实。指定钟点、指定客户、指定美容师、预约项目分类、首个/下一个/最后一个预约以及预约名单明细由门店预约清单能力负责，避免两个能力同时声明同一问题。',
     intents: ['query', 'diagnosis'],
     examples: [
       '今天前台现场情况怎么样',
-      '帮我搜一下今天预约了但还没来的客人',
+      '前台现场的预约到店和员工忙闲概览',
+      '前台现场有哪些服务超时和接待风险',
+    ],
+    negativeExamples: [
+      '今天有几个预约是做面部的，几个是身体的',
       '今天下午还有几个预约没到',
-      '有没有预约了但还没确认的客人',
+      '帮我搜一下今天预约了但还没来的客人',
       '下午3点那个预约是谁，有什么要注意的',
       '今天赵美容师的预约安排',
       '今天下午最后一个预约是几点，是谁',
-      '今天有几个预约是做面部的，几个是身体的',
+      '有没有预约了但还没确认的客人',
       '有没有预约超过两小时没有确认的',
       '这个月预约最多的是哪几天',
-      '有哪些服务超时会影响后面的客户',
-    ],
-    negativeExamples: [
       '直接替我修改客户预约',
       '查询其他门店的预约情况',
       '判断客户是否因为等待时间长而离开',
@@ -355,11 +356,6 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '预约到店情况',
       '待到店客户',
       '已到店客户',
-      '待确认预约',
-      '下一个预约',
-      '最后一个预约',
-      '预约分类',
-      '预约日期排行',
       '预约爽约率',
       '到店率',
       '员工忙闲',
@@ -404,7 +400,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '帮我看一下今天客人的上次服务记录',
       '今天有没有安排我去做培训或其他任务',
       '我今天的客人里有没有 VIP 需要特别对待',
-      '下一个客人最近情绪状态怎么样，需要特别关心吗',
+      '下一个客人有哪些已记录的注意事项',
       '这个客人皮肤比较敏感，用什么护理方案最安全',
       '有没有哪个客户最近好久没来了，我应该联系一下',
     ],
@@ -508,13 +504,13 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '本月库存有什么风险',
       '现在哪些产品库存不够了',
       '哪些产品该补货了',
-      '临期和低库存商品怎么处理',
+      '本月库存采购总体情况怎么样',
       '我们一般临期产品是怎么处理的',
       '有没有快过期的产品，数量多少',
       '有什么产品积压太久了',
       '进货太多导致积压的产品有哪些',
       '过期的护肤品怎么处理，有没有规定',
-      '最近采购了什么，花了多少钱',
+      '给我一份库存金额、低库存、临期和采购建议总览',
       '哪些耗材消耗速度最快',
       '有没有哪个项目因为缺耗材没法做',
       '这个月产品销售额是多少',
@@ -727,18 +723,19 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     mappingOutputs: ['customerIds'],
     name: '门店预约清单',
     description:
-      '按服务端解析的时间范围查询当前门店预约，支持指定客户、指定美容师、上午/下午、指定时点、待确认、首个/下一个/最后一个预约、项目分类、预约日期排行，以及预约客户原始会员等级和特别接待准备查询；未发布统一 VIP 等级映射时只展示原始会员等级并披露口径缺口，不执行创建、改期或取消。',
+      '按服务端解析的时间范围查询当前门店预约，支持指定客户、指定美容师、上午/下午、指定时点、待确认、首个/下一个/最后一个预约、项目分类、预约日期排行，以及预约客户原始会员等级和特别接待准备查询；问题已给出明确钟点时，“那个预约”按当前钟点查询，不依赖上轮列表；未发布统一 VIP 等级映射时只展示原始会员等级并披露口径缺口，不执行创建、改期或取消。',
     intents: ['query'],
     examples: [
       '今天有哪些预约',
       '明天下午预约清单',
       '现在几点了，下一个预约是谁，什么时候',
       '张美丽的预约是几点，做什么项目',
+      '下午3点那个预约是谁，有什么要注意的',
       '帮我看一下今天赵美容师的预约安排',
       '有没有预约了但还没确认的客人',
       '有没有预约超过两小时没有确认的',
-      '今天下午最后一个预约是几点，是谁',
-      '今天有几个预约是做面部的，几个是身体的',
+      '列出今天所有有效预约清单',
+      '查询明天预约名单和项目明细',
       '这个月预约最多的是哪几天',
       '今天有预约的客人里有没有 VIP 需要特别准备',
       '明天预约客户的会员等级分别是什么',
@@ -1430,7 +1427,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                       citationIds: [citations[0]!.sourceId],
                     },
                   ]
-                : [{ kind: 'limitations', items: [`${range.label}没有已完成消费记录`] }],
+                : [{ kind: 'limitations', items: ['no_data:largest_completed_order_not_found'] }],
               metadata: {
                 capabilityKey: 'store_operations_overview',
                 rangeLabel: range.label,
@@ -5752,37 +5749,37 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             },
           };
         }
+        const structuredSegment =
+          typeof this.customerFacts.getStructuredMarketingSegment === 'function'
+            ? await this.customerFacts.getStructuredMarketingSegment({
+                storeId: input.context.storeId,
+                message: input.question,
+              })
+            : undefined;
+        if (structuredSegment) {
+          return this.answer({
+            answer: structuredSegment.answer,
+            citationId: 'capability_marketing_customer_segment',
+            citationLabel: '营销客户分群事实',
+            blocks: [
+              {
+                kind: 'table',
+                rows: structuredSegment.rows,
+                columns: structuredSegment.columns,
+                citationIds: ['capability_marketing_customer_segment'],
+              },
+              ...(structuredSegment.limitation
+                ? [{ kind: 'limitations' as const, items: [structuredSegment.limitation] }]
+                : []),
+            ],
+            metadata: { rangeLabel: range.label, segmentDetail: true, structuredResult: true },
+          });
+        }
         if (
           /(?:消费金额.*(?:分层|分一下层|分组)|优惠.*敏感|等打折|打折才来|基础项目.*(?:升单|升级)|疗程.*(?:快结束|临近结束|续购)|续购.*(?:疗程|次卡|客户)|新客.*潜力.*长期|项目.*感兴趣.*(?:还没办卡|未办卡|没有办卡))/.test(
             input.question,
           )
         ) {
-          const structuredSegment =
-            typeof this.customerFacts.getStructuredMarketingSegment === 'function'
-              ? await this.customerFacts.getStructuredMarketingSegment({
-                  storeId: input.context.storeId,
-                  message: input.question,
-                })
-              : undefined;
-          if (structuredSegment) {
-            return this.answer({
-              answer: structuredSegment.answer,
-              citationId: 'capability_marketing_customer_segment',
-              citationLabel: '营销客户分群事实',
-              blocks: [
-                {
-                  kind: 'table',
-                  rows: structuredSegment.rows,
-                  columns: structuredSegment.columns,
-                  citationIds: ['capability_marketing_customer_segment'],
-                },
-                ...(structuredSegment.limitation
-                  ? [{ kind: 'limitations' as const, items: [structuredSegment.limitation] }]
-                  : []),
-              ],
-              metadata: { rangeLabel: range.label, segmentDetail: true, structuredResult: true },
-            });
-          }
           const answer = await this.customerFacts.answerCustomerFactQuestion({
             storeId: input.context.storeId,
             message: input.question,
