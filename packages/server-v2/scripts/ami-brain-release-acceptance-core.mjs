@@ -257,9 +257,14 @@ export function buildAcceptanceEvidence({
     Number(standardDeltaSummary.scorecards?.verifiedCapability?.total ?? 0);
   if (verifiedTotal <= 0) blockingReasons.push('verified_capability_denominator_empty');
   const uniqueBlockingReasons = [...new Set(blockingReasons)];
+  const pipelineIdentity = {
+    ...identity,
+    releaseFingerprint: coreSummary.releaseFingerprint,
+    sourceCommit: coreSummary.sourceCommit,
+  };
   return {
     contractVersion: identity.contractVersion,
-    pipelineIdentity: identity,
+    pipelineIdentity,
     stages: {
       releaseCore: summarizeStage(coreSummary),
       standardRegressionDelta: summarizeStage(standardDeltaSummary),

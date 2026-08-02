@@ -16,8 +16,10 @@ import {
   isReusableReceipt,
   matchesPattern,
   parseArgs,
+  releaseIdentityBlockers,
   selectPlanFiles,
   validatePrevalidatedGateSelection,
+  withReleaseCandidateCloseGate,
   withResolvedCapabilities,
 } from './ami-brain-check-core.mjs';
 
@@ -40,6 +42,7 @@ test('parses candidate identity, receipt output, upload and reusable gate inputs
     '--eval-run-id=501',
     '--evaluation-release-id=21',
     '--receipt-output=tmp/receipt.json',
+    '--candidate-lock=tmp/candidate-lock.json',
     '--consume-gate-receipt=tmp/build.json',
     '--consume-gate-receipt=tmp/test.json',
     '--prevalidated-gate=frontend_typecheck',
@@ -57,6 +60,7 @@ test('parses candidate identity, receipt output, upload and reusable gate inputs
   assert.equal(options.evalRunId, 501);
   assert.equal(options.evaluationReleaseId, 21);
   assert.equal(options.receiptOutput, 'tmp/receipt.json');
+  assert.equal(options.candidateLock, 'tmp/candidate-lock.json');
   assert.deepEqual(options.consumeGateReceipts, ['tmp/build.json', 'tmp/test.json']);
   assert.deepEqual(options.prevalidatedGates, ['frontend_typecheck', 'backend_build']);
   assert.equal(options.uploadReceipt, true);
@@ -139,6 +143,65 @@ test('reuses only passing non-expired receipts with exact identity', () => {
   assert.equal(isReusableReceipt({ ...receipt, status: 'failed' }, identity), false);
   assert.equal(isReusableReceipt({ ...receipt, schemaVersion: 2 }, identity), false);
   assert.equal(isReusableReceipt({ ...receipt, identityChecksum: checksum('changed') }, identity), false);
+});
+
+test('release receipt reuse requires the exact non-null candidateId', () => {
+  const plan = createImpactPlan({ files: [], stage: 'release', manifest });
+  const identity = createIdentity({
+    plan,
+    source: { diffChecksum: checksum('diff'), sourceFingerprint: checksum('source') },
+    environment: { candidateId: 'a'.repeat(64) },
+  });
+  const receipt = {
+    schemaVersion: 3,
+    ...identity,
+    status: 'passed',
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+  };
+  assert.equal(isReusableReceipt(receipt, identity), true);
+  assert.equal(isReusableReceipt({ ...receipt, candidateId: 'b'.repeat(64) }, identity), false);
+
+  const legacyIdentity = createIdentity({
+    plan,
+    source: { diffChecksum: checksum('diff'), sourceFingerprint: checksum('source') },
+    environment: {},
+  });
+  assert.equal(isReusableReceipt({ ...receipt, ...legacyIdentity }, legacyIdentity), false);
+});
+
+test('release stage always requires a candidate lock and appends the close gate even without changed files', () => {
+  const plan = createImpactPlan({ files: [], stage: 'release', manifest });
+  assert.throws(() => withReleaseCandidateCloseGate(plan, ''), /release_candidate_lock_required/);
+
+  const releasePlan = withReleaseCandidateCloseGate(plan, 'outputs/candidate-lock.json');
+  assert.deepEqual(releasePlan.gates.map((gate) => gate.id), ['brain_check_unit', 'release_candidate_close']);
+  assert.deepEqual(releasePlan.gates.at(-1).command, [
+    'npm',
+    'run',
+    'brain:release:candidate',
+    '--',
+    'close',
+    '--candidate-lock=outputs/candidate-lock.json',
+  ]);
+});
+
+test('release identity fails closed when evaluation, runtime or candidate identity is incomplete', () => {
+  assert.deepEqual(releaseIdentityBlockers({ stage: 'candidate' }), []);
+  assert.deepEqual(releaseIdentityBlockers({ stage: 'release' }), [
+    'release_evaluation_identity_required',
+    'release_runtime_identity_required',
+    'release_candidate_id_required',
+  ]);
+  assert.deepEqual(releaseIdentityBlockers({
+    stage: 'release',
+    evalRunId: 501,
+    evaluationReleaseId: 21,
+    releaseFingerprint: 'release-fingerprint',
+    dataSnapshot: 'snapshot',
+    provider: 'openai_responses',
+    model: 'gpt-test',
+    candidateId: 'a'.repeat(64),
+  }), []);
 });
 
 test('candidate identity includes repository and commit boundaries', () => {

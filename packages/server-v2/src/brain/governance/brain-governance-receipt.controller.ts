@@ -25,7 +25,7 @@ export class BrainGovernanceReceiptController {
     await this.verificationService.verifyReleaseEvidence(verified);
     const candidate = await this.candidateService.upsertFromReceipt(verified.receipt);
     const result = await this.governanceControlPlaneService.ingestReceipt(
-      { ...verified.receipt, candidateId: candidate.id },
+      { ...verified.receipt, governanceCandidateId: candidate.id },
       undefined,
       verified.trustLevel,
     );

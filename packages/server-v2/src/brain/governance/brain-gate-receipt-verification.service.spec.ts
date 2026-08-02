@@ -177,6 +177,7 @@ describe('BrainGateReceiptVerificationService', () => {
   it.each([
     ['eval run', { evalRunId: null, evaluationReleaseId: 21 }],
     ['evaluation release', { evalRunId: 501, evaluationReleaseId: null }],
+    ['candidate', { candidateId: null, evalRunId: 501, evaluationReleaseId: 21 }],
   ])('requires the %s identity before granting verified-release trust', (_label, evalIdentity) => {
     const now = new Date('2026-08-02T10:00:00.000Z');
     const candidate = candidateReceipt(now);
@@ -188,6 +189,7 @@ describe('BrainGateReceiptVerificationService', () => {
       dataSnapshot: 'snapshot-1',
       provider: 'openai_responses',
       model: 'gpt-test',
+      candidateId: '5'.repeat(64),
       ...evalIdentity,
     });
     const receipt = { ...candidate, ...releaseIdentity, stage: 'release', identityChecksum: sha256(releaseIdentity) };
@@ -205,6 +207,7 @@ describe('BrainGateReceiptVerificationService', () => {
       dataSnapshot: 'snapshot-1',
       provider: 'openai_responses',
       model: 'gpt-test',
+      candidateId: '5'.repeat(64),
       evalRunId: 501,
       evaluationReleaseId: 21,
     });
@@ -229,6 +232,7 @@ describe('BrainGateReceiptVerificationService', () => {
       dataSnapshot: 'snapshot-1',
       provider: 'openai_responses',
       model: 'gpt-test',
+      candidateId: '5'.repeat(64),
       evalRunId: 501,
       evaluationReleaseId: 21,
     });
@@ -256,6 +260,7 @@ describe('BrainGateReceiptVerificationService', () => {
       dataSnapshot: 'snapshot-1',
       provider: 'openai_responses',
       model: 'gpt-test',
+      candidateId: '5'.repeat(64),
       evalRunId: 501,
       evaluationReleaseId: 21,
     });
@@ -297,6 +302,7 @@ describe('BrainGateReceiptVerificationService', () => {
       dataSnapshot: 'snapshot-1',
       provider: 'openai_responses',
       model: 'gpt-test',
+      candidateId: '5'.repeat(64),
       evalRunId: 501,
       evaluationReleaseId: 21,
     });
@@ -386,6 +392,7 @@ function identityFields(value: Record<string, unknown>) {
     mergeBaseCommit: value.mergeBaseCommit,
     headCommit: value.headCommit,
     candidateKey: value.candidateKey,
+    candidateId: value.candidateId ?? null,
     evalRunId: value.evalRunId ?? null,
     evaluationReleaseId: value.evaluationReleaseId ?? null,
   };

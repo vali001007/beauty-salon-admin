@@ -86,7 +86,13 @@ export const GATE_CATALOG = Object.freeze({
   },
   brain_check_unit: {
     cwd: 'packages/server-v2',
-    command: ['node', '--test', 'scripts/ami-brain-check.test.mjs'],
+    command: [
+      'node',
+      '--test',
+      'scripts/ami-brain-check.test.mjs',
+      'scripts/ami-brain-candidate-identity-core.test.mjs',
+      'scripts/ami-brain-release-candidate.test.mjs',
+    ],
     description: '统一门禁编排器单测',
   },
 });
@@ -120,6 +126,7 @@ export function parseArgs(argv) {
     else if (argument.startsWith('--eval-run-id=')) options.evalRunId = Number(argument.slice('--eval-run-id='.length));
     else if (argument.startsWith('--evaluation-release-id=')) options.evaluationReleaseId = Number(argument.slice('--evaluation-release-id='.length));
     else if (argument.startsWith('--receipt-output=')) options.receiptOutput = argument.slice('--receipt-output='.length).trim();
+    else if (argument.startsWith('--candidate-lock=')) options.candidateLock = argument.slice('--candidate-lock='.length).trim();
     else if (argument.startsWith('--consume-gate-receipt=')) {
       const path = argument.slice('--consume-gate-receipt='.length).trim();
       if (path) options.consumeGateReceipts.push(path);
@@ -215,6 +222,43 @@ export function withResolvedCapabilities(plan, capabilityKeys) {
   };
 }
 
+export function withReleaseCandidateCloseGate(plan, candidateLock) {
+  if (plan.stage !== 'release') return plan;
+  if (!candidateLock) throw new Error('release_candidate_lock_required');
+  const existing = plan.gates.filter((gate) => gate.id !== 'release_candidate_close');
+  return {
+    ...plan,
+    gates: [
+      ...existing,
+      {
+        id: 'release_candidate_close',
+        cwd: 'packages/server-v2',
+        command: [
+          'npm',
+          'run',
+          'brain:release:candidate',
+          '--',
+          'close',
+          `--candidate-lock=${candidateLock}`,
+        ],
+        description: 'Ami Brain 同候选证据关闭门禁',
+        files: [],
+      },
+    ],
+  };
+}
+
+export function releaseIdentityBlockers(identity) {
+  if (identity.stage !== 'release') return [];
+  const blockers = [];
+  if (!identity.evalRunId || !identity.evaluationReleaseId) blockers.push('release_evaluation_identity_required');
+  if (!identity.releaseFingerprint || !identity.dataSnapshot || !identity.provider || !identity.model) {
+    blockers.push('release_runtime_identity_required');
+  }
+  if (!identity.candidateId) blockers.push('release_candidate_id_required');
+  return blockers;
+}
+
 export function extractCapabilityKeys(source) {
   const keys = new Set();
   let cursor = 0;
@@ -284,6 +328,7 @@ export function createIdentity({ plan, source, environment }) {
     mergeBaseCommit: source.mergeBaseCommit ?? null,
     headCommit: source.headCommit ?? source.head ?? null,
     candidateKey: source.candidateKey ?? null,
+    candidateId: environment.candidateId ?? null,
     evalRunId: source.evalRunId ?? null,
     evaluationReleaseId: source.evaluationReleaseId ?? null,
   };
@@ -308,6 +353,7 @@ export function createGateInputChecksum({ gate, identity, fileFingerprints = {} 
     baseCommit: identity.baseCommit,
     mergeBaseCommit: identity.mergeBaseCommit,
     headCommit: identity.headCommit,
+    candidateId: identity.candidateId,
     evalRunId: identity.evalRunId,
     evaluationReleaseId: identity.evaluationReleaseId,
   });
@@ -315,6 +361,10 @@ export function createGateInputChecksum({ gate, identity, fileFingerprints = {} 
 
 export function isReusableReceipt(receipt, identity, now = Date.now()) {
   if (!receipt || receipt.schemaVersion !== 3 || receipt.status !== 'passed') return false;
+  if (identity.stage === 'release') {
+    if (!identity.candidateId || !receipt.candidateId) return false;
+    if (receipt.candidateId !== identity.candidateId) return false;
+  }
   if (receipt.identityChecksum !== identity.identityChecksum) return false;
   return Number.isFinite(Date.parse(receipt.expiresAt)) && Date.parse(receipt.expiresAt) > now;
 }
