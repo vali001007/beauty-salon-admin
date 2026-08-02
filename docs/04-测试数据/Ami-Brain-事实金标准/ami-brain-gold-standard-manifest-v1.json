@@ -7,11 +7,11 @@
     "classificationPath": "docs/04-测试数据/Ami-Brain-全领域题集治理/ami-brain-suite-classification-v2.csv",
     "classificationChecksum": "5ad4088948f9235fbee38a812f0203c250582b4f135433426f2270fb9ab1c9e9",
     "suiteManifestPath": "docs/04-测试数据/Ami-Brain-全领域题集治理/ami-brain-suite-manifest-v2.json",
-    "suiteManifestChecksum": "dfb2705f43434cbad6e5e088fde80c60e02f564143082abedb4cac8d68d77ffe",
+    "suiteManifestChecksum": "31c07fc9c0a117059442408f6ff097c2fcb7977c971d92ace32d7b51eed6c529",
     "standardRegressionSuiteKey": "ami_brain_standard_regression_v2",
     "standardRegressionCaseIdsChecksum": "d1a8afc646f802da057a3fe9b4e806b9b86bf5ef31807d525ff8cad572fca98f",
     "productLoopEligibilityPath": "docs/04-测试数据/Ami-Brain-全领域题集治理/ami-brain-product-loop-eligibility-v1.json",
-    "productLoopEligibilityChecksum": "df4e1cb012f4a377c5a2d4f50e849bd945c6b2801db826521b7c0edf5b8fac8a",
+    "productLoopEligibilityChecksum": "54a1d018e248d16cac6b6b31a7f6e27af45fc9f43788221487fcc1884677642f",
     "releaseCapabilitySnapshot": {
       "releaseId": 416,
       "releaseKey": "ami-brain-production-baseline-p0-release-20260722-full",
@@ -21,8 +21,8 @@
       "capabilityKeysChecksum": "5c31306112612b632af46c06a680cc2bf5c30c63b3f65808573777c5cdc26575"
     },
     "candidateManifestChecksum": "43f625a26af661285ad687f2de5e8189ead06cf7b9cbc2a711c7831bba20ef2c",
-    "goldEligibilityCasesChecksum": "4fcddeb2937ce655879e037ac871649c34929abc6cb9321a3c415cdd44574977",
-    "sourceIdentityRevalidatedAt": "2026-08-01T22:12:39.741Z",
+    "goldEligibilityCasesChecksum": "2c38cb2240e017f8d14c31e44b5b2fc708ec6cb45222169bf6ed8a7bdb30300f",
+    "sourceIdentityRevalidatedAt": "2026-08-02T17:50:37.951Z",
     "sourceIdentityRevalidationPolicy": "classification_and_standard_case_ids_unchanged;all_gold_cases_current_release_test_with_same_question_contract_and_three_present_evidence",
     "lastTruthRefreshSourceManifestChecksum": "50896c28d08049f323333ebaf408adc4cd284a296db2b707d3ccbf8bf6a55da9"
   },

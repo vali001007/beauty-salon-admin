@@ -2767,7 +2767,20 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     const executor = new BrainDomainServiceCapabilityExecutor(
       skillRuntime as never,
       {} as never,
-      new BrainTimeRangeParserService(),
+      {
+        parse: jest.fn().mockReturnValue({
+          mentionedTime: true,
+          filters: [],
+          requiresComparison: false,
+          unsupportedExpressions: [],
+          range: {
+            label: '上周',
+            startDate: new Date('2026-07-20T00:00:00.000+08:00'),
+            endDate: new Date('2026-07-26T23:59:59.999+08:00'),
+            granularity: 'week',
+          },
+        }),
+      } as never,
     );
     const result = await executor.execute({
       card: { ...storeCard(), key: 'inventory_procurement_advice', intents: ['query'] },

@@ -1,6 +1,6 @@
 # Agent V2 本地完成度审计
 
-生成时间：2026-07-06 11:49:03 Asia/Shanghai
+生成时间：2026-08-03 01:56:56 Asia/Shanghai
 
 ## 结论
 
@@ -63,7 +63,7 @@
 
 ## 来源
 
-- task: `docs/03-开发计划/01-AI智能体与问数能力/task.md`
+- task: `docs/03-开发计划/01-AI智能体与问数能力/02-Agent-V2/task.md`
 - canonicalProductionEvidence: `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-retirement-production-evidence.json`
 - evalGate: `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-eval-gate-report.json`
 - legacyDiffAttribution: `docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-diff-attribution.json`

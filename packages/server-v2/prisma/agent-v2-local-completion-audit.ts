@@ -24,7 +24,7 @@ type ReportValue = Record<string, any>;
 
 const workspaceRoot = resolve(process.cwd(), '../..');
 const docsRoot = resolve(workspaceRoot, 'docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03');
-const taskPath = resolve(workspaceRoot, 'docs/03-开发计划/01-AI智能体与问数能力/task.md');
+const taskPath = resolve(workspaceRoot, 'docs/03-开发计划/01-AI智能体与问数能力/02-Agent-V2/task.md');
 const outputJsonPath = resolve(docsRoot, 'agent-v2-local-completion-audit.json');
 const outputMdPath = resolve(docsRoot, 'agent-v2-local-completion-audit.md');
 
