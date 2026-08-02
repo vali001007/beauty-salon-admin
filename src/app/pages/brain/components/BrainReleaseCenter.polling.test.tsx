@@ -20,6 +20,7 @@ vi.mock('@/api/brain', () => ({
   submitBrainReleaseModification: vi.fn(),
 }));
 vi.mock('@/hooks/usePermission', () => ({ usePermission: (permission: string) => !permissionState.denied.has(permission) }));
+vi.mock('../brainGovernanceNavigation', () => ({ BRAIN_GOVERNANCE_UI_MODE: 'manage' }));
 
 const queuedJob = {
   id: 501,
@@ -156,5 +157,79 @@ describe('BrainReleaseCenter regeneration polling', () => {
     expect(screen.queryByRole('button', { name: '批准发布' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '拒绝' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '修改要求' })).toBeInTheDocument();
+  });
+
+  it('renders server-verified readiness instead of inferring tests from snapshots', async () => {
+    api.listBrainCapabilityRegenerationJobs.mockResolvedValue({ items: [] });
+    api.listBrainReleases.mockResolvedValue({
+      items: [{
+        id: 62,
+        releaseKey: 'runtime-ready-v1',
+        scope: 'percentage',
+        rollout: { stage: 'shadow', mode: 'shadow', userPercentage: 100 },
+        status: 'draft',
+        previousReleaseId: 61,
+        createdAt: '2026-08-01T00:00:00.000Z',
+        items: [],
+        releaseReadiness: {
+          status: 'ready',
+          canRelease: true,
+          evaluationReleaseId: 60,
+          evalRunId: 249,
+          releaseFingerprint: 'a'.repeat(64),
+          suiteChecksum: 'b'.repeat(64),
+          questionCount: 100,
+          provider: 'openai_responses',
+          model: 'gpt-test',
+          generatedAt: '2026-08-01T00:00:00.000Z',
+          expiresAt: '2026-08-03T00:00:00.000Z',
+          blockers: [],
+        },
+      }],
+    });
+
+    renderReleaseCenter();
+    await flush();
+
+    expect(screen.getByText('已通过（Eval Run #249）')).toBeInTheDocument();
+    expect(screen.queryByText('等待评测门禁')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '批准发布' })).toBeEnabled();
+  });
+
+  it('blocks activation when the backend readiness contract reports missing evidence', async () => {
+    api.listBrainCapabilityRegenerationJobs.mockResolvedValue({ items: [] });
+    api.listBrainReleases.mockResolvedValue({
+      items: [{
+        id: 63,
+        releaseKey: 'runtime-blocked-v1',
+        scope: 'percentage',
+        rollout: { stage: 'shadow', mode: 'shadow', userPercentage: 100 },
+        status: 'draft',
+        previousReleaseId: 61,
+        createdAt: '2026-08-01T00:00:00.000Z',
+        items: [],
+        releaseReadiness: {
+          status: 'blocked',
+          canRelease: false,
+          evaluationReleaseId: null,
+          evalRunId: null,
+          releaseFingerprint: 'a'.repeat(64),
+          suiteChecksum: null,
+          questionCount: null,
+          provider: null,
+          model: null,
+          generatedAt: null,
+          expiresAt: null,
+          blockers: ['release_eval_gate_failed'],
+        },
+      }],
+    });
+
+    renderReleaseCenter();
+    await flush();
+
+    expect(screen.getByText('未就绪：release_eval_gate_failed')).toBeInTheDocument();
+    expect(screen.getByText('当前发布尚未满足激活条件')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '批准发布' })).toBeDisabled();
   });
 });

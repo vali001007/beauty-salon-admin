@@ -1,4 +1,4 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { BrainRiskLevel, Prisma } from '@prisma/client';
 import { Cron } from '@nestjs/schedule';
 import { CronTime } from 'cron';
@@ -25,6 +25,28 @@ interface InspectionRuleRecord {
   suggestionTpl: Prisma.JsonValue;
   riskLevel: BrainRiskLevel;
   version: number;
+}
+
+export interface InspectionFindingSummaryRow {
+  id: number;
+  runId: number | null;
+  storeId: number;
+  ruleKey: string;
+  ruleVersion: number;
+  domain: string;
+  objectType: string;
+  objectId: string;
+  severity: BrainRiskLevel;
+  title: string;
+  status: string;
+  disposition: string | null;
+  firstDetectedAt: Date;
+  lastDetectedAt: Date;
+  resolvedAt: Date | null;
+  evidenceCount: number;
+  suggestionCount: number;
+  owner: string | null;
+  candidateKey: string | null;
 }
 
 @Injectable()
@@ -143,6 +165,9 @@ export class BrainInspectionService {
     storeId: number;
     status?: string;
     statuses?: string[];
+    severity?: string;
+    createdFrom?: string;
+    createdTo?: string;
     permissions?: string[];
     deniedPermissions?: string[];
     userId?: number;
@@ -152,6 +177,11 @@ export class BrainInspectionService {
   }) {
     const finiteTake = typeof input.take === 'number' && Number.isFinite(input.take) ? Math.trunc(input.take) : 200;
     const take = input.take === null ? undefined : Math.min(Math.max(finiteTake, 1), 200);
+    const severity = Object.values(BrainRiskLevel).includes(input.severity as BrainRiskLevel)
+      ? input.severity as BrainRiskLevel
+      : undefined;
+    const createdFrom = validDate(input.createdFrom);
+    const createdTo = validDate(input.createdTo, true);
     const findings = await this.prisma.brainInspectionFinding.findMany({
       where: {
         storeId: input.storeId,
@@ -160,6 +190,13 @@ export class BrainInspectionService {
           : input.statuses?.length
             ? { status: { in: [...new Set(input.statuses)] } }
             : {}),
+        ...(severity ? { severity } : {}),
+        ...(createdFrom || createdTo ? {
+          lastDetectedAt: {
+            ...(createdFrom ? { gte: createdFrom } : {}),
+            ...(createdTo ? { lte: createdTo } : {}),
+          },
+        } : {}),
       },
       orderBy: [{ status: 'asc' }, { severity: 'desc' }, { lastDetectedAt: 'desc' }],
       take,
@@ -177,6 +214,190 @@ export class BrainInspectionService {
       roles: input.roles ?? [],
       permissions: input.permissions ?? [],
     });
+  }
+
+  async listFindingsPage(input: {
+    storeId: number;
+    status?: string;
+    search?: string;
+    severity?: string;
+    owner?: string;
+    candidateKey?: string;
+    createdFrom?: string;
+    createdTo?: string;
+    page?: number;
+    pageSize?: number;
+    permissions?: string[];
+    deniedPermissions?: string[];
+    userId?: number;
+    roles?: string[];
+    enabledRulesOnly?: boolean;
+  }) {
+    const requestedPage = Number.isFinite(input.page) ? Math.trunc(input.page ?? 1) : 1;
+    const requestedPageSize = Number.isFinite(input.pageSize) ? Math.trunc(input.pageSize ?? 20) : 20;
+    const page = Math.max(requestedPage, 1);
+    const pageSize = Math.min(Math.max(requestedPageSize, 1), 100);
+    const rules = await this.prisma.brainInspectionRule.findMany({
+      where: input.enabledRulesOnly ? { enabled: true } : undefined,
+      select: { ruleKey: true, version: true, condition: true, enabled: true },
+    });
+    const accessibleRules = rules.filter((rule) => {
+      if (input.enabledRulesOnly && !rule.enabled) return false;
+      const condition = this.record(rule.condition);
+      const requiredPermission = typeof condition.permission === 'string' ? condition.permission : null;
+      if (!requiredPermission) return (input.permissions ?? []).includes('*');
+      return this.hasPermission(input.permissions ?? [], input.deniedPermissions ?? [], requiredPermission);
+    });
+    if (!accessibleRules.length) return { items: [], total: 0, page, pageSize };
+
+    const search = input.search?.trim().toLowerCase();
+    const owner = input.owner?.trim().toLowerCase();
+    const candidateKey = input.candidateKey?.trim().toLowerCase();
+    const severity = Object.values(BrainRiskLevel).includes(input.severity as BrainRiskLevel)
+      ? input.severity as BrainRiskLevel
+      : undefined;
+    const createdFrom = validDate(input.createdFrom);
+    const createdTo = validDate(input.createdTo, true);
+    const where: Prisma.Sql[] = [
+      Prisma.sql`f."storeId" = ${input.storeId}`,
+      Prisma.sql`(${Prisma.join(accessibleRules.map((rule) => Prisma.sql`(f."ruleKey" = ${rule.ruleKey} AND f."ruleVersion" = ${rule.version})`), ' OR ')})`,
+    ];
+    if (input.status) where.push(Prisma.sql`f."status" = ${input.status}`);
+    if (severity) where.push(Prisma.sql`f."severity" = ${severity}::"BrainRiskLevel"`);
+    if (createdFrom) where.push(Prisma.sql`f."lastDetectedAt" >= ${createdFrom}`);
+    if (createdTo) where.push(Prisma.sql`f."lastDetectedAt" <= ${createdTo}`);
+    if (search) {
+      const term = `%${search}%`;
+      where.push(Prisma.sql`(
+        LOWER(f."title") LIKE ${term}
+        OR LOWER(f."ruleKey") LIKE ${term}
+        OR LOWER(f."severity"::text) LIKE ${term}
+        OR LOWER(f."status") LIKE ${term}
+      )`);
+    }
+    if (owner) {
+      const term = `%${owner}%`;
+      where.push(Prisma.sql`LOWER(f."evidence"::text || ' ' || f."suggestion"::text) LIKE ${term}`);
+    }
+    if (candidateKey) {
+      const term = `%${candidateKey}%`;
+      where.push(Prisma.sql`LOWER(f."evidence"::text || ' ' || f."suggestion"::text) LIKE ${term}`);
+    }
+    if (this.isBeauticianOnly(input.roles ?? [])) {
+      if (!Number.isInteger(input.userId) || Number(input.userId) <= 0) return { items: [], total: 0, page, pageSize };
+      where.push(Prisma.sql`(
+        f."objectType" <> 'service_task'
+        OR EXISTS (
+          SELECT 1
+          FROM "ServiceTask" st
+          JOIN "Beautician" b ON b."id" = st."beauticianId"
+          WHERE st."id" = CASE WHEN f."objectId" ~ '^[0-9]+$' THEN f."objectId"::integer ELSE NULL END
+            AND st."storeId" = ${input.storeId}
+            AND b."userId" = ${Number(input.userId)}
+        )
+      )`);
+      where.push(Prisma.sql`(
+        f."objectType" <> 'reservation'
+        OR EXISTS (
+          SELECT 1
+          FROM "Reservation" reservation
+          JOIN "Beautician" b ON b."id" = reservation."beauticianId"
+          WHERE reservation."id" = CASE WHEN f."objectId" ~ '^[0-9]+$' THEN f."objectId"::integer ELSE NULL END
+            AND reservation."storeId" = ${input.storeId}
+            AND b."userId" = ${Number(input.userId)}
+        )
+      )`);
+    }
+    const whereSql = Prisma.join(where, ' AND ');
+    const [countRows, rows] = await Promise.all([
+      this.prisma.$queryRaw<Array<{ total: bigint }>>(Prisma.sql`
+        SELECT COUNT(*)::bigint AS "total"
+        FROM "brain_inspection_finding" f
+        WHERE ${whereSql}
+      `),
+      this.prisma.$queryRaw<InspectionFindingSummaryRow[]>(Prisma.sql`
+        SELECT
+          f."id",
+          f."runId",
+          f."storeId",
+          f."ruleKey",
+          f."ruleVersion",
+          f."domain",
+          f."objectType",
+          f."objectId",
+          f."severity",
+          f."title",
+          f."status",
+          f."disposition",
+          f."firstDetectedAt",
+          f."lastDetectedAt",
+          f."resolvedAt",
+          CASE jsonb_typeof(f."evidence")
+            WHEN 'object' THEN (SELECT COUNT(*)::integer FROM jsonb_object_keys(f."evidence"))
+            WHEN 'array' THEN jsonb_array_length(f."evidence")
+            ELSE 0
+          END AS "evidenceCount",
+          CASE jsonb_typeof(f."suggestion")
+            WHEN 'object' THEN (SELECT COUNT(*)::integer FROM jsonb_object_keys(f."suggestion"))
+            WHEN 'array' THEN jsonb_array_length(f."suggestion")
+            ELSE 0
+          END AS "suggestionCount",
+          COALESCE(
+            jsonb_path_query_first(f."evidence", '$.**.owner') #>> '{}',
+            jsonb_path_query_first(f."suggestion", '$.**.owner') #>> '{}',
+            jsonb_path_query_first(f."evidence", '$.**.assignee') #>> '{}',
+            jsonb_path_query_first(f."suggestion", '$.**.assignee') #>> '{}'
+          ) AS "owner",
+          COALESCE(
+            jsonb_path_query_first(f."evidence", '$.**.candidateKey') #>> '{}',
+            jsonb_path_query_first(f."suggestion", '$.**.candidateKey') #>> '{}',
+            jsonb_path_query_first(f."evidence", '$.**.candidate') #>> '{}',
+            jsonb_path_query_first(f."suggestion", '$.**.candidate') #>> '{}'
+          ) AS "candidateKey"
+        FROM "brain_inspection_finding" f
+        WHERE ${whereSql}
+        ORDER BY f."status" ASC, f."severity" DESC, f."lastDetectedAt" DESC
+        OFFSET ${(page - 1) * pageSize}
+        LIMIT ${pageSize}
+      `),
+    ]);
+    const total = Number(countRows[0]?.total ?? 0);
+    return {
+      items: rows,
+      total,
+      page,
+      pageSize,
+    };
+  }
+
+  async getFinding(input: {
+    storeId: number;
+    findingId: number;
+    permissions?: string[];
+    deniedPermissions?: string[];
+    userId?: number;
+    roles?: string[];
+    enabledRulesOnly?: boolean;
+  }) {
+    const finding = await this.prisma.brainInspectionFinding.findFirst({
+      where: { id: input.findingId, storeId: input.storeId },
+    });
+    if (!finding) throw new NotFoundException('brain_inspection_finding_not_found');
+    const permissionFiltered = await this.filterFindingsByPermissions(
+      [finding],
+      input.permissions ?? [],
+      input.deniedPermissions ?? [],
+      input.enabledRulesOnly === true,
+    );
+    const scoped = await this.filterFindingsByDataScope({
+      findings: permissionFiltered,
+      storeId: input.storeId,
+      userId: input.userId,
+      roles: input.roles ?? [],
+      permissions: input.permissions ?? [],
+    });
+    if (!scoped.length) throw new NotFoundException('brain_inspection_finding_not_found');
+    return scoped[0];
   }
 
   async listInbox(input: {
@@ -793,4 +1014,10 @@ export class BrainInspectionService {
   private toJson(value: unknown): Prisma.InputJsonValue {
     return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
   }
+}
+
+function validDate(value?: string, endOfDay = false) {
+  if (!value?.trim()) return undefined;
+  const date = new Date(endOfDay && /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T23:59:59.999` : value);
+  return Number.isFinite(date.getTime()) ? date : undefined;
 }

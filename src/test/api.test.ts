@@ -410,6 +410,7 @@ describe('API facades', () => {
       realCreateInventoryAdjustment,
       realCreatePurchaseOrder: vi.fn(),
       realUpdatePurchaseOrderStatus: vi.fn(),
+      realSubmitPurchaseOrderForApproval: vi.fn(),
       realReceivePurchaseOrder: vi.fn(),
       realCreateTransfer: vi.fn(),
       realGetTransferSuggestions,

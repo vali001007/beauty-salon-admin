@@ -331,6 +331,80 @@ describe('BrainReleaseService', () => {
     });
   });
 
+  it('returns real release readiness from completed evaluation evidence', async () => {
+    const items = [{
+      id: 1,
+      releaseId: 21,
+      resourceVersionId: 11,
+      resourceType: 'skill',
+      resourceKey: 'customer_facts',
+      version: 1,
+      snapshot: {},
+      createdAt: new Date(),
+      resourceVersion: {
+        id: 11,
+        resourceType: 'skill',
+        resourceKey: 'customer_facts',
+        version: 1,
+        snapshot: {},
+        checksum: 'a'.repeat(64),
+        status: 'draft',
+        sourceResourceId: null,
+      },
+    }];
+    const summary = passingEvalSummary(items);
+    const prisma = {
+      brainRelease: {
+        findUnique: jest.fn().mockResolvedValue({ id: 21, scope: 'global', status: 'draft', rollout: { mode: 'model' }, items }),
+      },
+      brainEvalRun: {
+        findMany: jest.fn().mockResolvedValue([{
+          id: 501,
+          modelVersion: 'gpt-test',
+          caseCount: 1,
+          summary,
+          finishedAt: new Date('2026-08-02T10:00:00.000Z'),
+        }]),
+      },
+    };
+    const service = new BrainReleaseService(prisma as never);
+
+    await expect(service.getReleaseReadiness(21)).resolves.toEqual(expect.objectContaining({
+      status: 'ready',
+      canRelease: true,
+      evaluationReleaseId: 21,
+      evalRunId: 501,
+      releaseFingerprint: summary.releaseFingerprint,
+      questionCount: 1,
+      model: 'gpt-test',
+      blockers: [],
+    }));
+  });
+
+  it('returns a blocked readiness contract instead of guessing from release snapshots', async () => {
+    const items = [{
+      id: 1,
+      releaseId: 22,
+      resourceVersionId: 12,
+      resourceType: 'skill',
+      resourceKey: 'customer_facts',
+      version: 1,
+      snapshot: { tests: { contract: 'passed' } },
+      createdAt: new Date(),
+      resourceVersion: { id: 12, resourceType: 'skill', resourceKey: 'customer_facts', version: 1, snapshot: {}, checksum: 'b'.repeat(64), status: 'draft', sourceResourceId: null },
+    }];
+    const service = new BrainReleaseService({
+      brainRelease: { findUnique: jest.fn().mockResolvedValue({ id: 22, scope: 'global', status: 'draft', rollout: {}, items }) },
+      brainEvalRun: { findMany: jest.fn().mockResolvedValue([]) },
+    } as never);
+
+    await expect(service.getReleaseReadiness(22)).resolves.toEqual(expect.objectContaining({
+      status: 'blocked',
+      canRelease: false,
+      blockers: ['release_eval_gate_failed'],
+    }));
+  });
+
   it('never activates an evaluation-only release into production', async () => {
     const release = {
       id: 21,
@@ -346,6 +420,117 @@ describe('BrainReleaseService', () => {
 
     await expect(service.activateRelease({ releaseId: 21, activatedBy: 9 })).rejects.toMatchObject({
       message: 'release_evaluation_only',
+    });
+  });
+
+  it('rejects direct activation of a release owned by a rollout sequence', async () => {
+    const release = {
+      id: 21,
+      status: 'draft',
+      scope: 'percentage',
+      rollout: { mode: 'model', stage: 'canary_20' },
+      rolloutSequenceId: 51,
+      rolloutStage: 'canary_20',
+      items: [],
+    };
+    const service = new BrainReleaseService({
+      brainRelease: { findUnique: jest.fn().mockResolvedValue(release) },
+    } as never);
+
+    await expect(service.activateRelease({ releaseId: 21, activatedBy: 9 })).rejects.toMatchObject({
+      message: 'rollout_sequence_release_requires_sequence_transition',
+    });
+  });
+
+  it('rejects a rollout transition that skips an intermediate stage', async () => {
+    const release = {
+      id: 21,
+      status: 'draft',
+      scope: 'percentage',
+      rollout: { mode: 'model', stage: 'canary_20' },
+      rolloutSequenceId: 51,
+      rolloutStage: 'canary_20',
+      items: [],
+    };
+    const service = new BrainReleaseService({
+      brainRelease: { findUnique: jest.fn().mockResolvedValue(release) },
+      brainRolloutSequence: {
+        findUnique: jest.fn().mockResolvedValue({ status: 'active', currentStage: 'shadow' }),
+      },
+    } as never);
+
+    await expect(service.activateRelease({
+      releaseId: 21,
+      activatedBy: 9,
+      rolloutTransition: { sequenceId: 51, fromStage: 'shadow', toStage: 'canary_20' },
+    })).rejects.toMatchObject({ message: 'rollout_sequence_transition_not_allowed' });
+  });
+
+  it('rejects direct rollback of an active release owned by a rollout sequence', async () => {
+    const release = {
+      id: 21,
+      status: 'active',
+      scope: 'percentage',
+      rollout: { mode: 'model', stage: 'canary_20' },
+      rolloutSequenceId: 51,
+      rolloutStage: 'canary_20',
+      previousReleaseId: 20,
+      items: [],
+    };
+    const service = new BrainReleaseService({
+      brainRelease: { findUnique: jest.fn().mockResolvedValue(release) },
+    } as never);
+
+    await expect(service.rollbackRelease({ releaseId: 21, reason: 'stop' })).rejects.toMatchObject({
+      message: 'rollout_sequence_release_requires_sequence_rollback',
+    });
+  });
+
+  it('allows a paused sequence to enter guarded rollback but rejects the wrong runtime target', async () => {
+    const release = {
+      id: 21,
+      status: 'active',
+      scope: 'percentage',
+      rollout: { mode: 'model', stage: 'canary_20' },
+      rolloutSequenceId: 51,
+      rolloutStage: 'canary_20',
+      previousReleaseId: 20,
+      items: [],
+    };
+    const service = new BrainReleaseService({
+      brainRelease: { findUnique: jest.fn().mockResolvedValue(release) },
+      brainRolloutSequence: {
+        findUnique: jest.fn().mockResolvedValue({
+          status: 'paused',
+          currentStage: 'canary_20',
+          previousRuntimeReleaseId: 82,
+        }),
+      },
+    } as never);
+
+    await expect(service.rollbackRelease({
+      releaseId: 21,
+      reason: 'stop',
+      rolloutTransition: { sequenceId: 51, fromStage: 'canary_20', targetReleaseId: 81 },
+    })).rejects.toMatchObject({ message: 'rollout_sequence_rollback_target_mismatch' });
+  });
+
+  it('rejects the legacy baseline rollback path for a sequence-owned release', async () => {
+    const service = new BrainReleaseService({
+      brainRelease: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 21,
+          status: 'active',
+          scope: 'percentage',
+          rollout: { mode: 'model', stage: 'canary_20' },
+          rolloutSequenceId: 51,
+          items: [],
+        }),
+      },
+    } as never);
+
+    await expect(service.rollbackToRules({ releaseId: 21, reason: 'stop' })).rejects.toMatchObject({
+      message: 'rollout_sequence_release_requires_sequence_rollback',
     });
   });
 
@@ -1285,6 +1470,7 @@ describe('BrainReleaseService', () => {
     const candidate = generatedProposalFixture(publishedSnapshotFixture()).manifest;
     const evaluationRelease = {
       id: 21,
+      releaseKey: 'runtime-r21',
       status: 'draft',
       rollout: { mode: 'model', stage: 'canary_5' },
       items: [
@@ -1326,13 +1512,14 @@ describe('BrainReleaseService', () => {
       }),
     ).resolves.toMatchObject({
       mode: 'model',
-      release: { id: 21, status: 'draft' },
+      release: { id: 21, releaseKey: 'runtime-r21', status: 'draft' },
       capabilityCandidates: [expect.objectContaining({ key: candidate.key, generatedCapability: true })],
     });
     expect(prisma.brainRelease.findUnique).toHaveBeenCalledWith({
       where: { id: 21 },
       select: {
         id: true,
+        releaseKey: true,
         scope: true,
         status: true,
         rollout: true,
@@ -1721,6 +1908,7 @@ describe('BrainReleaseService', () => {
   it('rejects a draft release without activating any resource version', async () => {
     const prisma = {
       brainRelease: {
+        findUnique: jest.fn().mockResolvedValue({ id: 21, status: 'draft', rolloutSequenceId: null }),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         update: jest.fn().mockResolvedValue({ id: 21, status: 'archived', failureReason: '风险不可接受' }),
       },
@@ -1731,6 +1919,19 @@ describe('BrainReleaseService', () => {
     expect(prisma.brainRelease.updateMany).toHaveBeenCalledWith({
       where: { id: 21, status: 'draft' },
       data: { status: 'archived', failureReason: '风险不可接受' },
+    });
+  });
+
+  it('rejects direct archival of a future release owned by a rollout sequence', async () => {
+    const service = new BrainReleaseService({
+      brainRelease: {
+        findUnique: jest.fn().mockResolvedValue({ id: 21, status: 'draft', rolloutSequenceId: 51 }),
+        updateMany: jest.fn(),
+      },
+    } as never);
+
+    await expect(service.rejectRelease({ releaseId: 21, reason: 'skip stage' })).rejects.toMatchObject({
+      message: 'rollout_sequence_release_requires_sequence_control',
     });
   });
   it('creates a draft release with immutable resource items', async () => {

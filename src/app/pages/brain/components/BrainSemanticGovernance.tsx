@@ -15,6 +15,7 @@ import type {
   BrainSemanticGovernanceSummary,
 } from '@/types/brain';
 import { BrainSemanticGraph } from './BrainSemanticGraph';
+import { BRAIN_GOVERNANCE_UI_MODE } from '../brainGovernanceNavigation';
 
 type SemanticTab = BrainSemanticGovernanceResource | 'graph';
 
@@ -28,7 +29,7 @@ const resources: Record<SemanticTab, { title: string; singular: string }> = {
 
 export function BrainSemanticGovernance() {
   const navigate = useNavigate();
-  const canManage = usePermission('core:brain-governance:manage');
+  const canManage = usePermission('core:brain-governance:manage') && BRAIN_GOVERNANCE_UI_MODE === 'manage';
   const [tab, setTab] = useState<SemanticTab>('metrics');
   const [items, setItems] = useState<BrainSemanticGovernanceSummary[]>([]);
   const [loading, setLoading] = useState(true);

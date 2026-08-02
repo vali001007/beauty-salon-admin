@@ -1,3 +1,4 @@
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { AllExceptionsFilter } from './all-exceptions.filter.js';
 
 describe('AllExceptionsFilter', () => {
@@ -97,5 +98,77 @@ describe('AllExceptionsFilter', () => {
       status: 500,
       details: undefined,
     });
+  });
+
+  it('returns a structured wait-CI blocker for governance evidence conflicts', () => {
+    const status = jest.fn();
+    const json = jest.fn();
+    status.mockReturnValue({ json });
+    const host = {
+      switchToHttp: () => ({
+        getRequest: () => ({ originalUrl: '/api/brain/governance/tasks/7/retry' }),
+        getResponse: () => ({ status }),
+      }),
+    };
+
+    new AllExceptionsFilter().catch(
+      new ConflictException('governance_task_waiting_for_evidence'),
+      host as any,
+    );
+
+    expect(status).toHaveBeenCalledWith(409);
+    expect(json).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'governance_task_waiting_for_evidence',
+      category: 'business_blocker',
+      message: '正在等待 CI 可信证据，Receipt 入库后会自动继续。',
+      resolutionType: 'wait_ci',
+      retryable: false,
+    }));
+  });
+
+  it('returns a structured permission response for governance authorization failures', () => {
+    const status = jest.fn();
+    const json = jest.fn();
+    status.mockReturnValue({ json });
+    const host = {
+      switchToHttp: () => ({
+        getRequest: () => ({ originalUrl: '/api/brain/governance/policy-snapshots/7/publish' }),
+        getResponse: () => ({ status }),
+      }),
+    };
+
+    new AllExceptionsFilter().catch(new ForbiddenException(), host as any);
+
+    expect(status).toHaveBeenCalledWith(403);
+    expect(json).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'brain_governance_permission_denied',
+      category: 'permission',
+      message: '缺少执行该治理操作所需的权限。',
+      resolutionType: 'request_approval',
+      retryable: false,
+    }));
+  });
+
+  it('returns retry metadata for an unexpected governance system failure', () => {
+    const status = jest.fn();
+    const json = jest.fn();
+    status.mockReturnValue({ json });
+    const host = {
+      switchToHttp: () => ({
+        getRequest: () => ({ originalUrl: '/api/brain/governance/candidates' }),
+        getResponse: () => ({ status }),
+      }),
+    };
+
+    new AllExceptionsFilter().catch(new Error('worker unavailable'), host as any);
+
+    expect(status).toHaveBeenCalledWith(500);
+    expect(json).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'INTERNAL_ERROR',
+      category: 'system',
+      message: '服务器内部错误，请稍后重试',
+      resolutionType: 'retry_system',
+      retryable: true,
+    }));
   });
 });

@@ -16,6 +16,8 @@ export default defineConfig({
     env: {
       VITE_API_BASE_URL: '/api',
       VITE_BRAIN_GOVERNANCE_UI_V2: 'manage',
+      VITE_BRAIN_GOVERNANCE_NAV_MODE: 'compact',
+      VITE_BRAIN_GOVERNANCE_LEGACY_ROUTE_MODE: 'redirect',
     },
   },
 });

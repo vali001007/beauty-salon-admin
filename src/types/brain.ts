@@ -90,6 +90,36 @@ export interface BrainInspectionInboxResponse {
   totalPages: number;
 }
 
+export interface BrainInspectionFinding {
+  id: number;
+  runId?: number | null;
+  storeId?: number;
+  ruleKey: string;
+  ruleVersion?: number;
+  domain?: string;
+  objectType?: string;
+  objectId?: string;
+  title: string;
+  severity: string;
+  status: string;
+  evidence?: Record<string, unknown>;
+  suggestion?: Record<string, unknown>;
+  evidenceCount?: number;
+  suggestionCount?: number;
+  owner?: string | null;
+  candidateKey?: string | null;
+  firstDetectedAt?: string;
+  lastDetectedAt?: string;
+  resolvedAt?: string | null;
+}
+
+export interface BrainInspectionFindingListResponse {
+  items: BrainInspectionFinding[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface BrainChatRequest {
   conversationId?: number;
   message: string;
@@ -184,6 +214,16 @@ export interface BrainMessageMetadata {
   adapterKey?: string;
   grounding?: string;
   adapterMetadata?: Record<string, unknown>;
+  semanticIntent?: Record<string, unknown>;
+  cognitionMode?: string;
+  modelStage?: string;
+  failureCode?: string | null;
+  intentSchemaVersion?: string | null;
+  capabilityKey?: string | null;
+  capabilityVersion?: number | null;
+  planId?: string | null;
+  model?: string | null;
+  provider?: string | null;
 }
 
 export interface BrainMessage {
@@ -778,6 +818,21 @@ export interface BrainGovernanceReleaseItem {
   snapshot: Record<string, unknown>;
 }
 
+export interface BrainReleaseReadiness {
+  status: 'ready' | 'blocked' | 'unavailable';
+  canRelease: boolean;
+  evaluationReleaseId: number | null;
+  evalRunId: number | null;
+  releaseFingerprint: string | null;
+  suiteChecksum: string | null;
+  questionCount: number | null;
+  provider: string | null;
+  model: string | null;
+  generatedAt: string | null;
+  expiresAt: string | null;
+  blockers: string[];
+}
+
 export interface BrainGovernanceRelease {
   id: number;
   releaseKey: string;
@@ -791,6 +846,57 @@ export interface BrainGovernanceRelease {
   createdAt: string;
   activatedAt?: string | null;
   rolledBackAt?: string | null;
+  releaseReadiness?: BrainReleaseReadiness;
+  rolloutSequenceId?: number | null;
+  rolloutStage?: string | null;
+  supersededAt?: string | null;
+}
+
+export interface BrainPolicySnapshotDiff {
+  added: Array<Record<string, unknown>>;
+  changed: Array<Record<string, unknown>>;
+  removed: Array<Record<string, unknown>>;
+  unchanged: Array<Record<string, unknown>>;
+  hasDiff: boolean;
+}
+
+export interface BrainPolicySnapshotPreview {
+  candidate: { id: number; candidateKey: string; headCommit: string; status: string };
+  decision: 'reuse_active' | 'create_snapshot' | 'created' | 'blocked';
+  activeSnapshot: BrainGovernanceRelease | null;
+  preparedSnapshot: BrainGovernanceRelease | null;
+  snapshot?: BrainGovernanceRelease | null;
+  affectedCapabilities: string[];
+  diff: BrainPolicySnapshotDiff;
+  blockers: Array<{ code: string; capabilityKey?: string }>;
+  resourceVersionIds: number[];
+}
+
+export interface BrainGovernanceRolloutSequence {
+  id: number;
+  sequenceKey: string;
+  status: string;
+  currentStage: string;
+  governanceMode: 'shadow' | 'enforced' | string;
+  promotionPolicy: Record<string, unknown>;
+  healthThresholds: Record<string, unknown>;
+  pauseReason?: string | null;
+  candidateId: number;
+  candidate: BrainGovernanceCandidate;
+  policySnapshot: BrainGovernanceRelease;
+  previousRuntimeRelease?: Pick<BrainGovernanceRelease, 'id' | 'releaseKey' | 'status'> | null;
+  releases: BrainGovernanceRelease[];
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+}
+
+export interface BrainGovernanceRolloutSequenceListResponse {
+  items: BrainGovernanceRolloutSequence[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export type BrainGovernanceRiskLevel = 'low' | 'medium' | 'high' | 'critical' | 'unclassified';
@@ -808,6 +914,24 @@ export type BrainGovernanceTaskStatus =
   | 'rejected'
   | 'failed'
   | 'cancelled';
+export type BrainGovernanceCandidateStatus =
+  | 'collecting'
+  | 'checking'
+  | 'governing'
+  | 'ready'
+  | 'blocked'
+  | 'releasing'
+  | 'observing'
+  | 'completed'
+  | 'superseded';
+export type BrainGovernanceBlockerType = 'none' | 'evidence' | 'business' | 'system' | 'permission';
+export type BrainGovernanceResolutionType =
+  | 'wait_ci'
+  | 'select_store'
+  | 'request_approval'
+  | 'edit_policy'
+  | 'retry_system'
+  | 'contact_owner';
 
 export interface BrainCapabilityPolicy {
   schemaVersion: 1;
@@ -833,6 +957,16 @@ export interface BrainCapabilityPolicyVersion {
   createdAt: string;
   activatedAt?: string | null;
   policy: BrainCapabilityPolicy;
+  governance?: {
+    actionable: boolean;
+    blockerTypes: string[];
+    blockerCodes: string[];
+    activeTaskCount: number;
+    candidateImpact?: {
+      impactRuleId?: string | null;
+      changeType?: string | null;
+    } | null;
+  };
 }
 
 export interface BrainCapabilityPolicyListResponse {
@@ -846,6 +980,9 @@ export interface BrainCapabilityPolicyDetailResponse {
   current: BrainCapabilityPolicyVersion;
   history: BrainCapabilityPolicyVersion[];
   evidence: Array<Record<string, unknown>>;
+  candidateImpacts?: Array<Record<string, unknown>>;
+  tasks?: BrainGovernanceTask[];
+  auditEvents?: Array<Record<string, unknown>>;
 }
 
 export interface BrainGovernanceTask {
@@ -857,16 +994,128 @@ export interface BrainGovernanceTask {
   resourceKey?: string | null;
   riskLevel: BrainGovernanceRiskLevel | string;
   status: BrainGovernanceTaskStatus;
-  payload: Record<string, unknown>;
+  payload?: Record<string, unknown>;
   result?: Record<string, unknown> | null;
-  transitionLog: Array<Record<string, unknown>>;
+  transitionLog?: Array<Record<string, unknown>>;
+  timeline?: Array<{
+    index: number;
+    status: string;
+    at?: string | null;
+    actorId?: number | null;
+    reason?: string | null;
+    blockerType?: string | null;
+    blockerCode?: string | null;
+  }>;
   attemptCount: number;
   maxAttempts: number;
   errorCode?: string | null;
   errorMessage?: string | null;
+  candidateId?: number | null;
+  receiptId?: number | null;
+  blockerType?: BrainGovernanceBlockerType | string;
+  blockerCode?: string | null;
+  resolutionType?: BrainGovernanceResolutionType | string | null;
+  supersededByTaskId?: number | null;
+  candidate?: {
+    id: number;
+    candidateKey: string;
+    branch?: string | null;
+    headCommit: string;
+    status: string;
+  } | null;
+  requiredGates?: string[];
   completedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface BrainGateReceiptGate {
+  id: number;
+  gateKey: string;
+  status: string;
+  inputChecksum: string;
+  resultChecksum: string;
+  commandChecksum: string;
+  durationMs?: number | null;
+  modelInvocationCount: number;
+  artifactUri?: string | null;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface BrainGateReceiptCapability {
+  id: number;
+  capabilityKey: string;
+  impactRuleId?: string | null;
+  changeType?: string | null;
+}
+
+export interface BrainGovernanceCandidateReceipt {
+  id: number;
+  receiptKey: string;
+  stage: string;
+  status: string;
+  trustLevel: string;
+  verificationStatus: string;
+  verificationError?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  createdAt: string;
+  expiresAt: string;
+  gates: BrainGateReceiptGate[];
+  capabilities: BrainGateReceiptCapability[];
+}
+
+export interface BrainGovernanceCandidate {
+  id: number;
+  candidateKey: string;
+  repository: string;
+  eventName: string;
+  branch?: string | null;
+  baseCommit: string;
+  mergeBaseCommit: string;
+  headCommit: string;
+  changedFilesChecksum: string;
+  diffChecksum: string;
+  sourceFingerprint: string;
+  riskLevel: BrainGovernanceRiskLevel | string;
+  status: BrainGovernanceCandidateStatus;
+  policyDecision?: 'reuse_active' | 'create_snapshot' | 'blocked' | null;
+  policySnapshotId?: number | null;
+  policySnapshot?: Pick<BrainGovernanceRelease, 'id' | 'releaseKey' | 'status' | 'activatedAt'> | null;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { receipts: number; tasks: number };
+}
+
+export interface BrainGovernanceCandidateDetail extends BrainGovernanceCandidate {
+  receipts: BrainGovernanceCandidateReceipt[];
+  tasks: BrainGovernanceTask[];
+  affectedCapabilities: string[];
+  blockers: BrainGovernanceTask[];
+  policyDiff: BrainPolicySnapshotDiff | null;
+  policyReadiness: {
+    decision: BrainPolicySnapshotPreview['decision'];
+    blockers: Array<{ code: string; capabilityKey?: string }>;
+  } | null;
+  releaseReadiness: {
+    sequenceId: number | null;
+    currentStage: string | null;
+    releaseId: number | null;
+    releaseKey: string | null;
+    status: BrainReleaseReadiness['status'] | 'not_started';
+    canRelease: boolean;
+    blockers: string[];
+  };
+  rolloutSequence: BrainGovernanceRolloutSequence | Record<string, unknown> | null;
+}
+
+export interface BrainGovernanceCandidateListResponse {
+  items: BrainGovernanceCandidate[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export interface BrainGovernanceTaskListResponse {
@@ -896,6 +1145,90 @@ export interface BrainGovernanceOverview {
     autoAdmissionRate: number | null;
     manualOverrideRate: number | null;
   };
+}
+
+export interface BrainLatencyMetricSummary {
+  p50Ms: number | null;
+  p95Ms: number | null;
+  averageMs: number | null;
+  sampleSize: number;
+  unavailableReason: string | null;
+}
+
+export interface BrainGovernanceQualityLatencyResponse {
+  range: { from: string; to: string; cappedSampleSize: number };
+  sampleSize: number;
+  metrics: {
+    endToEnd: BrainLatencyMetricSummary;
+    firstVisibleAnswer: BrainLatencyMetricSummary;
+    model: BrainLatencyMetricSummary;
+    toolData: BrainLatencyMetricSummary;
+  };
+  filters: { providers: string[]; models: string[]; capabilityKeys: string[] };
+  appliedFilters: {
+    candidateKey: string | null;
+    capabilityKey: string | null;
+    provider: string | null;
+    model: string | null;
+    storeId: number | null;
+  };
+  selectedPercentile: {
+    percentile: number;
+    endToEndMs: number | null;
+    firstVisibleAnswerMs: number | null;
+    modelMs: number | null;
+    toolDataMs: number | null;
+  };
+  daily: Array<{
+    date: string;
+    sampleSize: number;
+    endToEndP50Ms: number | null;
+    firstVisibleP50Ms: number | null;
+    modelP50Ms: number | null;
+    toolDataP50Ms: number | null;
+  }>;
+  dataCompleteness: {
+    endToEnd: BrainLatencyCompleteness;
+    firstVisibleAnswer: BrainLatencyCompleteness;
+    model: BrainLatencyCompleteness;
+    toolData: BrainLatencyCompleteness;
+    firstVisibleAnswerMode: 'buffered_answer_ready';
+    note: string;
+  };
+}
+
+export interface BrainGovernanceProcessLatencyResponse {
+  range: { from: string; to: string };
+  candidateCount: number;
+  metrics: {
+    candidateGate: BrainLatencyMetricSummary;
+    waitingEvidence: BrainLatencyMetricSummary;
+    waitingApproval: BrainLatencyMetricSummary;
+    candidateToShadow: BrainLatencyMetricSummary;
+    shadowToFull: BrainLatencyMetricSummary;
+    receiptIngest: BrainLatencyMetricSummary;
+  };
+  gateReuse: {
+    reused: number;
+    total: number;
+    rate: number | null;
+    avoidedModelInvocations: number;
+    executedModelInvocations: number;
+  };
+  taskOutcomes: {
+    terminal: number;
+    firstPass: number;
+    retried: number;
+    firstPassRate: number | null;
+    retryRate: number | null;
+  };
+}
+
+export interface BrainLatencyCompleteness {
+  available: number;
+  total: number;
+  rate: number | null;
+  unavailableReason: string | null;
 }
 
 export interface BrainPolicySnapshotListResponse {

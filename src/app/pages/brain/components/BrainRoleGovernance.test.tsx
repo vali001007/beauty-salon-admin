@@ -10,12 +10,16 @@ const brainApi = vi.hoisted(() => ({
   listBrainRoleProfiles: vi.fn(),
   updateBrainRoleProfile: vi.fn(),
 }));
+const permissionState = vi.hoisted(() => ({ canManage: true }));
 
 vi.mock('@/api/brain', () => brainApi);
+vi.mock('@/hooks/usePermission', () => ({ usePermission: () => permissionState.canManage }));
+vi.mock('../brainGovernanceNavigation', () => ({ BRAIN_GOVERNANCE_UI_MODE: 'manage' }));
 
 describe('BrainRoleGovernance', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    permissionState.canManage = true;
     brainApi.listBrainResourceVersions.mockResolvedValue({
       items: [
         {
@@ -89,5 +93,15 @@ describe('BrainRoleGovernance', () => {
 
     expect(screen.getByRole('dialog', { name: '新建角色配置' })).toBeInTheDocument();
     expect((screen.getByLabelText('角色配置 JSON') as unknown as { value: string }).value).toContain('store_manager');
+  });
+
+  it('keeps view-only users read-only without exposing role mutation controls', async () => {
+    permissionState.canManage = false;
+    render(<BrainRoleGovernance />);
+
+    expect(await screen.findByText('店长经营专家')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '新建角色' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '配置店长经营专家' })).not.toBeInTheDocument();
+    expect(screen.getByText('只读')).toBeInTheDocument();
   });
 });

@@ -732,7 +732,7 @@ describe('BrainCapabilityScannerService', () => {
     for (const key of ['product_sales_ranking', 'reservation_list', 'inventory_risk', 'customer_facts']) {
       expect(byKey.get(key)).toBeDefined();
       expect(byKey.get(key)?.evidence.length).toBeGreaterThan(3);
-      expect(byKey.get(key)?.evidence.length).toBeLessThan(80);
+      expect(byKey.get(key)?.evidence.length).toBeLessThanOrEqual(64);
       expect(byKey.get(key)?.issues.map((item) => item.code)).not.toContain('missing_anchor_evidence');
     }
     expect(byKey.get('product_sales_ranking')?.requiredPermissions).toContain('core:order:products');

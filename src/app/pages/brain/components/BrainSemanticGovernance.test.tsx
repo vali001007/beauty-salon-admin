@@ -14,6 +14,7 @@ const api = vi.hoisted(() => ({
 
 vi.mock('@/api/brain', () => api);
 vi.mock('@/hooks/usePermission', () => ({ usePermission: () => true }));
+vi.mock('../brainGovernanceNavigation', () => ({ BRAIN_GOVERNANCE_UI_MODE: 'manage' }));
 
 const metric = {
   id: 33,

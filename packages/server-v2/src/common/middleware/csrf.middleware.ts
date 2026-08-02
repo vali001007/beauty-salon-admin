@@ -8,6 +8,13 @@ import { Request, Response, NextFunction } from 'express';
  */
 @Injectable()
 export class CsrfMiddleware implements NestMiddleware {
+  private readonly exactSkipPaths = [
+    // Machine-to-machine endpoint. It is authenticated by GitHub OIDC or the
+    // explicitly enabled HMAC fallback, so a browser CSRF cookie is neither
+    // available nor part of its trust boundary.
+    '/api/brain/governance/internal/gate-receipts',
+  ];
+
   private readonly skipPaths = [
     '/api/auth/login',
     '/api/auth/register',
@@ -28,6 +35,10 @@ export class CsrfMiddleware implements NestMiddleware {
     // Skip CSRF for whitelisted paths. Customer-app admin routes are used by the
     // management console and must keep the same CSRF protection as other admin APIs.
     const path = req.originalUrl || req.url;
+    const pathname = path.split('?')[0];
+    if (this.exactSkipPaths.includes(pathname)) {
+      return next();
+    }
     if (!path.startsWith('/api/customer-app/admin') && this.skipPaths.some((skip) => path.startsWith(skip))) {
       return next();
     }

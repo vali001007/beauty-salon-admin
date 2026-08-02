@@ -16,7 +16,8 @@ const REGISTERED_PERMISSION_CODE_LIST = [
   'core:dashboard:view', 'core:agent:view', 'core:agent-governance:view', 'core:agent-governance:manage',
   'core:brain:use', 'core:brain:execute', 'core:brain:beautician-view', 'core:brain:sensitive:view',
   'core:brain-governance:view', 'core:brain-governance:manage', 'core:brain-governance:approve',
-  'core:brain-governance:publish', 'core:brain-governance:release', 'core:customer:view', 'core:customer:create',
+  'core:brain-governance:publish', 'core:brain-governance:release', 'core:brain-governance:receipt-ingest',
+  'core:customer:view', 'core:customer:create',
   'core:customer:update', 'core:customer:delete', 'core:customer:export', 'core:customer:profile',
   'core:customer:script', 'core:marketing:view', 'core:marketing:create', 'core:marketing:update',
   'core:marketing:delete', 'core:marketing:recommend', 'core:marketing:template', 'core:marketing:analytics',
@@ -46,6 +47,10 @@ const REGISTERED_PERMISSION_CODE_LIST = [
   'aura:cashier:create', 'aura:card-order:create', 'aura:recharge:create', 'aura:service-record:create',
   'aura:inventory:read', 'aura:staff:read',
 ] as const;
+
+const MACHINE_ONLY_PERMISSION_CODES = new Set<string>([
+  'core:brain-governance:receipt-ingest',
+]);
 
 const HIGH_RISK_ACTIONS = new Set(['delete', 'refund', 'rollback', 'adjustment', 'complete', 'write', 'consume']);
 const MEDIUM_RISK_ACTIONS = new Set(['create', 'update', 'manage', 'publish', 'start', 'task', 'draft', 'config', 'export']);
@@ -84,5 +89,9 @@ export function getRegisteredPermissionCodes(): ReadonlySet<string> {
 }
 
 export function listRegisteredPermissionDefinitions(): readonly RegisteredPermissionDefinition[] {
-  return REGISTERED_PERMISSION_DEFINITIONS;
+  return REGISTERED_PERMISSION_DEFINITIONS.filter((definition) => !MACHINE_ONLY_PERMISSION_CODES.has(definition.code));
+}
+
+export function isRoleAssignablePermission(code: string): boolean {
+  return getRegisteredPermissionCodes().has(code) && !MACHINE_ONLY_PERMISSION_CODES.has(code);
 }

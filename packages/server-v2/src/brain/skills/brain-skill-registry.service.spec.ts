@@ -180,6 +180,23 @@ describe('BrainSkillRegistryService', () => {
     expect(findMany.mock.calls[0][0].select).not.toHaveProperty('outputSchema');
   });
 
+  it('includes disabled latest rows only when governance explicitly requests them', async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      row({ id: 3, skillKey: 'disabled_legacy', enabled: false, version: 2 }),
+      row({ id: 2, skillKey: 'disabled_legacy', enabled: false, version: 1 }),
+      row({ id: 4, skillKey: 'query_revenue', enabled: true, version: 1 }),
+    ]);
+    const service = new BrainSkillRegistryService({ brainSkillRegistry: { findMany } } as any);
+
+    const result = await service.listSkillSummaries({ includeDisabled: true });
+
+    expect(result.map((item) => [item.skillKey, item.version])).toEqual([
+      ['disabled_legacy', 2],
+      ['query_revenue', 1],
+    ]);
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {} }));
+  });
+
   it('preserves malformed JSON and arrays so the catalog can reject them', async () => {
     const malformed = row({
       skillKey: 'preview_purchase_order',

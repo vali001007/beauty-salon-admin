@@ -90,6 +90,16 @@ import { BrainTraceService } from './governance/brain-trace.service.js';
 import { BrainGovernanceResourceService } from './governance/brain-governance-resource.service.js';
 import { BrainGovernanceApprovalService } from './governance/brain-governance-approval.service.js';
 import { BrainGovernanceControlPlaneService } from './governance/brain-governance-control-plane.service.js';
+import { BrainGovernanceCandidateService } from './governance/brain-governance-candidate.service.js';
+import { BrainGovernancePolicyOrchestratorService } from './governance/brain-governance-policy-orchestrator.service.js';
+import { BrainRolloutSequenceService } from './governance/brain-rollout-sequence.service.js';
+import { BrainGovernanceEventService } from './governance/brain-governance-event.service.js';
+import { BrainGovernanceMetricsService } from './governance/brain-governance-metrics.service.js';
+import { BrainRolloutHealthService } from './governance/brain-rollout-health.service.js';
+import { BrainGovernanceTaskWorkerService } from './governance/brain-governance-task-worker.service.js';
+import { BrainGateReceiptVerificationService } from './governance/brain-gate-receipt-verification.service.js';
+import { BrainGovernanceReceiptController } from './governance/brain-governance-receipt.controller.js';
+import { BrainGovernanceReceiptIngestGuard } from './governance/brain-governance-receipt-ingest.guard.js';
 import { BrainCapabilityGovernancePolicyService } from './governance/brain-capability-governance-policy.service.js';
 import { BrainCapabilityRegenerationService } from './governance/brain-capability-regeneration.service.js';
 import { BrainCapabilityRegenerationWorkerService } from './governance/brain-capability-regeneration-worker.service.js';
@@ -163,7 +173,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BusinessDefinitionModule,
     CustomerFeedbackModule,
   ],
-  controllers: [BrainController],
+  controllers: [BrainController, BrainGovernanceReceiptController],
   providers: [
     AgentV2BusinessMetricQueryService,
     BrainContextService,
@@ -225,6 +235,15 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BrainGovernanceResourceService,
     BrainGovernanceApprovalService,
     BrainGovernanceControlPlaneService,
+    BrainGovernanceCandidateService,
+    BrainGovernancePolicyOrchestratorService,
+    BrainRolloutSequenceService,
+    BrainGovernanceEventService,
+    BrainGovernanceMetricsService,
+    BrainRolloutHealthService,
+    BrainGovernanceTaskWorkerService,
+    BrainGateReceiptVerificationService,
+    BrainGovernanceReceiptIngestGuard,
     BrainCapabilityGovernancePolicyService,
     BrainCapabilityRequirementInterpreterService,
     BrainCapabilityRegenerationService,
