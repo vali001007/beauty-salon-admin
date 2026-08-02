@@ -6,9 +6,7 @@ import { buildPurchaseOrderIdempotencyKey } from '../../inventory/purchase-order
 import { buildFollowUpTaskIdempotencyKey } from '../../terminal/follow-up-task-idempotency.js';
 import { extractCustomerPhoneTail } from './brain-customer-identity.js';
 
-export type BrainTargetResolution<T> =
-  | { ok: true; value: T }
-  | { ok: false; reason: string; message: string };
+export type BrainTargetResolution<T> = { ok: true; value: T } | { ok: false; reason: string; message: string };
 
 @Injectable()
 export class BrainActionTargetResolverService {
@@ -22,10 +20,25 @@ export class BrainActionTargetResolverService {
     idempotencyKey?: string;
   }): Promise<void> {
     switch (input.capabilityKey) {
+      case 'create_customer': {
+        const name = String(input.args.name ?? '').trim();
+        const phone = String(input.args.phone ?? '').trim();
+        if (!name) throw new BadRequestException('customer_name_required');
+        if (/[xX*]/u.test(phone)) {
+          throw new BadRequestException(
+            'customer_phone_masked_requires_completion:请补充完整手机号后重新生成客户建档预览。',
+          );
+        }
+        if (!/^1\d{10}$/u.test(phone)) throw new BadRequestException('customer_phone_invalid');
+        return;
+      }
       case 'create_reservation':
         if (input.idempotencyKey) {
           const idempotencyKey = buildReservationIdempotencyKey(input.storeId, 'ami_brain', input.idempotencyKey);
-          const committed = await this.prisma.reservation.findUnique({ where: { idempotencyKey }, select: { id: true } });
+          const committed = await this.prisma.reservation.findUnique({
+            where: { idempotencyKey },
+            select: { id: true },
+          });
           if (committed) return;
         }
         await Promise.all([
@@ -37,12 +50,19 @@ export class BrainActionTargetResolverService {
       case 'cancel_reservation':
         await this.requireScopedRecord('reservation', input.args.reservationId, input.storeId);
         return;
+      case 'submit_purchase_order_for_approval':
+        await this.requireScopedRecord('purchaseOrder', input.args.purchaseOrderId, input.storeId);
+        return;
       case 'create_customer_followup':
       case 'create_marketing_touch_draft': {
         if (input.idempotencyKey) {
-          const source = input.capabilityKey === 'create_customer_followup' ? 'brain_followup' : 'brain_marketing_touch_draft';
+          const source =
+            input.capabilityKey === 'create_customer_followup' ? 'brain_followup' : 'brain_marketing_touch_draft';
           const idempotencyKey = buildFollowUpTaskIdempotencyKey(input.storeId, source, input.idempotencyKey);
-          const committed = await this.prisma.terminalFollowUpTask.findUnique({ where: { idempotencyKey }, select: { id: true } });
+          const committed = await this.prisma.terminalFollowUpTask.findUnique({
+            where: { idempotencyKey },
+            select: { id: true },
+          });
           if (committed) return;
         }
         await this.requireScopedRecord('customer', input.args.customerId, input.storeId);
@@ -81,13 +101,18 @@ export class BrainActionTargetResolverService {
       case 'create_purchase_order': {
         if (input.idempotencyKey) {
           const idempotencyKey = buildPurchaseOrderIdempotencyKey(input.storeId, 'ami_brain', input.idempotencyKey);
-          const committed = await this.prisma.purchaseOrder.findUnique({ where: { idempotencyKey }, select: { id: true } });
+          const committed = await this.prisma.purchaseOrder.findUnique({
+            where: { idempotencyKey },
+            select: { id: true },
+          });
           if (committed) return;
         }
         if (!Array.isArray(input.args.items) || input.args.items.length === 0) {
           throw new BadRequestException('purchase_items_required');
         }
-        const productIds = [...new Set(input.args.items.map((item) => this.positiveId((item as Record<string, unknown>)?.productId)))];
+        const productIds = [
+          ...new Set(input.args.items.map((item) => this.positiveId((item as Record<string, unknown>)?.productId))),
+        ];
         const matched = await this.prisma.product.count({
           where: { id: { in: productIds }, storeId: input.storeId, deletedAt: null },
         });
@@ -99,7 +124,11 @@ export class BrainActionTargetResolverService {
     }
   }
 
-  async resolveCustomer(input: { storeId: number; message: string; customerName?: string }): Promise<BrainTargetResolution<{ id: number; name: string; maskedPhone: string }>> {
+  async resolveCustomer(input: {
+    storeId: number;
+    message: string;
+    customerName?: string;
+  }): Promise<BrainTargetResolution<{ id: number; name: string; maskedPhone: string }>> {
     const name = input.customerName?.trim() || this.extractCustomerName(input.message);
     const phoneTail = extractCustomerPhoneTail(input.message);
     if (!name && !phoneTail) {
@@ -118,9 +147,18 @@ export class BrainActionTargetResolverService {
       select: { id: true, name: true, phone: true },
       take: 3,
     });
-    if (!customers.length) return { ok: false, reason: 'customer_not_found', message: '当前门店没有找到匹配客户，请核对姓名或手机号后四位。' };
+    if (!customers.length)
+      return {
+        ok: false,
+        reason: 'customer_not_found',
+        message: '当前门店没有找到匹配客户，请核对姓名或手机号后四位。',
+      };
     if (customers.length > 1) {
-      return { ok: false, reason: 'ambiguous_customer', message: '当前门店找到多位匹配客户，请补充手机号后四位后再继续。' };
+      return {
+        ok: false,
+        reason: 'ambiguous_customer',
+        message: '当前门店找到多位匹配客户，请补充手机号后四位后再继续。',
+      };
     }
     return {
       ok: true,
@@ -128,21 +166,25 @@ export class BrainActionTargetResolverService {
     };
   }
 
-  async resolveMarketingStrategy(input: { storeId: number; message: string }): Promise<BrainTargetResolution<{
-    id: number;
-    name: string;
-    status: string;
-    executionType: string;
-    ruleRelation: string;
-    actions: unknown;
-    targetCount: number;
-    lastExecutedAt: string | null;
-  }>> {
+  async resolveMarketingStrategy(input: { storeId: number; message: string }): Promise<
+    BrainTargetResolution<{
+      id: number;
+      name: string;
+      status: string;
+      executionType: string;
+      ruleRelation: string;
+      actions: unknown;
+      targetCount: number;
+      lastExecutedAt: string | null;
+    }>
+  > {
     const explicitIdText =
       input.message.match(/(?:自动触达|营销)?策略(?:编号|ID|id|#|号)\s*(\d{1,9})(?!\d)/)?.[1] ??
-      input.message.trim().match(
-        /^(?:执行|运行|启动|开始|立即)\s*(?:自动触达|营销)?策略\s+(\d{1,9})(?!\d)(?:\s*(?:并)?\s*(?:发送|执行|启动))?\s*$/,
-      )?.[1] ??
+      input.message
+        .trim()
+        .match(
+          /^(?:执行|运行|启动|开始|立即)\s*(?:自动触达|营销)?策略\s+(\d{1,9})(?!\d)(?:\s*(?:并)?\s*(?:发送|执行|启动))?\s*$/,
+        )?.[1] ??
       input.message.trim().match(/^(?:执行|运行|启动|开始|立即)?\s*(?:自动触达|营销)?策略\s+(\d{1,9})$/)?.[1];
     const explicitId = Number(explicitIdText);
     if (explicitId > 0) {
@@ -180,28 +222,95 @@ export class BrainActionTargetResolverService {
     });
     const matches = strategies.filter((strategy) => input.message.includes(strategy.name));
     if (!matches.length) {
-      return { ok: false, reason: 'marketing_strategy_required', message: '请提供当前门店的自动触达策略名称或策略编号后再生成执行预览。' };
+      return {
+        ok: false,
+        reason: 'marketing_strategy_required',
+        message: '请提供当前门店的自动触达策略名称或策略编号后再生成执行预览。',
+      };
     }
     if (matches.length > 1) {
-      return { ok: false, reason: 'ambiguous_marketing_strategy', message: '问题中命中多个自动触达策略，请明确策略编号。' };
+      return {
+        ok: false,
+        reason: 'ambiguous_marketing_strategy',
+        message: '问题中命中多个自动触达策略，请明确策略编号。',
+      };
     }
     return this.marketingStrategyResolution(matches[0]);
   }
 
-  async resolveProject(input: { storeId: number; message: string }): Promise<BrainTargetResolution<{ id: number; name: string; duration: number }>> {
+  async resolveProject(input: {
+    storeId: number;
+    message: string;
+    projectName?: string;
+  }): Promise<BrainTargetResolution<{ id: number; name: string; duration: number }>> {
     const projects = await this.prisma.project.findMany({
       where: { storeId: input.storeId, deletedAt: null, status: 'active' },
       select: { id: true, name: true, duration: true },
       take: 200,
     });
-    const matches = projects.filter((project) => input.message.includes(project.name));
-    if (!matches.length) return { ok: false, reason: 'missing_project', message: '请提供当前门店的具体项目名称后再生成预约预览。' };
-    if (matches.length > 1) return { ok: false, reason: 'ambiguous_project', message: '问题中命中多个项目，请明确本次预约项目。' };
-    return { ok: true, value: { id: matches[0].id, name: matches[0].name, duration: Number(matches[0].duration || 60) } };
+    const explicitProjectName = input.projectName?.trim();
+    const matches = projects.filter((project) =>
+      explicitProjectName ? project.name === explicitProjectName : input.message.includes(project.name),
+    );
+    if (!matches.length)
+      return { ok: false, reason: 'missing_project', message: '请提供当前门店的具体项目名称后再生成预约预览。' };
+    if (matches.length > 1)
+      return { ok: false, reason: 'ambiguous_project', message: '问题中命中多个项目，请明确本次预约项目。' };
+    return {
+      ok: true,
+      value: { id: matches[0].id, name: matches[0].name, duration: Number(matches[0].duration || 60) },
+    };
   }
 
-  async resolveReservation(input: { storeId: number; message: string }): Promise<BrainTargetResolution<{ id: number; customerId: number; customerName: string; projectName: string; appointmentTime: string }>> {
-    const customer = await this.resolveCustomer(input);
+  async resolveReservation(input: {
+    storeId: number;
+    message: string;
+    reservationId?: number;
+    reservationReference?: string;
+  }): Promise<
+    BrainTargetResolution<{
+      id: number;
+      customerId: number;
+      customerName: string;
+      projectName: string;
+      appointmentTime: string;
+    }>
+  > {
+    if (input.reservationId) {
+      const reservation = await this.prisma.reservation.findFirst({
+        where: {
+          id: input.reservationId,
+          storeId: input.storeId,
+          status: { notIn: ['cancelled', 'canceled', 'completed', '已取消', '已完成'] },
+        },
+        select: {
+          id: true,
+          customerId: true,
+          date: true,
+          startTime: true,
+          customer: { select: { name: true } },
+          project: { select: { name: true } },
+        },
+      });
+      return reservation
+        ? {
+            ok: true,
+            value: {
+              id: reservation.id,
+              customerId: reservation.customerId,
+              customerName: reservation.customer.name,
+              projectName: reservation.project.name,
+              appointmentTime: `${reservation.date.toISOString().slice(0, 10)}T${reservation.startTime}:00`,
+            },
+          }
+        : {
+            ok: false,
+            reason: 'reservation_not_found',
+            message: '当前门店没有找到该可操作预约，可能已完成、已取消或不属于当前门店。',
+          };
+    }
+    const targetMessage = [input.reservationReference, input.message].filter(Boolean).join(' ');
+    const customer = await this.resolveCustomer({ storeId: input.storeId, message: targetMessage });
     if (!customer.ok) return customer;
     const reservations = await this.prisma.reservation.findMany({
       where: {
@@ -213,9 +322,18 @@ export class BrainActionTargetResolverService {
       orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
       take: 5,
     });
-    if (!reservations.length) return { ok: false, reason: 'reservation_not_found', message: `${customer.value.name}在当前门店没有可操作的预约。` };
-    if (reservations.length > 1 && !/(下一次|最近|即将|明天|今天|后天)/.test(input.message)) {
-      return { ok: false, reason: 'ambiguous_reservation', message: `${customer.value.name}有多条可操作预约，请补充原预约日期或时间。` };
+    if (!reservations.length)
+      return {
+        ok: false,
+        reason: 'reservation_not_found',
+        message: `${customer.value.name}在当前门店没有可操作的预约。`,
+      };
+    if (reservations.length > 1 && !/(下一次|最近|即将)/.test(targetMessage)) {
+      return {
+        ok: false,
+        reason: 'ambiguous_reservation',
+        message: `${customer.value.name}有多条可操作预约，请补充原预约日期或时间。`,
+      };
     }
     const reservation = reservations[0];
     return {
@@ -230,7 +348,11 @@ export class BrainActionTargetResolverService {
     };
   }
 
-  async resolveServiceTask(input: { storeId: number; userId: number; message: string }): Promise<BrainTargetResolution<{ id: number; customerName: string; projectName: string }>> {
+  async resolveServiceTask(input: {
+    storeId: number;
+    userId: number;
+    message: string;
+  }): Promise<BrainTargetResolution<{ id: number; customerName: string; projectName: string }>> {
     const explicitId = Number(input.message.match(/(?:任务|服务单)[#号\s]*(\d+)/)?.[1]);
     if (explicitId > 0) {
       const task = await this.prisma.serviceTask.findFirst({
@@ -244,7 +366,11 @@ export class BrainActionTargetResolverService {
       });
       return task
         ? { ok: true, value: { id: task.id, customerName: task.customer.name, projectName: task.project.name } }
-        : { ok: false, reason: 'service_task_not_owned_or_active', message: '没有找到属于当前美容师且待完成的服务任务。' };
+        : {
+            ok: false,
+            reason: 'service_task_not_owned_or_active',
+            message: '没有找到属于当前美容师且待完成的服务任务。',
+          };
     }
     const customer = await this.resolveCustomer(input);
     if (!customer.ok) return customer;
@@ -259,9 +385,18 @@ export class BrainActionTargetResolverService {
       orderBy: { appointmentTime: 'desc' },
       take: 2,
     });
-    if (!tasks.length) return { ok: false, reason: 'service_task_not_found', message: `${customer.value.name}没有待完成的服务任务。` };
-    if (tasks.length > 1) return { ok: false, reason: 'ambiguous_service_task', message: `${customer.value.name}有多条待完成服务，请补充服务单号。` };
-    return { ok: true, value: { id: tasks[0].id, customerName: tasks[0].customer.name, projectName: tasks[0].project.name } };
+    if (!tasks.length)
+      return { ok: false, reason: 'service_task_not_found', message: `${customer.value.name}没有待完成的服务任务。` };
+    if (tasks.length > 1)
+      return {
+        ok: false,
+        reason: 'ambiguous_service_task',
+        message: `${customer.value.name}有多条待完成服务，请补充服务单号。`,
+      };
+    return {
+      ok: true,
+      value: { id: tasks[0].id, customerName: tasks[0].customer.name, projectName: tasks[0].project.name },
+    };
   }
 
   private async requireOwnedServiceTask(value: unknown, storeId: number, userId?: number) {
@@ -281,16 +416,18 @@ export class BrainActionTargetResolverService {
     if (!task) throw new ForbiddenException('service_task_not_owned_or_active');
   }
 
-  async resolveCardUsageTarget(input: { storeId: number; message: string }): Promise<BrainTargetResolution<{
-    customerId: number;
-    customerName: string;
-    customerCardId: number;
-    cardName: string;
-    projectId: number;
-    projectName: string;
-    remainingTimes: number;
-    projectRemainingTimes: number;
-  }>> {
+  async resolveCardUsageTarget(input: { storeId: number; message: string }): Promise<
+    BrainTargetResolution<{
+      customerId: number;
+      customerName: string;
+      customerCardId: number;
+      cardName: string;
+      projectId: number;
+      projectName: string;
+      remainingTimes: number;
+      projectRemainingTimes: number;
+    }>
+  > {
     const customer = await this.resolveCustomer(input);
     if (!customer.ok) return customer;
     const cards = await this.prisma.customerCard.findMany({
@@ -306,7 +443,11 @@ export class BrainActionTargetResolverService {
       take: 20,
     });
     if (!cards.length) {
-      return { ok: false, reason: 'active_customer_card_not_found', message: `${customer.value.name}在当前门店没有可核销的有效次卡。` };
+      return {
+        ok: false,
+        reason: 'active_customer_card_not_found',
+        message: `${customer.value.name}在当前门店没有可核销的有效次卡。`,
+      };
     }
 
     const explicitCards = cards.filter((card) => input.message.includes(card.cardName));
@@ -321,12 +462,14 @@ export class BrainActionTargetResolverService {
         const project = raw as Record<string, unknown>;
         const projectName = String(project.projectName ?? project.name ?? '').trim();
         if (!projectName) return [];
-        return [{
-          card,
-          projectName,
-          projectId: this.optionalPositiveId(project.projectId ?? project.id),
-          projectTotalTimes: Number(project.timesPerCard ?? project.totalCount ?? card.totalTimes ?? 0),
-        }];
+        return [
+          {
+            card,
+            projectName,
+            projectId: this.optionalPositiveId(project.projectId ?? project.id),
+            projectTotalTimes: Number(project.timesPerCard ?? project.totalCount ?? card.totalTimes ?? 0),
+          },
+        ];
       });
     });
     const explicitProjects = candidates.filter((candidate) => input.message.includes(candidate.projectName));
@@ -335,9 +478,15 @@ export class BrainActionTargetResolverService {
       : scopedCards.length === 1 && candidates.length === 1
         ? candidates
         : [];
-    const unique = [...new Map(matched.map((candidate) => [`${candidate.card.id}:${candidate.projectName}`, candidate])).values()];
+    const unique = [
+      ...new Map(matched.map((candidate) => [`${candidate.card.id}:${candidate.projectName}`, candidate])).values(),
+    ];
     if (!unique.length) {
-      return { ok: false, reason: 'missing_card_project', message: '请明确本次核销的项目名称；如果客户有多张次卡，还需要说明卡名。' };
+      return {
+        ok: false,
+        reason: 'missing_card_project',
+        message: '请明确本次核销的项目名称；如果客户有多张次卡，还需要说明卡名。',
+      };
     }
     if (unique.length > 1) {
       return { ok: false, reason: 'ambiguous_card_project', message: '当前客户有多张卡可核销该项目，请补充具体卡名。' };
@@ -348,15 +497,16 @@ export class BrainActionTargetResolverService {
       where: {
         storeId: input.storeId,
         deletedAt: null,
-        OR: [
-          ...(selected.projectId ? [{ id: selected.projectId }] : []),
-          { name: selected.projectName },
-        ],
+        OR: [...(selected.projectId ? [{ id: selected.projectId }] : []), { name: selected.projectName }],
       },
       select: { id: true, name: true },
     });
     if (!project) {
-      return { ok: false, reason: 'card_project_not_found', message: '次卡配置的项目在当前门店不存在或已停用，不能生成核销预览。' };
+      return {
+        ok: false,
+        reason: 'card_project_not_found',
+        message: '次卡配置的项目在当前门店不存在或已停用，不能生成核销预览。',
+      };
     }
     const used = await this.prisma.cardUsageRecord.aggregate({
       where: { customerCardId: selected.card.id, projectName: selected.projectName },
@@ -364,7 +514,11 @@ export class BrainActionTargetResolverService {
     });
     const projectRemainingTimes = Math.max(selected.projectTotalTimes - Number(used._sum.times ?? 0), 0);
     if (projectRemainingTimes <= 0) {
-      return { ok: false, reason: 'card_project_times_exhausted', message: `${selected.card.cardName}中的${selected.projectName}已无可核销次数。` };
+      return {
+        ok: false,
+        reason: 'card_project_times_exhausted',
+        message: `${selected.card.cardName}中的${selected.projectName}已无可核销次数。`,
+      };
     }
     return {
       ok: true,
@@ -381,15 +535,20 @@ export class BrainActionTargetResolverService {
     };
   }
 
-  async resolveBeautician(input: { storeId: number; message: string }): Promise<BrainTargetResolution<{ id: number; name: string }>> {
+  async resolveBeautician(input: {
+    storeId: number;
+    message: string;
+  }): Promise<BrainTargetResolution<{ id: number; name: string }>> {
     const beauticians = await this.prisma.beautician.findMany({
       where: { storeId: input.storeId, status: 'active' },
       select: { id: true, name: true },
       take: 100,
     });
     const matches = beauticians.filter((beautician) => input.message.includes(beautician.name));
-    if (!matches.length) return { ok: false, reason: 'missing_beautician', message: '请说明本次服务人员，用于核销记录和提成归属。' };
-    if (matches.length > 1) return { ok: false, reason: 'ambiguous_beautician', message: '问题中命中多位美容师，请明确本次服务人员。' };
+    if (!matches.length)
+      return { ok: false, reason: 'missing_beautician', message: '请说明本次服务人员，用于核销记录和提成归属。' };
+    if (matches.length > 1)
+      return { ok: false, reason: 'ambiguous_beautician', message: '问题中命中多位美容师，请明确本次服务人员。' };
     return { ok: true, value: matches[0] };
   }
 
@@ -398,7 +557,19 @@ export class BrainActionTargetResolverService {
     if (numeric) return Number(numeric[1]);
     const chinese = message.match(/(?:核销|扣|划扣)?\s*([一二两三四五六七八九十])\s*次/);
     if (!chinese) return undefined;
-    const values: Record<string, number> = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
+    const values: Record<string, number> = {
+      一: 1,
+      二: 2,
+      两: 2,
+      三: 3,
+      四: 4,
+      五: 5,
+      六: 6,
+      七: 7,
+      八: 8,
+      九: 9,
+      十: 10,
+    };
     return values[chinese[1]];
   }
 
@@ -425,7 +596,9 @@ export class BrainActionTargetResolverService {
   private extractClock(message: string) {
     const colon = message.match(/(?:^|[^0-9])(\d{1,2})[:：](\d{2})(?:[^0-9]|$)/);
     if (colon) return this.validClock(Number(colon[1]), Number(colon[2]));
-    const chinese = message.match(/(上午|早上|下午|晚上)?\s*(\d{1,2}|[一二三四五六七八九十两]{1,3})点(?:(半)|(\d{1,2})分?)?/);
+    const chinese = message.match(
+      /(上午|早上|下午|晚上)?\s*(\d{1,2}|[一二三四五六七八九十两]{1,3})点(?:(半)|(\d{1,2})分?)?/,
+    );
     if (!chinese) return undefined;
     let hour = this.chineseNumber(chinese[2]);
     if ((chinese[1] === '下午' || chinese[1] === '晚上') && hour < 12) hour += 12;
@@ -439,12 +612,12 @@ export class BrainActionTargetResolverService {
 
   private chineseNumber(value: string) {
     if (/^\d+$/.test(value)) return Number(value);
-    const digits = ({ 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 } as Record<string, number>);
+    const digits = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 } as Record<string, number>;
     if (value === '十') return 10;
     if (value.startsWith('十')) return 10 + (digits[value[1]] ?? 0);
     if (value.endsWith('十')) return (digits[value[0]] ?? 0) * 10;
     const [tens, ones] = value.split('十');
-    return tens && ones ? (digits[tens] ?? 0) * 10 + (digits[ones] ?? 0) : digits[value] ?? Number.NaN;
+    return tens && ones ? (digits[tens] ?? 0) * 10 + (digits[ones] ?? 0) : (digits[value] ?? Number.NaN);
   }
 
   private applyWeekday(date: Date, message: string) {
@@ -496,7 +669,11 @@ export class BrainActionTargetResolverService {
     lastExecutedAt: string | null;
   }> {
     if (String(strategy.status) !== 'enabled') {
-      return { ok: false, reason: 'marketing_strategy_not_enabled', message: `自动触达策略“${strategy.name}”当前未启用，不能执行发送。` };
+      return {
+        ok: false,
+        reason: 'marketing_strategy_not_enabled',
+        message: `自动触达策略“${strategy.name}”当前未启用，不能执行发送。`,
+      };
     }
     return {
       ok: true,
@@ -516,7 +693,10 @@ export class BrainActionTargetResolverService {
   private async revalidateCardUsageTarget(storeId: number, args: Record<string, unknown>, rawIdempotencyKey?: string) {
     const idempotencyKey = buildCardUsageIdempotencyKey(storeId, rawIdempotencyKey);
     if (idempotencyKey) {
-      const committed = await this.prisma.cardUsageRecord.findUnique({ where: { idempotencyKey }, select: { id: true } });
+      const committed = await this.prisma.cardUsageRecord.findUnique({
+        where: { idempotencyKey },
+        select: { id: true },
+      });
       if (committed) return;
     }
     const customerCardId = this.positiveId(args.customerCardId);
@@ -530,30 +710,43 @@ export class BrainActionTargetResolverService {
     });
     if (!card) throw new ForbiddenException('cross_store_action_target');
     if (card.customerId !== customerId) throw new BadRequestException('card_customer_mismatch');
-    if (card.status !== 'active' || card.expiryDate < new Date()) throw new BadRequestException('customer_card_not_active');
+    if (card.status !== 'active' || card.expiryDate < new Date())
+      throw new BadRequestException('customer_card_not_active');
     if (card.remainingTimes < times) throw new BadRequestException('customer_card_remaining_times_insufficient');
     const [project, beautician] = await Promise.all([
-      this.prisma.project.findFirst({ where: { id: projectId, storeId, deletedAt: null }, select: { id: true, name: true } }),
-      this.prisma.beautician.findFirst({ where: { id: beauticianId, storeId, status: 'active' }, select: { id: true } }),
+      this.prisma.project.findFirst({
+        where: { id: projectId, storeId, deletedAt: null },
+        select: { id: true, name: true },
+      }),
+      this.prisma.beautician.findFirst({
+        where: { id: beauticianId, storeId, status: 'active' },
+        select: { id: true },
+      }),
     ]);
     if (!project || !beautician) throw new ForbiddenException('cross_store_action_target');
     const configuredProjects = Array.isArray(card.card?.projects) ? card.card.projects : [];
     const configured = configuredProjects.some((raw) => {
       if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false;
       const value = raw as Record<string, unknown>;
-      return this.optionalPositiveId(value.projectId ?? value.id) === project.id || String(value.projectName ?? value.name ?? '').trim() === project.name;
+      return (
+        this.optionalPositiveId(value.projectId ?? value.id) === project.id ||
+        String(value.projectName ?? value.name ?? '').trim() === project.name
+      );
     });
     if (!configured) throw new BadRequestException('card_project_mismatch');
   }
 
   private async requireScopedRecord(
-    model: 'customer' | 'project' | 'reservation' | 'serviceTask',
+    model: 'customer' | 'project' | 'reservation' | 'serviceTask' | 'purchaseOrder',
     rawId: unknown,
     storeId: number,
   ) {
     const id = this.positiveId(rawId);
     const delegate = this.prisma[model] as unknown as {
-      findFirst(input: { where: { id: number; storeId: number }; select: { id: true } }): Promise<{ id: number } | null>;
+      findFirst(input: {
+        where: { id: number; storeId: number };
+        select: { id: true };
+      }): Promise<{ id: number } | null>;
     };
     const record = await delegate.findFirst({ where: { id, storeId }, select: { id: true } });
     if (!record) throw new ForbiddenException('cross_store_action_target');

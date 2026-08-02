@@ -1,4 +1,5 @@
 import type { BrainSemanticIntent } from '../cognition/brain-semantic-intent.types.js';
+import { createTestBusinessActionInformationArtifactProfile } from '../cognition/business-action-information-artifact.testing.js';
 import { BrainResultReferenceService, isBrainModelResultSet } from './brain-result-reference.service.js';
 
 describe('BrainResultReferenceService', () => {
@@ -37,6 +38,58 @@ describe('BrainResultReferenceService', () => {
       ],
     });
     expect(isBrainModelResultSet(resultSets[0])).toBe(true);
+    expect(resultSets[0]?.items[0]?.contentFingerprint).toMatch(/^[a-f0-9]{64}$/u);
+  });
+
+  it('builds and revalidates an information artifact from the exact persisted result item', () => {
+    const mappingOutputs = {
+      productRanking: [{ productId: 82, productName: '玻尿酸保湿精华', suggestedQuantity: 12 }],
+    };
+    const [set] = service.buildResultSets({
+      runId: 191,
+      ...scope,
+      capabilityKey: 'inventory_risk_ranking',
+      capabilityVersion: 19,
+      intent: intent('product'),
+      adapterMetadata: { mappingOutputs },
+    });
+    const artifact = service.createInformationArtifact({
+      refId: 'run:191:productRanking:1',
+      resultSets: [set!],
+      scope,
+      profileFingerprint: createTestBusinessActionInformationArtifactProfile('action.create_purchase_order')
+        .fingerprint,
+    });
+
+    expect(artifact).toMatchObject({
+      artifactKey: 'run:191:productRanking:1',
+      sourceRunId: 191,
+      sourceCapabilityKey: 'inventory_risk_ranking',
+      sourceCapabilityVersion: 19,
+      referencedEntityType: 'product',
+      referencedEntityKey: '82',
+    });
+    expect(
+      service.verifyInformationArtifact({
+        artifact: artifact!,
+        scope,
+        output: { adapterMetadata: { mappingOutputs, resultSets: [set] } },
+      }),
+    ).toBe(true);
+    expect(
+      service.verifyInformationArtifact({
+        artifact: artifact!,
+        scope,
+        output: {
+          adapterMetadata: {
+            mappingOutputs: {
+              productRanking: [{ productId: 82, productName: '玻尿酸保湿精华', suggestedQuantity: 99 }],
+            },
+            resultSets: [set],
+          },
+        },
+      }),
+    ).toBe(false);
   });
 
   it('preserves an empty expiring product result set for deterministic follow-up decisions', () => {
@@ -57,6 +110,54 @@ describe('BrainResultReferenceService', () => {
     });
     expect(resolved).toMatchObject({ set: { status: 'empty', entityType: 'product' } });
     expect(resolved?.reference).toBeUndefined();
+  });
+
+  it('does not mistake a time-period comparison for an empty result-set reference', () => {
+    const [set] = service.buildResultSets({
+      runId: 1921,
+      ...scope,
+      capabilityKey: 'order_revenue_analysis',
+      capabilityVersion: 8,
+      intent: intent('product'),
+      adapterMetadata: { mappingOutputs: { resultRows: [] } },
+    });
+
+    expect(service.isFollowUpReferenceQuestion('跟双十一期间比呢', [set!])).toBe(false);
+  });
+
+  it('still recognizes a comparison that names an entity from the governed result set', () => {
+    const [set] = service.buildResultSets({
+      runId: 1922,
+      ...scope,
+      intent: intent('beautician'),
+      adapterMetadata: {
+        mappingOutputs: { staffRanking: [{ entityType: 'beautician', entityKey: '12', mention: '宋乔' }] },
+      },
+    });
+
+    expect(service.isFollowUpReferenceQuestion('跟宋乔比呢', [set!])).toBe(true);
+  });
+
+  it.each([
+    '哪些商品卖得最好',
+    '哪个美容师退款率最高',
+    '哪些产品库存风险最大',
+    '员工里谁的业绩最多',
+  ])('does not require a prior result set for an independent ranking question: %s', (question) => {
+    expect(service.requiresPriorResultSelection(question)).toBe(false);
+  });
+
+  it.each(['其中最高那个怎么处理', '上轮第二个客户怎么召回', '刚才这些商品里最急的是哪个'])(
+    'still requires a prior result set for an explicit continuation: %s',
+    (question) => {
+      expect(service.requiresPriorResultSelection(question)).toBe(true);
+    },
+  );
+
+  it('does not mistake an exact-time reservation question for a prior-result selection', () => {
+    expect(service.requiresPriorResultSelection('下午3点那个预约是谁，有什么要注意的')).toBe(false);
+    expect(service.requiresPriorResultSelection('15:30那场预约是谁')).toBe(false);
+    expect(service.requiresPriorResultSelection('上轮那个预约有什么要注意的')).toBe(true);
   });
 
   it('binds the requested rank instead of trusting a user-supplied entity id', () => {

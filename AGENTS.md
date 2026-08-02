@@ -1,119 +1,49 @@
 # AGENTS.md
 
-This file provides concise guidance to Codex / coding agents when working in this repository.
+本文件只保留 Codex / coding agents 在本仓库工作的长期核心约束；执行时的命令、配置值和模块细节以当前代码与文末参考为准。
 
-## 协作与权限边界
+## 协作与权限
 
-- 遵守全局 AGENTS.md 的中文沟通、vibe coding、文档落盘、一次到位和禁止批量删除规则。
-- 工作区可能存在用户未提交改动；先读现状，只在当前任务范围内增量修改，不清理、回滚或覆盖无关改动。
-- 必要重构可以做，但需说明影响范围、风险和验证方式；阶段性完成后主动建议是否提交。
-- 功能实现不能只看“能用”，还要关注真实数据加载体验；页面、终端或接口若出现加载慢、空白等待、重复请求、首屏阻塞，应同步处理或记录风险。
-- 本仓库是“一个统一后端 + 多个独立客户端”的松散多应用仓库，不是 npm workspaces；跨包修改前先确认依赖方向、独立构建和部署边界。
-- 涉及真实写库、远端修改、commit、push、PR、合并、tag、release 和生产发布等外部状态变更，必须先获得用户明确授权；已获授权后可在授权范围内连续执行，不重复询问。
+- 使用中文沟通，适配用户的产品经理和 vibe coding 习惯；技术选型、取舍与风险必须说明对产品价值、用户体验和交付节奏的影响。
+- 先检查用户前提、仓库现状和真实运行状态，不默认认同；前提错误时直接说明并给出证据。
+- 工作区可能存在用户未提交改动；只做任务范围内的增量修改，不清理、回滚、覆盖无关改动，不经授权不批量删除、移动或重命名文件。
+- 在用户目标范围内直接完成并验证；范围扩大、高风险重构或需要新的外部授权时，先说明影响、回滚方式和需要的决策。
 
-## 任务分级执行规则
+## 任务风险与验收
 
-- L0 轻量任务：只涉及问答、只读解释、文案微调、单文件小改、样式微调、无业务链路变化。可不做全链路排查；只需最小范围读取/修改，最终简短说明改了什么。若未改代码，不必跑测试。
-- L1 常规任务：涉及一个页面、一个 API facade、一个表单、一个局部交互或一个明确 bug。需检查直接相关文件和调用方，按风险跑定向测试或构建，最终说明已验证和未验证项。
-- L2 闭环任务：涉及营销、库存、订单、收银、终端、AI、权限、真实数据、跨前后端链路，或用户追问“是否打通/是否一样/是否完成”。必须按业务链路核对路由、组件、API、service、schema/数据表和真实数据，并做必要验证。
-- L3 高风险任务：涉及 Prisma schema/migration、认证权限、API client、全局状态、发布/Git、批量数据、真实写库、跨包重构或删除/迁移文件。必须先说明范围、风险和验证方式，外部状态变更遵守统一权限边界。
-- 若用户明确要求“详细分析/完整验证/全部开发完成”，即使任务看似较小，也按更高等级执行。
-- 若任务等级不确定，先按较低等级启动；一旦发现跨模块、真实数据或共享链路影响，立即升级执行等级并告知用户。
+- L0 轻量任务：问答、文案、只读分析或单文件小改；只做最小范围检查，未改代码不必运行测试。
+- L1 常规任务：单页面、单接口、表单、局部交互或明确 bug；检查直接调用链，并执行与风险匹配的定向验证。
+- L2 闭环任务：涉及真实数据、跨前后端，或登录、权限、AI、订单、库存、营销、终端等核心链路；开工前说明范围与风险，完成后核对代码、接口、页面、数据和最终交付结果。
+- L3 高风险任务：涉及 Prisma schema/migration、认证权限、全局状态、批量数据、跨包重构、删除迁移、Git 发布或不可逆操作；必须明确授权边界、影响范围、回滚方式和验证方案。
+- 任务影响扩大时自动升级。不把“代码已改”“脚本存在”“build 通过”、mock 正常或客户端超时误报为真实业务完成；失败、性能风险和未闭环证据必须明确报告。
 
-## 任务合同与验收
-- L1 任务开工前简要明确目标、修改范围和验证方式。
-- L2/L3 任务开工前必须明确：目标、对象、排除项、交付物、代码/接口/页面/数据/交付五层验收标准和外部操作权限；不适用项可直接标记“不适用”。
-- L2/L3 最终回复按五层报告已完成、已验证和未验证项；L0/L1 保持简短。
+## 项目主线与环境
 
-## 开工预检与 WIP 限制
-- L2/L3 任务先看 `git status --short --branch`，识别当前分支、未提交改动、未跟踪文件和共享链路风险；会碰到用户未提交改动或高风险共享链路时，先提醒用户再改。
-- 整个仓库最多同时推进 2 个进入代码实现、真实验证或发布阶段的一级业务目标；同一工作区原则上只承载 1 个一级目标。
-- WIP 按当前活跃任务计算，不按工作区既有未提交文件所覆盖的历史业务域计算。
-- 开始第 3 个一级目标前，必须先完成、冻结或转移现有目标。现有工作区跨域严重时可继续只读分析；代码实现应使用不冲突的独立 worktree，或先完成当前目标收口。
+- 本仓库是“统一后端 + 多个独立客户端”的松散多应用仓库：管理端位于 `src/`，统一后端位于 `packages/server-v2`，其他客户端位于 `packages/`；根项目统一使用 npm，子应用保留独立依赖、构建和部署边界。
+- 根管理端使用 Node `>=24 <25`、npm `>=11 <12`；先执行 `nvm use`，不得用其他主版本重写根 `package-lock.json`。常用启动入口为 `npm run dev:web`，实际命令仍以当前 `package.json` 为准。
+- 日常主链为真实客户端 -> 本地 `server-v2` -> 远程共享 Supabase 开发库。`packages/server-v2/.env` 是本地后端运行声明，`.env.example` 只是字段模板；修改配置后必须通过当前进程、健康接口、日志或真实 trace 验证已生效。
+- 真实业务不得用 mock、静态回答或回放代替真实接口、权限、门店范围和数据口径；mock 仅用于明确的单测、离线 fixture 或隔离验收。管理端启动必须加载根 `vite.config.ts`。
+- 日常运行不连接或初始化本机 `ami_core`；只允许为 migration/integration gate 使用明确的临时隔离 PostgreSQL 容器，验收后清理。Redis 继续使用本机实例。
 
-## 分支与提交边界
-- L2/L3 任务原则上一个一级业务目标对应一个 `codex/*` 分支；与当前未提交改动冲突时使用独立 worktree。L0/L1 小改在不碰到其他未提交改动时可沿用当前分支。
-- 提交按可独立解释、验证和回滚的业务闭环拆分；不将不同业务域、生成产物和无关文档混入同一提交。
-- 只使用显式 `git add <paths>` 控制范围；提交前必须查看 `git diff --cached --name-only` 和对应定向验证结果。
-- GitHub 是主发布源：`origin` 指向 GitHub，`main` 跟踪 `origin/main`；Gitee 仅作额外同步远端，`gitee` 固定使用 `https://gitee.com/cocobao/beauty-salon.git`。
-- 功能分支使用 `git push origin <branch>`；只有用户明确授权发布 `main` 时，才执行 `git push origin main`。不从功能开发工作区直接向 `main` 推送未经审查的改动。
+## 数据库与业务副作用
 
-## 长任务上下文控制
-- 长任务上下文已明显拥挤时，在完成当前原子步骤后新建任务；只携带已验证结论、目标文件、未完成项和必要命令，不复制完整工具输出、历史日志或无关上下文。
+- 数据库操作前必须确认 `DATABASE_URL` 指向已批准的 Supabase 开发库；若指向 `localhost`、`127.0.0.1`、生产环境或未知地址，立即停止并报告。
+- 为完成用户明确要求的功能，可直接执行共享开发库的常规读写、Prisma `migrate deploy`、幂等 seed 和必要测试数据写入，无需逐次请示。
+- `migrate reset`、`DROP`、`TRUNCATE`、`db push --force-reset`、无明确条件的批量 `DELETE`、批量 backfill、不可逆覆盖、删除或重建数据库等操作必须先获得明确授权。
+- migration、seed 或数据修复后必须验证并报告；不得输出或提交凭据，不得把共享开发库操作描述为生产发布。
 
-## AI Coding 对齐与完成标准
+## API、权限与 Ami Brain
 
-- 先区分任务类型：只读分析、文档/方案、代码实现、真实数据验证、Git/发布；用户明确要求文档、方案、计划或清单时必须落盘，普通问答和只读解释不创建文件。
-- 用户需求先翻译成工程对象：路由/组件、API、service、schema/数据表、真实业务记录和验收口径。
-- 不把“方案已写”“代码已改”“build 通过”“mock 正常”“脚本存在”误报为业务已完成。
-- 遇到“是否一样/是否打通/是否合并”，按任务分级核对对象边界；
-- L2/L3 必须查清路由、组件、API、service、schema/数据表和真实数据，不按页面名、URL 或文案猜。
-- 新增或调整 API 时，同步检查 `server-v2`、`src/api/real/*`、facade、导出、调用方、类型和必要测试，避免只改一端。
-- 只读 verify 失败时，不重复执行后宣称完成；L2/L3 优先核对真实来源表和最新业务记录，构建通过不等于 typecheck、测试和真实 verify 都通过。
+- 所有客户端真实业务数据统一来自 `server-v2`；新增链路按 `schema/service/controller -> src/api/real/* -> API 门面与导出 -> 调用方` 检查，避免只改一端。
+- 管理端路由集中在 `src/app/routes.tsx`；权限验收同时核对路由守卫、菜单权限和 `usePermission`。前端不得保存模型 Key，各客户端统一通过 `server-v2` AI Gateway。
+- Ami Brain 的环境声明、模型配置、治理 Release 和实际运行是不同层级。宣称当前产品能力前，必须核对当前进程、数据库 Active Release、实际解析的 provider/model/capability、真实 trace/回执与最终业务结果；代码、测试、fixture 或能力数量不是产品可用证明。
+- 用于当前产品能力通过率的测试题，必须具有稳定 ID，并核对管理入口、正式后端 API 和真实业务数据；缺少或证据不完整的题不得进入当前版本通过率分母。
+- Brain 读取共享开发数据可按普通开发流程执行；创建订单、营销触达、预约、采购等副作用必须继续经过产品确认、权限、幂等和执行回执链路。Agent 或核心模块新增版本时，同步统一版本决策记录。
 
-## 项目入口
+## Git、文档与发布
 
-- `src/`：管理端主应用。
-- `packages/server-v2`：NestJS + Prisma + PostgreSQL 主线后端，是各客户端共享的业务 API、数据、权限和 AI Gateway。
-- `packages/Ami-Aura-Lite-Kiosk`：Ami Aura Lite 智能终端主线。
-- `packages/Ami-Glow-H5`：Ami Glow 客户服务 H5，覆盖登录、首页、项目、预约、测肤、会员与消费记录等客户服务场景。
-- `packages/Ami-Glow-MiniApp`：Ami Glow 客户服务小程序。
-- `packages/marketing-h5`：公开营销活动 H5，负责活动页渲染、分享、留资、埋点和转化，不等同于 Ami Glow 客户服务端。
-- `packages/app`：独立移动端 AI 助手 Web App/MVP，不是管理后台，也不是 Ami Aura Lite 终端主线。
-- `packages/agent-core`：共享 AI 对话类型、Persona、反馈上下文和结构化消息渲染能力，当前主要由 Ami Aura Lite 复用。
-- `docs/`：API 契约、终端接口、生产计划、开发计划等文档。
-- `outputs/` 与中文产品资料目录：谨慎改动，不要当作可清理废文件。
-
-各子项目保留独立依赖锁、构建和部署边界。详细命令、运行、预览和部署参考见：`docs/03-开发计划/09-Git发布与项目治理/AGENTS补充参考信息.md`。
-
-## 技术与代码风格
-
-- 管理端为 React + TypeScript + Vite；后端主线为 `packages/server-v2`，NestJS + Prisma + PostgreSQL。
-- 管理端路径别名 `@` 指向 `./src`；改动时遵守现有 Prettier、ESLint 和 React Hooks 规则。
-- MUI、Tailwind、shadcn/ui 共存，改页面时延续当前页面风格。
-- 不要移除 Vite React/Tailwind 插件；`assetsInclude` 不要加入 `.css`、`.ts`、`.tsx`。
-- 子项目不是统一 workspace：新增依赖时只修改实际消费该依赖的 `package.json` 与对应 lockfile，不要默认同步到全部子包。
-
-## API 与数据约定
-
-- 管理端运行时 API 统一走 Real 主线：`server-v2` + `src/api/real/*`。
-- Kiosk、Ami Glow H5、营销 H5、MiniApp 和 `packages/app` 的真实业务数据也必须来自 `server-v2`；不得在客户端新建第二套业务事实源。
-- 不再采用本地 mock 补齐新增业务；mock 仅保留给单测、离线样例或历史结构对照。
-- 新增业务优先顺序：`packages/server-v2` schema/service/controller -> `src/api/real/*` -> `src/api/*.ts` 门面 -> `src/api/index.ts` 导出。
-- `src/api/client.ts` 响应拦截器已返回 `response.data`；调用方不要重复 `.data.data`。
-- 分页响应优先使用 `{ items, total?, page?, pageSize? }`，兼容旧字段 `{ data }`。
-- 错误统一使用 `{ message, code?, status?, details? }`，并挂到 `error.payload`。
-- `baseURL = VITE_API_BASE_URL || '/api'`；请求自动附加 `Authorization` 与 `X-Store-Id`。
-- 本地管理端通常通过 Vite `/api` 代理到 `http://localhost:8080`。
-
-## 路由、权限与 UI
-
-- 路由集中定义在 `src/app/routes.tsx`，不是文件系统路由。
-- 权限链路为：路由 `PermissionGuard` -> 菜单权限 -> `usePermission`。
-- 权限码格式为 `平台:模块:动作`；`super_admin` 拥有 `['*']`。
-- 旧权限码兼容映射不要随意删除。
-- 表单通常使用 react-hook-form + zodResolver；成功后关闭弹窗、提示并刷新，失败时保留弹窗并展示错误。
-
-## 终端与 AI
-
-- Terminal 相关入口：`src/api/terminal.ts`、`src/api/real/terminal.ts`、`packages/server-v2/src/terminal`、`packages/Ami-Aura-Lite-Kiosk`、`docs/terminal-api.md`。
-- AI 相关入口：`src/api/ai.ts`、`src/api/real/ai.ts`、`packages/server-v2/src/ai`、`packages/server-v2/src/brain`、`packages/server-v2/src/semantic-data`、`packages/agent-core`、`packages/app/src/api/claude.ts`。
-- 前端不保存模型 Key；管理端、终端、移动/助手端均应通过 `server-v2` 调用 AI Gateway。
-- 移动/助手端应走 Agent Gateway 或 `/api/ai/*`，不要再接入旧 `/v1/messages`。
-- Ami Brain 相关任务必须区分“代码能力、能力目录/语义定义、治理发布状态、真实数据库状态”；扫描脚本存在或单测通过不等于能力已经发布并可供生产运行。
-
-## Agent 与核心模块版本治理
-- 统一版本决策记录固定为 `docs/03-开发计划/01-AI智能体与问数能力/Agent与核心模块版本决策记录.md`；首次触发新增版本任务时创建，不得另起平行登记文件。
-- 新建 Agent/核心模块版本前，必须更新统一版本决策记录，写明定位、主入口、替代对象、兼容边界、发布门禁和旧版处置。
-- 旧版必须标记为保留、冻结、迁移中或待退役；路由、菜单、API、评测和产品文档中的主线命名必须与决策记录一致。
-- 删除、数据迁移、主线切换和真实发布遵守统一权限边界。
-
-## 验证要求
-
-- 改动后按风险选择验证，不要只说“理论上可用”。
-- 涉及登录、权限、API client、mock/real 边界、Terminal、AI Gateway 的改动，至少跑对应单测或手动验证核心流程。
-- ErrorBoundary 测试会主动抛错，控制台出现测试错误日志不一定代表失败，以 Vitest 汇总为准。
-- 常用验证命令见 `docs/03-开发计划/09-Git发布与项目治理/AGENTS补充参考信息.md`；执行前以当前 `package.json` 和实际脚本为准。
-
-## 文档
-- 产品资料目录 `01-市场调研/`、`02-产品设计/`、`03-开发计划/`、`04-测试数据/`、`05-市场营销/` 对产品决策有价值，不要自行批量整理、改名或删除。
+- L2/L3 任务开工前检查 `git status --short --branch`；不处理与当前任务无关的未提交改动。
+- 一个主要业务目标对应一个可解释、可验证和可回滚的提交；只使用显式 `git add <paths>`，不使用 `git add -A`。
+- 未经明确授权不得 commit、push、创建或合并 PR、发布 `main`、tag、release、修改其他远程系统或生产配置。
+- 用户要求的方案、文档和计划必须保存到本地。`01-市场调研/` 至 `05-市场营销/`、`docs/` 和 `outputs/` 中的业务资料与历史产物不得自行批量整理、改名或删除。
+- 执行命令前以当前 `package.json`、源码和运行环境为准；文档修改后执行 `git diff --check` 并核对引用路径。详细命令、技术栈和部署参考见 `docs/03-开发计划/09-Git发布与项目治理/AGENTS补充参考信息.md`；Agent 版本决策见 `docs/03-开发计划/01-AI智能体与问数能力/Agent与核心模块版本决策记录.md`。

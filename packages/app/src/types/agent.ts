@@ -10,6 +10,7 @@ export type AgentRunStatus =
   | 'waiting_approval'
   | 'composing'
   | 'completed'
+  | 'partially_completed'
   | 'failed'
   | 'cancelled';
 

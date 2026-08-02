@@ -74,4 +74,78 @@ describe('BrainManagerSkillsService staff analysis', () => {
       expect.objectContaining({ cursor: { id: 1000 }, skip: 1, orderBy: { id: 'asc' }, take: 1000 }),
     );
   });
+
+  it('loads active staff levels, project skills, schedules and approved time off as deterministic facts', async () => {
+    const prisma = {
+      beautician: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 1,
+            name: '唐伊',
+            level: { id: 3, name: '高级美容师' },
+            projectSkills: [
+              {
+                projectId: 20,
+                skillLevel: 2,
+                certified: true,
+                priority: 1,
+                project: { name: '肩颈舒压养护' },
+              },
+            ],
+          },
+        ]),
+      },
+      schedule: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 10,
+            beauticianId: 1,
+            date: new Date('2026-06-29T00:00:00.000Z'),
+            startTime: '09:00',
+            endTime: '18:00',
+            status: 'published',
+            source: 'manual',
+          },
+        ]),
+      },
+      beauticianTimeOff: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 11,
+            beauticianId: 1,
+            date: new Date('2026-06-29T00:00:00.000Z'),
+            startTime: '14:00',
+            endTime: '16:00',
+            reason: '培训',
+          },
+        ]),
+      },
+    };
+    const service = new BrainManagerSkillsService(prisma as never);
+
+    const result = await service.buildStaffDirectoryFacts({
+      storeId: 6,
+      startDate: new Date('2026-06-29T00:00:00.000Z'),
+      endDate: new Date('2026-06-29T23:59:59.999Z'),
+    });
+
+    expect(result.staff).toEqual([
+      expect.objectContaining({
+        beauticianId: 1,
+        name: '唐伊',
+        level: { levelId: 3, name: '高级美容师' },
+        projectSkills: [
+          expect.objectContaining({ projectId: 20, projectName: '肩颈舒压养护', certified: true }),
+        ],
+        schedules: [expect.objectContaining({ scheduleId: 10, date: '2026-06-29', status: 'published' })],
+        timeOffs: [expect.objectContaining({ timeOffId: 11, date: '2026-06-29', reason: '培训' })],
+      }),
+    ]);
+    expect(prisma.beautician.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { storeId: 6, status: 'active' } }),
+    );
+    expect(prisma.beauticianTimeOff.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ status: 'approved' }) }),
+    );
+  });
 });

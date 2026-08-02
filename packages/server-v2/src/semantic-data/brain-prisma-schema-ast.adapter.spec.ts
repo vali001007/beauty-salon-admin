@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { Prisma } from '@prisma/client';
 import { BrainOntologyCandidateGeneratorService } from './brain-ontology-candidate-generator.service.js';
 import { BrainPrismaSchemaAstAdapter } from './brain-prisma-schema-ast.adapter.js';
+import { BrainSemanticCandidateVerifierService } from './brain-semantic-candidate-verifier.service.js';
 
 describe('BrainPrismaSchemaAstAdapter', () => {
   it('parses owner-side relation metadata and enum values without regex parsing', () => {
@@ -55,5 +56,33 @@ describe('BrainPrismaSchemaAstAdapter', () => {
     expect(
       candidates.find((candidate) => candidate.definitionKey === 'entity.industry_service_template')?.storeScope,
     ).toEqual({ mode: 'global' });
+
+    const actions = candidates.filter((candidate) => candidate.kind === 'action');
+    const sourcePaths = new Set(
+      actions.flatMap((candidate) =>
+        candidate.evidence
+          .map((item) => item.sourcePath)
+          .filter((sourcePath) => sourcePath !== 'packages/server-v2/prisma/schema.prisma'),
+      ),
+    );
+    const workspaceRoot = resolve(process.cwd(), '../..');
+    const sourceFiles = new Map(
+      [...sourcePaths].map((sourcePath) => [sourcePath, readFileSync(resolve(workspaceRoot, sourcePath), 'utf8')]),
+    );
+    const verifier = new BrainSemanticCandidateVerifierService();
+    const verifiedActions = actions.map((candidate) =>
+      verifier.verify(candidate, { datamodel, semanticEvidence: [], sourcePaths, sourceFiles }),
+    );
+    expect(
+      verifiedActions.filter((item) => item.status === 'draft').map((item) => item.draftInput.definitionKey),
+    ).toEqual([
+      'action.cancel_reservation',
+      'action.create_customer',
+      'action.create_purchase_order',
+      'action.create_reservation',
+      'action.reschedule_reservation',
+      'action.submit_purchase_order_for_approval',
+    ]);
+    expect(verifiedActions.every((item) => item.status === 'draft' && item.blockedReasons.length === 0)).toBe(true);
   });
 });

@@ -9,6 +9,7 @@
     "noEmit": true
   },
   "include": [
+    "prisma/ami-brain-eval.ts",
     "prisma/ami-brain-full-domain-eval.ts",
     "prisma/ami-brain-full-domain-eval-suite.ts"
   ],

@@ -10,12 +10,14 @@ const api = vi.hoisted(() => ({
   listBrainSkills: vi.fn(),
   listBrainSkillGovernanceHistory: vi.fn(),
   listBrainSkillGovernanceSummaries: vi.fn(),
+  listBrainResourceVersions: vi.fn(),
   setBrainPublishedSkillEnabled: vi.fn(),
   updateBrainSkill: vi.fn(),
 }));
 
 vi.mock('@/api/brain', () => api);
 vi.mock('@/hooks/usePermission', () => ({ usePermission: () => true }));
+vi.mock('../brainGovernanceNavigation', () => ({ BRAIN_GOVERNANCE_UI_MODE: 'manage' }));
 
 const summary = {
   versionId: 1053,
@@ -66,6 +68,25 @@ describe('BrainSkillGovernance', () => {
         archivedAt: null,
       }],
     });
+    api.listBrainResourceVersions.mockResolvedValue({
+      items: [{
+        id: summary.versionId,
+        resourceType: 'skill',
+        resourceKey: summary.skillKey,
+        version: summary.version,
+        status: summary.status,
+        snapshot: {
+          skillKey: summary.skillKey,
+          name: summary.name,
+          description: summary.description,
+          type: 'query',
+          inputSchema: {},
+          outputSchema: {},
+          permissions: ['core:reservation:view'],
+          riskLevel: 'low',
+        },
+      }],
+    });
     api.setBrainPublishedSkillEnabled.mockResolvedValue({ enabled: false });
     api.createBrainSkill.mockResolvedValue({ id: 1054, status: 'draft' });
     vi.spyOn(window, 'confirm').mockReturnValue(true);
@@ -78,6 +99,8 @@ describe('BrainSkillGovernance', () => {
     expect(screen.getByRole('columnheader', { name: '技能 ID' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '名称' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '版本' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '状态' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '治理状态' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '技能说明' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '涉及领域' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '实体' })).toBeInTheDocument();
@@ -91,6 +114,7 @@ describe('BrainSkillGovernance', () => {
     expect(screen.getByText('beautician')).toBeInTheDocument();
     expect(screen.getByText('appointment_count')).toBeInTheDocument();
     expect(screen.getByText('+1')).toBeInTheDocument();
+    expect(screen.getByText('已纳管 1')).toBeInTheDocument();
   });
 
   it('opens version history without loading full snapshots in the main table', async () => {
@@ -146,5 +170,71 @@ describe('BrainSkillGovernance', () => {
 
     await waitFor(() => expect(api.createBrainSkill).toHaveBeenCalledWith(expect.objectContaining({ skillKey: 'new_skill' })));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: '创建 Skill 草稿版本' })).not.toBeInTheDocument());
+  });
+
+  it('opens the latest governed snapshot from an explicit edit action and saves a new draft version', async () => {
+    const user = userEvent.setup();
+    api.updateBrainSkill.mockResolvedValue({ id: 1054, status: 'draft' });
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: '编辑配置' }));
+
+    expect(await screen.findByRole('dialog', { name: '编辑 appointment_gap_list' })).toBeInTheDocument();
+    expect(api.listBrainResourceVersions).toHaveBeenCalledWith({
+      resourceType: 'skill',
+      resourceKey: 'appointment_gap_list',
+      includeSnapshot: true,
+      take: 1,
+    });
+    expect((screen.getByLabelText('Skill 配置 JSON') as unknown as { value: string }).value)
+      .toContain('core:reservation:view');
+    await user.click(screen.getByRole('button', { name: '保存新版本' }));
+    await waitFor(() => expect(api.updateBrainSkill).toHaveBeenCalledWith(
+      'appointment_gap_list',
+      expect.objectContaining({ skillKey: 'appointment_gap_list' }),
+    ));
+  });
+
+  it('shows disabled unmanaged registry skills and lets a manager prepare their governance draft', async () => {
+    const user = userEvent.setup();
+    api.listBrainSkillGovernanceSummaries.mockResolvedValue({ items: [] });
+    api.listBrainSkills
+      .mockResolvedValueOnce({
+        items: [{
+          id: 77,
+          skillKey: 'legacy_disabled_skill',
+          name: '停用历史技能',
+          description: '历史配置',
+          type: 'query',
+          version: 2,
+          enabled: false,
+          domains: ['legacy'],
+          definitionRefs: [],
+          updatedAt: '2026-07-01T00:00:00.000Z',
+        }],
+      })
+      .mockResolvedValueOnce({
+        items: [{
+          id: 77,
+          skillKey: 'legacy_disabled_skill',
+          name: '停用历史技能',
+          description: '历史配置',
+          type: 'query',
+          version: 2,
+          enabled: false,
+          inputSchema: {},
+          outputSchema: {},
+          permissions: [],
+          riskLevel: 'low',
+        }],
+      });
+    renderPage();
+
+    expect(await screen.findByText('停用历史技能')).toBeInTheDocument();
+    expect(screen.getByText('待纳管 1')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '纳管配置' }));
+    expect(await screen.findByRole('dialog', { name: '编辑 legacy_disabled_skill' })).toBeInTheDocument();
+    expect(api.listBrainSkills).toHaveBeenNthCalledWith(1, { summary: true, includeDisabled: true });
+    expect(api.listBrainSkills).toHaveBeenNthCalledWith(2, { includeDisabled: true });
   });
 });

@@ -1,4 +1,18 @@
-import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards, Headers, ParseIntPipe, Req, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Headers,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { InventoryService } from './inventory.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
@@ -22,6 +36,17 @@ export class InventoryController {
     if (!permissions.has(requiredPermission)) {
       throw new ForbiddenException(`缺少库存操作权限：${requiredPermission}`);
     }
+  }
+
+  private requireScopedStoreId(storeId: string | undefined, user: any) {
+    const parsed = Number(storeId);
+    if (!Number.isInteger(parsed) || parsed <= 0) throw new BadRequestException('X-Store-Id is required');
+    const permissions = new Set<string>(user?.permissions ?? []);
+    const visibleStoreIds = Array.isArray(user?.stores) ? user.stores.map(Number) : [];
+    if (!permissions.has('*') && !visibleStoreIds.includes(parsed)) {
+      throw new ForbiddenException(`store_scope_denied:${parsed}`);
+    }
+    return parsed;
   }
 
   @Get('stock')
@@ -150,23 +175,39 @@ export class InventoryController {
   @Get('purchase-orders')
   @Permissions('core:inventory:purchase')
   @ApiOperation({ summary: '获取采购单列表' })
-  getPurchaseOrders(@Query('page') page?: number, @Query('pageSize') pageSize?: number) {
-    return this.inventoryService.getPurchaseOrders(page, pageSize);
+  getPurchaseOrders(
+    @Query('page') page: number | undefined,
+    @Query('pageSize') pageSize: number | undefined,
+    @Headers('x-store-id') storeId: string | undefined,
+    @Req() req: any,
+  ) {
+    return this.inventoryService.getPurchaseOrders(this.requireScopedStoreId(storeId, req.user), page, pageSize);
   }
 
   @Get('purchase-orders/paginated')
   @Permissions('core:inventory:purchase')
   @ApiOperation({ summary: '鍒嗛〉鑾峰彇閲囪喘鍗曞垪琛?' })
-  getPurchaseOrdersPaginated(@Query('page') page?: number, @Query('pageSize') pageSize?: number) {
-    return this.inventoryService.getPurchaseOrders(page, pageSize);
+  getPurchaseOrdersPaginated(
+    @Query('page') page: number | undefined,
+    @Query('pageSize') pageSize: number | undefined,
+    @Headers('x-store-id') storeId: string | undefined,
+    @Req() req: any,
+  ) {
+    return this.inventoryService.getPurchaseOrders(this.requireScopedStoreId(storeId, req.user), page, pageSize);
   }
 
   @Post('purchase-orders')
   @Permissions('core:inventory:purchase')
   @ApiOperation({ summary: '创建采购单' })
-  createPurchaseOrder(@Body() dto: any, @Headers('idempotency-key') idempotencyKey?: string) {
+  createPurchaseOrder(
+    @Body() dto: any,
+    @Req() req: any,
+    @Headers('x-store-id') storeId?: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
     return this.inventoryService.createPurchaseOrder({
       ...dto,
+      storeId: this.requireScopedStoreId(storeId, req.user),
       source: 'admin',
       idempotencyKey: idempotencyKey ?? dto.idempotencyKey,
     });
@@ -175,8 +216,39 @@ export class InventoryController {
   @Patch('purchase-orders/:id/status')
   @Permissions('core:inventory:purchase')
   @ApiOperation({ summary: '更新手动采购单状态' })
-  updatePurchaseOrderStatus(@Param('id', ParseIntPipe) id: number, @Body() dto: any) {
-    return this.inventoryService.updatePurchaseOrderStatus(id, dto);
+  updatePurchaseOrderStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: any,
+    @Req() req: any,
+    @Headers('x-store-id') storeId?: string,
+  ) {
+    return this.inventoryService.updatePurchaseOrderStatus(id, this.requireScopedStoreId(storeId, req.user), dto);
+  }
+
+  @Post('purchase-orders/:id/submit-for-approval')
+  @Permissions('core:inventory:purchase')
+  @ApiOperation({ summary: '提交手动采购单审核' })
+  submitPurchaseOrderForApproval(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: { expectedPurchaseOrderUpdatedAt?: string; idempotencyKey?: string },
+    @Req() req: any,
+    @Headers('x-store-id') storeId?: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    const expectedPurchaseOrderUpdatedAt = String(dto.expectedPurchaseOrderUpdatedAt ?? '').trim();
+    const mutationIdempotencyKey = String(idempotencyKey ?? dto.idempotencyKey ?? '').trim();
+    if (!expectedPurchaseOrderUpdatedAt) {
+      throw new BadRequestException('expectedPurchaseOrderUpdatedAt is required');
+    }
+    if (!mutationIdempotencyKey) throw new BadRequestException('Idempotency-Key is required');
+    const scopedStoreId = this.requireScopedStoreId(storeId, req.user);
+    return this.inventoryService.submitPurchaseOrderForApproval(id, scopedStoreId, expectedPurchaseOrderUpdatedAt, {
+      capabilityKey: 'submit_purchase_order_for_approval',
+      idempotencyKey: mutationIdempotencyKey,
+      mutationKind: 'state_transition',
+      requestPayload: { purchaseOrderId: id, expectedPurchaseOrderUpdatedAt },
+      actorId: req.user?.id,
+    });
   }
 
   @Post('purchase-orders/:id/receive')
@@ -188,10 +260,9 @@ export class InventoryController {
     @Req() req: any,
     @Headers('x-store-id') storeId?: string,
   ) {
-    return this.inventoryService.receivePurchaseOrder(id, {
+    return this.inventoryService.receivePurchaseOrder(id, this.requireScopedStoreId(storeId, req.user), {
       ...dto,
-      storeId: dto.storeId ?? (storeId ? Number(storeId) : undefined),
-      operatorId: dto.operatorId ?? req.user?.id,
+      operatorId: req.user?.id,
     });
   }
 

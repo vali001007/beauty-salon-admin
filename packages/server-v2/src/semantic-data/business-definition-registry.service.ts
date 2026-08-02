@@ -9,6 +9,8 @@ import {
 import { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { BrainDefinitionVersionBundleService } from '../brain/cognition/brain-definition-version-bundle.service.js';
+import { PublishedBusinessDefinitionSnapshotProviderService } from '../brain/cognition/published-business-definition-snapshot-provider.service.js';
 import type {
   CreateBusinessDefinitionDraftInput,
   ListBusinessDefinitionsDto,
@@ -48,9 +50,18 @@ const SERIALIZABLE_TRANSACTION_OPTIONS = {
   maxWait: 5_000,
   timeout: 30_000,
 } as const;
+const BUSINESS_DEFINITION_SNAPSHOT_TTL_MS = 30_000;
 
 @Injectable()
 export class BusinessDefinitionRegistryService {
+  private readonly publishedSnapshotCache = new Map<string, { value: unknown; expiresAt: number }>();
+  private readonly publishedSnapshotLoadings = new Map<string, Promise<unknown>>();
+  private readonly evaluationSnapshotCache = new Map<string, Promise<unknown>>();
+  private readonly evaluationSnapshotCacheMax = positiveInteger(
+    process.env.BRAIN_CAPABILITY_DEFINITION_SNAPSHOT_CACHE_MAX,
+    128,
+  );
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly projectionCompiler: BusinessDefinitionProjectionCompilerService,
@@ -58,6 +69,8 @@ export class BusinessDefinitionRegistryService {
     @Optional()
     @Inject(BUSINESS_METRIC_CATALOG_REFRESHER)
     private readonly metricCatalogRefresher?: BusinessMetricCatalogRefresher,
+    @Optional() private readonly definitionVersionBundle?: BrainDefinitionVersionBundleService,
+    @Optional() private readonly publishedSnapshotProvider?: PublishedBusinessDefinitionSnapshotProviderService,
   ) {}
 
   async list(query: ListBusinessDefinitionsDto = {}) {
@@ -121,68 +134,65 @@ export class BusinessDefinitionRegistryService {
 
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
-        return await this.db().$transaction(
-          async (tx: any) => {
-            const definition = await tx.businessDefinition.upsert({
-              where: { kind_definitionKey: { kind: input.kind, definitionKey: input.definitionKey } },
-              create: {
-                definitionKey: input.definitionKey,
-                kind: input.kind,
-                domain: input.domain,
-                name: input.name,
-                ownerType: input.ownerType,
-                ownerId: input.ownerId,
-                status: 'active',
-              },
-              update: {},
-            });
-            this.assertDefinitionIdentity(definition, input);
-            const aggregate = await tx.businessDefinitionVersion.aggregate({
-              where: { definitionId: definition.id },
-              _max: { version: true },
-            });
-            const versionNumber = (aggregate._max.version ?? 0) + 1;
-            const created = await tx.businessDefinitionVersion.create({
-              data: {
-                definitionId: definition.id,
-                version: versionNumber,
-                schemaVersion: input.schemaVersion ?? '1.0',
-                payload: input.payload as Prisma.InputJsonValue,
-                lifecycleStatus: input.lifecycleStatus ?? 'draft',
-                fingerprint: createBusinessDefinitionFingerprint(immutableInput(input, sourceFingerprint)),
-                sourceFingerprint,
-                validationStatus: input.candidateDiagnostics?.blockedReasons.length ? 'failed' : 'pending',
-                validationReport: input.candidateDiagnostics?.blockedReasons.length
-                  ? ({
-                      source: input.candidateDiagnostics.source,
-                      passed: false,
-                      blockedReasons: [...new Set(input.candidateDiagnostics.blockedReasons)].sort(),
-                    } as Prisma.InputJsonValue)
-                  : undefined,
-                canonicalQueryRef: input.canonicalQueryRef,
-                fixtureSetKey: input.fixtureSetKey,
-                timezone: input.timezone ?? 'Asia/Shanghai',
-                storeScope: (input.storeScope ?? { mode: 'current_store' }) as Prisma.InputJsonValue,
-                createdBy: input.createdBy,
-              },
-              include: VERSION_INCLUDE,
-            });
-            await tx.businessDefinitionEvidence.createMany({
-              data: normalizedEvidence.map((evidence) => ({
-                versionId: created.id,
-                ...evidence,
-                evidenceFingerprint: createBusinessDefinitionEvidenceFingerprint(evidence),
-              })),
-            });
-            const hydrated = await tx.businessDefinitionVersion.findUnique({
-              where: { id: created.id },
-              include: VERSION_INCLUDE,
-            });
-            if (!hydrated) throw new ConflictException('business_definition_version_reload_failed');
-            return hydrated;
-          },
-          SERIALIZABLE_TRANSACTION_OPTIONS,
-        );
+        return await this.db().$transaction(async (tx: any) => {
+          const definition = await tx.businessDefinition.upsert({
+            where: { kind_definitionKey: { kind: input.kind, definitionKey: input.definitionKey } },
+            create: {
+              definitionKey: input.definitionKey,
+              kind: input.kind,
+              domain: input.domain,
+              name: input.name,
+              ownerType: input.ownerType,
+              ownerId: input.ownerId,
+              status: 'active',
+            },
+            update: {},
+          });
+          this.assertDefinitionIdentity(definition, input);
+          const aggregate = await tx.businessDefinitionVersion.aggregate({
+            where: { definitionId: definition.id },
+            _max: { version: true },
+          });
+          const versionNumber = (aggregate._max.version ?? 0) + 1;
+          const created = await tx.businessDefinitionVersion.create({
+            data: {
+              definitionId: definition.id,
+              version: versionNumber,
+              schemaVersion: input.schemaVersion ?? '1.0',
+              payload: input.payload as Prisma.InputJsonValue,
+              lifecycleStatus: input.lifecycleStatus ?? 'draft',
+              fingerprint: createBusinessDefinitionFingerprint(immutableInput(input, sourceFingerprint)),
+              sourceFingerprint,
+              validationStatus: input.candidateDiagnostics?.blockedReasons.length ? 'failed' : 'pending',
+              validationReport: input.candidateDiagnostics?.blockedReasons.length
+                ? ({
+                    source: input.candidateDiagnostics.source,
+                    passed: false,
+                    blockedReasons: [...new Set(input.candidateDiagnostics.blockedReasons)].sort(),
+                  } as Prisma.InputJsonValue)
+                : undefined,
+              canonicalQueryRef: input.canonicalQueryRef,
+              fixtureSetKey: input.fixtureSetKey,
+              timezone: input.timezone ?? 'Asia/Shanghai',
+              storeScope: (input.storeScope ?? { mode: 'current_store' }) as Prisma.InputJsonValue,
+              createdBy: input.createdBy,
+            },
+            include: VERSION_INCLUDE,
+          });
+          await tx.businessDefinitionEvidence.createMany({
+            data: normalizedEvidence.map((evidence) => ({
+              versionId: created.id,
+              ...evidence,
+              evidenceFingerprint: createBusinessDefinitionEvidenceFingerprint(evidence),
+            })),
+          });
+          const hydrated = await tx.businessDefinitionVersion.findUnique({
+            where: { id: created.id },
+            include: VERSION_INCLUDE,
+          });
+          if (!hydrated) throw new ConflictException('business_definition_version_reload_failed');
+          return hydrated;
+        }, SERIALIZABLE_TRANSACTION_OPTIONS);
       } catch (error) {
         if (isPrismaCode(error, 'P2034') && attempt < 3) continue;
         if (isPrismaCode(error, 'P2034')) throw new ConflictException('business_definition_version_conflict');
@@ -209,7 +219,7 @@ export class BusinessDefinitionRegistryService {
       this.canonicalVerifier,
     );
 
-    return this.db().businessDefinitionVersion.update({
+    const validated = await this.db().businessDefinitionVersion.update({
       where: { id: versionId },
       data: {
         lifecycleStatus: report.passed ? 'validated' : 'draft',
@@ -220,6 +230,8 @@ export class BusinessDefinitionRegistryService {
       },
       include: VERSION_INCLUDE,
     });
+    await this.invalidateSnapshotCaches([versionId]);
+    return validated;
   }
 
   async validateVersionForEvaluation(versionId: number, input: ValidateBusinessDefinitionVersionInput) {
@@ -253,6 +265,7 @@ export class BusinessDefinitionRegistryService {
         })),
       });
     }
+    await this.invalidateSnapshotCaches([versionId]);
     return this.db().businessDefinitionVersion.findUnique({
       where: { id: versionId },
       include: VERSION_INCLUDE,
@@ -264,76 +277,74 @@ export class BusinessDefinitionRegistryService {
     assertPositiveInteger(input.publishedBy, 'publishedBy');
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
-        const published = await this.db().$transaction(
-          async (tx: any) => {
-            const version = await tx.businessDefinitionVersion.findUnique({
-              where: { id: versionId },
-              include: VERSION_INCLUDE,
-            });
-            if (!version) throw new NotFoundException('business_definition_version_not_found');
-            if (version.lifecycleStatus === 'published') {
-              if (version.definition.currentPublishedVersionId === version.id) return version;
-              throw new ConflictException('historical_business_definition_cannot_be_republished');
+        const published = await this.db().$transaction(async (tx: any) => {
+          const version = await tx.businessDefinitionVersion.findUnique({
+            where: { id: versionId },
+            include: VERSION_INCLUDE,
+          });
+          if (!version) throw new NotFoundException('business_definition_version_not_found');
+          if (version.lifecycleStatus === 'published') {
+            if (version.definition.currentPublishedVersionId === version.id) return version;
+            throw new ConflictException('historical_business_definition_cannot_be_republished');
+          }
+          const current = version.definition.currentPublishedVersion;
+          if (current) {
+            if (version.version <= current.version) {
+              throw new ConflictException('business_definition_version_must_increase');
             }
-            const current = version.definition.currentPublishedVersion;
-            if (current) {
-              if (version.version <= current.version) {
-                throw new ConflictException('business_definition_version_must_increase');
-              }
-              if (input.expectedCurrentVersionId === undefined) {
-                throw new ConflictException('business_definition_expected_current_required');
-              }
-              if (input.expectedCurrentVersionId !== current.id) {
-                throw new ConflictException('business_definition_current_version_changed');
-              }
-            } else if (input.expectedCurrentVersionId !== undefined) {
+            if (input.expectedCurrentVersionId === undefined) {
+              throw new ConflictException('business_definition_expected_current_required');
+            }
+            if (input.expectedCurrentVersionId !== current.id) {
               throw new ConflictException('business_definition_current_version_changed');
             }
-            await this.assertPublishable(version as unknown as BusinessDefinitionVersionRecord);
-            const projections = this.projectionCompiler.compilePublishedVersion({
-              ...(version as unknown as BusinessDefinitionVersionRecord),
+          } else if (input.expectedCurrentVersionId !== undefined) {
+            throw new ConflictException('business_definition_current_version_changed');
+          }
+          await this.assertPublishable(version as unknown as BusinessDefinitionVersionRecord);
+          const projections = this.projectionCompiler.compilePublishedVersion({
+            ...(version as unknown as BusinessDefinitionVersionRecord),
+            lifecycleStatus: 'published',
+          });
+          if (!assertReusablePublishedProjections(version.projections, projections)) {
+            await tx.businessDefinitionProjection.createMany({
+              data: projections.map((projection) => ({
+                definitionVersionId: projection.definitionVersionId,
+                targetType: projection.targetType,
+                targetKey: projection.targetKey,
+                definitionKey: projection.definitionKey,
+                definitionVersion: projection.definitionVersion,
+                definitionFingerprint: projection.definitionFingerprint,
+                sourceFingerprint: projection.sourceFingerprint,
+                payload: projection.payload as Prisma.InputJsonValue,
+                projectionFingerprint: projection.projectionFingerprint,
+                generatedAt: projection.generatedAt,
+                readOnly: true,
+              })),
+            });
+          }
+          const published = await tx.businessDefinitionVersion.update({
+            where: { id: versionId },
+            data: {
               lifecycleStatus: 'published',
-            });
-            if (!assertReusablePublishedProjections(version.projections, projections)) {
-              await tx.businessDefinitionProjection.createMany({
-                data: projections.map((projection) => ({
-                  definitionVersionId: projection.definitionVersionId,
-                  targetType: projection.targetType,
-                  targetKey: projection.targetKey,
-                  definitionKey: projection.definitionKey,
-                  definitionVersion: projection.definitionVersion,
-                  definitionFingerprint: projection.definitionFingerprint,
-                  sourceFingerprint: projection.sourceFingerprint,
-                  payload: projection.payload as Prisma.InputJsonValue,
-                  projectionFingerprint: projection.projectionFingerprint,
-                  generatedAt: projection.generatedAt,
-                  readOnly: true,
-                })),
-              });
-            }
-            const published = await tx.businessDefinitionVersion.update({
-              where: { id: versionId },
-              data: {
-                lifecycleStatus: 'published',
-                publishedBy: input.publishedBy,
-                publishedAt: new Date(),
-              },
-              include: VERSION_INCLUDE,
-            });
-            const pointerUpdate = await tx.businessDefinition.updateMany({
-              where: {
-                id: version.definitionId,
-                currentPublishedVersionId: current?.id ?? null,
-              },
-              data: { currentPublishedVersionId: version.id },
-            });
-            if (pointerUpdate.count !== 1) {
-              throw new ConflictException('business_definition_current_version_changed');
-            }
-            return published;
-          },
-          SERIALIZABLE_TRANSACTION_OPTIONS,
-        );
+              publishedBy: input.publishedBy,
+              publishedAt: new Date(),
+            },
+            include: VERSION_INCLUDE,
+          });
+          const pointerUpdate = await tx.businessDefinition.updateMany({
+            where: {
+              id: version.definitionId,
+              currentPublishedVersionId: current?.id ?? null,
+            },
+            data: { currentPublishedVersionId: version.id },
+          });
+          if (pointerUpdate.count !== 1) {
+            throw new ConflictException('business_definition_current_version_changed');
+          }
+          return published;
+        }, SERIALIZABLE_TRANSACTION_OPTIONS);
+        await this.invalidateSnapshotCaches([versionId]);
         await this.metricCatalogRefresher?.refresh();
         return published;
       } catch (error) {
@@ -357,6 +368,29 @@ export class BusinessDefinitionRegistryService {
   }
 
   async getPublishedSnapshot(filters: { kind?: string; domain?: string } = {}) {
+    const cacheKey = `${filters.kind ?? '*'}:${filters.domain ?? '*'}`;
+    const cached = this.publishedSnapshotCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.value;
+    const existing = this.publishedSnapshotLoadings.get(cacheKey);
+    if (existing) return existing;
+    const loading = this.loadPublishedSnapshot(filters).then((value) => {
+      this.publishedSnapshotCache.set(cacheKey, {
+        value,
+        expiresAt: Date.now() + BUSINESS_DEFINITION_SNAPSHOT_TTL_MS,
+      });
+      return value;
+    });
+    this.publishedSnapshotLoadings.set(cacheKey, loading);
+    try {
+      return await loading;
+    } finally {
+      if (this.publishedSnapshotLoadings.get(cacheKey) === loading) {
+        this.publishedSnapshotLoadings.delete(cacheKey);
+      }
+    }
+  }
+
+  private async loadPublishedSnapshot(filters: { kind?: string; domain?: string } = {}) {
     const delegate = (this.prisma as unknown as { businessDefinition?: { findMany?: Function } }).businessDefinition;
     if (!delegate?.findMany) return this.getPublishedSnapshotFromSql(filters);
     const definitions = await this.db().businessDefinition.findMany({
@@ -401,22 +435,95 @@ export class BusinessDefinitionRegistryService {
   }
 
   async getEvaluationSnapshot(candidateVersionIds: readonly number[]) {
-    const published = await this.getPublishedSnapshot();
     const uniqueIds = [...new Set(candidateVersionIds.filter((id) => Number.isInteger(id) && id > 0))];
-    if (!uniqueIds.length) return published;
-    const versions = await this.db().businessDefinitionVersion.findMany({
-      where: { id: { in: uniqueIds } },
-      include: { definition: true, evidence: true, projections: true },
-      orderBy: [{ definition: { definitionKey: 'asc' } }, { version: 'asc' }],
-    });
+    if (!uniqueIds.length) return this.getPublishedSnapshot();
+    uniqueIds.sort((left, right) => left - right);
+    const cacheKey = uniqueIds.join(',');
+    const existing = this.evaluationSnapshotCache.get(cacheKey);
+    if (existing) return existing;
+    const loading = this.loadEvaluationSnapshot(uniqueIds);
+    this.evaluationSnapshotCache.set(cacheKey, loading);
+    trimOldest(this.evaluationSnapshotCache, this.evaluationSnapshotCacheMax);
+    try {
+      return await loading;
+    } catch (error) {
+      if (this.evaluationSnapshotCache.get(cacheKey) === loading) this.evaluationSnapshotCache.delete(cacheKey);
+      throw error;
+    }
+  }
+
+  private async loadEvaluationSnapshot(uniqueIds: readonly number[]) {
+    const bundleRows = this.definitionVersionBundle
+      ? [...(await this.definitionVersionBundle.load(uniqueIds)).rows]
+      : null;
+    const versions = bundleRows
+      ? bundleRows.map((version) => {
+          const capabilityProjections = version.projections.filter(
+            (projection) => projection.targetType === 'capability_semantic_view',
+          );
+          return {
+            ...version,
+            projections: capabilityProjections,
+          };
+        })
+      : await this.db().businessDefinitionVersion.findMany({
+          where: { id: { in: uniqueIds } },
+          select: {
+            id: true,
+            version: true,
+            schemaVersion: true,
+            payload: true,
+            lifecycleStatus: true,
+            fingerprint: true,
+            sourceFingerprint: true,
+            validationStatus: true,
+            validationReport: true,
+            canonicalQueryRef: true,
+            fixtureSetKey: true,
+            timezone: true,
+            storeScope: true,
+            definition: {
+              select: {
+                id: true,
+                definitionKey: true,
+                kind: true,
+                domain: true,
+                name: true,
+                ownerType: true,
+                ownerId: true,
+                currentPublishedVersionId: true,
+              },
+            },
+            projections: {
+              where: { targetType: 'capability_semantic_view' },
+              orderBy: [{ id: 'asc' }],
+            },
+          },
+          orderBy: [{ definition: { definitionKey: 'asc' } }, { version: 'asc' }],
+        });
     if (versions.length !== uniqueIds.length) {
       const found = new Set(versions.map((version: any) => version.id));
-      throw new Error(`business_definition_evaluation_candidate_missing:${uniqueIds.filter((id) => !found.has(id)).join(',')}`);
+      throw new Error(
+        `business_definition_evaluation_candidate_missing:${uniqueIds.filter((id) => !found.has(id)).join(',')}`,
+      );
     }
-    const publishedVersionIds = new Set(published.definitions.map((definition: any) => definition.versionId));
-    const candidates = versions.flatMap((version: any) => {
-      if (String(version.lifecycleStatus) === 'published' && publishedVersionIds.has(version.id)) return [];
-      if (!['candidate', 'validated'].includes(String(version.lifecycleStatus)) || version.validationStatus !== 'passed') {
+    const legacyVersionIds = versions
+      .filter((version: any) => version.projections.length === 0)
+      .map((version: any) => version.id);
+    const legacyVersions = legacyVersionIds.length
+      ? await this.db().businessDefinitionVersion.findMany({
+          where: { id: { in: legacyVersionIds } },
+          include: { definition: true, evidence: true, projections: true },
+          orderBy: [{ definition: { definitionKey: 'asc' } }, { version: 'asc' }],
+        })
+      : [];
+    const legacyById = new Map(legacyVersions.map((version: any) => [version.id, version]));
+    const definitions = versions.map((compactVersion: any) => {
+      const version = legacyById.get(compactVersion.id) ?? compactVersion;
+      const lifecycleStatus = String(version.lifecycleStatus);
+      const publishedVersion = lifecycleStatus === 'published';
+      const evaluationCandidate = ['candidate', 'validated'].includes(lifecycleStatus);
+      if ((!publishedVersion && !evaluationCandidate) || version.validationStatus !== 'passed') {
         throw new Error(`business_definition_evaluation_candidate_not_validated:${version.id}`);
       }
       return {
@@ -439,19 +546,42 @@ export class BusinessDefinitionRegistryService {
         fixtureSetKey: version.fixtureSetKey,
         timezone: version.timezone,
         storeScope: cloneJson(version.storeScope),
-        evidence: cloneJson(version.evidence),
+        evidence: cloneJson(version.evidence ?? []),
         projections: cloneJson(version.projections),
       };
     });
-    const byKey = new Map(published.definitions.map((definition: any) => [definition.definitionKey, definition]));
-    for (const candidate of candidates) byKey.set(candidate.definitionKey, candidate);
-    const definitions = [...byKey.values()].sort((left: any, right: any) =>
-      left.domain.localeCompare(right.domain) || left.kind.localeCompare(right.kind) || left.definitionKey.localeCompare(right.definitionKey),
+    definitions.sort(
+      (left: any, right: any) =>
+        left.domain.localeCompare(right.domain) ||
+        left.kind.localeCompare(right.kind) ||
+        left.definitionKey.localeCompare(right.definitionKey),
     );
-    const snapshotFingerprint = createHash('sha256')
-      .update(canonicalizeBusinessDefinition(definitions))
-      .digest('hex');
+    const snapshotFingerprint = createHash('sha256').update(canonicalizeBusinessDefinition(definitions)).digest('hex');
     return deepFreeze({ snapshotFingerprint, definitions });
+  }
+
+  private async invalidateSnapshotCaches(definitionVersionIds?: readonly number[]): Promise<void> {
+    this.publishedSnapshotCache.clear();
+    this.evaluationSnapshotCache.clear();
+    this.definitionVersionBundle?.invalidate(definitionVersionIds);
+    this.publishedSnapshotProvider?.invalidateActiveDefinitions();
+    const artifactDelegate = (
+      this.prisma as unknown as {
+        brainWarmupArtifact?: {
+          updateMany?: (args: unknown) => Promise<unknown>;
+        };
+      }
+    ).brainWarmupArtifact;
+    await artifactDelegate?.updateMany?.({
+      where: { status: { in: ['building', 'ready'] } },
+      data: {
+        status: 'invalid',
+        errorCode: 'definition_identity_changed',
+        errorMessage: definitionVersionIds?.length
+          ? `definition_versions_changed:${definitionVersionIds.join(',')}`
+          : 'definition_versions_changed',
+      },
+    });
   }
 
   private async getPublishedSnapshotFromSql(filters: { kind?: string; domain?: string }) {
@@ -599,6 +729,19 @@ export class BusinessDefinitionRegistryService {
       throw new ConflictException('business_definition_reusable_draft_identity_mismatch');
     }
     return version;
+  }
+}
+
+function positiveInteger(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function trimOldest<K, V>(cache: Map<K, V>, maxEntries: number): void {
+  while (cache.size > maxEntries) {
+    const oldest = cache.keys().next().value as K | undefined;
+    if (oldest === undefined) return;
+    cache.delete(oldest);
   }
 }
 

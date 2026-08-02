@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Bug, FileClock, Loader2, Plus, Power, RefreshCw, Save, X } from 'lucide-react';
+import { Bug, FileClock, Loader2, Pencil, Plus, Power, RefreshCw, Save, X } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import {
@@ -8,6 +8,7 @@ import {
   listBrainSkills,
   listBrainSkillGovernanceHistory,
   listBrainSkillGovernanceSummaries,
+  listBrainResourceVersions,
   setBrainPublishedSkillEnabled,
   updateBrainSkill,
 } from '@/api/brain';
@@ -21,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/app/components/ui/dialog';
+import { BRAIN_GOVERNANCE_UI_MODE } from '../brainGovernanceNavigation';
 
 const newSkillExample = {
   skillKey: 'new_skill',
@@ -49,8 +51,13 @@ function definitionKeys(value: unknown, prefix: 'entity.' | 'metric.'): string[]
 }
 
 export function BrainSkillGovernance() {
+  return <BrainSkillRegistryPanel />;
+}
+
+export function BrainSkillRegistryPanel({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate();
-  const canManage = usePermission('core:brain-governance:manage');
+  const canManage = usePermission('core:brain-governance:manage') && BRAIN_GOVERNANCE_UI_MODE === 'manage';
+  const canUseBrain = usePermission('core:brain:use');
   const [items, setItems] = useState<BrainSkillGovernanceSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -59,7 +66,9 @@ export function BrainSkillGovernance() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [togglingKey, setTogglingKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [loadingEditor, setLoadingEditor] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editingSkillKey, setEditingSkillKey] = useState<string | null>(null);
   const [editor, setEditor] = useState(JSON.stringify(newSkillExample, null, 2));
 
   const load = useCallback(async () => {
@@ -68,7 +77,7 @@ export function BrainSkillGovernance() {
     try {
       const [versionResponse, registryResponse] = await Promise.all([
         listBrainSkillGovernanceSummaries({ take: 100 }),
-        listBrainSkills({ summary: true }),
+        listBrainSkills({ summary: true, includeDisabled: true }),
       ]);
       const governed = (versionResponse.items ?? []).map((item) => ({
         ...item,
@@ -203,15 +212,43 @@ export function BrainSkillGovernance() {
   }
 
   function openCreateDialog() {
+    setEditingSkillKey(null);
     setEditor(JSON.stringify(newSkillExample, null, 2));
     setCreateOpen(true);
   }
 
+  async function openEditDialog(item: BrainSkillGovernanceSummary) {
+    if (!canManage) return;
+    setLoadingEditor(true);
+    try {
+      const versionResponse = item.managed
+        ? await listBrainResourceVersions({ resourceType: 'skill', resourceKey: item.skillKey, includeSnapshot: true, take: 1 })
+        : { items: [] };
+      const governedSnapshot = versionResponse.items?.[0]?.snapshot;
+      let payload = governedSnapshot && typeof governedSnapshot === 'object' && !Array.isArray(governedSnapshot)
+        ? { ...governedSnapshot }
+        : null;
+      if (!payload) {
+        const registryResponse = await listBrainSkills({ includeDisabled: true });
+        const registryItem = registryResponse.items?.find((candidate) => candidate.skillKey === item.skillKey);
+        if (!registryItem) throw new Error('未找到可编辑的 Skill 配置');
+        payload = editableSkillPayload(registryItem);
+      }
+      setEditingSkillKey(item.skillKey);
+      setEditor(JSON.stringify({ ...payload, skillKey: item.skillKey }, null, 2));
+      setCreateOpen(true);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Skill 配置加载失败');
+    } finally {
+      setLoadingEditor(false);
+    }
+  }
+
   return (
     <section className="min-w-0">
-      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
+      <header className={`flex flex-wrap items-start justify-between gap-3 ${embedded ? '' : 'border-b border-border pb-4'}`}>
         <div>
-          <h2 className="text-base font-semibold">技能注册</h2>
+          <h2 className="text-base font-semibold">{embedded ? 'Skill 注册与版本' : '技能注册'}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             查看技能当前版本与运行状态；草稿必须通过发布中心，启停只作用于已发布的生效版本。
           </p>
@@ -241,6 +278,14 @@ export function BrainSkillGovernance() {
 
       <div className="min-w-0 py-5">
         <div className="min-w-0">
+          <div className="mb-3 flex flex-wrap gap-2 text-xs">
+            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-800">
+              已纳管 {items.filter((item) => item.managed).length}
+            </span>
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-amber-800">
+              待纳管 {items.filter((item) => !item.managed).length}
+            </span>
+          </div>
           {loadError ? (
             <div className="mb-3 flex items-center justify-between gap-3 border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
               <span>{loadError}</span>
@@ -248,12 +293,14 @@ export function BrainSkillGovernance() {
             </div>
           ) : null}
           <div className="min-w-0 overflow-x-auto border border-border">
-            <table className="w-full min-w-[1480px] text-left text-sm">
+            <table className="w-full min-w-[1640px] text-left text-sm">
               <thead className="bg-muted/50 text-xs text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2">技能 ID</th>
                   <th className="px-3 py-2">名称</th>
                   <th className="px-3 py-2">版本</th>
+                  <th className="px-3 py-2">状态</th>
+                  <th className="px-3 py-2">治理状态</th>
                   <th className="px-3 py-2">技能说明</th>
                   <th className="px-3 py-2">涉及领域</th>
                   <th className="px-3 py-2">实体</th>
@@ -275,12 +322,19 @@ export function BrainSkillGovernance() {
                     </td>
                     <td className="px-3 py-3">
                       <div className="font-medium">v{item.version}</div>
-                      <div className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-xs ${statusClass(item.status)}`}>
-                        {statusLabel(item.status)}
-                      </div>
                       {item.activeVersion && item.activeVersion !== item.version ? (
                         <div className="mt-1 text-xs text-muted-foreground">生效 v{item.activeVersion}</div>
                       ) : null}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3">
+                      <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${statusClass(item.status)}`}>
+                        {statusLabel(item.status)}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3">
+                      <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${item.managed ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                        {item.managed ? '已纳管' : '待纳管'}
+                      </span>
                     </td>
                     <td className="max-w-sm px-3 py-3 text-sm leading-6 text-muted-foreground">
                       {item.description || '暂无技能说明'}
@@ -305,9 +359,21 @@ export function BrainSkillGovernance() {
                           type="button"
                           className="inline-flex h-8 items-center gap-1 rounded-md border border-border px-2 text-xs hover:bg-muted"
                           onClick={() => debugSkill(item)}
+                          disabled={!canUseBrain}
+                          title={!canUseBrain ? '当前账号没有 Ami Brain 使用权限' : undefined}
                         >
                           <Bug className="h-3.5 w-3.5" />
                           调试
+                        </button>
+                        <button
+                          type="button"
+                          className="inline-flex h-8 items-center gap-1 rounded-md border border-border px-2 text-xs hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                          onClick={() => void openEditDialog(item)}
+                          disabled={!canManage || loadingEditor}
+                          title={!canManage ? '当前账号没有技能管理权限' : undefined}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          {item.managed ? '编辑配置' : '纳管配置'}
                         </button>
                         <button
                           type="button"
@@ -326,7 +392,7 @@ export function BrainSkillGovernance() {
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={9} className="px-3 py-10 text-center text-muted-foreground">
+                    <td colSpan={11} className="px-3 py-10 text-center text-muted-foreground">
                       {loading ? '加载中' : '暂无技能版本'}
                     </td>
                   </tr>
@@ -341,9 +407,11 @@ export function BrainSkillGovernance() {
       <Dialog open={createOpen} onOpenChange={(open) => !saving && setCreateOpen(open)}>
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>创建 Skill 草稿版本</DialogTitle>
+            <DialogTitle>{editingSkillKey ? `编辑 ${editingSkillKey}` : '创建 Skill 草稿版本'}</DialogTitle>
             <DialogDescription>
-              填写新的 skillKey 会创建技能；填写已有 skillKey 会创建下一草稿版本，不会覆盖当前生效版本。
+              {editingSkillKey
+                ? '保存后创建下一草稿版本，不会直接修改当前生效版本。'
+                : '填写新的 skillKey 会创建技能；填写已有 skillKey 会创建下一草稿版本，不会覆盖当前生效版本。'}
             </DialogDescription>
           </DialogHeader>
           <label htmlFor="brain-skill-editor" className="text-sm font-medium">Skill 配置 JSON</label>
@@ -436,6 +504,35 @@ function SemanticTags({ values = [], mono = false }: { values?: string[]; mono?:
       {values.length > visible.length ? <span className="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">+{values.length - visible.length}</span> : null}
     </div>
   );
+}
+
+function editableSkillPayload(skill: Record<string, unknown>) {
+  const keys = [
+    'skillKey',
+    'name',
+    'description',
+    'type',
+    'domains',
+    'intents',
+    'inputSchema',
+    'outputSchema',
+    'permissions',
+    'allowedRoles',
+    'readOnly',
+    'sideEffect',
+    'riskLevel',
+    'requiresConfirmation',
+    'idempotency',
+    'timeoutMs',
+    'grounding',
+    'definitionRefs',
+    'tests',
+    'examples',
+    'synonyms',
+    'negativeExamples',
+    'successSchema',
+  ];
+  return Object.fromEntries(keys.filter((key) => skill[key] !== undefined).map((key) => [key, skill[key]]));
 }
 
 function formatDateTime(value: string) {

@@ -118,6 +118,30 @@ describe('BrainCapabilitySemanticVerifierService', () => {
     expect(loadPublishedSnapshot).toHaveBeenCalledTimes(1);
   });
 
+  it('uses the frozen evaluation snapshot when release activation supplies one', async () => {
+    const current = snapshot();
+    const loadPublishedSnapshot = jest.fn();
+    const verifier = new BrainCapabilitySemanticVerifierService({ loadPublishedSnapshot } as never);
+    const generated = proposal(current);
+    const sourceRow = storedSourceRow(generated.manifest);
+
+    await expect(
+      verifier.verifyStoredCapabilities(
+        [{
+          snapshot: {
+            ...generated.manifest,
+            generatedCapability: true,
+            registryVersion: generated.manifest.version,
+          },
+          sourceRow,
+        }],
+        current,
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(loadPublishedSnapshot).not.toHaveBeenCalled();
+  });
+
   it('rejects coercible stored values instead of trusting Number or enum casts', async () => {
     const current = snapshot();
     const generated = proposal(current);

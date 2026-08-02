@@ -215,7 +215,7 @@ async function buildReadiness() {
     prisma.stockBatch.count({ where: { product: { storeId, deletedAt: null } } }),
     prisma.stockMovement.count({ where: { storeId } }),
     prisma.product.count({ where: { storeId, deletedAt: null, currentStock: { lte: prisma.product.fields.safetyStock } } }),
-    prisma.purchaseOrder.count(),
+    prisma.purchaseOrder.count({ where: { storeId } }),
     prisma.transferOrder.count({ where: { OR: [{ fromStoreId: storeId }, { toStoreId: storeId }] } }),
   ]);
   const dataChecks = {

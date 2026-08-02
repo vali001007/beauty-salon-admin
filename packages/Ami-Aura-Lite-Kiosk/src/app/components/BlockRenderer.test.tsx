@@ -299,4 +299,23 @@ describe('BlockRenderer', () => {
     option?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(selected).toEqual(['查询老朋友回店护理礼活动链接']);
   });
+
+  it('renders an explicit empty state instead of a blank table', () => {
+    act(() => {
+      root.render(
+        <BlockRenderer
+          blocks={[{
+            kind: 'table',
+            caption: '排行结果',
+            columns: ['员工'],
+            rows: [],
+          }]}
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain('暂无匹配数据');
+    expect(container.textContent).toContain('当前条件下没有可排行的业务记录');
+    expect(container.querySelector('table')).toBeNull();
+  });
 });

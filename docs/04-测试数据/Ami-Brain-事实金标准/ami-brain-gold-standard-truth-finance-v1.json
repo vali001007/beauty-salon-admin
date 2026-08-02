@@ -1,0 +1,483 @@
+{
+  "schemaVersion": "ami-brain-gold-standard-truth/v1",
+  "truthVersion": "finance-v1-2026-07-30T21:14:40.806Z",
+  "status": "ready",
+  "generatedAt": "2026-07-30T21:14:40.806Z",
+  "environment": "approved_supabase_development_read_only",
+  "databaseHost": "aws-1-ap-northeast-1.pooler.supabase.com",
+  "storeId": 6,
+  "groupKey": "finance",
+  "timezone": "Asia/Shanghai",
+  "manifestVersion": "2026-07-31-v2",
+  "manifestChecksum": "50896c28d08049f323333ebaf408adc4cd284a296db2b707d3ccbf8bf6a55da9",
+  "supportedCaseCount": 22,
+  "groupCaseCount": 22,
+  "readyCaseCount": 22,
+  "blockedCaseCount": 0,
+  "remainingCaseCount": 0,
+  "manifestRemainingCaseCount": 78,
+  "sourceDatasetChecksum": "1cf21f5e24f579ac4cd94a571a45f175480178def5685fe8523aecc84ea74d12",
+  "snapshots": [
+    {
+      "goldCaseId": "GOLD-BQ0705",
+      "sourceCaseId": "BQ0705",
+      "resolverKey": "finance.payment_method_amounts",
+      "queryVersion": "v1",
+      "evaluationQuestion": "2026年6月30日各支付方式的金额分别多少",
+      "snapshotAt": "2026-07-29T04:45:41.058Z",
+      "sourceRowCount": 8,
+      "sourceChecksum": "4c60a9126901abe36beed7c6867ae91e8072e655a07f56a235151caa7a1f3e63",
+      "value": [
+        {
+          "method": "wechat",
+          "amount": 4785.9
+        },
+        {
+          "method": "cash",
+          "amount": 3000
+        },
+        {
+          "method": "member_balance",
+          "amount": 593
+        }
+      ],
+      "valueChecksum": "9d43ab4635189bb8bd30ebaeb218f1b9f99b46173cf13dd0ef88ba2b266d1663",
+      "comparison": "ordered_rows",
+      "definition": "固定周期 2026-06-29T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；有效 PaymentRecord 按 method 汇总 amount",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ0828",
+      "sourceCaseId": "BQ0828",
+      "resolverKey": "finance.card_recognized_revenue",
+      "queryVersion": "v1",
+      "evaluationQuestion": "截至2026/07/29 12:45:41，综合养护 20 次卡的确认收入进度",
+      "snapshotAt": "2026-07-29T04:45:41.058Z",
+      "sourceRowCount": 8,
+      "sourceChecksum": "c1dfc21612af1a3e2296f9de8c3050b1e50d3d30862c38760b7bd7209b6309bc",
+      "value": 1485,
+      "valueChecksum": "c010bb0f7f8f335ccb2bc4e598eee48be11f87ac60a39a1a1cb4185688857003",
+      "comparison": "money_fen_exact",
+      "definition": "Store.createdAt 至 snapshotAt；cardName=综合养护 20 次卡，优先汇总 recognizedAmount，缺失时使用 recognizedUnitValue×times",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ0846",
+      "sourceCaseId": "BQ0846",
+      "resolverKey": "finance.order_profit",
+      "queryVersion": "v2",
+      "evaluationQuestion": "晒后舒缓修护订单2026年6月17日至30日的利润情况",
+      "snapshotAt": "2026-07-30T21:14:30.099Z",
+      "sourceRowCount": 1,
+      "sourceChecksum": "c30ea2f15ac61ba8f8502856a719a1ac839bd8e32066d9882a3cb94ac323c1ed",
+      "value": 0,
+      "valueChecksum": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+      "comparison": "money_fen_exact",
+      "definition": "固定周期 2026-06-16T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；项目=晒后舒缓修护；仅商品/项目履约明细确认经营收入，开卡和充值预收不在收款时确认利润；毛利 = 明细净收入 - 有效退款分摊 - 商品或项目成本 - 有效提成",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ0853",
+      "sourceCaseId": "BQ0853",
+      "resolverKey": "finance.order_profit",
+      "queryVersion": "v2",
+      "evaluationQuestion": "2026年6月30日每张订单的毛利分别多少",
+      "snapshotAt": "2026-07-30T21:14:32.317Z",
+      "sourceRowCount": 33,
+      "sourceChecksum": "7c07a2312c38664e11a74ecbc43e246e8476422a6d3fbb91f0b7417b0fce2413",
+      "value": [
+        {
+          "orderId": 1045,
+          "grossProfit": 489.46
+        },
+        {
+          "orderId": 1046,
+          "grossProfit": 205.6
+        },
+        {
+          "orderId": 1047,
+          "grossProfit": 0
+        },
+        {
+          "orderId": 1048,
+          "grossProfit": 265.36
+        },
+        {
+          "orderId": 1049,
+          "grossProfit": 200
+        },
+        {
+          "orderId": 1050,
+          "grossProfit": 434.9
+        },
+        {
+          "orderId": 1051,
+          "grossProfit": 205.79
+        },
+        {
+          "orderId": 1052,
+          "grossProfit": 0
+        }
+      ],
+      "valueChecksum": "0e02805ebb92ffdf7334ef077a50e3fd571c3f642a676aa9e87f549a30a87800",
+      "comparison": "ordered_rows",
+      "definition": "固定周期 2026-06-29T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；业务类型=all；仅商品/项目履约明细确认经营收入，开卡和充值预收不在收款时确认利润；毛利 = 明细净收入 - 有效退款分摊 - 商品或项目成本 - 有效提成；按 ProductOrder.id 升序",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ1261",
+      "sourceCaseId": "BQ1261",
+      "resolverKey": "finance.gross_margin",
+      "queryVersion": "v1",
+      "evaluationQuestion": "2026年1月1日至6月30日的毛利是多少",
+      "snapshotAt": "2026-07-29T04:45:41.058Z",
+      "sourceRowCount": 19,
+      "sourceChecksum": "90c3b58a0968b587396774dce9ae79f99b7f7197f47d98fa79c32308f5cb80c0",
+      "value": 60745.42,
+      "valueChecksum": "bfad8315aa5e60c2b71ace86e71b6804cc711c2fddf2f581d4e4a22bbbc43a81",
+      "comparison": "money_fen_exact",
+      "definition": "固定周期 2025-12-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；按上海营业日选择 confirmed/passed 优先的权威 DailySettlement 后汇总 grossProfit",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ1265",
+      "sourceCaseId": "BQ1265",
+      "resolverKey": "finance.stored_value_liability",
+      "queryVersion": "v1",
+      "evaluationQuestion": "截至2026/07/29 12:45:41的储值负债总额",
+      "snapshotAt": "2026-07-29T04:45:41.058Z",
+      "sourceRowCount": 338,
+      "sourceChecksum": "4f8cdc5ef4b834f1317771020a6db8ed16ac9b227c7f408a6f0c604c3f969c75",
+      "value": 1164127.56,
+      "valueChecksum": "22a864e9a7afc7c6bc56afafd70dd252eb309c90fafe06a137c01101adc58eda",
+      "comparison": "money_fen_exact",
+      "definition": "截至 snapshotAt 的 active CustomerBalanceAccount，储值负债 = cashBalance + giftBalance",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ1266",
+      "sourceCaseId": "BQ1266",
+      "resolverKey": "finance.cash_shift_reconciliation",
+      "queryVersion": "v1",
+      "evaluationQuestion": "2026年6月29日的收银班次对平了吗",
+      "snapshotAt": "2026-07-29T04:45:41.058Z",
+      "sourceRowCount": 1,
+      "sourceChecksum": "a105cca181685c8e90fef1b0a0fd37a8bfcb0607dfb0c83b07998b456ca5a588",
+      "value": true,
+      "valueChecksum": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "comparison": "boolean_exact",
+      "definition": "固定周期 2026-06-28T16:00:00.000Z 至 2026-06-29T16:00:00.000Z，左闭右开；每个上海营业日选择权威 DailySettlement，全部 confirmed 且 reconciliationStatus=passed 才视为对平",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ1275",
+      "sourceCaseId": "BQ1275",
+      "resolverKey": "finance.cash_shift_reconciliation",
+      "queryVersion": "v1",
+      "evaluationQuestion": "2026年6月的收银班次对平了吗",
+      "snapshotAt": "2026-07-29T04:45:41.058Z",
+      "sourceRowCount": 19,
+      "sourceChecksum": "90c3b58a0968b587396774dce9ae79f99b7f7197f47d98fa79c32308f5cb80c0",
+      "value": false,
+      "valueChecksum": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+      "comparison": "boolean_exact",
+      "definition": "固定周期 2026-05-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；每个上海营业日选择权威 DailySettlement，全部 confirmed 且 reconciliationStatus=passed 才视为对平",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ1284",
+      "sourceCaseId": "BQ1284",
+      "resolverKey": "finance.cash_shift_reconciliation",
+      "queryVersion": "v1",
+      "evaluationQuestion": "2026年6月1日至30日的收银班次对平了吗",
+      "snapshotAt": "2026-07-29T04:45:41.058Z",
+      "sourceRowCount": 19,
+      "sourceChecksum": "90c3b58a0968b587396774dce9ae79f99b7f7197f47d98fa79c32308f5cb80c0",
+      "value": false,
+      "valueChecksum": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+      "comparison": "boolean_exact",
+      "definition": "固定周期 2026-05-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；每个上海营业日选择权威 DailySettlement，全部 confirmed 且 reconciliationStatus=passed 才视为对平",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ1296",
+      "sourceCaseId": "BQ1296",
+      "resolverKey": "finance.operating_profit",
+      "queryVersion": "v1",
+      "evaluationQuestion": "2026年6月29日的经营利润是多少",
+      "snapshotAt": "2026-07-29T04:45:41.058Z",
+      "sourceRowCount": 18,
+      "sourceChecksum": "513a0b6e078b99d4991aa63a766a859364785c7b54787f7379163621bbed3cec",
+      "value": 2496.98,
+      "valueChecksum": "1eafb9afb0fcc5296052451bb2b9841bb69d814be2ba4c15290d44ae77feca2a",
+      "comparison": "money_fen_exact",
+      "definition": "固定周期 2026-06-28T16:00:00.000Z 至 2026-06-29T16:00:00.000Z，左闭右开；经营利润 = DailySettlement.grossProfit - 有效提成 - OperatingCost",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ1299",
+      "sourceCaseId": "BQ1299",
+      "resolverKey": "finance.unfulfilled_card_liability",
+      "queryVersion": "v1",
+      "evaluationQuestion": "截至2026/07/29 12:45:41，次卡未履约负债有多少",
+      "snapshotAt": "2026-07-29T04:45:41.058Z",
+      "sourceRowCount": 359,
+      "sourceChecksum": "6c5a96320b0fafced5896998464211cdfccf1a227767bd8dd964ab7c7b39dbaa",
+      "value": 1066931.14,
+      "valueChecksum": "fca2eda1aec0d2aca40d4f1e6a331b7b9b7dbefd09923a601f43701d9dfae741",
+      "comparison": "money_fen_exact",
+      "definition": "截至 snapshotAt 的 active CustomerCard；未履约负债 = remainingTimes × recognizedUnitValue",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ1300",
+      "sourceCaseId": "BQ1300",
+      "resolverKey": "finance.cost_income_ratio",
+      "queryVersion": "v1",
+      "evaluationQuestion": "2026年6月成本占收入的比例",
+      "snapshotAt": "2026-07-29T04:45:41.058Z",
+      "sourceRowCount": 119,
+      "sourceChecksum": "4281e36572a828701a10cb08e2f832ad21991b7e07009bada5fa5477c86a8690",
+      "value": 0.934,
+      "valueChecksum": "f16251900145a90baf962de225cc5d2fdc4c98d4f48d2470f286820f752b756a",
+      "comparison": "decimal_exact",
+      "definition": "固定周期 2026-05-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；成本收入比 = (耗材成本 + 有效提成 + 经营费用) / 收入",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ1309",
+      "sourceCaseId": "BQ1309",
+      "resolverKey": "finance.cost_income_ratio",
+      "queryVersion": "v1",
+      "evaluationQuestion": "2026年6月1日至30日成本占收入的比例",
+      "snapshotAt": "2026-07-29T04:45:41.058Z",
+      "sourceRowCount": 119,
+      "sourceChecksum": "4281e36572a828701a10cb08e2f832ad21991b7e07009bada5fa5477c86a8690",
+      "value": 0.934,
+      "valueChecksum": "f16251900145a90baf962de225cc5d2fdc4c98d4f48d2470f286820f752b756a",
+      "comparison": "decimal_exact",
+      "definition": "固定周期 2026-05-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；成本收入比 = (耗材成本 + 有效提成 + 经营费用) / 收入",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ1332",
+      "sourceCaseId": "BQ1332",
+      "resolverKey": "finance.staff_commission_composition",
+      "queryVersion": "v1",
+      "evaluationQuestion": "顾然2026年6月22日至28日的提成构成",
+      "snapshotAt": "2026-07-29T04:45:41.058Z",
+      "sourceRowCount": 8,
+      "sourceChecksum": "4eab6359a98cad1faeafcad214eb1166d33df93ad4c0d94b33ed54d75216ab16",
+      "value": [
+        {
+          "type": "project",
+          "amount": 152.91
+        },
+        {
+          "type": "product",
+          "amount": 45.3
+        }
+      ],
+      "valueChecksum": "d33ae7e7980bb4bd12a42f6957099f4b4f4cb8de662a1ee894fbbc7af8fcb18e",
+      "comparison": "ordered_rows",
+      "definition": "固定周期 2026-06-21T16:00:00.000Z 至 2026-06-28T16:00:00.000Z，左闭右开；按 CommissionRecord.type 汇总有效提成，金额降序",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ0844",
+      "sourceCaseId": "BQ0844",
+      "resolverKey": "finance.card_recognized_revenue",
+      "queryVersion": "v1",
+      "evaluationQuestion": "截至2026/07/29 12:45:41，焕肤清洁 12 次卡的确认收入进度",
+      "snapshotAt": "2026-07-29T04:45:41.058Z",
+      "sourceRowCount": 12,
+      "sourceChecksum": "f00263c7407b64b10b958ec1178cc55dc5df870c4a5117c95416558df7382600",
+      "value": 2447.48,
+      "valueChecksum": "97905b2a891d3d11d15e5ecb444e98806842a5e9abe111276000aae840a2d880",
+      "comparison": "money_fen_exact",
+      "definition": "Store.createdAt 至 snapshotAt；cardName=焕肤清洁 12 次卡，优先汇总 recognizedAmount，缺失时使用 recognizedUnitValue×times",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ0852",
+      "sourceCaseId": "BQ0852",
+      "resolverKey": "finance.card_recognized_revenue",
+      "queryVersion": "v1",
+      "evaluationQuestion": "截至2026/07/29 12:45:41，抗衰管理 6 次卡的确认收入进度",
+      "snapshotAt": "2026-07-29T04:45:41.058Z",
+      "sourceRowCount": 15,
+      "sourceChecksum": "b483db2ffd8eaab25c89121a421cf261822ea72fe7135b2e082122cf2ddee8fb",
+      "value": 6713.33,
+      "valueChecksum": "3cbbd71550caad687b01dd7f04352845255106ce7e4f9a551dcf42c5a7b7d606",
+      "comparison": "money_fen_exact",
+      "definition": "Store.createdAt 至 snapshotAt；cardName=抗衰管理 6 次卡，优先汇总 recognizedAmount，缺失时使用 recognizedUnitValue×times",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ0854",
+      "sourceCaseId": "BQ0854",
+      "resolverKey": "finance.order_profit",
+      "queryVersion": "v2",
+      "evaluationQuestion": "亮肤淡斑管理订单2026年6月30日的利润情况",
+      "snapshotAt": "2026-07-30T21:14:34.461Z",
+      "sourceRowCount": 11,
+      "sourceChecksum": "5b0d5701f0e9b1cf62a1a42c656dc2a1c81cdadf026e53dd71c1901a747a805e",
+      "value": 924.36,
+      "valueChecksum": "0331c2401c160101e741fe8ace21e4198dce179c0bb29e9ffcaf7691192fdd80",
+      "comparison": "money_fen_exact",
+      "definition": "固定周期 2026-06-29T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；项目=亮肤淡斑管理；仅商品/项目履约明细确认经营收入，开卡和充值预收不在收款时确认利润；毛利 = 明细净收入 - 有效退款分摊 - 商品或项目成本 - 有效提成",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ0855",
+      "sourceCaseId": "BQ0855",
+      "resolverKey": "finance.card_recognized_revenue",
+      "queryVersion": "v1",
+      "evaluationQuestion": "2026年6月30日次卡核销确认的收入有多少",
+      "snapshotAt": "2026-07-29T04:45:41.058Z",
+      "sourceRowCount": 3,
+      "sourceChecksum": "1e0e2f9cc18e863d014f6a1a7395d1621870b04c46836d888cbd61f8400f7256",
+      "value": 845.66,
+      "valueChecksum": "1c671c85a4c9041d4e96e179d774318c0e411dcd0fbe834cc15d65d9bf9432a0",
+      "comparison": "money_fen_exact",
+      "definition": "固定周期 2026-06-29T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；优先汇总 recognizedAmount，缺失时使用 recognizedUnitValue×times",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ0857",
+      "sourceCaseId": "BQ0857",
+      "resolverKey": "finance.order_profit",
+      "queryVersion": "v2",
+      "evaluationQuestion": "2026年6月30日哪些订单毛利为负",
+      "snapshotAt": "2026-07-30T21:14:36.643Z",
+      "sourceRowCount": 33,
+      "sourceChecksum": "7c07a2312c38664e11a74ecbc43e246e8476422a6d3fbb91f0b7417b0fce2413",
+      "value": [],
+      "valueChecksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "comparison": "id_set_exact",
+      "definition": "固定周期 2026-06-29T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；业务类型=all；仅商品/项目履约明细确认经营收入，开卡和充值预收不在收款时确认利润；毛利 = 明细净收入 - 有效退款分摊 - 商品或项目成本 - 有效提成",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ0858",
+      "sourceCaseId": "BQ0858",
+      "resolverKey": "finance.order_profit",
+      "queryVersion": "v2",
+      "evaluationQuestion": "2026年6月30日开卡订单的利润分析",
+      "snapshotAt": "2026-07-30T21:14:38.819Z",
+      "sourceRowCount": 5,
+      "sourceChecksum": "571f7497ab4bd3a0a7f44bfa3df8603e7337e37429f7cc3ed9de80db617a2796",
+      "value": 0,
+      "valueChecksum": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+      "comparison": "money_fen_exact",
+      "definition": "固定周期 2026-06-29T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；业务类型=member_card_open、card_sale；仅商品/项目履约明细确认经营收入，开卡和充值预收不在收款时确认利润；毛利 = 明细净收入 - 有效退款分摊 - 商品或项目成本 - 有效提成",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ0859",
+      "sourceCaseId": "BQ0859",
+      "resolverKey": "finance.order_profit",
+      "queryVersion": "v2",
+      "evaluationQuestion": "2026年6月30日产品订单的成本和毛利",
+      "snapshotAt": "2026-07-30T21:14:40.806Z",
+      "sourceRowCount": 10,
+      "sourceChecksum": "4e81cf20627cdc983ec188aba07ac856682954fe1eb9b5135f37271c6cf7085c",
+      "value": {
+        "totalCost": 582.81,
+        "grossProfit": 611.39
+      },
+      "valueChecksum": "86c516e31db0520d96b3124000a77a48bc3bba358a4421ee5e6b97f81f51555a",
+      "comparison": "json_exact",
+      "definition": "固定周期 2026-06-29T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；业务类型=product_sale；仅商品/项目履约明细确认经营收入，开卡和充值预收不在收款时确认利润；毛利 = 明细净收入 - 有效退款分摊 - 商品或项目成本 - 有效提成",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ1268",
+      "sourceCaseId": "BQ1268",
+      "resolverKey": "finance.gross_margin",
+      "queryVersion": "v1",
+      "evaluationQuestion": "2026年6月29日的毛利率",
+      "snapshotAt": "2026-07-30T20:39:22.324Z",
+      "sourceRowCount": 1,
+      "sourceChecksum": "a105cca181685c8e90fef1b0a0fd37a8bfcb0607dfb0c83b07998b456ca5a588",
+      "value": 0.6678,
+      "valueChecksum": "1d7b4443cccf43485f1acb7553addc36142e7de6baf1ac296dce2a2d3d9133b9",
+      "comparison": "decimal_exact",
+      "definition": "固定周期 2026-06-28T16:00:00.000Z 至 2026-06-29T16:00:00.000Z，左闭右开；按上海营业日选择 confirmed/passed 优先的权威 DailySettlement，毛利率 = 汇总 grossProfit / 汇总 totalRevenue",
+      "status": "ready"
+    }
+  ],
+  "blockedCases": [],
+  "refreshHistory": [
+    {
+      "refreshedAt": "2026-07-30T20:39:22.324Z",
+      "sourceCaseId": "BQ1268",
+      "previousTruthVersion": "finance-v1-2026-07-29T04:45:41.058Z",
+      "previousArtifactChecksum": "20eaf2b682c7f3e80ce142493ebe7cb9e24240a66f42cc08758c1c1f596c9c4e",
+      "previousValueChecksum": "80c34bf62be09c0f6c35c1a17d9dfc31fc6c64f9171ba1c288c2e3016ff0b0c2",
+      "valueChecksum": "1d7b4443cccf43485f1acb7553addc36142e7de6baf1ac296dce2a2d3d9133b9",
+      "sourceManifestChecksum": "2876b99c0b96df464bdd43656b0361b230058e2323b8b51b8e50fbb0f2a44ada",
+      "policy": "single_case_read_only_repeatable_read_refresh_preserving_other_ready_snapshots"
+    },
+    {
+      "refreshedAt": "2026-07-30T21:14:30.099Z",
+      "sourceCaseId": "BQ0846",
+      "previousTruthVersion": "finance-v1-2026-07-30T20:39:22.324Z",
+      "previousArtifactChecksum": "1d640062e1ef39edf4e2247fca8e7102110d30c07e43088a6a81a0f9bded1b84",
+      "previousValueChecksum": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+      "valueChecksum": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+      "sourceManifestChecksum": "50896c28d08049f323333ebaf408adc4cd284a296db2b707d3ccbf8bf6a55da9",
+      "policy": "single_case_read_only_repeatable_read_refresh_preserving_other_ready_snapshots"
+    },
+    {
+      "refreshedAt": "2026-07-30T21:14:32.317Z",
+      "sourceCaseId": "BQ0853",
+      "previousTruthVersion": "finance-v1-2026-07-30T21:14:30.099Z",
+      "previousArtifactChecksum": "9f48c4a6b72a36fa50b751df23ac6399599b3613a7d332bd74c6465c3f5b25d6",
+      "previousValueChecksum": "83b666d123605f7622923f6df0718605d71abd3cd52c85e050c4f7cae9bd0f91",
+      "valueChecksum": "0e02805ebb92ffdf7334ef077a50e3fd571c3f642a676aa9e87f549a30a87800",
+      "sourceManifestChecksum": "50896c28d08049f323333ebaf408adc4cd284a296db2b707d3ccbf8bf6a55da9",
+      "policy": "single_case_read_only_repeatable_read_refresh_preserving_other_ready_snapshots"
+    },
+    {
+      "refreshedAt": "2026-07-30T21:14:34.461Z",
+      "sourceCaseId": "BQ0854",
+      "previousTruthVersion": "finance-v1-2026-07-30T21:14:32.317Z",
+      "previousArtifactChecksum": "5b7782dd15a465c8d76c1761e14f345fc233217e5f5d0662cab86b481001e9f5",
+      "previousValueChecksum": "0331c2401c160101e741fe8ace21e4198dce179c0bb29e9ffcaf7691192fdd80",
+      "valueChecksum": "0331c2401c160101e741fe8ace21e4198dce179c0bb29e9ffcaf7691192fdd80",
+      "sourceManifestChecksum": "50896c28d08049f323333ebaf408adc4cd284a296db2b707d3ccbf8bf6a55da9",
+      "policy": "single_case_read_only_repeatable_read_refresh_preserving_other_ready_snapshots"
+    },
+    {
+      "refreshedAt": "2026-07-30T21:14:36.643Z",
+      "sourceCaseId": "BQ0857",
+      "previousTruthVersion": "finance-v1-2026-07-30T21:14:34.461Z",
+      "previousArtifactChecksum": "5ba2c99299ca793fad27a91c80ce30db02a993c1a1e7a567675fa7ea9e225a96",
+      "previousValueChecksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "valueChecksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "sourceManifestChecksum": "50896c28d08049f323333ebaf408adc4cd284a296db2b707d3ccbf8bf6a55da9",
+      "policy": "single_case_read_only_repeatable_read_refresh_preserving_other_ready_snapshots"
+    },
+    {
+      "refreshedAt": "2026-07-30T21:14:38.819Z",
+      "sourceCaseId": "BQ0858",
+      "previousTruthVersion": "finance-v1-2026-07-30T21:14:36.643Z",
+      "previousArtifactChecksum": "2c5aba80812f545cf75434f697dd3e82e87bc548261bbfbf91c0d4989feb69db",
+      "previousValueChecksum": "3cb5518d3db805566caef0e1d06f57e762a837dc484f7196aa7bf97d254df864",
+      "valueChecksum": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+      "sourceManifestChecksum": "50896c28d08049f323333ebaf408adc4cd284a296db2b707d3ccbf8bf6a55da9",
+      "policy": "single_case_read_only_repeatable_read_refresh_preserving_other_ready_snapshots"
+    },
+    {
+      "refreshedAt": "2026-07-30T21:14:40.806Z",
+      "sourceCaseId": "BQ0859",
+      "previousTruthVersion": "finance-v1-2026-07-30T21:14:38.819Z",
+      "previousArtifactChecksum": "b43a7b97ebb3f2deb242511201c363764c664a23022938c1e5f24e879e30c753",
+      "previousValueChecksum": "cf44ce3253f5a5c935dfd6cec3a6b00a57de5a3986d25a3c9a1b2d1bf27174a6",
+      "valueChecksum": "86c516e31db0520d96b3124000a77a48bc3bba358a4421ee5e6b97f81f51555a",
+      "sourceManifestChecksum": "50896c28d08049f323333ebaf408adc4cd284a296db2b707d3ccbf8bf6a55da9",
+      "policy": "single_case_read_only_repeatable_read_refresh_preserving_other_ready_snapshots"
+    }
+  ]
+}

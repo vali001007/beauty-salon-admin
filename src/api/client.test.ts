@@ -126,6 +126,18 @@ describe('API Client', () => {
       expect(result.headers['X-Request-Id']).toMatch(/^req_/);
     });
 
+    it('adds the governed Ami client channel header', async () => {
+      const { default: axios } = await import('axios');
+      const config = {
+        headers: new axios.AxiosHeaders(),
+        method: 'get',
+      } as InternalAxiosRequestConfig;
+
+      const result = requestInterceptorFn(config);
+
+      expect(result.headers['X-Ami-Client-Channel']).toBe('admin_web');
+    });
+
     it('adds X-CSRF-Token on mutating requests', async () => {
       const { default: axios } = await import('axios');
       const config = {
@@ -230,7 +242,14 @@ describe('API Client', () => {
       const error = {
         response: {
           status: 422,
-          data: { message: '验证失败', code: 'VALIDATION_ERROR', details: { field: 'name' } },
+          data: {
+            message: '正在等待 CI 可信证据，Receipt 入库后会自动继续。',
+            code: 'governance_task_waiting_for_evidence',
+            category: 'business_blocker',
+            resolutionType: 'wait_ci',
+            retryable: false,
+            details: { field: 'receipt' },
+          },
         },
         config: { _retryCount: 0 },
         message: 'Request failed',
@@ -240,11 +259,24 @@ describe('API Client', () => {
         await responseErrorFn(error);
         expect.fail('Should have thrown');
       } catch (e: unknown) {
-        const err = e as Error & { payload: { message: string; code: string; status: number; details: unknown } };
-        expect(err.message).toBe('验证失败');
-        expect(err.payload.code).toBe('VALIDATION_ERROR');
+        const err = e as Error & {
+          payload: {
+            message: string;
+            code: string;
+            status: number;
+            details: unknown;
+            category: string;
+            resolutionType: string;
+            retryable: boolean;
+          };
+        };
+        expect(err.message).toBe('正在等待 CI 可信证据，Receipt 入库后会自动继续。');
+        expect(err.payload.code).toBe('governance_task_waiting_for_evidence');
         expect(err.payload.status).toBe(422);
-        expect(err.payload.details).toEqual({ field: 'name' });
+        expect(err.payload.details).toEqual({ field: 'receipt' });
+        expect(err.payload.category).toBe('business_blocker');
+        expect(err.payload.resolutionType).toBe('wait_ci');
+        expect(err.payload.retryable).toBe(false);
       }
     });
 

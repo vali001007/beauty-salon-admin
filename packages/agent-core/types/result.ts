@@ -1,7 +1,7 @@
 import type { AgentRiskLevel, AuraResponseBlock, BrainResponseBlockCompat } from './blocks';
 import type { AgentPersonaCode, AgentRole } from './persona';
 
-export type AgentRunStatus = 'created' | 'planning' | 'validating' | 'running_tool' | 'waiting_approval' | 'composing' | 'completed' | 'failed' | 'cancelled';
+export type AgentRunStatus = 'created' | 'planning' | 'validating' | 'running_tool' | 'waiting_approval' | 'composing' | 'completed' | 'partially_completed' | 'failed' | 'cancelled';
 
 export interface AgentEvidence {
   source: string[];

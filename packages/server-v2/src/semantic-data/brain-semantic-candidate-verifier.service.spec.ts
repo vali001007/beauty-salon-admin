@@ -1,3 +1,4 @@
+import { createCuratedActionCandidates } from './brain-action-candidate-catalog.js';
 import { BrainSemanticCandidateVerifierService } from './brain-semantic-candidate-verifier.service.js';
 
 describe('BrainSemanticCandidateVerifierService', () => {
@@ -112,6 +113,11 @@ describe('BrainSemanticCandidateVerifierService', () => {
           },
         ],
       },
+      actionModel('Customer'),
+      actionModel('Project'),
+      actionModel('Beautician'),
+      actionModel('Reservation'),
+      actionModel('PurchaseOrder'),
     ],
     enums: [{ name: 'OrderStatus', values: ['paid', 'completed', 'cancelled'] }],
   };
@@ -440,6 +446,272 @@ describe('BrainSemanticCandidateVerifierService', () => {
       expect.arrayContaining(['store_scope_mismatch:ProductOrder:current_store', 'structural_evidence_missing']),
     );
   });
+
+  it('rebuilds all six aligned actions as drafts', () => {
+    const verifier = new BrainSemanticCandidateVerifierService();
+    const sourceFiles = curatedActionSourceFiles();
+
+    for (const candidate of createCuratedActionCandidates()) {
+      const result = verifier.verify(candidate, {
+        datamodel: datamodel as any,
+        semanticEvidence: [],
+        sourcePaths: new Set(sourceFiles.keys()),
+        sourceFiles,
+      });
+
+      expect(result.draftInput).toMatchObject({
+        definitionKey: candidate.definitionKey,
+        kind: 'action',
+        ownerType: 'ami_core_action_catalog',
+        lifecycleStatus: 'draft',
+        storeScope: { mode: 'current_store' },
+      });
+      expect(result).toMatchObject({ status: 'draft', blockedReasons: [] });
+      expect(result.draftInput.payload).toEqual(candidate.payload);
+      expect(result.draftInput.evidence).toEqual(candidate.evidence);
+    }
+  });
+
+  it('fails closed and rebuilds the catalog contract when an action forges slots, binding, policy or evidence', () => {
+    const candidate = structuredClone(
+      createCuratedActionCandidates().find((item) => item.definitionKey === 'action.create_purchase_order')!,
+    );
+    const payload = candidate.payload as any;
+    payload.targetEntityRefs = ['entity.customer'];
+    payload.inputSlots[1].slotKey = 'product';
+    payload.confirmationPolicy = 'none';
+    payload.preconditionPredicateRefs[0].fingerprint = '0'.repeat(64);
+    payload.lexicalFrame.fingerprint = '1'.repeat(64);
+    payload.situationContext.fingerprint = '2'.repeat(64);
+    payload.modalityPolicy.fingerprint = '3'.repeat(64);
+    payload.informationArtifact.fingerprint = '4'.repeat(64);
+    payload.sideEffectInvariant.fingerprint = '5'.repeat(64);
+    delete payload.capabilityBindings[0].gatewayActionKey;
+    candidate.evidence = candidate.evidence.filter((item) => item.evidenceKind !== 'backend_api_contract');
+
+    const result = new BrainSemanticCandidateVerifierService().verify(candidate, {
+      datamodel: datamodel as any,
+      semanticEvidence: [],
+      sourcePaths: new Set(curatedActionSourceFiles().keys()),
+      sourceFiles: curatedActionSourceFiles(),
+    });
+
+    expect(result.status).toBe('blocked');
+    expect(result.blockedReasons).toEqual(
+      expect.arrayContaining([
+        'action_catalog_payload_mismatch:action.create_purchase_order',
+        'action_catalog_evidence_mismatch:action.create_purchase_order',
+        'action_entity_ref_not_governed:entity.customer',
+        'action_slot_duplicate:product',
+        'action_confirmation_policy_must_be_controlled',
+        `action_predicate_contract_unresolved:${payload.preconditionPredicateRefs[0].key}`,
+        'action_lexical_frame_fingerprint_invalid:action.create_purchase_order',
+        'action_situation_context_fingerprint_invalid:action.create_purchase_order',
+        'action_modality_policy_fingerprint_invalid:action.create_purchase_order',
+        'action_information_artifact_fingerprint_invalid:action.create_purchase_order',
+        'action_side_effect_invariant_fingerprint_invalid:action.create_purchase_order',
+        'action_binding_gateway_key_missing:purchase_order_draft',
+        'action_evidence_missing:backend_api_contract',
+      ]),
+    );
+    expect(result.draftInput.payload).toEqual(
+      createCuratedActionCandidates().find((item) => item.definitionKey === 'action.create_purchase_order')!.payload,
+    );
+    expect(result.draftInput.evidence).toEqual(
+      createCuratedActionCandidates().find((item) => item.definitionKey === 'action.create_purchase_order')!.evidence,
+    );
+  });
+
+  it('requires the workspace source-path snapshot before an action can become a draft', () => {
+    const candidate = createCuratedActionCandidates()[0];
+    const result = new BrainSemanticCandidateVerifierService().verify(candidate, {
+      datamodel: datamodel as any,
+      semanticEvidence: [],
+    });
+
+    expect(result.status).toBe('blocked');
+    expect(result.blockedReasons).toContain('action_source_file_context_missing');
+  });
+
+  it('blocks a current-store action when its governed business object has no resolvable store scope', () => {
+    const candidate = createCuratedActionCandidates().find(
+      (item) => item.definitionKey === 'action.create_purchase_order',
+    )!;
+    const unscopedDatamodel = structuredClone(datamodel) as any;
+    unscopedDatamodel.models.find((model: any) => model.name === 'PurchaseOrder').fields = [
+      { name: 'id', kind: 'scalar', type: 'Int', isRequired: true, isList: false, isId: true },
+    ];
+
+    const result = new BrainSemanticCandidateVerifierService().verify(candidate, {
+      datamodel: unscopedDatamodel,
+      semanticEvidence: [],
+      sourcePaths: new Set(curatedActionSourceFiles().keys()),
+      sourceFiles: curatedActionSourceFiles(),
+    });
+
+    expect(result.status).toBe('blocked');
+    expect(result.blockedReasons).toContain('action_entity_store_scope_missing:entity.purchase_order:PurchaseOrder');
+  });
+
+  it('blocks an action when the catalog path still exists but the declared backend method is gone', () => {
+    const sourceFiles = curatedActionSourceFiles();
+    sourceFiles.set(
+      'packages/server-v2/src/customers/customers.controller.ts',
+      `class CustomersController { @Permissions('core:customer:create') list() {} }`,
+    );
+
+    const result = verifyCuratedAction('action.create_customer', sourceFiles, datamodel);
+
+    expect(result.blockedReasons).toContain('action_backend_method_missing:CustomersController.create');
+  });
+
+  it('blocks an action when the controller permission drifts from the curated contract', () => {
+    const sourceFiles = curatedActionSourceFiles();
+    sourceFiles.set(
+      'packages/server-v2/src/reservations/reservations.controller.ts',
+      sourceFiles
+        .get('packages/server-v2/src/reservations/reservations.controller.ts')!
+        .replaceAll('core:store:reservations', 'core:store:reservation-admin'),
+    );
+
+    const result = verifyCuratedAction('action.create_reservation', sourceFiles, datamodel);
+
+    expect(result.blockedReasons).toContain(
+      'action_backend_permission_mismatch:ReservationsController.create:core:store:reservations',
+    );
+  });
+
+  it('blocks an action when the capability decorator key or permission drifts', () => {
+    const sourceFiles = curatedActionSourceFiles();
+    sourceFiles.set(
+      'packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts',
+      sourceFiles
+        .get('packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts')!
+        .replace(`key: 'reservation_action_preview'`, `key: 'reservation_preview_v2'`)
+        .replace(`'core:store:reservations'`, `'core:store:reservation-admin'`),
+    );
+
+    const result = verifyCuratedAction('action.create_reservation', sourceFiles, datamodel);
+
+    expect(result.blockedReasons).toEqual(
+      expect.arrayContaining([
+        'action_capability_key_mismatch:BrainActionCapabilityExecutor.reservationActionPreview:reservation_action_preview',
+        'action_capability_permission_mismatch:BrainActionCapabilityExecutor.reservationActionPreview:core:store:reservations',
+      ]),
+    );
+  });
+
+  it('blocks an action when the gateway descriptor key or permission drifts', () => {
+    const sourceFiles = curatedActionSourceFiles();
+    sourceFiles.set(
+      'packages/server-v2/src/brain/skills/brain-capability-gateway.service.ts',
+      sourceFiles
+        .get('packages/server-v2/src/brain/skills/brain-capability-gateway.service.ts')!
+        .replace('create_customer:', 'create_customer_v2:')
+        .replace(`permission: 'core:customer:create'`, `permission: 'core:customer:update'`),
+    );
+
+    const result = verifyCuratedAction('action.create_customer', sourceFiles, datamodel);
+
+    expect(result.blockedReasons).toContain('action_gateway_key_missing:create_customer');
+  });
+
+  it('blocks an action when the Gateway declared effect boundary drifts', () => {
+    const sourceFiles = curatedActionSourceFiles();
+    sourceFiles.set(
+      'packages/server-v2/src/brain/skills/brain-capability-gateway.service.ts',
+      sourceFiles
+        .get('packages/server-v2/src/brain/skills/brain-capability-gateway.service.ts')!
+        .replace(`effectKeys: ['customer_created_in_context_store']`, `effectKeys: ['customer_updated']`),
+    );
+
+    const result = verifyCuratedAction('action.create_customer', sourceFiles, datamodel);
+
+    expect(result.blockedReasons).toContain('action_gateway_effect_contract_mismatch:create_customer');
+  });
+
+  it('blocks a product entry that imports the expected API symbol but no longer calls it', () => {
+    const sourceFiles = curatedActionSourceFiles();
+    sourceFiles.set(
+      'src/app/pages/CustomerData.tsx',
+      `import { createCustomer } from '../../api/real/customers'; export function CustomerData() { return null; }`,
+    );
+
+    const result = verifyCuratedAction('action.create_customer', sourceFiles, datamodel);
+
+    expect(result.blockedReasons).toContain(
+      'action_product_entry_call_missing:src/app/pages/CustomerData.tsx:createCustomer',
+    );
+  });
+
+  it('blocks an action when the deterministic predicate evaluator or effect observer method is removed', () => {
+    const sourceFiles = curatedActionSourceFiles();
+    sourceFiles.set(
+      'packages/server-v2/src/brain/domain/brain-action-predicate-effect-evaluator.service.ts',
+      `class BrainActionPredicateEffectEvaluatorService { evaluateSomethingElse() {} }`,
+    );
+
+    const result = verifyCuratedAction('action.create_customer', sourceFiles, datamodel);
+
+    expect(result.blockedReasons).toEqual(
+      expect.arrayContaining([
+        'action_predicate_evaluator_method_missing:BrainActionPredicateEffectEvaluatorService.assertPreconditions',
+        'action_effect_observer_method_missing:BrainActionPredicateEffectEvaluatorService.observeEffects',
+      ]),
+    );
+  });
+
+  it('blocks an action when the situation profile builder or execution revalidator is removed', () => {
+    const sourceFiles = curatedActionSourceFiles();
+    sourceFiles.set(
+      'packages/server-v2/src/brain/cognition/business-action-situation-context.ts',
+      `export function somethingElse() {}`,
+    );
+    sourceFiles.set(
+      'packages/server-v2/src/brain/cognition/brain-action-situation-context.ts',
+      `export function somethingElse() {}`,
+    );
+
+    const result = verifyCuratedAction('action.create_reservation', sourceFiles, datamodel);
+
+    expect(result.blockedReasons).toEqual(
+      expect.arrayContaining([
+        'action_situation_context_profile_function_missing:createBusinessActionSituationContextProfile',
+        'action_situation_context_revalidation_function_missing:brainActionSituationContextIssue',
+      ]),
+    );
+  });
+
+  it('blocks an action when an ontology profile builder is removed', () => {
+    const sourceFiles = curatedActionSourceFiles();
+    sourceFiles.set(
+      'packages/server-v2/src/brain/cognition/business-action-modality-policy.ts',
+      `export function somethingElse() {}`,
+    );
+    sourceFiles.set(
+      'packages/server-v2/src/brain/cognition/business-action-information-artifact.ts',
+      `export function somethingElse() {}`,
+    );
+    sourceFiles.set(
+      'packages/server-v2/src/brain/cognition/business-action-side-effect-invariant.ts',
+      `export function somethingElse() {}`,
+    );
+    sourceFiles.set(
+      'packages/server-v2/src/brain/cognition/business-action-institutional-effect.ts',
+      `export function somethingElse() {}`,
+    );
+
+    const result = verifyCuratedAction('action.create_reservation', sourceFiles, datamodel);
+
+    expect(result.blockedReasons).toEqual(
+      expect.arrayContaining([
+        'action_modality_policy_function_missing:createBusinessActionModalityPolicy',
+        'action_information_artifact_profile_function_missing:createBusinessActionInformationArtifactProfile',
+        'action_side_effect_invariant_profile_function_missing:createBusinessActionSideEffectInvariantProfile',
+        'action_institutional_effect_profile_function_missing:createBusinessActionInstitutionalEffectProfile',
+      ]),
+    );
+  });
 });
 
 function entityCandidate() {
@@ -482,4 +754,155 @@ function aliasEvidence(observedLabel: string, confidence: number, conflictGroup?
     conflictGroup,
     observedLabel,
   };
+}
+
+function actionModel(name: string) {
+  return {
+    name,
+    fields: [
+      { name: 'id', kind: 'scalar', type: 'Int', isRequired: true, isList: false, isId: true },
+      { name: 'storeId', kind: 'scalar', type: 'Int', isRequired: true, isList: false },
+    ],
+  };
+}
+
+function verifyCuratedAction(definitionKey: string, sourceFiles: Map<string, string>, datamodel: unknown) {
+  const candidate = createCuratedActionCandidates().find((item) => item.definitionKey === definitionKey)!;
+  return new BrainSemanticCandidateVerifierService().verify(candidate, {
+    datamodel: datamodel as any,
+    semanticEvidence: [],
+    sourcePaths: new Set(sourceFiles.keys()),
+    sourceFiles,
+  });
+}
+
+function curatedActionSourceFiles() {
+  return new Map<string, string>([
+    [
+      'packages/server-v2/src/semantic-data/brain-action-candidate-catalog.ts',
+      createCuratedActionCandidates()
+        .map((candidate) => `action({ actionKey: '${candidate.definitionKey}' });`)
+        .join('\n'),
+    ],
+    [
+      'src/app/pages/CustomerData.tsx',
+      `import { createCustomer } from '../../api/real/customers'; createCustomer({});`,
+    ],
+    [
+      'src/app/pages/PurchaseManagement.tsx',
+      `import { createPurchaseOrder, submitPurchaseOrderForApproval } from '../../api/inventory'; createPurchaseOrder({}); submitPurchaseOrderForApproval(1, '2026-07-30T10:00:00.000Z');`,
+    ],
+    [
+      'src/app/pages/ProjectReservation.tsx',
+      `
+        import { createReservation, updateReservation, cancelReservation } from '../../api/real/reservations';
+        createReservation({}); updateReservation(1, {}); cancelReservation(1);
+      `,
+    ],
+    [
+      'packages/server-v2/src/customers/customers.controller.ts',
+      `class CustomersController { @Permissions('core:customer:create') create() {} }`,
+    ],
+    [
+      'packages/server-v2/src/inventory/inventory.controller.ts',
+      `class InventoryController {
+        @Permissions('core:inventory:purchase') createPurchaseOrder() {}
+        @Permissions('core:inventory:purchase') submitPurchaseOrderForApproval() {}
+      }`,
+    ],
+    [
+      'packages/server-v2/src/reservations/reservations.controller.ts',
+      `
+        class ReservationsController {
+          @Permissions('core:store:reservations') create() {}
+          @Permissions('core:store:reservations') update() {}
+          @Permissions('core:store:reservations') cancel() {}
+        }
+      `,
+    ],
+    [
+      'packages/server-v2/src/brain/capability/executors/brain-action-capability.executor.ts',
+      `
+        class BrainActionCapabilityExecutor {
+          @BrainCapability({ key: 'reservation_action_preview', permissions: ['core:brain:use', 'core:store:reservations'] })
+          reservationActionPreview() {}
+          @BrainCapability({ key: 'purchase_order_draft', permissions: ['core:brain:use', 'core:inventory:purchase'] })
+          purchaseOrderDraft() {}
+          @BrainCapability({ key: 'purchase_order_submit_for_approval_preview', permissions: ['core:brain:use', 'core:inventory:purchase'] })
+          purchaseOrderSubmitForApprovalPreview() {}
+        }
+      `,
+    ],
+    [
+      'packages/server-v2/src/brain/capability/executors/brain-customer-create-capability.executor.ts',
+      `
+        class BrainCustomerCreateCapabilityExecutor {
+          @BrainCapability({ key: 'customer_create_preview', permissions: ['core:brain:use', 'core:customer:create'] })
+          customerCreatePreview() {}
+        }
+      `,
+    ],
+    [
+      'packages/server-v2/src/brain/skills/brain-capability-gateway.service.ts',
+      `
+        const CAPABILITY_MAP = {
+          create_customer: { permission: 'core:customer:create', effectKeys: ['customer_created_in_context_store'] },
+          create_purchase_order: { permission: 'core:inventory:purchase', effectKeys: ['purchase_order_draft_created_in_context_store'] },
+          submit_purchase_order_for_approval: { permission: 'core:inventory:purchase', effectKeys: ['purchase_order_submitted_for_approval'] },
+          create_reservation: { permission: 'core:store:reservations', effectKeys: ['reservation_created_in_context_store'] },
+          reschedule_reservation: { permission: 'core:store:reservations', effectKeys: ['reservation_time_updated'] },
+          cancel_reservation: { permission: 'core:store:reservations', effectKeys: ['reservation_cancelled'] },
+        };
+      `,
+    ],
+    [
+      'packages/server-v2/src/brain/domain/brain-action-predicate-effect-evaluator.service.ts',
+      `
+        class BrainActionPredicateEffectEvaluatorService {
+          assertPreconditions() {}
+          observeEffects() {}
+        }
+      `,
+    ],
+    [
+      'packages/server-v2/src/brain/cognition/business-action-situation-context.ts',
+      `export function createBusinessActionSituationContextProfile() {}`,
+    ],
+    [
+      'packages/server-v2/src/brain/cognition/business-action-modality-policy.ts',
+      `export function createBusinessActionModalityPolicy() {}`,
+    ],
+    [
+      'packages/server-v2/src/brain/cognition/business-action-information-artifact.ts',
+      `export function createBusinessActionInformationArtifactProfile() {}`,
+    ],
+    [
+      'packages/server-v2/src/brain/cognition/business-action-side-effect-invariant.ts',
+      `export function createBusinessActionSideEffectInvariantProfile() {}`,
+    ],
+    [
+      'packages/server-v2/src/brain/cognition/business-action-institutional-effect.ts',
+      `export function createBusinessActionInstitutionalEffectProfile() {}`,
+    ],
+    [
+      'packages/server-v2/src/semantic-data/brain-action-invariant-catalog.ts',
+      `export function curatedActionInvariantRef() {}`,
+    ],
+    [
+      'packages/server-v2/src/brain/cognition/business-action-participant-profile.ts',
+      `export function createBusinessActionParticipantProfile() {}`,
+    ],
+    [
+      'packages/server-v2/src/brain/cognition/business-action-relation-profile.ts',
+      `export function createBusinessActionRelationProfile() {}`,
+    ],
+    [
+      'packages/server-v2/src/semantic-data/brain-action-relation-catalog.ts',
+      `export const CURATED_ACTION_RELATION_DEFINITIONS = [];`,
+    ],
+    [
+      'packages/server-v2/src/brain/cognition/brain-action-situation-context.ts',
+      `export function brainActionSituationContextIssue() {}`,
+    ],
+  ]);
 }

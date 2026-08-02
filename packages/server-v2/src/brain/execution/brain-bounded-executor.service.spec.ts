@@ -41,6 +41,11 @@ describe('BrainBoundedExecutorService', () => {
 
     expect(maxActive).toBe(2);
     expect(result.status).toBe('completed');
+    expect(result.timings).toEqual({
+      capabilityExecutionMs: expect.any(Number),
+      completionVerificationMs: expect.any(Number),
+      replanningMs: 0,
+    });
     expect(execute).toHaveBeenCalledTimes(3);
     expect(execute).toHaveBeenCalledWith(expect.objectContaining({ answerShape: 'diagnosis' }));
   });
@@ -65,6 +70,11 @@ describe('BrainBoundedExecutorService', () => {
 
     expect(result.status).toBe('completed');
     expect(result.replanCount).toBe(1);
+    expect(result.timings).toEqual({
+      capabilityExecutionMs: expect.any(Number),
+      completionVerificationMs: expect.any(Number),
+      replanningMs: expect.any(Number),
+    });
     expect(replanner.replan).toHaveBeenCalledTimes(1);
     expect(replanner.replan).toHaveBeenCalledWith(expect.objectContaining({ deadlineAt: expect.any(Number) }));
   });

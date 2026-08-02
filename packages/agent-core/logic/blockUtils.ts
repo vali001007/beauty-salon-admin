@@ -79,6 +79,8 @@ export function groupBlocksForDisplay(blocks: AuraResponseBlock[]): AuraBlockDis
 }
 
 export function mapBrainResponseBlocks(blocks: readonly BrainResponseBlockCompat[]): AuraResponseBlock[] {
+  const hasEmptyRanking = blocks.some((block) => block.kind === 'ranking' && block.rows.length === 0);
+  const hasEmptyTable = blocks.some((block) => block.kind === 'table' && block.rows.length === 0);
   return blocks.flatMap((block): AuraResponseBlock[] => {
     if (block.kind === 'text') return [{ kind: 'text', content: block.text }];
     if (block.kind === 'kpi') return block.items.map((item) => ({ kind: 'kpi_card', ...item }));
@@ -94,9 +96,28 @@ export function mapBrainResponseBlocks(blocks: readonly BrainResponseBlockCompat
     if (block.kind === 'chart') return [{ kind: 'chart', chartType: block.chartType, title: '经营数据', data: block.rows, xKey: block.xKey, yKeys: block.yKeys }];
     if (block.kind === 'comparison') return [{ kind: 'table', caption: '对比结果', columns: ['项目', '当前', '上期', '变化'], rows: block.items.map((item) => [item.label, item.current, item.previous, item.delta ?? '-']) }];
     if (block.kind === 'diagnosis') return block.findings.map((item) => ({ kind: 'alert', level: item.severity === 'critical' ? 'critical' : item.severity === 'warning' ? 'warning' : 'info', message: `${item.title}：${item.detail}` }));
-    if (block.kind === 'clarification') return [{ kind: 'clarification_card', title: '需要确认', question: block.question, options: block.options.map((item) => ({ label: item.label, value: typeof item.value === 'string' ? item.value : JSON.stringify(item.value), actionId: item.id })) }];
+    if (block.kind === 'clarification') return [{
+      kind: 'clarification_card',
+      title: '需要确认',
+      question: block.question,
+      options: block.options.map((item) => ({
+        label: item.label,
+        value: typeof item.value === 'string' ? item.value : JSON.stringify(item.value),
+      })),
+    }];
     if (block.kind === 'follow_up_questions') return [{ kind: 'follow_up_chips', suggestions: block.questions.map((item) => item.value || item.label) }];
-    if (block.kind === 'limitations') return [{ kind: 'data_gap', title: '未完成范围', message: block.items.join('；'), missingData: block.items }];
+    if (block.kind === 'limitations') {
+      const items = block.items.filter((item) =>
+        !(item === 'no_data:ranking' && hasEmptyRanking) && !(item === 'no_data:table' && hasEmptyTable));
+      if (!items.length) return [];
+      const normalized = items.map(formatCompatLimitation);
+      return [{
+        kind: 'data_gap',
+        title: items.every((item) => item.startsWith('no_data:')) ? '数据说明' : '能力边界',
+        message: normalized.join('；'),
+        missingData: normalized,
+      }];
+    }
     if (block.kind === 'evidence') return [{ kind: 'evidence_panel', sources: block.citations.map((item) => item.label ?? item.sourceId), metricDefinition: block.citations.map((item) => item.definition).filter(Boolean).join('；') || 'Ami Core 业务定义' }];
     if (block.kind === 'action_preview') {
       return block.actions.flatMap((value): AuraResponseBlock[] => {
@@ -114,6 +135,15 @@ function formatCompatValue(value: unknown) {
   if (value === null || value === undefined) return '-';
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
+}
+
+function formatCompatLimitation(value: string) {
+  if (value === 'no_data:ranking') return '当前条件下没有可排行的业务记录';
+  if (value === 'no_data:table') return '当前条件下没有匹配的业务明细';
+  if (value === 'capability_failed') return '相关能力执行失败，本次没有生成业务结论';
+  if (value === 'request_processing') return '请求仍在处理中，当前内容不是最终业务结果';
+  if (value === 'request_cancelled') return '请求已取消，本次没有生成新的业务结论';
+  return value.replace(/[。；;]+$/u, '');
 }
 
 function normalizeRisk(value: unknown): 'low' | 'medium' | 'high' {

@@ -933,7 +933,7 @@ function parseFieldLine(line: string): PrismaField | null {
   const attributes = rest.join(' ');
   const optional = rawType.endsWith('?');
   const list = rawType.endsWith('[]');
-  const type = rawType.replace(/[?\[\]]/g, '');
+  const type = rawType.replace(/[?[\]]/g, '');
   return {
     name,
     rawType,

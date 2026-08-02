@@ -198,11 +198,13 @@ describe('BusinessDefinitionRegistryService', () => {
 
   it('ignores client validation claims and generates a passing canonical report', async () => {
     const version = makeVersion({ lifecycleStatus: 'draft', validationStatus: 'pending' });
+    const invalidateArtifacts = jest.fn().mockResolvedValue({ count: 2 });
     const prisma = createPrismaMock({
       businessDefinitionVersion: {
         findUnique: jest.fn().mockResolvedValue(version),
         update: jest.fn().mockImplementation(async ({ data }: any) => ({ ...version, ...data })),
       },
+      brainWarmupArtifact: { updateMany: invalidateArtifacts },
     });
     const verifier = passingVerifier();
     const service = createService(prisma, verifier);
@@ -236,6 +238,14 @@ describe('BusinessDefinitionRegistryService', () => {
       fixtureSetKey: version.fixtureSetKey,
       timezone: version.timezone,
       storeScope: version.storeScope,
+    });
+    expect(invalidateArtifacts).toHaveBeenCalledWith({
+      where: { status: { in: ['building', 'ready'] } },
+      data: expect.objectContaining({
+        status: 'invalid',
+        errorCode: 'definition_identity_changed',
+        errorMessage: `definition_versions_changed:${version.id}`,
+      }),
     });
   });
 
@@ -462,17 +472,19 @@ describe('BusinessDefinitionRegistryService', () => {
       version: 2,
       lifecycleStatus: 'validated',
       validationStatus: 'passed',
-      projections: [{
-        targetType: 'metric_query_view',
-        targetKey: 'metric.net_revenue@2',
-        definitionKey: 'metric.net_revenue',
-        definitionVersion: 2,
-        definitionFingerprint: 'a'.repeat(64),
-        sourceFingerprint: 'b'.repeat(64),
-        payload: {},
-        projectionFingerprint: 'c'.repeat(64),
-        readOnly: true,
-      }],
+      projections: [
+        {
+          targetType: 'metric_query_view',
+          targetKey: 'metric.net_revenue@2',
+          definitionKey: 'metric.net_revenue',
+          definitionVersion: 2,
+          definitionFingerprint: 'a'.repeat(64),
+          sourceFingerprint: 'b'.repeat(64),
+          payload: {},
+          projectionFingerprint: 'c'.repeat(64),
+          readOnly: true,
+        },
+      ],
       definition: baseDefinitionRecord(),
     });
     const tx = publishTransactionMock(version, { ...version, lifecycleStatus: 'published' });
@@ -573,29 +585,133 @@ describe('BusinessDefinitionRegistryService', () => {
     expect(() => ((snapshot.definitions[0].payload as any).formula = 'changed')).toThrow();
   });
 
+  it('builds an evaluation snapshot only from the referenced definition versions', async () => {
+    const definition = baseDefinitionRecord({ currentPublishedVersionId: 21 });
+    const version = makeVersion({
+      lifecycleStatus: 'published',
+      validationStatus: 'passed',
+      definition,
+      projections: [{ targetType: 'capability_semantic_view' }],
+    });
+    const findMany = jest.fn().mockResolvedValue([version]);
+    const publishedFindMany = jest.fn();
+    const service = createService(
+      createPrismaMock({
+        businessDefinition: { findMany: publishedFindMany },
+        businessDefinitionVersion: { findMany },
+      }),
+    );
+
+    const snapshot = await service.getEvaluationSnapshot([21, 21]);
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: [21] } },
+        select: expect.objectContaining({
+          projections: expect.objectContaining({ where: { targetType: 'capability_semantic_view' } }),
+        }),
+      }),
+    );
+    expect(publishedFindMany).not.toHaveBeenCalled();
+    expect(findMany).toHaveBeenCalledTimes(1);
+    expect(snapshot.definitions).toEqual([
+      expect.objectContaining({ definitionId: definition.id, versionId: 21, definitionKey: definition.definitionKey }),
+    ]);
+  });
+
+  it('reuses the shared definition bundle and coalesces repeated evaluation snapshots', async () => {
+    const definition = baseDefinitionRecord({ currentPublishedVersionId: 21 });
+    const version = makeVersion({
+      lifecycleStatus: 'published',
+      validationStatus: 'passed',
+      definition,
+      projections: [{ targetType: 'capability_semantic_view' }],
+    });
+    const bundle = {
+      load: jest.fn().mockResolvedValue({ rows: [version] }),
+      invalidate: jest.fn(),
+    };
+    const service = createService(
+      createPrismaMock({ businessDefinitionVersion: { findMany: jest.fn() } }),
+      passingVerifier(),
+      undefined,
+      bundle,
+    );
+
+    const [first, second] = await Promise.all([
+      service.getEvaluationSnapshot([21]),
+      service.getEvaluationSnapshot([21, 21]),
+    ]);
+
+    expect(bundle.load).toHaveBeenCalledTimes(1);
+    expect(first).toBe(second);
+    expect(first.definitions).toEqual([expect.objectContaining({ definitionId: definition.id, versionId: 21 })]);
+  });
+
+  it('keeps a validated historical published version trusted for a pinned release', async () => {
+    const definition = baseDefinitionRecord({ currentPublishedVersionId: 22 });
+    const historical = makeVersion({
+      lifecycleStatus: 'published',
+      validationStatus: 'passed',
+      definition,
+      projections: [{ targetType: 'capability_semantic_view' }],
+    });
+    const service = createService(
+      createPrismaMock({
+        businessDefinitionVersion: { findMany: jest.fn().mockResolvedValue([historical]) },
+      }),
+    );
+
+    await expect(service.getEvaluationSnapshot([historical.id])).resolves.toEqual(
+      expect.objectContaining({
+        definitions: [expect.objectContaining({ versionId: historical.id })],
+      }),
+    );
+  });
+
+  it('still rejects an unvalidated draft from an evaluation snapshot', async () => {
+    const draft = makeVersion({
+      lifecycleStatus: 'draft',
+      validationStatus: 'pending',
+      projections: [{ targetType: 'capability_semantic_view' }],
+    });
+    const service = createService(
+      createPrismaMock({
+        businessDefinitionVersion: { findMany: jest.fn().mockResolvedValue([draft]) },
+      }),
+    );
+
+    await expect(service.getEvaluationSnapshot([draft.id])).rejects.toThrow(
+      `business_definition_evaluation_candidate_not_validated:${draft.id}`,
+    );
+  });
+
   it('loads the published snapshot through parameterized SQL when a shared Prisma client lacks the delegate', async () => {
-    const queryRaw = jest.fn()
-      .mockResolvedValueOnce([{
-        definitionId: 11,
-        versionId: 21,
-        definitionKey: 'metric.net_revenue',
-        kind: 'metric',
-        domain: 'finance',
-        name: '净收入',
-        ownerType: 'system',
-        ownerId: null,
-        version: 2,
-        schemaVersion: '1.0',
-        fingerprint: 'a'.repeat(64),
-        sourceFingerprint: 'b'.repeat(64),
-        validationStatus: 'passed',
-        validationReport: { passed: true },
-        payload: { aggregation: 'sum' },
-        canonicalQueryRef: 'finance.net_revenue',
-        fixtureSetKey: 'finance.net_revenue.v1',
-        timezone: 'Asia/Shanghai',
-        storeScope: { mode: 'current_store' },
-      }])
+    const queryRaw = jest
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          definitionId: 11,
+          versionId: 21,
+          definitionKey: 'metric.net_revenue',
+          kind: 'metric',
+          domain: 'finance',
+          name: '净收入',
+          ownerType: 'system',
+          ownerId: null,
+          version: 2,
+          schemaVersion: '1.0',
+          fingerprint: 'a'.repeat(64),
+          sourceFingerprint: 'b'.repeat(64),
+          validationStatus: 'passed',
+          validationReport: { passed: true },
+          payload: { aggregation: 'sum' },
+          canonicalQueryRef: 'finance.net_revenue',
+          fixtureSetKey: 'finance.net_revenue.v1',
+          timezone: 'Asia/Shanghai',
+          storeScope: { mode: 'current_store' },
+        },
+      ])
       .mockResolvedValueOnce([{ id: 31, versionId: 21, sourceType: 'service' }])
       .mockResolvedValueOnce([{ id: 41, definitionVersionId: 21, targetType: 'metric' }]);
     const service = createService({ $queryRaw: queryRaw });
@@ -603,13 +719,15 @@ describe('BusinessDefinitionRegistryService', () => {
     const snapshot = await service.getPublishedSnapshot({ domain: 'finance' });
 
     expect(queryRaw).toHaveBeenCalledTimes(3);
-    expect(snapshot.definitions).toEqual([expect.objectContaining({
-      definitionId: 11,
-      versionId: 21,
-      definitionKey: 'metric.net_revenue',
-      evidence: [expect.objectContaining({ id: 31, versionId: 21 })],
-      projections: [expect.objectContaining({ id: 41, definitionVersionId: 21 })],
-    })]);
+    expect(snapshot.definitions).toEqual([
+      expect.objectContaining({
+        definitionId: 11,
+        versionId: 21,
+        definitionKey: 'metric.net_revenue',
+        evidence: [expect.objectContaining({ id: 31, versionId: 21 })],
+        projections: [expect.objectContaining({ id: 41, definitionVersionId: 21 })],
+      }),
+    ]);
     expect(Object.isFrozen(snapshot)).toBe(true);
   });
 
@@ -650,12 +768,20 @@ describe('BusinessDefinitionRegistryService', () => {
   });
 });
 
-function createService(prisma: any, verifier: any = passingVerifier(), refresher?: { refresh(): Promise<void> }) {
+function createService(
+  prisma: any,
+  verifier: any = passingVerifier(),
+  refresher?: { refresh(): Promise<void> },
+  bundle?: { load(ids: readonly number[]): Promise<unknown>; invalidate(ids?: readonly number[]): void },
+  publishedSnapshotProvider?: { invalidateActiveDefinitions(): void },
+) {
   return new (BusinessDefinitionRegistryService as any)(
     prisma,
     new BusinessDefinitionProjectionCompilerService(),
     verifier,
     refresher,
+    bundle,
+    publishedSnapshotProvider,
   );
 }
 

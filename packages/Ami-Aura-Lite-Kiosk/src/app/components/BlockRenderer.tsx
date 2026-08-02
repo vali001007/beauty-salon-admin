@@ -946,6 +946,16 @@ function TextBlock({ content }: { content: string }) {
 function TableBlock({ columns, rows, caption }: { columns: string[]; rows: string[][]; caption?: string }) {
   const visibleColumns = normalizeTableColumns(columns, rows);
   const sourceColumns = normalizeTableSourceColumns(columns, rows);
+  if (!rows.length) {
+    return (
+      <div className="rounded-lg border border-dashed border-border bg-muted/30 px-4 py-5 text-center">
+        <div className="text-sm font-medium text-foreground">暂无匹配数据</div>
+        <div className="mt-1 text-xs text-muted-foreground">
+          {caption === '排行结果' ? '当前条件下没有可排行的业务记录。' : '当前条件下没有匹配的业务明细。'}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full text-xs">

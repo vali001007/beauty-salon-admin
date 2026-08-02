@@ -131,6 +131,14 @@ describe('answerContract display adapter', () => {
     })).toMatchObject({ kind: 'unsupported', title: '暂不支持' });
 
     expect(getAgentResultStatusNotice({
+      status: 'partially_completed',
+    })).toEqual({
+      kind: 'partial',
+      title: '部分完成',
+      message: '动作仅部分执行成功，请核对业务回执、已完成项和失败项。', // ami-brain-unit-only
+    });
+
+    expect(getAgentResultStatusNotice({
       status: 'failed',
       answerContract: { errors: ['Answer Contract 校验失败'] },
       toolResults: [{ status: 'failed', title: '失败', summary: '工具失败' }],

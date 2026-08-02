@@ -1,6 +1,7 @@
-import { createBrainConversation, sendBrainMessage, type BrainChatResponse, type BrainResponseBlock, type BrainRoleKey } from '@/api'
+import { createBrainConversation, sendBrainMessage, type BrainChatResponse, type BrainGuidanceSelection, type BrainResponseBlock, type BrainRoleKey } from '@/api'
 import { useAuthStore } from '@/stores/authStore'
 import { useStoreStore } from '@/stores/storeStore'
+import { presentBrainChatResponse, type BrainChatPresentation } from './brain-response-presentation'
 
 export type Role = 'receptionist' | 'manager' | 'beautician'
 
@@ -79,30 +80,14 @@ async function resolveConversation(role: Role) {
   return Number.isInteger(cached) && cached > 0 ? cached : createAndRememberConversation(role)
 }
 
-function formatBrainAnswer(result: BrainChatResponse) {
-  const lines = [result.answer]
-  if (result.citations.length) {
-    lines.push('')
-    lines.push(`数据依据：${result.citations.map((item) => item.label ?? item.sourceId).join('、')}`)
-  }
-  if (result.suggestedActions.length) {
-    lines.push('')
-    lines.push(...result.suggestedActions.map((action) => `待确认动作：${action.summary}（${action.riskLevel}）`))
-  }
-  if (result.clarification) {
-    lines.push('')
-    lines.push(result.clarification.question)
-  }
-  return lines.join('\n')
-}
-
 export async function sendMessage(
   userRole: Role,
   history: Message[],
   userMessage: string,
   onChunk: (chunk: string) => void,
   onToolCall?: (toolName: string) => void,
-  onStructuredResponse?: (result: BrainChatResponse) => void,
+  onStructuredResponse?: (result: BrainChatResponse, presentation: BrainChatPresentation) => void,
+  guidanceSelection?: BrainGuidanceSelection,
 ): Promise<Message[]> {
   void history
   onToolCall?.('Ami Brain')
@@ -113,6 +98,7 @@ export async function sendMessage(
       message: userMessage,
       roleHint: mapRole(userRole),
       timezone: 'Asia/Shanghai',
+      ...(guidanceSelection ? { guidanceSelection } : {}),
     })
   } catch (error) {
     const status = (error as Error & { payload?: { status?: number } }).payload?.status
@@ -122,15 +108,16 @@ export async function sendMessage(
       message: userMessage,
       roleHint: mapRole(userRole),
       timezone: 'Asia/Shanghai',
+      ...(guidanceSelection ? { guidanceSelection } : {}),
     })
   }
 
-  const text = formatBrainAnswer(result)
-  onStructuredResponse?.(result)
-  onChunk(text)
+  const presentation = presentBrainChatResponse(result)
+  onStructuredResponse?.(result, presentation)
+  onChunk(presentation.content)
 
   return [
     { role: 'user', content: userMessage },
-    { role: 'assistant', content: text, blocks: result.blocks ?? [] },
+    { role: 'assistant', content: presentation.content, blocks: presentation.blocks },
   ]
 }

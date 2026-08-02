@@ -21,6 +21,26 @@ describe('BrainInventorySkillsService procurement analysis', () => {
         ]),
       },
       procurementOrder: { findMany: jest.fn().mockResolvedValue([]) },
+      procurementOrderItem: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            quantity: 5,
+            subtotal: 100,
+            order: {
+              orderNo: 'PO-1',
+              status: 'received',
+              createdAt: new Date('2026-07-03T00:00:00.000Z'),
+              supplier: { name: '供应商A' },
+            },
+            product: { name: '补水精华', category: { name: '精华安瓶' } },
+          },
+        ]),
+      },
+      supplySupplier: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([{ id: 1, name: '供应商A', status: 'active', qualificationStatus: 'approved' }]),
+      },
     };
     const service = new BrainInventorySkillsService(prisma as never);
 
@@ -33,6 +53,14 @@ describe('BrainInventorySkillsService procurement analysis', () => {
       unitPrice: 20,
       estimatedCost: 160,
       leadDays: 3,
+    });
+    expect(result.suppliers[0]).toMatchObject({ supplierName: '供应商A', quoteCount: 1 });
+    expect(result.orderItems?.[0]).toMatchObject({
+      orderNo: 'PO-1',
+      supplierName: '供应商A',
+      productName: '补水精华',
+      categoryName: '精华安瓶',
+      amount: 100,
     });
   });
 
@@ -50,6 +78,12 @@ describe('BrainInventorySkillsService procurement analysis', () => {
         }]),
       },
       procurementOrder: { findMany: jest.fn().mockResolvedValue([]) },
+      procurementOrderItem: { findMany: jest.fn().mockResolvedValue([]) },
+      supplySupplier: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([{ id: 1, name: '供应商A', status: 'active', qualificationStatus: 'approved' }]),
+      },
     };
     const service = new BrainInventorySkillsService(prisma as never);
 

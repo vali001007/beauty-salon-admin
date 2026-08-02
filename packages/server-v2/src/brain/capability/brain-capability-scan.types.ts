@@ -102,6 +102,29 @@ export interface BrainCapabilityDriftReport {
   summary: Record<BrainCapabilityDriftType, number>;
 }
 
+export interface BrainCapabilityDriftApproval {
+  key: string;
+  type: Extract<BrainCapabilityDriftType, 'added' | 'changed'>;
+  highRisk: boolean;
+  reasons: string[];
+  beforeFingerprint?: string;
+  afterFingerprint?: string;
+  approvedAt: string;
+  authorization: string;
+  note: string;
+}
+
+export interface BrainCapabilityDriftApprovalManifest {
+  schemaVersion: 1;
+  approvals: BrainCapabilityDriftApproval[];
+}
+
+export interface BrainCapabilityStrictEvaluation {
+  passed: boolean;
+  failures: BrainCapabilityDriftItem[];
+  approved: BrainCapabilityDriftItem[];
+}
+
 export interface BrainCapabilityDecoratorMetadata {
   key: string;
   businessDefinitionKeys: string[];

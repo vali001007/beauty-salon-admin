@@ -915,6 +915,7 @@ async function seedPurchaseAndTransfer(stores: Awaited<ReturnType<typeof ensureS
   } else {
     await prisma.purchaseOrder.create({
       data: {
+        storeId: stores[0].id,
         orderNo: purchaseNo,
         supplier: 'Ami 官方供应链',
         totalAmount: 28600,

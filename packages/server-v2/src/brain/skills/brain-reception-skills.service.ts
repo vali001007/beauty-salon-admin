@@ -14,6 +14,7 @@ export interface ReceptionReservationSchedule {
   reservations: Array<{
     reservationId: number;
     customerId: number;
+    projectId?: number;
     date: string;
     customerName: string;
     memberLevel: string;
@@ -125,6 +126,7 @@ export class BrainReceptionSkillsService {
       reservations: reservations.map((reservation) => ({
         reservationId: reservation.id,
         customerId: reservation.customerId,
+        ...(reservation.projectId != null ? { projectId: reservation.projectId } : {}),
         date: this.formatDate(reservation.date, timezone),
         customerName: reservation.customer?.name ?? '客户',
         memberLevel: reservation.customer?.memberLevel ?? '无',

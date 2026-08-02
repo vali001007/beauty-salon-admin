@@ -45,7 +45,7 @@ export function escapeMarkdownCell(value: unknown): string {
 export function renderCapabilityMarkdown(
   scan: BrainCapabilityScanReport,
   drift?: BrainCapabilityDriftReport,
-  strict?: { passed: boolean },
+  strict?: { passed: boolean; approved?: unknown[] },
 ): string {
   const cell = escapeMarkdownCell;
   const lines = [
@@ -56,6 +56,7 @@ export function renderCapabilityMarkdown(
     `- Draft: ${scan.summary.draft}`,
     `- Blocked: ${scan.summary.blocked}`,
     ...(strict ? [`- Strict: ${strict.passed ? 'PASS' : 'FAIL'}`] : []),
+    ...(strict?.approved ? [`- Approved drift: ${strict.approved.length}`] : []),
     '',
     '| Capability | Status | Explicit | Permissions | Fingerprint |',
     '| --- | --- | --- | --- | --- |',

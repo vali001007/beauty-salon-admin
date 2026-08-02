@@ -197,6 +197,13 @@ const RULES: ReadonlyArray<BrainCapabilityBoundaryMatch & { pattern: RegExp }> =
     reason: '当前员工档案没有结构化情绪事实，也没有员工情绪与服务质量、营业额之间的因果归因口径。',
   },
   {
+    code: 'staff_customer_churn_attribution_not_available',
+    status: 'system_unsupported',
+    pattern: /(?=.*(?:美容师|员工|技师))(?=.*客户)(?=.*(?:流失|未到店|沉睡))/,
+    reason:
+      '当前系统没有客户流失事实按美容师归因的管理入口、正式接口和真实归因数据，不能用客户流失名单或普通员工业绩替代。',
+  },
+  {
     code: 'material_consumption_per_customer_not_connected',
     status: 'system_supported_agent_gap',
     pattern: /平均.*(?:每个|每位).*(?:客人|客户).*(?:消耗|使用).*(?:耗材|物料)|(?:人均|客均).*(?:耗材|物料).*(?:消耗|用量)/,

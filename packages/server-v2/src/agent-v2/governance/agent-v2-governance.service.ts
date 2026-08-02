@@ -463,7 +463,7 @@ export class AgentV2GovernanceService {
       };
     }
 
-    if (/no_data|rowcount\":0|row_count\":0|没有匹配|没有数据|暂无数据|无数据/.test(text)) {
+    if (/no_data|rowcount":0|row_count":0|没有匹配|没有数据|暂无数据|无数据/.test(text)) {
       return {
         category: 'data_scope',
         label: '数据范围/口径',

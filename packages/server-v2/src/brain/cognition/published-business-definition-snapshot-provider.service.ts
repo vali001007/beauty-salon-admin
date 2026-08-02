@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { BrainDefinitionVersionBundleService } from './brain-definition-version-bundle.service.js';
 import {
   createBusinessDefinitionProjectionFingerprint,
   isBusinessDefinitionProjectionV2Payload,
@@ -9,6 +10,13 @@ import type {
   BusinessDefinitionKind,
   BusinessDefinitionSnapshotInput,
   BusinessDefinitionSnapshotProvider,
+  BusinessActionCapabilityBinding,
+  BusinessActionDefinitionSnapshot,
+  BusinessActionInputSlotDefinition,
+  BusinessActionLexicalFrame,
+  BusinessActionParticipantProfile,
+  BusinessActionRelationProfile,
+  BusinessActionSituationContextProfile,
   BusinessMetricDefinitionSnapshot,
   BusinessMetricRuntimeExpression,
   BusinessMetricRuntimeResolver,
@@ -21,6 +29,13 @@ import {
   getBusinessMetricResolverContract,
   validateBusinessMetricResolverStoreScope,
 } from '../../semantic-data/business-metric-resolver-contract.js';
+import { validateBusinessActionSemanticPredicates } from './business-action-lexical-semantics.js';
+import { resolveCuratedActionInvariantContract } from '../../semantic-data/brain-action-invariant-catalog.js';
+import { resolveCuratedActionRelationDefinition } from '../../semantic-data/brain-action-relation-catalog.js';
+import {
+  createBusinessActionInstitutionalEffectProfile,
+  INSTITUTIONAL_EFFECT_ACTION_KEYS,
+} from './business-action-institutional-effect.js';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -63,7 +78,7 @@ interface ParsedProjection {
 
 type SnapshotReadClient = Pick<Prisma.TransactionClient, 'businessDefinition' | 'businessDefinitionProjection'>;
 
-const RUNTIME_KINDS = new Set<BusinessDefinitionKind>(['entity', 'relation', 'metric', 'dimension']);
+const RUNTIME_KINDS = new Set<BusinessDefinitionKind>(['entity', 'relation', 'metric', 'dimension', 'action']);
 const RUNTIME_METRIC_AGGREGATIONS = new Set<BusinessMetricRuntimeAggregation>([
   'sum',
   'count',
@@ -81,19 +96,62 @@ const TRANSIENT_PRISMA_CODES = new Set(['P1001', 'P1008', 'P1017', 'P2024', 'P20
 export class PublishedBusinessDefinitionSnapshotProviderService implements BusinessDefinitionSnapshotProvider {
   private runtimeDataModel?: PrismaRuntimeDataModel;
   private activeDefinitionSnapshot?: { value: BusinessDefinitionSnapshotInput; expiresAt: number };
+  private activeDefinitionLoading?: Promise<BusinessDefinitionSnapshotInput>;
+  private readonly evaluationIdentities = new Map<string, string>();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly definitionVersionBundle?: BrainDefinitionVersionBundleService,
+  ) {}
 
   async loadActiveDefinitions(): Promise<BusinessDefinitionSnapshotInput> {
     const cached = this.activeDefinitionSnapshot;
     if (cached && cached.expiresAt > Date.now()) return cached.value;
+    if (this.activeDefinitionLoading) return this.activeDefinitionLoading;
+    const loading = this.refreshActiveDefinitions(cached);
+    this.activeDefinitionLoading = loading;
+    try {
+      return await loading;
+    } finally {
+      if (this.activeDefinitionLoading === loading) this.activeDefinitionLoading = undefined;
+    }
+  }
+
+  invalidateActiveDefinitions(): void {
+    this.activeDefinitionSnapshot = undefined;
+    this.evaluationIdentities.clear();
+  }
+
+  async getEvaluationCacheIdentity(definitionVersionIds: readonly number[]): Promise<string> {
+    const ids = [...new Set(definitionVersionIds.filter((id) => Number.isInteger(id) && id > 0))].sort(
+      (left, right) => left - right,
+    );
+    const cacheKey = ids.join(',');
+    const primed = this.evaluationIdentities.get(cacheKey);
+    if (primed) return primed;
+    if (!this.definitionVersionBundle || !ids.length) return cacheKey;
+    const identity = (await this.definitionVersionBundle.load(ids)).versionSetFingerprint;
+    this.evaluationIdentities.set(cacheKey, identity);
+    return identity;
+  }
+
+  primeEvaluationCacheIdentity(definitionVersionIds: readonly number[], identity: string): void {
+    const ids = [...new Set(definitionVersionIds.filter((id) => Number.isInteger(id) && id > 0))].sort(
+      (left, right) => left - right,
+    );
+    this.evaluationIdentities.set(ids.join(','), identity);
+  }
+
+  private async refreshActiveDefinitions(
+    cached?: { value: BusinessDefinitionSnapshotInput; expiresAt: number },
+  ): Promise<BusinessDefinitionSnapshotInput> {
     try {
       const readSnapshot = async (client: SnapshotReadClient) => {
         const currentDefinitions = await client.businessDefinition.findMany({
           where: {
             status: 'active',
             currentPublishedVersionId: { not: null },
-            kind: { in: ['entity', 'relation', 'metric', 'dimension'] },
+            kind: { in: ['entity', 'relation', 'metric', 'dimension', 'action'] },
           },
           include: {
             currentPublishedVersion: {
@@ -157,33 +215,33 @@ export class PublishedBusinessDefinitionSnapshotProviderService implements Busin
   async loadActiveMetricDefinitions(): Promise<BusinessMetricDefinitionSnapshot[]> {
     const readSnapshot = async (client: SnapshotReadClient) => {
       const currentDefinitions = await client.businessDefinition.findMany({
-          where: {
-            status: 'active',
-            currentPublishedVersionId: { not: null },
-            kind: 'metric',
-          },
-          include: {
-            currentPublishedVersion: {
-              select: {
-                id: true,
-                version: true,
-                lifecycleStatus: true,
-                fingerprint: true,
-                sourceFingerprint: true,
-              },
+        where: {
+          status: 'active',
+          currentPublishedVersionId: { not: null },
+          kind: 'metric',
+        },
+        include: {
+          currentPublishedVersion: {
+            select: {
+              id: true,
+              version: true,
+              lifecycleStatus: true,
+              fingerprint: true,
+              sourceFingerprint: true,
             },
           },
-          orderBy: [{ domain: 'asc' }, { definitionKey: 'asc' }],
-        });
-        const versionIds = currentDefinitions
-          .map((definition) => definition.currentPublishedVersionId)
-          .filter((id): id is number => id !== null);
-        const metricProjections = versionIds.length
-          ? await client.businessDefinitionProjection.findMany({
-              where: { definitionVersionId: { in: versionIds }, targetType: 'metric_query_view' },
-              orderBy: [{ definitionVersionId: 'asc' }],
-            })
-          : [];
+        },
+        orderBy: [{ domain: 'asc' }, { definitionKey: 'asc' }],
+      });
+      const versionIds = currentDefinitions
+        .map((definition) => definition.currentPublishedVersionId)
+        .filter((id): id is number => id !== null);
+      const metricProjections = versionIds.length
+        ? await client.businessDefinitionProjection.findMany({
+            where: { definitionVersionId: { in: versionIds }, targetType: 'metric_query_view' },
+            orderBy: [{ definitionVersionId: 'asc' }],
+          })
+        : [];
       return { definitions: currentDefinitions, projections: metricProjections };
     };
     const directClient = this.directSnapshotReadClient();
@@ -200,11 +258,32 @@ export class PublishedBusinessDefinitionSnapshotProviderService implements Busin
   async loadEvaluationDefinitions(definitionVersionIds: readonly number[]): Promise<BusinessDefinitionSnapshotInput> {
     const ids = [...new Set(definitionVersionIds.filter((id) => Number.isInteger(id) && id > 0))];
     if (!ids.length) return this.loadActiveDefinitions();
-    const versions = await (this.prisma as any).businessDefinitionVersion.findMany({
-      where: { id: { in: ids } },
-      include: { definition: true, projections: true },
-      orderBy: [{ definition: { definitionKey: 'asc' } }, { version: 'asc' }],
-    });
+    const versions = this.definitionVersionBundle
+      ? [...(await this.definitionVersionBundle.load(ids)).rows]
+      : await (this.prisma as any).businessDefinitionVersion.findMany({
+          where: { id: { in: ids } },
+          select: {
+            id: true,
+            version: true,
+            lifecycleStatus: true,
+            validationStatus: true,
+            fingerprint: true,
+            sourceFingerprint: true,
+            definition: {
+              select: {
+                definitionKey: true,
+                kind: true,
+                domain: true,
+                name: true,
+              },
+            },
+            projections: {
+              where: { targetType: { in: ['intent_semantic_index', 'metric_query_view'] } },
+              orderBy: [{ id: 'asc' }],
+            },
+          },
+          orderBy: [{ definition: { definitionKey: 'asc' } }, { version: 'asc' }],
+        });
     if (versions.length !== ids.length) {
       const found = new Set(versions.map((version: any) => version.id));
       throw new Error(`business_definition_evaluation_runtime_missing:${ids.filter((id) => !found.has(id)).join(',')}`);
@@ -258,7 +337,13 @@ function mapPublishedDefinitions(
   definitions: PublishedDefinitionRecord[],
   projections: PublishedProjectionRow[],
 ): BusinessDefinitionSnapshotInput {
-  const snapshot: BusinessDefinitionSnapshotInput = { entities: [], relations: [], metrics: [], dimensions: [] };
+  const snapshot: BusinessDefinitionSnapshotInput = {
+    entities: [],
+    relations: [],
+    metrics: [],
+    dimensions: [],
+    actions: [],
+  };
   for (const definition of definitions) {
     const version = definition.currentPublishedVersion;
     const expectedTargetType = definition.kind === 'metric' ? 'metric_query_view' : 'intent_semantic_index';
@@ -280,6 +365,7 @@ function mapPublishedDefinitions(
       if (projection.kind === 'relation') snapshot.relations.push(mapRelation(projection));
       if (projection.kind === 'metric') snapshot.metrics.push(mapMetric(projection));
       if (projection.kind === 'dimension') snapshot.dimensions.push(mapDimension(projection));
+      if (projection.kind === 'action') snapshot.actions!.push(mapAction(projection));
     } catch (error) {
       throw invalidProjection(definition.definitionKey, error);
     }
@@ -303,7 +389,8 @@ function mapEvaluationDefinitionVersion(version: any): Array<{ kind: BusinessDef
   if (kind === 'entity') return [{ kind, value: mapEntity(parsed) }];
   if (kind === 'relation') return [{ kind, value: mapRelation(parsed) }];
   if (kind === 'metric') return [{ kind, value: mapMetric(parsed) }];
-  return [{ kind, value: mapDimension(parsed) }];
+  if (kind === 'dimension') return [{ kind, value: mapDimension(parsed) }];
+  return [{ kind, value: mapAction(parsed) }];
 }
 
 function parseEvaluationProjection(
@@ -384,6 +471,10 @@ function mergeEvaluationDefinitions(
     dimensions: sort([
       ...active.dimensions.filter((item) => !keys.has(item.definitionKey)),
       ...replacements.filter((item) => item.kind === 'dimension').map((item) => item.value),
+    ]),
+    actions: sort([
+      ...(active.actions ?? []).filter((item) => !keys.has(item.definitionKey)),
+      ...replacements.filter((item) => item.kind === 'action').map((item) => item.value),
     ]),
   };
 }
@@ -562,9 +653,7 @@ function mapMetric({ row, domain, name, definition }: ParsedProjection): Busines
   };
 }
 
-function metricValueType(
-  value: unknown,
-): BusinessMetricDefinitionSnapshot['valueType'] {
+function metricValueType(value: unknown): BusinessMetricDefinitionSnapshot['valueType'] {
   if (value === undefined) return undefined;
   const normalized = requiredString(value);
   if (!['money', 'count', 'percent', 'score', 'duration'].includes(normalized)) {
@@ -573,11 +662,18 @@ function metricValueType(
   return normalized as BusinessMetricDefinitionSnapshot['valueType'];
 }
 
-function metricAllowedTaskTypes(
-  value: unknown,
-): BusinessMetricDefinitionSnapshot['allowedTaskTypes'] {
+function metricAllowedTaskTypes(value: unknown): BusinessMetricDefinitionSnapshot['allowedTaskTypes'] {
   if (value === undefined) return undefined;
-  const allowed = new Set(['query', 'ranking', 'recommendation', 'diagnosis', 'forecast', 'draft', 'workflow', 'clarify']);
+  const allowed = new Set([
+    'query',
+    'ranking',
+    'recommendation',
+    'diagnosis',
+    'forecast',
+    'draft',
+    'workflow',
+    'clarify',
+  ]);
   const taskTypes = nonEmptyStringArray(value, 'metric_allowed_task_types_must_not_be_empty');
   for (const taskType of taskTypes) {
     if (!allowed.has(taskType)) throw new Error(`metric_allowed_task_type_invalid:${taskType}`);
@@ -783,6 +879,951 @@ function metricJoinPath(value: unknown): BusinessMetricRuntimeQuery['joinPath'] 
     };
   });
 }
+
+function mapAction({ row, domain, name, definition }: ParsedProjection): BusinessActionDefinitionSnapshot {
+  const actionKey = requiredString(definition.actionKey);
+  requireEqual(actionKey, row.definitionKey);
+  const actionClass = requiredString(definition.actionClass);
+  if (
+    !['create', 'update', 'transition', 'delete', 'approve', 'notify', 'consume', 'reserve', 'execute'].includes(
+      actionClass,
+    )
+  ) {
+    throw new Error(`action_class_invalid:${actionClass}`);
+  }
+  const riskPolicy = requiredString(definition.riskPolicy);
+  if (!['low', 'medium', 'high', 'critical'].includes(riskPolicy)) {
+    throw new Error(`action_risk_policy_invalid:${riskPolicy}`);
+  }
+  const confirmationPolicy = requiredString(definition.confirmationPolicy);
+  if (!['none', 'required', 'conditional'].includes(confirmationPolicy)) {
+    throw new Error(`action_confirmation_policy_invalid:${confirmationPolicy}`);
+  }
+  const idempotencyPolicy = requiredString(definition.idempotencyPolicy);
+  if (!['not_applicable', 'required'].includes(idempotencyPolicy)) {
+    throw new Error(`action_idempotency_policy_invalid:${idempotencyPolicy}`);
+  }
+  const capabilityBindings = actionCapabilityBindings(definition.capabilityBindings);
+  const aliases = definition.aliases === undefined ? [] : uniqueStrings(definition.aliases);
+  const inputSlots = actionInputSlots(definition.inputSlots);
+  const targetEntityRefs = nonEmptyStringArray(
+    definition.targetEntityRefs,
+    'action_target_entity_refs_must_not_be_empty',
+  );
+  const preconditions = definition.preconditions === undefined ? [] : uniqueStrings(definition.preconditions);
+  const effects = definition.effects === undefined ? [] : uniqueStrings(definition.effects);
+  const preconditionPredicateRefs = actionSemanticContractRefs(
+    definition.preconditionPredicateRefs,
+    'action_precondition_predicate_refs_must_be_an_array',
+  );
+  const effectAssertionRefs = actionSemanticContractRefs(
+    definition.effectAssertionRefs,
+    'action_effect_assertion_refs_must_be_an_array',
+  );
+  const participantProfile = actionParticipantProfile(definition.participantProfile, actionKey, inputSlots);
+  const relationProfile = actionRelationProfile(
+    definition.relationProfile,
+    actionKey,
+    actionClass as BusinessActionDefinitionSnapshot['actionClass'],
+    targetEntityRefs,
+    participantProfile,
+  );
+  const institutionalEffect = actionInstitutionalEffect(definition.institutionalEffect, actionKey, preconditions);
+  return {
+    definitionKey: row.definitionKey,
+    domain,
+    actionKey,
+    name,
+    aliases,
+    description: optionalString(definition.description) ?? name,
+    actionClass: actionClass as BusinessActionDefinitionSnapshot['actionClass'],
+    targetEntityRefs,
+    inputSlots,
+    preconditions,
+    preconditionPredicateRefs,
+    effects,
+    effectAssertionRefs,
+    lexicalFrame: actionLexicalFrame(
+      definition.lexicalFrame,
+      actionKey,
+      actionClass as BusinessActionDefinitionSnapshot['actionClass'],
+      name,
+      aliases,
+      targetEntityRefs,
+      inputSlots,
+      preconditions,
+      effects,
+    ),
+    situationContext: actionSituationContext(definition.situationContext, actionKey),
+    modalityPolicy: actionModalityPolicy(definition.modalityPolicy, actionKey),
+    informationArtifact: actionInformationArtifact(definition.informationArtifact, actionKey),
+    sideEffectInvariant: actionSideEffectInvariant(definition.sideEffectInvariant, {
+      actionKey,
+      preconditions,
+      preconditionPredicateRefs,
+      effects,
+      effectAssertionRefs,
+    }),
+    participantProfile,
+    relationProfile,
+    ...(institutionalEffect ? { institutionalEffect } : {}),
+    triggeredByEventRefs:
+      definition.triggeredByEventRefs === undefined ? [] : uniqueStrings(definition.triggeredByEventRefs),
+    emitsEventRefs: definition.emitsEventRefs === undefined ? [] : uniqueStrings(definition.emitsEventRefs),
+    riskPolicy: riskPolicy as BusinessActionDefinitionSnapshot['riskPolicy'],
+    confirmationPolicy: confirmationPolicy as BusinessActionDefinitionSnapshot['confirmationPolicy'],
+    idempotencyPolicy: idempotencyPolicy as BusinessActionDefinitionSnapshot['idempotencyPolicy'],
+    capabilityBindings,
+    bindingFingerprint: createBusinessDefinitionProjectionFingerprint({ actionKey, capabilityBindings }),
+    version: row.definitionVersion,
+    definitionFingerprint: row.definitionFingerprint,
+    sourceFingerprint: row.sourceFingerprint,
+  };
+}
+
+function actionParticipantProfile(
+  value: unknown,
+  actionKey: string,
+  inputSlots: readonly BusinessActionInputSlotDefinition[],
+): BusinessActionParticipantProfile {
+  const profile = asRecord(value);
+  requireOnlyKeys(
+    profile,
+    ['schemaVersion', 'profileKey', 'actorAliasPolicy', 'unboundRolePolicy', 'roleBindings', 'fingerprint'],
+    'action_participant_profile_contains_unknown_field',
+  );
+  requireEqual(profile.schemaVersion, '1.0');
+  requireEqual(profile.profileKey, `${actionKey}.participant`);
+  requireEqual(profile.actorAliasPolicy, 'legacy_requester_only');
+  requireEqual(profile.unboundRolePolicy, 'fail_closed');
+  if (!Array.isArray(profile.roleBindings)) throw new Error('action_participant_role_bindings_must_be_an_array');
+  const slots = new Map(inputSlots.map((slot) => [slot.slotKey, slot]));
+  const roleBindings = profile.roleBindings.map((value) => {
+    const binding = asRecord(value);
+    requireOnlyKeys(
+      binding,
+      ['role', 'source', 'slotKey', 'requiredAt', 'qualificationPolicy', 'runtimeVisibility'],
+      'action_participant_role_binding_contains_unknown_field',
+    );
+    const role = requiredString(binding.role);
+    if (!ACTION_PARTICIPANT_ROLES.has(role)) throw new Error(`action_participant_role_invalid:${role}`);
+    const source = requiredString(binding.source);
+    if (!ACTION_PARTICIPANT_SOURCES.has(source)) throw new Error(`action_participant_source_invalid:${source}`);
+    if (!validParticipantBindingSource(role, source)) {
+      throw new Error(`action_participant_role_source_invalid:${role}:${source}`);
+    }
+    const slotKey = optionalString(binding.slotKey);
+    if (source === 'action_slot') {
+      const slot = slotKey ? slots.get(slotKey) : undefined;
+      if (!slot || slot.semanticRole !== role) throw new Error(`action_participant_slot_invalid:${role}`);
+    } else if (slotKey) {
+      throw new Error(`action_participant_slot_not_allowed:${role}`);
+    }
+    const requiredAt = uniqueStrings(binding.requiredAt);
+    if (requiredAt.some((stage) => !['recognition', 'preview', 'execution'].includes(stage))) {
+      throw new Error(`action_participant_required_stage_invalid:${role}`);
+    }
+    const qualificationPolicy = requiredString(binding.qualificationPolicy);
+    if (!ACTION_PARTICIPANT_QUALIFICATION_POLICIES.has(qualificationPolicy)) {
+      throw new Error(`action_participant_qualification_invalid:${role}`);
+    }
+    const runtimeVisibility = requiredString(binding.runtimeVisibility);
+    if (!ACTION_PARTICIPANT_RUNTIME_VISIBILITIES.has(runtimeVisibility)) {
+      throw new Error(`action_participant_runtime_visibility_invalid:${role}`);
+    }
+    return {
+      role: role as BusinessActionParticipantProfile['roleBindings'][number]['role'],
+      source: source as BusinessActionParticipantProfile['roleBindings'][number]['source'],
+      ...(slotKey ? { slotKey } : {}),
+      requiredAt: requiredAt as BusinessActionParticipantProfile['roleBindings'][number]['requiredAt'],
+      qualificationPolicy:
+        qualificationPolicy as BusinessActionParticipantProfile['roleBindings'][number]['qualificationPolicy'],
+      runtimeVisibility:
+        runtimeVisibility as BusinessActionParticipantProfile['roleBindings'][number]['runtimeVisibility'],
+    };
+  });
+  for (const requiredRole of ['requester', 'authorizer', 'performer', 'accountable_party']) {
+    if (!roleBindings.some((binding) => binding.role === requiredRole)) {
+      throw new Error(`action_participant_required_role_missing:${requiredRole}`);
+    }
+  }
+  const seen = new Set<string>();
+  for (const binding of roleBindings) {
+    const key = `${binding.role}:${binding.slotKey ?? binding.source}`;
+    if (seen.has(key)) throw new Error(`action_participant_role_binding_duplicate:${key}`);
+    seen.add(key);
+  }
+  roleBindings.sort(
+    (left, right) => left.role.localeCompare(right.role) || (left.slotKey ?? '').localeCompare(right.slotKey ?? ''),
+  );
+  const fingerprintInput = {
+    schemaVersion: '1.0' as const,
+    profileKey: `${actionKey}.participant`,
+    actorAliasPolicy: 'legacy_requester_only' as const,
+    unboundRolePolicy: 'fail_closed' as const,
+    roleBindings,
+  };
+  const fingerprint = requiredString(profile.fingerprint);
+  if (!/^[0-9a-f]{64}$/u.test(fingerprint)) throw new Error('action_participant_profile_fingerprint_invalid');
+  requireEqual(fingerprint, createBusinessDefinitionProjectionFingerprint(fingerprintInput));
+  return { ...fingerprintInput, fingerprint };
+}
+
+function actionRelationProfile(
+  value: unknown,
+  actionKey: string,
+  actionClass: BusinessActionDefinitionSnapshot['actionClass'],
+  targetEntityRefs: readonly string[],
+  participantProfile: BusinessActionParticipantProfile,
+): BusinessActionRelationProfile {
+  const profile = asRecord(value);
+  requireOnlyKeys(
+    profile,
+    ['schemaVersion', 'profileKey', 'unknownRelationPolicy', 'inferencePolicy', 'relationRefs', 'fingerprint'],
+    'action_relation_profile_contains_unknown_field',
+  );
+  requireEqual(profile.schemaVersion, '1.0');
+  requireEqual(profile.profileKey, `${actionKey}.relations`);
+  requireEqual(profile.unknownRelationPolicy, 'fail_closed');
+  requireEqual(profile.inferencePolicy, 'explicit_only');
+  if (!Array.isArray(profile.relationRefs)) throw new Error('action_relation_refs_must_be_an_array');
+  const participantRoles = new Set(participantProfile.roleBindings.map((binding) => binding.role));
+  const relationRefs = profile.relationRefs.map((value) => {
+    const relation = asRecord(value);
+    requireOnlyKeys(
+      relation,
+      [
+        'relationDefinitionRef',
+        'fromRef',
+        'toRef',
+        'qualificationKeys',
+        'slotKey',
+        'participantRole',
+        'truthStatusPolicy',
+      ],
+      'action_relation_ref_contains_unknown_field',
+    );
+    const [relationDefinitionRef] = actionSemanticContractRefs(
+      [relation.relationDefinitionRef],
+      'action_relation_definition_ref_missing',
+    );
+    const definition = relationDefinitionRef
+      ? resolveCuratedActionRelationDefinition(relationDefinitionRef)
+      : undefined;
+    if (!definition) throw new Error('action_relation_definition_unresolved');
+    const fromRef = requiredString(relation.fromRef);
+    const toRef = requiredString(relation.toRef);
+    const qualificationKeys = uniqueStrings(relation.qualificationKeys);
+    if (JSON.stringify(qualificationKeys) !== JSON.stringify([...definition.qualificationPolicy.requiredKeys].sort())) {
+      throw new Error(`action_relation_qualification_mismatch:${definition.relationKey}`);
+    }
+    const truthStatusPolicy = requiredString(relation.truthStatusPolicy);
+    const expectedTruthStatusPolicy =
+      definition.truthMode === 'declared' ? 'declared_only' : 'runtime_evaluator_required';
+    requireEqual(truthStatusPolicy, expectedTruthStatusPolicy);
+    const participantRole = optionalString(relation.participantRole);
+    const slotKey = optionalString(relation.slotKey);
+    if (participantRole) {
+      if (!ACTION_PARTICIPANT_ROLES.has(participantRole) || !participantRoles.has(participantRole as never)) {
+        throw new Error(`action_relation_participant_role_invalid:${participantRole}`);
+      }
+      const binding = participantProfile.roleBindings.find(
+        (item) => item.role === participantRole && (slotKey ? item.slotKey === slotKey : true),
+      );
+      if (!binding) throw new Error(`action_relation_participant_binding_missing:${participantRole}`);
+    }
+    if (
+      definition.relationKey === 'action_relation.occurrence_of' &&
+      (fromRef !== '$action_execution' || toRef !== actionKey)
+    ) {
+      throw new Error('action_relation_occurrence_identity_invalid');
+    }
+    if (
+      ['action_relation.acts_on', 'action_relation.creates', 'action_relation.state_transition'].includes(
+        definition.relationKey,
+      ) &&
+      ((definition.relationKey === 'action_relation.state_transition'
+        ? fromRef !== '$action_execution'
+        : fromRef !== actionKey) ||
+        !targetEntityRefs.includes(toRef))
+    ) {
+      throw new Error(`action_relation_target_invalid:${definition.relationKey}`);
+    }
+    return {
+      relationDefinitionRef: relationDefinitionRef!,
+      fromRef,
+      toRef,
+      qualificationKeys:
+        qualificationKeys as BusinessActionRelationProfile['relationRefs'][number]['qualificationKeys'],
+      ...(slotKey ? { slotKey } : {}),
+      ...(participantRole
+        ? {
+            participantRole:
+              participantRole as BusinessActionRelationProfile['relationRefs'][number]['participantRole'],
+          }
+        : {}),
+      truthStatusPolicy:
+        truthStatusPolicy as BusinessActionRelationProfile['relationRefs'][number]['truthStatusPolicy'],
+    };
+  });
+  if (!relationRefs.some((ref) => ref.relationDefinitionRef.key === 'action_relation.occurrence_of')) {
+    throw new Error('action_relation_occurrence_ref_missing');
+  }
+  for (const targetEntityRef of targetEntityRefs) {
+    if (
+      !relationRefs.some(
+        (ref) => ref.relationDefinitionRef.key === 'action_relation.acts_on' && ref.toRef === targetEntityRef,
+      )
+    ) {
+      throw new Error(`action_relation_target_ref_missing:${targetEntityRef}`);
+    }
+  }
+  if (
+    (actionClass === 'create' || actionClass === 'reserve') &&
+    !relationRefs.some((ref) => ref.relationDefinitionRef.key === 'action_relation.creates')
+  ) {
+    throw new Error('action_relation_create_ref_missing');
+  }
+  if (
+    (actionClass === 'transition' || actionClass === 'update') &&
+    !relationRefs.some((ref) => ref.relationDefinitionRef.key === 'action_relation.state_transition')
+  ) {
+    throw new Error('action_relation_state_transition_ref_missing');
+  }
+  const institutionalEffectRefs = relationRefs.filter(
+    (ref) => ref.relationDefinitionRef.key === 'action_relation.institutional_effect',
+  );
+  const requiresInstitutionalEffect = INSTITUTIONAL_EFFECT_ACTION_KEYS.includes(actionKey);
+  if (
+    (requiresInstitutionalEffect &&
+      (institutionalEffectRefs.length !== 1 ||
+        institutionalEffectRefs[0].fromRef !== '$action_execution' ||
+        institutionalEffectRefs[0].toRef !== `${actionKey}.institutional_effect`)) ||
+    (!requiresInstitutionalEffect && institutionalEffectRefs.length)
+  ) {
+    throw new Error('action_relation_institutional_effect_ref_invalid');
+  }
+  relationRefs.sort(
+    (left, right) =>
+      left.relationDefinitionRef.key.localeCompare(right.relationDefinitionRef.key) ||
+      left.fromRef.localeCompare(right.fromRef) ||
+      left.toRef.localeCompare(right.toRef),
+  );
+  const fingerprintInput = {
+    schemaVersion: '1.0' as const,
+    profileKey: `${actionKey}.relations`,
+    unknownRelationPolicy: 'fail_closed' as const,
+    inferencePolicy: 'explicit_only' as const,
+    relationRefs,
+  };
+  const fingerprint = requiredString(profile.fingerprint);
+  if (!/^[0-9a-f]{64}$/u.test(fingerprint)) throw new Error('action_relation_profile_fingerprint_invalid');
+  requireEqual(fingerprint, createBusinessDefinitionProjectionFingerprint(fingerprintInput));
+  return { ...fingerprintInput, fingerprint };
+}
+
+function actionInstitutionalEffect(
+  value: unknown,
+  actionKey: string,
+  preconditions: readonly string[],
+): BusinessActionDefinitionSnapshot['institutionalEffect'] | undefined {
+  const expected = createBusinessActionInstitutionalEffectProfile({ actionKey, preconditions });
+  if (!expected) {
+    if (value !== undefined && value !== null) throw new Error('action_institutional_effect_profile_unexpected');
+    return undefined;
+  }
+  const profile = asRecord(value);
+  requireOnlyKeys(
+    profile,
+    [
+      'schemaVersion',
+      'profileKey',
+      'effectKind',
+      'requiredPermission',
+      'empoweredRolePolicy',
+      'authorizationBasis',
+      'constitutionPolicy',
+      'formalStateTransition',
+      'effectivenessPolicy',
+      'effectiveAtPolicy',
+      'truthPolicy',
+      'invalidityPolicy',
+      'fingerprint',
+    ],
+    'action_institutional_effect_contains_unknown_field',
+  );
+  requireEqual(
+    createBusinessDefinitionProjectionFingerprint(profile),
+    createBusinessDefinitionProjectionFingerprint(expected),
+  );
+  return expected;
+}
+
+function actionModalityPolicy(value: unknown, actionKey: string): BusinessActionDefinitionSnapshot['modalityPolicy'] {
+  const policy = asRecord(value);
+  requireOnlyKeys(
+    policy,
+    [
+      'schemaVersion',
+      'policyKey',
+      'supportedModalities',
+      'unsupportedModalityPolicy',
+      'confirmationReferencePolicy',
+      'schedulePolicy',
+      'cancellationReferencePolicy',
+      'fingerprint',
+    ],
+    'action_modality_policy_contains_unknown_field',
+  );
+  requireEqual(policy.schemaVersion, '1.0');
+  requireEqual(policy.policyKey, `${actionKey}.speech_act_modality`);
+  const supportedModalities = nonEmptyStringArray(
+    policy.supportedModalities,
+    'action_supported_modalities_must_not_be_empty',
+  );
+  if (supportedModalities.some((item) => item !== 'request')) {
+    throw new Error('action_supported_modality_not_implemented');
+  }
+  requireEqual(policy.unsupportedModalityPolicy, 'fail_closed');
+  requireEqual(policy.confirmationReferencePolicy, 'existing_confirmation_required');
+  requireEqual(policy.schedulePolicy, 'action_plan_required');
+  requireEqual(policy.cancellationReferencePolicy, 'existing_preview_or_plan_required');
+  const fingerprintInput = {
+    schemaVersion: '1.0' as const,
+    policyKey: `${actionKey}.speech_act_modality`,
+    supportedModalities: supportedModalities as ['request'],
+    unsupportedModalityPolicy: 'fail_closed' as const,
+    confirmationReferencePolicy: 'existing_confirmation_required' as const,
+    schedulePolicy: 'action_plan_required' as const,
+    cancellationReferencePolicy: 'existing_preview_or_plan_required' as const,
+  };
+  const fingerprint = requiredString(policy.fingerprint);
+  if (!/^[0-9a-f]{64}$/u.test(fingerprint)) throw new Error('action_modality_policy_fingerprint_invalid');
+  requireEqual(fingerprint, createBusinessDefinitionProjectionFingerprint(fingerprintInput));
+  return { ...fingerprintInput, fingerprint };
+}
+
+function actionInformationArtifact(
+  value: unknown,
+  actionKey: string,
+): BusinessActionDefinitionSnapshot['informationArtifact'] {
+  const profile = asRecord(value);
+  requireOnlyKeys(
+    profile,
+    [
+      'schemaVersion',
+      'profileKey',
+      'referencePolicy',
+      'artifactTypePolicy',
+      'sourcePolicy',
+      'versionPolicy',
+      'contentIntegrityPolicy',
+      'supersessionPolicy',
+      'fingerprint',
+    ],
+    'action_information_artifact_contains_unknown_field',
+  );
+  const fingerprintInput = {
+    schemaVersion: '1.0' as const,
+    profileKey: `${actionKey}.information_artifact`,
+    referencePolicy: 'bind_if_present' as const,
+    artifactTypePolicy: 'governed_result_reference' as const,
+    sourcePolicy: 'completed_brain_run_same_conversation_store_user' as const,
+    versionPolicy: 'source_run_and_capability_version' as const,
+    contentIntegrityPolicy: 'canonical_content_fingerprint' as const,
+    supersessionPolicy: 'explicit_new_reference_only' as const,
+  };
+  for (const [key, expected] of Object.entries(fingerprintInput)) requireEqual(profile[key], expected);
+  const fingerprint = requiredString(profile.fingerprint);
+  if (!/^[0-9a-f]{64}$/u.test(fingerprint)) throw new Error('action_information_artifact_fingerprint_invalid');
+  requireEqual(fingerprint, createBusinessDefinitionProjectionFingerprint(fingerprintInput));
+  return { ...fingerprintInput, fingerprint };
+}
+
+function actionSideEffectInvariant(
+  value: unknown,
+  input: Pick<
+    BusinessActionDefinitionSnapshot,
+    'actionKey' | 'preconditions' | 'preconditionPredicateRefs' | 'effects' | 'effectAssertionRefs'
+  >,
+): BusinessActionDefinitionSnapshot['sideEffectInvariant'] {
+  const profile = asRecord(value);
+  requireOnlyKeys(
+    profile,
+    [
+      'schemaVersion',
+      'profileKey',
+      'guardContractFingerprint',
+      'effectContractFingerprint',
+      'invariantContractRef',
+      'undeclaredSideEffectPolicy',
+      'gatewayEffectPolicy',
+      'mutationFootprintEvidencePolicy',
+      'successEvidencePolicy',
+      'partialSuccessPolicy',
+      'recoveryPolicy',
+      'compensationPolicy',
+      'outcomeObservationPolicy',
+      'fingerprint',
+    ],
+    'action_side_effect_invariant_contains_unknown_field',
+  );
+  const [invariantContractRef] = actionSemanticContractRefs(
+    [profile.invariantContractRef],
+    'action_invariant_contract_ref_missing',
+  );
+  const invariantContract = invariantContractRef
+    ? resolveCuratedActionInvariantContract(invariantContractRef)
+    : undefined;
+  if (!invariantContract || invariantContract.actionKey !== input.actionKey) {
+    throw new Error(`action_invariant_contract_drift:${input.actionKey}`);
+  }
+  const fingerprintInput = {
+    schemaVersion: '1.2' as const,
+    profileKey: `${input.actionKey}.side_effect_invariant`,
+    guardContractFingerprint: createBusinessDefinitionProjectionFingerprint({
+      actionKey: input.actionKey,
+      preconditions: [...input.preconditions].sort(),
+      predicateRefs: [...input.preconditionPredicateRefs]
+        .map((ref) => ({ ...ref }))
+        .sort((left, right) => left.key.localeCompare(right.key)),
+    }),
+    effectContractFingerprint: createBusinessDefinitionProjectionFingerprint({
+      actionKey: input.actionKey,
+      effects: [...input.effects].sort(),
+      effectRefs: [...input.effectAssertionRefs]
+        .map((ref) => ({ ...ref }))
+        .sort((left, right) => left.key.localeCompare(right.key)),
+    }),
+    invariantContractRef,
+    undeclaredSideEffectPolicy: 'forbid' as const,
+    gatewayEffectPolicy: 'exact_declared_effect_match' as const,
+    mutationFootprintEvidencePolicy: 'exact_database_trigger_observed_write_set' as const,
+    successEvidencePolicy: 'all_declared_effects_observed' as const,
+    partialSuccessPolicy: 'explicit_partially_succeeded' as const,
+    recoveryPolicy: 'gateway_declared_strategy_only' as const,
+    compensationPolicy: 'explicit_compensation_action_required' as const,
+    outcomeObservationPolicy: 'required_for_async_effects' as const,
+  };
+  for (const [key, expected] of Object.entries(fingerprintInput)) {
+    if (key === 'invariantContractRef') {
+      requireEqual(
+        createBusinessDefinitionProjectionFingerprint(profile[key]),
+        createBusinessDefinitionProjectionFingerprint(expected),
+      );
+    } else {
+      requireEqual(profile[key], expected);
+    }
+  }
+  const fingerprint = requiredString(profile.fingerprint);
+  if (!/^[0-9a-f]{64}$/u.test(fingerprint)) throw new Error('action_side_effect_invariant_fingerprint_invalid');
+  requireEqual(fingerprint, createBusinessDefinitionProjectionFingerprint(fingerprintInput));
+  return { ...fingerprintInput, fingerprint };
+}
+
+function actionSituationContext(value: unknown, actionKey: string): BusinessActionSituationContextProfile {
+  const profile = asRecord(value);
+  requireOnlyKeys(
+    profile,
+    [
+      'schemaVersion',
+      'profileKey',
+      'tenantBoundary',
+      'requestChannelPolicy',
+      'devicePolicy',
+      'conversationPolicy',
+      'businessTimePolicy',
+      'actorPolicy',
+      'fingerprint',
+    ],
+    'action_situation_context_contains_unknown_field',
+  );
+  requireEqual(profile.schemaVersion, '1.0');
+  requireEqual(profile.profileKey, `${actionKey}.situation_context`);
+  requireEqual(profile.tenantBoundary, 'current_store');
+  requireEqual(profile.requestChannelPolicy, 'bind_if_present');
+  requireEqual(profile.devicePolicy, 'bind_if_present');
+  requireEqual(profile.conversationPolicy, 'same_conversation');
+
+  const businessTimePolicy = asRecord(profile.businessTimePolicy);
+  requireOnlyKeys(
+    businessTimePolicy,
+    ['timezone', 'businessDatePolicy', 'clockSource'],
+    'action_situation_business_time_policy_contains_unknown_field',
+  );
+  requireEqual(businessTimePolicy.timezone, 'Asia/Shanghai');
+  requireEqual(businessTimePolicy.businessDatePolicy, 'same_business_date');
+  requireEqual(businessTimePolicy.clockSource, 'server');
+
+  const actorPolicy = asRecord(profile.actorPolicy);
+  requireOnlyKeys(
+    actorPolicy,
+    ['subjectPolicy', 'qualificationPolicy'],
+    'action_situation_actor_policy_contains_unknown_field',
+  );
+  requireEqual(actorPolicy.subjectPolicy, 'same_authenticated_user');
+  requireEqual(actorPolicy.qualificationPolicy, 'revalidate_current_role_and_permission');
+
+  const fingerprintInput = {
+    schemaVersion: '1.0' as const,
+    profileKey: `${actionKey}.situation_context`,
+    tenantBoundary: 'current_store' as const,
+    requestChannelPolicy: 'bind_if_present' as const,
+    devicePolicy: 'bind_if_present' as const,
+    conversationPolicy: 'same_conversation' as const,
+    businessTimePolicy: {
+      timezone: 'Asia/Shanghai' as const,
+      businessDatePolicy: 'same_business_date' as const,
+      clockSource: 'server' as const,
+    },
+    actorPolicy: {
+      subjectPolicy: 'same_authenticated_user' as const,
+      qualificationPolicy: 'revalidate_current_role_and_permission' as const,
+    },
+  };
+  const fingerprint = requiredString(profile.fingerprint);
+  if (!/^[0-9a-f]{64}$/u.test(fingerprint)) throw new Error('action_situation_context_fingerprint_invalid');
+  requireEqual(fingerprint, createBusinessDefinitionProjectionFingerprint(fingerprintInput));
+  return { ...fingerprintInput, fingerprint };
+}
+
+function actionLexicalFrame(
+  value: unknown,
+  actionKey: string,
+  actionClass: BusinessActionDefinitionSnapshot['actionClass'],
+  actionName: string,
+  aliases: readonly string[],
+  targetEntityRefs: readonly string[],
+  inputSlots: readonly BusinessActionInputSlotDefinition[],
+  preconditions: readonly string[],
+  effects: readonly string[],
+): BusinessActionLexicalFrame {
+  const frame = asRecord(value);
+  requireOnlyKeys(
+    frame,
+    ['schemaVersion', 'frameKey', 'lexicalUnits', 'thematicRoles', 'semanticPredicates', 'contrasts', 'fingerprint'],
+    'action_lexical_frame_contains_unknown_field',
+  );
+  requireEqual(frame.schemaVersion, '1.0');
+  requireEqual(frame.frameKey, `${actionKey}.lexical_frame`);
+  const lexicalUnits = nonEmptyStringArray(frame.lexicalUnits, 'action_lexical_units_must_not_be_empty');
+  for (const expected of [actionName, ...aliases]) {
+    if (!lexicalUnits.includes(expected)) throw new Error(`action_lexical_unit_missing:${expected}`);
+  }
+
+  if (!Array.isArray(frame.thematicRoles)) throw new Error('action_lexical_thematic_roles_must_be_an_array');
+  const slotsByKey = new Map(inputSlots.map((slot) => [slot.slotKey, slot]));
+  const coveredSlots = new Set<string>();
+  const thematicRoles = frame.thematicRoles.map((item) => {
+    const role = asRecord(item);
+    requireOnlyKeys(role, ['semanticRole', 'slotKeys'], 'action_lexical_thematic_role_contains_unknown_field');
+    const semanticRole = requiredString(role.semanticRole);
+    if (!ACTION_SEMANTIC_ROLES.has(semanticRole)) {
+      throw new Error(`action_lexical_thematic_role_invalid:${semanticRole}`);
+    }
+    const slotKeys = nonEmptyStringArray(role.slotKeys, 'action_lexical_thematic_role_slot_keys_empty');
+    for (const slotKey of slotKeys) {
+      const slot = slotsByKey.get(slotKey);
+      if (!slot) throw new Error(`action_lexical_thematic_role_slot_missing:${slotKey}`);
+      if (slot.semanticRole !== semanticRole) {
+        throw new Error(`action_lexical_thematic_role_slot_mismatch:${slotKey}:${semanticRole}`);
+      }
+      if (coveredSlots.has(slotKey)) throw new Error(`action_lexical_thematic_role_slot_duplicate:${slotKey}`);
+      coveredSlots.add(slotKey);
+    }
+    return {
+      semanticRole: semanticRole as BusinessActionLexicalFrame['thematicRoles'][number]['semanticRole'],
+      slotKeys,
+    };
+  });
+  if (coveredSlots.size !== inputSlots.length) throw new Error('action_lexical_thematic_roles_incomplete');
+
+  const semanticPredicates = nonEmptyStringArray(
+    frame.semanticPredicates,
+    'action_lexical_semantic_predicates_must_not_be_empty',
+  );
+  const semanticErrors = validateBusinessActionSemanticPredicates(semanticPredicates, {
+    actionKey,
+    actionClass,
+    targetEntityRefs,
+    preconditions,
+    effects,
+  });
+  if (semanticErrors.length) throw new Error(semanticErrors.join(','));
+  if (!Array.isArray(frame.contrasts) || !frame.contrasts.length) {
+    throw new Error('action_lexical_contrasts_must_not_be_empty');
+  }
+  const contrastKeys = new Set<string>();
+  const contrasts = frame.contrasts.map((item) => {
+    const contrast = asRecord(item);
+    requireOnlyKeys(
+      contrast,
+      ['conceptKey', 'name', 'discriminators'],
+      'action_lexical_contrast_contains_unknown_field',
+    );
+    const conceptKey = requiredString(contrast.conceptKey);
+    if (!/^(?:action|speech)\.[a-z][a-z0-9_]*$/u.test(conceptKey) || conceptKey === actionKey) {
+      throw new Error(`action_lexical_contrast_key_invalid:${conceptKey}`);
+    }
+    if (contrastKeys.has(conceptKey)) throw new Error(`action_lexical_contrast_duplicate:${conceptKey}`);
+    contrastKeys.add(conceptKey);
+    if (!Array.isArray(contrast.discriminators) || !contrast.discriminators.length) {
+      throw new Error(`action_lexical_contrast_discriminators_empty:${conceptKey}`);
+    }
+    const discriminators = contrast.discriminators.map((entry) => {
+      const discriminator = asRecord(entry);
+      requireOnlyKeys(
+        discriminator,
+        ['dimension', 'currentActionValue', 'contrastActionValue'],
+        'action_lexical_discriminator_contains_unknown_field',
+      );
+      const dimension = requiredString(discriminator.dimension);
+      if (!ACTION_LEXICAL_DISCRIMINATOR_DIMENSIONS.has(dimension)) {
+        throw new Error(`action_lexical_discriminator_dimension_invalid:${conceptKey}:${dimension}`);
+      }
+      return {
+        dimension: dimension as BusinessActionLexicalFrame['contrasts'][number]['discriminators'][number]['dimension'],
+        currentActionValue: requiredString(discriminator.currentActionValue),
+        contrastActionValue: requiredString(discriminator.contrastActionValue),
+      };
+    });
+    return { conceptKey, name: requiredString(contrast.name), discriminators };
+  });
+  const fingerprint = requiredString(frame.fingerprint);
+  if (!/^[0-9a-f]{64}$/u.test(fingerprint)) throw new Error('action_lexical_frame_fingerprint_invalid');
+  const fingerprintInput = {
+    schemaVersion: '1.0' as const,
+    frameKey: `${actionKey}.lexical_frame`,
+    lexicalUnits,
+    thematicRoles,
+    semanticPredicates,
+    contrasts,
+  };
+  requireEqual(fingerprint, createBusinessDefinitionProjectionFingerprint(fingerprintInput));
+  return { ...fingerprintInput, fingerprint };
+}
+
+function actionSemanticContractRefs(value: unknown, missingCode: string) {
+  if (!Array.isArray(value)) throw new Error(missingCode);
+  const seen = new Set<string>();
+  return value.map((item) => {
+    const reference = asRecord(item);
+    requireOnlyKeys(
+      reference,
+      ['key', 'version', 'fingerprint'],
+      'action_semantic_contract_ref_contains_unknown_field',
+    );
+    const key = requiredString(reference.key);
+    if (seen.has(key)) throw new Error(`action_semantic_contract_ref_duplicate:${key}`);
+    seen.add(key);
+    const version = Number(reference.version);
+    if (!Number.isInteger(version) || version <= 0)
+      throw new Error(`action_semantic_contract_ref_version_invalid:${key}`);
+    const fingerprint = requiredString(reference.fingerprint);
+    if (!/^[0-9a-f]{64}$/u.test(fingerprint)) {
+      throw new Error(`action_semantic_contract_ref_fingerprint_invalid:${key}`);
+    }
+    return { key, version, fingerprint };
+  });
+}
+
+function actionInputSlots(value: unknown): BusinessActionInputSlotDefinition[] {
+  if (!Array.isArray(value)) throw new Error('action_input_slots_must_be_an_array');
+  return value.map((item) => {
+    const slot = asRecord(item);
+    requireOnlyKeys(
+      slot,
+      [
+        'slotKey',
+        'label',
+        'semanticRole',
+        'valueType',
+        'entityTypeRef',
+        'unitPolicy',
+        'requiredAt',
+        'cardinality',
+        'sensitive',
+        'resolutionPolicy',
+        'validationPolicy',
+        'defaultPolicy',
+        'confirmationDisplay',
+      ],
+      'action_input_slot_contains_unknown_field',
+    );
+    const semanticRole = requiredString(slot.semanticRole);
+    if (
+      ![
+        'actor',
+        'requester',
+        'authorizer',
+        'approver',
+        'performer',
+        'assignee',
+        'service_provider',
+        'accountable_party',
+        'beneficiary',
+        'counterparty',
+        'object',
+        'target',
+        'instrument',
+        'origin',
+        'destination',
+        'quantity',
+        'time',
+        'condition',
+      ].includes(semanticRole)
+    ) {
+      throw new Error(`action_slot_semantic_role_invalid:${semanticRole}`);
+    }
+    const valueType = requiredString(slot.valueType);
+    if (!['entity_ref', 'number', 'money', 'enum', 'text', 'time', 'boolean'].includes(valueType)) {
+      throw new Error(`action_slot_value_type_invalid:${valueType}`);
+    }
+    const requiredAt = uniqueStrings(slot.requiredAt);
+    if (requiredAt.some((stage) => !['recognition', 'preview', 'execution'].includes(stage))) {
+      throw new Error('action_slot_required_stage_invalid');
+    }
+    const cardinality = slot.cardinality === undefined ? 'one' : requiredString(slot.cardinality);
+    if (cardinality !== 'one' && cardinality !== 'many') throw new Error('action_slot_cardinality_invalid');
+    if (slot.sensitive !== undefined && typeof slot.sensitive !== 'boolean') {
+      throw new Error('action_slot_sensitive_invalid');
+    }
+    if (slot.confirmationDisplay !== undefined && typeof slot.confirmationDisplay !== 'boolean') {
+      throw new Error('action_slot_confirmation_display_invalid');
+    }
+    const entityTypeRef = optionalString(slot.entityTypeRef);
+    const unitPolicy = optionalString(slot.unitPolicy);
+    const resolutionPolicy = optionalString(slot.resolutionPolicy);
+    const validationPolicy = optionalString(slot.validationPolicy);
+    const defaultPolicy = optionalString(slot.defaultPolicy);
+    return {
+      slotKey: requiredString(slot.slotKey),
+      label: requiredString(slot.label),
+      semanticRole: semanticRole as BusinessActionInputSlotDefinition['semanticRole'],
+      valueType: valueType as BusinessActionInputSlotDefinition['valueType'],
+      ...(entityTypeRef ? { entityTypeRef } : {}),
+      ...(unitPolicy ? { unitPolicy } : {}),
+      requiredAt: requiredAt as BusinessActionInputSlotDefinition['requiredAt'],
+      cardinality,
+      sensitive: slot.sensitive === true,
+      ...(resolutionPolicy ? { resolutionPolicy } : {}),
+      ...(validationPolicy ? { validationPolicy } : {}),
+      ...(defaultPolicy ? { defaultPolicy } : {}),
+      confirmationDisplay: slot.confirmationDisplay !== false,
+    };
+  });
+}
+
+function actionCapabilityBindings(value: unknown): BusinessActionCapabilityBinding[] {
+  if (!Array.isArray(value)) throw new Error('action_capability_bindings_must_be_an_array');
+  const bindings = value.map((item) => {
+    const binding = asRecord(item);
+    requireOnlyKeys(
+      binding,
+      ['capabilityKey', 'bindingMode', 'gatewayActionKey', 'priority', 'enabled'],
+      'action_capability_binding_contains_unknown_field',
+    );
+    const bindingMode = requiredString(binding.bindingMode);
+    if (!['preview_only', 'preview_and_execute', 'execute_only'].includes(bindingMode)) {
+      throw new Error(`action_capability_binding_mode_invalid:${bindingMode}`);
+    }
+    const priority =
+      binding.priority === undefined ? 0 : finiteNumber(binding.priority, 'action_binding_priority_invalid');
+    if (!Number.isInteger(priority) || priority < 0) throw new Error('action_binding_priority_invalid');
+    if (binding.enabled !== undefined && typeof binding.enabled !== 'boolean') {
+      throw new Error('action_binding_enabled_invalid');
+    }
+    const gatewayActionKey = optionalString(binding.gatewayActionKey);
+    return {
+      capabilityKey: requiredString(binding.capabilityKey),
+      bindingMode: bindingMode as BusinessActionCapabilityBinding['bindingMode'],
+      ...(gatewayActionKey ? { gatewayActionKey } : {}),
+      priority,
+      enabled: binding.enabled !== false,
+    };
+  });
+  if (!bindings.some((binding) => binding.enabled)) {
+    throw new Error('action_capability_bindings_must_contain_enabled_binding');
+  }
+  return bindings.sort(
+    (left, right) => left.priority - right.priority || left.capabilityKey.localeCompare(right.capabilityKey),
+  );
+}
+
+const ACTION_SEMANTIC_ROLES = new Set([
+  'actor',
+  'requester',
+  'authorizer',
+  'approver',
+  'performer',
+  'assignee',
+  'service_provider',
+  'accountable_party',
+  'beneficiary',
+  'counterparty',
+  'object',
+  'target',
+  'instrument',
+  'origin',
+  'destination',
+  'quantity',
+  'time',
+  'condition',
+]);
+
+const ACTION_PARTICIPANT_ROLES = new Set([
+  'requester',
+  'authorizer',
+  'approver',
+  'performer',
+  'assignee',
+  'service_provider',
+  'beneficiary',
+  'counterparty',
+  'accountable_party',
+]);
+const ACTION_PARTICIPANT_SOURCES = new Set([
+  'authenticated_user',
+  'confirmation_actor',
+  'gateway_executor',
+  'action_slot',
+  'workflow_assignment',
+]);
+const ACTION_PARTICIPANT_QUALIFICATION_POLICIES = new Set([
+  'same_authenticated_user',
+  'revalidate_current_role_and_permission',
+  'released_gateway_binding',
+  'resolved_same_store_business_subject',
+  'explicit_workflow_assignment',
+]);
+const ACTION_PARTICIPANT_RUNTIME_VISIBILITIES = new Set(['model_visible', 'validator_only', 'execution_only']);
+
+function validParticipantBindingSource(role: string, source: string) {
+  const fixedSources = {
+    requester: 'authenticated_user',
+    authorizer: 'confirmation_actor',
+    performer: 'gateway_executor',
+    accountable_party: 'confirmation_actor',
+  };
+  if (fixedSources[role as keyof typeof fixedSources])
+    return fixedSources[role as keyof typeof fixedSources] === source;
+  return source === 'action_slot' || source === 'workflow_assignment';
+}
+
+const ACTION_LEXICAL_DISCRIMINATOR_DIMENSIONS = new Set([
+  'modality',
+  'action_class',
+  'target_entity',
+  'required_role',
+  'required_slot',
+  'precondition',
+  'effect',
+  'state_transition',
+  'resource_flow',
+  'spatial_direction',
+  'responsibility',
+  'commitment',
+]);
 
 function mapDimension({ row, domain, name, definition }: ParsedProjection) {
   const dimensionKey = requiredString(definition.dimensionKey);

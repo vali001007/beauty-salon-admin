@@ -48,7 +48,10 @@ import {
 import { BrainEvalExpectationResolverService } from '../src/brain/eval/brain-eval-expectation-resolver.service.js';
 import { BrainCompletionGraderService } from '../src/brain/eval/brain-completion-grader.service.js';
 import { statusForLayerFailure } from '../src/brain/eval/brain-eval-status.js';
-import { parseAmiBrainEvalOptions } from '../src/brain/eval/ami-brain-eval-options.js';
+import {
+  assertAmiBrainHistoricalEvalMode,
+  parseAmiBrainEvalOptions,
+} from '../src/brain/eval/ami-brain-eval-options.js';
 import {
   buildAmiBrainEvalRegressionManifest,
   compareAmiBrainEvalRegression,
@@ -202,6 +205,7 @@ function loadEvalQuestions(questionFile: string): BrainEvalQuestionCase[] {
 async function main() {
   loadWorkspaceEnvironment(REPO_ROOT);
   const options = parseAmiBrainEvalOptions(process.argv.slice(2), DEFAULT_OUTPUT_DIR);
+  assertAmiBrainHistoricalEvalMode(options);
   if (process.argv.includes('--prefer-fallback=true')) preferConfiguredFallbackAsPrimary();
   process.env.BRAIN_COGNITION_MODE ??= 'model';
   process.env.BRAIN_PLANNER_MODE ??= 'model';
@@ -212,7 +216,7 @@ async function main() {
     throw new Error('ami_brain_eval_regression_from_conflicts_with_question_ids');
   }
   const regressionSource = options.regressionFrom ? loadRegressionSource(options.regressionFrom) : undefined;
-  let questions = annotateQuestionBankCoverage(loadEvalQuestions(questionFile));
+  let questions: BrainEvalQuestionCase[] = annotateQuestionBankCoverage(loadEvalQuestions(questionFile));
   if (options.gate === 'p0') questions = selectP0QuestionBankCases(questions) as BrainEvalQuestionCase[];
   if (options.persona) questions = questions.filter((item) => item.persona === options.persona);
   if (regressionSource) {
@@ -238,6 +242,7 @@ async function main() {
   console.log(
     `[ami-brain-eval] questions=${questions.length} storeId=${options.storeId} releaseId=${options.releaseId ?? 'active'} evaluationRole=${options.evaluationRoleKey} concurrency=${options.concurrency}`,
   );
+  console.warn('[ami-brain-eval] historical-only：结果不得进入发布验收、当前产品通过率或性能门禁。');
 
   const app = await NestFactory.createApplicationContext(AmiBrainEvalModule, { logger: ['error', 'warn'] });
   try {
@@ -434,6 +439,10 @@ async function main() {
           : null,
         candidateSkillsEnabledForEval: Boolean(options.releaseId),
         product: 'ami_brain',
+        evidenceClass: 'historical_only_non_product_gate',
+        eligibleForProductAcceptance: false,
+        productAcceptanceExclusionReason:
+          '该入口未使用统一产品闭环资格登记和两阶段 suite manifest，仅用于历史诊断与对照。',
         entrypoint: 'BrainChatService.createConversation + BrainChatService.sendMessage',
         permissionSource: releaseSnapshot
           ? 'active_backend_role_catalog_plus_candidate_minimum_permissions'

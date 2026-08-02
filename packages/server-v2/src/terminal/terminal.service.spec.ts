@@ -2422,6 +2422,75 @@ describe('TerminalService automation', () => {
     expect(commissionService.getAmiDashboard).not.toHaveBeenCalled();
   });
 
+  it('returns deterministic manager insights without blocking the dashboard on AI generation', async () => {
+    let resolveInsights: ((value: unknown) => void) | undefined;
+    const aiService = {
+      generateTerminalDashboardInsights: jest.fn(
+        () =>
+          new Promise((resolve) => {
+            resolveInsights = resolve;
+          }),
+      ),
+    };
+    service = new TerminalService(
+      prisma as any,
+      {} as any,
+      aiService as any,
+      commissionService as any,
+      terminalDashboardCache as any,
+    );
+    const context = {
+      storeName: '静安旗舰店',
+      metrics: {
+        customerTotal: 120,
+        activeCustomerTotal: 88,
+        revenue: 68000,
+        orderCount: 36,
+        reservationCount: 12,
+        arrivedReservationCount: 9,
+        cashIncome: 10000,
+        grossProfit: 42000,
+        grossMargin: 61.76,
+      },
+      customersAtRisk: [],
+      todayReservations: [],
+      lowStock: [],
+      staffLoad: [],
+      recentOrders: [],
+    };
+
+    const fallback = await (service as any).getManagerDashboardInsights(1, context);
+
+    expect(fallback.risks).toEqual([
+      expect.objectContaining({ title: '预约客户未到店', relatedType: 'reservation' }),
+    ]);
+    expect(fallback.suggestions).toHaveLength(2);
+    expect(aiService.generateTerminalDashboardInsights).toHaveBeenCalledTimes(1);
+
+    await Promise.resolve();
+    const refresh = [...(service as any).managerInsightRefreshes.values()][0] as Promise<void>;
+    resolveInsights?.({
+      structured: {
+        risks: [
+          {
+            title: '人工智能风险',
+            severity: 'medium',
+            reason: '基于真实看板数据生成',
+            action: '请店长复核',
+          },
+        ],
+        suggestions: [],
+      },
+    });
+    await refresh;
+
+    await expect((service as any).getManagerDashboardInsights(1, context)).resolves.toMatchObject({
+      risks: [{ title: '人工智能风险' }],
+      suggestions: [],
+    });
+    expect(aiService.generateTerminalDashboardInsights).toHaveBeenCalledTimes(1);
+  });
+
   it('serves repeated inventory alert dashboard calls from terminal dashboard cache', async () => {
     const cache = new TerminalDashboardCacheService();
     const scopedPrisma = {

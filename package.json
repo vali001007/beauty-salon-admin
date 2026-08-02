@@ -3,10 +3,10 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "packageManager": "npm@10.9.2",
+  "packageManager": "npm@11.16.0",
   "engines": {
-    "node": ">=22 <23",
-    "npm": ">=10 <11"
+    "node": ">=24 <25",
+    "npm": ">=11 <12"
   },
   "scripts": {
     "build": "npm run typecheck:app && vite build",
@@ -43,6 +43,8 @@
     "check:ami-semantic-agent": "node scripts/check-ami-semantic-agent.mjs",
     "check:ami-query-hub": "node scripts/check-ami-query-hub.mjs",
     "check:brain-mvp": "node scripts/check-brain-mvp.mjs",
+    "check:ami-brain-cross-client-contract": "node scripts/check-ami-brain-cross-client-contract.mjs",
+    "brain:check": "npm --prefix packages/server-v2 run brain:check --",
     "brain:capability:scan": "npm --prefix packages/server-v2 run brain:capability:scan --",
     "brain:capability:scan:strict": "npm --prefix packages/server-v2 run brain:capability:scan:strict --",
     "brain:capability:generate": "npm --prefix packages/server-v2 run brain:capability:generate --",
@@ -74,6 +76,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
+    "test:e2e:brain-governance": "playwright test -c playwright.brain-governance.config.ts",
     "test:e2e:industry-chain": "playwright test e2e/industry-inventory-chain.spec.ts",
     "test:e2e:kiosk": "playwright test -c playwright.kiosk.config.ts",
     "lint": "eslint src --ext .ts,.tsx",

@@ -67,13 +67,49 @@ async function main() {
           });
           return [result as unknown as Record<string, unknown>];
         }
-        if (input.resolverKey === 'finance_cost_analysis') {
+        if (
+          input.resolverKey === 'finance_cost_analysis' ||
+          input.resolverKey === 'finance_settlement_cost_analysis' ||
+          input.resolverKey === 'finance_stored_value_liability_summary' ||
+          input.resolverKey === 'finance_unfulfilled_card_liability_summary'
+        ) {
           const result = await financeSkills.buildCostAnalysis({
             storeId: input.storeId,
             startDate: input.startDate,
             endDate: new Date(input.endExclusive.getTime() - 1),
           });
           return [result as unknown as Record<string, unknown>];
+        }
+        if (input.resolverKey === 'finance_card_recognition_rows') {
+          return financeSkills.buildCardRecognitionRows({
+            storeId: input.storeId,
+            startDate: input.startDate,
+            endDate: new Date(input.endExclusive.getTime() - 1),
+          }) as unknown as Record<string, unknown>[];
+        }
+        if (
+          input.resolverKey === 'finance_order_profit_rows' ||
+          input.resolverKey === 'finance_product_order_profit_rows' ||
+          input.resolverKey === 'finance_prepaid_order_profit_rows'
+        ) {
+          return financeSkills.buildOrderProfitRows({
+            storeId: input.storeId,
+            startDate: input.startDate,
+            endDate: new Date(input.endExclusive.getTime() - 1),
+            scope:
+              input.resolverKey === 'finance_product_order_profit_rows'
+                ? 'product'
+                : input.resolverKey === 'finance_prepaid_order_profit_rows'
+                  ? 'prepaid'
+                  : 'all',
+          }) as unknown as Record<string, unknown>[];
+        }
+        if (input.resolverKey === 'finance_staff_commission_rows') {
+          return financeSkills.buildStaffCommissionRows({
+            storeId: input.storeId,
+            startDate: input.startDate,
+            endDate: new Date(input.endExclusive.getTime() - 1),
+          }) as unknown as Record<string, unknown>[];
         }
         if (input.resolverKey === 'inventory_risk_summary') {
           const result = await inventorySkills.buildInventoryRiskSummary({
@@ -124,7 +160,7 @@ async function main() {
           });
           return input.resolverKey === 'customer_service_feedback_summary'
             ? [result.summary as unknown as Record<string, unknown>]
-            : result.staff as unknown as Record<string, unknown>[];
+            : (result.staff as unknown as Record<string, unknown>[]);
         }
         if (input.resolverKey === 'customer_waiting_summary') {
           const result = await customerWaiting.analytics(input.storeId, {
@@ -180,7 +216,9 @@ async function main() {
             },
             limit: 20,
           },
-          expected: await (candidateAdapter.supports(version.canonicalQueryRef) ? candidateAdapter : legacyAdapter).execute({
+          expected: await (
+            candidateAdapter.supports(version.canonicalQueryRef) ? candidateAdapter : legacyAdapter
+          ).execute({
             canonicalQueryRef: version.canonicalQueryRef,
             version: version as never,
             fixtureCase: {

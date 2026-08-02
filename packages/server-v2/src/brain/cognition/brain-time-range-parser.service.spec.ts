@@ -55,6 +55,54 @@ describe('BrainTimeRangeParserService', () => {
     });
   });
 
+  it('parses an explicit Chinese calendar day', () => {
+    expect(
+      range('2026年6月30日各支付方式的金额分别多少'), // BQ0705
+    ).toMatchObject({
+      label: '2026年6月30日',
+      startDate: new Date(2026, 5, 30, 0, 0, 0, 0),
+      endDate: new Date(2026, 5, 30, 23, 59, 59, 999),
+      granularity: 'day',
+    });
+  });
+
+  it('parses an explicit Chinese calendar month', () => {
+    expect(range('2026年6月成本占收入的比例')).toMatchObject({
+      label: '2026年6月',
+      startDate: new Date(2026, 5, 1, 0, 0, 0, 0),
+      endDate: new Date(2026, 5, 30, 23, 59, 59, 999),
+      granularity: 'month',
+    });
+  });
+
+  it('parses an explicit same-month Chinese date range before month comparison detection', () => {
+    expect(
+      range('晒后舒缓修护订单2026年6月17日至30日的利润情况'), // BQ0846
+    ).toMatchObject({
+      label: '2026年6月17日至2026年6月30日',
+      startDate: new Date(2026, 5, 17, 0, 0, 0, 0),
+      endDate: new Date(2026, 5, 30, 23, 59, 59, 999),
+      granularity: 'day',
+    });
+    expect(
+      range('2026年6月17日至6月30日的订单利润'), // ami-brain-unit-only
+    ).toMatchObject({
+      startDate: new Date(2026, 5, 17, 0, 0, 0, 0),
+      endDate: new Date(2026, 5, 30, 23, 59, 59, 999),
+    });
+  });
+
+  it('parses an explicit cutoff timestamp without rounding it to a calendar day', () => {
+    expect(
+      range('截至2026/07/29 12:45:41，综合养护 20 次卡的确认收入进度'), // BQ0828
+    ).toMatchObject({
+      label: '截至2026年7月29日 12:45:41',
+      startDate: new Date(0),
+      endDate: new Date(2026, 6, 29, 12, 45, 41, 0),
+      granularity: 'hour',
+    });
+  });
+
   it('parses a rolling past year instead of defaulting to today', () => {
     expect(range('把所有员工过去一年的业绩全部列出来')).toMatchObject({
       label: '过去1年',
@@ -107,6 +155,22 @@ describe('BrainTimeRangeParserService', () => {
     expect(result.comparison).toBeUndefined();
   });
 
+  it('keeps yesterday as the explicit target for the exact BQ1933 continuation', () => {
+    const result = parser.parse('跟昨天比呢', { now }); // BQ1933
+
+    expect(result).toMatchObject({
+      mentionedTime: true,
+      requiresComparison: true,
+      range: {
+        label: '昨天',
+        startDate: new Date(2026, 6, 9, 0, 0, 0, 0),
+        endDate: new Date(2026, 6, 9, 23, 59, 59, 999),
+      },
+      unsupportedExpressions: [],
+    });
+    expect(result.comparison).toBeUndefined();
+  });
+
   it('defaults generic month-over-month wording to current month versus previous month', () => {
     const result = parser.parse('收入环比是涨了还是跌了，差额多少', { now });
 
@@ -142,6 +206,14 @@ describe('BrainTimeRangeParserService', () => {
     expect(result.mentionedTime).toBe(false);
     expect(result.filters).toEqual([]);
     expect(result.range).toBeUndefined();
+  });
+
+  it('marks an unconfigured named campaign period as unsupported instead of inventing a date', () => {
+    const result = parser.parse('跟双十一期间比呢', { now });
+
+    expect(result.mentionedTime).toBe(true);
+    expect(result.comparison).toBeUndefined();
+    expect(result.unsupportedExpressions).toEqual(expect.arrayContaining(['双十一']));
   });
 
   it('parses recent business status as the latest 30 calendar days', () => {

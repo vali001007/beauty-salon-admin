@@ -13,6 +13,7 @@ import {
   realCreateInventoryAdjustment,
   realCreatePurchaseOrder,
   realUpdatePurchaseOrderStatus,
+  realSubmitPurchaseOrderForApproval,
   realReceivePurchaseOrder,
   realCreateTransfer,
   realGetTransferSuggestions,
@@ -58,6 +59,13 @@ export const createPurchaseOrder: (data: PurchaseOrderFormData) => Promise<Purch
 
 export const updatePurchaseOrderStatus: (id: number, status: PurchaseOrder['status']) => Promise<PurchaseOrder> =
   realUpdatePurchaseOrderStatus;
+
+export const submitPurchaseOrderForApproval: (
+  id: number,
+  expectedPurchaseOrderUpdatedAt: string,
+  idempotencyKey: string,
+) => Promise<PurchaseOrder> =
+  realSubmitPurchaseOrderForApproval;
 
 export const receivePurchaseOrder: (id: number, data: {
   items?: Array<{ sku: string; receivedQty: number; batchNo?: string; productionDate?: string; expiryDate?: string }>;

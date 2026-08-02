@@ -104,6 +104,7 @@ describe('Brain role and memory model context integration', () => {
         },
       ],
       dimensions: [],
+      actions: [],
     };
 
     const [roleContext, turn] = await Promise.all([

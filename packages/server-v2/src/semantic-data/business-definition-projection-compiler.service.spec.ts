@@ -157,6 +157,32 @@ describe('BusinessDefinitionProjectionCompilerService', () => {
     expect((projection.payload as any).data.capabilities).toEqual(capabilities);
   });
 
+  it('projects enabled action capability bindings into the governed capability view', () => {
+    const actionVersion = {
+      ...version,
+      definition: {
+        ...version.definition,
+        definitionKey: 'action.create_purchase_order',
+        kind: 'action',
+        domain: 'inventory',
+        name: '创建采购单',
+      },
+      payload: {
+        aliases: ['创建采购单'],
+        capabilityBindings: [
+          { capabilityKey: 'purchase_order_draft', enabled: true },
+          { capabilityKey: 'disabled_purchase_order_action', enabled: false },
+        ],
+      },
+    };
+
+    const projection = compiler
+      .compilePublishedVersion(actionVersion)
+      .find((item) => item.targetType === 'capability_semantic_view');
+
+    expect((projection?.payload as any).data.capabilityBindings).toEqual(['purchase_order_draft']);
+  });
+
   it('produces stable projection fingerprints independent of object key order', () => {
     const first = compiler.compilePublishedVersion(version);
     const second = compiler.compilePublishedVersion({
@@ -232,5 +258,76 @@ describe('BusinessDefinitionProjectionCompilerService', () => {
     expect(backfillMigration).toContain('UPDATE "business_definition_projection"');
     expect(backfillMigration).toContain("COALESCE(\"payload\"->>'projectionSchemaVersion', '') <> '2.0'");
     expect(backfillMigration).toContain('business definition projection V1 backfill is incomplete');
+  });
+
+  it('keeps the database lineage guard aligned with action runtime projections', () => {
+    const actionLineageMigration = readFileSync(
+      join(
+        process.cwd(),
+        'prisma/migrations/20260730220000_business_definition_action_projection_lineage/migration.sql',
+      ),
+      'utf8',
+    );
+
+    expect(actionLineageMigration).toContain(
+      "parent_kind IN (''entity'', ''relation'', ''dimension'', ''action'')",
+    );
+    expect(actionLineageMigration).toContain(
+      'business definition projection lineage action upgrade source is unexpected',
+    );
+    expect(actionLineageMigration).toContain(
+      'business definition projection lineage action upgrade is incomplete',
+    );
+  });
+
+  it('keeps database canonical JSON ordering deterministic for mixed-case action keys', () => {
+    const canonicalJsonMigration = readFileSync(
+      join(
+        process.cwd(),
+        'prisma/migrations/20260730221000_business_definition_canonical_json_c_collation/migration.sql',
+      ),
+      'utf8',
+    );
+    const fingerprint = createBusinessDefinitionProjectionFingerprint({
+      effectKind: 'reservation_cancellation',
+      effectiveAtPolicy: 'mutation_receipt_committed_at',
+      effectivenessPolicy: 'observed_state_transition_and_transactional_receipt',
+    });
+
+    expect(fingerprint).toBe('c877c79e05cdafe177a67efd79034c3f96d3a82f6d4301bb9f3f72490ba91eab');
+    expect(canonicalJsonMigration).toContain('ORDER BY entry_key COLLATE "C"');
+    expect(canonicalJsonMigration).toContain(fingerprint);
+    expect(canonicalJsonMigration).toContain(
+      'business definition canonical JSON mixed-case hash implementation mismatch',
+    );
+  });
+
+  it('keeps the database projection guard aligned with action capability bindings', () => {
+    const actionBindingMigration = readFileSync(
+      join(
+        process.cwd(),
+        'prisma/migrations/20260730222000_action_capability_projection_bindings/migration.sql',
+      ),
+      'utf8',
+    );
+
+    expect(actionBindingMigration).toContain('business_definition_capability_bindings');
+    expect(actionBindingMigration).toContain(
+      'capability_bindings := business_definition_capability_bindings(parent_kind, parent_payload);',
+    );
+    expect(actionBindingMigration).toContain('action capability projection binding helper is invalid');
+
+    const actionBindingMergeMigration = readFileSync(
+      join(
+        process.cwd(),
+        'prisma/migrations/20260730223000_action_capability_projection_binding_merge/migration.sql',
+      ),
+      'utf8',
+    );
+    expect(actionBindingMergeMigration).toContain("definition_payload#>'{bindings,capability}'");
+    expect(actionBindingMergeMigration).toContain('["legacy_action","purchase_order_draft"]');
+    expect(actionBindingMergeMigration).toContain(
+      'action capability projection binding merge helper is invalid',
+    );
   });
 });

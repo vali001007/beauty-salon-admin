@@ -32,6 +32,11 @@ const CAPABILITIES: Record<string, ActionCapabilityDefinition> = {
   },
   customer_follow_up_draft: { adapterKey: 'customer_service', role: 'customer_service', domain: 'customer_service' },
   purchase_order_draft: { adapterKey: 'inventory_procurement', role: 'inventory', domain: 'inventory_procurement' },
+  purchase_order_submit_for_approval_preview: {
+    adapterKey: 'inventory_procurement',
+    role: 'inventory',
+    domain: 'inventory_procurement',
+  },
   marketing_touch_draft: { adapterKey: 'marketing_growth', role: 'marketing', domain: 'marketing_growth' },
   marketing_strategy_execute_preview: { adapterKey: 'marketing_growth', role: 'marketing', domain: 'marketing_growth' },
   gap_fill_touch_preview: { adapterKey: 'marketing_growth', role: 'store_manager', domain: 'marketing_growth' },
@@ -53,7 +58,14 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
     examples: ['把一位客户的预约改到明天下午三点', '预览取消指定客户下一次预约', '为指定客户准备一个新预约方案'],
     negativeExamples: ['直接执行改约不要确认', '操作其他门店预约', '只查询明天预约清单'],
     synonyms: ['预约改期预览', '预约改约方案', '取消预约预览', '创建预约预览'],
-    businessDefinitionKeys: ['entity.customer', 'entity.reservation', 'entity.project'],
+    businessDefinitionKeys: [
+      'entity.customer',
+      'entity.reservation',
+      'entity.project',
+      'action.create_reservation',
+      'action.reschedule_reservation',
+      'action.cancel_reservation',
+    ],
     readOnly: false,
     storeScope: 'required',
     permissions: ['core:brain:use', 'core:store:reservations'],
@@ -154,16 +166,37 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
     examples: ['根据补货建议准备采购单预览', '为指定商品生成采购草稿'],
     negativeExamples: ['直接提交采购单', '使用查看权限创建采购单', '查询低库存商品名单'],
     synonyms: ['采购单草稿', '补货单预览', '采购方案待确认'],
-    businessDefinitionKeys: ['entity.product'],
+    businessDefinitionKeys: ['entity.product', 'action.create_purchase_order'],
     readOnly: false,
     storeScope: 'required',
-    permissions: ['core:brain:use', 'core:supply:manage'],
+    permissions: ['core:brain:use', 'core:inventory:purchase'],
     allowedRoles: ['inventory', 'store_manager'],
     requiresConfirmation: true,
     idempotency: 'required',
   })
   purchaseOrderDraft(args: BrainCapabilityToolArgs, input: BrainCapabilityExecutionInput) {
     return this.executeDeclared('purchase_order_draft', args, input);
+  }
+
+  @BrainCapability({
+    key: 'purchase_order_submit_for_approval_preview',
+    name: '采购单提交审核预览',
+    description:
+      '解析当前门店已有草稿采购单，冻结采购单身份与版本，生成草稿到待审核的高风险确认预览；确认后通过独立状态转换和事务回执提交审核。',
+    intents: ['action'],
+    examples: ['提交采购单 PUR20260730001 审核', '把采购单 81 送审'],
+    negativeExamples: ['创建一张采购单', '审核通过采购单', '确认向供应商下单', '只查看待审核采购单'],
+    synonyms: ['采购单送审', '提交采购审批', '采购草稿提交审核'],
+    businessDefinitionKeys: ['entity.purchase_order', 'action.submit_purchase_order_for_approval'],
+    readOnly: false,
+    storeScope: 'required',
+    permissions: ['core:brain:use', 'core:inventory:purchase'],
+    allowedRoles: ['inventory', 'store_manager'],
+    requiresConfirmation: true,
+    idempotency: 'required',
+  })
+  purchaseOrderSubmitForApprovalPreview(args: BrainCapabilityToolArgs, input: BrainCapabilityExecutionInput) {
+    return this.executeDeclared('purchase_order_submit_for_approval_preview', args, input);
   }
 
   @BrainCapability({
@@ -241,17 +274,8 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
   async execute(input: BrainCapabilityExecutionInput): Promise<BrainDomainAnswer> {
     const definition = CAPABILITIES[input.card.key];
     if (!definition) throw new Error(`unsupported_action_capability:${input.card.key}`);
-    if (
-      input.card.key === 'purchase_order_draft' &&
-      (/(?:估算|大概).*(?:采购).*(?:多少钱|花多少钱|成本)/.test(input.question) ||
-        /(?:新货|到货|这批货).*(?:记录|办理|确认)?.*入库|(?:记录|办理).*(?:到货|入库)/.test(input.question))
-    ) {
-      return this.clarification(
-        definition.adapterKey,
-        /入库/.test(input.question) ? 'inventory_receipt_capability_not_open' : 'purchase_cost_estimate_requires_items',
-      );
-    }
-
+    this.assertGovernedActionFrame(input);
+    const args = input.args as BrainCapabilityToolArgs;
     const plan: BrainRoleIntentPlan = {
       role: definition.role,
       domain: definition.domain,
@@ -261,6 +285,10 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
       capabilityKey: input.card.key,
       capabilityVersion: input.card.version,
       executionPlanId: input.planId,
+      ...(input.actionProvenance ? { actionProvenance: input.actionProvenance } : {}),
+      ...(args.actionRef ? { actionRef: args.actionRef } : {}),
+      ...(args.actionModality ? { actionModality: args.actionModality } : {}),
+      ...(args.actionSlots ? { actionSlots: args.actionSlots } : {}),
       requiredPermissions: [...input.card.requiredPermissions],
       confidence: 1,
       grounding: 'preview_action',
@@ -273,7 +301,7 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
       context: input.context,
       dto: { message: input.question, timezone: input.context.timezone },
       runId: input.runId,
-      cognition: this.actionCognition(input.question, input.args as BrainCapabilityToolArgs),
+      cognition: this.actionCognition(input.question, args),
       runtimeIntent: this.actionRuntimeIntent(),
       plan,
     });
@@ -319,6 +347,26 @@ export class BrainActionCapabilityExecutor implements BrainCapabilityExecutor {
       /\breceipt\b|already executed|successfully executed|\u5df2\u6267\u884c|\u6267\u884c\u6210\u529f/i.test(serialized)
     ) {
       throw new Error('action_preview_contains_execution_receipt');
+    }
+  }
+
+  private assertGovernedActionFrame(input: BrainCapabilityExecutionInput) {
+    const args = input.args as BrainCapabilityToolArgs;
+    const actionRef = args.actionRef;
+    const provenance = input.actionProvenance;
+    if (!actionRef && !provenance) return;
+    if (!actionRef || !provenance) throw new Error('governed_action_frame_incomplete');
+    if (
+      actionRef.definitionType !== 'action' ||
+      actionRef.definitionKey !== provenance.actionRef.definitionKey ||
+      actionRef.definitionVersion !== provenance.actionRef.definitionVersion ||
+      actionRef.definitionFingerprint !== provenance.actionRef.definitionFingerprint ||
+      actionRef.sourceFingerprint !== provenance.actionRef.sourceFingerprint
+    ) {
+      throw new Error('governed_action_frame_provenance_mismatch');
+    }
+    if (!args.actionModality || !Array.isArray(args.actionSlots)) {
+      throw new Error('governed_action_semantics_missing');
     }
   }
 

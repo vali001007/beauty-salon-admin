@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "ami-brain-action-invariant-manifest/v1",
+  "catalogSchemaVersion": "1.1",
+  "catalogSource": {
+    "path": "packages/server-v2/src/semantic-data/brain-action-invariant-catalog.ts",
+    "checksum": "bfd2045f26f9818a4ad4042b287a7e6946f50bc749af9590fdf004cf5d01f598"
+  },
+  "contracts": [
+    {
+      "actionKey": "action.create_customer",
+      "key": "action.create_customer.mutation_footprint",
+      "version": 2,
+      "fingerprint": "5ce1c7995dda4c9494be82cb750a762044cf215dc03bf246470778f8446c12eb"
+    },
+    {
+      "actionKey": "action.create_purchase_order",
+      "key": "action.create_purchase_order.mutation_footprint",
+      "version": 2,
+      "fingerprint": "4a4bbef64c90c6044a3cb42fc09370a7267401b839787231cfcc880e559a1fee"
+    },
+    {
+      "actionKey": "action.submit_purchase_order_for_approval",
+      "key": "action.submit_purchase_order_for_approval.mutation_footprint",
+      "version": 2,
+      "fingerprint": "f98fb6280fdf9649038df5a2b8a3d29b15a81c2ba56441fe5eb2cb3b65e436fb"
+    },
+    {
+      "actionKey": "action.create_reservation",
+      "key": "action.create_reservation.mutation_footprint",
+      "version": 2,
+      "fingerprint": "f693c56dbba1def25a8a8056daf343d28f7e555cf3ca98d9fa729d8d17050904"
+    },
+    {
+      "actionKey": "action.reschedule_reservation",
+      "key": "action.reschedule_reservation.mutation_footprint",
+      "version": 2,
+      "fingerprint": "554cffedf284387f9c9e9f26d73e0bd20f10eca66205973f2e567137d632c705"
+    },
+    {
+      "actionKey": "action.cancel_reservation",
+      "key": "action.cancel_reservation.mutation_footprint",
+      "version": 2,
+      "fingerprint": "ee8b891ed8927ce578221d55c381d6bb61a5a118e9e82154144c821d14d974ca"
+    }
+  ]
+}

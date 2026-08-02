@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/authStore';
 import { useStoreStore } from '@/stores/storeStore';
@@ -35,13 +35,13 @@ import type {
 } from '@/types/brain';
 import { BrainChatPanel } from './components/BrainChatPanel';
 import { BrainConversationSidebar, type BrainSidebarTab } from './components/BrainConversationSidebar';
-import { BrainEvidencePanel } from './components/BrainEvidencePanel';
-import { BrainInspectionInbox } from './components/BrainInspectionInbox';
+import { BrainEvidencePanel, type BrainContextPanelTab } from './components/BrainEvidencePanel';
 import { BrainInspectionRepairDialog } from './components/BrainInspectionRepairDialog';
 
 const CONVERSATION_PAGE_SIZE = 10;
 const FEEDBACK_ISSUE_PAGE_SIZE = 10;
 const EVAL_QUESTION_PAGE_SIZE = 10;
+const INSPECTION_PAGE_SIZE = 20;
 
 function conversationTitle(message: string) {
   const title = message.replace(/\s+/g, ' ').trim();
@@ -54,6 +54,7 @@ export function BrainWorkspace() {
     return {
       question: params.get('question')?.trim() || undefined,
       evalCase: params.get('debugEvalCase')?.trim() || undefined,
+      panel: params.get('panel') === 'trace' ? 'trace' as const : 'evidence' as const,
     };
   }, []);
   const currentStoreId = useStoreStore((state) => state.currentStoreId);
@@ -95,9 +96,16 @@ export function BrainWorkspace() {
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [inspectionInbox, setInspectionInbox] = useState<BrainInspectionInboxResponse | null>(null);
   const [loadingInspectionInbox, setLoadingInspectionInbox] = useState(false);
+  const [inspectionInboxError, setInspectionInboxError] = useState<string | null>(null);
+  const [inspectionPage, setInspectionPage] = useState(1);
+  const [contextPanelTab, setContextPanelTab] = useState<BrainContextPanelTab>(initialDebug.panel);
+  const [mobileRiskOpen, setMobileRiskOpen] = useState(false);
   const [inspectionPreview, setInspectionPreview] = useState<BrainInspectionRepairPreview | null>(null);
   const [reviewingFindingId, setReviewingFindingId] = useState<number | null>(null);
   const [savingInspectionDecision, setSavingInspectionDecision] = useState(false);
+  const riskTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const creatingConversationRef = useRef(false);
+  const sendingRef = useRef(false);
   const selectedRunId = selectedAssistant?.metadata?.runId;
   const hasExecutingAction = useMemo(
     () => Object.values(actionResults).some((result) => result.status === 'queued' || result.status === 'executing'),
@@ -135,7 +143,8 @@ export function BrainWorkspace() {
     };
   }, [hasExecutingAction, selectedRunId]);
 
-  const loadRunEvents = useCallback(async (message: BrainMessage | null) => {
+  const loadRunEvents = useCallback(async (message: BrainMessage | null, preferredTab?: BrainContextPanelTab) => {
+    setContextPanelTab((current) => preferredTab ?? (current === 'risks' ? 'evidence' : current));
     setSelectedAssistant(message);
     setRunEvents([]);
     const runId = message?.metadata?.runId;
@@ -246,12 +255,30 @@ export function BrainWorkspace() {
     [loadMessages],
   );
 
-  const loadInspectionInbox = useCallback(async (showError = true) => {
+  const loadInspectionInbox = useCallback(async ({
+    page = 1,
+    showError = true,
+    summaryOnly = false,
+  }: { page?: number; showError?: boolean; summaryOnly?: boolean } = {}) => {
     setLoadingInspectionInbox(true);
     try {
-      setInspectionInbox(await listBrainInspectionInbox(10));
+      const response = await listBrainInspectionInbox({ page, pageSize: INSPECTION_PAGE_SIZE });
+      setInspectionInboxError(null);
+      setInspectionInbox((current) => {
+        if (!summaryOnly || !current) return response;
+        if (response.page !== page) return response;
+        return {
+          ...current,
+          summary: response.summary,
+          totalPages: response.totalPages,
+          storeId: response.storeId,
+        };
+      });
+      if (!summaryOnly || response.page !== page) setInspectionPage(response.page);
     } catch (error) {
-      if (showError) toast.error(error instanceof Error ? error.message : '主动风险加载失败');
+      const message = error instanceof Error ? error.message : '主动风险加载失败';
+      setInspectionInboxError(message);
+      if (showError) toast.error(message);
     } finally {
       setLoadingInspectionInbox(false);
     }
@@ -269,6 +296,7 @@ export function BrainWorkspace() {
       setLoadingFeedbackIssues(false);
       setLoadingEvalQuestions(false);
       setInspectionInbox(null);
+      setInspectionInboxError(null);
       return;
     }
     setConversationPage(1);
@@ -277,18 +305,23 @@ export function BrainWorkspace() {
     setFeedbackIssueTotal(0);
     setEvalPage(1);
     setEvalTotal(0);
+    setInspectionPage(1);
+    setContextPanelTab(initialDebug.panel);
+    setMobileRiskOpen(false);
     void loadConversations(true, 1);
     void loadFeedbackIssues(1);
-    void loadInspectionInbox();
-  }, [currentStoreId, loadConversations, loadFeedbackIssues, loadInspectionInbox]);
+    void loadInspectionInbox({ page: 1 });
+  }, [currentStoreId, initialDebug.panel, loadConversations, loadFeedbackIssues, loadInspectionInbox]);
 
   useEffect(() => {
     if (currentStoreId === null) return;
     const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void loadInspectionInbox(false);
+      if (document.visibilityState === 'visible') {
+        void loadInspectionInbox({ page: inspectionPage, showError: false, summaryOnly: inspectionPage > 1 });
+      }
     }, 60_000);
     return () => window.clearInterval(timer);
-  }, [currentStoreId, loadInspectionInbox]);
+  }, [currentStoreId, inspectionPage, loadInspectionInbox]);
 
   useEffect(() => {
     if (currentStoreId === null || sidebarTab !== 'eval') return;
@@ -296,11 +329,13 @@ export function BrainWorkspace() {
   }, [currentStoreId, deferredEvalSearch, evalPage, loadEvalQuestions, sidebarTab]);
 
   const createConversation = useCallback(
-    async (title?: string) => {
+    async (title?: string, allowWhileSending = false) => {
+      if (creatingConversationRef.current || (sendingRef.current && !allowWhileSending)) return null;
       if (useStoreStore.getState().currentStoreId === null) {
         toast.error('请先在顶部选择具体门店');
         return null;
       }
+      creatingConversationRef.current = true;
       setCreatingConversation(true);
       try {
         const conversation = await createBrainConversation(title);
@@ -316,6 +351,7 @@ export function BrainWorkspace() {
         toast.error(error instanceof Error ? error.message : '新建会话失败');
         return null;
       } finally {
+        creatingConversationRef.current = false;
         setCreatingConversation(false);
       }
     },
@@ -347,18 +383,19 @@ export function BrainWorkspace() {
   }
 
   async function handleSend(text: string, roleHint?: BrainRoleKey, guidanceSelection?: BrainGuidanceSelection) {
-    if (sending) return;
+    if (sendingRef.current || creatingConversationRef.current) return false;
+    sendingRef.current = true;
     setSending(true);
 
     let activeConversationId = conversationId;
     if (!activeConversationId) {
-      const created = await createConversation(conversationTitle(text));
+      const created = await createConversation(conversationTitle(text), true);
       activeConversationId = created?.id ?? null;
     }
 
     if (!activeConversationId) {
       setSending(false);
-      return;
+      return false;
     }
 
     const optimisticId = -Date.now();
@@ -422,10 +459,13 @@ export function BrainWorkspace() {
         .find((item) => item.role === 'assistant' && item.metadata?.runId === response.runId);
       await loadRunEvents(assistant ?? null);
       await loadConversations(false, 1);
+      return true;
     } catch (error) {
       setMessages((current) => current.filter((item) => item.id !== optimisticId && item.id !== streamingAssistantId));
       toast.error(error instanceof Error ? error.message : 'Ami Brain 回答失败');
+      return false;
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   }
@@ -481,6 +521,27 @@ export function BrainWorkspace() {
     }
   }
 
+  function openRiskPanel(trigger: HTMLButtonElement) {
+    riskTriggerRef.current = trigger;
+    setContextPanelTab('risks');
+    if (!window.matchMedia || window.matchMedia('(max-width: 1279px)').matches) setMobileRiskOpen(true);
+  }
+
+  function closeMobileRiskPanel() {
+    setMobileRiskOpen(false);
+    window.setTimeout(() => riskTriggerRef.current?.focus(), 0);
+  }
+
+  async function refreshInspectionInbox() {
+    setInspectionPage(1);
+    await loadInspectionInbox({ page: 1 });
+  }
+
+  async function changeInspectionPage(page: number) {
+    if (page < 1 || page === inspectionPage) return;
+    await loadInspectionInbox({ page });
+  }
+
   async function decideInspection(
     decision: BrainInspectionRepairDecision,
     modifications: Record<string, unknown>,
@@ -492,7 +553,8 @@ export function BrainWorkspace() {
       await decideBrainInspectionRepair(inspectionPreview.findingId, { decision, modifications, note });
       toast.success(decision === 'reject' ? '已拒绝该风险处理建议' : '审批已记录，业务数据尚未修改');
       setInspectionPreview(null);
-      await loadInspectionInbox(false);
+      setInspectionPage(1);
+      await loadInspectionInbox({ page: 1, showError: false });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '巡检审批失败');
     } finally {
@@ -511,7 +573,7 @@ export function BrainWorkspace() {
         selectedRunId={selectedRunId}
         selectedEvalQuestionId={selectedEvalQuestionId}
         loading={sidebarTab === 'issues' ? loadingFeedbackIssues : sidebarTab === 'eval' ? loadingEvalQuestions : loadingConversations}
-        creating={creatingConversation}
+        creating={creatingConversation || sending}
         page={conversationPage}
         pageSize={CONVERSATION_PAGE_SIZE}
         total={conversationTotal}
@@ -552,19 +614,18 @@ export function BrainWorkspace() {
         selectedRunId={selectedRunId}
         loadingMessages={loadingMessages}
         sending={sending}
+        creatingConversation={creatingConversation}
         prefillRequest={composerPrefill}
         onCreateConversation={() => void createConversation()}
         onSend={handleSend}
-        onSelectAssistant={(message) => void loadRunEvents(message)}
-        inspectionInbox={(
-          <BrainInspectionInbox
-            inbox={inspectionInbox}
-            loading={loadingInspectionInbox}
-            reviewingId={reviewingFindingId}
-            onRefresh={() => void loadInspectionInbox()}
-            onReview={(findingId) => void openInspectionReview(findingId)}
-          />
-        )}
+        onSelectAssistant={(message) => {
+          if (!window.matchMedia || window.matchMedia('(max-width: 1279px)').matches) setMobileRiskOpen(true);
+          void loadRunEvents(message, 'trace');
+        }}
+        riskSummary={inspectionInbox?.summary}
+        loadingRisks={loadingInspectionInbox}
+        riskLoadFailed={Boolean(inspectionInboxError)}
+        onOpenRisks={openRiskPanel}
       />
       <BrainEvidencePanel
         message={selectedAssistant}
@@ -578,6 +639,17 @@ export function BrainWorkspace() {
         onRejectAction={(actionId, runId) => void handleAction(actionId, runId, 'reject')}
         onRetryAction={(actionId, runId) => void handleAction(actionId, runId, 'retry')}
         onFeedback={(runId, rating) => void handleFeedback(runId, rating)}
+        activeTab={contextPanelTab}
+        onTabChange={setContextPanelTab}
+        inspectionInbox={inspectionInbox}
+        loadingInspectionInbox={loadingInspectionInbox}
+        inspectionError={inspectionInboxError}
+        reviewingFindingId={reviewingFindingId}
+        onInspectionRefresh={() => void refreshInspectionInbox()}
+        onInspectionReview={(findingId) => void openInspectionReview(findingId)}
+        onInspectionPageChange={(page) => void changeInspectionPage(page)}
+        mobileRiskOpen={mobileRiskOpen}
+        onCloseMobileRisk={closeMobileRiskPanel}
       />
       <BrainInspectionRepairDialog
         preview={inspectionPreview}

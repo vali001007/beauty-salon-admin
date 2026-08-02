@@ -1,8 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateRoleDto } from './dto/create-role.dto.js';
 import { UpdateRoleDto } from './dto/update-role.dto.js';
-import { listRegisteredPermissionDefinitions } from '../permissions/permission-catalog.js';
+import {
+  getRegisteredPermissionCodes,
+  isRoleAssignablePermission,
+  listRegisteredPermissionDefinitions,
+} from '../permissions/permission-catalog.js';
 
 @Injectable()
 export class RolesService {
@@ -30,6 +34,7 @@ export class RolesService {
   }
 
   async create(dto: CreateRoleDto) {
+    this.assertRoleAssignablePermissions(dto.permissions);
     return this.prisma.role.create({
       data: {
         key: dto.key,
@@ -46,6 +51,7 @@ export class RolesService {
 
   async update(id: number, dto: UpdateRoleDto) {
     await this.findById(id);
+    this.assertRoleAssignablePermissions(dto.permissions);
     return this.prisma.role.update({
       where: { id },
       data: {
@@ -62,6 +68,7 @@ export class RolesService {
 
   async updatePermissions(id: number, permissions: string[]) {
     await this.findById(id);
+    this.assertRoleAssignablePermissions(permissions);
     return this.prisma.role.update({
       where: { id },
       data: { permissions },
@@ -74,5 +81,14 @@ export class RolesService {
       throw new NotFoundException('系统角色不可删除');
     }
     return this.prisma.role.delete({ where: { id } });
+  }
+
+  private assertRoleAssignablePermissions(permissions?: string[]) {
+    const registered = getRegisteredPermissionCodes();
+    const machineOnly = (permissions ?? []).filter((permission) =>
+      permission !== '*' && registered.has(permission) && !isRoleAssignablePermission(permission));
+    if (machineOnly.length) {
+      throw new BadRequestException(`machine_only_permission_not_role_assignable:${machineOnly.join(',')}`);
+    }
   }
 }

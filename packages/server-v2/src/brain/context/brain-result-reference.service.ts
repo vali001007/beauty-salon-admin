@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import type {
   BrainDefinitionRef,
   BrainSemanticEntityReference,
   BrainSemanticIntent,
 } from '../cognition/brain-semantic-intent.types.js';
+import type { BrainActionInformationArtifact } from '../cognition/brain-action-execution-provenance.types.js';
 
 export type BrainResultSetStatus = 'data' | 'empty';
 
@@ -14,6 +16,7 @@ export interface BrainModelResultReference {
   mention: string;
   rank: number;
   definitionRef?: BrainDefinitionRef<'entity'>;
+  contentFingerprint?: string;
 }
 
 export interface BrainResultReferenceScope {
@@ -91,6 +94,7 @@ export class BrainResultReferenceService {
               entityKey: normalized.entityKey,
               mention: normalized.mention,
               rank: index + 1,
+              contentFingerprint: this.contentFingerprint(item),
               ...(definitionRef ? { definitionRef: { ...definitionRef } } : {}),
             } satisfies BrainModelResultReference,
           ];
@@ -181,6 +185,71 @@ export class BrainResultReferenceService {
       .some((candidate) => this.sameResultSet(candidate, set));
   }
 
+  createInformationArtifact(input: {
+    refId: string;
+    resultSets: readonly BrainModelResultSet[];
+    scope: BrainResultReferenceScope;
+    profileFingerprint: string;
+  }): BrainActionInformationArtifact | undefined {
+    const resolved = this.resolveReferenceById(input.refId, input.resultSets, input.scope);
+    if (!resolved?.reference.contentFingerprint) return undefined;
+    const value = {
+      schemaVersion: '1.0' as const,
+      profileFingerprint: input.profileFingerprint,
+      artifactType: 'brain_result_reference' as const,
+      artifactKey: resolved.reference.refId,
+      artifactVersion: 1 as const,
+      sourceRunId: resolved.set.sourceRunId,
+      ...(resolved.set.sourceCapabilityKey
+        ? { sourceCapabilityKey: resolved.set.sourceCapabilityKey }
+        : {}),
+      ...(resolved.set.sourceCapabilityVersion
+        ? { sourceCapabilityVersion: resolved.set.sourceCapabilityVersion }
+        : {}),
+      sourceOutputKey: resolved.set.outputKey,
+      sourceSetId: resolved.set.setId,
+      referencedEntityType: resolved.reference.entityType,
+      referencedEntityKey: resolved.reference.entityKey,
+      contentFingerprint: resolved.reference.contentFingerprint,
+    };
+    return { ...value, fingerprint: this.contentFingerprint(value) };
+  }
+
+  verifyInformationArtifact(input: {
+    artifact: BrainActionInformationArtifact;
+    output: unknown;
+    scope: BrainResultReferenceScope;
+  }): boolean {
+    const { fingerprint, ...fingerprintInput } = input.artifact;
+    if (fingerprint !== this.contentFingerprint(fingerprintInput)) return false;
+    const envelope = this.record(input.output);
+    const metadata = this.record(envelope.adapterMetadata);
+    const sets = Array.isArray(metadata.resultSets)
+      ? metadata.resultSets.filter((set): set is BrainModelResultSet => isBrainModelResultSet(set))
+      : [];
+    const set = sets.find(
+      (candidate) =>
+        candidate.setId === input.artifact.sourceSetId &&
+        candidate.sourceRunId === input.artifact.sourceRunId &&
+        candidate.outputKey === input.artifact.sourceOutputKey &&
+        candidate.sourceCapabilityKey === input.artifact.sourceCapabilityKey &&
+        candidate.sourceCapabilityVersion === input.artifact.sourceCapabilityVersion &&
+        this.isScopedTo(candidate, input.scope),
+    );
+    if (!set) return false;
+    const reference = set.items.find((item) => item.refId === input.artifact.artifactKey);
+    if (
+      !reference?.contentFingerprint ||
+      reference.entityType !== input.artifact.referencedEntityType ||
+      reference.entityKey !== input.artifact.referencedEntityKey ||
+      reference.contentFingerprint !== input.artifact.contentFingerprint
+    ) {
+      return false;
+    }
+    const rawFingerprint = this.rawItemContentFingerprint(set, reference, metadata);
+    return Boolean(rawFingerprint && rawFingerprint === input.artifact.contentFingerprint);
+  }
+
   toConversationEntity(reference: BrainModelResultReference): BrainSemanticEntityReference | undefined {
     return {
       entityType: reference.entityType,
@@ -194,7 +263,7 @@ export class BrainResultReferenceService {
 
   isFollowUpReferenceQuestion(question: string, resultSets: readonly BrainModelResultSet[] = []) {
     return (
-      /(?:第\s*(?:\d+|一|二|三|四|五|六|七|八|九|十)\s*(?:个|位|项|名)|排名第|最高|最大|最好|最急|最优先|最多|最少|她|他|她们|他们|它|它们|这些|其中|上轮|刚才|前面|消化掉|搭配什么活动|跟.+比(?:呢)?)/.test(
+      /(?:第\s*(?:\d+|一|二|三|四|五|六|七|八|九|十)\s*(?:个|位|项|名)|排名第|最高|最大|最好|最急|最优先|最多|最少|她|他|她们|他们|它|它们|这些|其中|上轮|刚才|前面|消化掉|搭配什么活动)/.test(
         question,
       ) ||
       resultSets.some((set) => set.items.some((item) => item.mention.length >= 2 && question.includes(item.mention)))
@@ -206,9 +275,21 @@ export class BrainResultReferenceService {
   }
 
   requiresPriorResultSelection(question: string): boolean {
-    return Boolean(
-      this.requestedEntityType(question) &&
-      /(?:第\s*(?:\d+|一|二|三|四|五|六|七|八|九|十)|最(?:高|大|好|急|优先|多|少)|其中|那个)/.test(question),
+    if (this.isExplicitTimeReservationQuestion(question)) return false;
+    const explicitSelectionCue =
+      /(?:第\s*(?:\d+|一|二|三|四|五|六|七|八|九|十)\s*(?:个|位|项|名)?|排名第|那个|上轮|刚才|前面|这些|它们|他们|她们)/.test(
+        question,
+      );
+    const requestedEntityType = this.requestedEntityType(question);
+    const contextualSelectionCue = Boolean(requestedEntityType && /其中/.test(question));
+    const rerunTopSelectionCue =
+      /(?:最(?:高|大|好|急|优先|多|少)|第一名|榜首).*(?:再\s*(?:跑|执行|来)|重新执行)/.test(question);
+    return explicitSelectionCue || contextualSelectionCue || Boolean(requestedEntityType && rerunTopSelectionCue);
+  }
+
+  private isExplicitTimeReservationQuestion(question: string): boolean {
+    return /(?:上午|下午|中午|晚上|凌晨)?\s*(?:[01]?\d|2[0-3])\s*(?:点(?:\s*(?:半|[0-5]?\d\s*分))?|[:：]\s*[0-5]\d).{0,8}(?:那个|那场|这场)?预约/.test(
+      question,
     );
   }
 
@@ -274,6 +355,40 @@ export class BrainResultReferenceService {
       });
     }
     return sources;
+  }
+
+  resolveReferenceById(
+    refId: string,
+    resultSets: readonly BrainModelResultSet[],
+    scope: BrainResultReferenceScope,
+  ): { set: BrainModelResultSet; reference: BrainModelResultReference } | undefined {
+    for (const set of resultSets) {
+      if (!this.isFresh(set.createdAt) || !this.isScopedTo(set, scope)) continue;
+      const reference = set.items.find((item) => item.refId === refId);
+      if (reference) return { set, reference };
+    }
+    return undefined;
+  }
+
+  private rawItemContentFingerprint(
+    set: BrainModelResultSet,
+    reference: BrainModelResultReference,
+    metadata: Record<string, unknown>,
+  ): string | undefined {
+    const sources = this.mappingOutputSources(metadata, {
+      capabilityKey: set.sourceCapabilityKey,
+      capabilityVersion: set.sourceCapabilityVersion,
+    });
+    const source = sources.find(
+      (candidate) =>
+        candidate.capabilityKey === set.sourceCapabilityKey &&
+        candidate.capabilityVersion === set.sourceCapabilityVersion &&
+        Array.isArray(candidate.mappingOutputs[set.outputKey]),
+    );
+    const values = source?.mappingOutputs[set.outputKey];
+    if (!Array.isArray(values)) return undefined;
+    const value = values[reference.rank - 1];
+    return value === undefined ? undefined : this.contentFingerprint(value);
   }
 
   private normalizeItem(value: unknown, entityType: string): { entityKey: string; mention: string } | undefined {
@@ -437,6 +552,10 @@ export class BrainResultReferenceService {
       .join(',')}}`;
   }
 
+  private contentFingerprint(value: unknown): string {
+    return createHash('sha256').update(this.canonicalJson(value)).digest('hex');
+  }
+
   private record(value: unknown): Record<string, unknown> {
     return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
   }
@@ -512,7 +631,15 @@ function isBrainResultReferenceScope(value: unknown): value is BrainResultRefere
 function isBrainModelResultReference(value: unknown): value is BrainModelResultReference {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const ref = value as Record<string, unknown>;
-  const allowed = new Set(['refId', 'entityType', 'entityKey', 'mention', 'rank', 'definitionRef']);
+  const allowed = new Set([
+    'refId',
+    'entityType',
+    'entityKey',
+    'mention',
+    'rank',
+    'definitionRef',
+    'contentFingerprint',
+  ]);
   if (!Reflect.ownKeys(ref).every((key) => typeof key === 'string' && allowed.has(key))) return false;
   return Boolean(
     typeof ref.refId === 'string' &&
@@ -526,6 +653,8 @@ function isBrainModelResultReference(value: unknown): value is BrainModelResultR
     ref.mention.length <= 120 &&
     Number.isInteger(ref.rank) &&
     (ref.rank as number) > 0 &&
+    (ref.contentFingerprint === undefined ||
+      (typeof ref.contentFingerprint === 'string' && /^[a-f0-9]{64}$/u.test(ref.contentFingerprint))) &&
     (ref.definitionRef === undefined || isEntityDefinitionRef(ref.definitionRef)),
   );
 }

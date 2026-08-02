@@ -107,10 +107,13 @@ export class BrainCapabilitySemanticVerifierService {
     );
   }
 
-  async verifyStoredCapabilities(inputs: readonly { snapshot: unknown; sourceRow: unknown }[]): Promise<void> {
+  async verifyStoredCapabilities(
+    inputs: readonly { snapshot: unknown; sourceRow: unknown }[],
+    definitionSnapshot?: BrainBusinessDefinitionSnapshot,
+  ): Promise<void> {
     if (!inputs.length) return;
-    const publishedSnapshot = await this.loadVerifiedSnapshot();
-    for (const input of inputs) await this.verifyStoredCapability(input, publishedSnapshot);
+    const snapshot = definitionSnapshot ?? (await this.loadVerifiedSnapshot());
+    for (const input of inputs) await this.verifyStoredCapability(input, snapshot);
   }
 
   async verifyStoredCapability(

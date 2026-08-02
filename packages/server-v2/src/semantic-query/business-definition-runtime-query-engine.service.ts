@@ -59,13 +59,63 @@ export class BusinessDefinitionRuntimeQueryEngineService {
     storeId: number;
     timeRange: { startDate: Date; endExclusive: Date; rangeLabel: string };
   }): Promise<RuntimeMetricExecutionResult> {
-    const { metric, dimensions, storeId, timeRange } = input;
-    if (metric.runtimeQuery.resolver) {
-      throw new Error(`semantic_runtime_query_resolver_not_supported:${metric.metricKey}`);
-    }
+    const batch = await this.executeMetrics({ ...input, metrics: [input.metric] });
+    return batch.results[0];
+  }
+
+  async executeMetrics(input: {
+    metrics: readonly RuntimeMetricExecutionBinding[];
+    dimensions: readonly RuntimeDimensionExecutionBinding[];
+    selfScope?: Readonly<{ dimensionKey: string; value: number }>;
+    storeId: number;
+    timeRange: { startDate: Date; endExclusive: Date; rangeLabel: string };
+  }): Promise<{ results: RuntimeMetricExecutionResult[]; databaseQueryCount: number }> {
+    if (!input.metrics.length) return { results: [], databaseQueryCount: 0 };
+    const groups = new Map<string, Array<{ index: number; metric: RuntimeMetricExecutionBinding }>>();
+    input.metrics.forEach((metric, index) => {
+      if (metric.runtimeQuery.resolver) {
+        throw new Error(`semantic_runtime_query_resolver_not_supported:${metric.metricKey}`);
+      }
+      const key = this.queryShapeKey(metric, input.selfScope);
+      const group = groups.get(key) ?? [];
+      group.push({ index, metric });
+      groups.set(key, group);
+    });
+    const results = new Array<RuntimeMetricExecutionResult>(input.metrics.length);
+    await Promise.all(
+      [...groups.values()].map(async (group) => {
+        const groupResults = await this.executeMetricGroup({
+          metrics: group.map((item) => item.metric),
+          dimensions: input.dimensions,
+          selfScope: input.selfScope,
+          storeId: input.storeId,
+          timeRange: input.timeRange,
+        });
+        group.forEach((item, groupIndex) => {
+          results[item.index] = groupResults[groupIndex];
+        });
+      }),
+    );
+    return { results, databaseQueryCount: groups.size };
+  }
+
+  private async executeMetricGroup(input: {
+    metrics: readonly RuntimeMetricExecutionBinding[];
+    dimensions: readonly RuntimeDimensionExecutionBinding[];
+    selfScope?: Readonly<{ dimensionKey: string; value: number }>;
+    storeId: number;
+    timeRange: { startDate: Date; endExclusive: Date; rangeLabel: string };
+  }): Promise<RuntimeMetricExecutionResult[]> {
+    const { dimensions, storeId, timeRange } = input;
+    const metric = input.metrics[0];
+    if (!metric) return [];
     const dataModel = this.definitionProvider.getRuntimeDataModel();
-    const formula = this.formula(metric);
-    this.validateFormula(metric, formula, dataModel);
+    const formulas = input.metrics.map((item) => {
+      const formula = this.formula(item);
+      this.validateFormula(item, formula, dataModel);
+      return formula;
+    });
+    const formula = formulas[0];
     this.validateJoinGraph(metric.runtimeQuery.joinPath, dataModel);
     const resolvedDimensions = this.resolveDimensions(
       dimensions,
@@ -75,7 +125,7 @@ export class BusinessDefinitionRuntimeQueryEngineService {
       dataModel,
     );
     const select: UnknownRecord = {};
-    this.addSelect(select, [], formula.field);
+    for (const item of formulas) this.addSelect(select, [], item.field);
     for (const dimension of resolvedDimensions) this.addSelect(select, dimension.path, dimension.field);
 
     const conditions: UnknownRecord[] = [];
@@ -98,26 +148,45 @@ export class BusinessDefinitionRuntimeQueryEngineService {
     if (!Array.isArray(rows)) throw new Error(`semantic_prisma_result_invalid:${formula.model}`);
     if (rows.length > MAX_READ_ROWS) throw new Error('semantic_query_row_limit_exceeded');
     const resultRows = rows as UnknownRecord[];
-    const grouped = new Map<string, { dimensions: Record<string, unknown>; values: unknown[] }>();
-    for (const row of resultRows) {
-      const dimensionValues = Object.fromEntries(
-        resolvedDimensions.map((dimension) => [dimension.key, this.readValue(row, dimension.path, dimension.field)]),
-      );
-      const key = JSON.stringify(dimensionValues);
-      const target = grouped.get(key) ?? { dimensions: dimensionValues, values: [] };
-      target.values.push(row[formula.field]);
-      grouped.set(key, target);
-    }
-    if (!rows.length && !resolvedDimensions.length) grouped.set('{}', { dimensions: {}, values: [] });
-    return {
-      outputField: metric.runtimeQuery.outputFields[0],
-      overallValue: this.aggregate(metric.runtimeQuery.aggregation, resultRows.map((row) => row[formula.field])),
-      groups: [...grouped.values()].map((group) => ({
-        dimensions: group.dimensions,
-        value: this.aggregate(metric.runtimeQuery.aggregation, group.values),
-      })),
-      scannedRows: rows.length,
-    };
+    return input.metrics.map((item, index) => {
+      const itemFormula = formulas[index];
+      const itemGroups = new Map<string, { dimensions: Record<string, unknown>; values: unknown[] }>();
+      for (const row of resultRows) {
+        const dimensionValues = Object.fromEntries(
+          resolvedDimensions.map((dimension) => [dimension.key, this.readValue(row, dimension.path, dimension.field)]),
+        );
+        const key = JSON.stringify(dimensionValues);
+        const target = itemGroups.get(key) ?? { dimensions: dimensionValues, values: [] };
+        target.values.push(row[itemFormula.field]);
+        itemGroups.set(key, target);
+      }
+      if (!rows.length && !resolvedDimensions.length) itemGroups.set('{}', { dimensions: {}, values: [] });
+      return {
+        outputField: item.runtimeQuery.outputFields[0],
+        overallValue: this.aggregate(item.runtimeQuery.aggregation, resultRows.map((row) => row[itemFormula.field])),
+        groups: [...itemGroups.values()].map((group) => ({
+          dimensions: group.dimensions,
+          value: this.aggregate(item.runtimeQuery.aggregation, group.values),
+        })),
+        scannedRows: rows.length,
+      };
+    });
+  }
+
+  private queryShapeKey(
+    metric: RuntimeMetricExecutionBinding,
+    selfScope?: Readonly<{ dimensionKey: string; value: number }>,
+  ): string {
+    const formula = this.asRecord(metric.formula, `semantic_formula_invalid:${metric.metricKey}`);
+    return JSON.stringify({
+      model: formula.model,
+      dimensions: metric.runtimeQuery.dimensions,
+      filters: metric.runtimeQuery.filters,
+      joinPath: metric.runtimeQuery.joinPath,
+      storeScope: metric.runtimeQuery.storeScope,
+      timePolicy: metric.runtimeQuery.timePolicy,
+      selfScope: selfScope ?? null,
+    });
   }
 
   private selfScopeCondition(

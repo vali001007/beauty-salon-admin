@@ -1,0 +1,422 @@
+{
+  "schemaVersion": "ami-brain-gold-standard-truth/v1",
+  "truthVersion": "fulfillment-v1-2026-07-29T04:45:41.741Z",
+  "status": "ready",
+  "generatedAt": "2026-07-29T04:45:41.741Z",
+  "environment": "approved_supabase_development_read_only",
+  "databaseHost": "aws-1-ap-northeast-1.pooler.supabase.com",
+  "storeId": 6,
+  "groupKey": "fulfillment",
+  "timezone": "Asia/Shanghai",
+  "manifestVersion": "2026-07-29-v1-candidate",
+  "manifestChecksum": "43f625a26af661285ad687f2de5e8189ead06cf7b9cbc2a711c7831bba20ef2c",
+  "supportedCaseCount": 15,
+  "groupCaseCount": 15,
+  "readyCaseCount": 15,
+  "blockedCaseCount": 0,
+  "remainingCaseCount": 0,
+  "manifestRemainingCaseCount": 85,
+  "sourceDatasetChecksum": "41b1c1456c294625e6ad99cf79502fc151702ba1426667119c6ab7b994a33901",
+  "snapshots": [
+    {
+      "goldCaseId": "GOLD-BQ0861",
+      "sourceCaseId": "BQ0861",
+      "resolverKey": "fulfillment.reservation_fact",
+      "queryVersion": "v1",
+      "evaluationQuestion": "2026年6月15日至21日有多少个预约",
+      "snapshotAt": "2026-07-29T04:45:41.741Z",
+      "sourceRowCount": 104,
+      "sourceChecksum": "e653f4cecf046e3161830416bcc2298537aee3522795e7ad52008a3e2e7380e7",
+      "value": 39,
+      "valueChecksum": "0b918943df0962bc7a1824c0555a389347b4febdc7cf9d1254406d80ce44e3f9",
+      "comparison": "integer_exact",
+      "definition": "固定周期 2026-06-14T16:00:00.000Z 至 2026-06-21T16:00:00.000Z，左闭右开；排除已取消预约计数",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ0863",
+      "sourceCaseId": "BQ0863",
+      "resolverKey": "fulfillment.reservation_fact",
+      "queryVersion": "v1",
+      "evaluationQuestion": "截至2026/07/29 12:45:41有哪些未确认的预约",
+      "snapshotAt": "2026-07-29T04:45:41.741Z",
+      "sourceRowCount": 0,
+      "sourceChecksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "value": [],
+      "valueChecksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "comparison": "id_set_exact",
+      "definition": "snapshotAt 所在业务日 2026-07-29，Asia/Shanghai 左闭右开；Reservation.status 属于 pending/待确认",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ0865",
+      "sourceCaseId": "BQ0865",
+      "resolverKey": "fulfillment.arrival_or_task_count",
+      "queryVersion": "v1",
+      "evaluationQuestion": "2026年6月24日至30日有几个服务任务",
+      "snapshotAt": "2026-07-29T04:45:41.741Z",
+      "sourceRowCount": 24,
+      "sourceChecksum": "726c7e69fdeb16fe9f723567e5c5fedafa939403a6e03aea6acb1782aed91768",
+      "value": 24,
+      "valueChecksum": "c2356069e9d1e79ca924378153cfbbfb4d4416b1f99d41a2940bfdb66c5319db",
+      "comparison": "integer_exact",
+      "definition": "固定周期 2026-06-23T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；ServiceTask.appointmentTime 左闭右开计数，不按执行状态排除",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ0867",
+      "sourceCaseId": "BQ0867",
+      "resolverKey": "fulfillment.card_usage_count",
+      "queryVersion": "v1",
+      "evaluationQuestion": "2026年1月1日至6月30日核销了多少次卡",
+      "snapshotAt": "2026-07-29T04:45:41.741Z",
+      "sourceRowCount": 220,
+      "sourceChecksum": "cd25a69a5fb831e99f9767fa9c0182b32fe0dc1ed1090ef72c0700a706ad61cf",
+      "value": 220,
+      "valueChecksum": "36790ecd55c2030dc553685bef719df653f413a20cdad1bfd1dc934c76686ddd",
+      "comparison": "integer_exact",
+      "definition": "固定周期 2025-12-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；CardUsageRecord.verifiedAt 左闭右开，汇总 times 而不是记录条数",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ0896",
+      "sourceCaseId": "BQ0896",
+      "resolverKey": "fulfillment.reservation_fact",
+      "queryVersion": "v1",
+      "evaluationQuestion": "2026年1月1日至6月30日预约水氧清洁焕肤的客户有哪些",
+      "snapshotAt": "2026-07-29T04:45:41.741Z",
+      "sourceRowCount": 41,
+      "sourceChecksum": "201e58df58c506dac34bf884432dfd9134d1daf461ededc3deeb0d3cb7ec4d04",
+      "value": [
+        3766,
+        3781,
+        3796,
+        3811,
+        3841,
+        3871,
+        3901,
+        3902,
+        3916,
+        3946,
+        3961,
+        3991,
+        4006,
+        4021,
+        4081,
+        4620,
+        4796
+      ],
+      "valueChecksum": "3ed03d8f55dcc3ef7d1aedb9fb3a511436dccc48b9d1b42cc92e62610a4a1b07",
+      "comparison": "id_set_exact",
+      "definition": "固定周期 2025-12-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；Project.name 精确匹配 水氧清洁焕肤，返回有效预约客户 ID 集合",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ0932",
+      "sourceCaseId": "BQ0932",
+      "resolverKey": "fulfillment.reservation_fact",
+      "queryVersion": "v1",
+      "evaluationQuestion": "2026年6月29日预约季节屏障养护的客户有哪些",
+      "snapshotAt": "2026-07-29T04:45:41.741Z",
+      "sourceRowCount": 1,
+      "sourceChecksum": "bf9d6af54bc9cd8231630fa7aa22454d57a11ce8f9cddd7c57a4236064a1094b",
+      "value": [],
+      "valueChecksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "comparison": "id_set_exact",
+      "definition": "固定周期 2026-06-28T16:00:00.000Z 至 2026-06-29T16:00:00.000Z，左闭右开；Project.name 精确匹配 季节屏障养护，返回有效预约客户 ID 集合",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ0862",
+      "sourceCaseId": "BQ0862",
+      "resolverKey": "fulfillment.reservation_fact",
+      "queryVersion": "v1",
+      "evaluationQuestion": "2026年6月15日至21日的预约都有谁",
+      "snapshotAt": "2026-07-29T04:45:41.741Z",
+      "sourceRowCount": 104,
+      "sourceChecksum": "e653f4cecf046e3161830416bcc2298537aee3522795e7ad52008a3e2e7380e7",
+      "value": [
+        3798,
+        3799,
+        3801,
+        3802,
+        3804,
+        3810,
+        3819,
+        3859,
+        3868,
+        3870,
+        3871,
+        3872,
+        3873,
+        3874,
+        3938,
+        3940,
+        3941,
+        3942,
+        3943,
+        4008,
+        4009,
+        4011,
+        4012,
+        4013,
+        4014,
+        4078,
+        4079,
+        4080,
+        4081,
+        4082,
+        4083,
+        4084,
+        4140,
+        4521,
+        4620,
+        4796,
+        4805,
+        4862,
+        4989
+      ],
+      "valueChecksum": "f4c02a530d6d5c6237029ef5ba266c36cd03c00f36b0ace3c25450df3b147ccb",
+      "comparison": "id_set_exact",
+      "definition": "固定周期 2026-06-14T16:00:00.000Z 至 2026-06-21T16:00:00.000Z，左闭右开；排除已取消预约后返回客户 ID 集合",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ0866",
+      "sourceCaseId": "BQ0866",
+      "resolverKey": "fulfillment.reservation_fact",
+      "queryVersion": "v1",
+      "evaluationQuestion": "截至2026/07/29 12:45:41，哪些客户预约了还没到店",
+      "snapshotAt": "2026-07-29T04:45:41.741Z",
+      "sourceRowCount": 0,
+      "sourceChecksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "value": [],
+      "valueChecksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "comparison": "id_set_exact",
+      "definition": "snapshotAt 所在业务日 2026-07-29，Asia/Shanghai 左闭右开；待到店状态为 pending/confirmed/scheduled/待确认/已确认 且无 checkedInAt",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ0868",
+      "sourceCaseId": "BQ0868",
+      "resolverKey": "fulfillment.arrival_or_task_count",
+      "queryVersion": "v1",
+      "evaluationQuestion": "2026年1月1日至6月30日的到店人数",
+      "snapshotAt": "2026-07-29T04:45:41.741Z",
+      "sourceRowCount": 327,
+      "sourceChecksum": "920b3fdcc092e8de97d649802ee5246599e25db890a0a213850de58da9479a7e",
+      "value": 150,
+      "valueChecksum": "9ae2bdd7beedc2e766c6b76585530e16925115707dc7a06ab5ee4aa2776b2c7b",
+      "comparison": "integer_exact",
+      "definition": "固定周期 2025-12-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；checkedInAt 非空或已治理到店状态，按 Customer.id 去重计人数",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ0897",
+      "sourceCaseId": "BQ0897",
+      "resolverKey": "fulfillment.reservation_fact",
+      "queryVersion": "v1",
+      "evaluationQuestion": "唐伊2026年1月1日至6月30日接了哪些预约",
+      "snapshotAt": "2026-07-29T04:45:41.741Z",
+      "sourceRowCount": 57,
+      "sourceChecksum": "b3057803baf607ba0439a3ec0462ad661756612145991c65553f95e686feefd0",
+      "value": [
+        483,
+        495,
+        519,
+        531,
+        543,
+        555,
+        591,
+        603,
+        615,
+        627,
+        639,
+        651,
+        663,
+        675,
+        711,
+        723,
+        735,
+        747,
+        756,
+        771,
+        795,
+        807,
+        819,
+        845,
+        860
+      ],
+      "valueChecksum": "24a4e281d62d9848a80aebf973bd2536b63a8b50f25e2472845ecc6f1b9f5596",
+      "comparison": "id_set_exact",
+      "definition": "固定周期 2025-12-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；排除已取消预约，返回 唐伊 的 Reservation.id 集合",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ0898",
+      "sourceCaseId": "BQ0898",
+      "resolverKey": "fulfillment.reservation_fact",
+      "queryVersion": "v1",
+      "evaluationQuestion": "2026年1月1日至6月30日的预约到店转化率是多少",
+      "snapshotAt": "2026-07-29T04:45:41.741Z",
+      "sourceRowCount": 565,
+      "sourceChecksum": "625809d49c3f2bea21ce99c820d0a1daca1642e54685352e0ea90ba81cd14181",
+      "value": 0.4706,
+      "valueChecksum": "b967b4d0be3f570259311bfaa6d9d4df3c47acb07eb71fb7623b91df75b4e579",
+      "comparison": "decimal_exact",
+      "definition": "固定周期 2025-12-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；分母为非取消预约 272，分子为 checkedInAt 非空或已治理到店状态 128",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ0899",
+      "sourceCaseId": "BQ0899",
+      "resolverKey": "fulfillment.reservation_fact",
+      "queryVersion": "v1",
+      "evaluationQuestion": "2026年1月1日至6月30日哪些时段的预约最满",
+      "snapshotAt": "2026-07-29T04:45:41.741Z",
+      "sourceRowCount": 565,
+      "sourceChecksum": "625809d49c3f2bea21ce99c820d0a1daca1642e54685352e0ea90ba81cd14181",
+      "value": [
+        {
+          "date": "2026-05-31",
+          "startTime": "10:00",
+          "count": 2
+        },
+        {
+          "date": "2026-05-31",
+          "startTime": "12:00",
+          "count": 2
+        },
+        {
+          "date": "2026-06-17",
+          "startTime": "11:30",
+          "count": 2
+        },
+        {
+          "date": "2026-06-18",
+          "startTime": "12:00",
+          "count": 2
+        },
+        {
+          "date": "2026-06-20",
+          "startTime": "14:00",
+          "count": 2
+        },
+        {
+          "date": "2026-06-30",
+          "startTime": "10:00",
+          "count": 2
+        },
+        {
+          "date": "2026-06-30",
+          "startTime": "17:00",
+          "count": 2
+        }
+      ],
+      "valueChecksum": "12ba2d749a45a7f255f3f7c3ac19209b3078a27ccd6e148e24a91f7fd0457034",
+      "comparison": "ordered_rows",
+      "definition": "固定周期 2025-12-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；按业务日期和开始时刻分组，返回并列最大预约量时段",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ0900",
+      "sourceCaseId": "BQ0900",
+      "resolverKey": "fulfillment.reservation_fact",
+      "queryVersion": "v1",
+      "evaluationQuestion": "2026年1月1日至6月30日爽约的客户有哪些",
+      "snapshotAt": "2026-07-29T04:45:41.741Z",
+      "sourceRowCount": 0,
+      "sourceChecksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "value": [],
+      "valueChecksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "comparison": "id_set_exact",
+      "definition": "固定周期 2025-12-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；Reservation.status 属于 no_show/missed/爽约/未到店",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ0901",
+      "sourceCaseId": "BQ0901",
+      "resolverKey": "fulfillment.reservation_fact",
+      "queryVersion": "v1",
+      "evaluationQuestion": "2026年1月1日至6月30日哪个项目预约最多",
+      "snapshotAt": "2026-07-29T04:45:41.741Z",
+      "sourceRowCount": 565,
+      "sourceChecksum": "625809d49c3f2bea21ce99c820d0a1daca1642e54685352e0ea90ba81cd14181",
+      "value": [
+        {
+          "projectId": 84,
+          "count": 23
+        }
+      ],
+      "valueChecksum": "a5b33994a1d15901da6a08f1652bd54034e6c32cac7c274a6c906528646ea7d3",
+      "comparison": "ordered_rows",
+      "definition": "固定周期 2025-12-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；排除已取消预约后按 Project.id 分组，返回并列最大预约量项目",
+      "status": "ready"
+    },
+    {
+      "goldCaseId": "GOLD-BQ0904",
+      "sourceCaseId": "BQ0904",
+      "resolverKey": "fulfillment.reservation_fact",
+      "queryVersion": "v1",
+      "evaluationQuestion": "2026年1月1日至6月30日各美容师的预约量",
+      "snapshotAt": "2026-07-29T04:45:41.741Z",
+      "sourceRowCount": 565,
+      "sourceChecksum": "625809d49c3f2bea21ce99c820d0a1daca1642e54685352e0ea90ba81cd14181",
+      "value": [
+        {
+          "beauticianId": 42,
+          "count": 28
+        },
+        {
+          "beauticianId": 43,
+          "count": 28
+        },
+        {
+          "beauticianId": 41,
+          "count": 25
+        },
+        {
+          "beauticianId": 40,
+          "count": 24
+        },
+        {
+          "beauticianId": 45,
+          "count": 24
+        },
+        {
+          "beauticianId": 44,
+          "count": 22
+        },
+        {
+          "beauticianId": 50,
+          "count": 22
+        },
+        {
+          "beauticianId": 46,
+          "count": 21
+        },
+        {
+          "beauticianId": 47,
+          "count": 20
+        },
+        {
+          "beauticianId": 48,
+          "count": 20
+        },
+        {
+          "beauticianId": 49,
+          "count": 20
+        },
+        {
+          "beauticianId": 51,
+          "count": 18
+        }
+      ],
+      "valueChecksum": "b586f2bb6d893fb9264ff731bfd222c6f9d56439f3916ae2e53675ba53f31b9c",
+      "comparison": "ordered_rows",
+      "definition": "固定周期 2025-12-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；排除已取消和未分配美容师的预约，按 Beautician.id 分组后按预约量降序",
+      "status": "ready"
+    }
+  ],
+  "blockedCases": []
+}

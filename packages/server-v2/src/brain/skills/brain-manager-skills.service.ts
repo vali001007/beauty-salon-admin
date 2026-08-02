@@ -44,6 +44,36 @@ export interface BrainStaffAnalysis {
   }>;
 }
 
+export interface BrainStaffDirectoryFacts {
+  staff: Array<{
+    beauticianId: number;
+    name: string;
+    level: { levelId: number; name: string } | null;
+    projectSkills: Array<{
+      projectId: number;
+      projectName: string;
+      skillLevel: number;
+      certified: boolean;
+      priority: number;
+    }>;
+    schedules: Array<{
+      scheduleId: number;
+      date: string;
+      startTime: string;
+      endTime: string;
+      status: string;
+      source: string;
+    }>;
+    timeOffs: Array<{
+      timeOffId: number;
+      date: string;
+      startTime: string;
+      endTime: string;
+      reason: string | null;
+    }>;
+  }>;
+}
+
 export interface BrainRevenueForecastBaseline {
   status: 'available' | 'limited' | 'insufficient';
   modelVersion: 'deterministic_daily_revenue_v2';
@@ -327,6 +357,127 @@ export class BrainManagerSkillsService {
           };
         })
         .sort((left, right) => right.serviceCount - left.serviceCount || right.revenueAmount - left.revenueAmount),
+    };
+  }
+
+  async buildStaffDirectoryFacts(input: {
+    storeId: number;
+    startDate: Date;
+    endDate: Date;
+  }): Promise<BrainStaffDirectoryFacts> {
+    const [beauticians, schedules, timeOffs] = await Promise.all([
+      this.prisma.beautician.findMany({
+        where: { storeId: input.storeId, status: 'active' },
+        select: {
+          id: true,
+          name: true,
+          level: { select: { id: true, name: true } },
+          projectSkills: {
+            where: {
+              project: { storeId: input.storeId, status: 'active', deletedAt: null },
+            },
+            select: {
+              projectId: true,
+              skillLevel: true,
+              certified: true,
+              priority: true,
+              project: { select: { name: true } },
+            },
+          },
+        },
+        orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      }),
+      this.readStaffFactPages((page) =>
+        this.prisma.schedule.findMany({
+          where: {
+            storeId: input.storeId,
+            date: { gte: input.startDate, lte: input.endDate },
+            status: { notIn: ['cancelled', 'canceled', 'deleted'] },
+          },
+          select: {
+            id: true,
+            beauticianId: true,
+            date: true,
+            startTime: true,
+            endTime: true,
+            status: true,
+            source: true,
+          },
+          ...page,
+        }),
+      ),
+      this.readStaffFactPages((page) =>
+        this.prisma.beauticianTimeOff.findMany({
+          where: {
+            storeId: input.storeId,
+            date: { gte: input.startDate, lte: input.endDate },
+            status: 'approved',
+          },
+          select: {
+            id: true,
+            beauticianId: true,
+            date: true,
+            startTime: true,
+            endTime: true,
+            reason: true,
+          },
+          ...page,
+        }),
+      ),
+    ]);
+
+    return {
+      staff: beauticians.map((beautician) => ({
+        beauticianId: beautician.id,
+        name: beautician.name,
+        level: beautician.level ? { levelId: beautician.level.id, name: beautician.level.name } : null,
+        projectSkills: beautician.projectSkills
+          .map((skill) => ({
+            projectId: skill.projectId,
+            projectName: skill.project.name,
+            skillLevel: skill.skillLevel,
+            certified: skill.certified,
+            priority: skill.priority,
+          }))
+          .sort(
+            (left, right) =>
+              right.priority - left.priority ||
+              right.skillLevel - left.skillLevel ||
+              left.projectName.localeCompare(right.projectName, 'zh-CN') ||
+              left.projectId - right.projectId,
+          ),
+        schedules: schedules
+          .filter((schedule) => schedule.beauticianId === beautician.id)
+          .map((schedule) => ({
+            scheduleId: schedule.id,
+            date: formatBusinessDate(schedule.date),
+            startTime: schedule.startTime,
+            endTime: schedule.endTime,
+            status: schedule.status,
+            source: schedule.source,
+          }))
+          .sort(
+            (left, right) =>
+              left.date.localeCompare(right.date) ||
+              left.startTime.localeCompare(right.startTime) ||
+              left.scheduleId - right.scheduleId,
+          ),
+        timeOffs: timeOffs
+          .filter((timeOff) => timeOff.beauticianId === beautician.id)
+          .map((timeOff) => ({
+            timeOffId: timeOff.id,
+            date: formatBusinessDate(timeOff.date),
+            startTime: timeOff.startTime,
+            endTime: timeOff.endTime,
+            reason: timeOff.reason,
+          }))
+          .sort(
+            (left, right) =>
+              left.date.localeCompare(right.date) ||
+              left.startTime.localeCompare(right.startTime) ||
+              left.timeOffId - right.timeOffId,
+          ),
+      })),
     };
   }
 

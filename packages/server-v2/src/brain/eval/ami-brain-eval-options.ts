@@ -12,6 +12,7 @@ export type AmiBrainEvalOptions = {
   storeId: number;
   releaseId?: number;
   concurrency: number;
+  historicalOnly: boolean;
   resume: boolean;
   checkpointEvery: number;
   providerFailureThreshold: number;
@@ -33,12 +34,21 @@ export function parseAmiBrainEvalOptions(args: string[], defaultOutputDir: strin
     storeId: positiveIntegerArg(args, 'store-id') ?? 1,
     releaseId: strictOptionalPositiveIntegerArg(args, 'release-id'),
     concurrency: Math.min(8, positiveIntegerArg(args, 'concurrency') ?? 1),
+    historicalOnly: booleanArg(args, 'historical-only') ?? false,
     resume: booleanArg(args, 'resume') ?? false,
     checkpointEvery: Math.min(100, positiveIntegerArg(args, 'checkpoint-every') ?? 25),
     providerFailureThreshold: Math.min(50, positiveIntegerArg(args, 'provider-failure-threshold') ?? 8),
     evaluationRoleKey: nonEmptyStringArg(args, 'evaluation-role') ?? 'persona',
     outputDir: resolve(stringArg(args, 'output-dir') ?? defaultOutputDir),
   };
+}
+
+export function assertAmiBrainHistoricalEvalMode(options: Pick<AmiBrainEvalOptions, 'historicalOnly'>) {
+  if (!options.historicalOnly) {
+    throw new Error(
+      'ami_brain_eval_historical_only_required:use_brain_eval_full_domain_for_registered_product_evaluation',
+    );
+  }
 }
 
 function parseRegressionScope(value?: string): 'product' | 'provider' | 'all' {

@@ -22,7 +22,12 @@ import type {
   BrainCapabilityToolArgs,
 } from '../brain-capability-executor.registry.js';
 import { BrainCapability } from '../brain-capability.decorator.js';
-import { readCapabilityStructuredTime, structuredEntityMentions, structuredTimeUtcRange } from '../brain-capability-structured-args.js';
+import {
+  readCapabilityStructuredComparisonTarget,
+  readCapabilityStructuredTime,
+  structuredEntityMentions,
+  structuredTimeUtcRange,
+} from '../brain-capability-structured-args.js';
 
 const ALLOWED_CAPABILITY_KEYS = [
   'product_sales_ranking',
@@ -41,7 +46,6 @@ const CAPABILITY_TASK_TYPES: Readonly<Record<(typeof ALLOWED_CAPABILITY_KEYS)[nu
   inventory_risk_ranking: ['ranking', 'query'],
   customer_priority_recommendation: ['ranking', 'query', 'recommendation'],
 };
-const MAX_READ_ROWS = 5000;
 const SHANGHAI_UTC_OFFSET_MS = 8 * 60 * 60 * 1000;
 const NUMERIC_FIELD_TYPES = new Set(['Int', 'BigInt', 'Float', 'Decimal']);
 const FILTER_OPERATORS = new Set(['eq', 'in', 'notIn', 'gt', 'gte', 'lt', 'lte', 'not', 'contains']);
@@ -96,10 +100,16 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
   @BrainCapability({
     key: 'product_sales_ranking',
     name: '商品销售数量与销售额分析',
-    description: '按当前门店和时间范围查询商品销售数量或商品净销售额；支持总额问数和按商品排行，严格区分商品销售额与全店实收。',
+    description:
+      '按当前门店和时间范围查询商品销售数量或商品净销售额；支持总额问数和按商品排行，严格区分商品销售额与全店实收。',
     intents: ['query', 'ranking'],
     examples: ['本月商品销售排行', '本月商品销售额', '哪些商品卖得最多', '哪些商品销售额最高'],
-    negativeExamples: ['查询全店所有收入', '查看其他门店商品销售', '我今天要用到什么产品和耗材', '根据预约准备护理产品和耗材'],
+    negativeExamples: [
+      '查询全店所有收入',
+      '查看其他门店商品销售',
+      '我今天要用到什么产品和耗材',
+      '根据预约准备护理产品和耗材',
+    ],
     synonyms: ['商品销量排行', '产品销量排行', '商品销售额', '产品销售额', '热销商品'],
     businessDefinitionKeys: [
       'metric.product_sales_quantity',
@@ -120,6 +130,13 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
 
   @BrainCapability({
     key: 'project_service_ranking',
+    name: '项目服务次数与销量问数',
+    description:
+      '按当前门店和时间范围查询项目服务次数/项目销量；支持指定项目“卖了多少”标量问数和按项目服务次数排行，严格区分商品销量、项目 BOM 和实际耗材消耗。',
+    intents: ['query', 'ranking'],
+    examples: ['背部净透护理2026年6月1日至30日卖了多少', '本月各项目服务次数排行', '哪个护理项目做得最多'],
+    negativeExamples: ['商品卖了多少', '胶原焕活提拉用到哪些耗材', '全身精油 SPA的BOM成本是多少'],
+    synonyms: ['项目销量', '护理销量', '项目服务次数', '项目卖了多少'],
     businessDefinitionKeys: ['metric.project_service_count', 'entity.project'],
     readOnly: true,
     storeScope: 'required',
@@ -134,7 +151,8 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
   @BrainCapability({
     key: 'staff_performance_ranking',
     name: '美容师综合表现排行',
-    description: '按已发布员工表现评分查询美容师综合表现排行；不得用综合表现、业绩或服务量替代投诉、满意度、试用期或客户归属指标。',
+    description:
+      '按已发布员工表现评分查询美容师综合表现排行；不得用综合表现、业绩或服务量替代投诉、满意度、试用期或客户归属指标。',
     intents: ['ranking', 'query'],
     examples: ['美容师综合表现排行', '哪个美容师表现最好', '员工表现评分排名'],
     negativeExamples: ['哪个美容师客诉最多', '美容师满意度排行', '评价新员工试用期表现', '谁挖走了其他美容师的客户'],
@@ -217,8 +235,7 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
       input.card.key === 'staff_performance_ranking' &&
       /(?:投诉|客诉|差评|满意度|负面反馈|试用期|转正|挖走.*客户|客户归属)/.test(input.question)
     ) {
-      const limitation =
-        '当前问题需要独立的客户反馈、试用期或客户归属事实，不能用美容师综合表现评分替代。';
+      const limitation = '当前问题需要独立的客户反馈、试用期或客户归属事实，不能用美容师综合表现评分替代。';
       return {
         status: 'completed',
         answer: limitation,
@@ -234,6 +251,10 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
     }
 
     this.assertStructuredArgsSupported(input);
+    const projectServiceFactAnswer = await this.executeProjectServiceFactQuery(input);
+    if (projectServiceFactAnswer) return projectServiceFactAnswer;
+    const inventoryRiskFactAnswer = await this.executeInventoryRiskFactQuery(input);
+    if (inventoryRiskFactAnswer) return inventoryRiskFactAnswer;
     const evaluationVersionIds = input.context.governanceEvalReleaseSnapshot
       ? [...new Set(input.card.definitionRefs.map((ref) => ref.versionId))]
       : [];
@@ -251,9 +272,10 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
         return typeof definitionKey === 'string' ? [definitionKey] : [];
       }),
     );
-    const metrics = requestedMetricKeys.size > 0
-      ? availableMetrics.filter((metric) => requestedMetricKeys.has(metric.definitionKey))
-      : availableMetrics;
+    const metrics =
+      requestedMetricKeys.size > 0
+        ? availableMetrics.filter((metric) => requestedMetricKeys.has(metric.definitionKey))
+        : availableMetrics;
     if (!metrics.length) throw new Error(`semantic_capability_binding_missing:${input.card.key}`);
     this.assertAllowedTaskTypes(input.card.key as (typeof ALLOWED_CAPABILITY_KEYS)[number], metrics);
     this.assertMetricPermissionsCovered(metrics, input.card.requiredPermissions, input.context);
@@ -262,13 +284,31 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
     this.assertTimezones(metrics, input.context.timezone);
     this.assertMatchingDimensions(metrics);
     this.assertUniqueOutputFields(metrics);
-    const sort = this.resolveSort(metrics);
+    const sort = this.resolveSort(metrics, input);
     this.assertStructuredOrderSupported(input, metrics, sort);
 
     const timeRange = this.resolveTimeRange(input.question, input.args, input.context.timezone);
-    const metricResults = await Promise.all(
-      metrics.map((metric) => this.executeMetric(metric, snapshot, input.context.storeId, timeRange)),
-    );
+    const comparisonTarget = readCapabilityStructuredComparisonTarget(input.args, input.context.timezone);
+    const comparisonRange = comparisonTarget
+      ? this.resolveTimeRange(
+          comparisonTarget.timeRange.label,
+          { time: comparisonTarget.timeRange },
+          input.context.timezone,
+        )
+      : undefined;
+    const countedExecution = await this.runWithDatabaseQueryCounter(async () => {
+      const [current, comparison] = await Promise.all([
+        this.executeMetricRange(metrics, snapshot, input.context.storeId, timeRange),
+        comparisonRange
+          ? this.executeMetricRange(metrics, snapshot, input.context.storeId, comparisonRange)
+          : Promise.resolve(undefined),
+      ]);
+      return { current, comparison };
+    });
+    const metricResults = countedExecution.value.current.results;
+    const comparisonMetricResults = countedExecution.value.comparison?.results;
+    const databaseQueryCount = countedExecution.queryCount ??
+      countedExecution.value.current.databaseQueryCount + (countedExecution.value.comparison?.databaseQueryCount ?? 0);
     const limit = this.resolveLimit(input.args.limit);
     const allRows = this.mergeMetricResults(metricResults, sort);
     const displayRows = allRows.slice(0, limit);
@@ -278,17 +318,35 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
       hint: `口径版本 ${metric.version}`,
     }));
     const scalarAnswer = input.answerShape === 'scalar';
-    const resultKind = input.answerShape === 'ranking' || (input.answerShape !== 'scalar' && input.card.intents.includes('ranking'))
-      ? 'ranking'
-      : 'table';
+    const comparisonAnswer = input.answerShape === 'comparison' && comparisonRange && comparisonMetricResults;
+    const resultKind =
+      input.answerShape === 'ranking' || (input.answerShape !== 'scalar' && input.card.intents.includes('ranking'))
+        ? 'ranking'
+        : 'table';
+    const comparisonItems = comparisonAnswer
+      ? metrics.map((metric, index) => {
+          const current = metricResults[index].overallValue;
+          const previous = comparisonMetricResults[index].overallValue;
+          return {
+            label: metric.name,
+            current: this.formatNumber(current),
+            previous: this.formatNumber(previous),
+            delta: this.formatSignedNumber(current - previous),
+          };
+        })
+      : [];
 
     return {
       status: 'completed',
-      answer: scalarAnswer
-        ? `${timeRange.rangeLabel}${metrics.map((metric, index) => `${metric.name} ${this.formatNumber(metricResults[index].overallValue)}`).join('，')}。`
-        : metrics[0].runtimeQuery.dimensions.length
-        ? `查询完成，共生成 ${allRows.length} 条经营指标结果，当前展示 ${displayRows.length} 条。`
-        : `查询完成，已生成 ${metrics.length} 项经营指标汇总。`,
+      answer: comparisonAnswer
+        ? `${timeRange.rangeLabel}与${comparisonRange.rangeLabel}对比完成：${comparisonItems
+            .map((item) => `${item.label} ${item.current}，对比期 ${item.previous}，变化 ${item.delta}`)
+            .join('；')}。`
+        : scalarAnswer
+          ? `${timeRange.rangeLabel}${metrics.map((metric, index) => `${metric.name} ${this.formatNumber(metricResults[index].overallValue)}`).join('，')}。`
+          : metrics[0].runtimeQuery.dimensions.length
+            ? `查询完成，共生成 ${allRows.length} 条经营指标结果，当前展示 ${displayRows.length} 条。`
+            : `查询完成，已生成 ${metrics.length} 项经营指标汇总。`,
       citations: metrics.map((metric) => ({
         sourceType: 'business_definition',
         sourceId: `${metric.definitionKey}@${metric.version}`,
@@ -296,15 +354,21 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
         definition: metric.description,
       })),
       grounding: 'metric_query',
-      blocks: scalarAnswer
-        ? [{ kind: 'kpi', items: kpis }]
-        : [
-            { kind: resultKind, rows: displayRows, columns: this.outputColumns(displayRows, metrics) },
+      blocks: comparisonAnswer
+        ? [
+            { kind: 'comparison', items: comparisonItems },
             { kind: 'kpi', items: kpis },
-          ],
+          ]
+        : scalarAnswer
+          ? [{ kind: 'kpi', items: kpis }]
+          : [
+              { kind: resultKind, rows: displayRows, columns: this.outputColumns(displayRows, metrics) },
+              { kind: 'kpi', items: kpis },
+            ],
       metadata: {
         mappingOutputs: { resultRows: displayRows },
-        queryCount: metrics.length,
+        queryCount: metrics.length * (comparisonRange ? 2 : 1),
+        databaseQueryCount,
         resultCount: allRows.length,
         rangeLabel: timeRange.rangeLabel,
         timeRange: {
@@ -313,6 +377,17 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
           boundary: '[start,end)',
           timezone: input.context.timezone,
         },
+        ...(comparisonRange
+          ? {
+              comparisonRange: {
+                label: comparisonRange.rangeLabel,
+                startDate: comparisonRange.startDate.toISOString(),
+                endExclusive: comparisonRange.endExclusive.toISOString(),
+                boundary: '[start,end)',
+                timezone: input.context.timezone,
+              },
+            }
+          : {}),
         metricDefinitions: metrics.map((metric) => ({
           definitionKey: metric.definitionKey,
           version: metric.version,
@@ -325,10 +400,7 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
     };
   }
 
-  private assertAllowedTaskTypes(
-    capabilityKey: (typeof ALLOWED_CAPABILITY_KEYS)[number],
-    metrics: RuntimeMetric[],
-  ) {
+  private assertAllowedTaskTypes(capabilityKey: (typeof ALLOWED_CAPABILITY_KEYS)[number], metrics: RuntimeMetric[]) {
     const allowed = CAPABILITY_TASK_TYPES[capabilityKey];
     for (const metric of metrics) {
       const metricTaskTypes = metric.allowedTaskTypes ?? [];
@@ -347,6 +419,245 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
   ) {
     if (input.card.key !== key) throw new Error(`capability_contract_key_mismatch:${key}:${input.card.key}`);
     return this.execute({ ...input, args });
+  }
+
+  private async executeProjectServiceFactQuery(input: BrainCapabilityExecutionInput): Promise<BrainDomainAnswer | undefined> {
+    if (input.card.key !== 'project_service_ranking' || !isSpecificProjectSalesQuestion(input.question)) return undefined;
+    const timeRange = this.resolveTimeRange(input.question, input.args, input.context.timezone);
+    const projects = await this.prisma.project.findMany({
+      where: { storeId: input.context.storeId, deletedAt: null },
+      select: { id: true, name: true },
+    });
+    const project = findMentionedProject(input.question, projects);
+    const citation = {
+      sourceType: 'db_metric',
+      sourceId: 'project_service_order_items',
+      label: '项目订单明细服务次数',
+    };
+    if (!project) {
+      return {
+        status: 'completed',
+        answer: '没有匹配到当前门店项目；Ami Brain 不会用全项目汇总替代指定项目销量。',
+        citations: [citation],
+        grounding: 'metric_query',
+        blocks: [
+          { kind: 'kpi', items: [{ label: '项目服务次数', value: '暂无' }], citationIds: [citation.sourceId] },
+          { kind: 'limitations', items: ['no_data: project_not_matched'] },
+        ],
+        metadata: {
+          capabilityKey: 'project_service_ranking',
+          unsupportedReason: 'project_not_matched',
+          completion: { status: 'complete', missingCriteria: [], recoverable: false },
+        },
+      };
+    }
+    const rows = await this.prisma.orderItem.findMany({
+      where: {
+        itemType: 'project',
+        itemId: project.id,
+        order: {
+          storeId: input.context.storeId,
+          status: { in: ['completed', 'paid'] },
+          createdAt: { gte: timeRange.startDate, lt: timeRange.endExclusive },
+        },
+      },
+      select: { id: true, quantity: true },
+    });
+    const serviceCount = rows.reduce((sum, item) => sum + this.toNumber(item.quantity), 0);
+    return {
+      status: 'completed',
+      answer: `${timeRange.rangeLabel}${project.name} 卖了 ${Math.round(serviceCount)} 单，项目服务次数 ${Math.round(serviceCount)} 次。`,
+      citations: [citation],
+      grounding: 'metric_query',
+      blocks: [
+        {
+          kind: 'kpi',
+          items: [{ label: '项目服务次数', value: `${Math.round(serviceCount)} 次` }],
+          citationIds: [citation.sourceId],
+        },
+        {
+          kind: 'table',
+          rows: [{ projectId: project.id, projectName: project.name, serviceCount }],
+          columns: ['projectId', 'projectName', 'serviceCount'],
+          citationIds: [citation.sourceId],
+        },
+      ],
+      metadata: {
+        capabilityKey: 'project_service_ranking',
+        answerScope: 'project_service_count_scalar',
+        projectId: project.id,
+        projectName: project.name,
+        queryCount: 1,
+        resultCount: rows.length,
+        rangeLabel: timeRange.rangeLabel,
+        timeRange: {
+          startDate: timeRange.startDate.toISOString(),
+          endExclusive: timeRange.endExclusive.toISOString(),
+          boundary: '[start,end)',
+          timezone: input.context.timezone,
+        },
+        metricDefinitions: ['metric.project_service_count'],
+      },
+    };
+  }
+
+  private async executeInventoryRiskFactQuery(input: BrainCapabilityExecutionInput): Promise<BrainDomainAnswer | undefined> {
+    if (input.card.key !== 'inventory_risk_ranking' || !this.skillRuntime) return undefined;
+    const question = input.question;
+    if (/(?:怎么|如何|处理|规定|办法|建议|优先|最紧急|最高|排行|排名|top\s*\d*)/i.test(question)) {
+      return undefined;
+    }
+    const expiringQuestion = /临期|快过期|即将过期|过期/.test(question);
+    const stockoutQuestion = /缺货|断货/.test(question);
+    const lowStockQuestion = /低于安全库存|安全库存|低库存/.test(question);
+    if (!expiringQuestion && !stockoutQuestion && !lowStockQuestion) return undefined;
+
+    const timeRange = this.resolveTimeRange(question, input.args, input.context.timezone);
+    if (expiringQuestion) {
+      const risk = await this.skillRuntime.buildInventoryRiskSummary({
+        storeId: input.context.storeId,
+        expiringBefore: new Date(timeRange.endExclusive.getTime() - 1),
+      });
+      const citationId = 'inventory_risk_summary';
+      const rows = risk.expiringProducts.slice(0, this.resolveLimit(input.args.limit)).map((item) => ({
+        productId: item.productId,
+        productName: item.name,
+        stock: item.stock,
+        expiryDate: item.expiryDate ?? null,
+        estimatedValue: Number(item.estimatedValue.toFixed(2)),
+      }));
+      return {
+        status: 'completed',
+        answer: rows.length
+          ? `${timeRange.rangeLabel}临期产品 ${risk.expiringProducts.length} 个。`
+          : `${timeRange.rangeLabel}没有临期产品。`,
+        citations: [{ sourceType: 'db_skill', sourceId: citationId, label: '低库存与临期批次风险' }],
+        grounding: 'db_skill',
+        blocks: [
+          {
+            kind: 'kpi',
+            items: [
+              {
+                label: `${timeRange.rangeLabel}临期产品`,
+                value: `${risk.expiringProducts.length} 个`,
+                hint: `截至 ${new Date(timeRange.endExclusive.getTime() - 1).toISOString().slice(0, 10)}`,
+              },
+            ],
+            citationIds: [citationId],
+          },
+          {
+            kind: 'table',
+            rows,
+            columns: ['productId', 'productName', 'stock', 'expiryDate', 'estimatedValue'],
+            citationIds: [citationId],
+          },
+          ...(rows.length ? [] : [{ kind: 'limitations' as const, items: ['no_data:inventory_expiring_products_empty'] }]),
+        ],
+        metadata: {
+          capabilityKey: 'inventory_risk_ranking',
+          answerScope: 'inventory_expiring_product_count',
+          rangeLabel: timeRange.rangeLabel,
+          expiringProductCount: risk.expiringProducts.length,
+          mappingOutputs: { resultRows: rows },
+          completionCriteria: ['inventory_expiring_batches_loaded'],
+        },
+      };
+    }
+
+    if (stockoutQuestion) {
+      const facts = await this.skillRuntime.buildInventoryStockRiskFacts({
+        storeId: input.context.storeId,
+        startDate: timeRange.startDate,
+        endExclusive: timeRange.endExclusive,
+      });
+      const citationId = 'inventory_stock_risk_fact';
+      const rows = facts.stockoutProducts.slice(0, this.resolveLimit(input.args.limit, 100)).map((item) => ({
+        productId: item.productId,
+        productName: item.name,
+        periodEndStock: item.periodEndStock,
+        ...(item.stockoutObservedAt ? { stockoutObservedAt: item.stockoutObservedAt } : {}),
+      }));
+      return {
+        status: 'completed',
+        answer: rows.length
+          ? `${timeRange.rangeLabel}缺货产品 ${facts.stockoutProducts.length} 个。`
+          : `${timeRange.rangeLabel}没有缺货产品。`,
+        citations: [{ sourceType: 'db_skill', sourceId: citationId, label: '周期缺货事实' }],
+        grounding: 'db_skill',
+        blocks: [
+          {
+            kind: 'kpi',
+            items: [
+              {
+                label: `${timeRange.rangeLabel}缺货产品`,
+                value: `${facts.stockoutProducts.length} 个`,
+                hint: `截至 ${new Date(timeRange.endExclusive.getTime() - 1).toISOString().slice(0, 10)}`,
+              },
+            ],
+            citationIds: [citationId],
+          },
+          {
+            kind: 'table',
+            rows,
+            columns: ['productId', 'productName', 'periodEndStock', 'stockoutObservedAt'],
+            citationIds: [citationId],
+          },
+          ...(rows.length ? [] : [{ kind: 'limitations' as const, items: ['no_data:inventory_stockout_products_empty'] }]),
+        ],
+        metadata: {
+          capabilityKey: 'inventory_risk_ranking',
+          answerScope: 'inventory_stockout_product_set',
+          rangeLabel: timeRange.rangeLabel,
+          stockoutProductCount: facts.stockoutProducts.length,
+          mappingOutputs: { resultRows: rows },
+          completionCriteria: ['inventory_stockout_products_loaded'],
+        },
+      };
+    }
+
+    const risk = await this.skillRuntime.buildInventoryStockRiskFacts({
+      storeId: input.context.storeId,
+      startDate: timeRange.startDate,
+      endExclusive: timeRange.endExclusive,
+    });
+    const citationId = 'inventory_stock_risk_fact';
+    const rows = risk.lowStockProducts.slice(0, this.resolveLimit(input.args.limit)).map((item) => ({
+      productId: item.productId,
+      productName: item.name,
+      currentStock: item.currentStock,
+      safetyStock: item.safetyStock,
+      shortage: Math.max(0, item.safetyStock - item.currentStock),
+    }));
+    return {
+      status: 'completed',
+      answer: rows.length
+        ? `${timeRange.rangeLabel}低于安全库存的产品 ${risk.lowStockProducts.length} 个。`
+        : `${timeRange.rangeLabel}没有低于安全库存的产品。`,
+      citations: [{ sourceType: 'db_skill', sourceId: citationId, label: '期末低安全库存事实' }],
+      grounding: 'db_skill',
+      blocks: [
+        {
+          kind: 'kpi',
+          items: [{ label: `${timeRange.rangeLabel}低于安全库存`, value: `${risk.lowStockProducts.length} 个` }],
+          citationIds: [citationId],
+        },
+        {
+          kind: 'table',
+          rows,
+          columns: ['productId', 'productName', 'currentStock', 'safetyStock', 'shortage'],
+          citationIds: [citationId],
+        },
+        ...(rows.length ? [] : [{ kind: 'limitations' as const, items: ['no_data:inventory_low_stock_products_empty'] }]),
+      ],
+      metadata: {
+        capabilityKey: 'inventory_risk_ranking',
+        answerScope: 'inventory_low_stock_product_count',
+        rangeLabel: timeRange.rangeLabel,
+        lowStockProductCount: risk.lowStockProducts.length,
+        mappingOutputs: { resultRows: rows },
+        completionCriteria: ['inventory_low_stock_products_loaded'],
+      },
+    };
   }
 
   private async executeMetric(
@@ -372,6 +683,55 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
       storeId,
       timeRange,
     });
+  }
+
+  private async executeMetricRange(
+    metrics: RuntimeMetric[],
+    snapshot: BusinessDefinitionSnapshotInput,
+    storeId: number,
+    timeRange: { startDate: Date; endExclusive: Date; rangeLabel: string },
+  ): Promise<{ results: Array<{ outputField: string; groups: MetricGroup[]; overallValue: number }>; databaseQueryCount: number }> {
+    const dimensions = snapshot.dimensions.map((dimension) => {
+      const source = this.asRecord(dimension.source, `semantic_dimension_source_invalid:${dimension.dimensionKey}`);
+      return {
+        key: dimension.dimensionKey,
+        name: dimension.name,
+        model: this.requiredString(source.model, `semantic_dimension_model_invalid:${dimension.dimensionKey}`),
+        field: this.requiredString(source.field, `semantic_dimension_field_invalid:${dimension.dimensionKey}`),
+      };
+    });
+    const results = new Array<{ outputField: string; groups: MetricGroup[]; overallValue: number }>(metrics.length);
+    const batchable = metrics
+      .map((metric, index) => ({ metric, index }))
+      .filter(({ metric }) => !metric.runtimeQuery.resolver);
+    const batchPromise = batchable.length
+      ? this.runtimeQueryEngine.executeMetrics({ metrics: batchable.map(({ metric }) => metric), dimensions, storeId, timeRange })
+      : Promise.resolve({ results: [], databaseQueryCount: 0 });
+    const resolved = metrics
+      .map((metric, index) => ({ metric, index }))
+      .filter(({ metric }) => Boolean(metric.runtimeQuery.resolver));
+    const resolvedPromise = Promise.all(
+      resolved.map(async ({ metric, index }) => ({ index, result: await this.executeMetric(metric, snapshot, storeId, timeRange) })),
+    );
+    const [batch, resolvedResults] = await Promise.all([batchPromise, resolvedPromise]);
+    batchable.forEach(({ index: targetIndex }, index) => {
+      results[targetIndex] = batch.results[index];
+    });
+    resolvedResults.forEach(({ index, result }) => {
+      results[index] = result;
+    });
+    return {
+      results,
+      databaseQueryCount: batch.databaseQueryCount + resolved.length,
+    };
+  }
+
+  private async runWithDatabaseQueryCounter<T>(task: () => Promise<T>): Promise<{ value: T; queryCount?: number }> {
+    const counter = (this.prisma as PrismaService & {
+      runWithQueryCounter?: <R>(callback: () => Promise<R>) => Promise<{ value: R; queryCount: number }>;
+    }).runWithQueryCounter;
+    if (typeof counter !== 'function') return { value: await task() };
+    return (await counter.call(this.prisma, task)) as { value: T; queryCount: number };
   }
 
   private async executeResolvedMetric(
@@ -426,13 +786,49 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
       });
       return [result as unknown as UnknownRecord];
     }
-    if (resolverKey === 'finance_cost_analysis') {
+    if (
+      resolverKey === 'finance_cost_analysis' ||
+      resolverKey === 'finance_settlement_cost_analysis' ||
+      resolverKey === 'finance_stored_value_liability_summary' ||
+      resolverKey === 'finance_unfulfilled_card_liability_summary'
+    ) {
       const result = await this.skillRuntime!.buildFinanceCostAnalysis({
         storeId,
         startDate: timeRange.startDate,
         endDate: new Date(timeRange.endExclusive.getTime() - 1),
       });
       return [result as unknown as UnknownRecord];
+    }
+    if (resolverKey === 'finance_card_recognition_rows') {
+      return this.skillRuntime!.buildFinanceCardRecognitionRows({
+        storeId,
+        startDate: timeRange.startDate,
+        endDate: new Date(timeRange.endExclusive.getTime() - 1),
+      }) as unknown as UnknownRecord[];
+    }
+    if (
+      resolverKey === 'finance_order_profit_rows' ||
+      resolverKey === 'finance_product_order_profit_rows' ||
+      resolverKey === 'finance_prepaid_order_profit_rows'
+    ) {
+      return this.skillRuntime!.buildFinanceOrderProfitRows({
+        storeId,
+        startDate: timeRange.startDate,
+        endDate: new Date(timeRange.endExclusive.getTime() - 1),
+        scope:
+          resolverKey === 'finance_product_order_profit_rows'
+            ? 'product'
+            : resolverKey === 'finance_prepaid_order_profit_rows'
+              ? 'prepaid'
+              : 'all',
+      }) as unknown as UnknownRecord[];
+    }
+    if (resolverKey === 'finance_staff_commission_rows') {
+      return this.skillRuntime!.buildFinanceStaffCommissionRows({
+        storeId,
+        startDate: timeRange.startDate,
+        endDate: new Date(timeRange.endExclusive.getTime() - 1),
+      }) as unknown as UnknownRecord[];
     }
     if (resolverKey === 'inventory_risk_summary') {
       const result = await this.skillRuntime!.buildInventoryRiskSummary({
@@ -774,23 +1170,40 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
     });
   }
 
-  private resolveSort(metrics: RuntimeMetric[]): NonNullable<BusinessMetricRuntimeQuery['sort']> {
-    const declarations = metrics.map((metric) => metric.runtimeQuery.sort).filter(Boolean);
-    if (!declarations.length) {
-      if (metrics.length > 1) throw new Error('semantic_sort_binding_required');
-      return { outputField: metrics[0].runtimeQuery.outputFields[0], direction: 'desc', missing: 'error' };
-    }
-    if (declarations.length !== metrics.length) throw new Error('semantic_sort_binding_incomplete');
-    const expected = JSON.stringify(declarations[0]);
-    if (declarations.some((declaration) => JSON.stringify(declaration) !== expected)) {
-      throw new Error('semantic_sort_binding_mismatch');
-    }
-    const sort = declarations[0];
-    if (!sort || sort.missing !== 'error' || !['asc', 'desc'].includes(sort.direction)) {
-      throw new Error('semantic_sort_binding_invalid');
-    }
+  private resolveSort(
+    metrics: RuntimeMetric[],
+    input: BrainCapabilityExecutionInput,
+  ): NonNullable<BusinessMetricRuntimeQuery['sort']> {
     const outputFields = new Set(metrics.flatMap((metric) => metric.runtimeQuery.outputFields));
-    if (!outputFields.has(sort.outputField)) throw new Error(`semantic_sort_output_not_bound:${sort.outputField}`);
+    for (const metric of metrics) {
+      const declaration = metric.runtimeQuery.sort;
+      if (!declaration) continue;
+      if (declaration.missing !== 'error' || !['asc', 'desc'].includes(declaration.direction)) {
+        throw new Error('semantic_sort_binding_invalid');
+      }
+      if (!outputFields.has(declaration.outputField)) {
+        throw new Error(`semantic_sort_output_not_bound:${declaration.outputField}`);
+      }
+    }
+
+    const requestedOrder = Array.isArray(input.args.orderBy) && input.args.orderBy.length === 1
+      ? input.args.orderBy[0]
+      : undefined;
+    const requestedDefinitionKey =
+      requestedOrder && typeof requestedOrder === 'object' && !Array.isArray(requestedOrder)
+        ? this.asRecord(
+            this.asRecord(requestedOrder, 'semantic_order_args_invalid').definitionRef,
+            'semantic_order_definition_ref_invalid',
+          ).definitionKey
+        : undefined;
+    const primaryMetric =
+      metrics.find((metric) => metric.definitionKey === requestedDefinitionKey) ?? metrics[0];
+    const sort = primaryMetric.runtimeQuery.sort ?? {
+      outputField: primaryMetric.runtimeQuery.outputFields[0],
+      direction: 'desc' as const,
+      missing: 'error' as const,
+    };
+    if (!sort.outputField) throw new Error(`semantic_sort_output_not_bound:${primaryMetric.metricKey}`);
     return sort;
   }
 
@@ -908,7 +1321,9 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
       };
     }
     const wallClockNow = this.toShanghaiWallClock(new Date());
-    const parsed = this.timeRangeParser.parse(structuredTime?.label ?? structuredTime?.preset ?? question, { now: wallClockNow });
+    const parsed = this.timeRangeParser.parse(structuredTime?.label ?? structuredTime?.preset ?? question, {
+      now: wallClockNow,
+    });
     if (parsed.range) {
       return {
         startDate: this.shanghaiWallClockToUtc(parsed.range.startDate),
@@ -956,9 +1371,10 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
     }
     const record = order as Record<string, unknown>;
     const ref = record.definitionRef;
-    const definitionKey = ref && typeof ref === 'object' && !Array.isArray(ref)
-      ? (ref as Record<string, unknown>).definitionKey
-      : undefined;
+    const definitionKey =
+      ref && typeof ref === 'object' && !Array.isArray(ref)
+        ? (ref as Record<string, unknown>).definitionKey
+        : undefined;
     const metricKeys = new Set(metrics.map((metric) => metric.definitionKey));
     if (!metricKeys.has(String(definitionKey)) || record.direction !== sort.direction) {
       throw new Error(`semantic_order_args_unsupported:${input.card.key}`);
@@ -997,9 +1413,9 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
     return [...metrics[0].runtimeQuery.dimensions, ...metrics.map((metric) => metric.runtimeQuery.outputFields[0])];
   }
 
-  private resolveLimit(value: unknown) {
+  private resolveLimit(value: unknown, fallback = 10) {
     const parsed = typeof value === 'number' ? value : Number(value);
-    if (!Number.isFinite(parsed)) return 10;
+    if (!Number.isFinite(parsed)) return fallback;
     return Math.min(100, Math.max(1, Math.trunc(parsed)));
   }
 
@@ -1017,6 +1433,11 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
 
   private formatNumber(value: number) {
     return Number.isInteger(value) ? String(value) : value.toFixed(2);
+  }
+
+  private formatSignedNumber(value: number) {
+    const formatted = this.formatNumber(value);
+    return value > 0 ? `+${formatted}` : formatted;
   }
 
   private toNumber(value: unknown): number {
@@ -1040,4 +1461,33 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
     if (typeof value !== 'string' || !value.trim()) throw new Error(errorMessage);
     return value.trim();
   }
+}
+
+function isSpecificProjectSalesQuestion(question: string) {
+  const normalized = question.replace(/\s+/gu, '');
+  const projectSignal = /(?:项目|护理|SPA|spa|管理|养护|修护|提拉|焕肤|清洁|舒缓|净透|淡斑)/u.test(normalized);
+  const salesSignal =
+    /(?:卖了多少|卖出多少|卖了几|卖出几|销量|销售数量|服务次数|做了多少次|做了几次|卖多少)/u.test(normalized);
+  const productSignal = /(?:商品|产品|货品)/u.test(normalized) && !/(?:项目|护理|SPA|spa)/u.test(normalized);
+  const bomSignal = /(?:BOM|bom|耗材|物料|材料)/iu.test(normalized);
+  const aggregateSignal =
+    /(?:各项目|每个项目|所有项目|全店|哪个项目|哪些项目|排行|排名|最高|最多|最低|实际消耗|消耗最多|消耗排行)/u.test(
+      normalized,
+    );
+  return projectSignal && salesSignal && !productSignal && !bomSignal && !aggregateSignal;
+}
+
+function findMentionedProject<T extends { name: string }>(question: string, projects: T[]) {
+  const normalizedQuestion = normalizeBusinessName(question);
+  return projects
+    .map((project) => ({ project, normalizedName: normalizeBusinessName(project.name) }))
+    .filter((item) => item.normalizedName.length >= 2 && normalizedQuestion.includes(item.normalizedName))
+    .sort((left, right) => right.normalizedName.length - left.normalizedName.length)[0]?.project;
+}
+
+function normalizeBusinessName(value: string) {
+  return value
+    .normalize('NFKC')
+    .toLocaleLowerCase('zh-CN')
+    .replace(/[^a-z0-9\u4e00-\u9fff]+/g, '');
 }

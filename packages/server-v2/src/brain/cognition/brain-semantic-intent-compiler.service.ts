@@ -44,7 +44,12 @@ export interface BrainSemanticCapabilitySummary {
   intents: string[];
   examples?: string[];
   readOnly: boolean;
-  definitionRefs?: Array<BrainDefinitionRef<'entity' | 'relation' | 'metric' | 'dimension'>>;
+  sideEffect?: boolean;
+  requiresConfirmation?: boolean;
+  riskLevel?: string;
+  idempotency?: string;
+  grounding?: string;
+  definitionRefs?: Array<BrainDefinitionRef<'entity' | 'relation' | 'metric' | 'dimension' | 'action'>>;
 }
 
 export interface BrainSemanticIntentCompilerInput {
@@ -61,6 +66,7 @@ export interface BrainSemanticIntentCompilerInput {
   dimensionRefs: Array<BrainDefinitionRef<'dimension'>>;
   capabilitySummaries: BrainSemanticCapabilitySummary[];
   preferredCapabilityKey?: string;
+  rankedCapabilityKeys?: string[];
   repairFeedback?: {
     previousIntent: BrainSemanticIntent;
     issues: Array<{ code: string; slot?: string; message: string }>;
@@ -77,6 +83,7 @@ export type BrainSemanticIntentCompilerResult =
   | {
       status: 'completed';
       intent: BrainSemanticIntent;
+      selectedCapabilityKey?: string;
       provider: string;
       model: string;
       usage: AiUsage;
@@ -99,6 +106,73 @@ export class BrainSemanticIntentCompilerService {
     try {
       const deadlineAt = input.deadlineAt;
       const modelContext = this.buildModelContext(input);
+      const conversationContinuation = this.buildConversationContinuationFastPath(
+        input,
+        modelContext.conversationSlots,
+      );
+      if (conversationContinuation) {
+        return {
+          status: 'completed',
+          intent: conversationContinuation,
+          provider: 'governed_contract',
+          model: 'conversation_continuation_fast_path',
+          usage: {
+            provider: 'governed_contract',
+            model: 'conversation_continuation_fast_path',
+            inputTokens: 0,
+            outputTokens: 0,
+          },
+        };
+      }
+      const financeScalarFastPath = this.buildFinanceScalarCapabilityFastPath(input);
+      if (financeScalarFastPath) {
+        return {
+          status: 'completed',
+          intent: financeScalarFastPath,
+          selectedCapabilityKey: 'finance_risk_overview',
+          provider: 'governed_contract',
+          model: 'finance_scalar_fast_path',
+          usage: {
+            provider: 'governed_contract',
+            model: 'finance_scalar_fast_path',
+            inputTokens: 0,
+            outputTokens: 0,
+          },
+        };
+      }
+      const financeOrderProfitFastPath = this.buildFinanceOrderProfitCapabilityFastPath(input);
+      if (financeOrderProfitFastPath) {
+        return {
+          status: 'completed',
+          intent: financeOrderProfitFastPath,
+          selectedCapabilityKey: 'finance_risk_overview',
+          provider: 'governed_contract',
+          model: 'finance_order_profit_fast_path',
+          usage: {
+            provider: 'governed_contract',
+            model: 'finance_order_profit_fast_path',
+            inputTokens: 0,
+            outputTokens: 0,
+          },
+        };
+      }
+      const financeStaffCommissionCompositionFastPath =
+        this.buildFinanceStaffCommissionCompositionCapabilityFastPath(input);
+      if (financeStaffCommissionCompositionFastPath) {
+        return {
+          status: 'completed',
+          intent: financeStaffCommissionCompositionFastPath,
+          selectedCapabilityKey: 'finance_risk_overview',
+          provider: 'governed_contract',
+          model: 'finance_staff_commission_composition_fast_path',
+          usage: {
+            provider: 'governed_contract',
+            model: 'finance_staff_commission_composition_fast_path',
+            inputTokens: 0,
+            outputTokens: 0,
+          },
+        };
+      }
       const governedFastPath = this.buildExactCapabilityFallback(input, 'contract_fast_path');
       if (governedFastPath) {
         return {
@@ -109,6 +183,68 @@ export class BrainSemanticIntentCompilerService {
           usage: {
             provider: 'governed_contract',
             model: 'exact_example_fast_path',
+            inputTokens: 0,
+            outputTokens: 0,
+          },
+        };
+      }
+      const customerFactsFastPath = this.buildCustomerFactsCapabilityFastPath(input);
+      if (customerFactsFastPath) {
+        return {
+          status: 'completed',
+          intent: customerFactsFastPath,
+          selectedCapabilityKey: 'customer_facts',
+          provider: 'governed_contract',
+          model: 'customer_facts_fast_path',
+          usage: {
+            provider: 'governed_contract',
+            model: 'customer_facts_fast_path',
+            inputTokens: 0,
+            outputTokens: 0,
+          },
+        };
+      }
+      const projectCatalogFastPath = this.buildProjectCatalogCapabilityFastPath(input);
+      if (projectCatalogFastPath) {
+        return {
+          status: 'completed',
+          intent: projectCatalogFastPath.intent,
+          selectedCapabilityKey: projectCatalogFastPath.selectedCapabilityKey,
+          provider: 'governed_contract',
+          model: 'project_catalog_fast_path',
+          usage: {
+            provider: 'governed_contract',
+            model: 'project_catalog_fast_path',
+            inputTokens: 0,
+            outputTokens: 0,
+          },
+        };
+      }
+      const metricPhraseFastPath = this.buildMetricPhraseFastPath(input);
+      if (metricPhraseFastPath) {
+        return {
+          status: 'completed',
+          intent: metricPhraseFastPath,
+          provider: 'governed_contract',
+          model: 'metric_phrase_fast_path',
+          usage: {
+            provider: 'governed_contract',
+            model: 'metric_phrase_fast_path',
+            inputTokens: 0,
+            outputTokens: 0,
+          },
+        };
+      }
+      const metricDimensionFastPath = this.buildMetricDimensionFastPath(input);
+      if (metricDimensionFastPath) {
+        return {
+          status: 'completed',
+          intent: metricDimensionFastPath,
+          provider: 'governed_contract',
+          model: 'metric_dimension_fast_path',
+          usage: {
+            provider: 'governed_contract',
+            model: 'metric_dimension_fast_path',
             inputTokens: 0,
             outputTokens: 0,
           },
@@ -131,13 +267,12 @@ export class BrainSemanticIntentCompilerService {
       let attempt = 0;
       while (!result) {
         try {
-          const remainingMs = deadlineAt === undefined
-            ? this.config.runtime.modelTimeoutMs
-            : Math.floor(deadlineAt - Date.now());
+          const remainingMs =
+            deadlineAt === undefined ? this.config.runtime.modelTimeoutMs : Math.floor(deadlineAt - Date.now());
           if (remainingMs <= 0) {
             throw new AiStructuredOutputError('BUDGET_EXCEEDED', 'Brain semantic intent deadline is exhausted.');
           }
-          result = await this.aiService.generateStructured<BrainSemanticIntent>({
+          result = await this.aiService.generateStructured<BrainSemanticIntentModelOutput>({
             ...request,
             scenario: attempt === 0 ? request.scenario : `brain.semantic_intent.retry${attempt}.v1`,
             timeoutMs: Math.min(this.config.runtime.modelTimeoutMs, remainingMs),
@@ -154,9 +289,16 @@ export class BrainSemanticIntentCompilerService {
         }
       }
 
+      const normalizedIntent = this.normalizeModelIntent(stripModelCapabilitySelection(result.data), input);
+      const selectedCapabilityKey = this.resolveModelSelectedCapabilityKey(
+        result.data.selectedCapabilityKey,
+        normalizedIntent,
+        input,
+      );
       return {
         status: 'completed',
-        intent: this.normalizeModelIntent(result.data, input),
+        intent: normalizedIntent,
+        ...(selectedCapabilityKey ? { selectedCapabilityKey } : {}),
         provider: result.provider,
         model: result.model,
         usage: result.usage,
@@ -259,20 +401,624 @@ export class BrainSemanticIntentCompilerService {
     return this.buildGovernedCapabilityIntent(capability, input, mode);
   }
 
-  private buildPreferredCapabilityFallback(
+  private buildConversationContinuationFastPath(
     input: BrainSemanticIntentCompilerInput,
+    sanitizedConversationSlots: unknown,
   ): BrainSemanticIntent | undefined {
+    const slots = semanticRecord(sanitizedConversationSlots);
+    const directives = semanticRecord(slots.turnDirectives);
+    const modelContext = semanticRecord(slots.modelContext);
+    if (!['continue', 'resolve_pending_or_new'].includes(String(directives.mode))) return undefined;
+
+    const inherit = Array.isArray(directives.inherit)
+      ? directives.inherit.filter((slot): slot is string => typeof slot === 'string')
+      : [];
+    const doNotInherit = Array.isArray(directives.doNotInherit)
+      ? directives.doNotInherit.filter((slot): slot is string => typeof slot === 'string')
+      : [];
+    if (
+      !inherit.includes('objective') ||
+      !inherit.includes('capability') ||
+      doNotInherit.includes('objective') ||
+      doNotInherit.includes('capability')
+    ) {
+      return undefined;
+    }
+
+    const capabilityContext = semanticRecord(modelContext.capability);
+    const capabilityKey = typeof capabilityContext.key === 'string' ? capabilityContext.key : undefined;
+    const capability = capabilityKey
+      ? input.capabilitySummaries.find((candidate) => candidate.key === capabilityKey && candidate.readOnly)
+      : undefined;
+    const objective = typeof modelContext.objective === 'string' ? modelContext.objective.trim() : '';
+    if (!capability || !objective) return undefined;
+
+    const replace = semanticRecord(directives.replace);
+    const resolve = semanticRecord(directives.resolve);
+    const replacementTimeRange = semanticTimeRange(replace.timeRange, input.timezone);
+    const comparisonTimeRange = semanticTimeRange(resolve.comparisonTarget, input.timezone);
+    const inheritedTimeRange = semanticTimeRange(modelContext.timeRange, input.timezone);
+    const namedPeriodComparison =
+      /(?:跟|和|与|相比|对比|比较).*(?:双十一|双十二|618|六一八|国庆|春节|五一|劳动节|元旦|中秋|端午|七夕)(?:期间|假期|前后)?/.test(
+        input.question,
+      );
+    const comparisonFollowUp = Boolean(comparisonTimeRange || namedPeriodComparison);
+    if (!replacementTimeRange && !comparisonFollowUp) return undefined;
+    if (comparisonFollowUp && !inheritedTimeRange) return undefined;
+
+    const metrics = semanticDefinitionRefs(modelContext.metrics, 'metric', input);
+    const dimensions = semanticDefinitionRefs(modelContext.dimensions, 'dimension', input);
+    const entities = semanticEntities(modelContext.entities, input);
+    if (!metrics.length && !dimensions.length && !entities.length) return undefined;
+
+    const missingComparisonTarget = comparisonFollowUp && !comparisonTimeRange;
+    const previousIntent = BRAIN_SEMANTIC_INTENTS.includes(modelContext.intent as BrainSemanticIntentKind)
+      ? (modelContext.intent as BrainSemanticIntentKind)
+      : 'query';
+    const previousAnswerShape = BRAIN_SEMANTIC_ANSWER_SHAPES.includes(
+      modelContext.answerShape as BrainSemanticAnswerShape,
+    )
+      ? (modelContext.answerShape as BrainSemanticAnswerShape)
+      : 'list';
+    return {
+      schemaVersion: '1.0',
+      objective,
+      domains: [...capability.domains],
+      intent: comparisonFollowUp ? 'comparison' : previousIntent,
+      entities,
+      metrics,
+      dimensions,
+      filters: [],
+      ...(comparisonFollowUp
+        ? { timeRange: inheritedTimeRange }
+        : replacementTimeRange
+          ? { timeRange: replacementTimeRange }
+          : inheritedTimeRange
+            ? { timeRange: inheritedTimeRange }
+            : {}),
+      ...(comparisonTimeRange ? { comparisonTarget: { type: 'time' as const, timeRange: comparisonTimeRange } } : {}),
+      orderBy: [],
+      answerShape: comparisonFollowUp ? 'comparison' : previousAnswerShape,
+      successCriteria: [
+        `沿用上一轮已发布能力 ${capability.key} 的业务对象和指标口径`,
+        comparisonFollowUp ? '只调整对比周期，不改写上一轮指标' : '只调整时间范围，不改写上一轮业务目标',
+      ],
+      ambiguities: missingComparisonTarget
+        ? [
+            {
+              slot: 'comparisonTarget',
+              reason: '对比周期只有活动或节假日名称，后台没有可直接采用的正式年份和日期范围',
+              candidates: ['指定年份和日期范围', '从已配置活动中选择周期'],
+            },
+          ]
+        : [],
+      missingSlots: missingComparisonTarget ? ['comparisonTarget'] : [],
+      assumptions: ['本轮沿用上一轮已确认的业务对象、指标和已发布只读能力。'],
+      confidence: missingComparisonTarget ? 0.9 : 1,
+      decisionSummary: missingComparisonTarget
+        ? '已继承上一轮业务目标，但命名活动周期缺少正式日期证据，需要先澄清。'
+        : '当前问题只修改上一轮时间范围，使用受控会话合同直接编译。',
+    };
+  }
+
+  private buildPreferredCapabilityFallback(input: BrainSemanticIntentCompilerInput): BrainSemanticIntent | undefined {
     if (!input.preferredCapabilityKey) return undefined;
     const capability = input.capabilitySummaries.find((candidate) => candidate.key === input.preferredCapabilityKey);
-    if (!capability) return undefined;
+    if (!capability?.readOnly) return undefined;
     return this.buildGovernedCapabilityIntent(capability, input, 'catalog_match');
+  }
+
+  private buildCustomerFactsCapabilityFastPath(input: BrainSemanticIntentCompilerInput): BrainSemanticIntent | undefined {
+    const capability = input.capabilitySummaries.find(
+      (candidate) => candidate.key === 'customer_facts' && candidate.readOnly && candidate.intents.includes('query'),
+    );
+    if (!capability) return undefined;
+    const normalized = input.question.replace(/\s+/gu, '');
+    const isMemberLevelCount =
+      /(?:有多少|多少(?:个|位|人)?|几(?:个|位|人)?|一共|共有|总数|统计|查询|查一下).*(?:钻石会员|金卡会员|银卡会员|普通会员|会员等级)/u.test(
+        normalized,
+      ) ||
+      /(?:钻石会员|金卡会员|银卡会员|普通会员).*(?:有多少|多少(?:个|位|人)?|几(?:个|位|人)?|一共|共有|总数)/u.test(
+        normalized,
+      );
+    const isVisitedCustomerCount =
+      /(?:到店|来店).*(?:客户|客人|会员).*(?:有多少|多少(?:个|位|人)?|几(?:个|位|人)?|一共|共有|总数)/u.test(
+        normalized,
+      ) ||
+      /(?:有多少|多少(?:个|位|人)?|几(?:个|位|人)?|一共|共有|总数).*(?:到店|来店).*(?:客户|客人|会员)/u.test(
+        normalized,
+      ) ||
+      /(?:到店|来店)的(?:客户|客人|会员)有多少/u.test(normalized);
+    const isVisitedMemberTierList =
+      /(?:到店|来店).*(?:金卡以上|金卡及以上|金卡及其以上|钻石会员|金卡会员)/u.test(normalized) ||
+      /(?:金卡以上|金卡及以上|金卡及其以上|钻石会员|金卡会员).*(?:到店|来店)/u.test(normalized);
+    const isCardExpiryWithoutReservation =
+      /(?:次卡|卡项).*(?:快到期|快过期|即将过期|临期).*(?:还没预约|没有预约|未预约|没预约)/u.test(normalized) ||
+      /(?:还没预约|没有预约|未预约|没预约).*(?:次卡|卡项).*(?:快到期|快过期|即将过期|临期)/u.test(
+        normalized,
+      );
+    const isCardHoldersWithoutVisit =
+      /(?:办了|持有|开了|有).*(?:次卡|卡项|综合养护20次卡).*(?:没来|没有来|未到店|没到店)/u.test(
+        normalized,
+      ) || /(?:次卡|卡项|综合养护20次卡).*(?:没来|没有来|未到店|没到店)/u.test(normalized);
+    const supported =
+      isMemberLevelCount ||
+      isVisitedCustomerCount ||
+      isVisitedMemberTierList ||
+      isCardExpiryWithoutReservation ||
+      isCardHoldersWithoutVisit;
+    if (!supported) return undefined;
+    const timeRange = this.resolveQuestionTimeRange(input.question, input.timezone);
+    const customerEntityRef =
+      resolveCanonicalDefinitionRef('entity', 'entity.customer', input) ??
+      findCapabilityDefinitionRef(capability, 'entity', 'entity.customer');
+    const customerLevelDimensionRef =
+      resolveCanonicalDefinitionRef('dimension', 'dimension.customerLevel', input) ??
+      findCapabilityDefinitionRef(capability, 'dimension', 'dimension.customerLevel');
+    const isExplicitList =
+      isVisitedMemberTierList ||
+      isCardExpiryWithoutReservation ||
+      isCardHoldersWithoutVisit ||
+      isExplicitListQuestion(input.question);
+    const baseIntent: BrainSemanticIntent = {
+      schemaVersion: '1.0',
+      objective: input.question.trim(),
+      domains: ['customer'],
+      intent: 'query',
+      entities: customerEntityRef
+        ? [
+            {
+              entityType: 'customer',
+              mention: /会员/u.test(input.question) ? '会员' : '客户',
+              source: 'user',
+              definitionRef: customerEntityRef,
+              confidence: 1,
+            },
+          ]
+        : [],
+      metrics: [],
+      dimensions:
+        customerLevelDimensionRef && (isMemberLevelCount || isVisitedMemberTierList)
+          ? [customerLevelDimensionRef]
+          : [],
+      filters: [],
+      ...(timeRange ? { timeRange } : {}),
+      orderBy: [],
+      answerShape: isExplicitList ? 'list' : 'scalar',
+      successCriteria: ['执行已发布客户事实能力 customer_facts 并返回可追溯结果'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [
+        '问题命中客户事实查询的已发布只读交付合同；答案仍必须由客户事实 resolver 查询真实业务数据。',
+      ],
+      confidence: 1,
+      decisionSummary: '客户、会员等级、到店或卡项持有/预约关系均由 customer_facts 能力承接。',
+    };
+    return {
+      ...baseIntent,
+      filters:
+        isMemberLevelCount && customerLevelDimensionRef
+          ? uniqueFilterClauses([...baseIntent.filters, ...inferCustomerLevelFilterClauses(input, baseIntent)])
+          : baseIntent.filters,
+    };
+  }
+
+  private buildProjectCatalogCapabilityFastPath(input: BrainSemanticIntentCompilerInput):
+    | {
+        selectedCapabilityKey: 'project_service_ranking' | 'project_material_consumption_analysis';
+        intent: BrainSemanticIntent;
+      }
+    | undefined {
+    const selectedCapabilityKey = isProjectSpecificBomQuestion(input.question)
+      ? 'project_material_consumption_analysis'
+      : isProjectServiceSalesQuestion(input.question)
+        ? 'project_service_ranking'
+        : undefined;
+    if (!selectedCapabilityKey) return undefined;
+    const capability = this.orderedCapabilitySummaries(input).find(
+      (candidate) =>
+        candidate.key === selectedCapabilityKey &&
+        candidate.readOnly &&
+        (candidate.intents.includes('query') ||
+          (selectedCapabilityKey === 'project_service_ranking' &&
+            candidate.intents.includes('ranking') &&
+            isProjectServiceSalesQuestion(input.question))),
+    );
+    if (!capability) return undefined;
+    const timeRange = this.resolveQuestionTimeRange(input.question, input.timezone);
+    if (selectedCapabilityKey === 'project_service_ranking' && !timeRange) return undefined;
+    const projectRef =
+      resolveCanonicalDefinitionRef('entity', 'entity.project', input) ??
+      findCapabilityDefinitionRef(capability, 'entity', 'entity.project');
+    const productRef =
+      selectedCapabilityKey === 'project_material_consumption_analysis'
+        ? resolveCanonicalDefinitionRef('entity', 'entity.product', input) ??
+          findCapabilityDefinitionRef(capability, 'entity', 'entity.product')
+        : undefined;
+    const metrics =
+      selectedCapabilityKey === 'project_service_ranking'
+        ? this.resolveGovernedMetricRefs(['metric.project_service_count'], input)
+        : [];
+    const normalized = input.question.replace(/\s+/gu, '');
+    const asksBomCost =
+      selectedCapabilityKey === 'project_material_consumption_analysis' &&
+      /(?:BOM|bom|耗材|物料|材料).*(?:成本|多少钱|金额|是多少)/iu.test(normalized);
+    return {
+      selectedCapabilityKey,
+      intent: {
+        schemaVersion: '1.0',
+        objective: input.question.trim(),
+        domains:
+          selectedCapabilityKey === 'project_service_ranking'
+            ? ['project', 'order']
+            : ['project', 'catalog', 'inventory'],
+        intent: 'query',
+        entities: [
+          ...(projectRef
+            ? [
+                {
+                  entityType: 'project',
+                  mention: '项目',
+                  source: 'user' as const,
+                  definitionRef: projectRef,
+                  confidence: 1,
+                },
+              ]
+            : []),
+          ...(productRef
+            ? [
+                {
+                  entityType: 'product',
+                  mention: '耗材',
+                  source: 'user' as const,
+                  definitionRef: productRef,
+                  confidence: 1,
+                },
+              ]
+            : []),
+        ],
+        metrics,
+        dimensions: [],
+        filters: [],
+        ...(timeRange ? { timeRange } : {}),
+        orderBy: [],
+        answerShape:
+          selectedCapabilityKey === 'project_service_ranking'
+            ? 'scalar'
+            : asksBomCost
+              ? 'scalar'
+              : 'list',
+        successCriteria: [`执行已发布能力 ${selectedCapabilityKey} 并返回可追溯项目事实`],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [
+          selectedCapabilityKey === 'project_service_ranking'
+            ? `问题要求指定项目销售/服务次数，按能力 ${selectedCapabilityKey} 直接编译；具体项目名由执行器按当前门店 Project 表匹配。`
+            : `问题要求指定项目 BOM 明细或 BOM 成本，按能力 ${selectedCapabilityKey} 直接编译；具体项目名由执行器按当前门店 Project 表匹配。`,
+        ],
+        confidence: 1,
+        decisionSummary:
+          selectedCapabilityKey === 'project_service_ranking'
+            ? `问题中的项目销售/服务次数语义唯一匹配已发布能力 ${selectedCapabilityKey}。`
+            : `问题中的项目 BOM/耗材明细语义唯一匹配已发布能力 ${selectedCapabilityKey}。`,
+      },
+    };
   }
 
   private orderedCapabilitySummaries(input: BrainSemanticIntentCompilerInput): BrainSemanticCapabilitySummary[] {
     if (!input.preferredCapabilityKey) return input.capabilitySummaries;
-    return [...input.capabilitySummaries].sort((left, right) =>
-      Number(right.key === input.preferredCapabilityKey) - Number(left.key === input.preferredCapabilityKey),
+    return [...input.capabilitySummaries].sort(
+      (left, right) =>
+        Number(right.key === input.preferredCapabilityKey) - Number(left.key === input.preferredCapabilityKey),
     );
+  }
+
+  private buildFinanceScalarCapabilityFastPath(input: BrainSemanticIntentCompilerInput): BrainSemanticIntent | undefined {
+    const cardRecognizedRevenueQuestion = isCardRecognizedRevenueQuestion(normalizeSemanticText(input.question));
+    if (
+      isExplicitListQuestion(input.question) ||
+      (/排行|排名|对比|相比|趋势|走势|分析|诊断|原因|为什么|建议|推荐|写一|文案|提醒|发送|创建|修改|删除|确认/.test(
+        input.question,
+      ) &&
+        !cardRecognizedRevenueQuestion)
+    ) {
+      return undefined;
+    }
+    const parsedTime = this.timeRangeParser.parse(input.question);
+    if (!parsedTime.range || parsedTime.comparison || parsedTime.unsupportedExpressions.length > 0) return undefined;
+
+    const mentionsDimension = input.dimensionRefs.some((ref) => {
+      const definition = input.ontologySnapshot?.dimensions.find((item) => item.definitionKey === ref.definitionKey);
+      return Boolean(definition) && definitionMatchesQuestion(input.question, definition!.name, definition!.aliases);
+    });
+    if (mentionsDimension) return undefined;
+
+    const metricKeys = inferFinanceScalarMetricKeys(input.question);
+    if (!metricKeys.length) return undefined;
+    const capability = this.orderedCapabilitySummaries(input).find(
+      (candidate) =>
+        candidate.key === 'finance_risk_overview' &&
+        candidate.readOnly &&
+        candidate.intents.includes('query'),
+    );
+    if (!capability) return undefined;
+    const timeRange = this.resolveQuestionTimeRange(input.question, input.timezone);
+    if (!timeRange) return undefined;
+    const metrics = this.resolveGovernedMetricRefs(metricKeys, input);
+    if (!metrics.length) return undefined;
+    return {
+      schemaVersion: '1.0',
+      objective: input.question.trim(),
+      domains: [...capability.domains],
+      intent: 'query',
+      entities: [],
+      metrics,
+      dimensions: [],
+      filters: [],
+      timeRange,
+      orderBy: [],
+      answerShape: 'scalar',
+      successCriteria: [`执行已发布能力 ${capability.key} 并返回可追溯结果`],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [`问题只包含已发布时间范围和财务标量指标，按能力 ${capability.key} 直接编译`],
+      confidence: 1,
+      decisionSummary: `问题中的财务标量指标唯一匹配已发布能力 ${capability.key}。`,
+    };
+  }
+
+  private buildMetricPhraseFastPath(input: BrainSemanticIntentCompilerInput): BrainSemanticIntent | undefined {
+    if (
+      isExplicitScalarQuestion(input.question) ||
+      isExplicitListQuestion(input.question) ||
+      isExplicitDimensionBreakdownQuestion(input.question) ||
+      /排行|排名|对比|相比|趋势|走势|分析|诊断|原因|为什么|建议|推荐|写一|文案|提醒|发送|创建|修改|删除|确认/.test(
+        input.question,
+      )
+    ) {
+      return undefined;
+    }
+    const parsedTime = this.timeRangeParser.parse(input.question);
+    if (!parsedTime.range || parsedTime.comparison || parsedTime.unsupportedExpressions.length > 0) return undefined;
+
+    const matchedMetricKeys = new Set(
+      input.metricRefs.flatMap((ref) => {
+        const definition = input.ontologySnapshot?.metrics.find((item) => item.definitionKey === ref.definitionKey);
+        const matched = definition
+          ? definitionMatchesQuestion(input.question, definition.name, definition.aliases) ||
+            governedMetricKeyMatchesQuestion(input.question, ref.definitionKey)
+          : governedMetricKeyMatchesQuestion(input.question, ref.definitionKey);
+        return matched ? [ref.definitionKey] : [];
+      }),
+    );
+    if (matchedMetricKeys.size !== 1) return undefined;
+    const [metricKey] = [...matchedMetricKeys];
+
+    const mentionsDimension = input.dimensionRefs.some((ref) => {
+      const definition = input.ontologySnapshot?.dimensions.find((item) => item.definitionKey === ref.definitionKey);
+      return Boolean(definition) && definitionMatchesQuestion(input.question, definition!.name, definition!.aliases);
+    });
+    if (mentionsDimension) return undefined;
+
+    const capability = this.orderedCapabilitySummaries(input).find(
+      (candidate) =>
+        candidate.readOnly &&
+        candidate.intents.includes('query') &&
+        (candidate.definitionRefs ?? []).some(
+          (ref) => ref.definitionType === 'metric' && ref.definitionKey === metricKey,
+        ),
+    );
+    return capability ? this.buildGovernedCapabilityIntent(capability, input, 'metric_phrase') : undefined;
+  }
+
+  private buildMetricDimensionFastPath(input: BrainSemanticIntentCompilerInput): BrainSemanticIntent | undefined {
+    if (
+      !isExplicitDimensionBreakdownQuestion(input.question) ||
+      /排行|排名|对比|相比|趋势|走势|分析|诊断|原因|为什么|建议|推荐|写一|文案|提醒|发送|创建|修改|删除|确认/.test(
+        input.question,
+      )
+    ) {
+      return undefined;
+    }
+    const parsedTime = this.timeRangeParser.parse(input.question);
+    if (!parsedTime.range || parsedTime.comparison || parsedTime.unsupportedExpressions.length > 0) return undefined;
+
+    const matchedDimensions = input.dimensionRefs.flatMap((ref) => {
+      const definition = input.ontologySnapshot?.dimensions.find((item) => item.definitionKey === ref.definitionKey);
+      const matched = definition
+        ? definitionMatchesQuestion(input.question, definition.name, definition.aliases) ||
+          governedDimensionKeyMatchesQuestion(input.question, ref.definitionKey)
+        : governedDimensionKeyMatchesQuestion(input.question, ref.definitionKey);
+      return matched && definition ? [{ ref, definition }] : [];
+    });
+    if (matchedDimensions.length !== 1) return undefined;
+    const [{ ref: dimensionRef, definition: dimensionDefinition }] = matchedDimensions;
+
+    const supportedMetrics = input.metricRefs.flatMap((ref) => {
+      const definition = input.ontologySnapshot?.metrics.find((item) => item.definitionKey === ref.definitionKey);
+      return definition?.runtimeQuery?.dimensions.includes(dimensionDefinition.dimensionKey)
+        ? [{ ref, definition }]
+        : [];
+    });
+    if (supportedMetrics.length !== 1) return undefined;
+    const [{ ref: metricRef, definition: metricDefinition }] = supportedMetrics;
+
+    const candidates = this.orderedCapabilitySummaries(input).filter(
+      (candidate) =>
+        candidate.readOnly &&
+        candidate.intents.includes('query') &&
+        metricDefinition.runtimeQuery?.capabilityKeys.includes(candidate.key) &&
+        (candidate.definitionRefs ?? []).some(
+          (ref) => ref.definitionType === 'metric' && ref.definitionKey === metricRef.definitionKey,
+        ) &&
+        (candidate.definitionRefs ?? []).some(
+          (ref) => ref.definitionType === 'dimension' && ref.definitionKey === dimensionRef.definitionKey,
+        ),
+    );
+    const preferred = input.preferredCapabilityKey
+      ? candidates.find((candidate) => candidate.key === input.preferredCapabilityKey)
+      : undefined;
+    const ranked = input.rankedCapabilityKeys
+      ?.map((key) => candidates.find((candidate) => candidate.key === key))
+      .find((candidate): candidate is BrainSemanticCapabilitySummary => Boolean(candidate));
+    const minimumDefinitionRefCount = candidates.length
+      ? Math.min(
+          ...candidates.map(
+            (candidate) =>
+              new Set((candidate.definitionRefs ?? []).map((ref) => `${ref.definitionType}:${ref.definitionKey}`)).size,
+          ),
+        )
+      : Number.POSITIVE_INFINITY;
+    const minimumSufficientCandidates = candidates.filter(
+      (candidate) =>
+        new Set((candidate.definitionRefs ?? []).map((ref) => `${ref.definitionType}:${ref.definitionKey}`)).size ===
+        minimumDefinitionRefCount,
+    );
+    const capability =
+      preferred ??
+      (candidates.length === 1
+        ? candidates[0]
+        : minimumSufficientCandidates.length === 1
+          ? minimumSufficientCandidates[0]
+          : ranked);
+    if (!capability) return undefined;
+    const intent = this.buildGovernedCapabilityIntent(capability, input, 'metric_dimension');
+    return intent
+      ? {
+          ...intent,
+          metrics: [copyDefinitionRef(metricRef)],
+          dimensions: [copyDefinitionRef(dimensionRef)],
+          answerShape: 'list',
+          assumptions: [
+            `问题只包含已发布时间范围、唯一可执行指标 ${metricRef.definitionKey} 和唯一已发布维度 ${dimensionRef.definitionKey}，按能力 ${capability.key} 直接编译`,
+          ],
+          decisionSummary: `问题中的指标与维度唯一匹配已发布能力 ${capability.key}。`,
+        }
+      : undefined;
+  }
+
+  private buildFinanceOrderProfitCapabilityFastPath(input: BrainSemanticIntentCompilerInput): BrainSemanticIntent | undefined {
+    if (
+      !/(?:订单|开卡|卡销售|商品订单|产品订单|项目订单)/.test(input.question) ||
+      !/(?:利润|毛利|成本)/.test(input.question)
+    ) {
+      return undefined;
+    }
+    if (
+      /排行|排名|对比|相比|趋势|走势|原因|为什么|建议|推荐|写一|文案|提醒|发送|创建|修改|删除/.test(
+        input.question,
+      )
+    ) {
+      return undefined;
+    }
+    const parsedTime = this.timeRangeParser.parse(input.question);
+    if (!parsedTime.range || parsedTime.comparison || parsedTime.unsupportedExpressions.length > 0) return undefined;
+
+    const capability = this.orderedCapabilitySummaries(input).find(
+      (candidate) =>
+        candidate.key === 'finance_risk_overview' &&
+        candidate.readOnly &&
+        candidate.intents.includes('query'),
+    );
+    const capabilityDomains = capability?.domains ?? ['finance', 'order', 'product_order'];
+    const timeRange = this.resolveQuestionTimeRange(input.question, input.timezone);
+    if (!timeRange) return undefined;
+
+    const projectOrderQuestion =
+      /(?:订单).*(?:利润情况|利润分析)|(?:利润|毛利).*(?:订单)/.test(input.question) &&
+      !/(?:每张|哪些|分别|负|开卡订单|商品订单|产品订单)/.test(input.question);
+    if (projectOrderQuestion) {
+      return {
+        schemaVersion: '1.0',
+        objective: input.question.trim(),
+        domains: [...capabilityDomains],
+        intent: 'query',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        timeRange,
+        orderBy: [],
+        answerShape: 'scalar',
+        successCriteria: ['执行已发布能力 finance_risk_overview 并返回可追溯结果'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: ['问题是项目/订单粒度利润查询，按能力 finance_risk_overview 直接编译'],
+        confidence: 1,
+        decisionSummary: '问题中的项目/订单利润查询唯一匹配已发布能力 finance_risk_overview。',
+      };
+    }
+
+    const metricKeys = inferFinanceOrderProfitMetricKeys(input.question);
+    if (!metricKeys.length) return undefined;
+    const metrics = this.resolveGovernedMetricRefs(metricKeys, input);
+    return {
+      schemaVersion: '1.0',
+      objective: input.question.trim(),
+      domains: [...capabilityDomains],
+      intent: 'query',
+      entities: [],
+      metrics,
+      dimensions: [],
+      filters: [],
+      timeRange,
+      orderBy: [],
+      answerShape: /哪些|每张|分别|负/.test(input.question) ? 'list' : 'scalar',
+      successCriteria: ['执行已发布能力 finance_risk_overview 并返回可追溯结果'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: ['问题只包含已发布时间范围和订单利润指标，按能力 finance_risk_overview 直接编译'],
+      confidence: 1,
+      decisionSummary: '问题中的订单利润指标唯一匹配已发布能力 finance_risk_overview。',
+    };
+  }
+
+  private buildFinanceStaffCommissionCompositionCapabilityFastPath(
+    input: BrainSemanticIntentCompilerInput,
+  ): BrainSemanticIntent | undefined {
+    const normalizedQuestion = normalizeSemanticText(input.question);
+    if (!isStaffCommissionCompositionQuestion(normalizedQuestion)) return undefined;
+    if (
+      /排行|排名|对比|相比|趋势|走势|原因|为什么|建议|推荐|写一|文案|提醒|发送|创建|修改|删除/.test(
+        input.question,
+      )
+    ) {
+      return undefined;
+    }
+    const parsedTime = this.timeRangeParser.parse(input.question);
+    if (!parsedTime.range || parsedTime.comparison || parsedTime.unsupportedExpressions.length > 0) return undefined;
+
+    const capability = this.orderedCapabilitySummaries(input).find(
+      (candidate) =>
+        candidate.key === 'finance_risk_overview' &&
+        candidate.readOnly &&
+        candidate.intents.includes('query'),
+    );
+    const timeRange = this.resolveQuestionTimeRange(input.question, input.timezone);
+    if (!timeRange) return undefined;
+
+    const metrics = this.resolveGovernedMetricRefs(['metric.staff_commission_component_amount'], input);
+    if (!metrics.length) return undefined;
+    const dimensions = this.resolveGovernedDimensionRefs(['dimension.commissionType'], input);
+    return {
+      schemaVersion: '1.0',
+      objective: input.question.trim(),
+      domains: [...new Set([...(capability?.domains ?? ['finance']), 'staff', 'beautician'])],
+      intent: 'query',
+      entities: [],
+      metrics,
+      dimensions,
+      filters: [],
+      timeRange,
+      orderBy: [],
+      answerShape: 'list',
+      successCriteria: ['执行已发布能力 finance_risk_overview 并返回可追溯结果'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: ['问题只包含已发布时间范围、指定员工和提成构成指标，按能力 finance_risk_overview 直接编译'],
+      confidence: 1,
+      decisionSummary: '问题中的员工提成构成唯一匹配已发布能力 finance_risk_overview。',
+    };
   }
 
   private buildGovernedDefinitionFallback(input: BrainSemanticIntentCompilerInput): BrainSemanticIntent | undefined {
@@ -284,21 +1030,19 @@ export class BrainSemanticIntentCompilerService {
           const definition = input.ontologySnapshot?.dimensions.find(
             (item) => item.definitionKey === ref.definitionKey,
           );
-          return Boolean(definition) && definitionMatchesQuestion(
-            input.question,
-            definition!.name,
-            definition!.aliases,
+          return (
+            Boolean(definition) && definitionMatchesQuestion(input.question, definition!.name, definition!.aliases)
           );
         });
       });
       const orderedBySpecificity = [...dimensionCapabilities].sort(
         (left, right) => (left.definitionRefs?.length ?? 0) - (right.definitionRefs?.length ?? 0),
       );
-      const selected = orderedBySpecificity.length === 1 ||
-        (orderedBySpecificity[0]?.definitionRefs?.length ?? 0) <
-          (orderedBySpecificity[1]?.definitionRefs?.length ?? 0)
-        ? orderedBySpecificity[0]
-        : undefined;
+      const selected =
+        orderedBySpecificity.length === 1 ||
+        (orderedBySpecificity[0]?.definitionRefs?.length ?? 0) < (orderedBySpecificity[1]?.definitionRefs?.length ?? 0)
+          ? orderedBySpecificity[0]
+          : undefined;
       if (selected) {
         return this.buildGovernedCapabilityIntent(selected, input, 'definition_match');
       }
@@ -330,20 +1074,26 @@ export class BrainSemanticIntentCompilerService {
   private buildGovernedCapabilityIntent(
     capability: BrainSemanticCapabilitySummary,
     input: BrainSemanticIntentCompilerInput,
-    mode: 'contract_fast_path' | 'model_unavailable' | 'definition_match' | 'catalog_match',
+    mode:
+      | 'contract_fast_path'
+      | 'model_unavailable'
+      | 'definition_match'
+      | 'catalog_match'
+      | 'metric_phrase'
+      | 'metric_dimension',
   ): BrainSemanticIntent | undefined {
     const parsedTime = this.timeRangeParser.parse(input.question);
-    const intent = exactCapabilityIntent(input.question, capability.intents, Boolean(parsedTime.comparison)) ??
+    const intent =
+      exactCapabilityIntent(input.question, capability.intents, Boolean(parsedTime.comparison)) ??
       (mode === 'catalog_match' && capability.intents.length === 1
         ? supportedCapabilityIntent(capability.intents[0])
         : undefined);
     if (!intent) return undefined;
     const timeRange = this.resolveQuestionTimeRange(input.question, input.timezone);
-    const comparisonTarget = intent === 'comparison'
-      ? this.resolveQuestionComparisonTarget(input.question, input.timezone)
-      : undefined;
+    const comparisonTarget =
+      intent === 'comparison' ? this.resolveQuestionComparisonTarget(input.question, input.timezone) : undefined;
     const exactDefinitions = this.resolveExactDefinitions(capability, input, intent);
-    return {
+    const governedIntent: BrainSemanticIntent = {
       schemaVersion: '1.0',
       objective: input.question.trim(),
       domains: [...capability.domains],
@@ -366,18 +1116,34 @@ export class BrainSemanticIntentCompilerService {
       ambiguities: [],
       missingSlots: [],
       assumptions: [
+        ...(intent === 'action' ? ['该能力只生成待确认预览，用户明确确认前不得执行真实业务写入。'] : []),
         mode === 'contract_fast_path'
           ? `问题完全匹配已发布能力 ${capability.key} 的正例合同`
           : mode === 'model_unavailable'
             ? `模型不可用或预算耗尽，按已发布能力 ${capability.key} 的完全匹配示例继续执行`
             : mode === 'catalog_match'
               ? `模型不可用或预算耗尽，按能力目录高置信唯一候选 ${capability.key} 继续执行`
-            : `模型不可用或预算耗尽，按唯一匹配的已发布业务定义和能力 ${capability.key} 继续执行`,
+              : mode === 'metric_phrase'
+                ? `问题只包含已发布时间范围和唯一业务指标，按能力目录候选 ${capability.key} 直接编译`
+                : mode === 'metric_dimension'
+                  ? `问题只包含已发布时间范围、唯一业务指标和唯一业务维度，按能力目录候选 ${capability.key} 直接编译`
+                  : `模型不可用或预算耗尽，按唯一匹配的已发布业务定义和能力 ${capability.key} 继续执行`,
       ],
       confidence: 1,
-      decisionSummary: mode === 'definition_match' || mode === 'catalog_match'
-        ? `问题中的指标只匹配已发布能力 ${capability.key}。`
-        : `问题与已发布能力 ${capability.key} 的示例完全匹配。`,
+      decisionSummary:
+        mode === 'definition_match' ||
+        mode === 'catalog_match' ||
+        mode === 'metric_phrase' ||
+        mode === 'metric_dimension'
+          ? `问题中的指标只匹配已发布能力 ${capability.key}。`
+          : `问题与已发布能力 ${capability.key} 的示例完全匹配。`,
+    };
+    return {
+      ...governedIntent,
+      filters: uniqueFilterClauses([
+        ...governedIntent.filters,
+        ...inferCustomerLevelFilterClauses(input, governedIntent),
+      ]),
     };
   }
 
@@ -388,9 +1154,7 @@ export class BrainSemanticIntentCompilerService {
   ): Pick<BrainSemanticIntent, 'entities' | 'metrics' | 'dimensions' | 'orderBy'> {
     const refs = capability.definitionRefs ?? [];
     const availableMetrics = refs.flatMap((ref) =>
-      ref.definitionType === 'metric'
-        ? [copyDefinitionRef(ref as BrainDefinitionRef<'metric'>)]
-        : [],
+      ref.definitionType === 'metric' ? [copyDefinitionRef(ref as BrainDefinitionRef<'metric'>)] : [],
     );
     const matchedMetrics = availableMetrics.filter((ref) => {
       const definition = input.ontologySnapshot?.metrics.find((item) => item.definitionKey === ref.definitionKey);
@@ -399,11 +1163,12 @@ export class BrainSemanticIntentCompilerService {
             governedMetricKeyMatchesQuestion(input.question, ref.definitionKey)
         : governedMetricKeyMatchesQuestion(input.question, ref.definitionKey);
     });
-    let metrics = matchedMetrics.length > 0
-      ? matchedMetrics
-      : availableMetrics.length === 1 || intent === 'ranking'
-        ? availableMetrics
-        : [];
+    let metrics =
+      matchedMetrics.length > 0
+        ? matchedMetrics
+        : availableMetrics.length === 1 || intent === 'ranking'
+          ? availableMetrics
+          : [];
     if (matchedMetrics.some((metric) => !metric.definitionKey.includes('collection_coverage_rate'))) {
       metrics = uniqueDefinitionRefs([
         ...metrics,
@@ -428,8 +1193,8 @@ export class BrainSemanticIntentCompilerService {
     const directDimensions = refs.flatMap((ref) =>
       ref.definitionType === 'dimension'
         ? (() => {
-            const definitions = input.ontologySnapshot?.dimensions
-              .filter((item) => item.definitionKey === ref.definitionKey) ?? [];
+            const definitions =
+              input.ontologySnapshot?.dimensions.filter((item) => item.definitionKey === ref.definitionKey) ?? [];
             if (definitions.length > 0) {
               return definitions
                 .filter(
@@ -446,19 +1211,23 @@ export class BrainSemanticIntentCompilerService {
           })()
         : [],
     );
-    const runtimeDimensionKeys = intent === 'ranking' || isExplicitListQuestion(input.question)
-      ? metrics.flatMap((metricRef) =>
-          input.ontologySnapshot?.metrics
-            .find((metric) => metric.definitionKey === metricRef.definitionKey)
-            ?.runtimeQuery?.dimensions ?? [],
+    const runtimeDimensionKeys =
+      intent === 'ranking' || isExplicitListQuestion(input.question)
+        ? metrics.flatMap(
+            (metricRef) =>
+              input.ontologySnapshot?.metrics.find((metric) => metric.definitionKey === metricRef.definitionKey)
+                ?.runtimeQuery?.dimensions ?? [],
+          )
+        : [];
+    const inferredDimensions =
+      input.ontologySnapshot?.dimensions
+        .filter(
+          (dimension) =>
+            runtimeDimensionKeys.includes(dimension.dimensionKey) ||
+            (runtimeDimensionKeys.length === 0 &&
+              entityDefinitions.some((entity) => entity.domain === dimension.domain)),
         )
-      : [];
-    const inferredDimensions = input.ontologySnapshot?.dimensions
-      .filter((dimension) =>
-        runtimeDimensionKeys.includes(dimension.dimensionKey) ||
-        (runtimeDimensionKeys.length === 0 && entityDefinitions.some((entity) => entity.domain === dimension.domain)),
-      )
-      .map((dimension) => definitionRef('dimension', dimension)) ?? [];
+        .map((dimension) => definitionRef('dimension', dimension)) ?? [];
     const dimensions = uniqueDefinitionRefs([...directDimensions, ...inferredDimensions]);
     const entities = entityDefinitions.map((entity) => ({
       entityType: entity.entityKey,
@@ -475,8 +1244,8 @@ export class BrainSemanticIntentCompilerService {
         (intent === 'ranking' ||
           (capability.key === 'inventory_risk_ranking' && /最紧急|优先级最高/.test(input.question))) &&
         metrics[0]
-        ? [{ definitionRef: { ...metrics[0] }, direction: 'desc' }]
-        : [],
+          ? [{ definitionRef: { ...metrics[0] }, direction: 'desc' }]
+          : [],
     };
   }
 
@@ -492,12 +1261,15 @@ export class BrainSemanticIntentCompilerService {
     const exactCapability = input.capabilitySummaries.find(
       (capability) =>
         capability.intents.includes(intentKind) &&
-        (capability.examples ?? []).some((example) => normalizeSemanticText(example) === normalizeSemanticText(input.question)),
+        (capability.examples ?? []).some(
+          (example) => normalizeSemanticText(example) === normalizeSemanticText(input.question),
+        ),
     );
     const timeRange = this.resolveQuestionTimeRange(input.question, input.timezone);
-    const comparisonTarget = intentKind === 'comparison'
-      ? this.resolveQuestionComparisonTarget(input.question, input.timezone) ?? canonicalIntent.comparisonTarget
-      : canonicalIntent.comparisonTarget;
+    const comparisonTarget =
+      intentKind === 'comparison'
+        ? (this.resolveQuestionComparisonTarget(input.question, input.timezone) ?? canonicalIntent.comparisonTarget)
+        : canonicalIntent.comparisonTarget;
     const entities = canonicalIntent.entities.map((entity) => {
       const definitionRef = entity.definitionRef ?? resolveOntologyEntityRef(entity.entityType, input);
       const normalized = definitionRef ? { ...entity, definitionRef } : entity;
@@ -513,9 +1285,16 @@ export class BrainSemanticIntentCompilerService {
       entities[0]?.definitionRef?.definitionKey === 'entity.customer' &&
       !isGenericOntologyMention(entities[0].mention, 'entity.customer', input);
     // Field definitions are not part of the published business-definition snapshot yet.
-    // Keep model-invented field refs out of executable plans; domain capabilities resolve
-    // only their explicitly supported constraints from objective, entities and time range.
-    const filters: BrainSemanticIntent['filters'] = [];
+    // Keep model-invented field refs out of executable plans, but preserve published
+    // dimension value filters after rehydrating them from the active snapshot identity.
+    const filters: BrainSemanticIntent['filters'] = uniqueFilterClauses([
+      ...canonicalIntent.filters.flatMap((filter) => {
+        if (filter.fieldRef?.definitionType !== 'dimension') return [];
+        const resolved = resolveCanonicalDefinitionRef('dimension', filter.fieldRef.definitionKey, input);
+        return resolved ? [{ ...filter, fieldRef: resolved }] : [];
+      }),
+      ...inferCustomerLevelFilterClauses(input, canonicalIntent),
+    ]);
     const missingSlots = canonicalIntent.missingSlots.filter(
       (slot) =>
         (!timeRange || !isTimeRangeSlot(slot)) &&
@@ -532,8 +1311,7 @@ export class BrainSemanticIntentCompilerService {
     ]);
     const resolvedAmbiguities = canonicalIntent.ambiguities.filter(
       (ambiguity) =>
-        !(ambiguity.slot === 'timeRange' && timeRange) &&
-        !(ambiguity.slot === 'comparisonTarget' && comparisonTarget),
+        !(ambiguity.slot === 'timeRange' && timeRange) && !(ambiguity.slot === 'comparisonTarget' && comparisonTarget),
     );
     const governedAmbiguities = exactCapability
       ? resolvedAmbiguities.filter((ambiguity) => canonicalIntent.missingSlots.includes(ambiguity.slot))
@@ -551,10 +1329,38 @@ export class BrainSemanticIntentCompilerService {
       ...(timeRange ? { timeRange } : {}),
       ...(comparisonTarget ? { comparisonTarget } : {}),
       ambiguities,
-      missingSlots: inferredOrderBy.length > 0
-        ? missingSlots.filter((slot) => slot !== 'orderBy')
-        : missingSlots,
+      missingSlots: inferredOrderBy.length > 0 ? missingSlots.filter((slot) => slot !== 'orderBy') : missingSlots,
     };
+  }
+
+  private resolveModelSelectedCapabilityKey(
+    value: unknown,
+    intent: BrainSemanticIntent,
+    input: BrainSemanticIntentCompilerInput,
+  ): string | undefined {
+    if (typeof value !== 'string' || !value.trim()) return undefined;
+    if (intent.intent === 'action' || intent.intent === 'workflow') return undefined;
+    const key = value.trim();
+    if (!input.rankedCapabilityKeys?.includes(key)) return undefined;
+    const capability = input.capabilitySummaries.find((candidate) => candidate.key === key);
+    if (!capability?.readOnly || capability.sideEffect || !capability.intents.includes(intent.intent)) return undefined;
+    const requestedRefs = [
+      ...intent.metrics,
+      ...intent.dimensions,
+      ...intent.entities.flatMap((entity) => (entity.definitionRef ? [entity.definitionRef] : [])),
+    ];
+    const publishedRefs = capability.definitionRefs ?? [];
+    const coversRequestedDefinitions = requestedRefs.every((requested) =>
+      publishedRefs.some(
+        (published) =>
+          published.definitionType === requested.definitionType &&
+          published.definitionKey === requested.definitionKey &&
+          published.definitionVersion === requested.definitionVersion &&
+          published.definitionFingerprint === requested.definitionFingerprint &&
+          published.sourceFingerprint === requested.sourceFingerprint,
+      ),
+    );
+    return coversRequestedDefinitions ? key : undefined;
   }
 
   private resolveQuestionTimeRange(
@@ -577,6 +1383,46 @@ export class BrainSemanticIntentCompilerService {
       type: 'time',
       timeRange: this.toSemanticTimeRange(parsed.comparison.previous, timezone),
     };
+  }
+
+  private resolveGovernedMetricRefs(
+    metricKeys: readonly string[],
+    input: BrainSemanticIntentCompilerInput,
+  ): BrainDefinitionRef<'metric'>[] {
+    return uniqueDefinitionRefs(
+      metricKeys.flatMap((metricKey) => {
+        const direct = input.metricRefs.find((ref) => ref.definitionKey === metricKey);
+        if (direct) return [direct];
+        const snapshotMetric = input.ontologySnapshot?.metrics.find((metric) => metric.definitionKey === metricKey);
+        if (snapshotMetric) return [definitionRef('metric', snapshotMetric)];
+        const capabilityMetric = input.capabilitySummaries
+          .flatMap((capability) => capability.definitionRefs ?? [])
+          .find((ref) => ref.definitionType === 'metric' && ref.definitionKey === metricKey);
+        return capabilityMetric ? [copyDefinitionRef(capabilityMetric as BrainDefinitionRef<'metric'>)] : [];
+      }),
+    );
+  }
+
+  private resolveGovernedDimensionRefs(
+    dimensionKeys: readonly string[],
+    input: BrainSemanticIntentCompilerInput,
+  ): BrainDefinitionRef<'dimension'>[] {
+    return uniqueDefinitionRefs(
+      dimensionKeys.flatMap((dimensionKey) => {
+        const direct = input.dimensionRefs.find((ref) => ref.definitionKey === dimensionKey);
+        if (direct) return [direct];
+        const snapshotDimension = input.ontologySnapshot?.dimensions.find(
+          (dimension) => dimension.definitionKey === dimensionKey,
+        );
+        if (snapshotDimension) return [definitionRef('dimension', snapshotDimension)];
+        const capabilityDimension = input.capabilitySummaries
+          .flatMap((capability) => capability.definitionRefs ?? [])
+          .find((ref) => ref.definitionType === 'dimension' && ref.definitionKey === dimensionKey);
+        return capabilityDimension
+          ? [copyDefinitionRef(capabilityDimension as BrainDefinitionRef<'dimension'>)]
+          : [];
+      }),
+    );
   }
 
   private toSemanticTimeRange(range: BrainDateRange, timezone: BrainSupportedTimezone): BrainSemanticTimeRange {
@@ -607,8 +1453,12 @@ export class BrainSemanticIntentCompilerService {
       assertCollectionLimit('ontology.relations', input.ontologySnapshot.relations, MAX_ONTOLOGY_RELATIONS);
       assertCollectionLimit('ontology.metrics', input.ontologySnapshot.metrics, MAX_ONTOLOGY_DEFINITIONS);
       assertCollectionLimit('ontology.dimensions', input.ontologySnapshot.dimensions, MAX_ONTOLOGY_DEFINITIONS);
+      assertCollectionLimit('ontology.actions', input.ontologySnapshot.actions, MAX_ONTOLOGY_DEFINITIONS);
     }
     const conversationSlots = sanitizeConversationSlots(input.conversationSlots);
+    const modelOntologySnapshot = input.ontologySnapshot
+      ? selectModelOntologySnapshot(input.ontologySnapshot, input.capabilitySummaries)
+      : null;
     const context = {
       question,
       timezone: input.timezone,
@@ -628,8 +1478,8 @@ export class BrainSemanticIntentCompilerService {
           }
         : {}),
       conversationSlots,
-      ontology: input.ontologySnapshot
-        ? compressOntologySnapshot(input.ontologySnapshot)
+      ontology: modelOntologySnapshot
+        ? compressOntologySnapshot(modelOntologySnapshot)
         : {
             source: 'candidates',
             candidates: input.ontologyCandidates.map(compressOntologyCandidate),
@@ -646,9 +1496,20 @@ export class BrainSemanticIntentCompilerService {
         description: capability.description,
         domains: [...capability.domains],
         intents: [...capability.intents],
+        grounding: capability.grounding ?? null,
+        definitionRefs: (capability.definitionRefs ?? []).map((ref) =>
+          modelDefinitionRef(ref.definitionType, ref.definitionKey),
+        ),
         examples: selectCapabilityExamples(question, capability.examples ?? []),
         readOnly: capability.readOnly,
       })),
+      ...(input.rankedCapabilityKeys?.length
+        ? {
+            rankedCapabilityKeys: input.rankedCapabilityKeys.filter((key) =>
+              input.capabilitySummaries.some((item) => item.key === key),
+            ),
+          }
+        : {}),
       ...(input.repairFeedback
         ? {
             repairFeedback: {
@@ -663,6 +1524,90 @@ export class BrainSemanticIntentCompilerService {
     }
     return context;
   }
+}
+
+type BrainSemanticIntentModelOutput = BrainSemanticIntent & {
+  selectedCapabilityKey?: string | null;
+};
+
+function stripModelCapabilitySelection(output: BrainSemanticIntentModelOutput): BrainSemanticIntent {
+  const intent = { ...output } as BrainSemanticIntentModelOutput;
+  delete intent.selectedCapabilityKey;
+  return intent as BrainSemanticIntent;
+}
+
+function semanticRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function semanticTimeRange(value: unknown, timezone: BrainSupportedTimezone): BrainSemanticTimeRange | undefined {
+  const range = semanticRecord(value);
+  if (typeof range.label !== 'string' || !range.label.trim()) return undefined;
+  const preset = typeof range.preset === 'string' && range.preset.trim() ? range.preset : undefined;
+  const startDate =
+    typeof range.startDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(range.startDate) ? range.startDate : undefined;
+  const endDate =
+    typeof range.endDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(range.endDate) ? range.endDate : undefined;
+  if ((startDate && !endDate) || (!startDate && endDate) || (startDate && endDate && startDate > endDate)) {
+    return undefined;
+  }
+  return {
+    label: range.label.trim(),
+    timezone,
+    ...(preset ? { preset } : {}),
+    ...(startDate && endDate ? { startDate, endDate } : {}),
+  };
+}
+
+function semanticDefinitionRefs<T extends 'metric' | 'dimension'>(
+  value: unknown,
+  definitionType: T,
+  input: BrainSemanticIntentCompilerInput,
+): Array<BrainDefinitionRef<T>> {
+  if (!Array.isArray(value)) return [];
+  return uniqueDefinitionRefs(
+    value.flatMap((candidate) => {
+      const ref = semanticRecord(candidate);
+      if (ref.definitionType !== definitionType || typeof ref.definitionKey !== 'string') return [];
+      const resolved = resolveCanonicalDefinitionRef(definitionType, ref.definitionKey, input);
+      return resolved ? [resolved] : [];
+    }),
+  );
+}
+
+function semanticEntities(value: unknown, input: BrainSemanticIntentCompilerInput): BrainSemanticIntent['entities'] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((candidate) => {
+    const entity = semanticRecord(candidate);
+    const ref = semanticRecord(entity.definitionRef);
+    if (
+      typeof entity.entityType !== 'string' ||
+      !entity.entityType.trim() ||
+      typeof entity.mention !== 'string' ||
+      !entity.mention.trim() ||
+      ref.definitionType !== 'entity' ||
+      typeof ref.definitionKey !== 'string'
+    ) {
+      return [];
+    }
+    const resolved = resolveCanonicalDefinitionRef('entity', ref.definitionKey, input);
+    if (!resolved) return [];
+    return [
+      {
+        entityType: entity.entityType.trim(),
+        ...(typeof entity.entityKey === 'string' && entity.entityKey.trim()
+          ? { entityKey: entity.entityKey.trim() }
+          : {}),
+        mention: entity.mention.trim(),
+        source: 'conversation' as const,
+        definitionRef: resolved,
+        confidence:
+          typeof entity.confidence === 'number' && Number.isFinite(entity.confidence)
+            ? Math.max(0, Math.min(1, entity.confidence))
+            : 1,
+      },
+    ];
+  });
 }
 
 function isTimeRangeSlot(slot: string) {
@@ -706,6 +1651,126 @@ function compressOntologySnapshot(snapshot: ProductionReadyBusinessDefinitionSna
       name: dimension.name,
       domain: dimension.domain,
     })),
+    actions: snapshot.actions.map((action) => ({
+      definitionRef: modelDefinitionRef('action', action.definitionKey),
+      actionKey: action.actionKey,
+      name: action.name,
+      aliases: [...action.aliases],
+      domain: action.domain,
+      description: action.description,
+      actionClass: action.actionClass,
+      targetEntityRefs: [...action.targetEntityRefs],
+      inputSlots: action.inputSlots.map((slot) => ({
+        slotKey: slot.slotKey,
+        label: slot.label,
+        semanticRole: slot.semanticRole,
+        valueType: slot.valueType,
+        ...(slot.entityTypeRef ? { entityTypeRef: slot.entityTypeRef } : {}),
+        ...(slot.unitPolicy ? { unitPolicy: slot.unitPolicy } : {}),
+        ...(slot.validationPolicy ? { validationPolicy: slot.validationPolicy } : {}),
+        ...(slot.defaultPolicy ? { defaultPolicy: slot.defaultPolicy } : {}),
+        requiredAt: [...slot.requiredAt],
+        cardinality: slot.cardinality,
+      })),
+      preconditions: [...action.preconditions],
+      effects: [...action.effects],
+      lexicalFrame: {
+        frameKey: action.lexicalFrame.frameKey,
+        lexicalUnits: [...action.lexicalFrame.lexicalUnits],
+        thematicRoles: action.lexicalFrame.thematicRoles.map((role) => ({
+          semanticRole: role.semanticRole,
+          slotKeys: [...role.slotKeys],
+        })),
+        semanticPredicates: [...action.lexicalFrame.semanticPredicates],
+        contrasts: action.lexicalFrame.contrasts.map((contrast) => ({
+          conceptKey: contrast.conceptKey,
+          name: contrast.name,
+          discriminators: contrast.discriminators.map((item) => ({ ...item })),
+        })),
+      },
+      situationContext: {
+        tenantBoundary: action.situationContext.tenantBoundary,
+        requestChannelPolicy: action.situationContext.requestChannelPolicy,
+        devicePolicy: action.situationContext.devicePolicy,
+        conversationPolicy: action.situationContext.conversationPolicy,
+        businessTimePolicy: { ...action.situationContext.businessTimePolicy },
+        actorPolicy: { ...action.situationContext.actorPolicy },
+      },
+      modalityPolicy: {
+        supportedModalities: [...action.modalityPolicy.supportedModalities],
+        unsupportedModalityPolicy: action.modalityPolicy.unsupportedModalityPolicy,
+        confirmationReferencePolicy: action.modalityPolicy.confirmationReferencePolicy,
+        schedulePolicy: action.modalityPolicy.schedulePolicy,
+        cancellationReferencePolicy: action.modalityPolicy.cancellationReferencePolicy,
+      },
+      informationArtifact: {
+        referencePolicy: action.informationArtifact.referencePolicy,
+        artifactTypePolicy: action.informationArtifact.artifactTypePolicy,
+        sourcePolicy: action.informationArtifact.sourcePolicy,
+        versionPolicy: action.informationArtifact.versionPolicy,
+        contentIntegrityPolicy: action.informationArtifact.contentIntegrityPolicy,
+        supersessionPolicy: action.informationArtifact.supersessionPolicy,
+      },
+      sideEffectInvariant: {
+        undeclaredSideEffectPolicy: action.sideEffectInvariant.undeclaredSideEffectPolicy,
+        gatewayEffectPolicy: action.sideEffectInvariant.gatewayEffectPolicy,
+        successEvidencePolicy: action.sideEffectInvariant.successEvidencePolicy,
+        partialSuccessPolicy: action.sideEffectInvariant.partialSuccessPolicy,
+        recoveryPolicy: action.sideEffectInvariant.recoveryPolicy,
+        compensationPolicy: action.sideEffectInvariant.compensationPolicy,
+        outcomeObservationPolicy: action.sideEffectInvariant.outcomeObservationPolicy,
+      },
+      triggeredByEventRefs: [...action.triggeredByEventRefs],
+      emitsEventRefs: [...action.emitsEventRefs],
+    })),
+  };
+}
+
+function selectModelOntologySnapshot(
+  snapshot: ProductionReadyBusinessDefinitionSnapshot,
+  capabilities: readonly BrainSemanticCapabilitySummary[],
+): ProductionReadyBusinessDefinitionSnapshot {
+  const referenced = new Set(
+    capabilities.flatMap((capability) => (capability.definitionRefs ?? []).map((ref) => ref.definitionKey)),
+  );
+  if (referenced.size === 0) return snapshot;
+
+  const entityDefinitionKeys = new Set<string>();
+  const entityKeys = new Set<string>();
+  const includeEntity = (value: string) => {
+    const entity = snapshot.entities.find(
+      (candidate) => candidate.definitionKey === value || candidate.entityKey === value,
+    );
+    if (!entity) return;
+    entityDefinitionKeys.add(entity.definitionKey);
+    entityKeys.add(entity.entityKey);
+  };
+
+  for (const definitionKey of referenced) {
+    if (definitionKey.startsWith('entity.')) includeEntity(definitionKey);
+  }
+  const selectedActions = snapshot.actions.filter((action) => referenced.has(action.definitionKey));
+  for (const action of selectedActions) {
+    for (const targetEntityRef of action.targetEntityRefs) includeEntity(targetEntityRef);
+  }
+  const directlySelectedRelations = snapshot.relations.filter((relation) => referenced.has(relation.definitionKey));
+  for (const relation of directlySelectedRelations) {
+    includeEntity(relation.fromEntityKey);
+    includeEntity(relation.toEntityKey);
+  }
+
+  const relations = snapshot.relations.filter(
+    (relation) =>
+      referenced.has(relation.definitionKey) ||
+      (entityKeys.has(relation.fromEntityKey) && entityKeys.has(relation.toEntityKey)),
+  );
+  return {
+    ...snapshot,
+    entities: snapshot.entities.filter((entity) => entityDefinitionKeys.has(entity.definitionKey)),
+    relations,
+    metrics: snapshot.metrics.filter((metric) => referenced.has(metric.definitionKey)),
+    dimensions: snapshot.dimensions.filter((dimension) => referenced.has(dimension.definitionKey)),
+    actions: selectedActions,
   };
 }
 
@@ -721,7 +1786,7 @@ function compressOntologyCandidate(candidate: BrainSemanticOntologyCandidate) {
   };
 }
 
-function definitionRef<T extends 'entity' | 'relation' | 'metric' | 'dimension'>(
+function definitionRef<T extends 'entity' | 'relation' | 'metric' | 'dimension' | 'action'>(
   definitionType: T,
   definition: {
     definitionKey: string;
@@ -739,14 +1804,14 @@ function definitionRef<T extends 'entity' | 'relation' | 'metric' | 'dimension'>
   };
 }
 
-function modelDefinitionRef<T extends 'entity' | 'relation' | 'metric' | 'dimension'>(
+function modelDefinitionRef<T extends 'entity' | 'relation' | 'metric' | 'dimension' | 'action'>(
   definitionType: T,
   definitionKey: string,
 ) {
   return { definitionType, definitionKey };
 }
 
-function copyDefinitionRef<T extends 'metric' | 'dimension' | 'entity' | 'relation'>(
+function copyDefinitionRef<T extends 'metric' | 'dimension' | 'entity' | 'relation' | 'action'>(
   ref: BrainDefinitionRef<T>,
 ): BrainDefinitionRef<T> {
   return {
@@ -758,7 +1823,7 @@ function copyDefinitionRef<T extends 'metric' | 'dimension' | 'entity' | 'relati
   };
 }
 
-function uniqueDefinitionRefs<T extends 'metric' | 'dimension' | 'entity' | 'relation'>(
+function uniqueDefinitionRefs<T extends 'metric' | 'dimension' | 'entity' | 'relation' | 'action'>(
   refs: Array<BrainDefinitionRef<T>>,
 ) {
   const seen = new Set<string>();
@@ -774,6 +1839,7 @@ function hydrateModelIntentDefinitionRefs(
   intent: BrainSemanticIntent,
   input: BrainSemanticIntentCompilerInput,
 ): BrainSemanticIntent {
+  const normalizedIntent = normalizeModelIntentValue(intent.intent);
   const metrics = intent.metrics.flatMap((ref) => {
     const resolved = resolveCanonicalDefinitionRef('metric', ref?.definitionKey, input);
     return resolved ? [resolved] : [];
@@ -782,14 +1848,17 @@ function hydrateModelIntentDefinitionRefs(
     const resolved = resolveCanonicalDefinitionRef('dimension', ref?.definitionKey, input);
     return resolved ? [resolved] : [];
   });
+  const filters = intent.filters.flatMap((filter) => {
+    if (filter.fieldRef?.definitionType !== 'dimension') return [];
+    const resolved = resolveCanonicalDefinitionRef('dimension', filter.fieldRef.definitionKey, input);
+    return resolved ? [{ ...filter, fieldRef: resolved }] : [];
+  });
   const entities = intent.entities.map((entity) => {
     const resolved = entity.definitionRef?.definitionKey
       ? resolveCanonicalDefinitionRef('entity', entity.definitionRef.definitionKey, input)
       : resolveOntologyEntityRef(entity.entityType, input);
     const source = (entity as { source: string }).source === 'question' ? 'user' : entity.source;
-    return resolved
-      ? { ...entity, source, definitionRef: resolved }
-      : { ...entity, source, definitionRef: undefined };
+    return resolved ? { ...entity, source, definitionRef: resolved } : { ...entity, source, definitionRef: undefined };
   });
   const orderBy = intent.orderBy.flatMap((item) => {
     const type = item.definitionRef?.definitionType;
@@ -797,23 +1866,73 @@ function hydrateModelIntentDefinitionRefs(
     const resolved = resolveCanonicalDefinitionRef(type, item.definitionRef.definitionKey, input);
     return resolved ? [{ ...item, definitionRef: resolved }] : [];
   });
+  const actionRef = intent.actionRef?.definitionKey
+    ? resolveCanonicalDefinitionRef('action', intent.actionRef.definitionKey, input)
+    : undefined;
+  const negatedActionRefs = (intent.negatedActionRefs ?? []).map(
+    (ref) =>
+      resolveCanonicalDefinitionRef('action', ref.definitionKey, input) ??
+      ({ ...ref, definitionType: 'action' } as BrainDefinitionRef<'action'>),
+  );
+  const actionDefinition = actionRef
+    ? input.ontologySnapshot?.actions.find((action) => action.definitionKey === actionRef.definitionKey)
+    : undefined;
+  const actionSlotDefinitions = new Map(actionDefinition?.inputSlots.map((slot) => [slot.slotKey, slot]) ?? []);
+  const actionSlots = actionDefinition
+    ? (intent.actionSlots ?? []).flatMap((slot) => {
+        const definition = actionSlotDefinitions.get(slot.slotKey);
+        if (!definition) return [];
+        const entityDefinitionRef = slot.entityDefinitionRef?.definitionKey
+          ? resolveCanonicalDefinitionRef('entity', slot.entityDefinitionRef.definitionKey, input)
+          : undefined;
+        return [
+          {
+            ...slot,
+            semanticRole: definition.semanticRole,
+            source: (slot as { source: string }).source === 'question' ? ('user' as const) : slot.source,
+            ...(entityDefinitionRef ? { entityDefinitionRef } : { entityDefinitionRef: undefined }),
+          },
+        ];
+      })
+    : [];
+  const isActionSemanticIntent = normalizedIntent === 'action' || normalizedIntent === 'workflow';
+  const missingSlots = new Set(intent.missingSlots);
+  if (normalizedIntent === 'action' && !actionRef) missingSlots.add('actionDefinition');
   return {
     ...intent,
-    intent: normalizeModelIntentValue(intent.intent),
+    schemaVersion: isActionSemanticIntent ? '1.1' : '1.0',
+    intent: normalizedIntent,
     answerShape: normalizeModelAnswerShapeValue(intent.answerShape, intent.intent),
     entities,
     metrics,
     dimensions,
-    filters: [],
+    filters,
     orderBy,
+    ...(isActionSemanticIntent
+      ? {
+          ...(actionRef ? { actionRef } : { actionRef: undefined }),
+          ...(intent.actionPolarity ? { actionPolarity: intent.actionPolarity } : { actionPolarity: undefined }),
+          ...(negatedActionRefs.length > 0 ? { negatedActionRefs } : { negatedActionRefs: undefined }),
+          ...(intent.actionModality ? { actionModality: intent.actionModality } : { actionModality: undefined }),
+          actionSlots,
+        }
+      : {
+          actionRef: undefined,
+          actionPolarity: undefined,
+          negatedActionRefs: undefined,
+          actionModality: undefined,
+          actionSlots: undefined,
+        }),
+    missingSlots: [...missingSlots],
   };
 }
 
 function normalizeModelIntentValue(value: BrainSemanticIntent['intent']): BrainSemanticIntentKind {
   if (typeof value === 'string' && BRAIN_SEMANTIC_INTENTS.includes(value)) return value;
   if (Array.isArray(value)) {
-    const candidate = value.find((item): item is BrainSemanticIntentKind =>
-      typeof item === 'string' && BRAIN_SEMANTIC_INTENTS.includes(item as BrainSemanticIntentKind),
+    const candidate = value.find(
+      (item): item is BrainSemanticIntentKind =>
+        typeof item === 'string' && BRAIN_SEMANTIC_INTENTS.includes(item as BrainSemanticIntentKind),
     );
     if (candidate) return candidate;
   }
@@ -826,8 +1945,9 @@ function normalizeModelAnswerShapeValue(
 ): BrainSemanticAnswerShape {
   if (typeof value === 'string' && BRAIN_SEMANTIC_ANSWER_SHAPES.includes(value)) return value;
   const candidates = Array.isArray(value)
-    ? value.filter((item): item is BrainSemanticAnswerShape =>
-        typeof item === 'string' && BRAIN_SEMANTIC_ANSWER_SHAPES.includes(item as BrainSemanticAnswerShape),
+    ? value.filter(
+        (item): item is BrainSemanticAnswerShape =>
+          typeof item === 'string' && BRAIN_SEMANTIC_ANSWER_SHAPES.includes(item as BrainSemanticAnswerShape),
       )
     : [];
   const intent = normalizeModelIntentValue(rawIntent);
@@ -846,7 +1966,7 @@ function normalizeModelAnswerShapeValue(
   return preferred[intent]?.find((item) => candidates.includes(item)) ?? candidates[0] ?? 'diagnosis';
 }
 
-function resolveCanonicalDefinitionRef<T extends 'entity' | 'relation' | 'metric' | 'dimension'>(
+function resolveCanonicalDefinitionRef<T extends 'entity' | 'relation' | 'metric' | 'dimension' | 'action'>(
   definitionType: T,
   definitionKey: string | undefined,
   input: BrainSemanticIntentCompilerInput,
@@ -856,19 +1976,39 @@ function resolveCanonicalDefinitionRef<T extends 'entity' | 'relation' | 'metric
     return input.metricRefs.find((ref) => ref.definitionKey === definitionKey) as BrainDefinitionRef<T> | undefined;
   }
   if (definitionType === 'dimension') {
-    return input.dimensionRefs.find((ref) => ref.definitionKey === definitionKey) as BrainDefinitionRef<T> | undefined;
+    const directRef = input.dimensionRefs.find((ref) => ref.definitionKey === definitionKey);
+    if (directRef) return directRef as BrainDefinitionRef<T>;
+    const capabilityRef = input.capabilitySummaries
+      .flatMap((capability) => capability.definitionRefs ?? [])
+      .find((ref) => ref.definitionType === 'dimension' && ref.definitionKey === definitionKey);
+    return capabilityRef ? (copyDefinitionRef(capabilityRef as BrainDefinitionRef<'dimension'>) as BrainDefinitionRef<T>) : undefined;
   }
-  const snapshotDefinitions = definitionType === 'entity'
-    ? input.ontologySnapshot?.entities
-    : input.ontologySnapshot?.relations;
+  const snapshotDefinitions =
+    definitionType === 'entity'
+      ? input.ontologySnapshot?.entities
+      : definitionType === 'relation'
+        ? input.ontologySnapshot?.relations
+        : input.ontologySnapshot?.actions;
   const snapshotDefinition = snapshotDefinitions?.find((definition) => definition.definitionKey === definitionKey);
   if (snapshotDefinition) {
     return definitionRef(definitionType, snapshotDefinition) as BrainDefinitionRef<T>;
   }
   const candidate = input.ontologyCandidates.find(
-    (item) => item.definitionRef.definitionType === definitionType && item.definitionRef.definitionKey === definitionKey,
+    (item) =>
+      item.definitionRef.definitionType === definitionType && item.definitionRef.definitionKey === definitionKey,
   );
-  return candidate ? copyDefinitionRef(candidate.definitionRef) as BrainDefinitionRef<T> : undefined;
+  return candidate ? (copyDefinitionRef(candidate.definitionRef) as BrainDefinitionRef<T>) : undefined;
+}
+
+function findCapabilityDefinitionRef<T extends 'entity' | 'relation' | 'metric' | 'dimension' | 'action'>(
+  capability: BrainSemanticCapabilitySummary,
+  definitionType: T,
+  definitionKey: string,
+): BrainDefinitionRef<T> | undefined {
+  const ref = (capability.definitionRefs ?? []).find(
+    (item) => item.definitionType === definitionType && item.definitionKey === definitionKey,
+  );
+  return ref ? (copyDefinitionRef(ref as BrainDefinitionRef<T>) as BrainDefinitionRef<T>) : undefined;
 }
 
 const MAX_QUESTION_LENGTH = 4_000;
@@ -1013,12 +2153,23 @@ function exactCapabilityIntent(
 ): BrainSemanticIntent['intent'] | undefined {
   const allowed = new Set(intents);
   const candidates: BrainSemanticIntent['intent'][] = [
-    ...(/排行|排名|(?:谁|哪个|哪种|哪类|何种).*(?:最高|最多|最好)|(?:最高|最多|最好)(?:的)?(?:前\s*\d+)?|前\s*\d+|(?:各|每个).*(?:项目|员工|美容师|产品|商品).*(?:毛利|利润|成本|业绩|销售|消耗)/.test(question)
+    ...(/(?:创建|新建|新增|添加|修改|更新|取消|核销|扣次|退款|发送|群发|发放|发布|保存|记录|提交|下单|采购|调货|充值|确认)/.test(
+      question,
+    )
+      ? ['action' as const]
+      : []),
+    ...(/排行|排名|(?:谁|哪个|哪种|哪类|何种).*(?:最高|最多|最好)|(?:最高|最多|最好)(?:的)?(?:前\s*\d+)?|前\s*\d+|(?:各|每个).*(?:项目|员工|美容师|产品|商品).*(?:毛利|利润|成本|业绩|销售|消耗)/.test(
+      question,
+    )
       ? ['ranking' as const]
       : []),
     ...(hasTimeComparison || /对比|相比|跟.*比|和.*比|差多少/.test(question) ? ['comparison' as const] : []),
     ...(/趋势|走势|每天|近三天|最近三天/.test(question) ? ['trend' as const] : []),
-    ...(/怎么样|情况|风险|分析|概览|总结|异常|不正常|原因|为什么|下降|变差|不赚钱|根因|活动.*花了多少钱.*(?:收入|营收)/.test(question) ? ['diagnosis' as const] : []),
+    ...(/怎么样|情况|风险|分析|概览|总结|异常|不正常|原因|为什么|下降|变差|不赚钱|根因|活动.*花了多少钱.*(?:收入|营收)/.test(
+      question,
+    )
+      ? ['diagnosis' as const]
+      : []),
     ...(/建议|推荐|适合/.test(question) ? ['recommendation' as const] : []),
     'query',
   ];
@@ -1027,11 +2178,12 @@ function exactCapabilityIntent(
 
 function supportedCapabilityIntent(value: string | undefined): BrainSemanticIntent['intent'] | undefined {
   return BRAIN_SEMANTIC_INTENTS.includes(value as BrainSemanticIntent['intent'])
-    ? value as BrainSemanticIntent['intent']
+    ? (value as BrainSemanticIntent['intent'])
     : undefined;
 }
 
 function exactCapabilityAnswerShape(intent: BrainSemanticIntent['intent']): BrainSemanticIntent['answerShape'] {
+  if (intent === 'action') return 'action_preview';
   if (intent === 'ranking') return 'ranking';
   if (intent === 'comparison') return 'comparison';
   if (intent === 'trend') return 'trend';
@@ -1040,7 +2192,14 @@ function exactCapabilityAnswerShape(intent: BrainSemanticIntent['intent']): Brai
 }
 
 function isExplicitListQuestion(question: string) {
-  return /(哪些|哪几|名单|列表|列出|找出|分别是谁|都有谁|最紧急的是什么|缺货最紧急)/.test(question);
+  const explicitListCue = /(哪些|哪几|名单|列表|列出|找出|分别是谁|各项目|每个项目|都有谁|最紧急的是什么|缺货最紧急)/.test(
+    question,
+  );
+  const entityBreakdownCue =
+    /(?:客户|客人|会员|预约|项目|商品|产品|员工|美容师).{0,24}分别|分别.{0,24}(?:客户|客人|会员|预约|项目|商品|产品|员工|美容师)/.test(
+      question,
+    );
+  return explicitListCue || entityBreakdownCue;
 }
 
 function applyQuestionSpeechActContract(intent: BrainSemanticIntent, question: string): BrainSemanticIntent {
@@ -1049,8 +2208,7 @@ function applyQuestionSpeechActContract(intent: BrainSemanticIntent, question: s
   if (automationDiagnosis) {
     return { ...intent, intent: 'diagnosis', answerShape: 'diagnosis' };
   }
-  const automationAction =
-    /(?:我想|帮我|能不能|请).*(?:系统)?自动.*(?:发|发送|提醒|通知|推送|升级|触发)/.test(text);
+  const automationAction = /(?:我想|帮我|能不能|请).*(?:系统)?自动.*(?:发|发送|提醒|通知|推送|升级|触发)/.test(text);
   if (automationAction) {
     return { ...intent, intent: 'action', answerShape: 'action_preview' };
   }
@@ -1078,6 +2236,33 @@ function isExplicitScalarQuestion(question: string) {
   return /(?:多少|多少钱|几笔|几个|占比|比例|分别多少|到多少|是多少)/.test(question);
 }
 
+function isProjectServiceSalesQuestion(question: string) {
+  const normalized = question.replace(/\s+/gu, '');
+  const projectSignal = /(?:项目|护理|SPA|spa|管理|养护|修护|提拉|焕肤|清洁|舒缓|净透|淡斑)/u.test(normalized);
+  const serviceSalesSignal =
+    /(?:卖了多少|卖出多少|卖了几|卖出几|销量|销售数量|服务次数|做了多少次|做了几次)/u.test(normalized);
+  const productSignal = /(?:商品|产品|货品)/u.test(normalized) && !/(?:项目|护理|SPA|spa)/u.test(normalized);
+  const materialSignal = /(?:BOM|bom|耗材|物料|材料)/iu.test(normalized);
+  const aggregateSignal = /(?:各项目|每个项目|所有项目|全店|哪个项目|哪些项目|排行|排名|最多|最少|最高|最低|前\d+|top\d+)/iu.test(
+    normalized,
+  );
+  return projectSignal && serviceSalesSignal && !productSignal && !materialSignal && !aggregateSignal;
+}
+
+function isProjectSpecificBomQuestion(question: string) {
+  const normalized = question.replace(/\s+/gu, '');
+  const bomSignal =
+    /(?:BOM|bom).*(?:成本|清单|明细|用到|包含|需要)|(?:用到|需要|包含|配置|配了|有哪些).*(?:耗材|物料|材料|产品|商品)|(?:耗材|物料|材料|产品|商品).*(?:清单|有哪些|用到|需要)/iu.test(
+      normalized,
+    );
+  const projectSignal = /(?:项目|护理|SPA|spa|管理|养护|修护|提拉|焕肤|清洁|舒缓|净透|淡斑)/u.test(normalized);
+  const aggregateQuestion =
+    /(?:各项目|每个项目|所有项目|全店|哪个项目|哪些项目|排行|排名|最高|最多|最低|实际消耗|消耗最多|消耗排行)/u.test(
+      normalized,
+    );
+  return projectSignal && bomSignal && !aggregateQuestion;
+}
+
 function localIsoDate(value: Date): string {
   const year = value.getFullYear();
   const month = String(value.getMonth() + 1).padStart(2, '0');
@@ -1101,11 +2286,7 @@ function isGenericOntologyMention(
   return names.some((name) => normalizeSemanticText(name) === normalizedMention);
 }
 
-function isOntologyTypeKey(
-  entityKey: string,
-  definitionKey: string,
-  input: BrainSemanticIntentCompilerInput,
-): boolean {
+function isOntologyTypeKey(entityKey: string, definitionKey: string, input: BrainSemanticIntentCompilerInput): boolean {
   const snapshotEntity = input.ontologySnapshot?.entities.find((entity) => entity.definitionKey === definitionKey);
   const candidate = input.ontologyCandidates.find((item) => item.definitionRef.definitionKey === definitionKey);
   const typeKey = snapshotEntity?.entityKey ?? candidate?.entityKey;
@@ -1117,15 +2298,19 @@ function resolveOntologyEntityRef(
   input: BrainSemanticIntentCompilerInput,
 ): BrainDefinitionRef<'entity'> | undefined {
   const normalizedType = normalizeSemanticText(entityType);
-  const snapshotMatches = input.ontologySnapshot?.entities.filter((entity) =>
-    [entity.entityKey, entity.name, ...entity.aliases].some((value) => normalizeSemanticText(value) === normalizedType),
-  ) ?? [];
+  const snapshotMatches =
+    input.ontologySnapshot?.entities.filter((entity) =>
+      [entity.entityKey, entity.name, ...entity.aliases].some(
+        (value) => normalizeSemanticText(value) === normalizedType,
+      ),
+    ) ?? [];
   if (snapshotMatches.length === 1) return definitionRef('entity', snapshotMatches[0]);
-  const candidateMatches = input.ontologyCandidates.filter((candidate) =>
-    candidate.definitionRef.definitionType === 'entity' &&
-    [candidate.entityKey, candidate.name, ...(candidate.aliases ?? [])]
-      .filter((value): value is string => Boolean(value))
-      .some((value) => normalizeSemanticText(value) === normalizedType),
+  const candidateMatches = input.ontologyCandidates.filter(
+    (candidate) =>
+      candidate.definitionRef.definitionType === 'entity' &&
+      [candidate.entityKey, candidate.name, ...(candidate.aliases ?? [])]
+        .filter((value): value is string => Boolean(value))
+        .some((value) => normalizeSemanticText(value) === normalizedType),
   );
   return candidateMatches.length === 1
     ? copyDefinitionRef(candidateMatches[0].definitionRef as BrainDefinitionRef<'entity'>)
@@ -1133,7 +2318,124 @@ function resolveOntologyEntityRef(
 }
 
 function normalizeSemanticText(value: string): string {
-  return value.trim().toLocaleLowerCase('zh-CN').replace(/[^a-z0-9\u4e00-\u9fff]+/g, '');
+  return value
+    .trim()
+    .toLocaleLowerCase('zh-CN')
+    .replace(/[^a-z0-9\u4e00-\u9fff]+/g, '');
+}
+
+function inferCustomerLevelFilterClauses(
+  input: BrainSemanticIntentCompilerInput,
+  intent: BrainSemanticIntent,
+): BrainSemanticIntent['filters'] {
+  if (intent.filters.some((filter) => filter.fieldRef?.definitionKey === 'dimension.customerLevel')) return [];
+  if (!input.question.includes('会员')) return [];
+  const customerLevel = extractExplicitCustomerLevelValue(input.question);
+  if (!customerLevel) return [];
+  const customerFactsCapability = input.capabilitySummaries.find(
+    (candidate) =>
+      candidate.key === 'customer_facts' &&
+      candidate.readOnly &&
+      candidate.intents.includes('query') &&
+      (candidate.definitionRefs ?? []).some(
+        (ref) => ref.definitionType === 'dimension' && ref.definitionKey === 'dimension.customerLevel',
+      ),
+  );
+  if (!customerFactsCapability) return [];
+  const dimensionRef = resolveCanonicalDefinitionRef('dimension', 'dimension.customerLevel', input);
+  if (!dimensionRef) return [];
+  return [{ fieldRef: dimensionRef, operator: 'eq', value: customerLevel }];
+}
+
+function extractExplicitCustomerLevelValue(question: string): string | undefined {
+  const normalized = question.replace(/\s+/gu, '');
+  if (/钻石会员/u.test(normalized) && !/(?:钻石会员以上|钻石会员及以上|钻石会员及其以上)/u.test(normalized)) {
+    return '钻石会员';
+  }
+  const patterns = [
+    /(?:会员等级|等级)(?:为|是|=|：|:)?([\p{Script=Han}A-Za-z0-9]{1,12})/u,
+    /(?:多少(?:个|位)?|几(?:个|位)?|统计|查询|查一下|列出|哪些|一共有(?:多少(?:个|位)?)?)([\p{Script=Han}A-Za-z0-9]{1,12})会员/u,
+    /^([\p{Script=Han}A-Za-z0-9]{1,12})会员(?:有多少|多少|名单|客户|顾客|一共|总数)/u,
+    /(?:高等级|VIP|会员等级)\s*([\p{Script=Han}A-Za-z0-9]{1,12})/u,
+  ];
+  const rawValue = patterns.map((pattern) => normalized.match(pattern)?.[1]).find((value) => Boolean(value));
+  if (!rawValue) return undefined;
+  const value = rawValue.replace(/(?:客户|顾客|会员)$/u, '');
+  if (!value || /^(?:客户|顾客|会员|个|位|等级|会员等级|高等级|VIP|vip)$/u.test(value)) return undefined;
+  return value;
+}
+
+function uniqueFilterClauses(filters: BrainSemanticIntent['filters']): BrainSemanticIntent['filters'] {
+  const seen = new Set<string>();
+  return filters.filter((filter) => {
+    const key = `${filter.fieldRef.definitionType}:${filter.fieldRef.definitionKey}:${filter.operator}:${JSON.stringify(filter.value)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function inferFinanceScalarMetricKeys(question: string): string[] {
+  const normalized = question.replace(/\s+/gu, '');
+  const inferred = new Set<string>();
+  if (/收银(?:班次)?(?:对平|对账)|(?:对平|对账)了?吗/u.test(normalized)) {
+    inferred.add('metric.cash_shift_reconciliation_rate');
+  }
+  if (
+    /(?:储值|会员卡|会员余额|储值余额).*(?:负债|未履约|余额|总额|总计|合计)/u.test(normalized) &&
+    !/(?:撑住|集中消费|都来消费|偿付压力)/u.test(normalized)
+  ) {
+    inferred.add('metric.stored_value_liability');
+  }
+  if (/(?:次卡|套餐卡|卡项).*(?:未履约|未核销|负债)/u.test(normalized)) {
+    inferred.add('metric.unfulfilled_card_liability');
+  }
+  if (isCardRecognizedRevenueQuestion(normalized)) {
+    inferred.add('metric.card_recognized_revenue_amount');
+  }
+  if (/经营利润|营业利润/u.test(normalized)) {
+    inferred.add('metric.operating_profit_amount');
+  }
+  if (/成本(?:占|\/|比).*收入|收入.*成本(?:占|\/|比)|成本收入比/u.test(normalized)) {
+    inferred.add('metric.cost_income_ratio');
+  }
+  if (/毛利(?!率)/u.test(normalized) && !/(?:订单|项目|产品|商品|货品|开卡|卡销售)/u.test(normalized)) {
+    inferred.add('metric.gross_profit_amount');
+  }
+  if (/毛利率/u.test(normalized) && !/(?:订单|项目|产品|商品|货品)/u.test(normalized)) {
+    inferred.add('metric.gross_margin_rate');
+  }
+  return [...inferred];
+}
+
+function inferFinanceOrderProfitMetricKeys(question: string): string[] {
+  const normalized = question.replace(/\s+/gu, '');
+  const inferred = new Set<string>();
+  if (/哪些订单毛利为负|毛利为负|负毛利/u.test(normalized)) {
+    inferred.add('metric.negative_margin_order_count');
+  }
+  if (/每张订单|分别多少/u.test(normalized) && /毛利/u.test(normalized)) {
+    inferred.add('metric.order_gross_profit_amount');
+  }
+  if (/(?:订单).*(?:成本和毛利|毛利和成本)|(?:产品|商品)订单.*(?:成本和毛利|毛利和成本)/u.test(normalized)) {
+    inferred.add('metric.product_order_total_cost_amount');
+    inferred.add('metric.product_order_gross_profit_amount');
+  }
+  if (/开卡订单|次卡订单|套餐卡订单/u.test(normalized)) {
+    inferred.add('metric.prepaid_order_gross_profit_amount');
+  }
+  return [...inferred];
+}
+
+function isCardRecognizedRevenueQuestion(normalizedQuestion: string): boolean {
+  return (
+    /(?:次卡|套餐卡|卡项).*(?:核销.*(?:确认.*收入|收入确认)|确认.*收入|收入确认|确认收入进度)/u.test(
+      normalizedQuestion,
+    ) ||
+    /(?:核销.*(?:确认.*收入|收入确认)|确认.*收入|收入确认|确认收入进度).*(?:次卡|套餐卡|卡项)/u.test(
+      normalizedQuestion,
+    )
+  );
 }
 
 function definitionMatchesQuestion(question: string, name: string, aliases: readonly string[] = []): boolean {
@@ -1152,6 +2454,28 @@ function governedMetricKeyMatchesQuestion(question: string, definitionKey: strin
   const normalizedQuestion = normalizeSemanticText(question);
   const metricKey = definitionKey.replace(/^metric\./, '');
   switch (metricKey) {
+    case 'gross_profit_amount':
+      return (
+        /毛利(?!率)/.test(normalizedQuestion) &&
+        !/(?:订单|项目|产品|商品|货品|开卡|卡销售)/.test(normalizedQuestion)
+      );
+    case 'gross_margin_rate':
+      return /毛利率/.test(normalizedQuestion) && !/(?:订单|项目|产品|商品|货品)/.test(normalizedQuestion);
+    case 'operating_profit_amount':
+      return /经营利润|营业利润/.test(normalizedQuestion);
+    case 'cost_income_ratio':
+      return /成本(?:占|\/|比).*收入|收入.*成本(?:占|\/|比)|成本收入比/.test(normalizedQuestion);
+    case 'cash_shift_reconciliation_rate':
+      return /收银(?:班次)?(?:对平|对账)|(?:对平|对账)了?吗/.test(normalizedQuestion);
+    case 'stored_value_liability':
+      return (
+        /(?:储值|会员卡|会员余额|储值余额).*(?:负债|未履约|余额|总额|总计|合计)/.test(normalizedQuestion) &&
+        !/(?:撑住|集中消费|都来消费|偿付压力)/.test(normalizedQuestion)
+      );
+    case 'unfulfilled_card_liability':
+      return /(?:次卡|套餐卡|卡项).*(?:未履约|未核销|负债)/.test(normalizedQuestion);
+    case 'card_recognized_revenue_amount':
+      return isCardRecognizedRevenueQuestion(normalizedQuestion);
     case 'product_sales_amount':
       return /(商品|产品)/.test(normalizedQuestion) && /(销售额|销售金额)/.test(normalizedQuestion);
     case 'product_sales_quantity':
@@ -1170,8 +2494,10 @@ function governedMetricKeyMatchesQuestion(question: string, definitionKey: strin
       return /(折扣|优惠|让利)/.test(normalizedQuestion);
     case 'staff_customer_repurchase_rate':
       return /复购率/.test(normalizedQuestion);
+    case 'staff_commission_component_amount':
+      return isStaffCommissionCompositionQuestion(normalizedQuestion);
     case 'staff_commission_amount':
-      return /提成/.test(normalizedQuestion);
+      return /提成/.test(normalizedQuestion) && !isStaffCommissionCompositionQuestion(normalizedQuestion);
     case 'staff_unique_customer_count':
       return /(接的客人|接客|服务客户)/.test(normalizedQuestion);
     case 'staff_service_count':
@@ -1185,14 +2511,20 @@ function governedMetricKeyMatchesQuestion(question: string, definitionKey: strin
     case 'new_customer_conversion_rate':
       return /新客/.test(normalizedQuestion) && /(转化率|成交率|首单率|转化)/.test(normalizedQuestion);
     case 'customer_complaint_count':
-      return /(投诉|客诉|差评|不满|负面反馈)/.test(normalizedQuestion) &&
-        !/(?:美容师|员工|谁|哪个|哪位).*(?:投诉|客诉|差评).*(?:最多|排行|排名)/.test(normalizedQuestion);
+      return (
+        /(投诉|客诉|差评|不满|负面反馈)/.test(normalizedQuestion) &&
+        !/(?:美容师|员工|谁|哪个|哪位).*(?:投诉|客诉|差评).*(?:最多|排行|排名)/.test(normalizedQuestion)
+      );
     case 'customer_unresolved_complaint_count':
-      return /(投诉|客诉|不满)/.test(normalizedQuestion) && /(未解决|没解决|待处理|处理中|还有多少)/.test(normalizedQuestion);
+      return (
+        /(投诉|客诉|不满)/.test(normalizedQuestion) && /(未解决|没解决|待处理|处理中|还有多少)/.test(normalizedQuestion)
+      );
     case 'customer_average_satisfaction_rating':
       return /(满意度|满意评价|服务评分|星级|评分)/.test(normalizedQuestion);
     case 'customer_feedback_collection_coverage_rate':
-      return /(反馈|评价|满意度)/.test(normalizedQuestion) && /(覆盖率|采集率|整体情况|总体情况)/.test(normalizedQuestion);
+      return (
+        /(反馈|评价|满意度)/.test(normalizedQuestion) && /(覆盖率|采集率|整体情况|总体情况)/.test(normalizedQuestion)
+      );
     case 'staff_customer_complaint_count':
       return /(美容师|员工|谁|哪个|哪位)/.test(normalizedQuestion) && /(投诉|客诉|差评)/.test(normalizedQuestion);
     case 'customer_long_wait_departure_count':
@@ -1200,7 +2532,10 @@ function governedMetricKeyMatchesQuestion(question: string, definitionKey: strin
     case 'customer_waiting_collection_coverage_rate':
       return /(等待|排队).*(覆盖率|采集率|记录情况)/.test(normalizedQuestion);
     case 'dormant_reactivation_customer_count':
-      return /沉睡客户/.test(normalizedQuestion) && /(?:唤醒|回流).*(?:迹象|信号)|(?:迹象|信号).*(?:唤醒|回流)/.test(normalizedQuestion);
+      return (
+        /沉睡客户/.test(normalizedQuestion) &&
+        /(?:唤醒|回流).*(?:迹象|信号)|(?:迹象|信号).*(?:唤醒|回流)/.test(normalizedQuestion)
+      );
     default:
       return false;
   }
@@ -1215,7 +2550,18 @@ function governedDimensionKeyMatchesQuestion(question: string, definitionKey: st
   if (dimensionKey === 'paymentMethod') {
     return /(支付方式|收款方式|付款方式|支付渠道|收款渠道)/.test(normalizedQuestion);
   }
+  if (dimensionKey === 'commissionType') {
+    return isStaffCommissionCompositionQuestion(normalizedQuestion);
+  }
   return false;
+}
+
+function isStaffCommissionCompositionQuestion(normalizedQuestion: string): boolean {
+  return (
+    /提成/.test(normalizedQuestion) &&
+    (/(?:构成|组成|拆分|分布|来源|结构|类型|分类)/.test(normalizedQuestion) ||
+      /(?:项目|服务).*(?:产品|商品)|(?:产品|商品).*(?:项目|服务)/.test(normalizedQuestion))
+  );
 }
 
 function selectCapabilityExamples(question: string, examples: readonly string[], limit = 3): string[] {
@@ -1227,11 +2573,12 @@ function selectCapabilityExamples(question: string, examples: readonly string[],
       const normalizedExample = normalizeSemanticText(example);
       const overlap = [...new Set(normalizedExample)].filter((char) => questionChars.has(char)).length;
       const similarity = questionChars.size > 0 ? overlap / questionChars.size : 0;
-      const score = normalizedExample === normalizedQuestion
-        ? 3
-        : normalizedExample.includes(normalizedQuestion) || normalizedQuestion.includes(normalizedExample)
-          ? 2
-          : similarity;
+      const score =
+        normalizedExample === normalizedQuestion
+          ? 3
+          : normalizedExample.includes(normalizedQuestion) || normalizedQuestion.includes(normalizedExample)
+            ? 2
+            : similarity;
       return { example, index, score };
     })
     .sort((left, right) => right.score - left.score || left.index - right.index)
@@ -1277,7 +2624,8 @@ function resolveReferencedDefinitionDomains(
   const definitionKeys = new Set([
     ...intent.metrics.map((ref) => ref.definitionKey),
     ...intent.dimensions.map((ref) => ref.definitionKey),
-    ...intent.entities.flatMap((entity) => entity.definitionRef ? [entity.definitionRef.definitionKey] : []),
+    ...intent.entities.flatMap((entity) => (entity.definitionRef ? [entity.definitionRef.definitionKey] : [])),
+    ...(intent.actionRef ? [intent.actionRef.definitionKey] : []),
   ]);
   if (!definitionKeys.size) return [];
   if (input.ontologySnapshot) {
@@ -1285,11 +2633,14 @@ function resolveReferencedDefinitionDomains(
       ...input.ontologySnapshot.metrics,
       ...input.ontologySnapshot.dimensions,
       ...input.ontologySnapshot.entities,
-    ].filter((definition) => definitionKeys.has(definition.definitionKey)).map((definition) => definition.domain);
+      ...input.ontologySnapshot.actions,
+    ]
+      .filter((definition) => definitionKeys.has(definition.definitionKey))
+      .map((definition) => definition.domain);
   }
   return input.ontologyCandidates
     .filter((candidate) => definitionKeys.has(candidate.definitionRef.definitionKey))
-    .flatMap((candidate) => candidate.domain ? [candidate.domain] : []);
+    .flatMap((candidate) => (candidate.domain ? [candidate.domain] : []));
 }
 
 function uniqueSemanticDomains(values: string[]): string[] {

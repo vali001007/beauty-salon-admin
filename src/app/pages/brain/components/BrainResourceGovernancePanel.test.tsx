@@ -61,4 +61,29 @@ describe('BrainResourceGovernancePanel', () => {
     expect(await screen.findByText('customer')).toBeInTheDocument();
     expect(screen.getByText('v2')).toBeInTheDocument();
   });
+
+  it('keeps active and historical versions visible while hiding draft mutation controls in read-only mode', async () => {
+    brainApi.listBrainResourceVersions.mockResolvedValue({ items: [] });
+    const loadActive = vi.fn().mockResolvedValue({
+      items: [{ id: 2, entityKey: 'appointment', version: 4, status: 'active', name: '预约' }],
+    });
+
+    render(
+      <BrainResourceGovernancePanel
+        title="实体版本"
+        description="测试"
+        resourceType="ontology_entity"
+        keyField="entityKey"
+        example={{ entityKey: 'appointment' }}
+        loadActive={loadActive}
+        createResource={vi.fn()}
+        updateResource={vi.fn()}
+        canManage={false}
+      />,
+    );
+
+    expect(await screen.findByText('appointment')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '保存新版本' })).not.toBeInTheDocument();
+  });
 });

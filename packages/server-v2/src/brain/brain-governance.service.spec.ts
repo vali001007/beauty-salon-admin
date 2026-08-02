@@ -206,6 +206,8 @@ describe('BrainEvalService', () => {
     };
     const releaseService = { freezeEvaluationRelease: jest.fn().mockResolvedValue(releaseSnapshot) };
     const timeoutSpy = jest.spyOn(global, 'setTimeout').mockImplementation((() => 0) as never);
+    const previousRuntimeCommit = process.env.ZEABUR_GIT_COMMIT_SHA;
+    process.env.ZEABUR_GIT_COMMIT_SHA = 'f'.repeat(40);
     const service = new BrainEvalService(
       prisma as never,
       undefined,
@@ -233,6 +235,7 @@ describe('BrainEvalService', () => {
           summary: expect.objectContaining({
             gateMode: 'release_gate',
             releaseFingerprint: 'a'.repeat(64),
+            runtimeCommit: 'f'.repeat(40),
             requiredCapabilityKeys: ['customer_facts', 'reservation_list'],
             coverageComplete: true,
             canRelease: false,
@@ -242,6 +245,8 @@ describe('BrainEvalService', () => {
       expect(releaseService.freezeEvaluationRelease).toHaveBeenCalledTimes(1);
     } finally {
       timeoutSpy.mockRestore();
+      if (previousRuntimeCommit === undefined) delete process.env.ZEABUR_GIT_COMMIT_SHA;
+      else process.env.ZEABUR_GIT_COMMIT_SHA = previousRuntimeCommit;
     }
   });
 
@@ -504,6 +509,32 @@ describe('BrainEvalService', () => {
       data: expect.objectContaining({ deterministicPassed: true, failureCluster: null, error: Prisma.DbNull }),
     });
     expect(result).toMatchObject({ total: 1, passed: 1, failed: 0, providerUnavailable: 0 });
+  });
+
+  it('classifies a database connection timeout trace as infrastructure unavailable', async () => {
+    const prisma = {
+      brainRunStep: {
+        findFirst: jest.fn().mockResolvedValue({
+          output: {
+            code: 'CAPABILITY_EXECUTION_FAILED',
+            diagnosticCode: 'TIMEOUT_EXCEEDED_WHEN_TRYING_TO_CONNECT',
+          },
+        }),
+      },
+    };
+    const service = new BrainEvalService(prisma as never);
+
+    await expect((service as any).isProviderUnavailable({
+      runId: 901,
+      status: 'failed',
+      failureCode: 'CAPABILITY_EXECUTION_FAILED',
+    })).resolves.toBe(true);
+
+    expect(prisma.brainRunStep.findFirst).toHaveBeenCalledWith({
+      where: { runId: 901, status: 'failed' },
+      select: { output: true },
+      orderBy: { id: 'desc' },
+    });
   });
 
   it('retries an explicitly requested failed release-gate checkpoint without rerunning passed cases', async () => {

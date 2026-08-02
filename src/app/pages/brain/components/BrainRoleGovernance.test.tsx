@@ -10,12 +10,16 @@ const brainApi = vi.hoisted(() => ({
   listBrainRoleProfiles: vi.fn(),
   updateBrainRoleProfile: vi.fn(),
 }));
+const permissionState = vi.hoisted(() => ({ canManage: true }));
 
 vi.mock('@/api/brain', () => brainApi);
+vi.mock('@/hooks/usePermission', () => ({ usePermission: () => permissionState.canManage }));
+vi.mock('../brainGovernanceNavigation', () => ({ BRAIN_GOVERNANCE_UI_MODE: 'manage' }));
 
 describe('BrainRoleGovernance', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    permissionState.canManage = true;
     brainApi.listBrainResourceVersions.mockResolvedValue({
       items: [
         {
@@ -57,9 +61,12 @@ describe('BrainRoleGovernance', () => {
   it('loads the selected role into the editor and saves a new draft version', async () => {
     render(<BrainRoleGovernance />);
 
+    expect(screen.queryByRole('dialog', { name: '配置角色 · store_manager' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('角色配置 JSON')).not.toBeInTheDocument();
+
     await userEvent.click(await screen.findByRole('button', { name: '配置店长经营专家' }));
 
-    expect(screen.getByText('配置角色 · store_manager')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: '配置角色 · store_manager' })).toBeInTheDocument();
     expect((screen.getByLabelText('角色配置 JSON') as unknown as { value: string }).value).toContain('query_margin');
 
     await userEvent.click(screen.getByRole('button', { name: '保存新版本' }));
@@ -74,5 +81,27 @@ describe('BrainRoleGovernance', () => {
         }),
       );
     });
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: '配置角色 · store_manager' })).not.toBeInTheDocument();
+    });
+  });
+
+  it('opens new role configuration in a dialog', async () => {
+    render(<BrainRoleGovernance />);
+
+    await userEvent.click(await screen.findByRole('button', { name: '新建角色' }));
+
+    expect(screen.getByRole('dialog', { name: '新建角色配置' })).toBeInTheDocument();
+    expect((screen.getByLabelText('角色配置 JSON') as unknown as { value: string }).value).toContain('store_manager');
+  });
+
+  it('keeps view-only users read-only without exposing role mutation controls', async () => {
+    permissionState.canManage = false;
+    render(<BrainRoleGovernance />);
+
+    expect(await screen.findByText('店长经营专家')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '新建角色' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '配置店长经营专家' })).not.toBeInTheDocument();
+    expect(screen.getByText('只读')).toBeInTheDocument();
   });
 });

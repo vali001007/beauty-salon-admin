@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
+import { usePermission } from '@/hooks/usePermission';
 import {
   activateBrainRelease,
   createBrainRolloutSequence,
@@ -29,6 +30,7 @@ import type {
   BrainCapabilityRegenerationJob,
   BrainRiskLevel,
 } from '@/types/brain';
+import { BRAIN_GOVERNANCE_UI_MODE } from '../brainGovernanceNavigation';
 
 const ROLLOUT_STAGES = [
   { key: 'shadow', label: 'Shadow', percentage: 100 },
@@ -43,6 +45,8 @@ const REGENERATION_POLL_FAILURE_LIMIT = 3;
 
 export function BrainReleaseCenter() {
   const navigate = useNavigate();
+  const canManage = usePermission('core:brain-governance:manage') && BRAIN_GOVERNANCE_UI_MODE !== 'shadow';
+  const canRelease = usePermission('core:brain-governance:release') && BRAIN_GOVERNANCE_UI_MODE !== 'shadow';
   const [versions, setVersions] = useState<BrainGovernanceResourceVersion[]>([]);
   const [releases, setReleases] = useState<BrainGovernanceRelease[]>([]);
   const [selected, setSelected] = useState<number[]>([]);
@@ -304,6 +308,8 @@ export function BrainReleaseCenter() {
               onRollback={() => void rollback(release.id)}
               onRetryJob={() => job && void retryJob(job.id)}
               onOpenBusinessDefinitions={() => navigate('/system/business-definitions')}
+              canManage={canManage}
+              canRelease={canRelease}
             />
             );
           }) : (
@@ -316,11 +322,13 @@ export function BrainReleaseCenter() {
         <aside className="min-w-0 border-t border-border pt-5 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
           <h3 className="text-sm font-semibold">生成五阶段发布</h3>
           <p className="mt-1 text-xs text-muted-foreground">这里只选择能力版本，灰度范围和回滚链由系统自动生成。</p>
+          {!canManage ? <p className="mt-4 rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">当前账号只有查看权限，创建发布序列需要 Brain 治理管理权限。</p> : null}
           <label htmlFor="release-key" className="mt-4 block text-xs font-medium text-muted-foreground">发布标识</label>
           <input
             id="release-key"
             value={releaseKey}
             onChange={(event) => setReleaseKey(event.target.value)}
+            disabled={!canManage}
             placeholder="例如 brain-2026-07-13"
             className="mt-1 h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"
           />
@@ -333,6 +341,7 @@ export function BrainReleaseCenter() {
                   <input
                     type="checkbox"
                     checked={selected.includes(version.id)}
+                    disabled={!canManage}
                     onChange={(event) => setSelected((current) => event.target.checked
                       ? [...current, version.id]
                       : current.filter((id) => id !== version.id))}
@@ -347,7 +356,7 @@ export function BrainReleaseCenter() {
             </div>
           </fieldset>
 
-          <button
+          {canManage ? <button
             type="button"
             className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm text-primary-foreground disabled:opacity-60"
             onClick={() => void createSequence()}
@@ -355,7 +364,7 @@ export function BrainReleaseCenter() {
           >
             {busyId === 'create' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
             生成 Shadow 到 100% 序列
-          </button>
+          </button> : null}
         </aside>
       </div>
     </section>
@@ -394,10 +403,13 @@ function ReleaseApprovalCard(props: {
   onRollback: () => void;
   onRetryJob: () => void;
   onOpenBusinessDefinitions: () => void;
+  canManage: boolean;
+  canRelease: boolean;
 }) {
   const summary = summarizeRelease(props.release);
   const isDraft = props.release.status === 'draft';
   const isActive = props.release.status === 'active';
+  const readinessBlocksApproval = Boolean(props.release.releaseReadiness && !props.release.releaseReadiness.canRelease);
 
   return (
     <article className="min-w-0 rounded-md border border-border p-4">
@@ -431,6 +443,15 @@ function ReleaseApprovalCard(props: {
         <p className="mt-1 break-words text-sm">{summary.impact}</p>
       </div>
 
+      {props.release.releaseReadiness?.blockers.length ? (
+        <div className={`mt-4 rounded-md border px-3 py-2 text-xs ${props.release.releaseReadiness.status === 'unavailable' ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-destructive/40 bg-destructive/5 text-destructive'}`}>
+          <p className="font-medium">
+            {isActive ? '运行版本已生效，但当前证据状态需要关注' : '当前发布尚未满足激活条件'}
+          </p>
+          {props.release.releaseReadiness.blockers.map((blocker) => <p key={blocker} className="mt-1 break-all">{blocker}</p>)}
+        </div>
+      ) : null}
+
       {props.regenerationJob ? (
         <RegenerationStatus
           job={props.regenerationJob}
@@ -438,10 +459,11 @@ function ReleaseApprovalCard(props: {
           onRetry={props.onRetryJob}
           onModify={props.onModify}
           onOpenBusinessDefinitions={props.onOpenBusinessDefinitions}
+          canManage={props.canManage}
         />
       ) : null}
 
-      {props.modifying ? (
+      {props.modifying && props.canManage ? (
         <div className="mt-4 border-t border-border pt-4">
           <label htmlFor={`release-requirement-${props.release.id}`} className="text-sm font-medium">修改要求</label>
           <textarea
@@ -475,36 +497,38 @@ function ReleaseApprovalCard(props: {
 
       {isDraft && !props.modifying ? (
         <div className="mt-4 flex flex-wrap gap-2">
-          <button
+          {props.canRelease ? <button
             type="button"
             className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm text-primary-foreground disabled:opacity-60"
             onClick={props.onApprove}
-            disabled={props.busy || Boolean(props.regenerationJob)}
-            title={props.regenerationJob ? '该发布已提交修改要求，需使用新生成草稿重新创建发布' : undefined}
+            disabled={props.busy || Boolean(props.regenerationJob) || readinessBlocksApproval}
+            title={props.regenerationJob
+              ? '该发布已提交修改要求，需使用新生成草稿重新创建发布'
+              : readinessBlocksApproval ? '正式评测证据尚未就绪或当前不可验证' : undefined}
           >
             {props.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
             批准发布
-          </button>
-          <button
+          </button> : null}
+          {props.canManage ? <button
             type="button"
             className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm hover:bg-muted disabled:opacity-60"
             onClick={props.onModify}
             disabled={props.busy}
           >
             <FilePenLine className="h-4 w-4" />修改要求
-          </button>
-          <button
+          </button> : null}
+          {props.canRelease ? <button
             type="button"
             className="inline-flex h-9 items-center gap-2 rounded-md border border-destructive px-3 text-sm text-destructive hover:bg-destructive/10 disabled:opacity-60"
             onClick={props.onReject}
             disabled={props.busy}
           >
             <ShieldAlert className="h-4 w-4" />拒绝
-          </button>
+          </button> : null}
         </div>
       ) : null}
 
-      {isActive ? (
+      {isActive && props.canRelease ? (
         <button
           type="button"
           className="mt-4 inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm hover:bg-muted disabled:opacity-60"
@@ -525,6 +549,7 @@ function RegenerationStatus(props: {
   onRetry: () => void;
   onModify: () => void;
   onOpenBusinessDefinitions: () => void;
+  canManage: boolean;
 }) {
   const retryable = props.job.retryable && props.job.nextAction === 'retry';
   return (
@@ -534,7 +559,7 @@ function RegenerationStatus(props: {
           <p className="text-sm font-medium">{regenerationStatusLabel(props.job.status)}</p>
           <p className="mt-1 text-xs text-muted-foreground">进度 {Math.max(0, Math.min(100, props.job.progress))}%</p>
         </div>
-        {retryable ? (
+        {retryable && props.canManage ? (
           <button
             type="button"
             className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm hover:bg-muted disabled:opacity-60"
@@ -545,7 +570,7 @@ function RegenerationStatus(props: {
             重新排队
           </button>
         ) : null}
-        {props.job.nextAction === 'modify_requirement' ? (
+        {props.job.nextAction === 'modify_requirement' && props.canManage ? (
           <button
             type="button"
             className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm hover:bg-muted"
@@ -615,8 +640,7 @@ function summarizeRelease(release: BrainGovernanceRelease) {
   const sideEffect = snapshots.some((snapshot) => snapshot.sideEffect === true || snapshot.readOnly === false);
   const roles = unique(snapshots.flatMap((snapshot) => strings(snapshot.allowedRoles)));
   const riskLevel = highestRisk(snapshots.map((snapshot) => String(snapshot.riskLevel ?? 'low') as BrainRiskLevel));
-  const tests = snapshots.flatMap((snapshot) => Object.values(record(snapshot.tests)));
-  const testsPassed = tests.length > 0 && tests.every((value) => value === 'passed' || value === true);
+  const readiness = release.releaseReadiness;
   const confirmation = snapshots.some((snapshot) => snapshot.requiresConfirmation === true)
     ? '真实执行需再次确认'
     : sideEffect ? '发布后按风险确认' : '无需执行确认';
@@ -627,7 +651,13 @@ function summarizeRelease(release: BrainGovernanceRelease) {
     roles: roles.length ? roles.map(roleLabel).join('、') : '按权限自动收口',
     riskLevel,
     confirmation,
-    testStatus: testsPassed ? '全部通过' : '等待评测门禁',
+    testStatus: readiness?.status === 'ready'
+      ? `已通过${readiness.evalRunId ? `（Eval Run #${readiness.evalRunId}）` : ''}`
+      : readiness?.status === 'blocked'
+        ? `未就绪${readiness.blockers[0] ? `：${readiness.blockers[0]}` : ''}`
+        : readiness?.status === 'unavailable'
+          ? '证据暂不可用（不代表未执行）'
+          : '证据状态未返回',
     impact: items.length
       ? items.map((item) => businessName(item.snapshot, item.resourceKey)).join('、')
       : itemCount > 0 ? `包含 ${itemCount} 个能力版本` : '尚未绑定能力版本',

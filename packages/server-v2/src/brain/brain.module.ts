@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AiModule } from '../ai/ai.module.js';
 import { CardsModule } from '../cards/cards.module.js';
+import { CustomersModule } from '../customers/customers.module.js';
 import { InventoryModule } from '../inventory/inventory.module.js';
 import { MarketingModule } from '../marketing/marketing.module.js';
 import { OperationProfitModule } from '../operation-profit/operation-profit.module.js';
@@ -41,6 +42,7 @@ import {
   BrainCapabilityExecutorRegistryService,
 } from './capability/brain-capability-executor.registry.js';
 import { BrainActionCapabilityExecutor } from './capability/executors/brain-action-capability.executor.js';
+import { BrainCustomerCreateCapabilityExecutor } from './capability/executors/brain-customer-create-capability.executor.js';
 import { BrainDomainServiceCapabilityExecutor } from './capability/executors/brain-domain-service-capability.executor.js';
 import { BrainFocusedBusinessCapabilityExecutor } from './capability/executors/brain-focused-business-capability.executor.js';
 import { BrainMarketingCampaignCapabilityExecutor } from './capability/executors/brain-marketing-campaign-capability.executor.js';
@@ -62,6 +64,7 @@ import { BrainResultReferenceService } from './context/brain-result-reference.se
 import { BrainIntentCompletenessPolicyService } from './cognition/brain-intent-completeness-policy.service.js';
 import { BrainCustomerFactResolverService } from './domain/brain-customer-fact-resolver.service.js';
 import { BrainActionTargetResolverService } from './domain/brain-action-target-resolver.service.js';
+import { BrainActionPredicateEffectEvaluatorService } from './domain/brain-action-predicate-effect-evaluator.service.js';
 import {
   BRAIN_DOMAIN_ADAPTERS,
   BrainDomainAdapterRegistryService,
@@ -82,9 +85,22 @@ import { BrainPlanGraderService } from './eval/brain-plan-grader.service.js';
 import { BrainEvalService } from './governance/brain-eval.service.js';
 import { BrainFeedbackService } from './governance/brain-feedback.service.js';
 import { BrainReleaseService } from './governance/brain-release.service.js';
+import { BrainActiveReleaseWarmupService } from './governance/brain-active-release-warmup.service.js';
+import { BrainWarmupArtifactService } from './governance/brain-warmup-artifact.service.js';
 import { BrainTraceService } from './governance/brain-trace.service.js';
 import { BrainGovernanceResourceService } from './governance/brain-governance-resource.service.js';
 import { BrainGovernanceApprovalService } from './governance/brain-governance-approval.service.js';
+import { BrainGovernanceControlPlaneService } from './governance/brain-governance-control-plane.service.js';
+import { BrainGovernanceCandidateService } from './governance/brain-governance-candidate.service.js';
+import { BrainGovernancePolicyOrchestratorService } from './governance/brain-governance-policy-orchestrator.service.js';
+import { BrainRolloutSequenceService } from './governance/brain-rollout-sequence.service.js';
+import { BrainGovernanceEventService } from './governance/brain-governance-event.service.js';
+import { BrainGovernanceMetricsService } from './governance/brain-governance-metrics.service.js';
+import { BrainRolloutHealthService } from './governance/brain-rollout-health.service.js';
+import { BrainGovernanceTaskWorkerService } from './governance/brain-governance-task-worker.service.js';
+import { BrainGateReceiptVerificationService } from './governance/brain-gate-receipt-verification.service.js';
+import { BrainGovernanceReceiptController } from './governance/brain-governance-receipt.controller.js';
+import { BrainGovernanceReceiptIngestGuard } from './governance/brain-governance-receipt-ingest.guard.js';
 import { BrainCapabilityGovernancePolicyService } from './governance/brain-capability-governance-policy.service.js';
 import { BrainCapabilityRegenerationService } from './governance/brain-capability-regeneration.service.js';
 import { BrainCapabilityRegenerationWorkerService } from './governance/brain-capability-regeneration-worker.service.js';
@@ -124,6 +140,7 @@ import { BrainReadonlyQueryExecutorService } from './semantic/brain-readonly-que
 import { BrainSemanticQueryEngineService } from './semantic/brain-semantic-query-engine.service.js';
 import { BrainAnalysisSkillsService } from './skills/brain-analysis-skills.service.js';
 import { BrainActionConfirmationService } from './skills/brain-action-confirmation.service.js';
+import { BrainActionExecutionIdentityService } from './skills/brain-action-execution-identity.service.js';
 import { BrainBeauticianSkillsService } from './skills/brain-beautician-skills.service.js';
 import { BrainCapabilityGatewayService } from './skills/brain-capability-gateway.service.js';
 import { BrainFinanceSkillsService } from './skills/brain-finance-skills.service.js';
@@ -144,6 +161,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
   imports: [
     AiModule,
     CardsModule,
+    CustomersModule,
     PrismaModule,
     ReservationsModule,
     InventoryModule,
@@ -156,7 +174,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BusinessDefinitionModule,
     CustomerFeedbackModule,
   ],
-  controllers: [BrainController],
+  controllers: [BrainController, BrainGovernanceReceiptController],
   providers: [
     AgentV2BusinessMetricQueryService,
     BrainContextService,
@@ -169,6 +187,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BrainDomainAdapterRegistryService,
     BrainCustomerFactResolverService,
     BrainActionTargetResolverService,
+    BrainActionPredicateEffectEvaluatorService,
     BrainStoreManagerDomainAdapter,
     BrainFrontDeskDomainAdapter,
     BrainMarketingDomainAdapter,
@@ -216,11 +235,23 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BrainTraceService,
     BrainGovernanceResourceService,
     BrainGovernanceApprovalService,
+    BrainGovernanceControlPlaneService,
+    BrainGovernanceCandidateService,
+    BrainGovernancePolicyOrchestratorService,
+    BrainRolloutSequenceService,
+    BrainGovernanceEventService,
+    BrainGovernanceMetricsService,
+    BrainRolloutHealthService,
+    BrainGovernanceTaskWorkerService,
+    BrainGateReceiptVerificationService,
+    BrainGovernanceReceiptIngestGuard,
     BrainCapabilityGovernancePolicyService,
     BrainCapabilityRequirementInterpreterService,
     BrainCapabilityRegenerationService,
     BrainCapabilityRegenerationWorkerService,
     BrainEvalService,
+    BrainWarmupArtifactService,
+    BrainActiveReleaseWarmupService,
     BrainReleaseService,
     BrainFeedbackService,
     BrainPermissionService,
@@ -259,6 +290,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BrainSemanticQueryEngineService,
     {
       provide: BRAIN_REGISTERED_PERMISSION_CODES,
+      inject: [PrismaService],
       useFactory: loadRegisteredBrainPermissionCodes,
     },
     BrainCapabilityCatalogService,
@@ -273,6 +305,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BrainFocusedBusinessCapabilityExecutor,
     BrainMarketingCampaignCapabilityExecutor,
     BrainActionCapabilityExecutor,
+    BrainCustomerCreateCapabilityExecutor,
     {
       provide: BRAIN_CAPABILITY_EXECUTORS,
       inject: [
@@ -281,6 +314,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
         BrainFocusedBusinessCapabilityExecutor,
         BrainMarketingCampaignCapabilityExecutor,
         BrainActionCapabilityExecutor,
+        BrainCustomerCreateCapabilityExecutor,
       ],
       useFactory: (
         semantic: BrainSemanticQueryCapabilityExecutor,
@@ -288,7 +322,8 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
         focusedBusiness: BrainFocusedBusinessCapabilityExecutor,
         marketingCampaign: BrainMarketingCampaignCapabilityExecutor,
         action: BrainActionCapabilityExecutor,
-      ) => [semantic, domain, focusedBusiness, marketingCampaign, action],
+        customerCreate: BrainCustomerCreateCapabilityExecutor,
+      ) => [semantic, domain, focusedBusiness, marketingCampaign, action, customerCreate],
     },
     BrainCapabilityExecutorRegistryService,
     BrainCapabilityDefinitionSnapshotSourceService,
@@ -321,6 +356,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BrainPredictionSkillsService,
     BrainSkillRuntimeService,
     BrainActionConfirmationService,
+    BrainActionExecutionIdentityService,
     BrainCapabilityGatewayService,
   ],
   exports: [
@@ -335,6 +371,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BrainDomainAdapterRegistryService,
     BrainCustomerFactResolverService,
     BrainActionTargetResolverService,
+    BrainActionPredicateEffectEvaluatorService,
     BrainAnswerGraderService,
     BrainIntentGraderService,
     BrainCapabilityGraderService,
@@ -357,6 +394,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BrainGovernanceApprovalService,
     BrainCapabilityRegenerationService,
     BrainEvalService,
+    BrainActiveReleaseWarmupService,
     BrainReleaseService,
     BrainFeedbackService,
     BrainPermissionService,
@@ -415,6 +453,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BrainPredictionSkillsService,
     BrainSkillRuntimeService,
     BrainActionConfirmationService,
+    BrainActionExecutionIdentityService,
     BrainCapabilityGatewayService,
   ],
 })

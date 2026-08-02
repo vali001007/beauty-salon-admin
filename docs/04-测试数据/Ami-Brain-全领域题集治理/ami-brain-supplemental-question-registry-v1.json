@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "ami-brain-supplemental-question-registry/v1",
+  "policy": {
+    "scope": "所有冻结 2000 题之外新增或发生语义变化的 Ami Brain 自然语言测试题",
+    "requiredEvidence": [
+      "management_entry",
+      "backend_api",
+      "data_facts"
+    ],
+    "rule": "每道题必须绑定稳定 ID、内容指纹和具名复核，并逐项标记 Ami Core 管理入口、正式后端接口、题目所需真实业务数据。三项全部 present 时才可标记 current_release_test，并必须通过 suiteAssignment 明确归入 release-core、standard-regression 或 extended-rotation；任一项已确认 missing 时标记 next_iteration_feature，本轮不执行且不进入通过率；任一项未核实、证据过期、指纹变化或题意与证据不匹配时统一标记 evidence_review_required，只保留在治理 manifest 与待核对清单中，禁止进入任何可执行题集。不新增第三个产品门禁阶段。"
+  },
+  "cases": [
+    {
+      "id": "BQ2001",
+      "domain": "员工域",
+      "role": "店长",
+      "type": "query_cross",
+      "difficulty": "medium",
+      "question": "能做肩颈舒压养护的美容师2026年6月29日有谁在岗",
+      "expectedTarget": "Beautician/Schedule 表",
+      "notes": "固定日期技能与严格在岗交集；门店 6 在该日期有排班，但当前没有肩颈舒压养护项目的美容师技能绑定，本轮只作为下一轮数据配置候选且不进入发布分母",
+      "review": {
+        "questionChecksum": "5ba4a29fb343659b0d5abc87579748e2a8fbe88b7ead0c5f7ba07a98436fef0a",
+        "status": "next_iteration_feature",
+        "featureKey": "staff_directory_schedule",
+        "reviewedBy": "product-owner",
+        "reviewedAt": "2026-07-29T14:30:00.000Z",
+        "reason": "员工目录、项目技能和排班功能已存在，但当前批准开发门店在指定日期没有任何满足该项目技能与在岗交集的真实业务记录，不能使用测试 mock 代替题目所需数据。",
+        "evidenceReview": {
+          "managementEntry": "present",
+          "backendApi": "present",
+          "dataFacts": "missing"
+        },
+        "decisionEvidence": {
+          "path": "docs/03-开发计划/01-AI智能体与问数能力/07-Ami-Brain-当前主线/Ami-Brain-最新完成状态与试运行差距-2026-08-02.md",
+          "anchor": "门店 6 在 2026-06-29 有 30 条有效排班，但“肩颈舒压养护”项目没有任何美容师技能绑定。"
+        }
+      }
+    }
+  ]
+}

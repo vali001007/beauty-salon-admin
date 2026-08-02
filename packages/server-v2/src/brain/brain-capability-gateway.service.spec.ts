@@ -5,24 +5,115 @@ describe('BrainCapabilityGatewayService', () => {
     const service = new BrainCapabilityGatewayService();
 
     expect(service.resolve('create_purchase_order')).toMatchObject({
-      permission: 'core:supply:manage',
+      permission: 'core:inventory:purchase',
       riskLevel: 'high',
       version: 1,
+      effectKeys: ['purchase_order_draft_created_in_context_store'],
     });
   });
 
-  it('declares safe replay for every action backed by a business idempotency contract', () => {
+  it('uses safe replay for reservation mutations backed by causal mutation receipts', () => {
     const service = new BrainCapabilityGatewayService();
 
     expect(service.failureRecovery('reschedule_reservation')).toBe('safe_replay');
     expect(service.failureRecovery('cancel_reservation')).toBe('safe_replay');
     expect(service.failureRecovery('create_reservation')).toBe('safe_replay');
     expect(service.failureRecovery('create_purchase_order')).toBe('safe_replay');
+    expect(service.failureRecovery('submit_purchase_order_for_approval')).toBe('safe_replay');
     expect(service.failureRecovery('create_customer_followup')).toBe('safe_replay');
     expect(service.failureRecovery('create_marketing_touch_draft')).toBe('safe_replay');
     expect(service.failureRecovery('execute_marketing_strategy')).toBe('safe_replay');
     expect(service.failureRecovery('verify_card_usage')).toBe('safe_replay');
     expect(service.failureRecovery('save_service_record')).toBe('manual_reconcile');
+    expect(service.failureRecovery('create_customer')).toBe('safe_replay');
+    expect(service.resolve('submit_purchase_order_for_approval')).toMatchObject({
+      endpoint: 'inventory/purchase-orders/:id/submit-for-approval',
+      method: 'POST',
+      permission: 'core:inventory:purchase',
+      effectKeys: ['purchase_order_submitted_for_approval'],
+    });
+  });
+
+  it('creates a customer through CustomersService and forces the current store scope', async () => {
+    const customers = { create: jest.fn().mockResolvedValue({ id: 1256, name: '王静怡', storeId: 6 }) };
+    const service = new BrainCapabilityGatewayService(
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      customers as never,
+    );
+
+    const receipt = await service.execute({
+      skillKey: 'create_customer',
+      payload: { storeId: 99, name: '王静怡', phone: '13800138807' },
+      context: { userId: 9, storeId: 6, permissions: ['core:customer:create'], idempotencyKey: 'customer-1256' },
+    });
+
+    expect(customers.create).toHaveBeenCalledWith(
+      {
+        storeId: 6,
+        name: '王静怡',
+        phone: '13800138807',
+        source: 'Ami Brain',
+      },
+      { storeId: 6, capabilityKey: 'create_customer', idempotencyKey: 'customer-1256' },
+    );
+    expect(receipt).toMatchObject({
+      capabilityKey: 'create_customer',
+      businessObjectType: 'customer',
+      businessObjectId: 1256,
+      message: '客户档案创建成功。',
+    });
+  });
+
+  it('refuses to write a masked customer phone after confirmation', async () => {
+    const customers = { create: jest.fn() };
+    const service = new BrainCapabilityGatewayService(
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      customers as never,
+    );
+
+    await expect(
+      service.execute({
+        skillKey: 'create_customer',
+        payload: { name: '王静怡', phone: '138xxxx807' },
+        context: { userId: 9, storeId: 6, permissions: ['core:customer:create'] },
+      }),
+    ).rejects.toThrow('customer_phone_masked_requires_completion');
+    expect(customers.create).not.toHaveBeenCalled();
+  });
+
+  it('does not report an unrelated existing customer as the result of a create action', async () => {
+    const customers = { create: jest.fn() };
+    const prisma = {
+      customer: { findFirst: jest.fn().mockResolvedValue({ id: 1255, name: '王静怡', phone: '13800138807' }) },
+    };
+    const service = new BrainCapabilityGatewayService(
+      undefined,
+      undefined,
+      undefined,
+      prisma as never,
+      undefined,
+      undefined,
+      customers as never,
+    );
+
+    await expect(
+      service.execute({
+        skillKey: 'create_customer',
+        payload: { name: '王静怡', phone: '13800138807' },
+        context: { userId: 9, storeId: 6, permissions: ['core:customer:create'] },
+      }),
+    ).rejects.toThrow('customer_already_exists');
+    expect(customers.create).not.toHaveBeenCalled();
   });
 
   it('canonicalizes approved arguments and rejects model confirmation claims', () => {
@@ -99,27 +190,119 @@ describe('BrainCapabilityGatewayService', () => {
     expect(reservations.update).not.toHaveBeenCalled();
   });
 
-  it('reconciles an already-cancelled reservation without issuing a second cancellation', async () => {
+  it('propagates the transactionally persisted mutation receipt for a governed reschedule', async () => {
+    const mutationReceipt = {
+      schemaVersion: '1.0',
+      receiptFingerprint: 'a'.repeat(64),
+      capabilityKey: 'reschedule_reservation',
+      idempotencyKeyFingerprint: 'b'.repeat(64),
+      businessObjectType: 'reservation',
+      businessObjectId: '101',
+      storeId: 6,
+      mutationKind: 'update',
+      requestFingerprint: 'c'.repeat(64),
+      before: { version: '2026-07-30T10:00:00.000Z', stateFingerprint: 'd'.repeat(64) },
+      after: { version: '2026-07-30T10:01:00.000Z', stateFingerprint: 'e'.repeat(64) },
+      changedFields: ['startTime'],
+      committedAt: '2026-07-30T10:01:00.000Z',
+    };
+    const reservations = {
+      findById: jest.fn().mockResolvedValue({ id: 101, storeId: 6, status: 'confirmed' }),
+      update: jest.fn().mockResolvedValue({ id: 101, storeId: 6, mutationReceipt }),
+    };
+    const service = new BrainCapabilityGatewayService(reservations as never, undefined, undefined, undefined);
+    const payload = {
+      reservationId: 101,
+      appointmentTime: '2026-08-01 16:00:00',
+      expectedReservationUpdatedAt: '2026-07-30T10:00:00.000Z',
+    };
+
+    const receipt = await service.execute({
+      skillKey: 'reschedule_reservation',
+      payload,
+      context: {
+        userId: 9,
+        storeId: 6,
+        permissions: ['core:store:reservations'],
+        idempotencyKey: 'reschedule-101',
+      },
+    });
+
+    expect(reservations.update).toHaveBeenCalledWith(
+      101,
+      expect.objectContaining({
+        expectedUpdatedAt: payload.expectedReservationUpdatedAt,
+        mutationContext: expect.objectContaining({
+          capabilityKey: 'reschedule_reservation',
+          idempotencyKey: 'reschedule-101',
+          requestPayload: payload,
+        }),
+      }),
+    );
+    expect(receipt).toMatchObject({ mutationReceipt });
+  });
+
+  it('does not attribute an already-cancelled reservation without a versioned mutation receipt', async () => {
     const reservations = {
       findById: jest.fn().mockResolvedValue({ id: 101, storeId: 6, status: 'cancelled' }),
       cancel: jest.fn(),
     };
     const service = new BrainCapabilityGatewayService(reservations as never, undefined, undefined, undefined);
 
-    const receipt = await service.execute({
-      skillKey: 'cancel_reservation',
-      payload: { reservationId: 101, reason: '客户改期' },
-      context: { userId: 9, storeId: 6, permissions: ['core:store:reservations'] },
-    });
+    await expect(
+      service.execute({
+        skillKey: 'cancel_reservation',
+        payload: { reservationId: 101, reason: '客户改期' },
+        context: {
+          userId: 9,
+          storeId: 6,
+          permissions: ['core:store:reservations'],
+          idempotencyKey: 'cancel-101',
+        },
+      }),
+    ).rejects.toThrow('invalid_non_empty_string:expectedReservationUpdatedAt');
 
     expect(reservations.cancel).not.toHaveBeenCalled();
-    expect(receipt).toMatchObject({ capabilityKey: 'cancel_reservation', businessObjectId: 101 });
   });
 
-  it('creates a purchase draft and submits it for approval through InventoryService', async () => {
+  it('uses optimistic concurrency for governed cancellation even when another actor already cancelled it', async () => {
+    const reservations = {
+      findById: jest.fn().mockResolvedValue({ id: 101, storeId: 6, status: 'cancelled' }),
+      cancel: jest.fn().mockRejectedValue(new Error('预约已发生变化，请重新确认后再操作')),
+    };
+    const service = new BrainCapabilityGatewayService(reservations as never, undefined, undefined, undefined);
+
+    await expect(
+      service.execute({
+        skillKey: 'cancel_reservation',
+        payload: {
+          reservationId: 101,
+          reason: '客户取消',
+          expectedReservationUpdatedAt: '2026-07-30T10:00:00.000Z',
+        },
+        context: {
+          userId: 9,
+          storeId: 6,
+          permissions: ['core:store:reservations'],
+          idempotencyKey: 'cancel-101',
+        },
+      }),
+    ).rejects.toThrow('预约已发生变化，请重新确认后再操作');
+    expect(reservations.cancel).toHaveBeenCalledWith(
+      101,
+      '客户取消',
+      '2026-07-30T10:00:00.000Z',
+      expect.objectContaining({
+        capabilityKey: 'cancel_reservation',
+        idempotencyKey: 'cancel-101',
+        mutationKind: 'state_transition',
+      }),
+    );
+  });
+
+  it('creates only a purchase draft through InventoryService', async () => {
     const inventory = {
       createPurchaseOrder: jest.fn().mockResolvedValue({ id: 88, orderNo: 'PUR88', status: '草稿' }),
-      updatePurchaseOrderStatus: jest.fn(),
     };
     const prisma = {
       product: { count: jest.fn().mockResolvedValue(1) },
@@ -130,22 +313,80 @@ describe('BrainCapabilityGatewayService', () => {
       skillKey: 'create_purchase_order',
       payload: {
         supplier: '供应商A',
-        submitForApproval: true,
         items: [{ productId: 1, productName: '精华液', sku: 'SKU1', quantity: 10, unitPrice: 20 }],
       },
-      context: { userId: 9, storeId: 6, permissions: ['core:supply:manage'], idempotencyKey: 'purchase-action-88' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        permissions: ['core:inventory:purchase'],
+        idempotencyKey: 'purchase-action-88',
+      },
     });
 
     expect(inventory.createPurchaseOrder).toHaveBeenCalledWith(
       expect.objectContaining({
         storeId: 6,
-        status: '待审核',
+        status: '草稿',
         source: 'ami_brain',
         idempotencyKey: 'purchase-action-88',
       }),
     );
-    expect(inventory.updatePurchaseOrderStatus).not.toHaveBeenCalled();
     expect(receipt).toMatchObject({ businessObjectType: 'purchase_order', businessObjectId: 88 });
+  });
+
+  it('rejects approval fields on creation and submits an existing draft through the independent capability', async () => {
+    const mutationReceipt = { receiptFingerprint: 'a'.repeat(64) };
+    const inventory = {
+      createPurchaseOrder: jest.fn(),
+      submitPurchaseOrderForApproval: jest.fn().mockResolvedValue({
+        id: 88,
+        orderNo: 'PUR88',
+        status: '待审核',
+        mutationReceipt,
+      }),
+    };
+    const service = new BrainCapabilityGatewayService(undefined, inventory as never);
+    const context = {
+      userId: 9,
+      storeId: 6,
+      permissions: ['core:inventory:purchase'],
+      idempotencyKey: 'purchase-submit-88',
+    };
+
+    await expect(
+      service.execute({
+        skillKey: 'create_purchase_order',
+        payload: {
+          supplier: '供应商A',
+          submitForApproval: true,
+          items: [{ productId: 1, productName: '精华液', sku: 'SKU1', quantity: 10, unitPrice: 20 }],
+        },
+        context,
+      }),
+    ).rejects.toThrow('purchase_order_submission_requires_separate_action');
+
+    const receipt = await service.execute({
+      skillKey: 'submit_purchase_order_for_approval',
+      payload: { purchaseOrderId: 88, expectedPurchaseOrderUpdatedAt: '2026-07-30T10:00:00.000Z' },
+      context,
+    });
+
+    expect(inventory.submitPurchaseOrderForApproval).toHaveBeenCalledWith(
+      88,
+      6,
+      '2026-07-30T10:00:00.000Z',
+      expect.objectContaining({
+        capabilityKey: 'submit_purchase_order_for_approval',
+        idempotencyKey: 'purchase-submit-88',
+        mutationKind: 'state_transition',
+      }),
+    );
+    expect(receipt).toMatchObject({
+      capabilityKey: 'submit_purchase_order_for_approval',
+      businessObjectType: 'purchase_order',
+      businessObjectId: 88,
+      mutationReceipt,
+    });
   });
 
   it('creates follow-up and marketing-touch drafts through TerminalService', async () => {
@@ -231,6 +472,7 @@ describe('BrainCapabilityGatewayService', () => {
       permission: 'core:marketing:update',
       riskLevel: 'high',
       failureRecovery: 'safe_replay',
+      effectKeys: ['marketing_automation_execution_created'],
     });
     expect(marketing.previewAudience).toHaveBeenCalledWith([], 'AND', 12, 6);
     expect(marketing.executeStrategy).toHaveBeenCalledWith(12, 6, 'brain-marketing-execution-91');

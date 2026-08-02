@@ -182,17 +182,28 @@ function projectionData(
       runtimeDefinition:
         version.definition.kind === 'entity' ||
         version.definition.kind === 'relation' ||
-        version.definition.kind === 'dimension'
+        version.definition.kind === 'dimension' ||
+        version.definition.kind === 'action'
           ? cloneJson(definition)
           : undefined,
     });
   }
   if (targetType === 'capability_semantic_view') {
     const bindings = isRecord(definition.bindings) ? definition.bindings : {};
+    const actionCapabilityBindings = Array.isArray(definition.capabilityBindings)
+      ? definition.capabilityBindings.flatMap((binding) => {
+          if (!isRecord(binding) || binding.enabled === false) return [];
+          const capabilityKey = optionalString(binding.capabilityKey);
+          return capabilityKey ? [capabilityKey] : [];
+        })
+      : [];
     return compactRecord({
       ...base,
       capabilities: Array.isArray(definition.capabilities) ? cloneJson(definition.capabilities) : [],
-      capabilityBindings: uniqueStrings(bindings.capability),
+      capabilityBindings: uniqueStrings([
+        ...(Array.isArray(bindings.capability) ? bindings.capability : []),
+        ...actionCapabilityBindings,
+      ]),
       executorBindings: uniqueStrings(bindings.executor),
       semanticContribution: compactRecord({
         aliases,

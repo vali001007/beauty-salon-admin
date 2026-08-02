@@ -36,11 +36,21 @@ interface CliOptions {
   persistDrafts: boolean;
   createdBy?: number;
   capabilityKeys: string[];
+  sourceContractKeys: string[];
   candidateDefinitionVersionIds: number[];
 }
 
 async function main() {
   const options = await parseOptions(process.argv.slice(2));
+  if (options.sourceContractKeys.length && !options.refreshExisting) {
+    throw new Error('capability_generation_source_contract_requires_refresh_existing');
+  }
+  const unknownSourceContractKeys = options.sourceContractKeys.filter(
+    (key) => options.capabilityKeys.length > 0 && !options.capabilityKeys.includes(key),
+  );
+  if (unknownSourceContractKeys.length) {
+    throw new Error(`capability_generation_source_contract_not_selected:${unknownSourceContractKeys.join(',')}`);
+  }
   if (!options.deterministicFixture) {
     loadWorkspaceEnvironment(options.workspaceRoot);
     if (options.preferFallback) preferConfiguredFallbackAsPrimary();
@@ -66,6 +76,7 @@ async function main() {
     const refreshService = options.refreshExisting
       ? new BrainCapabilityContractRefreshNarrativeService(
           await loadExistingCapabilitySnapshots(prisma, scan.capabilities.map((item) => item.key)),
+          new Set(options.sourceContractKeys),
         )
       : undefined;
     const narrativeGenerator = refreshService ?? new BrainCapabilityNarrativeGeneratorService(aiService!);
@@ -167,6 +178,7 @@ async function parseOptions(args: string[]): Promise<CliOptions> {
     persistDrafts: args.includes('--persist-drafts'),
     createdBy: value('created-by') ? Number(value('created-by')) : undefined,
     capabilityKeys: (value('capability-keys') ?? '').split(',').map((item) => item.trim()).filter(Boolean),
+    sourceContractKeys: (value('source-contract-keys') ?? '').split(',').map((item) => item.trim()).filter(Boolean),
     candidateDefinitionVersionIds: (value('candidate-definition-version-ids') ?? '')
       .split(',')
       .map((item) => Number(item.trim()))
@@ -247,6 +259,7 @@ async function persistCapabilityDrafts(
           createdBy: Number(createdBy),
           workspaceRoot,
           sourceScan,
+          ontologyDefinitionVersionIds: candidateDefinitionVersionIds,
         });
         items.push({ capabilityKey: proposal.capabilityKey, resourceVersionId: created.id, version: created.version });
       } catch (error) {

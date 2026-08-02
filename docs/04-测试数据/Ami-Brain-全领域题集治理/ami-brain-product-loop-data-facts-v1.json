@@ -1,0 +1,1246 @@
+{
+  "schemaVersion": "ami-brain-product-loop-data-facts/v1",
+  "generatedAt": "2026-08-02T17:18:45.355Z",
+  "environment": "approved_supabase_development_read_only",
+  "databaseHost": "aws-1-ap-northeast-1.pooler.supabase.com",
+  "storeId": 6,
+  "schemaPath": "packages/server-v2/prisma/schema.prisma",
+  "schemaChecksum": "55da3779e6e6f164d0690c770ad0de6785685ccb13f358765b70be346a690b2e",
+  "snapshotChecksum": "520cb1b23c850d94ccb2c98544a79b15b089ebbc8357c463a52073735b1cedd8",
+  "summary": {
+    "featureCount": 32,
+    "present": 32,
+    "evidenceReviewRequired": 0
+  },
+  "features": {
+    "customer_record": {
+      "domain": "客户域",
+      "expectedTargets": [
+        "Customer 表"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "Customer",
+      "modelFacts": [
+        {
+          "model": "Customer",
+          "status": "queried",
+          "count": 1256,
+          "scope": "storeId=6"
+        }
+      ]
+    },
+    "customer_consumption_profile": {
+      "domain": "客户域",
+      "expectedTargets": [
+        "Customer×CustomerCard×ProductOrder",
+        "客户画像分析",
+        "客户经营建议"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "Customer",
+      "modelFacts": [
+        {
+          "model": "Customer",
+          "status": "queried",
+          "count": 1256,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "CustomerCard",
+          "status": "queried",
+          "count": 363,
+          "scope": "global"
+        },
+        {
+          "model": "ProductOrder",
+          "status": "queried",
+          "count": 668,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "OrderItem",
+          "status": "queried",
+          "count": 714,
+          "scope": "global"
+        },
+        {
+          "model": "CustomerLifecycleSnapshot",
+          "status": "queried",
+          "count": 1251,
+          "scope": "storeId=6"
+        }
+      ]
+    },
+    "customer_risk": {
+      "domain": "客户域",
+      "expectedTargets": [
+        "客户风险巡检"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "Customer",
+      "modelFacts": [
+        {
+          "model": "Customer",
+          "status": "queried",
+          "count": 1256,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "CustomerCard",
+          "status": "queried",
+          "count": 363,
+          "scope": "global"
+        },
+        {
+          "model": "ProductOrder",
+          "status": "queried",
+          "count": 668,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "CustomerPredictionSnapshot",
+          "status": "queried",
+          "count": 63497,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "CustomerServiceFeedback",
+          "status": "queried",
+          "count": 0,
+          "scope": "storeId=6"
+        }
+      ]
+    },
+    "customer_prediction": {
+      "domain": "客户域",
+      "expectedTargets": [
+        "CustomerPredictionSnapshot"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "Customer",
+      "modelFacts": [
+        {
+          "model": "Customer",
+          "status": "queried",
+          "count": 1256,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "CustomerPredictionSnapshot",
+          "status": "queried",
+          "count": 63497,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "PredictionRun",
+          "status": "queried",
+          "count": 19,
+          "scope": "storeId=6"
+        }
+      ]
+    },
+    "customer_api": {
+      "domain": "客户域",
+      "expectedTargets": [
+        "customers/* API"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "Customer",
+      "modelFacts": [
+        {
+          "model": "Customer",
+          "status": "queried",
+          "count": 1256,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "CustomerCard",
+          "status": "queried",
+          "count": 363,
+          "scope": "global"
+        },
+        {
+          "model": "ProductOrder",
+          "status": "queried",
+          "count": 668,
+          "scope": "storeId=6"
+        }
+      ]
+    },
+    "staff_directory_schedule": {
+      "domain": "员工域",
+      "expectedTargets": [
+        "Beautician/Schedule 表"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "Beautician",
+      "modelFacts": [
+        {
+          "model": "Beautician",
+          "status": "queried",
+          "count": 14,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "BeauticianLevel",
+          "status": "queried",
+          "count": 4,
+          "scope": "global"
+        },
+        {
+          "model": "BeauticianProjectSkill",
+          "status": "queried",
+          "count": 18,
+          "scope": "global"
+        },
+        {
+          "model": "Schedule",
+          "status": "queried",
+          "count": 707,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "BeauticianTimeOff",
+          "status": "queried",
+          "count": 0,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "Project",
+          "status": "queried",
+          "count": 21,
+          "scope": "storeId=6"
+        }
+      ]
+    },
+    "staff_service_performance": {
+      "domain": "员工域",
+      "expectedTargets": [
+        "Beautician×ServiceTask×CommissionRecord",
+        "人效分析",
+        "员工风险巡检",
+        "人力经营建议"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "Beautician",
+      "modelFacts": [
+        {
+          "model": "Beautician",
+          "status": "queried",
+          "count": 14,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "BeauticianLevel",
+          "status": "queried",
+          "count": 4,
+          "scope": "global"
+        },
+        {
+          "model": "BeauticianProjectSkill",
+          "status": "queried",
+          "count": 18,
+          "scope": "global"
+        },
+        {
+          "model": "Schedule",
+          "status": "queried",
+          "count": 707,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "BeauticianTimeOff",
+          "status": "queried",
+          "count": 0,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "ServiceTask",
+          "status": "queried",
+          "count": 237,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "CommissionRecord",
+          "status": "queried",
+          "count": 144,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "Customer",
+          "status": "queried",
+          "count": 1256,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "ProductOrder",
+          "status": "queried",
+          "count": 668,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "CustomerServiceFeedback",
+          "status": "queried",
+          "count": 0,
+          "scope": "storeId=6"
+        }
+      ]
+    },
+    "staff_terminal_self_service": {
+      "domain": "员工域",
+      "expectedTargets": [
+        "terminal/beautician/*"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "Beautician",
+      "modelFacts": [
+        {
+          "model": "Beautician",
+          "status": "queried",
+          "count": 14,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "ServiceTask",
+          "status": "queried",
+          "count": 237,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "CommissionRecord",
+          "status": "queried",
+          "count": 144,
+          "scope": "storeId=6"
+        }
+      ]
+    },
+    "smart_scheduling": {
+      "domain": "员工域",
+      "expectedTargets": [
+        "scheduling/* API"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "Beautician",
+      "modelFacts": [
+        {
+          "model": "Beautician",
+          "status": "queried",
+          "count": 14,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "Schedule",
+          "status": "queried",
+          "count": 707,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "BeauticianTimeOff",
+          "status": "queried",
+          "count": 0,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "Reservation",
+          "status": "queried",
+          "count": 384,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "ScheduleVersion",
+          "status": "queried",
+          "count": 0,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "AppointmentGapOpportunityEvent",
+          "status": "queried",
+          "count": 1607,
+          "scope": "storeId=6"
+        }
+      ]
+    },
+    "catalog_master": {
+      "domain": "商品域",
+      "expectedTargets": [
+        "Project/Card/Product 表"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "Project",
+      "modelFacts": [
+        {
+          "model": "Project",
+          "status": "queried",
+          "count": 21,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "Card",
+          "status": "queried",
+          "count": 1,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "Product",
+          "status": "queried",
+          "count": 55,
+          "scope": "storeId=6"
+        }
+      ]
+    },
+    "project_margin_fact": {
+      "domain": "商品域",
+      "expectedTargets": [
+        "Project×OrderItem×ProjectBomItem",
+        "项目分析"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "Project",
+      "modelFacts": [
+        {
+          "model": "Project",
+          "status": "queried",
+          "count": 21,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "ProductOrder",
+          "status": "queried",
+          "count": 668,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "OrderItem",
+          "status": "queried",
+          "count": 714,
+          "scope": "global"
+        },
+        {
+          "model": "ProjectBomItem",
+          "status": "queried",
+          "count": 81,
+          "scope": "global"
+        },
+        {
+          "model": "ConsumptionRecord",
+          "status": "queried",
+          "count": 6964,
+          "scope": "global"
+        }
+      ]
+    },
+    "catalog_risk_advice": {
+      "domain": "商品域",
+      "expectedTargets": [
+        "商品风险巡检",
+        "商品经营建议"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "Project",
+      "modelFacts": [
+        {
+          "model": "Project",
+          "status": "queried",
+          "count": 21,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "Product",
+          "status": "queried",
+          "count": 55,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "ProjectBomItem",
+          "status": "queried",
+          "count": 81,
+          "scope": "global"
+        },
+        {
+          "model": "OrderItem",
+          "status": "queried",
+          "count": 714,
+          "scope": "global"
+        },
+        {
+          "model": "ConsumptionRecord",
+          "status": "queried",
+          "count": 6964,
+          "scope": "global"
+        }
+      ]
+    },
+    "project_api": {
+      "domain": "商品域",
+      "expectedTargets": [
+        "projects/* API"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "Project",
+      "modelFacts": [
+        {
+          "model": "Project",
+          "status": "queried",
+          "count": 21,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "Product",
+          "status": "queried",
+          "count": 55,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "ProjectBomItem",
+          "status": "queried",
+          "count": 81,
+          "scope": "global"
+        }
+      ]
+    },
+    "order_payment_fact": {
+      "domain": "交易域",
+      "expectedTargets": [
+        "ProductOrder/PaymentRecord 表",
+        "ProductOrder×OrderItem×Customer",
+        "交易分析",
+        "交易风险巡检"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "ProductOrder",
+      "modelFacts": [
+        {
+          "model": "ProductOrder",
+          "status": "queried",
+          "count": 668,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "OrderItem",
+          "status": "queried",
+          "count": 714,
+          "scope": "global"
+        },
+        {
+          "model": "PaymentRecord",
+          "status": "queried",
+          "count": 669,
+          "scope": "global"
+        },
+        {
+          "model": "RefundRecord",
+          "status": "queried",
+          "count": 43,
+          "scope": "global"
+        },
+        {
+          "model": "Customer",
+          "status": "queried",
+          "count": 1256,
+          "scope": "storeId=6"
+        }
+      ]
+    },
+    "order_profit": {
+      "domain": "交易域",
+      "expectedTargets": [
+        "订单利润(orders profit)"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "ProductOrder",
+      "modelFacts": [
+        {
+          "model": "ProductOrder",
+          "status": "queried",
+          "count": 668,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "OrderItem",
+          "status": "queried",
+          "count": 714,
+          "scope": "global"
+        },
+        {
+          "model": "PaymentRecord",
+          "status": "queried",
+          "count": 669,
+          "scope": "global"
+        },
+        {
+          "model": "RefundRecord",
+          "status": "queried",
+          "count": 43,
+          "scope": "global"
+        },
+        {
+          "model": "OperatingCost",
+          "status": "queried",
+          "count": 6,
+          "scope": "storeId=6"
+        }
+      ]
+    },
+    "terminal_cashier": {
+      "domain": "交易域",
+      "expectedTargets": [
+        "orders/terminal 收银API"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "ProductOrder",
+      "modelFacts": [
+        {
+          "model": "ProductOrder",
+          "status": "queried",
+          "count": 668,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "OrderItem",
+          "status": "queried",
+          "count": 714,
+          "scope": "global"
+        },
+        {
+          "model": "PaymentRecord",
+          "status": "queried",
+          "count": 669,
+          "scope": "global"
+        },
+        {
+          "model": "RefundRecord",
+          "status": "queried",
+          "count": 43,
+          "scope": "global"
+        }
+      ]
+    },
+    "reservation_service_fact": {
+      "domain": "履约域",
+      "expectedTargets": [
+        "Reservation/ServiceTask 表",
+        "Reservation×Project×Beautician",
+        "履约分析"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "Reservation",
+      "modelFacts": [
+        {
+          "model": "Reservation",
+          "status": "queried",
+          "count": 384,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "ServiceTask",
+          "status": "queried",
+          "count": 237,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "Project",
+          "status": "queried",
+          "count": 21,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "Beautician",
+          "status": "queried",
+          "count": 14,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "CardUsageRecord",
+          "status": "queried",
+          "count": 256,
+          "scope": "storeId=6"
+        }
+      ]
+    },
+    "fulfillment_capacity_risk": {
+      "domain": "履约域",
+      "expectedTargets": [
+        "履约风险/空档机会",
+        "履约优化建议"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "Reservation",
+      "modelFacts": [
+        {
+          "model": "Reservation",
+          "status": "queried",
+          "count": 384,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "ServiceTask",
+          "status": "queried",
+          "count": 237,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "Schedule",
+          "status": "queried",
+          "count": 707,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "Beautician",
+          "status": "queried",
+          "count": 14,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "AppointmentGapOpportunityEvent",
+          "status": "queried",
+          "count": 1607,
+          "scope": "storeId=6"
+        }
+      ]
+    },
+    "terminal_reservation": {
+      "domain": "履约域",
+      "expectedTargets": [
+        "reservations/terminal API"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "Reservation",
+      "modelFacts": [
+        {
+          "model": "Reservation",
+          "status": "queried",
+          "count": 384,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "ServiceTask",
+          "status": "queried",
+          "count": 237,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "Project",
+          "status": "queried",
+          "count": 21,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "Beautician",
+          "status": "queried",
+          "count": 14,
+          "scope": "storeId=6"
+        }
+      ]
+    },
+    "inventory_stock_fact": {
+      "domain": "库存域",
+      "expectedTargets": [
+        "Product/StockBatch 表",
+        "Product×StockMovement×ProjectBomItem",
+        "库存分析",
+        "库存风险巡检",
+        "销量/耗材预测"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "Product",
+      "modelFacts": [
+        {
+          "model": "Product",
+          "status": "queried",
+          "count": 55,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "StockBatch",
+          "status": "queried",
+          "count": 82,
+          "scope": "global"
+        },
+        {
+          "model": "StockMovement",
+          "status": "queried",
+          "count": 555,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "ProjectBomItem",
+          "status": "queried",
+          "count": 81,
+          "scope": "global"
+        },
+        {
+          "model": "ConsumptionRecord",
+          "status": "queried",
+          "count": 6964,
+          "scope": "global"
+        }
+      ]
+    },
+    "inventory_procurement_action": {
+      "domain": "库存域",
+      "expectedTargets": [
+        "inventory/supply-platform API"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "Product",
+      "modelFacts": [
+        {
+          "model": "Product",
+          "status": "queried",
+          "count": 55,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "StockBatch",
+          "status": "queried",
+          "count": 82,
+          "scope": "global"
+        },
+        {
+          "model": "ProcurementOrder",
+          "status": "queried",
+          "count": 3,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "ProcurementOrderItem",
+          "status": "queried",
+          "count": 5,
+          "scope": "global"
+        },
+        {
+          "model": "SupplySupplier",
+          "status": "queried",
+          "count": 3,
+          "scope": "global"
+        },
+        {
+          "model": "SupplyQuote",
+          "status": "queried",
+          "count": 25,
+          "scope": "global"
+        }
+      ]
+    },
+    "finance_settlement_fact": {
+      "domain": "财务域",
+      "expectedTargets": [
+        "DailySettlement/CommissionRecord/OperatingCost"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "DailySettlement",
+      "modelFacts": [
+        {
+          "model": "DailySettlement",
+          "status": "queried",
+          "count": 44,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "CommissionRecord",
+          "status": "queried",
+          "count": 144,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "OperatingCost",
+          "status": "queried",
+          "count": 6,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "PaymentRecord",
+          "status": "queried",
+          "count": 669,
+          "scope": "global"
+        },
+        {
+          "model": "RefundRecord",
+          "status": "queried",
+          "count": 43,
+          "scope": "global"
+        }
+      ]
+    },
+    "finance_profit_analysis": {
+      "domain": "财务域",
+      "expectedTargets": [
+        "operation-profit×commission",
+        "经营利润分析",
+        "财务风险巡检",
+        "财务经营建议"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "DailySettlement",
+      "modelFacts": [
+        {
+          "model": "DailySettlement",
+          "status": "queried",
+          "count": 44,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "CommissionRecord",
+          "status": "queried",
+          "count": 144,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "OperatingCost",
+          "status": "queried",
+          "count": 6,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "ProductOrder",
+          "status": "queried",
+          "count": 668,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "OrderItem",
+          "status": "queried",
+          "count": 714,
+          "scope": "global"
+        },
+        {
+          "model": "PaymentRecord",
+          "status": "queried",
+          "count": 669,
+          "scope": "global"
+        }
+      ]
+    },
+    "finance_action_api": {
+      "domain": "财务域",
+      "expectedTargets": [
+        "commission/operation-costs API"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "CommissionRecord",
+      "modelFacts": [
+        {
+          "model": "CommissionRecord",
+          "status": "queried",
+          "count": 144,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "OperatingCost",
+          "status": "queried",
+          "count": 6,
+          "scope": "storeId=6"
+        }
+      ]
+    },
+    "marketing_activity_automation": {
+      "domain": "营销域",
+      "expectedTargets": [
+        "MarketingActivity/AutomationStrategy",
+        "营销策略建议",
+        "marketing/automation API"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "MarketingActivity",
+      "modelFacts": [
+        {
+          "model": "MarketingActivity",
+          "status": "queried",
+          "count": 17,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "MarketingAutomationStrategy",
+          "status": "queried",
+          "count": 14,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "MarketingAutomationExecution",
+          "status": "queried",
+          "count": 175,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "MarketingAutomationTouch",
+          "status": "queried",
+          "count": 12233,
+          "scope": "global"
+        }
+      ]
+    },
+    "marketing_effect_attribution": {
+      "domain": "营销域",
+      "expectedTargets": [
+        "Marketing×Attribution×Touch",
+        "营销效果分析",
+        "营销风险巡检"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "MarketingActivity",
+      "modelFacts": [
+        {
+          "model": "MarketingActivity",
+          "status": "queried",
+          "count": 17,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "MarketingAttribution",
+          "status": "queried",
+          "count": 138,
+          "scope": "global"
+        },
+        {
+          "model": "MarketingAutomationTouch",
+          "status": "queried",
+          "count": 12233,
+          "scope": "global"
+        },
+        {
+          "model": "MarketingEffectFact",
+          "status": "queried",
+          "count": 7693,
+          "scope": "storeId=6"
+        }
+      ]
+    },
+    "marketing_response_prediction": {
+      "domain": "营销域",
+      "expectedTargets": [
+        "营销响应预测"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "CustomerPredictionSnapshot",
+      "modelFacts": [
+        {
+          "model": "CustomerPredictionSnapshot",
+          "status": "queried",
+          "count": 63497,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "PredictionRun",
+          "status": "queried",
+          "count": 19,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "MarketingRecommendationSnapshot",
+          "status": "queried",
+          "count": 43,
+          "scope": "storeId=6"
+        }
+      ]
+    },
+    "supply_quote_procurement": {
+      "domain": "供应链域",
+      "expectedTargets": [
+        "SupplySupplier/SupplyQuote 表",
+        "Procurement×Supplier×Quote",
+        "供应链分析",
+        "供应链建议",
+        "supply-platform API"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "SupplySupplier",
+      "modelFacts": [
+        {
+          "model": "SupplySupplier",
+          "status": "queried",
+          "count": 3,
+          "scope": "global"
+        },
+        {
+          "model": "SupplyQuote",
+          "status": "queried",
+          "count": 25,
+          "scope": "global"
+        },
+        {
+          "model": "ProcurementOrder",
+          "status": "queried",
+          "count": 3,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "ProcurementOrderItem",
+          "status": "queried",
+          "count": 5,
+          "scope": "global"
+        },
+        {
+          "model": "ProcurementReceipt",
+          "status": "queried",
+          "count": 0,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "SupplySettlement",
+          "status": "queried",
+          "count": 2,
+          "scope": "global"
+        }
+      ]
+    },
+    "industry_benchmark": {
+      "domain": "行业域",
+      "expectedTargets": [
+        "IndustryServiceTemplate/SalaryBenchmark",
+        "Industry×本店数据",
+        "行业对标建议",
+        "industry/adopt API"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "IndustryServiceTemplate",
+      "modelFacts": [
+        {
+          "model": "IndustryServiceTemplate",
+          "status": "queried",
+          "count": 24,
+          "scope": "global"
+        },
+        {
+          "model": "IndustrySalaryBenchmark",
+          "status": "queried",
+          "count": 6,
+          "scope": "global"
+        },
+        {
+          "model": "IndustryDataSource",
+          "status": "queried",
+          "count": 1,
+          "scope": "global"
+        },
+        {
+          "model": "IndustryEvidence",
+          "status": "queried",
+          "count": 0,
+          "scope": "global"
+        },
+        {
+          "model": "IndustryAdoptionRecord",
+          "status": "queried",
+          "count": 29,
+          "scope": "storeId=6"
+        }
+      ]
+    },
+    "brain_multi_turn": {
+      "domain": "横切-多轮",
+      "expectedTargets": [
+        "多轮上下文承接"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "BrainConversation",
+      "modelFacts": [
+        {
+          "model": "BrainConversation",
+          "status": "queried",
+          "count": 40688,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "BrainRun",
+          "status": "queried",
+          "count": 41068,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "BrainRelease",
+          "status": "queried",
+          "count": 452,
+          "scope": "global"
+        }
+      ]
+    },
+    "brain_ambiguity": {
+      "domain": "横切-歧义",
+      "expectedTargets": [
+        "应触发澄清追问"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "BrainConversation",
+      "modelFacts": [
+        {
+          "model": "BrainConversation",
+          "status": "queried",
+          "count": 40688,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "BrainRun",
+          "status": "queried",
+          "count": 41068,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "BrainRelease",
+          "status": "queried",
+          "count": 452,
+          "scope": "global"
+        }
+      ]
+    },
+    "brain_permission": {
+      "domain": "横切-越权",
+      "expectedTargets": [
+        "应越权拒绝"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "BrainConversation",
+      "modelFacts": [
+        {
+          "model": "BrainConversation",
+          "status": "queried",
+          "count": 40688,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "BrainRun",
+          "status": "queried",
+          "count": 41068,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "BrainRelease",
+          "status": "queried",
+          "count": 452,
+          "scope": "global"
+        }
+      ]
+    }
+  }
+}

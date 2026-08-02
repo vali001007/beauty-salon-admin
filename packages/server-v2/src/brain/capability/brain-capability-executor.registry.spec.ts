@@ -1,7 +1,9 @@
 import type { BrainRequestContext } from '../context/brain-request-context.js';
+import { createBrainActionSituationContext } from '../cognition/brain-action-situation-context.js';
 import { BrainTimeRangeParserService } from '../cognition/brain-time-range-parser.service.js';
 import type { BrainDomainAdapter } from '../domain/brain-domain-adapter.types.js';
 import { BrainActionCapabilityExecutor } from './executors/brain-action-capability.executor.js';
+import { BrainCustomerCreateCapabilityExecutor } from './executors/brain-customer-create-capability.executor.js';
 import { BrainDomainServiceCapabilityExecutor } from './executors/brain-domain-service-capability.executor.js';
 import { BrainMarketingCampaignCapabilityExecutor } from './executors/brain-marketing-campaign-capability.executor.js';
 import { BrainSemanticQueryCapabilityExecutor } from './executors/brain-semantic-query-capability.executor.js';
@@ -40,11 +42,13 @@ const DOMAIN_KEYS = [
 ] as const;
 
 const ACTION_KEYS = [
+  'customer_create_preview',
   'reservation_action_preview',
   'card_usage_action_preview',
   'service_record_completion_preview',
   'customer_follow_up_draft',
   'purchase_order_draft',
+  'purchase_order_submit_for_approval_preview',
   'marketing_strategy_execute_preview',
   'marketing_touch_draft',
   'gap_fill_touch_preview',
@@ -59,6 +63,7 @@ const context = (overrides: Partial<BrainRequestContext> = {}): BrainRequestCont
   deniedPermissions: [],
   requestId: 'request-1',
   timezone: 'Asia/Shanghai',
+  conversationId: 12,
   ...overrides,
 });
 
@@ -129,7 +134,7 @@ const stubExecutor = (
 });
 
 describe('BrainCapabilityExecutorRegistryService', () => {
-  it('resolves all 28 discoverable capability keys', () => {
+  it('resolves all 29 discoverable capability keys', () => {
     const snapshot = { loadActiveDefinitions: jest.fn() };
     const timeParser = { parse: jest.fn() };
     const semanticQuery = { execute: jest.fn() };
@@ -141,9 +146,10 @@ describe('BrainCapabilityExecutorRegistryService', () => {
       new BrainDomainServiceCapabilityExecutor(skillRuntime as never, customerFacts as never, timeParser as never),
       new BrainMarketingCampaignCapabilityExecutor(skillRuntime as never),
       new BrainActionCapabilityExecutor(adapterRegistry as never),
+      new BrainCustomerCreateCapabilityExecutor({ createPreview: jest.fn() } as never),
     ]);
 
-    expect([...SEMANTIC_KEYS, ...DOMAIN_KEYS, ...ACTION_KEYS]).toHaveLength(28);
+    expect([...SEMANTIC_KEYS, ...DOMAIN_KEYS, ...ACTION_KEYS]).toHaveLength(30);
     for (const key of SEMANTIC_KEYS) expect(registry.resolve(key).kind).toBe('semantic');
     for (const key of DOMAIN_KEYS) expect(registry.resolve(key).kind).toBe('domain');
     for (const key of ACTION_KEYS) expect(registry.resolve(key).kind).toBe('action');
@@ -279,6 +285,41 @@ describe('BrainCapabilityExecutorRegistryService', () => {
       executorKind: 'domain',
       source: 'customer-db',
     });
+  });
+
+  it('deduplicates the same read-only execution inside one run using a canonical fingerprint', async () => {
+    const executor = stubExecutor('domain', ['customer_facts']);
+    const registry = new BrainCapabilityExecutorRegistryService([executor]);
+    const capabilityCard = card('customer_facts', 'domain');
+
+    const [first, second] = await Promise.all([
+      registry.execute(
+        input(capabilityCard, { args: { time: { start: '2026-07-01', end: '2026-08-01' }, metrics: ['customer'] } }),
+      ),
+      registry.execute(
+        input(capabilityCard, { args: { metrics: ['customer'], time: { end: '2026-08-01', start: '2026-07-01' } } }),
+      ),
+    ]);
+
+    expect(executor.execute).toHaveBeenCalledTimes(1);
+    expect(first.metadata).not.toHaveProperty('executionDeduplication');
+    expect(second.metadata).toMatchObject({ executionDeduplication: 'same_run_hit' });
+  });
+
+  it('does not reuse read-only results across fingerprints, runs, or side-effect capabilities', async () => {
+    const domainExecutor = stubExecutor('domain', ['customer_facts']);
+    const actionExecutor = stubExecutor('action', ['purchase_order_draft']);
+    const registry = new BrainCapabilityExecutorRegistryService([domainExecutor, actionExecutor]);
+    const readOnlyCard = card('customer_facts', 'domain');
+
+    await registry.execute(input(readOnlyCard));
+    await registry.execute(input({ ...readOnlyCard, sourceFingerprint: 'd'.repeat(64) }));
+    await registry.execute(input(readOnlyCard, { runId: 42 }));
+    await registry.execute(input(card('purchase_order_draft', 'action')));
+    await registry.execute(input(card('purchase_order_draft', 'action')));
+
+    expect(domainExecutor.execute).toHaveBeenCalledTimes(3);
+    expect(actionExecutor.execute).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -430,6 +471,156 @@ describe('BrainSemanticQueryCapabilityExecutor', () => {
     expect(snapshot.loadActiveDefinitions).not.toHaveBeenCalled();
   });
 
+  it('answers expiring inventory count from risk facts instead of stock risk score', async () => {
+    const snapshot = {
+      loadActiveDefinitions: jest.fn(),
+      getRuntimeDataModel: jest.fn(),
+    };
+    const skillRuntime = {
+      buildInventoryRiskSummary: jest.fn().mockResolvedValue({
+        lowStockProducts: [],
+        expiringProducts: [{ productId: 2, name: '修护面膜', stock: 3, expiryDate: '2026-07-31', estimatedValue: 300 }],
+        expiringStockValue: 300,
+        suggestedAction: '',
+        stockoutSkuCount: 0,
+      }),
+    };
+    const executor = new BrainSemanticQueryCapabilityExecutor(
+      snapshot as never,
+      parser as never,
+      {} as never,
+      skillRuntime as never,
+    );
+
+    const answer = await executor.execute(
+      input(card('inventory_risk_ranking', 'semantic'), {
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+        question: '本月有多少临期产品',
+        answerShape: 'list',
+      }),
+    );
+
+    expect(snapshot.loadActiveDefinitions).not.toHaveBeenCalled();
+    expect(answer.answer).toContain('本月临期产品 1 个');
+    expect(answer.grounding).toBe('db_skill');
+    expect((answer as any).blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'kpi', items: [expect.objectContaining({ value: '1 个' })] }),
+        expect.objectContaining({
+          kind: 'table',
+          rows: [expect.objectContaining({ productName: '修护面膜', expiryDate: '2026-07-31' })],
+        }),
+      ]),
+    );
+    expect(answer.metadata).toMatchObject({
+      capabilityKey: 'inventory_risk_ranking',
+      answerScope: 'inventory_expiring_product_count',
+      expiringProductCount: 1,
+    });
+  });
+
+  it('answers low-stock inventory count from risk facts instead of stock risk score', async () => {
+    const snapshot = {
+      loadActiveDefinitions: jest.fn(),
+      getRuntimeDataModel: jest.fn(),
+    };
+    const skillRuntime = {
+      buildInventoryStockRiskFacts: jest.fn().mockResolvedValue({
+        lowStockProducts: [{ productId: 7, name: '补水精华', currentStock: 2, safetyStock: 8 }],
+        stockoutProducts: [],
+      }),
+    };
+    const executor = new BrainSemanticQueryCapabilityExecutor(
+      snapshot as never,
+      parser as never,
+      {} as never,
+      skillRuntime as never,
+    );
+
+    const answer = await executor.execute(
+      input(card('inventory_risk_ranking', 'semantic'), {
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+        question: '今天低于安全库存的有几个',
+        answerShape: 'list',
+      }),
+    );
+
+    expect(snapshot.loadActiveDefinitions).not.toHaveBeenCalled();
+    expect(answer.answer).toContain('低于安全库存的产品 1 个');
+    expect((answer as any).blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'table',
+          rows: [expect.objectContaining({ productName: '补水精华', shortage: 6 })],
+        }),
+      ]),
+    );
+    expect(answer.metadata).toMatchObject({
+      capabilityKey: 'inventory_risk_ranking',
+      answerScope: 'inventory_low_stock_product_count',
+      lowStockProductCount: 1,
+    });
+    expect(skillRuntime.buildInventoryStockRiskFacts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        storeId: 6,
+        startDate: expect.any(Date),
+        endExclusive: expect.any(Date),
+      }),
+    );
+  });
+
+  it('answers stockout inventory lists from period stock movements instead of low stock facts', async () => {
+    const snapshot = {
+      loadActiveDefinitions: jest.fn(),
+      getRuntimeDataModel: jest.fn(),
+    };
+    const skillRuntime = {
+      buildInventoryStockRiskFacts: jest.fn().mockResolvedValue({
+        stockoutProducts: Array.from({ length: 12 }, (_, index) => ({
+          productId: 110 + index,
+          name: index === 0 ? '水氧清洁耗材' : `缺货商品${index + 1}`,
+          periodEndStock: index,
+          ...(index === 0 ? { stockoutObservedAt: '2026-06-12' } : {}),
+        })),
+        lowStockProducts: [{ productId: 7, name: '补水精华', currentStock: 2, safetyStock: 8 }],
+      }),
+    };
+    const executor = new BrainSemanticQueryCapabilityExecutor(
+      snapshot as never,
+      parser as never,
+      {} as never,
+      skillRuntime as never,
+    );
+
+    const answer = await executor.execute(
+      input(card('inventory_risk_ranking', 'semantic'), {
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+        question: '2026年6月有哪些产品缺货了',
+        answerShape: 'list',
+      }),
+    );
+
+    expect(snapshot.loadActiveDefinitions).not.toHaveBeenCalled();
+    expect(answer.answer).toContain('缺货产品 12 个');
+    expect((answer as any).blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'table',
+          rows: expect.arrayContaining([
+            expect.objectContaining({ productId: 110, productName: '水氧清洁耗材', periodEndStock: 0 }),
+            expect.objectContaining({ productId: 121, productName: '缺货商品12', periodEndStock: 11 }),
+          ]),
+        }),
+      ]),
+    );
+    expect(((answer as any).blocks.find((block: any) => block.kind === 'table') as any).rows).toHaveLength(12);
+    expect(answer.metadata).toMatchObject({
+      capabilityKey: 'inventory_risk_ranking',
+      answerScope: 'inventory_stockout_product_set',
+      stockoutProductCount: 12,
+    });
+  });
+
   it('executes only the requested governed metric and returns KPI-only output for scalar questions', async () => {
     const findMany = jest.fn().mockResolvedValue([{ netAmount: 3580 }]);
     const executor = new BrainSemanticQueryCapabilityExecutor(
@@ -465,6 +656,131 @@ describe('BrainSemanticQueryCapabilityExecutor', () => {
       expect.objectContaining({ kind: 'kpi', items: [expect.objectContaining({ value: '3580' })] }),
     ]);
     expect(answer.citations).toEqual([expect.objectContaining({ sourceId: 'metric.product_sales_amount@2' })]);
+  });
+
+  it('executes both explicit periods and returns a governed comparison block', async () => {
+    const findMany = jest
+      .fn()
+      .mockResolvedValueOnce([{ netAmount: 2454 }])
+      .mockResolvedValueOnce([{ netAmount: 300 }]);
+    const metric = publishedMetric(
+      'paid_amount',
+      { dimensions: [], capabilityKeys: ['order_revenue_analysis'], outputFields: ['paidAmount'] },
+      {
+        formula: { type: 'sum', model: 'ProductOrder', field: 'netAmount' },
+        allowedTaskTypes: ['query', 'diagnosis'],
+      },
+    );
+    const executor = new BrainSemanticQueryCapabilityExecutor(
+      provider([metric]) as never,
+      parser as never,
+      { productOrder: { findMany } } as never,
+    );
+
+    const answer = await executor.execute(
+      input(
+        card('order_revenue_analysis', 'semantic', {
+          requiredPermissions: ['core:metric:view'],
+          intents: ['query', 'comparison'],
+        }),
+        {
+          question: '跟昨天比呢', // BQ1933
+          answerShape: 'comparison',
+          args: {
+            time: {
+              label: '上周',
+              preset: 'last_week',
+              timezone: 'Asia/Shanghai',
+              startDate: '2026-07-20',
+              endDate: '2026-07-26',
+            },
+            comparisonTarget: {
+              type: 'time',
+              timeRange: {
+                label: '昨天',
+                preset: 'yesterday',
+                timezone: 'Asia/Shanghai',
+                startDate: '2026-07-28',
+                endDate: '2026-07-28',
+              },
+            },
+            metrics: [{ definitionKey: 'metric.paid_amount' }],
+          },
+        },
+      ),
+    );
+
+    expect(findMany).toHaveBeenCalledTimes(2);
+    expect(answer.answer).toContain('上周与昨天对比完成');
+    expect(answer.blocks).toEqual([
+      {
+        kind: 'comparison',
+        items: [{ label: 'paid_amount', current: '2454', previous: '300', delta: '+2154' }],
+      },
+      expect.objectContaining({ kind: 'kpi' }),
+    ]);
+    expect(answer.metadata).toMatchObject({
+      queryCount: 2,
+      databaseQueryCount: 2,
+      comparisonRange: { label: '昨天', boundary: '[start,end)' },
+    });
+  });
+
+  it('batches same-shape metrics with different declared sort fields and honors structured order', async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      { totalAmount: 120, netAmount: 90 },
+      { totalAmount: 80, netAmount: 70 },
+    ]);
+    const metrics = [
+      publishedMetric(
+        'gross_amount',
+        {
+          dimensions: [],
+          outputFields: ['grossAmount'],
+          sort: { outputField: 'grossAmount', direction: 'desc', missing: 'error' },
+        },
+        { formula: { type: 'sum', model: 'ProductOrder', field: 'totalAmount' } },
+      ),
+      publishedMetric(
+        'net_amount',
+        {
+          dimensions: [],
+          outputFields: ['netAmount'],
+          sort: { outputField: 'netAmount', direction: 'desc', missing: 'error' },
+        },
+        { formula: { type: 'sum', model: 'ProductOrder', field: 'netAmount' } },
+      ),
+    ];
+    const executor = new BrainSemanticQueryCapabilityExecutor(
+      provider(metrics) as never,
+      parser as never,
+      { productOrder: { findMany } } as never,
+    );
+
+    const answer = await executor.execute(
+      input(
+        card('product_sales_ranking', 'semantic', {
+          requiredPermissions: ['core:metric:view'],
+          intents: ['query', 'ranking'],
+        }),
+        {
+          args: {
+            metrics: metrics.map((metric) => ({ definitionKey: metric.definitionKey })),
+            orderBy: [
+              {
+                definitionRef: { definitionKey: 'metric.net_amount' },
+                direction: 'desc',
+              },
+            ],
+          },
+        },
+      ),
+    );
+
+    expect(findMany).toHaveBeenCalledTimes(1);
+    expect(findMany.mock.calls[0][0].select).toEqual({ totalAmount: true, netAmount: true });
+    expect(answer.metadata).toMatchObject({ queryCount: 2, databaseQueryCount: 1 });
+    expect((answer as any).blocks[0].rows).toEqual([{ grossAmount: 200, netAmount: 160 }]);
   });
 
   it('loads frozen validated metric definitions only for a server-owned evaluation release', async () => {
@@ -1502,16 +1818,10 @@ describe('BrainSemanticQueryCapabilityExecutor', () => {
   });
 
   it('sorts multi-metric rankings by the explicitly published primary output', async () => {
-    const findMany = jest
-      .fn()
-      .mockResolvedValueOnce([
-        { netAmount: 100, status: 'A' },
-        { netAmount: 50, status: 'B' },
-      ])
-      .mockResolvedValueOnce([
-        { totalAmount: 1, status: 'A' },
-        { totalAmount: 10, status: 'B' },
-      ]);
+    const findMany = jest.fn().mockResolvedValueOnce([
+      { netAmount: 100, totalAmount: 1, status: 'A' },
+      { netAmount: 50, totalAmount: 10, status: 'B' },
+    ]);
     const sort = { outputField: 'quantity', direction: 'desc', missing: 'error' };
     const executor = new BrainSemanticQueryCapabilityExecutor(
       provider(
@@ -1554,6 +1864,7 @@ describe('BrainSemanticQueryCapabilityExecutor', () => {
       { order_status: 'B', salesAmount: 50, quantity: 10 },
       { order_status: 'A', salesAmount: 100, quantity: 1 },
     ]);
+    expect(findMany).toHaveBeenCalledTimes(1);
   });
 
   it('enforces missing=error before sorting even when only one merged row exists', async () => {
@@ -1572,7 +1883,12 @@ describe('BrainSemanticQueryCapabilityExecutor', () => {
           ),
           publishedMetric(
             'sales_quantity',
-            { dimensions: ['order_status'], outputFields: ['quantity'], sort },
+            {
+              dimensions: ['order_status'],
+              outputFields: ['quantity'],
+              sort,
+              filters: [{ model: 'ProductOrder', field: 'status', operator: 'eq', value: 'completed' }],
+            },
             { formula: { type: 'sum', model: 'ProductOrder', field: 'totalAmount' } },
           ),
         ],
@@ -2919,6 +3235,36 @@ describe('BrainActionCapabilityExecutor', () => {
     const answer = await executor.execute(
       input(card('reservation_action_preview', 'action'), {
         question: 'Create a reservation for Amy tomorrow at 3pm',
+        actionProvenance: {
+          schemaVersion: '1.0',
+          actionRef: {
+            definitionType: 'action',
+            definitionKey: 'action.create_reservation',
+            definitionVersion: 3,
+            definitionFingerprint: 'a'.repeat(64),
+            sourceFingerprint: 'b'.repeat(64),
+          },
+          actionBindingFingerprint: 'c'.repeat(64),
+          actionSituationContextProfileFingerprint: 'f'.repeat(64),
+          actionModalityPolicyFingerprint: '1'.repeat(64),
+          actionInformationArtifactProfileFingerprint: '2'.repeat(64),
+          actionSideEffectInvariantProfileFingerprint: '3'.repeat(64),
+          ontologySnapshotFingerprint: 'd'.repeat(64),
+          situationContext: createBrainActionSituationContext({
+            profileFingerprint: 'f'.repeat(64),
+            runId: 41,
+            conversationId: 12,
+            context: context(),
+            qualifiedRole: 'store_manager',
+          }),
+          informationArtifacts: [],
+          capability: {
+            key: 'reservation_action_preview',
+            version: 1,
+            sourceFingerprint: 'e'.repeat(64),
+          },
+          gatewayActionKey: 'create_reservation',
+        },
         args: {
           objective: 'Create a reservation for Amy tomorrow at 3pm',
           entities: [
@@ -2928,6 +3274,23 @@ describe('BrainActionCapabilityExecutor', () => {
           dimensions: [],
           filters: [],
           orderBy: [],
+          actionRef: {
+            definitionType: 'action',
+            definitionKey: 'action.create_reservation',
+            definitionVersion: 3,
+            definitionFingerprint: 'a'.repeat(64),
+            sourceFingerprint: 'b'.repeat(64),
+          },
+          actionModality: 'request',
+          actionSlots: [
+            {
+              slotKey: 'appointmentTime',
+              semanticRole: 'time',
+              source: 'user',
+              timeValue: '2026-08-01T15:00:00+08:00',
+              confidence: 0.99,
+            },
+          ],
         },
       }),
     );
@@ -2947,7 +3310,12 @@ describe('BrainActionCapabilityExecutor', () => {
         cognition: expect.objectContaining({
           entities: [{ slot: 'customer', entityKey: 'customer:18', label: 'Amy' }],
         }),
-        plan: expect.objectContaining({ intent: 'action' }),
+        plan: expect.objectContaining({
+          intent: 'action',
+          actionRef: expect.objectContaining({ definitionKey: 'action.create_reservation' }),
+          actionModality: 'request',
+          actionSlots: [expect.objectContaining({ slotKey: 'appointmentTime' })],
+        }),
       }),
     );
     expect(answer.grounding).toBe('preview_action');
@@ -3083,19 +3451,25 @@ describe('BrainActionCapabilityExecutor', () => {
     await expect(executor.execute(capabilityInput)).rejects.toThrow('action_preview_contains_execution_receipt');
   });
 
-  it.each([
-    ['帮我估算一下这次采购大概要花多少钱', 'purchase_cost_estimate_requires_items'],
-    ['这批新货到了，帮我记录入库', 'inventory_receipt_capability_not_open'],
-  ])('does not substitute a purchase draft for unsupported inventory work: %s', async (question, reason) => {
-    const adapterRegistry = { resolve: jest.fn() };
+  it('delegates an exact Action Ontology binding without re-routing from the original question text', async () => {
+    const adapter = {
+      execute: jest.fn().mockResolvedValue({
+        status: 'completed',
+        answer: 'Preview',
+        citations: [],
+        suggestedActions: [{ actionId: 'purchase-preview-1', requiresConfirmation: true }],
+        grounding: 'preview_action',
+      }),
+    };
+    const adapterRegistry = { resolve: jest.fn().mockReturnValue(adapter) };
     const executor = new BrainActionCapabilityExecutor(adapterRegistry as never);
 
-    const answer = await executor.execute(input(card('purchase_order_draft', 'action'), { question }));
+    const answer = await executor.execute(
+      input(card('purchase_order_draft', 'action'), { question: '这批新货到了，帮我记录入库' }), // ami-brain-unit-only
+    );
 
-    expect(answer).toMatchObject({
-      grounding: 'none',
-      metadata: { unsupportedReason: reason },
-    });
-    expect(adapterRegistry.resolve).not.toHaveBeenCalled();
+    expect(answer).toMatchObject({ grounding: 'preview_action' });
+    expect(adapterRegistry.resolve).toHaveBeenCalled();
+    expect(adapter.execute).toHaveBeenCalled();
   });
 });

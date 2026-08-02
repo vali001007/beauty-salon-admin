@@ -316,7 +316,7 @@ export class AiService {
     );
     this.structuredMaxTotalTokens = this.parsePositiveIntegerConfig(
       'LLM_STRUCTURED_MAX_TOTAL_TOKENS',
-      config.get('LLM_STRUCTURED_MAX_TOTAL_TOKENS', String(Math.max(8192, this.maxTokens * 2))),
+      config.get('LLM_STRUCTURED_MAX_TOTAL_TOKENS', String(Math.max(16384, this.maxTokens * 2))),
     );
     this.fallbackStructuredMaxTotalTokens = this.parsePositiveIntegerConfig(
       'LLM_FALLBACK_STRUCTURED_MAX_TOTAL_TOKENS',

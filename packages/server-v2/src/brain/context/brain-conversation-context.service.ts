@@ -294,20 +294,37 @@ export class BrainConversationContextService {
         : {};
     const previousModel = this.parseModelSnapshot(current.contextSnapshot);
     const resultSets = input.resultSets ?? previousModel?.resultSets ?? [];
+    const preservePrevious = Boolean(
+      input.pendingClarification &&
+        previousModel &&
+        !input.capability &&
+        input.intent.metrics.length === 0 &&
+        input.intent.dimensions.length === 0 &&
+        input.intent.entities.length === 0,
+    );
+    const metrics = preservePrevious && input.intent.metrics.length === 0 ? previousModel!.metrics : input.intent.metrics;
+    const dimensions =
+      preservePrevious && input.intent.dimensions.length === 0 ? previousModel!.dimensions : input.intent.dimensions;
+    const entities = preservePrevious && input.intent.entities.length === 0 ? previousModel!.entities : input.intent.entities;
+    const capability = input.capability ?? (preservePrevious ? previousModel?.capability : undefined);
     const next: BrainModelConversationContextSnapshot = {
       version: 1,
-      objective: input.intent.objective.slice(0, 500),
-      definitionRefs: this.intentDefinitionRefs(input.intent),
-      metrics: input.intent.metrics.map((metric) => ({ ...metric })),
-      dimensions: input.intent.dimensions.map((dimension) => ({ ...dimension })),
-      entities: input.intent.entities.map((entity) => ({
+      objective: (preservePrevious ? previousModel!.objective : input.intent.objective).slice(0, 500),
+      definitionRefs: preservePrevious ? previousModel!.definitionRefs.map((ref) => ({ ...ref })) : this.intentDefinitionRefs(input.intent),
+      metrics: metrics.map((metric) => ({ ...metric })),
+      dimensions: dimensions.map((dimension) => ({ ...dimension })),
+      entities: entities.map((entity) => ({
         ...entity,
         ...(entity.definitionRef ? { definitionRef: { ...entity.definitionRef } } : {}),
       })),
-      intent: input.intent.intent,
-      answerShape: input.intent.answerShape,
-      ...(input.intent.timeRange ? { timeRange: this.normalizeModelTimeRange(input.intent.timeRange) } : {}),
-      ...(input.capability ? { capability: { ...input.capability } } : {}),
+      intent: preservePrevious ? previousModel!.intent : input.intent.intent,
+      answerShape: preservePrevious ? previousModel!.answerShape : input.intent.answerShape,
+      ...(input.intent.timeRange
+        ? { timeRange: this.normalizeModelTimeRange(input.intent.timeRange) }
+        : preservePrevious && previousModel?.timeRange
+          ? { timeRange: { ...previousModel.timeRange } }
+          : {}),
+      ...(capability ? { capability: { ...capability } } : {}),
       resultSets: resultSets.map((set) => ({
         ...set,
         items: set.items.map((item) => ({
@@ -739,7 +756,9 @@ export class BrainConversationContextService {
     const correctedTimeExpression = this.correctedTimeExpression(dto.message);
     const parsed = this.timeRangeParser.parse(correctedTimeExpression ?? dto.message);
     const timeRange =
-      parsed?.mentionedTime && parsed.range ? this.fromLegacyTimeRange(parsed.range, dto.timezone) : undefined;
+      parsed?.mentionedTime && parsed.range && parsed.unsupportedExpressions.length === 0
+        ? this.fromLegacyTimeRange(parsed.range, dto.timezone)
+        : undefined;
     const relativeComparison = Boolean(
       timeRange && previous.timeRange && /(?:比|相比|对比|高了多少|低了多少|多了多少|少了多少)/.test(dto.message),
     );
@@ -816,12 +835,30 @@ export class BrainConversationContextService {
     timezone?: string,
   ): BrainSemanticTimeRange {
     const supportedTimezone = timezone === 'UTC' ? 'UTC' : 'Asia/Shanghai';
+    const preset = this.modelTimeRangePreset(range.label);
     return {
+      ...(preset ? { preset } : {}),
       label: range.label,
       startDate: this.localIsoDate(range.startDate, supportedTimezone),
       endDate: this.localIsoDate(range.endDate, supportedTimezone),
       timezone: supportedTimezone,
     };
+  }
+
+  private modelTimeRangePreset(label: string): string | undefined {
+    return {
+      今天: 'today',
+      昨天: 'yesterday',
+      明天: 'tomorrow',
+      本周: 'this_week',
+      上周: 'last_week',
+      本月: 'this_month',
+      上月: 'last_month',
+      本季度: 'this_quarter',
+      上季度: 'last_quarter',
+      今年: 'this_year',
+      去年: 'last_year',
+    }[label];
   }
 
   private localIsoDate(value: Date, timezone: BrainSemanticTimeRange['timezone']): string {

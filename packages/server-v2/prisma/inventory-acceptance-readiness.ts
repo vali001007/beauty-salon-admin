@@ -36,12 +36,6 @@ function formatDateTime(value?: Date | string | null) {
   return new Date(value).toISOString().replace('T', ' ').slice(0, 16);
 }
 
-function purchaseOrderStoreId(order: any) {
-  const payload = order.items && typeof order.items === 'object' && !Array.isArray(order.items) ? order.items : undefined;
-  const storeId = Number(payload?.storeId);
-  return Number.isInteger(storeId) && storeId > 0 ? storeId : undefined;
-}
-
 function acceptanceMarker() {
   const marker = argValue('marker', DEFAULT_ACCEPTANCE_MARKER);
   const normalized = String(marker ?? '').trim();
@@ -215,6 +209,7 @@ async function buildReadiness() {
     findMovement(withRemarkMarker({ ...movementWhereBase, movementType: 'scrap_out', sourceType: 'inventory_adjustment' }, marker)),
     prisma.purchaseOrder.findMany({
       where: {
+        storeId,
         ...(latestMovement?.occurredAt ? { createdAt: { gte: latestMovement.occurredAt } } : {}),
         ...(marker ? { supplier: { contains: marker } } : {}),
       },
@@ -222,10 +217,7 @@ async function buildReadiness() {
       take: 200,
     }),
   ]);
-  const purchaseOrderCreated = purchaseOrders.find((order: any) => {
-    const payloadStoreId = purchaseOrderStoreId(order);
-    return !payloadStoreId || payloadStoreId === storeId;
-  }) ?? null;
+  const purchaseOrderCreated = purchaseOrders[0] ?? null;
   const transferIn = transferOut
     ? await findMovement(withRemarkMarker({
         ...(latestMovement?.id ? { id: { gt: latestMovement.id } } : {}),
@@ -326,7 +318,7 @@ async function buildReadiness() {
               id: purchaseOrderCreated.id,
               orderNo: purchaseOrderCreated.orderNo,
               status: purchaseOrderCreated.status,
-              storeId: purchaseOrderStoreId(purchaseOrderCreated),
+              storeId: purchaseOrderCreated?.storeId,
               createdAt: purchaseOrderCreated.createdAt,
             }
         : null,

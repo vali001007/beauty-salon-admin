@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "ami-brain-metric-definition-governance-required/v1",
+  "generatedAt": "2026-07-29T04:28:14.272Z",
+  "sourceBaselineChecksum": "eeabcf0ba6d2652cabe91950bfc04bb2fa6f3fd6c95510d583d9ed6d99f186ec",
+  "caseCount": 0,
+  "excludedFrom": [
+    "release-core",
+    "standard-regression",
+    "extended-rotation",
+    "pass_rate_denominator"
+  ],
+  "featureSummary": {},
+  "cases": []
+}

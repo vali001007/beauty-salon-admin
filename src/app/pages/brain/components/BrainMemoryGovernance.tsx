@@ -9,6 +9,8 @@ import {
   restoreBrainMemory,
 } from '@/api/brain';
 import type { BrainMemoryRecord, BrainMemoryRevision } from '@/types/brain';
+import { usePermission } from '@/hooks/usePermission';
+import { BRAIN_GOVERNANCE_UI_MODE } from '../brainGovernanceNavigation';
 
 function dateText(value?: string | null) {
   if (!value) return '长期有效';
@@ -17,6 +19,7 @@ function dateText(value?: string | null) {
 }
 
 export function BrainMemoryGovernance() {
+  const canManage = usePermission('core:brain-governance:manage') && BRAIN_GOVERNANCE_UI_MODE === 'manage';
   const [items, setItems] = useState<BrainMemoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -43,7 +46,7 @@ export function BrainMemoryGovernance() {
   }, []);
 
   async function saveCorrection() {
-    if (!editing) return;
+    if (!canManage || !editing) return;
     let nextContent: Record<string, unknown>;
     try {
       nextContent = JSON.parse(content) as Record<string, unknown>;
@@ -65,6 +68,7 @@ export function BrainMemoryGovernance() {
   }
 
   async function toggleDeleted(item: BrainMemoryRecord) {
+    if (!canManage) return;
     setBusyId(item.id);
     try {
       if (item.deletedAt) {
@@ -149,7 +153,7 @@ export function BrainMemoryGovernance() {
                   <td className="px-3 py-3 align-top text-xs text-muted-foreground">{dateText(item.expiresAt)}</td>
                   <td className="px-3 py-3 align-top">
                     <div className="flex gap-1">
-                      {!item.deletedAt ? (
+                      {canManage && !item.deletedAt ? (
                         <button
                           type="button"
                           className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-foreground"
@@ -170,21 +174,23 @@ export function BrainMemoryGovernance() {
                       >
                         <History className="h-3.5 w-3.5" />
                       </button>
-                      <button
-                        type="button"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-foreground disabled:opacity-60"
-                        title={item.deletedAt ? '恢复记忆' : '删除记忆'}
-                        onClick={() => void toggleDeleted(item)}
-                        disabled={busyId === item.id}
-                      >
-                        {busyId === item.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : item.deletedAt ? (
-                          <ArchiveRestore className="h-3.5 w-3.5" />
-                        ) : (
-                          <Trash2 className="h-3.5 w-3.5" />
-                        )}
-                      </button>
+                      {canManage ? (
+                        <button
+                          type="button"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-foreground disabled:opacity-60"
+                          title={item.deletedAt ? '恢复记忆' : '删除记忆'}
+                          onClick={() => void toggleDeleted(item)}
+                          disabled={busyId === item.id}
+                        >
+                          {busyId === item.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : item.deletedAt ? (
+                            <ArchiveRestore className="h-3.5 w-3.5" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      ) : null}
                     </div>
                   </td>
                 </tr>
@@ -194,7 +200,7 @@ export function BrainMemoryGovernance() {
         </div>
       )}
 
-      {editing ? (
+      {canManage && editing ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-xl rounded-md border border-border bg-background p-5 shadow-xl">
             <div className="flex items-center justify-between gap-3">

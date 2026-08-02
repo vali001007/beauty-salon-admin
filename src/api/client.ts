@@ -6,6 +6,9 @@ export interface ApiErrorPayload {
   code?: string;
   status?: number;
   details?: unknown;
+  category?: 'business_blocker' | 'permission' | 'system' | 'conflict';
+  resolutionType?: string;
+  retryable?: boolean;
 }
 
 // --- Retry configuration ---
@@ -72,7 +75,9 @@ const apiClient = axios.create({
 async function refreshCsrfToken(): Promise<void> {
   const baseURL = import.meta.env.VITE_API_BASE_URL || '/api';
   const normalizedBase = baseURL.replace(/\/$/, '');
-  const response = await axios.get<{ csrfToken?: string }>(`${normalizedBase}/auth/csrf-token`, { withCredentials: true });
+  const response = await axios.get<{ csrfToken?: string }>(`${normalizedBase}/auth/csrf-token`, {
+    withCredentials: true,
+  });
   csrfTokenCache = response.data?.csrfToken || getCsrfToken();
 }
 
@@ -90,6 +95,7 @@ apiClient.interceptors.request.use((config) => {
 
   // Add request ID for tracing
   config.headers['X-Request-Id'] = generateRequestId();
+  config.headers['X-Ami-Client-Channel'] = 'admin_web';
 
   // Attach CSRF token on mutating requests
   if (['post', 'put', 'patch', 'delete'].includes(config.method || '')) {
@@ -134,13 +140,13 @@ apiClient.interceptors.response.use(
     }
 
     const payload: ApiErrorPayload = {
-      message:
-        (responseData?.message as string) ||
-        error.message ||
-        '请求失败，请稍后重试',
+      message: (responseData?.message as string) || error.message || '请求失败，请稍后重试',
       code: (responseData?.code as string | undefined) || error.code,
       status,
       details: (responseData?.details ?? responseData) as unknown,
+      category: responseData?.category as ApiErrorPayload['category'],
+      resolutionType: responseData?.resolutionType as string | undefined,
+      retryable: typeof responseData?.retryable === 'boolean' ? responseData.retryable : undefined,
     };
 
     if (status === 401 && !isLoginRequest(config)) {

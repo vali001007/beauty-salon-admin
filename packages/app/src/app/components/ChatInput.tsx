@@ -2,34 +2,34 @@ import { useState } from 'react'
 import { Send, ImageIcon, Mic } from 'lucide-react'
 
 interface ChatInputProps {
-  onSend: (message: string) => void
+  onSend: (message: string) => boolean | Promise<boolean>
   disabled?: boolean
 }
 
 export function ChatInput({ onSend, disabled }: ChatInputProps) {
   const [message, setMessage] = useState('')
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (message.trim() && !disabled) {
-      onSend(message.trim())
-      setMessage('')
+      const succeeded = await onSend(message.trim())
+      if (succeeded !== false) setMessage('')
     }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      handleSend()
+      void handleSend()
     }
   }
 
   return (
     <div className="border-t border-gray-200 bg-white p-4">
       <div className="flex items-end gap-2">
-        <button className="flex-shrink-0 w-9 h-9 flex items-center justify-center text-gray-400 hover:text-[#C9956C] transition-colors">
+        <button type="button" aria-label="添加图片" className="flex-shrink-0 w-9 h-9 flex items-center justify-center text-gray-400 hover:text-[#C9956C] transition-colors">
           <ImageIcon size={20} />
         </button>
-        <button className="flex-shrink-0 w-9 h-9 flex items-center justify-center text-gray-400 hover:text-[#C9956C] transition-colors">
+        <button type="button" aria-label="语音输入" className="flex-shrink-0 w-9 h-9 flex items-center justify-center text-gray-400 hover:text-[#C9956C] transition-colors">
           <Mic size={20} />
         </button>
         <div className="flex-1 bg-gray-100 rounded-lg px-3 py-2">
@@ -44,7 +44,9 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
           />
         </div>
         <button
-          onClick={handleSend}
+          type="button"
+          aria-label="发送"
+          onClick={() => void handleSend()}
           disabled={disabled || !message.trim()}
           className="flex-shrink-0 w-9 h-9 flex items-center justify-center bg-gradient-to-r from-[#C9956C] to-[#B8845A] text-white rounded-full hover:opacity-90 transition-opacity disabled:opacity-40"
         >

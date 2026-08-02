@@ -29,6 +29,7 @@ export class BrainGeneratedCapabilityDraftService {
     leaseOwner?: string;
     workspaceRoot?: string;
     sourceScan?: BrainCapabilityScanReport;
+    ontologyDefinitionVersionIds?: readonly number[];
   }) {
     if (input.generatedByJobId && (!input.leaseOwner || !input.workspaceRoot)) {
       throw new ConflictException('regeneration_lease_context_required');
@@ -61,7 +62,11 @@ export class BrainGeneratedCapabilityDraftService {
               },
             });
             if (existing) {
-              this.assertExistingMatches(existing.snapshot, input.proposal);
+              this.assertExistingMatches(
+                existing.snapshot,
+                input.proposal,
+                input.ontologyDefinitionVersionIds,
+              );
               return existing;
             }
           }
@@ -70,14 +75,24 @@ export class BrainGeneratedCapabilityDraftService {
             where: { resourceType: 'skill', resourceKey: verified.manifest.key },
             orderBy: { version: 'desc' },
           });
-          if (!input.generatedByJobId && previous && this.existingMatches(previous.snapshot, input.proposal)) {
+          if (
+            !input.generatedByJobId &&
+            previous &&
+            this.existingMatches(previous.snapshot, input.proposal, input.ontologyDefinitionVersionIds)
+          ) {
             return previous;
           }
           const version = (previous?.version ?? 0) + 1;
           const manifest = { ...verified.manifest, version };
           const source = await this.createRegistrySource(tx, manifest, version);
+          const ontologyDefinitionVersionIds = normalizeVersionIds(
+            input.ontologyDefinitionVersionIds,
+          );
           const snapshot = {
             ...manifest,
+            ...(ontologyDefinitionVersionIds.length
+              ? { ontologyDefinitionVersionIds }
+              : {}),
             generatedCapability: true,
             sourceProposalVersion: input.proposal.manifest.version,
             sourceProposalFingerprint: input.proposal.proposalFingerprint,
@@ -109,17 +124,36 @@ export class BrainGeneratedCapabilityDraftService {
     throw new ConflictException('generated_capability_version_conflict');
   }
 
-  private assertExistingMatches(snapshotValue: unknown, proposal: BrainCapabilityGenerationProposal) {
-    if (this.existingMatches(snapshotValue, proposal)) return;
+  private assertExistingMatches(
+    snapshotValue: unknown,
+    proposal: BrainCapabilityGenerationProposal,
+    ontologyDefinitionVersionIds?: readonly number[],
+  ) {
+    if (this.existingMatches(snapshotValue, proposal, ontologyDefinitionVersionIds)) return;
     throw new ConflictException('generated_capability_existing_fingerprint_mismatch');
   }
 
-  private existingMatches(snapshotValue: unknown, proposal: BrainCapabilityGenerationProposal) {
+  private existingMatches(
+    snapshotValue: unknown,
+    proposal: BrainCapabilityGenerationProposal,
+    ontologyDefinitionVersionIds?: readonly number[],
+  ) {
     const snapshot = record(snapshotValue);
-    return snapshot.sourceProposalFingerprint === proposal.proposalFingerprint &&
+    const requiredOntologyVersions = normalizeVersionIds(ontologyDefinitionVersionIds);
+    const existingOntologyVersions = normalizeVersionIds(
+      Array.isArray(snapshot.ontologyDefinitionVersionIds)
+        ? snapshot.ontologyDefinitionVersionIds.map((value) => Number(value))
+        : [],
+    );
+    return (
+      snapshot.sourceProposalFingerprint === proposal.proposalFingerprint &&
       snapshot.sourceFingerprint === proposal.sourceFingerprint &&
       canonicalizeBusinessDefinition(snapshot.definitionRefs) ===
-        canonicalizeBusinessDefinition(proposal.manifest.definitionRefs);
+        canonicalizeBusinessDefinition(proposal.manifest.definitionRefs) &&
+      (requiredOntologyVersions.length === 0 ||
+        canonicalizeBusinessDefinition(existingOntologyVersions) ===
+          canonicalizeBusinessDefinition(requiredOntologyVersions))
+    );
   }
 
   private json(value: unknown): Prisma.InputJsonValue {
@@ -190,6 +224,14 @@ export class BrainGeneratedCapabilityDraftService {
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
+
+function normalizeVersionIds(values: readonly number[] | undefined): number[] {
+  return [
+    ...new Set(
+      (values ?? []).filter((value) => Number.isInteger(value) && value > 0),
+    ),
+  ].sort((left, right) => left - right);
+}
 function isPrismaCode(error: unknown, code: string): boolean {
   return Boolean(error && typeof error === 'object' && 'code' in error && (error as { code?: unknown }).code === code);
 }
@@ -202,7 +244,9 @@ async function detectWorkspaceRoot(): Promise<string> {
     try {
       await access(resolve(candidate, 'packages/server-v2/prisma/schema.prisma'));
       return candidate;
-    } catch {}
+    } catch {
+      continue;
+    }
   }
   throw new Error('generated_capability_workspace_root_not_found');
 }

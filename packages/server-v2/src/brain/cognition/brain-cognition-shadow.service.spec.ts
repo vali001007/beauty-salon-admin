@@ -37,6 +37,7 @@ describe('BrainCognitionShadowService', () => {
         description: '商品销售数量',
       },
     ],
+    actions: [],
     dimensions: [
       {
         definitionKey: 'dimension.product.v1',

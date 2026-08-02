@@ -36,6 +36,7 @@ function getStatusLabel(status: AgentRunResult["status"]) {
     waiting_approval: "待确认",
     composing: "生成中",
     completed: "已完成",
+    partially_completed: "部分完成",
     failed: "执行失败",
     cancelled: "已取消",
   };
@@ -44,6 +45,7 @@ function getStatusLabel(status: AgentRunResult["status"]) {
 
 function getStatusClass(status: AgentRunResult["status"]) {
   if (status === "completed") return "bg-emerald-50 text-emerald-700";
+  if (status === "partially_completed") return "bg-amber-50 text-amber-800";
   if (status === "waiting_approval") return "bg-amber-50 text-amber-700";
   if (status === "failed" || status === "cancelled") return "bg-rose-50 text-rose-600";
   return "bg-[#F7F5F2] text-[#6F6678]";
@@ -142,6 +144,7 @@ function hasEmbeddedActionSurface(blocks: AuraResponseBlock[]) {
 
 function getStatusNoticeClass(kind: string) {
   if (kind === "failed") return "border-rose-200 bg-rose-50 text-rose-700";
+  if (kind === "partial") return "border-amber-200 bg-amber-50 text-amber-800";
   if (kind === "unsupported") return "border-amber-200 bg-amber-50 text-amber-800";
   return "border-slate-200 bg-slate-50 text-slate-700";
 }

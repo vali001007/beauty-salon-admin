@@ -287,7 +287,10 @@ async function publishFourCapabilityCards() {
     brainCapabilityRegenerationJob: { findFirst: jest.fn().mockResolvedValue(null) },
   };
   const publishedSnapshot = publishedFourCapabilitySnapshotFixture();
-  const snapshotSource = { loadPublishedSnapshot: jest.fn().mockResolvedValue(publishedSnapshot) };
+  const snapshotSource = {
+    loadPublishedSnapshot: jest.fn().mockResolvedValue(publishedSnapshot),
+    loadEvaluationSnapshot: jest.fn().mockResolvedValue(publishedSnapshot),
+  };
   const semanticVerifier = new BrainCapabilitySemanticVerifierService(snapshotSource as never);
   const publishedGate = {
     verify: jest.fn(async ({ proposal }) => semanticVerifier.verifyProposal(proposal)),

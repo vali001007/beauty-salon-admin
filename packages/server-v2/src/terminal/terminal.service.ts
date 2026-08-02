@@ -108,6 +108,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
   private automationScheduler?: NodeJS.Timeout;
   private automationScanRunning = false;
   private managerInsightCache = new Map<string, { expiresAt: number; value: TerminalDashboardInsights }>();
+  private managerInsightRefreshes = new Map<string, Promise<void>>();
 
   constructor(
     private prisma: PrismaService,
@@ -7080,19 +7081,43 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  private refreshManagerDashboardInsights(
+    cacheKey: string,
+    storeId: number,
+    context: any,
+    fallback: TerminalDashboardInsights,
+  ) {
+    if (this.managerInsightRefreshes.has(cacheKey)) return;
+
+    const refresh = Promise.resolve()
+      .then(() =>
+        this.aiService.generateTerminalDashboardInsights(
+          { storeName: context.storeName, context, fallback },
+          undefined,
+          storeId,
+        ),
+      )
+      .then((result) => {
+        const value = this.normalizeTerminalDashboardInsights(result.structured, fallback);
+        this.managerInsightCache.set(cacheKey, { value, expiresAt: Date.now() + 5 * 60_000 });
+      })
+      .catch((error) => {
+        console.warn('Ami Core terminal dashboard AI insight refresh failed; deterministic fallback retained', error);
+      })
+      .finally(() => {
+        this.managerInsightRefreshes.delete(cacheKey);
+      });
+
+    this.managerInsightRefreshes.set(cacheKey, refresh);
+  }
+
   private async getManagerDashboardInsights(storeId: number, context: any) {
     const cacheKey = `${storeId}:${context.metrics.customerTotal}:${context.metrics.reservationCount}:${context.metrics.arrivedReservationCount}:${context.metrics.revenue}`;
     const cached = this.managerInsightCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) return cached.value;
     const fallback = this.buildManagerInsightFallback(context);
-    const result = await this.aiService.generateTerminalDashboardInsights(
-      { storeName: context.storeName, context, fallback },
-      undefined,
-      storeId,
-    );
-    const value = this.normalizeTerminalDashboardInsights(result.structured, fallback);
-    this.managerInsightCache.set(cacheKey, { value, expiresAt: Date.now() + 5 * 60_000 });
-    return value;
+    this.refreshManagerDashboardInsights(cacheKey, storeId, context, fallback);
+    return fallback;
   }
 
   private async buildRoleDashboard(storeId: number, _requestedRole?: string) {

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "ami-brain-question-source-registry/v1",
+  "policy": "任何直接调用 Ami Brain 回答入口的评测、性能或诊断运行器都必须登记输入治理合同和产品门禁边界；产品级运行只允许 current_release_test 题，历史诊断必须明确标记为不得进入产品验收。新增运行器未登记或声明了未批准合同时发布门禁 fail-closed。",
+  "sources": [
+    {
+      "path": "packages/server-v2/prisma/ami-brain-full-domain-eval.ts",
+      "inputGovernance": "suite_manifest_v2",
+      "questionIdentity": "registered_case_id",
+      "productAcceptance": "current_release_test_only"
+    },
+    {
+      "path": "packages/server-v2/prisma/ami-brain-eval.ts",
+      "inputGovernance": "governed_eval_catalog",
+      "questionIdentity": "registered_case_id",
+      "productAcceptance": "historical_only_non_product_gate"
+    },
+    {
+      "path": "packages/server-v2/prisma/ami-brain-candidate-diagnostic.ts",
+      "inputGovernance": "product_loop_eligibility_v1",
+      "questionIdentity": "required_cli_question_id",
+      "productAcceptance": "current_release_test_only"
+    }
+  ]
+}

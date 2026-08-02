@@ -54,7 +54,9 @@ export class BrainMetricCandidateGeneratorService {
     registeredPermissions: ReadonlySet<string>,
   ): BrainMetricCandidateResult {
     const reasons = new Set(observations.flatMap((observation) => observation.blockedReasons ?? []));
-    const aliases = unique(authoritativeAliasObservations(observations).flatMap((observation) => observation.aliases ?? []));
+    const aliases = unique(
+      authoritativeAliasObservations(observations).flatMap((observation) => observation.aliases ?? []),
+    );
     for (const alias of aliases) {
       if ((aliasConflicts.get(normalizeAlias(alias))?.size ?? 0) > 1) reasons.add(`metric_alias_collision:${alias}`);
     }
@@ -178,9 +180,7 @@ function requireSubset(
 
 function isSubset(required: readonly string[], declared: readonly unknown[] | undefined): boolean {
   const values = new Set(
-    (declared ?? [])
-      .filter((item): item is string => typeof item === 'string')
-      .map(normalizeSemanticBinding),
+    (declared ?? []).filter((item): item is string => typeof item === 'string').map(normalizeSemanticBinding),
   );
   return required.map(normalizeSemanticBinding).every((value) => values.has(value));
 }
@@ -315,7 +315,16 @@ function validateCanonicalPayload(
   const models = new Map(datamodel.models.map((model) => [model.name, model]));
   if (!payload.description.trim()) reasons.add('missing_metric_description');
   if (!METRIC_VALUE_TYPES.has(payload.valueType)) reasons.add(`invalid_value_type:${payload.valueType}`);
-  const allowedTaskTypes = new Set(['query', 'ranking', 'recommendation', 'diagnosis', 'forecast', 'draft', 'workflow', 'clarify']);
+  const allowedTaskTypes = new Set([
+    'query',
+    'ranking',
+    'recommendation',
+    'diagnosis',
+    'forecast',
+    'draft',
+    'workflow',
+    'clarify',
+  ]);
   if (!payload.allowedTaskTypes?.length) reasons.add('missing_allowed_task_types');
   for (const taskType of payload.allowedTaskTypes ?? []) {
     if (!allowedTaskTypes.has(taskType)) reasons.add(`invalid_allowed_task_type:${taskType}`);
@@ -334,7 +343,7 @@ function validateCanonicalPayload(
     if (payload.measure.model || payload.measure.field || payload.measure.distinctField) {
       reasons.add('resolver_measure_must_not_duplicate_prisma_measure');
     }
-    validateMetricResolver(resolver, reasons);
+    validateMetricResolver(resolver, payload.dimensions, reasons);
   } else {
     const measureModelName = payload.measure.model ?? '';
     const measureModel = models.get(measureModelName);
@@ -548,6 +557,7 @@ function validateStoreScope(
 
 function validateMetricResolver(
   resolver: NonNullable<CanonicalMetricPayload['measure']['resolver']>,
+  dimensions: readonly string[],
   reasons: Set<string>,
 ) {
   if (resolver.kind !== 'domain_service') reasons.add('invalid_metric_resolver_kind');
@@ -556,10 +566,15 @@ function validateMetricResolver(
     reasons.add(`invalid_metric_resolver_key:${resolver.key}`);
   }
   const dimensionEntries = Object.entries(resolver.dimensionFields ?? {});
+  const expectedDimensions = new Set(dimensions);
   if (
-    (!dimensionEntries.length && (contract?.dimensionFields.length ?? 1) > 0) ||
+    dimensionEntries.length !== expectedDimensions.size ||
     dimensionEntries.some(
-      ([dimension, field]) => !dimension.trim() || typeof field !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(field),
+      ([dimension, field]) =>
+        !dimension.trim() ||
+        !expectedDimensions.has(dimension) ||
+        typeof field !== 'string' ||
+        !/^[A-Za-z_][A-Za-z0-9_]*$/.test(field),
     )
   ) {
     reasons.add('invalid_metric_resolver_dimension_fields');

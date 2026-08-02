@@ -1,8 +1,18 @@
 import type { BrainCognitionResult } from '../cognition/brain-cognition.service.js';
-import type { BrainQuestionIntentResult, BrainRuntimeQuestionIntent, BrainRuntimeAnswerShape } from '../cognition/brain-question-intent.service.js';
+import type {
+  BrainQuestionIntentResult,
+  BrainRuntimeQuestionIntent,
+  BrainRuntimeAnswerShape,
+} from '../cognition/brain-question-intent.service.js';
 import type { BrainRequestContext } from '../context/brain-request-context.js';
 import type { SendBrainMessageDto } from '../dto/brain-chat.dto.js';
 import type { BrainResponseBlock } from '../response/brain-response.types.js';
+import type { BrainActionExecutionProvenance } from '../cognition/brain-action-execution-provenance.types.js';
+import type {
+  BrainDefinitionRef,
+  BrainSemanticActionModality,
+  BrainSemanticActionSlot,
+} from '../cognition/brain-semantic-intent.types.js';
 
 export type BrainDomainRole =
   | 'store_manager'
@@ -41,6 +51,10 @@ export interface BrainRoleIntentPlan {
   capabilityKey?: string;
   capabilityVersion?: number;
   executionPlanId?: string;
+  actionProvenance?: BrainActionExecutionProvenance;
+  actionRef?: BrainDefinitionRef<'action'>;
+  actionModality?: BrainSemanticActionModality;
+  actionSlots?: readonly BrainSemanticActionSlot[];
   expectedMetric?: string;
   requiredPermissions: string[];
   confidence: number;

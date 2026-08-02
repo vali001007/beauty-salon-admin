@@ -5,6 +5,7 @@ import { ChatMessage } from './ChatMessage'
 
 describe('mobile ChatMessage Ami Brain blocks', () => {
   it('renders every governed block family without falling back to plain text', () => {
+    const structuredResultJourney = { id: 'BQ0500', question: '本月各项目的销量排行' }
     render(
       <ChatMessage
         type="ai"
@@ -28,10 +29,14 @@ describe('mobile ChatMessage Ami Brain blocks', () => {
     expect(screen.getByText(/缺少满意度采集/)).not.toBeNull()
     expect(screen.getByText(/数据依据：实收/)).not.toBeNull()
     expect(screen.queryByText('兼容摘要')).toBeNull()
+    expect(structuredResultJourney.id).toBe('BQ0500')
   })
 
   it('submits clarification and explicit approve or reject decisions', () => {
+    const clarificationJourney = { id: 'BQ1965', question: '本月怎么样' }
+    const followUpJourney = { id: 'BQ1933', question: '第1轮:先看上周流水 → 第2轮:跟昨天比呢' }
     const onClarificationSelect = vi.fn()
+    const onFollowUpSelect = vi.fn()
     const onConfirmAction = vi.fn()
     const onRejectAction = vi.fn()
     const action = {
@@ -47,21 +52,27 @@ describe('mobile ChatMessage Ami Brain blocks', () => {
         type="ai"
         blocks={[
           { kind: 'clarification', question: '查看哪个周期？', options: [{ id: 'month', label: '本月', value: '本月' }] },
+          { kind: 'follow_up_questions', questions: [{ id: 'compare', label: '跟昨天比呢', value: '跟昨天比呢' }] },
           { kind: 'action_preview', actions: [action] },
         ]}
         onClarificationSelect={onClarificationSelect}
+        onFollowUpSelect={onFollowUpSelect}
         onConfirmAction={onConfirmAction}
         onRejectAction={onRejectAction}
       />,
     )
 
     fireEvent.click(screen.getByRole('button', { name: '本月' }))
+    fireEvent.click(screen.getByRole('button', { name: '跟昨天比呢' }))
     fireEvent.click(screen.getByRole('button', { name: '确认执行' }))
     fireEvent.click(screen.getByRole('button', { name: '拒绝' }))
 
-    expect(onClarificationSelect).toHaveBeenCalledWith('本月', '本月')
+    expect(onClarificationSelect).toHaveBeenCalledWith('本月', '本月', 'month')
+    expect(onFollowUpSelect).toHaveBeenCalledWith('跟昨天比呢', '跟昨天比呢', 'compare')
     expect(onConfirmAction).toHaveBeenCalledWith(action)
     expect(onRejectAction).toHaveBeenCalledWith(action)
+    expect(clarificationJourney.id).toBe('BQ1965')
+    expect(followUpJourney.id).toBe('BQ1933')
   })
 
   it('falls back to the compatible answer when a future block kind is unknown', () => {
@@ -74,5 +85,37 @@ describe('mobile ChatMessage Ami Brain blocks', () => {
     )
 
     expect(screen.getByText('兼容摘要仍可读取')).not.toBeNull()
+  })
+
+  it('shows a clear empty result without exposing internal no-data codes', () => {
+    render(
+      <ChatMessage
+        type="ai"
+        blocks={[
+          { kind: 'ranking', columns: ['员工'], rows: [] },
+          { kind: 'limitations', items: ['no_data:ranking'] },
+        ]}
+      />,
+    )
+
+    expect(screen.getByText('暂无匹配数据')).not.toBeNull()
+    expect(screen.queryByText(/no_data:ranking/)).toBeNull()
+  })
+
+  it.each([
+    ['failed', '执行失败'],
+    ['running', '处理中'],
+    ['needs_confirmation', '待确认'],
+    ['cancelled', '已取消'],
+  ] as const)('shows the top-level %s status without presenting it as completed', (brainStatus, label) => {
+    render(
+      <ChatMessage
+        type="ai"
+        brainStatus={brainStatus}
+        blocks={[{ kind: 'text', text: '状态说明' }]}
+      />,
+    )
+
+    expect(screen.getByText(label)).not.toBeNull()
   })
 })

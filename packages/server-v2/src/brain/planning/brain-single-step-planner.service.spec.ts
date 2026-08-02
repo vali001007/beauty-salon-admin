@@ -185,6 +185,125 @@ describe('BrainSingleStepPlannerService', () => {
     expect(result.plan.nodes).toEqual([expect.objectContaining({ previewOnly: true })]);
   });
 
+  it('preserves the governed action frame in executable args', () => {
+    const actionRef = {
+      definitionType: 'action' as const,
+      definitionKey: 'action.reschedule_reservation',
+      definitionVersion: 3,
+      definitionFingerprint: 'a'.repeat(64),
+      sourceFingerprint: 'b'.repeat(64),
+    };
+    const actionSlots = [
+      {
+        slotKey: 'appointmentTime',
+        semanticRole: 'time' as const,
+        source: 'user' as const,
+        timeValue: '2026-08-01T15:00:00+08:00',
+        confidence: 0.99,
+      },
+    ];
+    const result = planner.plan({
+      intent: {
+        ...intent,
+        schemaVersion: '1.1',
+        intent: 'action',
+        answerShape: 'action_preview',
+        actionRef,
+        actionPolarity: 'affirmative',
+        actionModality: 'request',
+        actionSlots,
+      },
+      retrieval: retrieval(
+        'selected',
+        card({
+          key: 'reservation_action_preview',
+          intents: ['action'],
+          readOnly: false,
+          sideEffect: true,
+          riskLevel: 'high',
+          requiresConfirmation: true,
+          idempotency: 'required',
+          grounding: 'preview_action',
+        }),
+      ),
+    });
+
+    expect(result).toMatchObject({
+      status: 'planned',
+      plan: { nodes: [{ args: { actionRef, actionModality: 'request', actionSlots } }] },
+    });
+  });
+
+  it('does not leak action-only args into a capability without a governed action ref', () => {
+    const result = planner.plan({
+      intent: {
+        ...intent,
+        schemaVersion: '1.1',
+        intent: 'action',
+        answerShape: 'action_preview',
+        actionPolarity: 'affirmative',
+        actionModality: 'request',
+        actionSlots: [],
+        missingSlots: ['actionDefinition'],
+      },
+      retrieval: retrieval(
+        'selected',
+        card({
+          key: 'gap_fill_touch_preview',
+          intents: ['action'],
+          readOnly: false,
+          sideEffect: true,
+          riskLevel: 'high',
+          requiresConfirmation: true,
+          idempotency: 'required',
+          grounding: 'preview_action',
+        }),
+      ),
+    });
+
+    expect(result).toMatchObject({ status: 'planned' });
+    if (result.status !== 'planned') throw new Error('expected_planned_result');
+    expect(result.plan.nodes[0].args).not.toHaveProperty('actionRef');
+    expect(result.plan.nodes[0].args).not.toHaveProperty('actionModality');
+    expect(result.plan.nodes[0].args).not.toHaveProperty('actionSlots');
+  });
+
+  it('refuses to plan a selected capability for a negated action', () => {
+    const actionRef = {
+      definitionType: 'action' as const,
+      definitionKey: 'action.create_purchase_order',
+      definitionVersion: 1,
+      definitionFingerprint: 'a'.repeat(64),
+      sourceFingerprint: 'b'.repeat(64),
+    };
+    const action = card({
+      key: 'purchase_order_draft',
+      intents: ['action'],
+      readOnly: false,
+      sideEffect: true,
+      riskLevel: 'high',
+      requiresConfirmation: true,
+      idempotency: 'required',
+      grounding: 'preview_action',
+    });
+
+    expect(
+      planner.plan({
+        intent: {
+          ...intent,
+          schemaVersion: '1.1',
+          intent: 'action',
+          answerShape: 'action_preview',
+          actionRef,
+          actionPolarity: 'negated',
+          actionModality: 'request',
+          actionSlots: [],
+        },
+        retrieval: retrieval('selected', action),
+      }),
+    ).toEqual({ status: 'not_planned', reason: 'action_polarity_not_executable' });
+  });
+
   it('preserves the governed comparison target in executable args', () => {
     const comparisonTarget = {
       type: 'time' as const,

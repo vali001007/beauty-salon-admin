@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Loader2, Play, RefreshCw, RotateCcw, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { createBrainEvalRun, getBrainEvalRun, listBrainEvalRuns } from '@/api/brain';
+import { usePermission } from '@/hooks/usePermission';
+import { BRAIN_GOVERNANCE_UI_MODE } from '../brainGovernanceNavigation';
 
 interface EvalSummary {
   gateMode?: string;
@@ -64,6 +66,7 @@ function gateLabel(summary?: EvalSummary) {
 }
 
 export function BrainEvalCenter() {
+  const canManage = usePermission('core:brain-governance:manage') && BRAIN_GOVERNANCE_UI_MODE === 'manage';
   const [runs, setRuns] = useState<EvalRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
@@ -104,6 +107,7 @@ export function BrainEvalCenter() {
   );
 
   async function start() {
+    if (!canManage) return;
     setStarting(true);
     try {
       await createBrainEvalRun({
@@ -121,6 +125,7 @@ export function BrainEvalCenter() {
   }
 
   async function rerunFailures(run: EvalRun) {
+    if (!canManage) return;
     setRerunningId(run.id);
     try {
       await createBrainEvalRun({ sourceEvalRunId: run.id, modelVersion: 'ami-brain-governed' });
@@ -151,6 +156,7 @@ export function BrainEvalCenter() {
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
+          {canManage ? <>
           <label className="text-xs text-muted-foreground">
             发布 ID
             <input
@@ -176,6 +182,7 @@ export function BrainEvalCenter() {
           >
             {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}发起评测
           </button>
+          </> : null}
           <button
             type="button"
             title="刷新"
@@ -253,7 +260,7 @@ export function BrainEvalCenter() {
                       >
                         逐题结果
                       </button>
-                      {run.status === 'completed' && run.failedCount > 0 ? (
+                      {canManage && run.status === 'completed' && run.failedCount > 0 ? (
                         <button
                           type="button"
                           className="inline-flex h-8 items-center gap-1 rounded-md border border-border px-3 text-xs disabled:opacity-60"

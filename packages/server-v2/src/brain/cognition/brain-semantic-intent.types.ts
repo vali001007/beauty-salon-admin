@@ -38,7 +38,13 @@ export interface BrainDefinitionRef<T extends BrainDefinitionType = BrainDefinit
 }
 
 export interface BrainFilterClause {
-  fieldRef: BrainDefinitionRef<'field'>;
+  /**
+   * A governed field is intentionally not exposed to the model. A published
+   * dimension reference is the only value-level filter the semantic layer may
+   * pass into a capability; the capability still has to declare and validate
+   * the supported dimension/operator/value contract.
+   */
+  fieldRef: BrainDefinitionRef<'field' | 'dimension'>;
   operator: 'eq' | 'neq' | 'in' | 'contains' | 'gt' | 'gte' | 'lt' | 'lte';
   value: string | number | boolean | Array<string | number>;
 }
@@ -81,8 +87,48 @@ export interface BrainSemanticAmbiguity {
   candidates: string[];
 }
 
+export type BrainSemanticActionModality = 'request' | 'proposal' | 'confirm' | 'schedule' | 'cancel_request';
+
+export type BrainSemanticActionPolarity = 'affirmative' | 'negated';
+
+export type BrainSemanticActionSlotSource = 'user' | 'conversation' | 'memory' | 'system';
+
+export interface BrainSemanticActionSlot {
+  slotKey: string;
+  semanticRole?:
+    | 'actor'
+    | 'requester'
+    | 'authorizer'
+    | 'approver'
+    | 'performer'
+    | 'assignee'
+    | 'service_provider'
+    | 'accountable_party'
+    | 'beneficiary'
+    | 'counterparty'
+    | 'object'
+    | 'target'
+    | 'instrument'
+    | 'origin'
+    | 'destination'
+    | 'quantity'
+    | 'time'
+    | 'condition';
+  source: BrainSemanticActionSlotSource;
+  rawValue?: string;
+  numericValue?: number;
+  unit?: string;
+  enumValue?: string;
+  booleanValue?: boolean;
+  timeValue?: string;
+  entityKey?: string;
+  entityDefinitionRef?: BrainDefinitionRef<'entity'>;
+  resultReferenceId?: string;
+  confidence: number;
+}
+
 export interface BrainSemanticIntent {
-  schemaVersion: '1.0';
+  schemaVersion: '1.0' | '1.1';
   objective: string;
   domains: string[];
   intent: BrainSemanticIntentKind;
@@ -96,6 +142,11 @@ export interface BrainSemanticIntent {
   limit?: number;
   answerShape: BrainSemanticAnswerShape;
   successCriteria: string[];
+  actionRef?: BrainDefinitionRef<'action'>;
+  actionPolarity?: BrainSemanticActionPolarity;
+  negatedActionRefs?: BrainDefinitionRef<'action'>[];
+  actionModality?: BrainSemanticActionModality;
+  actionSlots?: BrainSemanticActionSlot[];
   ambiguities: BrainSemanticAmbiguity[];
   missingSlots: string[];
   assumptions: string[];

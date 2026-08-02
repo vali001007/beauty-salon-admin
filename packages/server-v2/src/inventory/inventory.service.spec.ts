@@ -38,6 +38,7 @@ describe('InventoryService terminal dashboard cache', () => {
       },
       purchaseOrder: {
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
         findMany: jest.fn().mockResolvedValue([]),
         count: jest.fn(),
         create: jest.fn(),
@@ -465,6 +466,7 @@ describe('InventoryService terminal dashboard cache', () => {
     }));
     expect(prisma.purchaseOrder.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
+        storeId: 2,
         supplier: '库存验收供应商',
         status: '已审核',
         totalAmount: 8.8,
@@ -478,11 +480,62 @@ describe('InventoryService terminal dashboard cache', () => {
     });
   });
 
-  it('updates manual purchase order status before receiving', async () => {
-    prisma.purchaseOrder.findUnique.mockResolvedValue({
+  it('scopes manual purchase order lists to the current store', async () => {
+    prisma.purchaseOrder.findMany.mockResolvedValue([]);
+    prisma.purchaseOrder.count.mockResolvedValue(0);
+
+    await service.getPurchaseOrders(2, 1, 20);
+
+    expect(prisma.purchaseOrder.findMany).toHaveBeenCalledWith({
+      where: { storeId: 2 },
+      skip: 0,
+      take: 20,
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(prisma.purchaseOrder.count).toHaveBeenCalledWith({ where: { storeId: 2 } });
+  });
+
+  it('requires a store scope before creating a manual purchase order', async () => {
+    await expect(
+      service.createPurchaseOrder({
+        supplier: '供应商A',
+        items: [{ productId: 10, productName: '眼周护理膜', sku: 'SKU-EYE', quantity: 1, unitPrice: 8.8 }],
+      }),
+    ).rejects.toThrow('采购单缺少有效门店范围');
+    expect(prisma.purchaseOrder.create).not.toHaveBeenCalled();
+  });
+
+  it('does not update a purchase order from another store', async () => {
+    prisma.purchaseOrder.findFirst.mockResolvedValue(null);
+
+    await expect(service.updatePurchaseOrderStatus(70, 2, { status: '已下单' })).rejects.toThrow(
+      'Purchase order not found',
+    );
+
+    expect(prisma.purchaseOrder.findFirst).toHaveBeenCalledWith({ where: { id: 70, storeId: 2 } });
+    expect(prisma.purchaseOrder.update).not.toHaveBeenCalled();
+  });
+
+  it('does not receive a purchase order from another store', async () => {
+    prisma.purchaseOrder.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.receivePurchaseOrder(71, 2, {
+        items: [{ sku: 'SKU-10', receivedQty: 3 }],
+      }),
+    ).rejects.toThrow('Purchase order not found');
+
+    expect(prisma.purchaseOrder.findFirst).toHaveBeenCalledWith({ where: { id: 71, storeId: 2 } });
+    expect(prisma.stockBatch.create).not.toHaveBeenCalled();
+    expect(prisma.stockMovement.create).not.toHaveBeenCalled();
+  });
+
+  it('advances a reviewed manual purchase order to ordered before receiving', async () => {
+    prisma.purchaseOrder.findFirst.mockResolvedValue({
       id: 70,
+      storeId: 2,
       orderNo: 'PUR70',
-      status: '草稿',
+      status: '已审核',
       totalAmount: 100,
       items: { storeName: '门店1', expectedDate: '2026-07-01', items: [] },
       createdAt: new Date('2026-06-28T00:00:00Z'),
@@ -496,7 +549,7 @@ describe('InventoryService terminal dashboard cache', () => {
       createdAt: new Date('2026-06-28T00:00:00Z'),
     });
 
-    const result = await service.updatePurchaseOrderStatus(70, { status: '已下单' });
+    const result = await service.updatePurchaseOrderStatus(70, 2, { status: '已下单' });
 
     expect(result).toMatchObject({ id: 70, status: '已下单', storeName: '门店1' });
     expect(prisma.purchaseOrder.update).toHaveBeenCalledWith({
@@ -505,9 +558,40 @@ describe('InventoryService terminal dashboard cache', () => {
     });
   });
 
+  it('rejects the generic status route for purchase-order submission', async () => {
+    await expect(service.updatePurchaseOrderStatus(70, 2, { status: '待审核' })).rejects.toThrow(
+      '采购单提交审核必须使用专用送审接口',
+    );
+
+    expect(prisma.purchaseOrder.findFirst).not.toHaveBeenCalled();
+    expect(prisma.purchaseOrder.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects skipping directly from draft to approved or ordered', async () => {
+    prisma.purchaseOrder.findFirst.mockResolvedValue({
+      id: 70,
+      storeId: 2,
+      orderNo: 'PUR70',
+      status: '草稿',
+      totalAmount: 100,
+      items: { storeName: '门店1', expectedDate: '2026-07-01', items: [] },
+      createdAt: new Date('2026-06-28T00:00:00Z'),
+    });
+
+    await expect(service.updatePurchaseOrderStatus(70, 2, { status: '已审核' })).rejects.toThrow(
+      '采购单状态流转不合法:草稿->已审核',
+    );
+    await expect(service.updatePurchaseOrderStatus(70, 2, { status: '已下单' })).rejects.toThrow(
+      '采购单状态流转不合法:草稿->已下单',
+    );
+
+    expect(prisma.purchaseOrder.update).not.toHaveBeenCalled();
+  });
+
   it('receives manual purchase order items into batches, stock, and movements', async () => {
-    prisma.purchaseOrder.findUnique.mockResolvedValue({
+    prisma.purchaseOrder.findFirst.mockResolvedValue({
       id: 71,
+      storeId: 2,
       orderNo: 'PUR71',
       status: '已下单',
       totalAmount: 100,
@@ -545,7 +629,7 @@ describe('InventoryService terminal dashboard cache', () => {
       createdAt: new Date('2026-06-28T00:00:00Z'),
     });
 
-    const result = await service.receivePurchaseOrder(71, {
+    const result = await service.receivePurchaseOrder(71, 2, {
       items: [{ sku: 'SKU-10', receivedQty: 3, batchNo: 'B-PUR71' }],
       remark: '库存发布前验收-采购收货',
     });
@@ -578,8 +662,9 @@ describe('InventoryService terminal dashboard cache', () => {
   });
 
   it('receives legacy manual purchase orders by current store and product name when sku changed', async () => {
-    prisma.purchaseOrder.findUnique.mockResolvedValue({
+    prisma.purchaseOrder.findFirst.mockResolvedValue({
       id: 73,
+      storeId: 6,
       orderNo: 'PUR73',
       status: '已下单',
       totalAmount: 168,
@@ -618,8 +703,7 @@ describe('InventoryService terminal dashboard cache', () => {
       createdAt: new Date('2026-06-28T00:00:00Z'),
     });
 
-    const result = await service.receivePurchaseOrder(73, {
-      storeId: 6,
+    const result = await service.receivePurchaseOrder(73, 6, {
       items: [{ sku: 'AMI-SKU-001-S6', receivedQty: 1, batchNo: 'B-PUR73' }],
       remark: '采购管理手动采购单收货入库',
     });
@@ -937,6 +1021,13 @@ describe('InventoryService terminal dashboard cache', () => {
     expect(result).toHaveLength(1);
     expect(prisma.product.findMany).toHaveBeenCalledWith({
       where: { deletedAt: null, storeId: 1 },
+    });
+    expect(prisma.purchaseOrder.findMany).toHaveBeenCalledWith({
+      where: {
+        storeId: 1,
+        status: { in: ['待审核', '已审核', '已下单', '部分收货'] },
+      },
+      select: { status: true, items: true },
     });
     expect(result[0]).toEqual(
       expect.objectContaining({

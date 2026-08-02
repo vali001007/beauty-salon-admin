@@ -232,6 +232,22 @@ describe("AgentMessageItem", () => {
     expect(container.textContent).toContain("库存数据加载失败。");
   });
 
+  it("renders partially completed actions as a warning instead of a green success", () => {
+    act(() => {
+      root.render(
+        <AgentMessageItem
+          data={createAgentResult({
+            status: "partially_completed",
+            answer: "已触达 2 人，1 人失败。",
+          })}
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain("部分完成");
+    expect(container.textContent).toContain("请核对业务回执、已完成项和失败项");
+  });
+
   it("renders the route badge when Agent Router selects a persona", () => {
     act(() => {
       root.render(

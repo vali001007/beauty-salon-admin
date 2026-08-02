@@ -58,6 +58,53 @@ describe('BusinessDefinitionRuntimeQueryEngineService', () => {
     expect(prisma.paymentRecord.findMany).toHaveBeenCalledTimes(1);
   });
 
+  it('reads one row set for multiple metrics with the same query shape', async () => {
+    const findMany = jest.fn().mockResolvedValue([{ totalAmount: 120, netAmount: 100 }]);
+    const engine = new BusinessDefinitionRuntimeQueryEngineService(
+      { productOrder: { findMany } } as any,
+      { getRuntimeDataModel: () => dataModel() } as any,
+    );
+
+    const result = await engine.executeMetrics({
+      metrics: [
+        metricBinding(),
+        metricBinding({
+          formula: { type: 'sum', model: 'ProductOrder', field: 'netAmount' },
+          outputFields: ['netAmount'],
+        }),
+      ],
+      dimensions: [],
+      storeId: 6,
+      timeRange: range(),
+    });
+
+    expect(findMany).toHaveBeenCalledTimes(1);
+    expect(findMany.mock.calls[0][0].select).toEqual({ totalAmount: true, netAmount: true });
+    expect(result.databaseQueryCount).toBe(1);
+    expect(result.results.map((item) => item.overallValue)).toEqual([120, 100]);
+  });
+
+  it('keeps different filters in separate database queries', async () => {
+    const findMany = jest.fn().mockResolvedValue([{ totalAmount: 120 }]);
+    const engine = new BusinessDefinitionRuntimeQueryEngineService(
+      { productOrder: { findMany } } as any,
+      { getRuntimeDataModel: () => dataModel() } as any,
+    );
+
+    const result = await engine.executeMetrics({
+      metrics: [
+        metricBinding({ filters: [{ model: 'ProductOrder', field: 'status', operator: 'eq', value: 'paid' }] }),
+        metricBinding({ filters: [{ model: 'ProductOrder', field: 'status', operator: 'eq', value: 'completed' }] }),
+      ],
+      dimensions: [],
+      storeId: 6,
+      timeRange: range(),
+    });
+
+    expect(findMany).toHaveBeenCalledTimes(2);
+    expect(result.databaseQueryCount).toBe(2);
+  });
+
   it('retries one transient read failure without retrying business query errors', async () => {
     const transientFindMany = jest
       .fn()
@@ -179,6 +226,7 @@ function dataModel() {
       ProductOrder: {
         fields: [
           { name: 'totalAmount', type: 'Decimal', kind: 'scalar', isList: false },
+          { name: 'netAmount', type: 'Decimal', kind: 'scalar', isList: false },
           { name: 'status', type: 'String', kind: 'scalar', isList: false },
           { name: 'storeId', type: 'Int', kind: 'scalar', isList: false },
           { name: 'createdAt', type: 'DateTime', kind: 'scalar', isList: false },

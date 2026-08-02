@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
-export const AMI_BRAIN_FULL_DOMAIN_SUITE_KEY = 'ami_brain_full_domain_2000';
-export const AMI_BRAIN_FULL_DOMAIN_SUITE_LABEL = 'Ami Brain 全领域实测 2000';
+export const AMI_BRAIN_FULL_DOMAIN_SUITE_KEY = 'ami_brain_full_domain_v2';
+export const AMI_BRAIN_FULL_DOMAIN_SUITE_LABEL = 'Ami Brain 全领域分层评测 v2';
 
 export type FullDomainEvalType =
   | 'query_cross'
@@ -80,8 +80,46 @@ export function parseFullDomainEvalCsv(raw: string): FullDomainEvalCase[] {
     const turns = type === 'multi_turn' ? parseMultiTurn(question, id) : [question];
     return { id, domain, role, roleKey: ROLE_MAP[role]!, type: type as FullDomainEvalType, difficulty, question, expectedTarget, notes, turns };
   });
-  if (cases.length !== 2000) throw new Error(`ami_brain_full_domain_eval_case_count_invalid:${cases.length}`);
   return cases;
+}
+
+export function parseSupplementalFullDomainEvalCases(raw: string): FullDomainEvalCase[] {
+  const value = JSON.parse(raw) as { schemaVersion?: unknown; cases?: unknown };
+  if (value.schemaVersion !== 'ami-brain-supplemental-question-registry/v1' || !Array.isArray(value.cases)) {
+    throw new Error('ami_brain_supplemental_question_registry_shape_invalid');
+  }
+  const ids = new Set<string>();
+  return value.cases.map((candidate, index) => {
+    if (!candidate || typeof candidate !== 'object') {
+      throw new Error(`ami_brain_supplemental_question_invalid:${index}`);
+    }
+    const item = candidate as Record<string, unknown>;
+    const id = String(item.id ?? '').trim();
+    const domain = String(item.domain ?? '').trim();
+    const role = String(item.role ?? '').trim();
+    const type = String(item.type ?? '').trim();
+    const difficulty = String(item.difficulty ?? '').trim();
+    const question = String(item.question ?? '').trim();
+    const expectedTarget = String(item.expectedTarget ?? '').trim();
+    const notes = String(item.notes ?? '').trim();
+    if (!id || !question || !ROLE_MAP[role] || !TYPES.has(type as FullDomainEvalType)) {
+      throw new Error(`ami_brain_supplemental_question_invalid:${id || index}`);
+    }
+    if (ids.has(id)) throw new Error(`ami_brain_supplemental_question_duplicate_id:${id}`);
+    ids.add(id);
+    return {
+      id,
+      domain,
+      role,
+      roleKey: ROLE_MAP[role]!,
+      type: type as FullDomainEvalType,
+      difficulty,
+      question,
+      expectedTarget,
+      notes,
+      turns: type === 'multi_turn' ? parseMultiTurn(question, id) : [question],
+    };
+  });
 }
 
 export function fullDomainEvalCsvChecksum(raw: string) {
@@ -114,6 +152,25 @@ export function selectFullDomainPreflight(cases: FullDomainEvalCase[]): FullDoma
     selected.set(item.id, item);
   }
   return [...selected.values()].slice(0, 140);
+}
+
+export function selectTargetedExecutableCases(
+  allCases: FullDomainEvalCase[],
+  requestedCaseIds: string[],
+  executableCaseIds: string[],
+): FullDomainEvalCase[] {
+  const allIds = new Set(allCases.map((item) => item.id));
+  const missing = requestedCaseIds.filter((caseId) => !allIds.has(caseId));
+  if (missing.length) throw new Error(`targeted case ids not found: ${missing.join(',')}`);
+
+  const executable = new Set(executableCaseIds);
+  const ineligible = requestedCaseIds.filter((caseId) => !executable.has(caseId));
+  if (ineligible.length) {
+    throw new Error(`targeted case ids are not current-release executable: ${ineligible.join(',')}`);
+  }
+
+  const requested = new Set(requestedCaseIds);
+  return allCases.filter((item) => requested.has(item.id));
 }
 
 export function deterministicFullDomainGrade(input: {

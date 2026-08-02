@@ -29,7 +29,9 @@ const apiClient = axios.create({
 async function refreshCsrfToken(): Promise<void> {
   const baseURL = import.meta.env.VITE_API_BASE_URL || '/api';
   const normalizedBase = baseURL.replace(/\/$/, '');
-  const response = await axios.get<{ csrfToken?: string }>(`${normalizedBase}/auth/csrf-token`, { withCredentials: true });
+  const response = await axios.get<{ csrfToken?: string }>(`${normalizedBase}/auth/csrf-token`, {
+    withCredentials: true,
+  });
   csrfTokenCache = response.data?.csrfToken || getCsrfToken();
 }
 
@@ -43,6 +45,8 @@ apiClient.interceptors.request.use((config) => {
   if (currentStoreId !== null) {
     config.headers['X-Store-Id'] = String(currentStoreId);
   }
+
+  config.headers['X-Ami-Client-Channel'] = 'ami_mobile_web';
 
   if (['post', 'put', 'patch', 'delete'].includes(config.method || '')) {
     config.headers['X-CSRF-Token'] = getCsrfToken();

@@ -1,6 +1,12 @@
 import { MODULE_METADATA } from '@nestjs/common/constants.js';
 import { BrainModule } from '../brain.module.js';
 import type { BrainSemanticIntent } from '../cognition/brain-semantic-intent.types.js';
+import type { BusinessActionDefinitionSnapshot } from '../cognition/business-definition-snapshot.types.js';
+import { createTestBusinessActionInformationArtifactProfile } from '../cognition/business-action-information-artifact.testing.js';
+import { createTestBusinessActionLexicalFrame } from '../cognition/business-action-lexical-frame.testing.js';
+import { createTestBusinessActionModalityPolicy } from '../cognition/business-action-modality-policy.testing.js';
+import { createTestBusinessActionSideEffectInvariantProfile } from '../cognition/business-action-side-effect-invariant.testing.js';
+import { createTestBusinessActionSituationContextProfile } from '../cognition/business-action-situation-context.testing.js';
 import type { BrainRequestContext } from '../context/brain-request-context.js';
 import { BRAIN_CAPABILITY_RETRIEVER_CASES } from './brain-capability-retriever.cases.js';
 import { BrainCapabilityRetrieverService } from './brain-capability-retriever.service.js';
@@ -69,7 +75,7 @@ describe('BrainCapabilityRetrieverService', () => {
     requiresConfirmation: options.readOnly === false,
     idempotency: options.readOnly === false ? 'required' : 'not_applicable',
     timeoutMs: 10_000,
-    grounding: 'semantic_query',
+    grounding: options.readOnly === false ? 'preview_action' : 'semantic_query',
     examples: options.examples,
     sourceFingerprint,
     definitionRefs: options.refs.map((key, index) => ref(key, index + 1)),
@@ -215,10 +221,13 @@ describe('BrainCapabilityRetrieverService', () => {
       permissions: ['*'],
     };
 
-    expect(service.discover({ question: '写一条提醒客户预约空档的消息', context: superAdmin, cards: [marketing] }).status)
-      .toBe('selected');
-    expect(service.discover({ question: '写一条提醒客户预约空档的消息', context: ordinaryManager, cards: [marketing] }).status)
-      .toBe('none');
+    expect(
+      service.discover({ question: '写一条提醒客户预约空档的消息', context: superAdmin, cards: [marketing] }).status,
+    ).toBe('selected');
+    expect(
+      service.discover({ question: '写一条提醒客户预约空档的消息', context: ordinaryManager, cards: [marketing] })
+        .status,
+    ).toBe('none');
   });
 
   it('uses explicit draft shape before comparing action and draft capabilities', () => {
@@ -268,11 +277,13 @@ describe('BrainCapabilityRetrieverService', () => {
   });
 
   it('discovers the unique governed capability before semantic intent compilation', () => {
-    expect(service.discover({
-      question: '这个月各种支付渠道分别收了多少',
-      context,
-      cards: cards(),
-    })).toMatchObject({
+    expect(
+      service.discover({
+        question: '这个月各种支付渠道分别收了多少',
+        context,
+        cards: cards(),
+      }),
+    ).toMatchObject({
       status: 'selected',
       selected: { key: 'paid_revenue' },
       reason: 'catalog_top1_selected',
@@ -313,6 +324,42 @@ describe('BrainCapabilityRetrieverService', () => {
 
     expect(result).toMatchObject({ status: 'selected', selected: { key: 'finance_material_cost_summary' } });
     expect(result.topK[0]?.score).toBeGreaterThan(result.topK[1]?.score ?? 0);
+  });
+
+  it('does not route generic cost-income ratio questions to material cost summary', () => {
+    const result = service.retrieve({
+      intent: {
+        domains: ['finance'],
+        intent: 'query',
+        metrics: [],
+        dimensions: [],
+        entities: [],
+      } as unknown as BrainSemanticIntent,
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      question: '2026年6月成本占收入的比例',
+      context,
+      cards: [
+        card('finance_material_cost_summary', {
+          name: '耗材成本率',
+          domain: 'finance',
+          intent: 'query',
+          refs: ['metric.material_cost_rate'],
+          synonyms: ['耗材成本', '物料成本', '耗材成本率'],
+          examples: ['耗材成本占收入比例多少'],
+          negativeExamples: ['成本占收入的比例', '成本收入比'],
+        }),
+        card('finance_risk_overview', {
+          name: '财务经营风险概览',
+          domain: 'finance',
+          intent: 'query',
+          refs: ['metric.cost_income_ratio', 'metric.operating_profit_amount', 'metric.gross_profit_amount'],
+          synonyms: ['成本收入比', '经营利润', '毛利'],
+          examples: ['本月毛利、经营利润和成本收入比分别多少'],
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({ status: 'selected', selected: { key: 'finance_risk_overview' } });
   });
 
   const intent = (input: {
@@ -438,6 +485,83 @@ describe('BrainCapabilityRetrieverService', () => {
     expect(result).toMatchObject({ status: 'selected', selected: { key: 'finance_payment_breakdown' } });
   });
 
+  it('keeps the unique minimum-sufficient metric and dimension contract ahead of a broader text match', () => {
+    const result = service.retrieve({
+      intent: intent({
+        domain: 'finance',
+        intent: 'query',
+        metricDefinitionKey: 'metric.paid_amount',
+        dimensionDefinitionKey: 'dimension.paymentMethod',
+      }),
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      question: '2026年6月30日各支付方式的金额分别多少', // BQ0705
+      context,
+      cards: [
+        card('order_revenue_analysis', {
+          name: '2026年6月30日各支付方式的金额分别多少',
+          domain: 'finance',
+          intent: 'query',
+          refs: ['metric.paid_amount', 'dimension.paymentMethod', 'entity.product_order'],
+          synonyms: ['支付方式金额'],
+          examples: ['2026年6月30日各支付方式的金额分别多少'],
+        }),
+        card('finance_payment_breakdown', {
+          name: '实收与储值流水拆分',
+          domain: 'finance',
+          intent: 'query',
+          refs: ['metric.paid_amount', 'dimension.paymentMethod'],
+          synonyms: ['收款渠道'],
+          examples: ['今天实收按支付方式怎么分'],
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({
+      status: 'selected',
+      selected: { key: 'finance_payment_breakdown' },
+      reason: 'unique_minimum_sufficient_definition_contract',
+      confidence: 1,
+    });
+    expect(result.topK[0]).toMatchObject({
+      card: { key: 'finance_payment_breakdown' },
+      matchedFields: expect.arrayContaining(['definition_contract']),
+    });
+  });
+
+  it('falls back to text ranking when minimum-sufficient contracts remain tied', () => {
+    const result = service.retrieve({
+      intent: intent({
+        domain: 'finance',
+        intent: 'query',
+        metricDefinitionKey: 'metric.paid_amount',
+        dimensionDefinitionKey: 'dimension.paymentMethod',
+      }),
+      // ami-brain-unit-only: tied contract fallback, not a product evaluation question.
+      question: '渠道明细甲',
+      context,
+      cards: [
+        card('candidate_a', {
+          name: '渠道明细甲',
+          domain: 'finance',
+          intent: 'query',
+          refs: ['metric.paid_amount', 'dimension.paymentMethod'],
+          synonyms: [],
+          examples: [],
+        }),
+        card('candidate_b', {
+          name: '渠道明细乙',
+          domain: 'finance',
+          intent: 'query',
+          refs: ['metric.paid_amount', 'dimension.paymentMethod'],
+          synonyms: [],
+          examples: [],
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({ status: 'selected', selected: { key: 'candidate_a' }, reason: 'top1_selected' });
+  });
+
   it('ranks the reservation member-level capability above a generic VIP customer capability', () => {
     const reservationCard = card('reservation_list', {
       name: '门店预约清单',
@@ -473,6 +597,55 @@ describe('BrainCapabilityRetrieverService', () => {
     expect(ranked[0]!.score - ranked[1]!.score).toBeGreaterThanOrEqual(0.08);
   });
 
+  it('keeps an explicit customer level filter inside the hard capability contract', () => {
+    const result = service.retrieve({
+      intent: {
+        ...intent({ domain: 'customer', intent: 'query' }),
+        objective: '统计钻石会员客户数量',
+        filters: [
+          {
+            fieldRef: {
+              definitionType: 'dimension',
+              definitionKey: 'dimension.customerLevel',
+              definitionVersion: 1,
+              definitionFingerprint,
+              sourceFingerprint,
+            },
+            operator: 'eq',
+            value: '钻石',
+          },
+        ],
+      },
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      question: '一共有多少个钻石会员',
+      context,
+      cards: [
+        card('customer_facts', {
+          name: '客户事实与客群查询',
+          description: '查询当前门店精确客户事实与会员等级客户数量',
+          domain: 'customer',
+          intent: 'query',
+          refs: ['entity.customer', 'dimension.customerLevel'],
+          synonyms: ['VIP 客户', '高等级客户', '钻石会员'],
+          examples: ['我们店里的 VIP 客户有多少个'],
+        }),
+        card('reservation_list', {
+          name: '门店预约清单',
+          description: '查询预约客户原始会员等级和特别接待准备',
+          domain: 'reservation',
+          intent: 'query',
+          refs: ['entity.reservation', 'entity.customer', 'dimension.customerLevel'],
+          synonyms: ['预约客户会员等级', '预约 VIP 接待准备', '高等级会员预约'],
+          examples: ['今天有预约的客人里有没有 VIP 需要特别准备'],
+        }),
+      ],
+    });
+
+    expect(result.status).toBe('selected');
+    expect(result.selected?.key).toBe('customer_facts');
+    expect(result.reason).toBe('top1_selected');
+  });
+
   it('keeps concrete entity constraints and requested dimensions as hard contract filters', () => {
     const financeCard = cards().find((item) => item.key === 'order_revenue_analysis')!;
     const concreteEntity = service.retrieve({
@@ -501,6 +674,169 @@ describe('BrainCapabilityRetrieverService', () => {
 
     expect(concreteEntity.status).toBe('none');
     expect(groupedDimension.status).toBe('none');
+  });
+
+  it('accepts a governed concrete entity instance when the capability publishes its identity dimensions', () => {
+    const result = service.retrieve({
+      intent: intent({
+        domain: 'finance',
+        intent: 'query',
+        metricDefinitionKey: 'metric.staff_commission_component_amount',
+        dimensionDefinitionKey: 'dimension.commissionType',
+        entityDefinitionKey: 'entity.beautician',
+        entityKey: '19',
+      }),
+      question: '查询指定美容师的提成构成', // ami-brain-unit-only: entity-instance contract coverage.
+      context,
+      cards: [
+        card('finance_risk_overview', {
+          name: '财务经营风险概览',
+          domain: 'finance',
+          intent: 'query',
+          refs: [
+            'metric.staff_commission_component_amount',
+            'dimension.commissionType',
+            'dimension.beauticianId',
+            'dimension.beauticianName',
+          ],
+          synonyms: ['员工提成构成'],
+          examples: ['查询某位美容师的提成构成'],
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({ status: 'selected', selected: { key: 'finance_risk_overview' } });
+  });
+
+  it('keeps governed staff commission composition on finance risk when the release card has stale refs', () => {
+    const result = service.retrieve({
+      intent: intent({
+        domain: 'finance',
+        intent: 'query',
+        metricDefinitionKey: 'metric.staff_commission_component_amount',
+        dimensionDefinitionKey: 'dimension.commissionType',
+      }),
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      question: '顾然2026年6月22日至28日的提成构成', // BQ1332
+      context,
+      cards: [
+        card('finance_risk_overview', {
+          name: '财务经营风险概览',
+          domain: 'finance',
+          intent: 'query',
+          refs: [
+            'metric.paid_amount',
+            'dimension.paymentMethod',
+            'dimension.productId',
+            'dimension.productName',
+            'dimension.projectName',
+          ],
+          synonyms: ['财务风险', '提成构成'],
+          examples: ['某位美容师本周的提成构成'],
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({ status: 'selected', selected: { key: 'finance_risk_overview' } });
+  });
+
+  it('accepts governed staff commission composition with a beautician entity when the stale card omitted that entity ref', () => {
+    const result = service.retrieve({
+      intent: intent({
+        domain: 'finance',
+        intent: 'query',
+        metricDefinitionKey: 'metric.staff_commission_component_amount',
+        dimensionDefinitionKey: 'dimension.commissionType',
+        entityDefinitionKey: 'entity.beautician',
+        entityKey: '19',
+      }),
+// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      question: '顾然2026年6月22日至28日的提成构成', // BQ1332
+      context,
+      cards: [
+        card('finance_risk_overview', {
+          name: '财务经营风险概览',
+          domain: 'finance',
+          intent: 'query',
+          refs: ['metric.paid_amount', 'dimension.paymentMethod'],
+          synonyms: ['财务风险', '提成构成'],
+          examples: ['某位美容师本周的提成构成'],
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({ status: 'selected', selected: { key: 'finance_risk_overview' } });
+  });
+
+  it('keeps an unknown concrete entity definition fail-closed despite unrelated identity dimensions', () => {
+    const result = service.retrieve({
+      intent: intent({
+        domain: 'finance',
+        intent: 'query',
+        metricDefinitionKey: 'metric.staff_commission_component_amount',
+        dimensionDefinitionKey: 'dimension.commissionType',
+        entityDefinitionKey: 'entity.staff_member',
+        entityKey: '19',
+      }),
+      question: '查询指定员工实例的提成构成', // ami-brain-unit-only: unknown entity contract rejection.
+      context,
+      cards: [
+        card('finance_risk_overview', {
+          name: '财务经营风险概览',
+          domain: 'finance',
+          intent: 'query',
+          refs: [
+            'metric.staff_commission_component_amount',
+            'dimension.commissionType',
+            'dimension.beauticianId',
+          ],
+          synonyms: ['员工提成构成'],
+          examples: ['查询某位美容师的提成构成'],
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({ status: 'none', reason: 'no_capability_after_hard_filters' });
+  });
+
+  it('does not let identity dimensions bypass a stale publication of the same entity definition', () => {
+    const currentCard = card('finance_risk_overview', {
+      name: '财务经营风险概览',
+      domain: 'finance',
+      intent: 'query',
+      refs: [
+        'metric.staff_commission_component_amount',
+        'dimension.commissionType',
+        'entity.beautician',
+        'dimension.beauticianId',
+      ],
+      synonyms: ['员工提成构成'],
+      examples: ['查询某位美容师的提成构成'],
+    });
+    const staleCard: BrainCapabilityCard = {
+      ...currentCard,
+      definitionRefs: currentCard.definitionRefs.map((published) =>
+        published.definitionKey === 'entity.beautician'
+          ? { ...published, definitionFingerprint: 'c'.repeat(64) }
+          : published,
+      ),
+    };
+
+    const result = service.retrieve({
+      intent: intent({
+        domain: 'finance',
+        intent: 'query',
+        metricDefinitionKey: 'metric.staff_commission_component_amount',
+        dimensionDefinitionKey: 'dimension.commissionType',
+        entityDefinitionKey: 'entity.beautician',
+        entityKey: '19',
+      }),
+      question: '查询指定美容师的提成构成', // ami-brain-unit-only: stale entity definition rejection.
+      context,
+      cards: [staleCard],
+    });
+
+    expect(result).toMatchObject({ status: 'none', reason: 'no_capability_after_hard_filters' });
   });
 
   it('hard-filters permission denies, missing grants, roles, risk and read-only policy', () => {
@@ -776,6 +1112,309 @@ describe('BrainCapabilityRetrieverService', () => {
     expect(close.status).toBe('clarify');
     expect(close.margin).toBe(0);
     expect(none.status).toBe('none');
+  });
+
+  it('selects an action only through the exact published action binding', () => {
+    const actionRef = {
+      definitionType: 'action' as const,
+      definitionKey: 'action.create_purchase_order',
+      definitionVersion: 1,
+      definitionFingerprint,
+      sourceFingerprint,
+    };
+    const actionDefinition: BusinessActionDefinitionSnapshot = {
+      definitionKey: actionRef.definitionKey,
+      version: actionRef.definitionVersion,
+      definitionFingerprint: actionRef.definitionFingerprint,
+      sourceFingerprint: actionRef.sourceFingerprint,
+      domain: 'inventory',
+      actionKey: actionRef.definitionKey,
+      name: '创建采购单',
+      aliases: ['下采购单'],
+      description: '创建采购单预览',
+      actionClass: 'create',
+      targetEntityRefs: ['entity.product'],
+      inputSlots: [],
+      preconditions: [],
+      preconditionPredicateRefs: [],
+      effects: ['purchase_order_created'],
+      effectAssertionRefs: [{ key: 'purchase_order_created', version: 1, fingerprint: 'd'.repeat(64) }],
+      lexicalFrame: createTestBusinessActionLexicalFrame({
+        actionKey: actionRef.definitionKey,
+        name: '创建采购单',
+        aliases: ['下采购单'],
+        inputSlots: [],
+      }),
+      situationContext: createTestBusinessActionSituationContextProfile(actionRef.definitionKey),
+      modalityPolicy: createTestBusinessActionModalityPolicy(actionRef.definitionKey),
+      informationArtifact: createTestBusinessActionInformationArtifactProfile(actionRef.definitionKey),
+      sideEffectInvariant: createTestBusinessActionSideEffectInvariantProfile(actionRef.definitionKey, {
+        effects: ['purchase_order_created'],
+        effectAssertionRefs: [{ key: 'purchase_order_created', version: 1, fingerprint: 'd'.repeat(64) }],
+      }),
+      triggeredByEventRefs: [],
+      emitsEventRefs: [],
+      riskPolicy: 'high',
+      confirmationPolicy: 'required',
+      idempotencyPolicy: 'required',
+      capabilityBindings: [
+        {
+          capabilityKey: 'purchase_order_draft',
+          bindingMode: 'preview_and_execute',
+          gatewayActionKey: 'create_purchase_order',
+          priority: 0,
+          enabled: true,
+        },
+      ],
+      bindingFingerprint: 'c'.repeat(64),
+    };
+    const purchase = card('purchase_order_draft', {
+      name: '采购单预览',
+      domain: 'inventory',
+      intent: 'action',
+      refs: [actionRef.definitionKey, 'entity.product'],
+      synonyms: [],
+      examples: [],
+      readOnly: false,
+      riskLevel: 'high',
+    });
+    const transfer = card('inventory_transfer_draft', {
+      name: '库存调拨预览',
+      domain: 'inventory',
+      intent: 'action',
+      refs: ['action.create_transfer_order', 'entity.product'],
+      synonyms: ['调拨'],
+      examples: ['把商品调到二店'],
+      readOnly: false,
+      riskLevel: 'high',
+    });
+    const actionIntent: BrainSemanticIntent = {
+      ...intent({ domain: 'inventory', intent: 'action' }),
+      schemaVersion: '1.1',
+      answerShape: 'action_preview',
+      actionRef,
+      actionPolarity: 'affirmative',
+      actionModality: 'request',
+      actionSlots: [],
+    };
+
+    expect(
+      service.retrieve({
+        intent: actionIntent,
+        // ami-brain-unit-only: deterministic action binding contract, not a product-eval input.
+        question: '把舒缓修护面膜调到二店',
+        context,
+        cards: [transfer, purchase],
+        readOnlyOnly: false,
+        maxRisk: 'high',
+        actionDefinition,
+      }),
+    ).toMatchObject({
+      status: 'selected',
+      selected: { key: 'purchase_order_draft' },
+      reason: 'action_binding_selected',
+    });
+
+    for (const actionModality of ['proposal', 'confirm', 'schedule', 'cancel_request'] as const) {
+      expect(
+        service.retrieve({
+          intent: { ...actionIntent, actionModality },
+          // ami-brain-unit-only: action modality routing contract, not a product-eval input.
+          question: '确认、定时或撤销既有采购动作',
+          context,
+          cards: [purchase],
+          readOnlyOnly: false,
+          maxRisk: 'high',
+          actionDefinition,
+        }),
+      ).toMatchObject({ status: 'none', reason: 'action_modality_requires_dedicated_flow' });
+    }
+
+    expect(
+      service.retrieve({
+        intent: { ...actionIntent, actionPolarity: 'negated' },
+        // ami-brain-unit-only: deterministic negative-action execution guard, not a product-eval input.
+        question: '别下采购单',
+        context,
+        cards: [purchase],
+        readOnlyOnly: false,
+        maxRisk: 'high',
+        actionDefinition,
+      }),
+    ).toMatchObject({ status: 'none', reason: 'action_polarity_not_executable' });
+  });
+
+  it('fails closed when an action binding is missing or lacks the reverse action definition reference', () => {
+    const actionRef = {
+      definitionType: 'action' as const,
+      definitionKey: 'action.create_purchase_order',
+      definitionVersion: 1,
+      definitionFingerprint,
+      sourceFingerprint,
+    };
+    const actionDefinition: BusinessActionDefinitionSnapshot = {
+      definitionKey: actionRef.definitionKey,
+      version: actionRef.definitionVersion,
+      definitionFingerprint: actionRef.definitionFingerprint,
+      sourceFingerprint: actionRef.sourceFingerprint,
+      domain: 'inventory',
+      actionKey: actionRef.definitionKey,
+      name: '创建采购单',
+      aliases: ['下采购单'],
+      description: '创建采购单预览',
+      actionClass: 'create',
+      targetEntityRefs: ['entity.product'],
+      inputSlots: [],
+      preconditions: [],
+      preconditionPredicateRefs: [],
+      effects: ['purchase_order_created'],
+      effectAssertionRefs: [{ key: 'purchase_order_created', version: 1, fingerprint: 'd'.repeat(64) }],
+      lexicalFrame: createTestBusinessActionLexicalFrame({
+        actionKey: actionRef.definitionKey,
+        name: '创建采购单',
+        aliases: ['下采购单'],
+        inputSlots: [],
+      }),
+      situationContext: createTestBusinessActionSituationContextProfile(actionRef.definitionKey),
+      modalityPolicy: createTestBusinessActionModalityPolicy(actionRef.definitionKey),
+      informationArtifact: createTestBusinessActionInformationArtifactProfile(actionRef.definitionKey),
+      sideEffectInvariant: createTestBusinessActionSideEffectInvariantProfile(actionRef.definitionKey, {
+        effects: ['purchase_order_created'],
+        effectAssertionRefs: [{ key: 'purchase_order_created', version: 1, fingerprint: 'd'.repeat(64) }],
+      }),
+      triggeredByEventRefs: [],
+      emitsEventRefs: [],
+      riskPolicy: 'high',
+      confirmationPolicy: 'required',
+      idempotencyPolicy: 'required',
+      capabilityBindings: [
+        {
+          capabilityKey: 'purchase_order_draft',
+          bindingMode: 'preview_and_execute',
+          gatewayActionKey: 'create_purchase_order',
+          priority: 0,
+          enabled: true,
+        },
+      ],
+      bindingFingerprint: 'c'.repeat(64),
+    };
+    const actionIntent = {
+      ...intent({ domain: 'inventory', intent: 'action' }),
+      schemaVersion: '1.1',
+      answerShape: 'action_preview',
+      actionRef,
+      actionPolarity: 'affirmative',
+      actionModality: 'request',
+      actionSlots: [],
+    } as BrainSemanticIntent;
+    const cardWithoutActionRef = card('purchase_order_draft', {
+      name: '采购单预览',
+      domain: 'inventory',
+      intent: 'action',
+      refs: ['entity.product'],
+      synonyms: [],
+      examples: [],
+      readOnly: false,
+      riskLevel: 'high',
+    });
+
+    expect(
+      service.retrieve({
+        intent: actionIntent,
+        // ami-brain-unit-only: reverse-definition binding contract, not a product-eval input.
+        question: '下采购单',
+        context,
+        cards: [cardWithoutActionRef],
+        readOnlyOnly: false,
+        maxRisk: 'high',
+        actionDefinition,
+      }),
+    ).toMatchObject({ status: 'none', reason: 'action_binding_not_published' });
+  });
+
+  it('does not select a preview-only binding for a confirmable chat action', () => {
+    const actionRef = {
+      definitionType: 'action' as const,
+      definitionKey: 'action.create_purchase_order',
+      definitionVersion: 1,
+      definitionFingerprint,
+      sourceFingerprint,
+    };
+    const purchase = card('purchase_order_draft', {
+      name: '采购单预览',
+      domain: 'inventory',
+      intent: 'action',
+      refs: [actionRef.definitionKey, 'entity.product'],
+      synonyms: [],
+      examples: [],
+      readOnly: false,
+      riskLevel: 'high',
+    });
+    const actionDefinition: BusinessActionDefinitionSnapshot = {
+      definitionKey: actionRef.definitionKey,
+      version: 1,
+      definitionFingerprint,
+      sourceFingerprint,
+      domain: 'inventory',
+      actionKey: actionRef.definitionKey,
+      name: '创建采购单',
+      aliases: ['下采购单'],
+      description: '仅允许生成不可执行的采购预览',
+      actionClass: 'create',
+      targetEntityRefs: ['entity.product'],
+      inputSlots: [],
+      preconditions: [],
+      preconditionPredicateRefs: [],
+      effects: [],
+      effectAssertionRefs: [],
+      lexicalFrame: createTestBusinessActionLexicalFrame({
+        actionKey: actionRef.definitionKey,
+        name: '创建采购单',
+        aliases: ['下采购单'],
+        inputSlots: [],
+      }),
+      situationContext: createTestBusinessActionSituationContextProfile(actionRef.definitionKey),
+      modalityPolicy: createTestBusinessActionModalityPolicy(actionRef.definitionKey),
+      informationArtifact: createTestBusinessActionInformationArtifactProfile(actionRef.definitionKey),
+      sideEffectInvariant: createTestBusinessActionSideEffectInvariantProfile(actionRef.definitionKey),
+      triggeredByEventRefs: [],
+      emitsEventRefs: [],
+      riskPolicy: 'high',
+      confirmationPolicy: 'required',
+      idempotencyPolicy: 'required',
+      capabilityBindings: [
+        {
+          capabilityKey: 'purchase_order_draft',
+          bindingMode: 'preview_only',
+          gatewayActionKey: 'create_purchase_order',
+          priority: 0,
+          enabled: true,
+        },
+      ],
+      bindingFingerprint: 'c'.repeat(64),
+    };
+    const actionIntent = {
+      ...intent({ domain: 'inventory', intent: 'action' }),
+      schemaVersion: '1.1',
+      answerShape: 'action_preview',
+      actionRef,
+      actionPolarity: 'affirmative',
+      actionModality: 'request',
+      actionSlots: [],
+    } as BrainSemanticIntent;
+
+    expect(
+      service.retrieve({
+        intent: actionIntent,
+        // ami-brain-unit-only: preview-only binding contract, not a product-eval input.
+        question: '下采购单',
+        context,
+        cards: [purchase],
+        readOnlyOnly: false,
+        maxRisk: 'high',
+        actionDefinition,
+      }),
+    ).toMatchObject({ status: 'none', reason: 'action_binding_not_published' });
   });
 
   it('runs at least 150 real selection samples through the retriever', () => {

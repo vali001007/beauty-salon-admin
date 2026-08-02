@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { parseAmiBrainEvalOptions } from './ami-brain-eval-options.js';
+import { assertAmiBrainHistoricalEvalMode, parseAmiBrainEvalOptions } from './ami-brain-eval-options.js';
 
 describe('parseAmiBrainEvalOptions', () => {
   it('parses an explicit candidate release for offline development evaluation', () => {
@@ -13,6 +13,7 @@ describe('parseAmiBrainEvalOptions', () => {
       releaseId: 21,
       gate: 'p0',
       concurrency: 1,
+      historicalOnly: false,
       resume: false,
       checkpointEvery: 25,
       providerFailureThreshold: 8,
@@ -35,6 +36,7 @@ describe('parseAmiBrainEvalOptions', () => {
     expect(parseAmiBrainEvalOptions([], 'default-output')).toEqual({
       storeId: 1,
       concurrency: 1,
+      historicalOnly: false,
       resume: false,
       checkpointEvery: 25,
       providerFailureThreshold: 8,
@@ -104,6 +106,23 @@ describe('parseAmiBrainEvalOptions', () => {
 
   it('fails closed for an invalid resume flag', () => {
     expect(() => parseAmiBrainEvalOptions(['--resume=yes'], 'default-output')).toThrow('Invalid resume');
+  });
+
+  it('requires explicit historical-only acknowledgement for the legacy evaluator', () => {
+    expect(() => assertAmiBrainHistoricalEvalMode(parseAmiBrainEvalOptions([], 'default-output'))).toThrow(
+      'ami_brain_eval_historical_only_required',
+    );
+    expect(() =>
+      assertAmiBrainHistoricalEvalMode(
+        parseAmiBrainEvalOptions(['--historical-only=true'], 'default-output'),
+      ),
+    ).not.toThrow();
+  });
+
+  it('fails closed for an invalid historical-only flag', () => {
+    expect(() => parseAmiBrainEvalOptions(['--historical-only=yes'], 'default-output')).toThrow(
+      'Invalid historical-only',
+    );
   });
 
   it('fails closed for an unsupported named gate', () => {

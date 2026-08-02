@@ -1,7 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { BrainOntologyRuntimeService } from './brain-ontology-runtime.service.js';
-import type { BrainDefinitionRef, BrainSemanticAmbiguity, BrainSemanticIntent } from './brain-semantic-intent.types.js';
 import type {
+  BrainDefinitionRef,
+  BrainSemanticActionSlot,
+  BrainSemanticAmbiguity,
+  BrainSemanticIntent,
+} from './brain-semantic-intent.types.js';
+import type {
+  BusinessActionDefinitionSnapshot,
+  BusinessActionInputSlotDefinition,
   BusinessDefinitionBase,
   ProductionReadyBusinessDefinitionSnapshot,
 } from './business-definition-snapshot.types.js';
@@ -13,6 +20,19 @@ export type BrainSemanticIntentValidationIssueCode =
   | 'UNKNOWN_ENTITY_REFERENCE'
   | 'UNKNOWN_METRIC_REFERENCE'
   | 'UNKNOWN_DIMENSION_REFERENCE'
+  | 'UNKNOWN_ACTION_REFERENCE'
+  | 'ACTION_REFERENCE_REQUIRED'
+  | 'ACTION_REFERENCE_NOT_ALLOWED'
+  | 'ACTION_POLARITY_REQUIRED'
+  | 'ACTION_POLARITY_INVALID'
+  | 'UNKNOWN_NEGATED_ACTION_REFERENCE'
+  | 'DUPLICATE_NEGATED_ACTION_REFERENCE'
+  | 'ACTION_CORRECTION_CONFLICT'
+  | 'ACTION_MODALITY_NOT_SUPPORTED'
+  | 'UNKNOWN_ACTION_SLOT'
+  | 'DUPLICATE_ACTION_SLOT'
+  | 'ACTION_SLOT_TYPE_INVALID'
+  | 'ACTION_TARGET_TYPE_MISMATCH'
   | 'UNKNOWN_ORDER_REFERENCE'
   | 'UNKNOWN_FIELD_REFERENCE'
   | 'INVALID_COMPARISON_TARGET'
@@ -108,7 +128,13 @@ export class BrainSemanticIntentValidatorService {
       candidates: [...ambiguity.candidates],
     }));
 
-    this.collectIntentShapeGaps(intent, missingSlots, hasGovernedImplicitRankingContract(intent, governedScope), governedScope);
+    this.collectIntentShapeGaps(
+      intent,
+      missingSlots,
+      hasGovernedImplicitRankingContract(intent, governedScope),
+      governedScope,
+      snapshot,
+    );
     clarificationIssues.push(...this.findEntityConflicts(intent));
     const stableClarificationIssues = dedupeIssues(clarificationIssues);
     const ambiguitySlots = new Set(actionableAmbiguities.map((ambiguity) => ambiguity.slot));
@@ -174,6 +200,7 @@ export class BrainSemanticIntentValidatorService {
       ...snapshot.entities.map((definition) => definition.domain),
       ...snapshot.metrics.map((definition) => definition.domain),
       ...snapshot.dimensions.map((definition) => definition.domain),
+      ...snapshot.actions.map((definition) => definition.domain),
       ...(governedScope?.domains ?? []),
     ]);
     for (const domain of intent.domains) {
@@ -213,7 +240,21 @@ export class BrainSemanticIntentValidatorService {
         });
       }
     }
+    issues.push(...validateActionContract(intent, snapshot));
     for (const filter of intent.filters) {
+      if (filter.fieldRef.definitionType === 'dimension') {
+        if (
+          !hasCanonicalRef(snapshot.dimensions, filter.fieldRef, 'dimension') &&
+          !hasGovernedRef(governedScope, filter.fieldRef)
+        ) {
+          issues.push({
+            code: 'UNKNOWN_DIMENSION_REFERENCE',
+            slot: 'filter',
+            message: `Dimension filter ${filter.fieldRef.definitionKey} is not active.`,
+          });
+        }
+        continue;
+      }
       issues.push({
         code: 'UNKNOWN_FIELD_REFERENCE',
         slot: 'filter',
@@ -295,6 +336,7 @@ export class BrainSemanticIntentValidatorService {
     missingSlots: Set<string>,
     hasImplicitRankingContract = false,
     governedScope?: BrainSemanticIntentGovernedScope,
+    snapshot?: ProductionReadyBusinessDefinitionSnapshot,
   ): void {
     if (hasExplicitTimeReference(intent.objective) && !intent.timeRange && intent.comparisonTarget?.type !== 'time') {
       missingSlots.add('timeRange');
@@ -336,7 +378,8 @@ export class BrainSemanticIntentValidatorService {
       if (
         intent.metrics.length === 0 &&
         !governedScope?.definitionRefs.some((ref) => ref.definitionKey.startsWith('metric.'))
-      ) missingSlots.add('metric');
+      )
+        missingSlots.add('metric');
       if (!intent.comparisonTarget) {
         if (!isGroupedDimensionComparison(intent)) missingSlots.add('comparisonTarget');
       } else if (intent.comparisonTarget.type === 'time') {
@@ -350,8 +393,23 @@ export class BrainSemanticIntentValidatorService {
     }
 
     if (intent.intent === 'action') {
-      if (!intent.entities.some(isSpecificActionTarget)) missingSlots.add('actionTarget');
-      if (intent.successCriteria.length === 0) missingSlots.add('successCriteria');
+      const action = findCanonicalAction(intent, snapshot);
+      if (!action) {
+        missingSlots.add('actionDefinition');
+      } else if (intent.actionPolarity !== 'negated') {
+        const slots = new Map((intent.actionSlots ?? []).map((slot) => [slot.slotKey, slot]));
+        for (const definition of action.inputSlots) {
+          if (
+            (definition.requiredAt.includes('recognition') || definition.requiredAt.includes('preview')) &&
+            !hasValidActionSlotValue(slots.get(definition.slotKey), definition)
+          ) {
+            missingSlots.add(definition.slotKey);
+          }
+        }
+      }
+      if (intent.actionPolarity !== 'negated' && intent.successCriteria.length === 0) {
+        missingSlots.add('successCriteria');
+      }
     }
   }
 
@@ -382,6 +440,240 @@ export class BrainSemanticIntentValidatorService {
   }
 }
 
+function validateActionContract(
+  intent: BrainSemanticIntent,
+  snapshot: ProductionReadyBusinessDefinitionSnapshot,
+): BrainSemanticIntentValidationIssue[] {
+  const issues: BrainSemanticIntentValidationIssue[] = [];
+  const supportsActionFrame = intent.intent === 'action' || intent.intent === 'workflow';
+  const carriesActionFrame = Boolean(
+    intent.actionRef ||
+    intent.actionPolarity ||
+    intent.negatedActionRefs !== undefined ||
+    intent.actionModality ||
+    intent.actionSlots !== undefined,
+  );
+  if (!supportsActionFrame && carriesActionFrame) {
+    return [
+      {
+        code: 'ACTION_REFERENCE_NOT_ALLOWED',
+        slot: 'actionRef',
+        message: `Intent ${intent.intent} cannot carry an action semantic frame.`,
+      },
+    ];
+  }
+  if (!supportsActionFrame) return [];
+  if (intent.intent === 'action' && intent.schemaVersion !== '1.1') {
+    issues.push({
+      code: 'ACTION_REFERENCE_REQUIRED',
+      slot: 'actionRef',
+      message: 'Action intent requires a schemaVersion 1.1 governed actionRef.',
+    });
+    return issues;
+  }
+  if (intent.intent === 'action' && !intent.actionRef) {
+    if (intent.missingSlots.includes('actionDefinition')) return issues;
+    issues.push({
+      code: 'ACTION_REFERENCE_REQUIRED',
+      slot: 'actionRef',
+      message: 'Action intent requires a governed actionRef or an explicit actionDefinition gap.',
+    });
+    return issues;
+  }
+  if (!intent.actionRef) return issues;
+  if (!intent.actionPolarity) {
+    issues.push({
+      code: 'ACTION_POLARITY_REQUIRED',
+      slot: 'actionPolarity',
+      message: 'A governed action polarity is required whenever actionRef exists.',
+    });
+  } else if (intent.actionPolarity !== 'affirmative' && intent.actionPolarity !== 'negated') {
+    issues.push({
+      code: 'ACTION_POLARITY_INVALID',
+      slot: 'actionPolarity',
+      message: `Action polarity ${String(intent.actionPolarity)} is invalid.`,
+    });
+  }
+  if (intent.negatedActionRefs?.length) {
+    if (intent.actionPolarity !== 'affirmative') {
+      issues.push({
+        code: 'ACTION_CORRECTION_CONFLICT',
+        slot: 'negatedActionRefs',
+        message: 'Correction references require one affirmative selected action.',
+      });
+    }
+    const seenNegatedRefs = new Set<string>();
+    for (const ref of intent.negatedActionRefs) {
+      const refKey = canonicalRefKey(ref);
+      if (seenNegatedRefs.has(refKey)) {
+        issues.push({
+          code: 'DUPLICATE_NEGATED_ACTION_REFERENCE',
+          slot: 'negatedActionRefs',
+          message: `Negated action reference ${ref.definitionKey} appears more than once.`,
+        });
+      }
+      seenNegatedRefs.add(refKey);
+      if (!hasCanonicalRef(snapshot.actions, ref, 'action')) {
+        issues.push({
+          code: 'UNKNOWN_NEGATED_ACTION_REFERENCE',
+          slot: 'negatedActionRefs',
+          message: `Negated action reference ${ref.definitionKey} is not active in the current snapshot.`,
+        });
+      }
+      if (canonicalRefKey(intent.actionRef) === refKey) {
+        issues.push({
+          code: 'ACTION_CORRECTION_CONFLICT',
+          slot: 'negatedActionRefs',
+          message: `Selected action ${ref.definitionKey} cannot also be rejected by the same correction.`,
+        });
+      }
+    }
+  }
+  const action = findCanonicalAction(intent, snapshot);
+  if (!action) {
+    issues.push({
+      code: 'UNKNOWN_ACTION_REFERENCE',
+      slot: 'actionRef',
+      message: `Action reference ${intent.actionRef.definitionKey} is not active in the current snapshot.`,
+    });
+    return issues;
+  }
+  if (!intent.actionModality) {
+    issues.push({
+      code: 'ACTION_REFERENCE_REQUIRED',
+      slot: 'actionModality',
+      message: 'A governed action modality is required for action intent.',
+    });
+  } else if (!action.modalityPolicy.supportedModalities.includes(intent.actionModality)) {
+    issues.push({
+      code: 'ACTION_MODALITY_NOT_SUPPORTED',
+      slot: 'actionModality',
+      message: `Action ${action.actionKey} does not support modality ${intent.actionModality}.`,
+      candidates: [...action.modalityPolicy.supportedModalities],
+    });
+  }
+  const definitions = new Map(action.inputSlots.map((slot) => [slot.slotKey, slot]));
+  const seen = new Set<string>();
+  for (const slot of intent.actionSlots ?? []) {
+    if (seen.has(slot.slotKey)) {
+      issues.push({
+        code: 'DUPLICATE_ACTION_SLOT',
+        slot: slot.slotKey,
+        message: `Action slot ${slot.slotKey} appears more than once.`,
+      });
+      continue;
+    }
+    seen.add(slot.slotKey);
+    const definition = definitions.get(slot.slotKey);
+    if (!definition) {
+      issues.push({
+        code: 'UNKNOWN_ACTION_SLOT',
+        slot: slot.slotKey,
+        message: `Action slot ${slot.slotKey} is not declared by ${action.actionKey}.`,
+      });
+      continue;
+    }
+    if (slot.semanticRole && slot.semanticRole !== definition.semanticRole) {
+      issues.push({
+        code: 'ACTION_SLOT_TYPE_INVALID',
+        slot: slot.slotKey,
+        message: `Action slot ${slot.slotKey} has an invalid semantic role.`,
+      });
+    }
+    if (!hasValidActionSlotValue(slot, definition)) {
+      issues.push({
+        code: 'ACTION_SLOT_TYPE_INVALID',
+        slot: slot.slotKey,
+        message: `Action slot ${slot.slotKey} does not match value type ${definition.valueType}.`,
+      });
+    }
+    if (definition.valueType === 'entity_ref' && (slot.entityDefinitionRef || slot.entityKey)) {
+      const expectedDefinitionKey = definition.entityTypeRef;
+      if (
+        !expectedDefinitionKey ||
+        !slot.entityDefinitionRef ||
+        slot.entityDefinitionRef.definitionKey !== expectedDefinitionKey ||
+        !hasCanonicalRef(snapshot.entities, slot.entityDefinitionRef, 'entity') ||
+        !entityKeyMatchesDefinitionType(slot.entityKey, expectedDefinitionKey)
+      ) {
+        issues.push({
+          code: 'ACTION_TARGET_TYPE_MISMATCH',
+          slot: slot.slotKey,
+          message: `Action slot ${slot.slotKey} does not reference the required entity type.`,
+        });
+      }
+    }
+  }
+  return issues;
+}
+
+function findCanonicalAction(
+  intent: BrainSemanticIntent,
+  snapshot?: ProductionReadyBusinessDefinitionSnapshot,
+): BusinessActionDefinitionSnapshot | undefined {
+  const ref = intent.actionRef;
+  if (!ref || !snapshot) return undefined;
+  return snapshot.actions.find(
+    (action) =>
+      ref.definitionType === 'action' &&
+      action.definitionKey === ref.definitionKey &&
+      action.version === ref.definitionVersion &&
+      action.definitionFingerprint === ref.definitionFingerprint &&
+      action.sourceFingerprint === ref.sourceFingerprint,
+  );
+}
+
+function hasValidActionSlotValue(
+  slot: BrainSemanticActionSlot | undefined,
+  definition: BusinessActionInputSlotDefinition,
+): boolean {
+  if (!slot) return false;
+  const typedValues = [
+    slot.numericValue !== undefined,
+    slot.enumValue !== undefined,
+    slot.booleanValue !== undefined,
+    slot.timeValue !== undefined,
+    slot.entityKey !== undefined,
+    slot.entityDefinitionRef !== undefined,
+  ].filter(Boolean).length;
+  if (typedValues > 2) return false;
+  if (definition.valueType === 'entity_ref') {
+    return Boolean(slot.rawValue?.trim() || slot.entityKey?.trim());
+  }
+  if (definition.valueType === 'number' || definition.valueType === 'money') {
+    return typeof slot.numericValue === 'number' && Number.isFinite(slot.numericValue);
+  }
+  if (definition.valueType === 'enum') {
+    const value = slot.enumValue?.trim();
+    if (!value) return false;
+    const allowed = definition.validationPolicy?.startsWith('one_of:')
+      ? definition.validationPolicy
+          .slice('one_of:'.length)
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : [];
+    return allowed.length === 0 || allowed.includes(value);
+  }
+  if (definition.valueType === 'text') return Boolean(slot.rawValue?.trim());
+  if (definition.valueType === 'time') return Boolean(slot.timeValue?.trim());
+  if (definition.valueType === 'boolean') return typeof slot.booleanValue === 'boolean';
+  return false;
+}
+
+function entityKeyMatchesDefinitionType(entityKey: string | undefined, definitionKey: string): boolean {
+  const normalized = entityKey?.trim();
+  if (!normalized) return true;
+  const typed = normalized.match(/^([a-zA-Z][a-zA-Z0-9_-]*)[:#](.+)$/);
+  if (!typed) return true;
+  const expected = definitionKey
+    .replace(/^entity[.:]/, '')
+    .toLocaleLowerCase('en-US')
+    .replace(/[\s_-]+/g, '');
+  const actual = typed[1].toLocaleLowerCase('en-US').replace(/[\s_-]+/g, '');
+  return actual === expected;
+}
+
 function hasGovernedImplicitRankingContract(
   intent: BrainSemanticIntent,
   governedScope?: BrainSemanticIntentGovernedScope,
@@ -394,32 +686,37 @@ function hasGovernedImplicitRankingContract(
 
 function isSpecificActionTarget(entity: BrainSemanticIntent['entities'][number]): boolean {
   const explicitUserIdentifier =
-    entity.source === 'user'
-    && Boolean(entity.entityKey)
-    && entity.entityKey !== entity.entityType
-    && /(?:#|号|ID|id|任务|服务单)?\s*\d+/.test(`${entity.mention} ${entity.entityKey}`);
+    entity.source === 'user' &&
+    Boolean(entity.entityKey) &&
+    entity.entityKey !== entity.entityType &&
+    /(?:#|号|ID|id|任务|服务单)?\s*\d+/.test(`${entity.mention} ${entity.entityKey}`);
   if (
-    !entity.definitionRef
-    && !(
-      entity.source === 'user'
-      && entity.entityType === 'marketing_strategy'
-      && Boolean(entity.entityKey)
-      && entity.entityKey !== entity.entityType
-    )
-    && !explicitUserIdentifier
+    !entity.definitionRef &&
+    !(
+      entity.source === 'user' &&
+      entity.entityType === 'marketing_strategy' &&
+      Boolean(entity.entityKey) &&
+      entity.entityKey !== entity.entityType
+    ) &&
+    !explicitUserIdentifier
   ) {
     return false;
   }
   if (entity.entityKey && entity.entityKey !== entity.entityType) return true;
   const mention = normalizeMention(entity.mention);
   if (!mention) return false;
-  return !GENERIC_ACTION_TARGET_MENTIONS.has(mention) && !/^(这个|该|那个)?(客户|顾客|会员|员工|美容师|商品|产品|项目|预约)$/.test(mention);
+  return (
+    !GENERIC_ACTION_TARGET_MENTIONS.has(mention) &&
+    !/^(这个|该|那个)?(客户|顾客|会员|员工|美容师|商品|产品|项目|预约)$/.test(mention)
+  );
 }
 
 const GENERIC_ACTION_TARGET_MENTIONS = new Set(['她', '他', 'ta', '对方', '目标客户', '目标对象']);
 
 function hasExplicitTimeReference(question: string): boolean {
-  return /今天|今日|明天|昨日|昨天|本周|上周|本月|这个月|上月|本季度|上季度|今年|去年|近\s*\d+\s*(?:天|周|个月|月)/.test(question);
+  return /今天|今日|明天|昨日|昨天|本周|上周|本月|这个月|上月|本季度|上季度|今年|去年|近\s*\d+\s*(?:天|周|个月|月)/.test(
+    question,
+  );
 }
 
 function hasExplicitObjectCollectionRequest(question: string): boolean {
@@ -427,9 +724,13 @@ function hasExplicitObjectCollectionRequest(question: string): boolean {
 }
 
 function hasInternalCapabilityCoverage(intent: BrainSemanticIntent): boolean {
-  return intent.ambiguities.some((ambiguity) =>
-    /组合能力|能力合同|内部/.test(ambiguity.reason) && ambiguity.candidates.every((candidate) => !isUserFacingCandidate(candidate)),
-  ) || intent.assumptions.some((assumption) => /能力\s+\S+\s+将采用并披露已治理的默认分析口径/.test(assumption));
+  return (
+    intent.ambiguities.some(
+      (ambiguity) =>
+        /组合能力|能力合同|内部/.test(ambiguity.reason) &&
+        ambiguity.candidates.every((candidate) => !isUserFacingCandidate(candidate)),
+    ) || intent.assumptions.some((assumption) => /能力\s+\S+\s+将采用并披露已治理的默认分析口径/.test(assumption))
+  );
 }
 
 function isGroupedDimensionComparison(intent: BrainSemanticIntent): boolean {
@@ -457,13 +758,15 @@ function hasCanonicalRef(
 }
 
 function hasGovernedRef(scope: BrainSemanticIntentGovernedScope | undefined, ref: BrainDefinitionRef): boolean {
-  return scope?.definitionRefs.some(
-    (candidate) =>
-      candidate.definitionKey === ref.definitionKey &&
-      candidate.version === ref.definitionVersion &&
-      candidate.definitionFingerprint === ref.definitionFingerprint &&
-      candidate.sourceFingerprint === ref.sourceFingerprint,
-  ) ?? false;
+  return (
+    scope?.definitionRefs.some(
+      (candidate) =>
+        candidate.definitionKey === ref.definitionKey &&
+        candidate.version === ref.definitionVersion &&
+        candidate.definitionFingerprint === ref.definitionFingerprint &&
+        candidate.sourceFingerprint === ref.sourceFingerprint,
+    ) ?? false
+  );
 }
 
 const FORBIDDEN_SECURITY_KEYS = new Set([

@@ -412,6 +412,61 @@ describe('BrainGroundedAnswerComposerService', () => {
     ).toThrow('brain_response_answer_contract_mismatch:ranking:ranking');
   });
 
+  it('accepts a cited factual row set when it is the governed scalar answer representation', () => {
+    const guard = new BrainAnswerCompletionGuardService();
+    expect(() =>
+      guard.assertMatchesIntent(
+        { intent: 'query', answerShape: 'scalar' },
+        {
+          answer: '钻石会员共 80 人。',
+          citations: [{ sourceType: 'db_skill', sourceId: 'customer_member_tier_facts' }],
+          suggestedActions: [],
+          completion: { status: 'complete', missingCriteria: [] },
+          blocks: [
+            {
+              kind: 'table',
+              rows: [{ customerId: 11, memberLevel: '钻石会员' }],
+              columns: ['customerId', 'memberLevel'],
+              citationIds: ['customer_member_tier_facts'],
+            },
+          ],
+        },
+      ),
+    ).not.toThrow();
+  });
+
+  it('keeps scalar responses fail-closed when they have neither a KPI nor a factual row set', () => {
+    const guard = new BrainAnswerCompletionGuardService();
+    expect(() =>
+      guard.assertMatchesIntent(
+        { intent: 'query', answerShape: 'scalar' },
+        {
+          answer: '当前无法确定。',
+          citations: [{ sourceType: 'db_skill', sourceId: 'customer_member_tier_facts' }],
+          suggestedActions: [],
+          completion: { status: 'complete', missingCriteria: [] },
+          blocks: [{ kind: 'text', text: '当前无法确定。', citationIds: ['customer_member_tier_facts'] }],
+        },
+      ),
+    ).toThrow('brain_response_answer_contract_mismatch:scalar:kpi');
+  });
+
+  it('accepts an explicit no-data limitation for a governed scalar response', () => {
+    const guard = new BrainAnswerCompletionGuardService();
+    expect(() =>
+      guard.assertMatchesIntent(
+        { intent: 'query', answerShape: 'scalar' },
+        {
+          answer: '当前时间范围没有可计算的已完成记录。',
+          citations: [],
+          suggestedActions: [],
+          completion: { status: 'complete', missingCriteria: [] },
+          blocks: [{ kind: 'limitations', items: ['no_data:completed_record_not_found'] }],
+        },
+      ),
+    ).not.toThrow();
+  });
+
   it('accepts a grounded draft text response', () => {
     const guard = new BrainAnswerCompletionGuardService();
     expect(() =>

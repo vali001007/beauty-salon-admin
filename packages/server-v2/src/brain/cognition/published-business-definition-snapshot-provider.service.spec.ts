@@ -2,9 +2,43 @@ import {
   createBusinessDefinitionProjectionFingerprint,
   createBusinessDefinitionProjectionV2Payload,
 } from '../../semantic-data/business-definition-projection-compiler.service.js';
+import { createTestBusinessActionLexicalFrame } from './business-action-lexical-frame.testing.js';
+import { createTestBusinessActionModalityPolicy } from './business-action-modality-policy.testing.js';
+import { createTestBusinessActionInformationArtifactProfile } from './business-action-information-artifact.testing.js';
+import { createTestBusinessActionSideEffectInvariantProfile } from './business-action-side-effect-invariant.testing.js';
+import { createTestBusinessActionSituationContextProfile } from './business-action-situation-context.testing.js';
+import { createBusinessActionParticipantProfile } from './business-action-participant-profile.js';
+import { createBusinessActionRelationProfile } from './business-action-relation-profile.js';
+import type { BusinessActionInputSlotDefinition } from './business-definition-snapshot.types.js';
 import { PublishedBusinessDefinitionSnapshotProviderService } from './published-business-definition-snapshot-provider.service.js';
 
 describe('PublishedBusinessDefinitionSnapshotProviderService', () => {
+  it('coalesces concurrent active snapshot reads', async () => {
+    let resolveDefinitions!: (value: never[]) => void;
+    const prisma = {
+      businessDefinition: {
+        findMany: jest.fn().mockReturnValue(
+          new Promise<never[]>((resolve) => {
+            resolveDefinitions = resolve;
+          }),
+        ),
+      },
+      businessDefinitionProjection: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const provider = new PublishedBusinessDefinitionSnapshotProviderService(prisma as never);
+
+    const first = provider.loadActiveDefinitions();
+    const second = provider.loadActiveDefinitions();
+    resolveDefinitions([]);
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      { entities: [], relations: [], metrics: [], dimensions: [], actions: [] },
+      { entities: [], relations: [], metrics: [], dimensions: [], actions: [] },
+    ]);
+    expect(prisma.businessDefinition.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.businessDefinitionProjection.findMany).not.toHaveBeenCalled();
+  });
+
   it('reads immutable published version projections without opening a Prisma transaction', async () => {
     const prisma = {
       businessDefinition: { findMany: jest.fn().mockResolvedValue([]) },
@@ -14,7 +48,7 @@ describe('PublishedBusinessDefinitionSnapshotProviderService', () => {
 
     await expect(
       new PublishedBusinessDefinitionSnapshotProviderService(prisma as never).loadActiveDefinitions(),
-    ).resolves.toEqual({ entities: [], relations: [], metrics: [], dimensions: [] });
+    ).resolves.toEqual({ entities: [], relations: [], metrics: [], dimensions: [], actions: [] });
 
     expect(prisma.businessDefinition.findMany).toHaveBeenCalledTimes(1);
     expect(prisma.$transaction).not.toHaveBeenCalled();
@@ -36,7 +70,7 @@ describe('PublishedBusinessDefinitionSnapshotProviderService', () => {
       transientPrisma as never,
     ).loadActiveDefinitions();
 
-    expect(snapshot).toEqual({ entities: [], relations: [], metrics: [], dimensions: [] });
+    expect(snapshot).toEqual({ entities: [], relations: [], metrics: [], dimensions: [], actions: [] });
     expect(transientPrisma.$transaction).toHaveBeenCalledTimes(2);
 
     const businessPrisma = { $transaction: jest.fn().mockRejectedValue(new Error('definition_projection_invalid')) };
@@ -81,7 +115,12 @@ describe('PublishedBusinessDefinitionSnapshotProviderService', () => {
       joinPath: [],
       filters: [],
       dimensions: [],
-      timePolicy: { mode: 'event_time', field: 'PaymentRecord.paidAt', boundary: '[start,end)', timezone: 'Asia/Shanghai' },
+      timePolicy: {
+        mode: 'event_time',
+        field: 'PaymentRecord.paidAt',
+        boundary: '[start,end)',
+        timezone: 'Asia/Shanghai',
+      },
       storeScope: { mode: 'current_store', model: 'PaymentRecord', field: 'storeId', joinPath: [] },
       permissionPolicies: [{ bindingRef: 'order_revenue_analysis', allOf: ['core:finance:view'] }],
       bindings: {
@@ -103,9 +142,108 @@ describe('PublishedBusinessDefinitionSnapshotProviderService', () => {
       expect.objectContaining({ where: expect.objectContaining({ kind: 'metric' }) }),
     );
     expect(tx.businessDefinitionProjection.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { definitionVersionId: { in: [metric.definitionVersionId] }, targetType: 'metric_query_view' } }),
+      expect.objectContaining({
+        where: { definitionVersionId: { in: [metric.definitionVersionId] }, targetType: 'metric_query_view' },
+      }),
     );
     expect(metrics).toEqual([expect.objectContaining({ metricKey: 'paid_amount', sensitive: true })]);
+  });
+
+  it('loads only runtime projections for an evaluation release snapshot', async () => {
+    const entity = projectionV2('entity.product', 'entity', {
+      model: 'Product',
+      aliases: ['商品'],
+      fields: ['id', 'name', 'storeId'],
+      relationFields: [],
+      storeScopeField: 'storeId',
+    });
+    const findMany = jest.fn().mockResolvedValue([
+      {
+        id: entity.definitionVersionId,
+        version: entity.definitionVersion,
+        lifecycleStatus: 'published',
+        validationStatus: 'passed',
+        fingerprint: entity.definitionFingerprint,
+        sourceFingerprint: entity.sourceFingerprint,
+        definition: {
+          definitionKey: entity.definitionKey,
+          kind: entity.kind,
+          domain: entity.domain,
+          name: entity.name,
+        },
+        projections: [entity],
+      },
+    ]);
+    const prisma = {
+      businessDefinitionVersion: { findMany },
+      businessDefinition: { findMany: jest.fn().mockResolvedValue([]) },
+      businessDefinitionProjection: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+
+    const snapshot = await new PublishedBusinessDefinitionSnapshotProviderService(
+      prisma as never,
+    ).loadEvaluationDefinitions([entity.definitionVersionId]);
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({
+          projections: expect.objectContaining({
+            where: { targetType: { in: ['intent_semantic_index', 'metric_query_view'] } },
+          }),
+        }),
+      }),
+    );
+    expect(snapshot.entities).toEqual([expect.objectContaining({ entityKey: 'product' })]);
+  });
+
+  it('reuses the shared definition bundle for evaluation versions', async () => {
+    const entity = projectionV2('entity.product', 'entity', {
+      model: 'Product',
+      aliases: ['商品'],
+      fields: ['id', 'name', 'storeId'],
+      relationFields: [],
+      storeScopeField: 'storeId',
+    });
+    const bundle = {
+      load: jest.fn().mockResolvedValue({
+        rows: [
+          {
+            id: entity.definitionVersionId,
+            version: entity.definitionVersion,
+            lifecycleStatus: 'published',
+            validationStatus: 'passed',
+            fingerprint: entity.definitionFingerprint,
+            sourceFingerprint: entity.sourceFingerprint,
+            definition: {
+              id: 1,
+              definitionKey: entity.definitionKey,
+              kind: entity.kind,
+              domain: entity.domain,
+              name: entity.name,
+              ownerType: 'system',
+              ownerId: null,
+              currentPublishedVersionId: entity.definitionVersionId,
+            },
+            projections: [entity],
+            evidence: [],
+          },
+        ],
+      }),
+    };
+    const prisma = {
+      businessDefinitionVersion: { findMany: jest.fn() },
+      businessDefinition: { findMany: jest.fn().mockResolvedValue([]) },
+      businessDefinitionProjection: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+
+    const snapshot = await new PublishedBusinessDefinitionSnapshotProviderService(
+      prisma as never,
+      bundle as never,
+    ).loadEvaluationDefinitions([entity.definitionVersionId]);
+
+    expect(bundle.load).toHaveBeenCalledWith([entity.definitionVersionId]);
+    expect(prisma.businessDefinitionVersion.findMany).not.toHaveBeenCalled();
+    expect(snapshot.entities).toEqual([expect.objectContaining({ entityKey: 'product' })]);
   });
 
   it('loads target-specific V2 projections without falling back to the legacy definition envelope', async () => {
@@ -154,6 +292,151 @@ describe('PublishedBusinessDefinitionSnapshotProviderService', () => {
       metricKey: 'paid_amount',
       formula: { type: 'sum', model: 'PaymentRecord', field: 'amount' },
     });
+  });
+
+  it('maps a published V2 action projection into a typed runtime action definition', async () => {
+    const actionInputSlots: BusinessActionInputSlotDefinition[] = [
+      {
+        slotKey: 'product',
+        label: '商品',
+        semanticRole: 'object' as const,
+        valueType: 'entity_ref',
+        entityTypeRef: 'entity.product',
+        requiredAt: ['recognition', 'preview', 'execution'],
+        cardinality: 'one',
+        sensitive: false,
+        confirmationDisplay: true,
+      },
+      {
+        slotKey: 'quantity',
+        label: '采购数量',
+        semanticRole: 'quantity' as const,
+        valueType: 'number',
+        unitPolicy: 'product_purchase_unit',
+        requiredAt: ['recognition', 'preview', 'execution'],
+        cardinality: 'one',
+        sensitive: false,
+        confirmationDisplay: true,
+      },
+    ];
+    const participantProfile = createBusinessActionParticipantProfile({
+      actionKey: 'action.create_purchase_order',
+      inputSlots: actionInputSlots,
+    });
+    const action = projectionV2('action.create_purchase_order', 'action', {
+      actionKey: 'action.create_purchase_order',
+      aliases: ['下采购单', '采购下单'],
+      description: '为商品创建待确认采购单预览',
+      actionClass: 'create',
+      targetEntityRefs: ['entity.product'],
+      inputSlots: actionInputSlots,
+      preconditions: ['product_belongs_to_context_store', 'quantity_positive'],
+      preconditionPredicateRefs: [
+        { key: 'product_belongs_to_context_store', version: 1, fingerprint: 'a'.repeat(64) },
+        { key: 'quantity_positive', version: 1, fingerprint: 'b'.repeat(64) },
+      ],
+      effects: ['purchase_order_created'],
+      effectAssertionRefs: [{ key: 'purchase_order_created', version: 1, fingerprint: 'c'.repeat(64) }],
+      lexicalFrame: createTestBusinessActionLexicalFrame({
+        actionKey: 'action.create_purchase_order',
+        actionClass: 'create',
+        name: 'action.create_purchase_order',
+        aliases: ['下采购单', '采购下单'],
+        targetEntityRefs: ['entity.product'],
+        inputSlots: actionInputSlots,
+        preconditions: ['product_belongs_to_context_store', 'quantity_positive'],
+        effects: ['purchase_order_created'],
+      }),
+      situationContext: createTestBusinessActionSituationContextProfile('action.create_purchase_order'),
+      modalityPolicy: createTestBusinessActionModalityPolicy('action.create_purchase_order'),
+      informationArtifact: createTestBusinessActionInformationArtifactProfile('action.create_purchase_order'),
+      sideEffectInvariant: createTestBusinessActionSideEffectInvariantProfile('action.create_purchase_order', {
+        preconditions: ['product_belongs_to_context_store', 'quantity_positive'],
+        preconditionPredicateRefs: [
+          { key: 'product_belongs_to_context_store', version: 1, fingerprint: 'a'.repeat(64) },
+          { key: 'quantity_positive', version: 1, fingerprint: 'b'.repeat(64) },
+        ],
+        effects: ['purchase_order_created'],
+        effectAssertionRefs: [{ key: 'purchase_order_created', version: 1, fingerprint: 'c'.repeat(64) }],
+      }),
+      participantProfile,
+      relationProfile: createBusinessActionRelationProfile({
+        actionKey: 'action.create_purchase_order',
+        actionClass: 'create',
+        targetEntityRefs: ['entity.product'],
+        participantProfile,
+      }),
+      triggeredByEventRefs: [],
+      emitsEventRefs: ['event.purchase_order_created'],
+      riskPolicy: 'high',
+      confirmationPolicy: 'required',
+      idempotencyPolicy: 'required',
+      capabilityBindings: [
+        {
+          capabilityKey: 'purchase_order_draft',
+          bindingMode: 'preview_and_execute',
+          gatewayActionKey: 'create_purchase_order',
+          priority: 0,
+          enabled: true,
+        },
+      ],
+    });
+    const tx = {
+      businessDefinition: { findMany: jest.fn().mockResolvedValue([publishedDefinitionV2(action)]) },
+      businessDefinitionProjection: { findMany: jest.fn().mockResolvedValue([action]) },
+    };
+    const prisma = { $transaction: jest.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)) };
+
+    const snapshot = await new PublishedBusinessDefinitionSnapshotProviderService(
+      prisma as never,
+    ).loadActiveDefinitions();
+
+    const expectedBindings = [
+      {
+        capabilityKey: 'purchase_order_draft',
+        bindingMode: 'preview_and_execute',
+        gatewayActionKey: 'create_purchase_order',
+        priority: 0,
+        enabled: true,
+      },
+    ];
+    expect(snapshot.actions).toEqual([
+      expect.objectContaining({
+        definitionKey: 'action.create_purchase_order',
+        actionKey: 'action.create_purchase_order',
+        targetEntityRefs: ['entity.product'],
+        inputSlots: [
+          expect.objectContaining({ slotKey: 'product', semanticRole: 'object', valueType: 'entity_ref' }),
+          expect.objectContaining({ slotKey: 'quantity', semanticRole: 'quantity', valueType: 'number' }),
+        ],
+        lexicalFrame: expect.objectContaining({
+          frameKey: 'action.create_purchase_order.lexical_frame',
+          fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/u),
+        }),
+        modalityPolicy: expect.objectContaining({
+          supportedModalities: ['request'],
+          fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/u),
+        }),
+        informationArtifact: expect.objectContaining({
+          artifactTypePolicy: 'governed_result_reference',
+          fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/u),
+        }),
+        sideEffectInvariant: expect.objectContaining({
+          successEvidencePolicy: 'all_declared_effects_observed',
+          fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/u),
+        }),
+        situationContext: expect.objectContaining({
+          profileKey: 'action.create_purchase_order.situation_context',
+          tenantBoundary: 'current_store',
+          fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/u),
+        }),
+        capabilityBindings: expectedBindings,
+        bindingFingerprint: createBusinessDefinitionProjectionFingerprint({
+          actionKey: 'action.create_purchase_order',
+          capabilityBindings: expectedBindings,
+        }),
+      }),
+    ]);
   });
 
   it('maps only current published read-only projections into the Brain runtime snapshot', async () => {
@@ -678,7 +961,11 @@ function publishedDefinition(row: ReturnType<typeof projection>) {
   };
 }
 
-function projectionV2(definitionKey: string, kind: 'entity' | 'relation' | 'metric' | 'dimension', definition: any) {
+function projectionV2(
+  definitionKey: string,
+  kind: 'entity' | 'relation' | 'metric' | 'dimension' | 'action',
+  definition: any,
+) {
   const definitionVersionId = nextV2DefinitionVersionId++;
   const definitionVersion = 1;
   const definitionFingerprint = 'c'.repeat(64);

@@ -1,6 +1,7 @@
 import { access } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { loadWorkspaceEnvironment } from '../src/brain/capability/brain-capability-cli.helpers.js';
+import { assertReusableEvaluationRelease } from '../src/brain/governance/brain-evaluation-release-create.js';
 import { BrainReleaseService } from '../src/brain/governance/brain-release.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 
@@ -18,16 +19,12 @@ async function main() {
   const prisma = new PrismaService();
   await prisma.$connect();
   try {
-    const existing = await prisma.brainRelease.findUnique({ where: { releaseKey: options.releaseKey } });
-    if (existing) {
-      process.stdout.write(`${JSON.stringify({ id: existing.id, releaseKey: existing.releaseKey, status: existing.status, reused: true })}\n`);
-      return;
-    }
     const base = await prisma.brainRelease.findUnique({
       where: { id: options.baseReleaseId },
       include: { items: true },
     });
     if (!base) throw new Error(`evaluation_release_base_not_found:${options.baseReleaseId}`);
+    if (base.status !== 'active') throw new Error(`evaluation_release_base_not_active:${options.baseReleaseId}`);
     const additions = await prisma.brainResourceVersion.findMany({
       where: { id: { in: options.resourceVersionIds } },
       select: { id: true, resourceType: true, resourceKey: true },
@@ -39,11 +36,31 @@ async function main() {
       base.items.map((item) => [`${item.resourceType}:${item.resourceKey}`, item.resourceVersionId]),
     );
     for (const item of additions) resources.set(`${item.resourceType}:${item.resourceKey}`, item.id);
+    const expectedResourceVersionIds = [...resources.values()].sort((left, right) => left - right);
+    const existing = await prisma.brainRelease.findUnique({
+      where: { releaseKey: options.releaseKey },
+      include: { items: { select: { resourceVersionId: true } } },
+    });
+    if (existing) {
+      assertReusableEvaluationRelease(existing, expectedResourceVersionIds, options.baseReleaseId);
+      process.stdout.write(
+        `${JSON.stringify({
+          id: existing.id,
+          releaseKey: existing.releaseKey,
+          status: existing.status,
+          baseReleaseId: options.baseReleaseId,
+          itemCount: existing.items.length,
+          addedResourceVersionIds: options.resourceVersionIds,
+          reused: true,
+        })}\n`,
+      );
+      return;
+    }
     const release = await new BrainReleaseService(prisma).createRelease({
       releaseKey: options.releaseKey,
       scope: 'percentage',
       rollout: { stage: 'shadow', mode: 'shadow', evaluationOnly: true, userPercentage: 100 },
-      resourceVersionIds: [...resources.values()],
+      resourceVersionIds: expectedResourceVersionIds,
       createdBy: options.createdBy,
     });
     process.stdout.write(`${JSON.stringify({

@@ -99,7 +99,10 @@ describe('generated capability trusted flow', () => {
       },
     };
     const publishedSnapshot = publishedSnapshotFixture();
-    const snapshotSource = { loadPublishedSnapshot: jest.fn().mockResolvedValue(publishedSnapshot) };
+    const snapshotSource = {
+      loadPublishedSnapshot: jest.fn().mockResolvedValue(publishedSnapshot),
+      loadEvaluationSnapshot: jest.fn().mockResolvedValue(publishedSnapshot),
+    };
     const generated = generatedProposalFixture(publishedSnapshot);
     const semanticVerifier = new BrainCapabilitySemanticVerifierService(snapshotSource as never);
     const publishedGate = {
@@ -157,7 +160,9 @@ describe('generated capability trusted flow', () => {
     const planning = new BrainSingleStepPlannerService().plan({ intent, retrieval });
 
     expect(rows[0]).toMatchObject({ skillKey: 'product_sales_ranking', sourceFingerprint: 'f'.repeat(64) });
-    expect(snapshotSource.loadPublishedSnapshot).toHaveBeenCalledTimes(3);
+    expect(snapshotSource.loadPublishedSnapshot).toHaveBeenCalledTimes(2);
+    expect(snapshotSource.loadEvaluationSnapshot).toHaveBeenCalledTimes(1);
+    expect(snapshotSource.loadEvaluationSnapshot).toHaveBeenCalledWith([21]);
     expect(tx.brainRelease.updateMany).toHaveBeenCalledWith({
       where: { id: release.id, status: 'draft' },
       data: { status: 'active', activatedAt: expect.any(Date), failureReason: null },

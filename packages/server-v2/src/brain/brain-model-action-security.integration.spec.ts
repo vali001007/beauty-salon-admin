@@ -9,13 +9,11 @@ describe('Brain model action security integration', () => {
     const confirmationUpdates: unknown[] = [];
     const tx = {
       brainActionConfirmation: {
-        updateMany: jest
-          .fn()
-          .mockImplementation(({ where }) =>
-            Promise.resolve({
-              count: confirmation?.status === 'pending' && where.actionId === confirmation.actionId ? 1 : 0,
-            }),
-          ),
+        updateMany: jest.fn().mockImplementation(({ where }) =>
+          Promise.resolve({
+            count: confirmation?.status === 'pending' && where.actionId === confirmation.actionId ? 1 : 0,
+          }),
+        ),
       },
       brainActionExecution: {
         create: jest.fn().mockResolvedValue({ id: 91, status: 'executing' }),
@@ -66,6 +64,7 @@ describe('Brain model action security integration', () => {
       payload: {
         reservationId: 18,
         appointmentTime: '2026-07-14T15:00:00+08:00',
+        expectedReservationUpdatedAt: '2026-07-10T08:00:00.000Z',
         sourceMessage: '把张女士的预约改到下周二下午三点',
         roleHint: 'finance',
       },
@@ -82,6 +81,7 @@ describe('Brain model action security integration', () => {
     expect((preview.payload as Record<string, unknown>).validatedArgs).toEqual({
       reservationId: 18,
       appointmentTime: '2026-07-14T15:00:00+08:00',
+      expectedReservationUpdatedAt: '2026-07-10T08:00:00.000Z',
     });
     expect(prisma.reservation.findFirst).toHaveBeenCalledWith({ where: { id: 18, storeId: 6 }, select: { id: true } });
     expect(reservations.update).toHaveBeenCalledWith(

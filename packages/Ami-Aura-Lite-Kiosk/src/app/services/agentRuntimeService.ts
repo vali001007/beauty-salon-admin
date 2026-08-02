@@ -72,23 +72,37 @@ export function parseTerminalBrainAction(action: string): TerminalBrainActionCod
 }
 
 function mapBrainResult(response: BrainChatResponse, role: Role): AgentRunResultV2 {
-  const confirmationActions = response.suggestedActions.filter((action) => action.requiresConfirmation);
+  const finalBusinessResult = response.status === 'completed' || response.status === 'needs_confirmation';
+  const confirmationActions = finalBusinessResult && response.actionsEnabled !== false
+    ? response.suggestedActions.filter((action) => action.requiresConfirmation)
+    : [];
   const citations = response.citations;
-  const brainBlocks = (response.blocks ?? []).filter((block) => block.kind !== 'action_preview');
+  const brainBlocks = safeBrainBlocks(response);
+  const answer = response.status === 'failed'
+    ? '本次请求执行失败，未生成可信业务结论。'
+    : response.status === 'cancelled'
+      ? '本次请求已取消，未生成新的业务结论。'
+      : response.status === 'queued' || response.status === 'running'
+        ? 'Ami Brain 正在处理，本次业务结果尚未完成。'
+        : response.answer;
   return {
     runId: response.runId,
     runNo: `BRAIN-${response.runId}`,
     status: response.status === 'failed'
       ? 'failed'
+      : response.status === 'cancelled'
+        ? 'cancelled'
+        : response.status === 'needs_confirmation'
+          ? 'waiting_approval'
       : confirmationActions.length
         ? 'waiting_approval'
         : response.status === 'completed'
           ? 'completed'
           : 'composing',
-    answer: response.answer,
+    answer,
     plan: {
       intentType: confirmationActions.length ? 'draft' : 'query',
-      goal: response.answer.slice(0, 80) || 'Ami Brain 经营协助',
+      goal: answer.slice(0, 80) || 'Ami Brain 经营协助',
       toolPlan: citations.map((citation) => ({ tool: `brain.${citation.sourceType}`, args: { sourceId: citation.sourceId } })),
       confidence: 1,
       clarificationNeeded: Boolean(response.clarification),
@@ -96,7 +110,7 @@ function mapBrainResult(response: BrainChatResponse, role: Role): AgentRunResult
       executionPath: 'deep',
       businessTask: { architecture: 'ami_brain', conversationId: response.conversationId },
     },
-    toolResults: citations.length
+    toolResults: finalBusinessResult && citations.length
       ? [{
           status: 'success',
           title: 'Ami Brain 数据依据',
@@ -108,7 +122,7 @@ function mapBrainResult(response: BrainChatResponse, role: Role): AgentRunResult
           },
         }]
       : [],
-    actions: response.suggestedActions.map((action) => ({
+    actions: confirmationActions.map((action) => ({
       label: action.summary,
       action: `brain:${response.runId}:${encodeURIComponent(action.actionId)}`,
       riskLevel: toAgentRisk(action.riskLevel),
@@ -134,6 +148,28 @@ function mapBrainResult(response: BrainChatResponse, role: Role): AgentRunResult
     responseMode: confirmationActions.length || brainBlocks.length ? 'structured_blocks' : 'composed_answer',
     personaCode: toTerminalAgentRole(role),
   };
+}
+
+function safeBrainBlocks(response: BrainChatResponse): NonNullable<BrainChatResponse['blocks']> {
+  if (response.status === 'failed') {
+    return [
+      { kind: 'limitations', items: ['capability_failed'] },
+      ...(response.blocks ?? []).filter((block) => block.kind === 'evidence'),
+    ];
+  }
+  if (response.status === 'cancelled') {
+    return [{ kind: 'limitations', items: ['request_cancelled'] }];
+  }
+  if (response.status === 'queued' || response.status === 'running') {
+    return [{ kind: 'limitations', items: ['request_processing'] }];
+  }
+  if (response.actionsEnabled === false) {
+    return [
+      ...(response.blocks ?? []).filter((block) => block.kind !== 'action_preview'),
+      { kind: 'limitations', items: ['query_only_actions_disabled'] },
+    ];
+  }
+  return (response.blocks ?? []).filter((block) => block.kind !== 'action_preview');
 }
 
 async function runBrainMessage(input: TerminalAgentContextInput, conversationId?: number) {
@@ -170,18 +206,24 @@ export async function decideTerminalBrainAction(action: string): Promise<AgentRu
   const result = await runWithAuraAuthRepair(() => parsed.decision === 'confirm'
     ? confirmBrainAction(parsed.actionId, parsed.runId)
     : rejectBrainAction(parsed.actionId, parsed.runId));
-  const succeeded = result.status === 'succeeded' || result.status === 'rejected';
+  const completed = ['succeeded', 'rejected'].includes(result.status);
+  const partiallyCompleted = result.status === 'partially_succeeded';
+  const failed = result.status === 'failed' || result.status === 'expired';
   const receiptMessage = result.receipt?.message;
   return {
     runId: result.runId,
     runNo: `BRAIN-${result.runId}`,
-    status: succeeded ? 'completed' : result.status === 'failed' ? 'failed' : 'composing',
+    status: completed ? 'completed' : partiallyCompleted ? 'partially_completed' : failed ? 'failed' : 'composing',
     answer: receiptMessage
       ? String(receiptMessage)
       : result.status === 'rejected'
         ? '已取消该动作，未写入业务数据。'
         : result.status === 'succeeded'
           ? '动作已执行完成。'
+          : result.status === 'partially_succeeded'
+            ? '动作仅部分执行成功，请核对业务回执和失败项。'
+            : result.status === 'expired'
+              ? '动作确认已过期，请重新生成动作预览。'
           : result.error?.message || `动作状态：${result.status}`,
     toolResults: [],
     actions: [],

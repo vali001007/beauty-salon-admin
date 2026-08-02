@@ -134,7 +134,7 @@ async function main() {
     prisma.stockBatch.count({ where: { product: { storeId, deletedAt: null } } }),
     prisma.stockMovement.count({ where: { storeId } }),
     prisma.projectBomItem.count({ where: { project: { storeId, deletedAt: null } } }),
-    prisma.purchaseOrder.count(),
+    prisma.purchaseOrder.count({ where: { storeId } }),
     prisma.transferOrder.count({ where: { OR: [{ fromStoreId: storeId }, { toStoreId: storeId }] } }),
   ]);
 

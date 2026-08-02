@@ -1,4 +1,5 @@
 import { BrainConversationContextService } from './brain-conversation-context.service.js';
+import { BrainTimeRangeParserService } from '../cognition/brain-time-range-parser.service.js';
 
 const sha = (character: string) => character.repeat(64);
 
@@ -223,6 +224,57 @@ describe('BrainConversationContextService model conversation preparation', () =>
       resolve: { comparisonTarget: expect.objectContaining({ label: '上月' }) },
     });
     expect(prepared.directives).not.toHaveProperty('replace');
+  });
+
+  it('preserves the previous metric and main period for the exact BQ1933 yesterday follow-up', async () => {
+    const { service, timeRangeParser } = createService({ model: validModelSnapshot() });
+    timeRangeParser.parse.mockReturnValue({
+      mentionedTime: true,
+      range: {
+        label: '昨天',
+        startDate: new Date('2026-07-28T16:00:00.000Z'),
+        endDate: new Date('2026-07-29T15:59:59.999Z'),
+        granularity: 'day',
+      },
+      filters: [],
+      requiresComparison: false,
+      unsupportedExpressions: [],
+    });
+
+    const prepared = await service.prepareModelTurn({
+      conversationId: 12,
+      dto: { message: '跟昨天比呢', timezone: 'Asia/Shanghai' }, // BQ1933
+      snapshot: productionSnapshot as never,
+    });
+
+    expect(prepared.directives).toMatchObject({
+      mode: 'continue',
+      inherit: expect.arrayContaining(['objective', 'metrics', 'timeRange', 'capability']),
+      resolve: { comparisonTarget: expect.objectContaining({ label: '昨天' }) },
+    });
+    expect(prepared.directives).not.toHaveProperty('replace');
+  });
+
+  it('does not turn an unconfigured named campaign into a fabricated comparison date range', async () => {
+    const prisma = {
+      brainConversation: {
+        findUnique: jest.fn().mockResolvedValue({ contextSnapshot: { model: validModelSnapshot() } }),
+      },
+    };
+    const service = new BrainConversationContextService(prisma as never, new BrainTimeRangeParserService());
+
+    const prepared = await service.prepareModelTurn({
+      conversationId: 12,
+      dto: { message: '跟双十一期间比呢', timezone: 'Asia/Shanghai' },
+      snapshot: productionSnapshot as never,
+    });
+
+    expect(prepared.directives).toMatchObject({
+      mode: 'continue',
+      inherit: expect.arrayContaining(['objective', 'metrics', 'timeRange', 'capability']),
+    });
+    expect(prepared.directives).not.toHaveProperty('replace');
+    expect(prepared.directives).not.toHaveProperty('resolve');
   });
 
   it.each([
@@ -608,6 +660,65 @@ describe('BrainConversationContextService model conversation preparation', () =>
         data: expect.objectContaining({
           contextSnapshot: expect.objectContaining({
             model: expect.objectContaining({ resultSets }),
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('does not erase the previous metric and capability when a continuation falls back to clarification', async () => {
+    const model = validModelSnapshot();
+    const { prisma, service } = createService({ model });
+    prisma.brainConversation.findFirst.mockResolvedValue({
+      contextSnapshot: { model },
+      contextVersion: 4,
+    });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+
+    await service.updateAfterModelRun({
+      conversationId: 12,
+      runId: 78,
+      userId: 9,
+      storeId: 2,
+      intent: {
+        schemaVersion: '1.0',
+        objective: '跟昨天比呢', // BQ1933
+        domains: ['sales'],
+        intent: 'comparison',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        timeRange: { ...model.timeRange, timezone: 'Asia/Shanghai' as const },
+        orderBy: [],
+        answerShape: 'comparison',
+        successCriteria: ['返回对比'],
+        ambiguities: [],
+        missingSlots: ['comparisonTarget'],
+        assumptions: [],
+        confidence: 0.8,
+        decisionSummary: '仍需补充对比周期。',
+      },
+      pendingClarification: {
+        missingSlots: ['comparisonTarget'],
+        questions: ['请补充对比周期'],
+        ambiguities: [],
+      },
+    });
+
+    expect(prisma.brainConversation.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          contextSnapshot: expect.objectContaining({
+            model: expect.objectContaining({
+              objective: model.objective,
+              definitionRefs: model.definitionRefs,
+              metrics: model.metrics,
+              capability: model.capability,
+              intent: model.intent,
+              answerShape: model.answerShape,
+              pendingClarification: expect.objectContaining({ missingSlots: ['comparisonTarget'] }),
+            }),
           }),
         }),
       }),

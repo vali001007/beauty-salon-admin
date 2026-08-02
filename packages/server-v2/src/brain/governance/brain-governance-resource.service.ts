@@ -2,6 +2,8 @@ import { BadRequestException, ConflictException, Injectable } from '@nestjs/comm
 import { BrainRiskLevel, BrainSkillType, Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { createCuratedActionCandidates } from '../../semantic-data/brain-action-candidate-catalog.js';
+import { INSTITUTIONAL_EFFECT_ACTION_KEYS } from '../cognition/business-action-institutional-effect.js';
 
 export type BrainGovernanceResourceType =
   | 'metric'
@@ -51,13 +53,51 @@ export interface BrainSkillGovernanceHistoryItem {
   archivedAt: Date | null;
 }
 
-export type BrainSemanticGovernanceResourceType = 'metric' | 'ontology_entity' | 'ontology_relation';
+export type BrainSemanticGovernanceResourceType = 'metric' | 'ontology_entity' | 'ontology_relation' | 'action';
+
+export interface BrainActionGovernanceDiscriminator {
+  dimension: string;
+  currentActionValue: string;
+  contrastActionValue: string;
+}
+
+export interface BrainActionGovernanceContrast {
+  conceptKey: string;
+  name: string;
+  discriminators: BrainActionGovernanceDiscriminator[];
+}
+
+export interface BrainActionGovernanceProfile {
+  key: string;
+  label: string;
+  status: 'available' | 'invalid' | 'missing';
+  schemaVersion: string | null;
+  fingerprint: string | null;
+}
+
+export interface BrainActionGovernanceDetails {
+  origin: 'registry' | 'local_candidate';
+  domain: string;
+  actionClass: string;
+  targetEntityRefs: string[];
+  inputSlots: Array<{ slotKey: string; label: string; semanticRole: string; requiredAt: string[] }>;
+  preconditions: string[];
+  effects: string[];
+  capabilityBindings: Array<{ capabilityKey: string; gatewayActionKey: string; enabled: boolean }>;
+  contrasts: BrainActionGovernanceContrast[];
+  profiles: BrainActionGovernanceProfile[];
+  profileGaps: string[];
+  riskPolicy: string;
+  confirmationPolicy: string;
+  idempotencyPolicy: string;
+}
 
 export interface BrainSemanticGovernanceSummary {
   id: number;
   resourceType: BrainSemanticGovernanceResourceType;
   resourceKey: string;
   name: string;
+  domain: string | null;
   version: number;
   status: string;
   semanticDescription: string;
@@ -66,32 +106,48 @@ export interface BrainSemanticGovernanceSummary {
   hitCount: number;
   sampleCount: number;
   hitRate: number | null;
-  updatedAt: Date;
+  updatedAt: Date | null;
   managed: boolean;
   enabled: boolean;
   definitionId: number | null;
   definitionKey: string | null;
   definitionVersionId: number | null;
   historyCount: number;
+  fingerprint: string | null;
+  sourceFingerprint: string | null;
+  actionDetails: BrainActionGovernanceDetails | null;
 }
 
 export interface BrainSemanticGraphNode {
   id: string;
   key: string;
   label: string;
-  kind: 'entity' | 'relation' | 'metric' | 'table';
+  kind: 'entity' | 'relation' | 'metric' | 'action' | 'predicate' | 'effect' | 'event' | 'role' | 'table';
   status: string;
   version: number | null;
   description: string;
   dataTables: string[];
   fuzzyTerms: string[];
+  actionDetails: BrainActionGovernanceDetails | null;
 }
 
 export interface BrainSemanticGraphEdge {
   id: string;
   source: string;
   target: string;
-  kind: 'relation_from' | 'relation_to' | 'metric_entity' | 'backed_by';
+  kind:
+    | 'relation_from'
+    | 'relation_to'
+    | 'metric_entity'
+    | 'backed_by'
+    | 'acts_on'
+    | 'uses_role'
+    | 'requires_predicate'
+    | 'asserts_effect'
+    | 'triggered_by'
+    | 'emits'
+    | 'may_affect_metric'
+    | 'confusable_with';
   label: string;
 }
 
@@ -109,8 +165,10 @@ interface BrainSemanticGovernanceRawRow {
   sourceDescription: string | null;
   sourceMetadata: Prisma.JsonValue | null;
   sourceFuzzyTerms: Prisma.JsonValue | null;
+  sourceDomain: string | null;
   definitionId: number | null;
   definitionKey: string | null;
+  definitionDomain: string | null;
   definitionStatus: string | null;
   currentPublishedVersionId: number | null;
   definitionVersionId: number | null;
@@ -128,6 +186,7 @@ interface BrainSemanticHitRow {
 interface BrainPublishedSemanticDefinitionRow {
   id: number;
   definitionKey: string;
+  domain: string;
   name: string;
   status: string;
   currentPublishedVersionId: number;
@@ -137,9 +196,32 @@ interface BrainPublishedSemanticDefinitionRow {
     version: number;
     payload: Prisma.JsonValue;
     lifecycleStatus: string;
+    fingerprint?: string;
+    sourceFingerprint?: string;
     publishedAt: Date | null;
     createdAt: Date;
   };
+  _count: { versions: number };
+}
+
+interface BrainActionDefinitionRow {
+  id: number;
+  definitionKey: string;
+  domain: string;
+  name: string;
+  status: string;
+  currentPublishedVersionId: number | null;
+  updatedAt: Date;
+  versions: Array<{
+    id: number;
+    version: number;
+    payload: Prisma.JsonValue;
+    lifecycleStatus: string;
+    fingerprint: string;
+    sourceFingerprint: string;
+    publishedAt: Date | null;
+    createdAt: Date;
+  }>;
   _count: { versions: number };
 }
 
@@ -234,10 +316,7 @@ export class BrainGovernanceResourceService {
     }));
   }
 
-  listSkillGovernanceHistory(input: {
-    skillKey: string;
-    take?: number;
-  }): Promise<BrainSkillGovernanceHistoryItem[]> {
+  listSkillGovernanceHistory(input: { skillKey: string; take?: number }): Promise<BrainSkillGovernanceHistoryItem[]> {
     const skillKey = this.nonEmpty(input.skillKey, 'skillKey');
     const take = Math.max(1, Math.min(200, Number(input.take) || 100));
     return this.prisma.$queryRaw<BrainSkillGovernanceHistoryItem[]>(Prisma.sql`
@@ -307,6 +386,9 @@ export class BrainGovernanceResourceService {
     take?: number;
   }): Promise<BrainSemanticGovernanceSummary[]> {
     const take = Math.max(1, Math.min(200, Number(input.take) || 100));
+    if (input.resourceType === 'action') {
+      return this.listActionGovernanceSummaries({ storeId: input.storeId, take });
+    }
     const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const [rows, definitions, sampleCount, hitRows] = await Promise.all([
       this.querySemanticRows(input.resourceType, { take }),
@@ -337,21 +419,24 @@ export class BrainGovernanceResourceService {
       };
     });
     const governedKeys = new Set(
-      definitions.flatMap((definition) => [definition.definitionKey, semanticCoreKey(input.resourceType, definition.definitionKey)]),
+      definitions.flatMap((definition) => [
+        definition.definitionKey,
+        semanticCoreKey(input.resourceType, definition.definitionKey),
+      ]),
     );
-    const legacy = rows.filter((row) => !governedKeys.has(row.resourceKey)).map((row) => {
-      const hitCount = hits.get(row.definitionKey ?? row.resourceKey) ?? hits.get(row.resourceKey) ?? 0;
-      return {
-        ...this.mapSemanticRow(input.resourceType, row),
-        hitCount,
-        sampleCount,
-        hitRate: sampleCount > 0 ? hitCount / sampleCount : null,
-        historyCount: Number(row.historyCount) || 1,
-      };
-    });
-    return [...governed, ...legacy]
-      .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'))
-      .slice(0, take);
+    const legacy = rows
+      .filter((row) => !governedKeys.has(row.resourceKey))
+      .map((row) => {
+        const hitCount = hits.get(row.definitionKey ?? row.resourceKey) ?? hits.get(row.resourceKey) ?? 0;
+        return {
+          ...this.mapSemanticRow(input.resourceType, row),
+          hitCount,
+          sampleCount,
+          hitRate: sampleCount > 0 ? hitCount / sampleCount : null,
+          historyCount: Number(row.historyCount) || 1,
+        };
+      });
+    return [...governed, ...legacy].sort((left, right) => left.name.localeCompare(right.name, 'zh-CN')).slice(0, take);
   }
 
   async listSemanticGovernanceHistory(input: {
@@ -361,13 +446,14 @@ export class BrainGovernanceResourceService {
   }): Promise<BrainSemanticGovernanceHistoryItem[]> {
     const resourceKey = this.nonEmpty(input.resourceKey, 'resourceKey');
     const take = Math.max(1, Math.min(200, Number(input.take) || 100));
+    if (input.resourceType === 'action') {
+      return this.listActionGovernanceHistory(resourceKey, take);
+    }
     const definition = await this.findSemanticDefinition(input.resourceType, resourceKey);
     if (definition) {
-      return definition.versions.slice(0, take).map((version) => this.mapSemanticDefinitionVersion(
-        input.resourceType,
-        definition,
-        version,
-      ));
+      return definition.versions
+        .slice(0, take)
+        .map((version) => this.mapSemanticDefinitionVersion(input.resourceType, definition, version));
     }
     const rows = await this.querySemanticRows(input.resourceType, { resourceKey, take });
     return rows.map((row) => this.mapSemanticRow(input.resourceType, row));
@@ -419,54 +505,118 @@ export class BrainGovernanceResourceService {
   }
 
   async getSemanticGraph() {
-    const definitions = await this.prisma.businessDefinition.findMany({
+    const registryDefinitions = await this.prisma.businessDefinition.findMany({
       where: {
-        kind: { in: ['entity', 'relation', 'metric'] },
-        currentPublishedVersionId: { not: null },
+        OR: [
+          { kind: { in: ['entity', 'relation', 'metric'] }, currentPublishedVersionId: { not: null } },
+          { kind: 'action' },
+        ],
       },
       select: {
         definitionKey: true,
         kind: true,
+        domain: true,
         name: true,
         status: true,
+        currentPublishedVersionId: true,
         currentPublishedVersion: { select: { version: true, payload: true } },
+        versions: {
+          orderBy: [{ version: 'desc' }, { id: 'desc' }],
+          take: 1,
+          select: { id: true, version: true, payload: true, lifecycleStatus: true },
+        },
       },
       orderBy: [{ kind: 'asc' }, { definitionKey: 'asc' }],
     });
+    const definitions: Array<{
+      definitionKey: string;
+      kind: 'entity' | 'relation' | 'metric' | 'action';
+      domain: string;
+      name: string;
+      status: string;
+      version: number | null;
+      payload: Record<string, unknown>;
+      origin: BrainActionGovernanceDetails['origin'];
+    }> = registryDefinitions.map((definition) => {
+      const latestActionVersion = definition.kind === 'action' ? definition.versions?.[0] : undefined;
+      return {
+        definitionKey: definition.definitionKey,
+        kind: definition.kind as 'entity' | 'relation' | 'metric' | 'action',
+        domain: definition.domain ?? '',
+        name: definition.name,
+        status:
+          definition.kind === 'action' && latestActionVersion
+            ? latestActionVersion.lifecycleStatus === 'published' &&
+              definition.currentPublishedVersionId === latestActionVersion.id &&
+              definition.status === 'active'
+              ? 'active'
+              : latestActionVersion.lifecycleStatus
+            : definition.status,
+        version: latestActionVersion?.version ?? definition.currentPublishedVersion?.version ?? null,
+        payload: this.record(latestActionVersion?.payload ?? definition.currentPublishedVersion?.payload ?? {}),
+        origin: 'registry' as const,
+      };
+    });
+    const registeredActionKeys = new Set(
+      definitions.filter((definition) => definition.kind === 'action').map((definition) => definition.definitionKey),
+    );
+    for (const candidate of createCuratedActionCandidates()) {
+      if (registeredActionKeys.has(candidate.definitionKey)) continue;
+      definitions.push({
+        definitionKey: candidate.definitionKey,
+        kind: 'action',
+        domain: candidate.domain,
+        name: candidate.name,
+        status: 'local_candidate',
+        version: 1,
+        payload: this.record(candidate.payload as Prisma.JsonValue),
+        origin: 'local_candidate',
+      });
+    }
     const nodes: BrainSemanticGraphNode[] = [];
     const edges: BrainSemanticGraphEdge[] = [];
     const edgeIds = new Set<string>();
+    const nodeIds = new Set<string>();
     const entityByModel = new Map<string, string>();
     const tableNames = new Set<string>();
 
     for (const definition of definitions) {
-      const payload = this.record(definition.currentPublishedVersion?.payload ?? {});
-      const kind = definition.kind as 'entity' | 'relation' | 'metric';
+      const payload = definition.payload;
+      const kind = definition.kind;
       const dataTables = uniqueStrings(collectNamedStrings(payload, TABLE_METADATA_KEYS));
       const fuzzyTerms = uniqueStrings(collectNamedStrings(payload, FUZZY_TERM_KEYS));
-      nodes.push({
+      addGraphNode(nodes, nodeIds, {
         id: definition.definitionKey,
         key: definition.definitionKey,
-        label: firstNonEmptyString(payload.displayName, payload.label, fuzzyTerms[0], definition.name, definition.definitionKey),
+        label: firstNonEmptyString(
+          payload.displayName,
+          payload.label,
+          fuzzyTerms[0],
+          definition.name,
+          definition.definitionKey,
+        ),
         kind,
         status: definition.status,
-        version: definition.currentPublishedVersion?.version ?? null,
+        version: definition.version,
         description: firstNonEmptyString(payload.semanticDescription, payload.description),
         dataTables,
         fuzzyTerms,
+        actionDetails:
+          kind === 'action' ? actionGovernanceDetails(payload, definition.domain, definition.origin) : null,
       });
       dataTables.forEach((table) => tableNames.add(table));
       if (kind === 'entity') {
         for (const model of uniqueStrings([
           ...collectNamedStrings(payload, new Set(['model', 'table'])),
           ...dataTables,
-        ])) entityByModel.set(model, definition.definitionKey);
+        ]))
+          entityByModel.set(model, definition.definitionKey);
       }
     }
 
     for (const definition of definitions) {
-      const payload = this.record(definition.currentPublishedVersion?.payload ?? {});
-      const kind = definition.kind as 'entity' | 'relation' | 'metric';
+      const payload = definition.payload;
+      const kind = definition.kind;
       const dataTables = uniqueStrings(collectNamedStrings(payload, TABLE_METADATA_KEYS));
       if (kind === 'relation') {
         const fromEntity = entityByModel.get(firstNonEmptyString(payload.fromModel, payload.sourceModel));
@@ -480,13 +630,90 @@ export class BrainGovernanceResourceService {
           if (entity) addGraphEdge(edges, edgeIds, definition.definitionKey, entity, 'metric_entity', '度量');
         }
       }
+      if (kind === 'action') {
+        const details = actionGovernanceDetails(payload, definition.domain, definition.origin);
+        for (const targetEntityRef of details.targetEntityRefs) {
+          if (nodeIds.has(targetEntityRef)) {
+            addGraphEdge(edges, edgeIds, definition.definitionKey, targetEntityRef, 'acts_on', '作用对象');
+          }
+        }
+        for (const slot of details.inputSlots) {
+          if (!slot.semanticRole) continue;
+          const roleId = `role:${slot.semanticRole}`;
+          addGraphNode(nodes, nodeIds, {
+            id: roleId,
+            key: slot.semanticRole,
+            label: slot.semanticRole,
+            kind: 'role',
+            status: 'governed_reference',
+            version: null,
+            description: 'ActionDefinition 输入槽位声明的语义角色。',
+            dataTables: [],
+            fuzzyTerms: [],
+            actionDetails: null,
+          });
+          addGraphEdge(edges, edgeIds, definition.definitionKey, roleId, 'uses_role', '使用角色');
+        }
+        for (const predicate of details.preconditions) {
+          const predicateId = `predicate:${predicate}`;
+          addGraphNode(nodes, nodeIds, {
+            id: predicateId,
+            key: predicate,
+            label: predicate,
+            kind: 'predicate',
+            status: 'governed_reference',
+            version: null,
+            description: '动作执行前必须由确定性 evaluator 验证的前置条件。',
+            dataTables: [],
+            fuzzyTerms: [],
+            actionDetails: null,
+          });
+          addGraphEdge(edges, edgeIds, definition.definitionKey, predicateId, 'requires_predicate', '前置条件');
+        }
+        for (const effect of details.effects) {
+          const effectId = `effect:${effect}`;
+          addGraphNode(nodes, nodeIds, {
+            id: effectId,
+            key: effect,
+            label: effect,
+            kind: 'effect',
+            status: 'governed_reference',
+            version: null,
+            description: '动作成功后必须获得业务证据的声明效果。',
+            dataTables: [],
+            fuzzyTerms: [],
+            actionDetails: null,
+          });
+          addGraphEdge(edges, edgeIds, definition.definitionKey, effectId, 'asserts_effect', '声明效果');
+        }
+        for (const eventRef of stringArray(payload.triggeredByEventRefs)) {
+          const eventId = canonicalEventDefinitionKey(eventRef);
+          addGraphNode(nodes, nodeIds, graphReferenceNode(eventId, eventId, 'event'));
+          addGraphEdge(edges, edgeIds, eventId, definition.definitionKey, 'triggered_by', '触发');
+        }
+        for (const eventRef of stringArray(payload.emitsEventRefs)) {
+          const eventId = canonicalEventDefinitionKey(eventRef);
+          addGraphNode(nodes, nodeIds, graphReferenceNode(eventId, eventId, 'event'));
+          addGraphEdge(edges, edgeIds, definition.definitionKey, eventId, 'emits', '产生事件');
+        }
+        for (const metricRef of stringArray(payload.mayAffectMetricRefs)) {
+          if (nodeIds.has(metricRef)) {
+            addGraphEdge(edges, edgeIds, definition.definitionKey, metricRef, 'may_affect_metric', '可能影响');
+          }
+        }
+        for (const contrast of details.contrasts) {
+          if (nodeIds.has(contrast.conceptKey)) {
+            addGraphEdge(edges, edgeIds, definition.definitionKey, contrast.conceptKey, 'confusable_with', '竞争动作');
+          }
+        }
+      }
       for (const table of dataTables) {
         addGraphEdge(edges, edgeIds, definition.definitionKey, `table:${table}`, 'backed_by', '数据表');
       }
     }
 
     for (const table of [...tableNames].sort((left, right) => left.localeCompare(right))) {
-      nodes.push({
+      addGraphNode(nodes, nodeIds, {
         id: `table:${table}`,
         key: table,
         label: table,
@@ -496,6 +723,7 @@ export class BrainGovernanceResourceService {
         description: '业务口径关联的真实数据模型或表。',
         dataTables: [table],
         fuzzyTerms: [],
+        actionDetails: null,
       });
     }
 
@@ -506,6 +734,11 @@ export class BrainGovernanceResourceService {
         entities: nodes.filter((node) => node.kind === 'entity').length,
         relations: nodes.filter((node) => node.kind === 'relation').length,
         metrics: nodes.filter((node) => node.kind === 'metric').length,
+        actions: nodes.filter((node) => node.kind === 'action').length,
+        predicates: nodes.filter((node) => node.kind === 'predicate').length,
+        effects: nodes.filter((node) => node.kind === 'effect').length,
+        events: nodes.filter((node) => node.kind === 'event').length,
+        roles: nodes.filter((node) => node.kind === 'role').length,
         tables: nodes.filter((node) => node.kind === 'table').length,
         edges: edges.length,
       },
@@ -699,11 +932,191 @@ export class BrainGovernanceResourceService {
     }
   }
 
+  private async listActionGovernanceSummaries(input: {
+    storeId: number;
+    take: number;
+  }): Promise<BrainSemanticGovernanceSummary[]> {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const [definitions, sampleCount, hitRows] = await Promise.all([
+      this.prisma.businessDefinition.findMany({
+        where: { kind: 'action' },
+        select: {
+          id: true,
+          definitionKey: true,
+          domain: true,
+          name: true,
+          status: true,
+          currentPublishedVersionId: true,
+          updatedAt: true,
+          versions: {
+            orderBy: [{ version: 'desc' }, { id: 'desc' }],
+            take: 1,
+            select: {
+              id: true,
+              version: true,
+              payload: true,
+              lifecycleStatus: true,
+              fingerprint: true,
+              sourceFingerprint: true,
+              publishedAt: true,
+              createdAt: true,
+            },
+          },
+          _count: { select: { versions: true } },
+        },
+        orderBy: [{ name: 'asc' }, { definitionKey: 'asc' }],
+        take: input.take,
+      }) as unknown as Promise<BrainActionDefinitionRow[]>,
+      this.prisma.brainRun.count({
+        where: { storeId: input.storeId, status: 'completed', createdAt: { gte: since } },
+      }),
+      this.prisma.$queryRaw<BrainSemanticHitRow[]>(Prisma.sql`
+        SELECT
+          evidence."definitionKey" AS "definitionKey",
+          COUNT(DISTINCT evidence."runId")::int AS "hitCount"
+        FROM "business_semantic_evidence" evidence
+        WHERE evidence."storeId" = ${input.storeId}
+          AND evidence."runId" IS NOT NULL
+          AND evidence."firstSeenAt" >= ${since}
+          AND evidence."definitionKey" LIKE 'action.%'
+        GROUP BY evidence."definitionKey"
+      `),
+    ]);
+    const hits = new Map(hitRows.map((row) => [row.definitionKey, Number(row.hitCount) || 0]));
+    const registeredKeys = new Set(definitions.map((definition) => definition.definitionKey));
+    const registered = definitions.flatMap((definition) => {
+      const version = definition.versions[0];
+      if (!version) return [];
+      const hitCount = hits.get(definition.definitionKey) ?? 0;
+      return [
+        {
+          ...this.mapActionDefinitionVersion(definition, version, 'registry'),
+          hitCount,
+          sampleCount,
+          hitRate: sampleCount > 0 ? hitCount / sampleCount : null,
+          historyCount: definition._count.versions,
+        },
+      ];
+    });
+    const localCandidates = createCuratedActionCandidates()
+      .filter((candidate) => !registeredKeys.has(candidate.definitionKey))
+      .map((candidate) => ({
+        ...this.mapLocalActionCandidate(candidate),
+        hitCount: 0,
+        sampleCount,
+        hitRate: null,
+        historyCount: 1,
+      }));
+    return [...registered, ...localCandidates]
+      .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'))
+      .slice(0, input.take);
+  }
+
+  private async listActionGovernanceHistory(
+    resourceKey: string,
+    take: number,
+  ): Promise<BrainSemanticGovernanceHistoryItem[]> {
+    const definition = (await this.prisma.businessDefinition.findUnique({
+      where: { kind_definitionKey: { kind: 'action', definitionKey: resourceKey } },
+      select: {
+        id: true,
+        definitionKey: true,
+        domain: true,
+        name: true,
+        status: true,
+        currentPublishedVersionId: true,
+        updatedAt: true,
+        versions: {
+          orderBy: [{ version: 'desc' }, { id: 'desc' }],
+          take,
+          select: {
+            id: true,
+            version: true,
+            payload: true,
+            lifecycleStatus: true,
+            fingerprint: true,
+            sourceFingerprint: true,
+            publishedAt: true,
+            createdAt: true,
+          },
+        },
+        _count: { select: { versions: true } },
+      },
+    })) as unknown as BrainActionDefinitionRow | null;
+    if (definition) {
+      return definition.versions.map((version) => this.mapActionDefinitionVersion(definition, version, 'registry'));
+    }
+    const candidate = createCuratedActionCandidates().find((item) => item.definitionKey === resourceKey);
+    return candidate ? [this.mapLocalActionCandidate(candidate)] : [];
+  }
+
+  private mapActionDefinitionVersion(
+    definition: BrainActionDefinitionRow,
+    version: BrainActionDefinitionRow['versions'][number],
+    origin: BrainActionGovernanceDetails['origin'],
+  ): BrainSemanticGovernanceHistoryItem {
+    const payload = this.record(version.payload);
+    const enabled =
+      definition.status === 'active' &&
+      definition.currentPublishedVersionId === version.id &&
+      version.lifecycleStatus === 'published';
+    return {
+      id: version.id,
+      resourceType: 'action',
+      resourceKey: definition.definitionKey,
+      name: definition.name,
+      domain: definition.domain || null,
+      version: version.version,
+      status: version.lifecycleStatus === 'published' ? (enabled ? 'active' : 'disabled') : version.lifecycleStatus,
+      semanticDescription: firstNonEmptyString(payload.semanticDescription, payload.description),
+      dataTables: uniqueStrings(collectNamedStrings(payload, TABLE_METADATA_KEYS)),
+      fuzzyTerms: uniqueStrings(collectNamedStrings(payload, FUZZY_TERM_KEYS)),
+      updatedAt: version.publishedAt ?? version.createdAt ?? definition.updatedAt,
+      managed: true,
+      enabled,
+      definitionId: definition.id,
+      definitionKey: definition.definitionKey,
+      definitionVersionId: version.id,
+      fingerprint: version.fingerprint,
+      sourceFingerprint: version.sourceFingerprint,
+      actionDetails: actionGovernanceDetails(payload, definition.domain, origin),
+    };
+  }
+
+  private mapLocalActionCandidate(
+    candidate: ReturnType<typeof createCuratedActionCandidates>[number],
+  ): BrainSemanticGovernanceHistoryItem {
+    const payload = this.record(candidate.payload as Prisma.JsonValue);
+    return {
+      id: stableLocalCandidateId(candidate.definitionKey),
+      resourceType: 'action',
+      resourceKey: candidate.definitionKey,
+      name: candidate.name,
+      domain: candidate.domain || null,
+      version: 1,
+      status: 'local_candidate',
+      semanticDescription: firstNonEmptyString(payload.semanticDescription, payload.description),
+      dataTables: uniqueStrings(collectNamedStrings(payload, TABLE_METADATA_KEYS)),
+      fuzzyTerms: uniqueStrings(collectNamedStrings(payload, FUZZY_TERM_KEYS)),
+      updatedAt: null,
+      managed: false,
+      enabled: false,
+      definitionId: null,
+      definitionKey: candidate.definitionKey,
+      definitionVersionId: null,
+      fingerprint: null,
+      sourceFingerprint: null,
+      actionDetails: actionGovernanceDetails(payload, candidate.domain, 'local_candidate'),
+    };
+  }
+
   private querySemanticRows(
     resourceType: BrainSemanticGovernanceResourceType,
     input: { resourceKey?: string; take: number },
   ): Promise<BrainSemanticGovernanceRawRow[]> {
-    const keyFilter = input.resourceKey ? Prisma.sql`AND source_row."resourceKey" = ${input.resourceKey}` : Prisma.empty;
+    const keyFilter = input.resourceKey
+      ? Prisma.sql`AND source_row."resourceKey" = ${input.resourceKey}`
+      : Prisma.empty;
     const latestFilter = input.resourceKey ? Prisma.empty : Prisma.sql`AND source_row.row_number = 1`;
     if (resourceType === 'metric') {
       return this.prisma.$queryRaw<BrainSemanticGovernanceRawRow[]>(Prisma.sql`
@@ -712,6 +1125,7 @@ export class BrainGovernanceResourceService {
             metric."id", metric."metricKey" AS "resourceKey", metric."name", metric."version",
             metric."status" AS "sourceStatus", metric."description" AS "sourceDescription",
             metric."sourceTables" AS "sourceMetadata", '[]'::jsonb AS "sourceFuzzyTerms",
+            metric."domain" AS "sourceDomain",
             metric."businessDefinitionVersionId", metric."updatedAt",
             ROW_NUMBER() OVER (PARTITION BY metric."metricKey" ORDER BY metric."version" DESC, metric."id" DESC) AS row_number,
             (COUNT(*) OVER (PARTITION BY metric."metricKey"))::int AS "historyCount"
@@ -720,8 +1134,9 @@ export class BrainGovernanceResourceService {
         SELECT
           source_row."id", source_row."resourceKey", source_row."name", source_row."version",
           source_row."sourceStatus", source_row."sourceDescription", source_row."sourceMetadata",
-          source_row."sourceFuzzyTerms", source_row."updatedAt", source_row."historyCount",
-          definition."id" AS "definitionId", definition."definitionKey", definition."status" AS "definitionStatus",
+          source_row."sourceFuzzyTerms", source_row."sourceDomain", source_row."updatedAt", source_row."historyCount",
+          definition."id" AS "definitionId", definition."definitionKey",
+          definition."domain" AS "definitionDomain", definition."status" AS "definitionStatus",
           definition."currentPublishedVersionId", version."id" AS "definitionVersionId",
           version."lifecycleStatus" AS "definitionLifecycleStatus", version."payload" AS "definitionPayload"
         FROM source_row
@@ -739,6 +1154,7 @@ export class BrainGovernanceResourceService {
             entity."id", entity."entityKey" AS "resourceKey", entity."name", entity."version",
             entity."status" AS "sourceStatus", NULL::text AS "sourceDescription",
             entity."tableMap" AS "sourceMetadata", entity."synonyms" AS "sourceFuzzyTerms",
+            entity."domain" AS "sourceDomain",
             entity."businessDefinitionVersionId", entity."updatedAt",
             ROW_NUMBER() OVER (PARTITION BY entity."entityKey" ORDER BY entity."version" DESC, entity."id" DESC) AS row_number,
             (COUNT(*) OVER (PARTITION BY entity."entityKey"))::int AS "historyCount"
@@ -747,8 +1163,9 @@ export class BrainGovernanceResourceService {
         SELECT
           source_row."id", source_row."resourceKey", source_row."name", source_row."version",
           source_row."sourceStatus", source_row."sourceDescription", source_row."sourceMetadata",
-          source_row."sourceFuzzyTerms", source_row."updatedAt", source_row."historyCount",
-          definition."id" AS "definitionId", definition."definitionKey", definition."status" AS "definitionStatus",
+          source_row."sourceFuzzyTerms", source_row."sourceDomain", source_row."updatedAt", source_row."historyCount",
+          definition."id" AS "definitionId", definition."definitionKey",
+          definition."domain" AS "definitionDomain", definition."status" AS "definitionStatus",
           definition."currentPublishedVersionId", version."id" AS "definitionVersionId",
           version."lifecycleStatus" AS "definitionLifecycleStatus", version."payload" AS "definitionPayload"
         FROM source_row
@@ -765,6 +1182,7 @@ export class BrainGovernanceResourceService {
           relation."id", relation."relationKey" AS "resourceKey", relation."name", relation."version",
           relation."status" AS "sourceStatus", (relation."fromEntityKey" || ' → ' || relation."toEntityKey") AS "sourceDescription",
           relation."joinPath" AS "sourceMetadata", '[]'::jsonb AS "sourceFuzzyTerms",
+          NULL::text AS "sourceDomain",
           relation."businessDefinitionVersionId", relation."updatedAt",
           ROW_NUMBER() OVER (PARTITION BY relation."relationKey" ORDER BY relation."version" DESC, relation."id" DESC) AS row_number,
           (COUNT(*) OVER (PARTITION BY relation."relationKey"))::int AS "historyCount"
@@ -773,8 +1191,9 @@ export class BrainGovernanceResourceService {
       SELECT
         source_row."id", source_row."resourceKey", source_row."name", source_row."version",
         source_row."sourceStatus", source_row."sourceDescription", source_row."sourceMetadata",
-        source_row."sourceFuzzyTerms", source_row."updatedAt", source_row."historyCount",
-        definition."id" AS "definitionId", definition."definitionKey", definition."status" AS "definitionStatus",
+        source_row."sourceFuzzyTerms", source_row."sourceDomain", source_row."updatedAt", source_row."historyCount",
+        definition."id" AS "definitionId", definition."definitionKey",
+        definition."domain" AS "definitionDomain", definition."status" AS "definitionStatus",
         definition."currentPublishedVersionId", version."id" AS "definitionVersionId",
         version."lifecycleStatus" AS "definitionLifecycleStatus", version."payload" AS "definitionPayload"
       FROM source_row
@@ -816,6 +1235,7 @@ export class BrainGovernanceResourceService {
       resourceType,
       resourceKey: row.resourceKey,
       name: row.name,
+      domain: firstNonEmptyString(row.definitionDomain, row.sourceDomain, payload.domain) || null,
       version: Number(row.version) || 1,
       status: managed ? (enabled ? 'active' : 'disabled') : row.sourceStatus,
       semanticDescription,
@@ -827,6 +1247,9 @@ export class BrainGovernanceResourceService {
       definitionId: row.definitionId,
       definitionKey: row.definitionKey,
       definitionVersionId: row.definitionVersionId,
+      fingerprint: null,
+      sourceFingerprint: null,
+      actionDetails: null,
     };
   }
 
@@ -842,6 +1265,7 @@ export class BrainGovernanceResourceService {
       select: {
         id: true,
         definitionKey: true,
+        domain: true,
         name: true,
         status: true,
         currentPublishedVersionId: true,
@@ -852,6 +1276,8 @@ export class BrainGovernanceResourceService {
             version: true,
             payload: true,
             lifecycleStatus: true,
+            fingerprint: true,
+            sourceFingerprint: true,
             publishedAt: true,
             createdAt: true,
           },
@@ -874,6 +1300,7 @@ export class BrainGovernanceResourceService {
       select: {
         id: true,
         definitionKey: true,
+        domain: true,
         name: true,
         status: true,
         currentPublishedVersionId: true,
@@ -885,6 +1312,8 @@ export class BrainGovernanceResourceService {
             version: true,
             payload: true,
             lifecycleStatus: true,
+            fingerprint: true,
+            sourceFingerprint: true,
             publishedAt: true,
             createdAt: true,
           },
@@ -905,6 +1334,7 @@ export class BrainGovernanceResourceService {
     definition: {
       id: number;
       definitionKey: string;
+      domain: string;
       name: string;
       status: string;
       currentPublishedVersionId: number | null;
@@ -915,12 +1345,15 @@ export class BrainGovernanceResourceService {
       version: number;
       payload: Prisma.JsonValue;
       lifecycleStatus: string;
+      fingerprint?: string;
+      sourceFingerprint?: string;
       publishedAt: Date | null;
       createdAt: Date;
     },
   ): BrainSemanticGovernanceHistoryItem {
     const payload = this.record(version.payload);
-    const enabled = definition.status === 'active' &&
+    const enabled =
+      definition.status === 'active' &&
       definition.currentPublishedVersionId === version.id &&
       version.lifecycleStatus === 'published';
     return {
@@ -928,6 +1361,7 @@ export class BrainGovernanceResourceService {
       resourceType,
       resourceKey: definition.definitionKey,
       name: definition.name,
+      domain: definition.domain || null,
       version: version.version,
       status: version.lifecycleStatus === 'published' ? (enabled ? 'active' : 'disabled') : version.lifecycleStatus,
       semanticDescription: firstNonEmptyString(payload.semanticDescription, payload.description),
@@ -939,6 +1373,9 @@ export class BrainGovernanceResourceService {
       definitionId: definition.id,
       definitionKey: definition.definitionKey,
       definitionVersionId: version.id,
+      fingerprint: version.fingerprint ?? null,
+      sourceFingerprint: version.sourceFingerprint ?? null,
+      actionDetails: null,
     };
   }
 
@@ -1049,6 +1486,213 @@ function skillDefinitionKeys(value: unknown, prefix: 'entity.' | 'metric.') {
   );
 }
 
+const ACTION_PROFILE_SPECS = [
+  ['lexical_frame', '词义/竞争动作', 'lexicalFrame', 'frameKey', 'lexical_frame', '1.0'],
+  ['situation_context', '执行情境', 'situationContext', 'profileKey', 'situation_context', '1.0'],
+  ['modality_policy', '言语行为', 'modalityPolicy', 'policyKey', 'speech_act_modality', '1.0'],
+  ['information_artifact', '信息载体', 'informationArtifact', 'profileKey', 'information_artifact', '1.0'],
+  ['side_effect_invariant', '副作用/不变量', 'sideEffectInvariant', 'profileKey', 'side_effect_invariant', '1.2'],
+] as const;
+
+const INSTITUTIONAL_EFFECT_PROFILE_SPEC = [
+  'institutional_effect',
+  '制度性效力',
+  'institutionalEffect',
+  'profileKey',
+  'institutional_effect',
+  '1.0',
+] as const;
+
+const INSTITUTIONAL_EFFECT_ACTION_KEY_SET = new Set(INSTITUTIONAL_EFFECT_ACTION_KEYS);
+
+function actionGovernanceDetails(
+  payload: Record<string, unknown>,
+  domain: string,
+  origin: BrainActionGovernanceDetails['origin'],
+): BrainActionGovernanceDetails {
+  const inputSlots = objectArray(payload.inputSlots).map((slot) => ({
+    slotKey: firstNonEmptyString(slot.slotKey),
+    label: firstNonEmptyString(slot.label, slot.slotKey),
+    semanticRole: firstNonEmptyString(slot.semanticRole),
+    requiredAt: stringArray(slot.requiredAt),
+  }));
+  const preconditions = stringArray(payload.preconditions);
+  const effects = stringArray(payload.effects);
+  const capabilityBindings = objectArray(payload.capabilityBindings).map((binding) => ({
+    capabilityKey: firstNonEmptyString(binding.capabilityKey),
+    gatewayActionKey: firstNonEmptyString(binding.gatewayActionKey),
+    enabled: binding.enabled !== false,
+  }));
+  const actionKey = firstNonEmptyString(payload.actionKey);
+  const lexicalFrame = recordValue(payload.lexicalFrame);
+  const contrasts = objectArray(lexicalFrame.contrasts).map((contrast) => ({
+    conceptKey: firstNonEmptyString(contrast.conceptKey),
+    name: firstNonEmptyString(contrast.name, contrast.conceptKey),
+    discriminators: objectArray(contrast.discriminators).map((discriminator) => ({
+      dimension: firstNonEmptyString(discriminator.dimension),
+      currentActionValue: firstNonEmptyString(discriminator.currentActionValue),
+      contrastActionValue: firstNonEmptyString(discriminator.contrastActionValue),
+    })),
+  }));
+  const profileSpecs = INSTITUTIONAL_EFFECT_ACTION_KEY_SET.has(actionKey)
+    ? [...ACTION_PROFILE_SPECS, INSTITUTIONAL_EFFECT_PROFILE_SPEC]
+    : ACTION_PROFILE_SPECS;
+  const profiles: BrainActionGovernanceProfile[] = profileSpecs.map(
+    ([key, label, field, identityField, identitySuffix, schemaVersion]) => {
+      const profile = recordValue(payload[field]);
+      const status = actionProfileStatus(profile, {
+        actionKey,
+        identityField,
+        identitySuffix,
+        schemaVersion,
+      });
+      return {
+        key,
+        label,
+        status,
+        schemaVersion: status === 'missing' ? null : firstNonEmptyString(profile.schemaVersion) || null,
+        fingerprint: status === 'missing' ? null : firstNonEmptyString(profile.fingerprint) || null,
+      };
+    },
+  );
+  const predicateRefs = objectArray(payload.preconditionPredicateRefs);
+  profiles.push({
+    key: 'predicate_contracts',
+    label: '前置条件合同',
+    status: semanticContractProfileStatus(preconditions, predicateRefs),
+    schemaVersion: null,
+    fingerprint: null,
+  });
+  const effectRefs = objectArray(payload.effectAssertionRefs);
+  profiles.push({
+    key: 'effect_contracts',
+    label: '效果观测合同',
+    status: semanticContractProfileStatus(effects, effectRefs),
+    schemaVersion: null,
+    fingerprint: null,
+  });
+  profiles.push({
+    key: 'capability_binding',
+    label: '能力绑定',
+    status: capabilityBindings.some((binding) => binding.enabled && binding.capabilityKey && binding.gatewayActionKey)
+      ? 'available'
+      : 'missing',
+    schemaVersion: null,
+    fingerprint: null,
+  });
+  return {
+    origin,
+    domain,
+    actionClass: firstNonEmptyString(payload.actionClass),
+    targetEntityRefs: stringArray(payload.targetEntityRefs),
+    inputSlots,
+    preconditions,
+    effects,
+    capabilityBindings,
+    contrasts,
+    profiles,
+    profileGaps: profiles.filter((profile) => profile.status !== 'available').map((profile) => profile.key),
+    riskPolicy: firstNonEmptyString(payload.riskPolicy),
+    confirmationPolicy: firstNonEmptyString(payload.confirmationPolicy),
+    idempotencyPolicy: firstNonEmptyString(payload.idempotencyPolicy),
+  };
+}
+
+function actionProfileStatus(
+  profile: Record<string, unknown>,
+  input: {
+    actionKey: string;
+    identityField: string;
+    identitySuffix: string;
+    schemaVersion: string;
+  },
+): BrainActionGovernanceProfile['status'] {
+  if (Object.keys(profile).length === 0) return 'missing';
+  if (!input.actionKey) return 'invalid';
+  if (firstNonEmptyString(profile.schemaVersion) !== input.schemaVersion) return 'invalid';
+  if (firstNonEmptyString(profile[input.identityField]) !== `${input.actionKey}.${input.identitySuffix}`)
+    return 'invalid';
+  return isSha256Fingerprint(profile.fingerprint) ? 'available' : 'invalid';
+}
+
+function semanticContractProfileStatus(
+  keys: string[],
+  refs: Record<string, unknown>[],
+): BrainActionGovernanceProfile['status'] {
+  if (keys.length === 0 || refs.length === 0) return 'missing';
+  if (keys.length !== refs.length) return 'invalid';
+  const expected = new Set(keys);
+  const actual = new Set<string>();
+  for (const ref of refs) {
+    const key = firstNonEmptyString(ref.key);
+    const version = Number(ref.version);
+    if (
+      !expected.has(key) ||
+      actual.has(key) ||
+      !Number.isInteger(version) ||
+      version < 1 ||
+      !isSha256Fingerprint(ref.fingerprint)
+    ) {
+      return 'invalid';
+    }
+    actual.add(key);
+  }
+  return actual.size === expected.size ? 'available' : 'invalid';
+}
+
+function isSha256Fingerprint(value: unknown) {
+  return typeof value === 'string' && /^[0-9a-f]{64}$/u.test(value);
+}
+
+function canonicalEventDefinitionKey(value: string) {
+  const normalized = value.trim();
+  if (normalized.startsWith('event.')) return normalized;
+  if (normalized.startsWith('event:')) return `event.${normalized.slice('event:'.length)}`;
+  return `event.${normalized}`;
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function objectArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.map(recordValue).filter((item) => Object.keys(item).length > 0) : [];
+}
+
+function stringArray(value: unknown): string[] {
+  return uniqueStrings(collectStrings(value));
+}
+
+function stableLocalCandidateId(definitionKey: string) {
+  const value = Number.parseInt(createHash('sha256').update(definitionKey).digest('hex').slice(0, 7), 16);
+  return -(value || 1);
+}
+
+function addGraphNode(nodes: BrainSemanticGraphNode[], nodeIds: Set<string>, node: BrainSemanticGraphNode) {
+  if (nodeIds.has(node.id)) return;
+  nodeIds.add(node.id);
+  nodes.push(node);
+}
+
+function graphReferenceNode(
+  id: string,
+  key: string,
+  kind: Extract<BrainSemanticGraphNode['kind'], 'event'>,
+): BrainSemanticGraphNode {
+  return {
+    id,
+    key,
+    label: key,
+    kind,
+    status: 'governed_reference',
+    version: null,
+    description: 'ActionDefinition 引用的业务事件。',
+    dataTables: [],
+    fuzzyTerms: [],
+    actionDetails: null,
+  };
+}
+
 function addGraphEdge(
   edges: BrainSemanticGraphEdge[],
   edgeIds: Set<string>,
@@ -1066,6 +1710,7 @@ function addGraphEdge(
 function semanticDefinitionKind(resourceType: BrainSemanticGovernanceResourceType) {
   if (resourceType === 'metric') return 'metric';
   if (resourceType === 'ontology_entity') return 'entity';
+  if (resourceType === 'action') return 'action';
   return 'relation';
 }
 

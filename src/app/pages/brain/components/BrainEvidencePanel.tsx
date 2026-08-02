@@ -1,11 +1,17 @@
-import { CheckCircle2, ChevronDown, Database, GitBranch, Loader2, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { useEffect } from 'react';
+import { CheckCircle2, ChevronDown, Database, GitBranch, Loader2, ThumbsDown, ThumbsUp, X } from 'lucide-react';
 import type {
   BrainActionPreview as BrainActionPreviewType,
   BrainActionDecisionResponse,
+  BrainInspectionInboxResponse,
   BrainMessage,
   BrainRunEvent,
 } from '@/types/brain';
 import { BrainActionPreview } from './BrainActionPreview';
+import { BrainInspectionInbox } from './BrainInspectionInbox';
+import { BrainPlanningTracePanel } from './BrainPlanningTracePanel';
+
+export type BrainContextPanelTab = 'evidence' | 'trace' | 'risks';
 
 interface BrainEvidencePanelProps {
   message: BrainMessage | null;
@@ -19,6 +25,17 @@ interface BrainEvidencePanelProps {
   onRejectAction: (actionId: string, runId: number) => void;
   onRetryAction: (actionId: string, runId: number) => void;
   onFeedback: (runId: number, rating: string) => void;
+  activeTab?: BrainContextPanelTab;
+  onTabChange?: (tab: BrainContextPanelTab) => void;
+  inspectionInbox?: BrainInspectionInboxResponse | null;
+  loadingInspectionInbox?: boolean;
+  inspectionError?: string | null;
+  reviewingFindingId?: number | null;
+  onInspectionRefresh?: () => void;
+  onInspectionReview?: (findingId: number) => void;
+  onInspectionPageChange?: (page: number) => void;
+  mobileRiskOpen?: boolean;
+  onCloseMobileRisk?: () => void;
 }
 
 const EVENT_LABELS: Record<string, string> = {
@@ -166,20 +183,238 @@ export function BrainEvidencePanel({
   onRejectAction,
   onRetryAction,
   onFeedback,
+  activeTab = 'evidence',
+  onTabChange = () => undefined,
+  inspectionInbox = null,
+  loadingInspectionInbox = false,
+  inspectionError = null,
+  reviewingFindingId = null,
+  onInspectionRefresh = () => undefined,
+  onInspectionReview = () => undefined,
+  onInspectionPageChange = () => undefined,
+  mobileRiskOpen = false,
+  onCloseMobileRisk = () => undefined,
 }: BrainEvidencePanelProps) {
+  useEffect(() => {
+    if (!mobileRiskOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onCloseMobileRisk();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mobileRiskOpen, onCloseMobileRisk]);
+
+  const sharedProps: ContextPanelProps = {
+    message,
+    events,
+    loadingEvents,
+    actionResults,
+    pendingActionId,
+    feedbackRating,
+    feedbackLoading,
+    onConfirmAction,
+    onRejectAction,
+    onRetryAction,
+    onFeedback,
+    activeTab,
+    onTabChange,
+    inspectionInbox,
+    loadingInspectionInbox,
+    inspectionError,
+    reviewingFindingId,
+    onInspectionRefresh,
+    onInspectionReview,
+    onInspectionPageChange,
+  };
+
+  return (
+    <>
+      <aside className="hidden w-80 min-w-80 flex-col border-l border-border bg-muted/10 xl:flex">
+        <ContextPanel {...sharedProps} />
+      </aside>
+      {mobileRiskOpen ? (
+        <div className="fixed inset-0 z-50 xl:hidden">
+          <button
+            type="button"
+            aria-label="关闭 Ami Brain 上下文面板"
+            className="absolute inset-0 bg-black/30"
+            onClick={onCloseMobileRisk}
+          />
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label={activeTab === 'risks' ? '主动风险' : activeTab === 'trace' ? '运行轨迹' : '依据与动作'}
+            className="absolute inset-y-0 right-0 flex w-[min(92vw,420px)] flex-col border-l border-border bg-background shadow-xl"
+          >
+            <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
+              <h2 className="text-sm font-semibold text-foreground">Ami Brain 上下文</h2>
+              <button
+                type="button"
+                aria-label="关闭 Ami Brain 上下文"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+                onClick={onCloseMobileRisk}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <ContextPanel {...sharedProps} />
+          </aside>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+interface ContextPanelProps extends Omit<BrainEvidencePanelProps, 'mobileRiskOpen' | 'onCloseMobileRisk'> {
+  activeTab: BrainContextPanelTab;
+  onTabChange: (tab: BrainContextPanelTab) => void;
+  inspectionInbox: BrainInspectionInboxResponse | null;
+  loadingInspectionInbox: boolean;
+  inspectionError: string | null;
+  reviewingFindingId: number | null;
+  onInspectionRefresh: () => void;
+  onInspectionReview: (findingId: number) => void;
+  onInspectionPageChange: (page: number) => void;
+}
+
+function ContextPanel(props: ContextPanelProps) {
+  const riskTotal = props.inspectionInbox?.summary.total ?? 0;
+  const critical = props.inspectionInbox?.summary.critical ?? 0;
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="shrink-0 border-b border-border p-3">
+        <div className="grid grid-cols-3 gap-1 rounded-md bg-muted p-1" role="tablist" aria-label="Ami Brain 上下文面板">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={props.activeTab === 'evidence'}
+            className={`rounded px-2 py-2 text-xs font-medium ${props.activeTab === 'evidence' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+            onClick={() => props.onTabChange('evidence')}
+          >
+            依据与动作
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={props.activeTab === 'trace'}
+            className={`rounded px-2 py-2 text-xs font-medium ${props.activeTab === 'trace' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+            onClick={() => props.onTabChange('trace')}
+          >
+            运行轨迹
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={props.activeTab === 'risks'}
+            className={`rounded px-2 py-2 text-xs font-medium ${props.activeTab === 'risks' ? 'bg-background text-foreground shadow-sm' : critical ? 'text-red-700' : 'text-muted-foreground'}`}
+            onClick={() => props.onTabChange('risks')}
+          >
+            主动风险 {riskTotal}
+          </button>
+        </div>
+      </div>
+      {props.activeTab === 'risks' ? (
+        <BrainInspectionInbox
+          inbox={props.inspectionInbox}
+          loading={props.loadingInspectionInbox}
+          error={props.inspectionError}
+          reviewingId={props.reviewingFindingId}
+          onRefresh={props.onInspectionRefresh}
+          onReview={props.onInspectionReview}
+          onPageChange={props.onInspectionPageChange}
+        />
+      ) : props.activeTab === 'trace' ? (
+        <TraceContent {...props} />
+      ) : (
+        <EvidenceContent {...props} />
+      )}
+    </div>
+  );
+}
+
+function TraceContent({ message, events, loadingEvents }: ContextPanelProps) {
+  return (
+    <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4" role="tabpanel" aria-label="运行轨迹">
+      <BrainPlanningTracePanel message={message} events={events} loading={loadingEvents} />
+      {message ? (
+        <section className="border-t border-border pt-4">
+          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <GitBranch className="h-4 w-4" />
+            技术步骤与耗时
+          </div>
+          <div className="mt-3"><RunEventTimeline events={events} loading={loadingEvents} /></div>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+function RunEventTimeline({ events, loading }: { events: BrainRunEvent[]; loading: boolean }) {
+  if (loading) {
+    return <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />加载 Trace</div>;
+  }
+  if (!events.length) return <div className="text-xs text-muted-foreground">当前运行没有可展示步骤。</div>;
+
+  return (
+    <div className="space-y-2">
+      {events.map((event, index) => {
+        const usage = findTokenUsage(event.output) ?? findTokenUsage(event.input);
+        const duration = eventDuration(event, index, events);
+        return (
+          <details key={event.id} className="group rounded-md border border-border bg-background text-xs">
+            <summary className="flex cursor-pointer list-none items-start gap-2 p-2.5 marker:hidden">
+              <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${event.status === 'completed' ? 'bg-emerald-500' : event.status === 'failed' ? 'bg-destructive' : 'bg-amber-500'}`} />
+              <span className="min-w-0 flex-1">
+                <span className="block break-words font-medium text-foreground">{eventLabel(event)}</span>
+                <span className="mt-0.5 block text-muted-foreground">{event.layer}</span>
+                <span className="mt-2 grid grid-cols-2 gap-1 text-[11px] text-muted-foreground">
+                  <span title={usage ? `输入 ${usage.inputTokens} / 输出 ${usage.outputTokens}` : undefined}>
+                    Token {usage ? usage.totalTokens.toLocaleString('zh-CN') : isModelEvent(event) ? '未记录' : '0（非模型）'}
+                  </span>
+                  <span title={duration.estimated ? '由运行开始时间与相邻步骤时间估算，不等同于精确执行耗时' : undefined}>
+                    {duration.estimated ? '阶段间隔' : '耗时'} {duration.text}
+                  </span>
+                </span>
+              </span>
+              <ChevronDown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="space-y-3 border-t border-border px-2.5 py-3">
+              {usage ? (
+                <div className="rounded-md bg-muted/40 p-2 text-[11px] leading-5 text-muted-foreground">
+                  <div>Token：输入 {usage.inputTokens.toLocaleString('zh-CN')} · 输出 {usage.outputTokens.toLocaleString('zh-CN')} · 总计 {usage.totalTokens.toLocaleString('zh-CN')}</div>
+                  {usage.provider || usage.model ? <div>模型：{[usage.provider, usage.model].filter(Boolean).join(' / ')}</div> : null}
+                </div>
+              ) : null}
+              <TraceSnapshot label="输入" value={event.input} />
+              <TraceSnapshot label="输出" value={event.output} />
+              {event.error ? <TraceSnapshot label="错误" value={event.error} /> : null}
+            </div>
+          </details>
+        );
+      })}
+    </div>
+  );
+}
+
+function EvidenceContent({
+  message,
+  actionResults,
+  pendingActionId,
+  feedbackRating,
+  feedbackLoading,
+  onConfirmAction,
+  onRejectAction,
+  onRetryAction,
+  onFeedback,
+}: ContextPanelProps) {
   const metadata = message?.metadata;
   const runId = metadata?.runId;
+  const actionsEnabled = metadata?.actionsEnabled !== false;
   const citations = metadata?.citations ?? [];
   const actions = (metadata?.suggestedActions ?? []).filter(isConfirmableAction);
 
   return (
-    <aside className="hidden w-80 min-w-80 flex-col border-l border-border bg-muted/10 xl:flex">
-      <div className="border-b border-border p-4">
-        <h2 className="text-sm font-semibold text-foreground">依据与动作</h2>
-        <p className="mt-1 text-xs text-muted-foreground">选择一条回答查看来源、运行轨迹和待确认动作。</p>
-      </div>
-
-      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
+    <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4" role="tabpanel" aria-label="依据与动作">
         {!message ? (
           <div className="py-8 text-center text-sm leading-6 text-muted-foreground">回答生成后，这里会展示可核验依据。</div>
         ) : (
@@ -219,6 +454,7 @@ export function BrainEvidencePanel({
                       action={action}
                       result={actionResults[action.actionId]}
                       loading={pendingActionId === action.actionId}
+                      executionEnabled={actionsEnabled}
                       onConfirm={() => onConfirmAction(action.actionId, runId)}
                       onReject={() => onRejectAction(action.actionId, runId)}
                       onRetry={() => onRetryAction(action.actionId, runId)}
@@ -227,70 +463,6 @@ export function BrainEvidencePanel({
                 </div>
               </section>
             ) : null}
-
-            <section>
-              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                <GitBranch className="h-4 w-4" />
-                运行轨迹
-              </div>
-              <div className="mt-3 space-y-2">
-                {loadingEvents ? (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    加载 Trace
-                  </div>
-                ) : events.length ? (
-                  events.map((event, index) => {
-                    const usage = findTokenUsage(event.output) ?? findTokenUsage(event.input);
-                    const duration = eventDuration(event, index, events);
-                    return (
-                      <details key={event.id} className="group rounded-md border border-border bg-background text-xs">
-                        <summary className="flex cursor-pointer list-none items-start gap-2 p-2.5 marker:hidden">
-                          <span
-                            className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
-                              event.status === 'completed' ? 'bg-emerald-500' : event.status === 'failed' ? 'bg-destructive' : 'bg-amber-500'
-                            }`}
-                          />
-                          <span className="min-w-0 flex-1">
-                            <span className="block break-words font-medium text-foreground">{eventLabel(event)}</span>
-                            <span className="mt-0.5 block text-muted-foreground">{event.layer}</span>
-                            <span className="mt-2 grid grid-cols-2 gap-1 text-[11px] text-muted-foreground">
-                              <span title={usage ? `输入 ${usage.inputTokens} / 输出 ${usage.outputTokens}` : undefined}>
-                                Token {usage ? usage.totalTokens.toLocaleString('zh-CN') : isModelEvent(event) ? '未记录' : '0（非模型）'}
-                              </span>
-                              <span title={duration.estimated ? '由运行开始时间与相邻步骤时间估算，不等同于精确执行耗时' : undefined}>
-                                {duration.estimated ? '阶段间隔' : '耗时'} {duration.text}
-                              </span>
-                            </span>
-                          </span>
-                          <ChevronDown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
-                        </summary>
-                        <div className="space-y-3 border-t border-border px-2.5 py-3">
-                          {usage ? (
-                            <div className="rounded-md bg-muted/40 p-2 text-[11px] leading-5 text-muted-foreground">
-                              <div>
-                                Token：输入 {usage.inputTokens.toLocaleString('zh-CN')} · 输出 {usage.outputTokens.toLocaleString('zh-CN')} · 总计{' '}
-                                {usage.totalTokens.toLocaleString('zh-CN')}
-                              </div>
-                              {usage.provider || usage.model ? (
-                                <div>
-                                  模型：{[usage.provider, usage.model].filter(Boolean).join(' / ')}
-                                </div>
-                              ) : null}
-                            </div>
-                          ) : null}
-                          <TraceSnapshot label="输入" value={event.input} />
-                          <TraceSnapshot label="输出" value={event.output} />
-                          {event.error ? <TraceSnapshot label="错误" value={event.error} /> : null}
-                        </div>
-                      </details>
-                    );
-                  })
-                ) : (
-                  <div className="text-xs text-muted-foreground">当前运行没有可展示步骤。</div>
-                )}
-              </div>
-            </section>
 
             {runId ? (
               <section className="border-t border-border pt-4">
@@ -323,7 +495,6 @@ export function BrainEvidencePanel({
             ) : null}
           </>
         )}
-      </div>
-    </aside>
+    </div>
   );
 }

@@ -1,10 +1,11 @@
 import { AlertTriangle, CheckCircle2, Database, HelpCircle, ListOrdered, Sparkles } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import type { BrainGuidanceSelection, BrainResponseBlock } from '@/types/brain';
+import type { BrainGuidanceSelection, BrainResponseBlock, BrainRunStatus } from '@/types/brain';
 
 interface BrainResponseRendererProps {
   blocks?: BrainResponseBlock[];
   fallback: string;
+  status?: BrainRunStatus;
   interactive?: boolean;
   sending?: boolean;
   sourceRunId?: number;
@@ -15,17 +16,35 @@ interface BrainResponseRendererProps {
 export function BrainResponseRenderer({
   blocks = [],
   fallback,
+  status,
   interactive = false,
   sending = false,
   sourceRunId,
   onGuidanceSelect,
   onClarificationSelect,
 }: BrainResponseRendererProps) {
-  if (!blocks.length) return <span className="whitespace-pre-wrap break-words">{fallback}</span>;
+  const safeBlocks = safeResponseBlocks(blocks, status);
+  const safeFallback =
+    status === 'failed'
+      ? '本次请求执行失败，未生成可信业务结论。'
+      : status === 'cancelled'
+        ? '本次请求已取消，未生成新的业务结论。'
+        : fallback;
+  if (!safeBlocks.length) {
+    return (
+      <div className="space-y-2">
+        {status && status !== 'completed' ? <BrainRunStatusNotice status={status} /> : null}
+        <span className="whitespace-pre-wrap break-words">{safeFallback}</span>
+      </div>
+    );
+  }
+  const hasEmptyRanking = safeBlocks.some((block) => block.kind === 'ranking' && block.rows.length === 0);
+  const hasEmptyTable = safeBlocks.some((block) => block.kind === 'table' && block.rows.length === 0);
 
   return (
     <div className="space-y-3">
-      {blocks.map((block, index) => {
+      {status && status !== 'completed' ? <BrainRunStatusNotice status={status} /> : null}
+      {safeBlocks.map((block, index) => {
         if (block.kind === 'text')
           return (
             <p key={index} className="whitespace-pre-wrap break-words">
@@ -167,10 +186,19 @@ export function BrainResponseRenderer({
           );
         }
         if (block.kind === 'limitations') {
+          const items = block.items.filter(
+            (item) =>
+              !(item === 'no_data:ranking' && hasEmptyRanking) &&
+              !(item === 'no_data:table' && hasEmptyTable),
+          );
+          if (!items.length) return null;
           return (
             <div key={index} className="flex gap-2 text-amber-800">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>未完成：{block.items.join('；')}</span>
+              <span>
+                {items.every((item) => item.startsWith('no_data:')) ? '说明' : '能力边界'}：
+                {items.map(formatLimitation).join('；')}
+              </span>
             </div>
           );
         }
@@ -187,12 +215,38 @@ export function BrainResponseRenderer({
         }
         return (
           <span key={index} className="whitespace-pre-wrap break-words">
-            {fallback}
+            {safeFallback}
           </span>
         );
       })}
     </div>
   );
+}
+
+function BrainRunStatusNotice({ status }: { status: BrainRunStatus }) {
+  const presentation =
+    status === 'failed'
+      ? { label: '执行失败', className: 'border-destructive/30 bg-destructive/5 text-destructive' }
+      : status === 'cancelled'
+        ? { label: '已取消', className: 'border-border bg-muted/40 text-muted-foreground' }
+        : status === 'needs_confirmation'
+          ? { label: '待确认', className: 'border-amber-300 bg-amber-50 text-amber-800' }
+          : { label: '处理中', className: 'border-blue-200 bg-blue-50 text-blue-700' };
+  return (
+    <div className={`rounded-md border px-3 py-2 text-xs font-medium ${presentation.className}`}>
+      {presentation.label}
+    </div>
+  );
+}
+
+function safeResponseBlocks(blocks: BrainResponseBlock[], status?: BrainRunStatus): BrainResponseBlock[] {
+  if (status === 'failed') {
+    const evidence = blocks.filter((block) => block.kind === 'evidence');
+    return [{ kind: 'limitations', items: ['capability_failed'] }, ...evidence];
+  }
+  if (status === 'cancelled') return [{ kind: 'limitations', items: ['request_cancelled'] }];
+  if (status === 'queued' || status === 'running') return [];
+  return blocks;
 }
 
 function BrainChart({ block }: { block: Extract<BrainResponseBlock, { kind: 'chart' }> }) {
@@ -242,6 +296,17 @@ function DataTable({
   ranking: boolean;
 }) {
   const columns = block.columns.length ? block.columns : Object.keys(block.rows[0] ?? {});
+  if (!block.rows.length) {
+    return (
+      <div className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-5 text-center">
+        <Database className="mx-auto h-5 w-5 text-muted-foreground" />
+        <div className="mt-2 text-sm font-medium text-foreground">暂无匹配数据</div>
+        <div className="mt-1 text-xs text-muted-foreground">
+          {ranking ? '当前条件下没有可排行的业务记录。' : '当前条件下没有匹配的业务明细。'}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="overflow-x-auto">
       <div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
@@ -278,4 +343,13 @@ function formatCell(value: unknown) {
   if (value === null || value === undefined) return '-';
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
+}
+
+function formatLimitation(value: string) {
+  if (value === 'no_data:ranking') return '当前条件下没有可排行的业务记录';
+  if (value === 'no_data:table') return '当前条件下没有匹配的业务明细';
+  if (value === 'capability_failed') return '相关能力执行失败，本次没有生成业务结论';
+  if (value === 'request_processing') return '请求仍在处理中，当前内容不是最终业务结果';
+  if (value === 'request_cancelled') return '请求已取消，本次没有生成新的业务结论';
+  return value.replace(/[。；;]+$/u, '');
 }

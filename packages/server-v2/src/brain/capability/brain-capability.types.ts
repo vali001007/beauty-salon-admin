@@ -52,6 +52,7 @@ export interface BrainCapabilityCard {
 export interface BrainCapabilityCandidate {
   readonly generatedCapability?: unknown;
   readonly executorBinding?: unknown;
+  readonly ontologyDefinitionVersionIds?: unknown;
   readonly key: unknown;
   readonly version: unknown;
   readonly name: unknown;

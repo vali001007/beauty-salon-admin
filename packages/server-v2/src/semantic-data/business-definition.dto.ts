@@ -24,6 +24,7 @@ export const BUSINESS_DEFINITION_KINDS = [
   'relation',
   'metric',
   'dimension',
+  'action',
   'status_dictionary',
   'time_policy',
   'query_definition',

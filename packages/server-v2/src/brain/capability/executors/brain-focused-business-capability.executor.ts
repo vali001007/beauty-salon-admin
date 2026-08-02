@@ -94,7 +94,7 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
     key: 'project_material_consumption_analysis',
     name: '项目实际耗材消耗覆盖分析',
     description:
-      '读取当前门店已完成服务任务的 consumptionItems，核对项目实际耗材名称、数量和单位的采集覆盖率；项目耗材成本问题复用管理端项目毛利分析中的实际或标准耗材成本，并披露成本来源和缺口。缺少 actualQty 时明确返回数据质量缺口，不用商品出库排行冒充项目实际消耗。',
+      '读取当前门店项目 BOM 明细、标准 BOM 成本和已完成服务任务的 consumptionItems。指定项目“用到哪些耗材”或“BOM成本”直接查询 ProjectBomItem；实际消耗排行才核对服务任务 consumptionItems。缺少 actualQty 时明确返回数据质量缺口，不用商品出库排行冒充项目实际消耗。',
     intents: ['query', 'ranking'],
     examples: [
       '这个月哪个项目消耗耗材最多',
@@ -102,15 +102,16 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
       '按项目看实际物料消耗',
       '这个月各项目的耗材成本各是多少',
       '帮我分析一下哪个项目的耗材成本最高',
+      '胶原焕活提拉用到哪些耗材',
+      '全身精油 SPA的BOM成本是多少',
     ],
     negativeExamples: [
-      '按标准 BOM 估算实际消耗',
       '查询商品出库排行',
       '直接扣减库存',
       '耗材成本占服务收入的比例',
       '全店耗材成本率是多少',
     ],
-    synonyms: ['项目耗材消耗', '项目实际用料', '服务耗材排行'],
+    synonyms: ['项目耗材消耗', '项目实际用料', '服务耗材排行', '项目BOM', '项目耗材清单', '标准BOM成本'],
     businessDefinitionKeys: [
       'entity.project',
       'entity.product',
@@ -133,8 +134,8 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
       '复用财务成本分析服务，返回当前门店指定时间范围的耗材成本金额及其占已接入收入的比例。不会把经营费用、采购金额或库存货值替代为耗材成本。',
     intents: ['query'],
     examples: ['这个月耗材成本占了多少', '本月物料成本是多少钱', '耗材成本占收入比例多少'],
-    negativeExamples: ['经营费用是多少', '库存货值是多少', '创建采购单'],
-    synonyms: ['耗材成本', '物料成本', '材料成本占比'],
+    negativeExamples: ['经营费用是多少', '库存货值是多少', '创建采购单', '成本占收入的比例', '成本收入比'],
+    synonyms: ['耗材成本', '物料成本', '材料成本占比', '耗材成本率'],
     businessDefinitionKeys: ['entity.product', 'metric.material_cost_rate'],
     readOnly: true,
     storeScope: 'required',
@@ -372,6 +373,11 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
         };
       }
       case 'project_material_consumption_analysis': {
+        const projectBomAnswer = this.isSpecificProjectBomQuestion(input.question)
+          ? await this.executeProjectBomQuestion(input)
+          : undefined;
+        if (projectBomAnswer) return projectBomAnswer;
+
         if (/(?:耗材|物料|材料)成本/.test(input.question)) {
           const result = await this.operationProfit.getProjectMargins({
             storeId: input.context.storeId,
@@ -719,4 +725,151 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
     const parsed = Number(value);
     return Number.isFinite(parsed) && parsed > 0 ? Math.min(100, Math.floor(parsed)) : fallback;
   }
+
+  private isSpecificProjectBomQuestion(question: string) {
+    const normalized = question.replace(/\s+/gu, '');
+    const asksBomList =
+      /(?:用到|需要|包含|配置|配了|有哪些).*(?:耗材|物料|材料|产品|商品)|(?:耗材|物料|材料|产品|商品).*(?:清单|有哪些|用到|需要)/u.test(
+        normalized,
+      );
+    const asksBomCost =
+      /(?:BOM|bom).*(?:成本|多少钱|金额|是多少)|(?:耗材|物料|材料).*(?:成本|多少钱|金额|是多少)/iu.test(
+        normalized,
+      );
+    const aggregateQuestion =
+      /(?:各项目|每个项目|所有项目|全店|哪个项目|哪些项目|排行|排名|最高|最多|最低|实际消耗|消耗最多|消耗排行)/u.test(
+        normalized,
+      );
+    return (asksBomList || asksBomCost) && !aggregateQuestion;
+  }
+
+  private async executeProjectBomQuestion(input: BrainCapabilityExecutionInput): Promise<BrainDomainAnswer> {
+    const projects = await this.prisma.project.findMany({
+      where: { storeId: input.context.storeId, deletedAt: null },
+      include: {
+        bomItems: {
+          include: {
+            product: {
+              select: { id: true, name: true, sku: true, unit: true, costPrice: true },
+            },
+          },
+        },
+      },
+    });
+    const project = this.findMentionedProject(input.question, projects);
+    const citation = {
+      sourceType: 'db',
+      sourceId: 'project_bom_items',
+      label: '管理端项目 BOM 明细',
+    };
+    if (!project) {
+      return {
+        status: 'completed',
+        answer: '没有匹配到当前门店已维护的项目 BOM；Ami Brain 不会用实际耗材消耗或商品出库记录替代项目 BOM。',
+        citations: [citation],
+        grounding: 'db_skill',
+        blocks: [
+          {
+            kind: 'table',
+            rows: [],
+            columns: ['productId', 'productName', 'standardQty', 'unit', 'unitCost', 'itemCost'],
+            citationIds: [citation.sourceId],
+          },
+          {
+            kind: 'limitations',
+            items: ['no_data: project_bom_project_not_matched'],
+          },
+        ],
+        metadata: {
+          capabilityKey: 'project_material_consumption_analysis',
+          answerScope: 'project_bom_items',
+          unsupportedReason: 'project_bom_project_not_matched',
+          completionCriteria: ['project_scope_checked', 'project_bom_not_substituted'],
+        },
+      };
+    }
+    const rows = [...(project.bomItems ?? [])]
+      .map((item) => {
+        const standardQty = this.toNumber(item.standardQty);
+        const unitCost = this.toNumber(item.product?.costPrice);
+        return {
+          projectId: project.id,
+          projectName: project.name,
+          bomItemId: item.id,
+          productId: item.productId,
+          productName: item.product?.name ?? `商品#${item.productId}`,
+          sku: item.product?.sku ?? '',
+          standardQty,
+          unit: item.unit || item.product?.unit || '',
+          unitCost,
+          itemCost: standardQty * unitCost,
+        };
+      })
+      .sort((left, right) => left.productId - right.productId);
+    const totalCost = rows.reduce((sum, item) => sum + item.itemCost, 0);
+    const asksCost = /(?:BOM|bom|耗材|物料|材料).*(?:成本|多少钱|金额|是多少)/iu.test(input.question.replace(/\s+/gu, ''));
+    return {
+      status: 'completed',
+      answer: asksCost
+        ? `${project.name} 的标准 BOM 成本是 ${totalCost.toFixed(2)} 元，基于 ${rows.length} 条 ProjectBomItem 汇总。`
+        : `${project.name} 已维护 ${rows.length} 个 BOM 耗材：${rows.map((item) => item.productName).join('、') || '暂无'}。`,
+      citations: [citation],
+      grounding: 'db_skill',
+      blocks: [
+        ...(asksCost
+          ? [
+              {
+                kind: 'kpi' as const,
+                items: [
+                  { label: 'BOM成本', value: `${totalCost.toFixed(2)} 元` },
+                  { label: 'BOM耗材数', value: `${rows.length} 个` },
+                ],
+                citationIds: [citation.sourceId],
+              },
+            ]
+          : []),
+        {
+          kind: 'table',
+          rows,
+          columns: ['productId', 'productName', 'standardQty', 'unit', 'unitCost', 'itemCost'],
+          citationIds: [citation.sourceId],
+        },
+      ],
+      metadata: {
+        capabilityKey: 'project_material_consumption_analysis',
+        answerScope: asksCost ? 'project_bom_cost_scalar' : 'project_bom_items',
+        projectId: project.id,
+        projectName: project.name,
+        bomItemCount: rows.length,
+        completionCriteria: ['project_bom_loaded', 'project_bom_cost_calculated'],
+      },
+    };
+  }
+
+  private findMentionedProject<T extends { name: string }>(question: string, projects: T[]): T | undefined {
+    const normalizedQuestion = normalizeBusinessName(question);
+    const matches = projects
+      .map((project) => ({ project, normalizedName: normalizeBusinessName(project.name) }))
+      .filter((item) => item.normalizedName.length >= 2 && normalizedQuestion.includes(item.normalizedName))
+      .sort((left, right) => right.normalizedName.length - left.normalizedName.length);
+    return matches[0]?.project;
+  }
+
+  private toNumber(value: unknown) {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+    if (typeof value === 'bigint') return Number(value);
+    if (typeof value === 'string') return Number(value) || 0;
+    if (value && typeof value === 'object' && 'toString' in value) {
+      const parsed = Number(value.toString());
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  }
+}
+
+function normalizeBusinessName(value: string) {
+  return value
+    .normalize('NFKC')
+    .toLocaleLowerCase('zh-CN')
+    .replace(/[^a-z0-9\u4e00-\u9fff]+/g, '');
 }

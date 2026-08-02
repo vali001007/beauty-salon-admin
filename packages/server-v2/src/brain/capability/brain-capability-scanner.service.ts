@@ -19,6 +19,8 @@ interface CapabilityAnchor {
   permissionHints: string[];
 }
 
+const MAX_EXPOSED_CAPABILITY_EVIDENCE = 64;
+
 const SOURCE_ANCHORS: CapabilityAnchor[] = [
   {
     key: 'product_sales_ranking',
@@ -320,9 +322,7 @@ export class BrainCapabilityScannerService {
         .filter((item) => item.sourceType === 'service')
         .map((item) => item.symbol.split('.')[0]!)
         .filter((className) => className && className !== executorClass),
-      ...normalizedEvidence
-        .filter((item) => item.sourceType === 'provider')
-        .map((item) => `provider:${item.symbol}`),
+      ...normalizedEvidence.filter((item) => item.sourceType === 'provider').map((item) => `provider:${item.symbol}`),
     ]);
     const sourceFingerprint = fingerprint({
       key: input.anchor.key,
@@ -363,9 +363,13 @@ export class BrainCapabilityScannerService {
       mappingOutputs,
       sourceFingerprint,
       implementationDependencies,
-      evidence: dedupeEvidence(primaryEvidence),
+      evidence: exposedEvidence(primaryEvidence, input.anchor.key),
       issues,
-      ...(metadata?.name && metadata.description && metadata.intents?.length && metadata.examples?.length && metadata.negativeExamples?.length
+      ...(metadata?.name &&
+      metadata.description &&
+      metadata.intents?.length &&
+      metadata.examples?.length &&
+      metadata.negativeExamples?.length
         ? {
             semanticHints: {
               name: metadata.name,
@@ -506,9 +510,7 @@ export class BrainCapabilityScannerService {
       const key = evidenceKey(item);
       const existing = selected.get(key);
       if (existing && (!existing.data.transitiveDependency || transitive)) return;
-      const value = transitive
-        ? { ...item, data: { ...item.data, transitiveDependency: true } }
-        : item;
+      const value = transitive ? { ...item, data: { ...item.data, transitiveDependency: true } } : item;
       selected.set(key, value);
       if (item.sourceType === 'service') queue.push(value);
     };
@@ -527,15 +529,17 @@ export class BrainCapabilityScannerService {
       for (const item of all) {
         if (item.sourceType === 'decorator' && item.symbol === current.symbol) addEvidence(item, transitive);
         if (item.sourceType === 'dto' && inputTypes.includes(item.symbol)) addEvidence(item, transitive);
-        if (item.sourceType === 'permission' && metadata?.permissions.includes(item.symbol)) addEvidence(item, transitive);
+        if (item.sourceType === 'permission' && metadata?.permissions.includes(item.symbol))
+          addEvidence(item, transitive);
       }
 
       const serviceBindings = asStringRecord(current.data.serviceBindings);
       const injectionBindings = asStringRecord(current.data.injectionBindings);
       const semantics = current.data.methodSemantics;
-      const propertyCalls = semantics && typeof semantics === 'object' && !Array.isArray(semantics)
-        ? asStringArray((semantics as Record<string, unknown>).propertyCalls)
-        : [];
+      const propertyCalls =
+        semantics && typeof semantics === 'object' && !Array.isArray(semantics)
+          ? asStringArray((semantics as Record<string, unknown>).propertyCalls)
+          : [];
       for (const call of propertyCalls) {
         const ownCall = /^this\.(\w+)$/.exec(call);
         if (ownCall) {
@@ -652,6 +656,38 @@ function dedupeEvidence(values: BrainCapabilitySourceEvidence[]): BrainCapabilit
   ].sort((left, right) =>
     `${left.sourceType}:${left.path}:${left.symbol}`.localeCompare(`${right.sourceType}:${right.path}:${right.symbol}`),
   );
+}
+
+function exposedEvidence(
+  values: BrainCapabilitySourceEvidence[],
+  capabilityKey: string,
+): BrainCapabilitySourceEvidence[] {
+  const evidence = dedupeEvidence(values);
+  if (evidence.length <= MAX_EXPOSED_CAPABILITY_EVIDENCE) return evidence;
+  return [...evidence]
+    .sort((left, right) => {
+      const priority = evidencePriority(left, capabilityKey) - evidencePriority(right, capabilityKey);
+      if (priority !== 0) return priority;
+      return `${left.sourceType}:${left.path}:${left.symbol}`.localeCompare(
+        `${right.sourceType}:${right.path}:${right.symbol}`,
+      );
+    })
+    .slice(0, MAX_EXPOSED_CAPABILITY_EVIDENCE)
+    .sort((left, right) =>
+      `${left.sourceType}:${left.path}:${left.symbol}`.localeCompare(
+        `${right.sourceType}:${right.path}:${right.symbol}`,
+      ),
+    );
+}
+
+function evidencePriority(value: BrainCapabilitySourceEvidence, capabilityKey: string): number {
+  if (value.sourceType === 'decorator') return 0;
+  const metadata = value.data.capability;
+  if (metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
+    if ((metadata as BrainCapabilityDecoratorMetadata).key === capabilityKey) return 1;
+  }
+  if (!['controller', 'service'].includes(value.sourceType)) return 2;
+  return 3;
 }
 
 function evidenceFingerprintData(data: Record<string, unknown>): Record<string, unknown> {

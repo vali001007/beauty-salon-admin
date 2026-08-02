@@ -13,15 +13,21 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: 'npm'
+      - run: npm install --global npm@11.16.0
       - name: Verify runtime baseline
         run: |
-          node -e "if (Number(process.versions.node.split('.')[0]) !== 22) process.exit(1)"
-          npm --version | grep -E '^10\.'
+          node -e "if (Number(process.versions.node.split('.')[0]) !== 24) process.exit(1)"
+          npm --version | grep -E '^11\.'
       - run: npm ci
+      - name: Install mobile client dependencies
+        run: npm ci
+        working-directory: packages/app
       - run: npm run lint
       - run: npm run typecheck:test
+      - name: Typecheck mobile client
+        run: npm exec -- tsc --noEmit -p packages/app/tsconfig.json
       - run: npm run build
       - run: npm run test
 
@@ -32,15 +38,22 @@ jobs:
         working-directory: packages/server-v2
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: 'npm'
+      - run: npm install --global npm@11.16.0
       - run: npm ci
       - run: npx prisma generate
       - run: npm run build
-      - run: npm run test
+      - name: Verify compiled Brain governance runtime imports
+        run: npm run brain:runtime-import:test
+      - name: Run backend test suite within the hosted-runner memory budget
+        run: npm run test -- --runInBand
     env:
+      NODE_OPTIONS: "--max-old-space-size=6144"
       DATABASE_URL: "postgresql://test:test@localhost:5432/test"
       JWT_SECRET: "ci-test-secret"
       JWT_REFRESH_SECRET: "ci-test-refresh-secret"
@@ -54,12 +67,103 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: 'npm'
+      - run: npm install --global npm@11.16.0
       - run: npm ci
         working-directory: .
       - run: npm ci
       - run: npm run build
+
+  brain-candidate:
+    needs: [frontend, backend, terminal-prototype, ami-semantic-agent]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: packages/server-v2
+    env:
+      DATABASE_URL: "postgresql://test:test@localhost:5432/test"
+      JWT_SECRET: "ci-test-secret"
+      JWT_REFRESH_SECRET: "ci-test-refresh-secret"
+      BRAIN_CHECK_PREVALIDATED_GATES_ALLOWED: "true"
+      BRAIN_CHECK_PIPELINE_EVIDENCE: "run=${{ github.run_id }},attempt=${{ github.run_attempt }},frontend=${{ needs.frontend.result }},backend=${{ needs.backend.result }},terminal-prototype=${{ needs.terminal-prototype.result }},ami-semantic-agent=${{ needs.ami-semantic-agent.result }}"
+      BRAIN_GOVERNANCE_RECEIPT_URL: ${{ vars.BRAIN_GOVERNANCE_RECEIPT_URL }}
+      BRAIN_GOVERNANCE_RECEIPT_OIDC_AUDIENCE: ${{ vars.BRAIN_GOVERNANCE_RECEIPT_OIDC_AUDIENCE }}
+      BRAIN_RELEASE_FINGERPRINT: ${{ vars.BRAIN_RELEASE_FINGERPRINT }}
+      BRAIN_DATA_SNAPSHOT: ${{ vars.BRAIN_DATA_SNAPSHOT }}
+      LLM_PROVIDER: ${{ vars.BRAIN_LLM_PROVIDER }}
+      LLM_MODEL: ${{ vars.BRAIN_LLM_MODEL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+      - run: npm install --global npm@11.16.0
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Resolve Ami Brain candidate identity
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base_commit="${{ github.event.pull_request.base.sha }}"
+            head_commit="${{ github.event.pull_request.head.sha }}"
+          else
+            base_commit="${{ github.event.before }}"
+            head_commit="${{ github.sha }}"
+            if [ -z "$base_commit" ] || [[ "$base_commit" =~ ^0+$ ]]; then
+              base_commit="$(git rev-list --max-parents=0 "$head_commit")"
+            fi
+          fi
+          merge_base_commit="$(git merge-base "$base_commit" "$head_commit")"
+          {
+            echo "BRAIN_BASE_COMMIT=$base_commit"
+            echo "BRAIN_HEAD_COMMIT=$head_commit"
+            echo "BRAIN_MERGE_BASE=$merge_base_commit"
+            echo "BRAIN_BRANCH=${{ github.head_ref || github.ref_name }}"
+            echo "BRAIN_CANDIDATE_KEY=${{ github.repository }}:$head_commit:$merge_base_commit"
+          } >> "$GITHUB_ENV"
+      - name: Run Ami Brain candidate gate after required jobs
+        shell: bash
+        run: |
+          upload_args=()
+          if [ "${{ github.event_name }}" = "push" ] \
+            && [ "${{ github.ref }}" = "refs/heads/main" ] \
+            && [ -n "$BRAIN_GOVERNANCE_RECEIPT_URL" ] \
+            && [ -n "$BRAIN_GOVERNANCE_RECEIPT_OIDC_AUDIENCE" ]; then
+            upload_args+=(--upload-receipt)
+          fi
+          npm run brain:check -- \
+            --stage=candidate \
+            --repository=${{ github.repository }} \
+            --branch="$BRAIN_BRANCH" \
+            --workflow="${{ github.workflow }}" \
+            --event-name=${{ github.event_name }} \
+            --base-commit="$BRAIN_BASE_COMMIT" \
+            --head-commit="$BRAIN_HEAD_COMMIT" \
+            --merge-base="$BRAIN_MERGE_BASE" \
+            --candidate-key="$BRAIN_CANDIDATE_KEY" \
+            --receipt-output="$GITHUB_WORKSPACE/outputs/ami-brain-gates/ci-candidate-receipt.json" \
+            --prevalidated-gate=frontend_typecheck \
+            --prevalidated-gate=frontend_brain_unit \
+            --prevalidated-gate=permission_unit \
+            --prevalidated-gate=cross_client_contract \
+            --prevalidated-gate=backend_build \
+            "${upload_args[@]}"
+      - name: Upload Ami Brain gate receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ami-brain-candidate-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            outputs/ami-brain-gates/ci-candidate-receipt.json
+            outputs/ami-brain-gates/latest-summary.md
+          if-no-files-found: warn
 
   ami-semantic-agent:
     runs-on: ubuntu-latest
@@ -67,8 +171,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: 'npm'
+      - run: npm install --global npm@11.16.0
       - run: npm ci
       - run: npm ci
         working-directory: packages/server-v2
@@ -82,7 +187,7 @@ jobs:
       JWT_REFRESH_SECRET: "ci-test-refresh-secret"
 
   deploy-staging:
-    needs: [frontend, backend, terminal-prototype, ami-semantic-agent]
+    needs: [frontend, backend, terminal-prototype, ami-semantic-agent, brain-candidate]
     if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
     runs-on: ubuntu-latest
     env:
@@ -103,7 +208,7 @@ jobs:
           vercel-project-id: ${{ env.VERCEL_PROJECT_ID }}
 
   deploy-production:
-    needs: [frontend, backend, terminal-prototype, ami-semantic-agent]
+    needs: [frontend, backend, terminal-prototype, ami-semantic-agent, brain-candidate]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     env:

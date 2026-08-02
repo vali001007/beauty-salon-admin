@@ -2,11 +2,12 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { CheckCircle, PackageCheck, ShoppingCart, Sparkles, Loader2 } from 'lucide-react';
 import { Button, Table, TableHeader, TableRow, TableHead, TableBody, TableCell, Input } from '../components/UI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { purchaseOrderSchema, type PurchaseOrderFormData } from '@/schemas/inventory';
+import type { PurchaseOrderFormData } from '@/schemas/inventory';
 import {
   getReplenishmentSuggestions,
   getPurchaseOrdersPaginated,
   createPurchaseOrder,
+  submitPurchaseOrderForApproval,
   updatePurchaseOrderStatus,
   receivePurchaseOrder,
   getStockMovements,
@@ -211,6 +212,7 @@ export function PurchaseManagement() {
   const [loadingStockMovements, setLoadingStockMovements] = useState(false);
   const platformBatchRequestKeys = useRef(new Map<string, string>());
   const receiptRequestKeys = useRef(new Map<string, string>());
+  const purchaseSubmissionRequestKeys = useRef(new Map<string, string>());
   const { currentStoreId, stores } = useStoreStore();
   const currentStoreName = useMemo(() => {
     if (!currentStoreId) return '全部门店';
@@ -406,7 +408,21 @@ export function PurchaseManagement() {
     if (status === '已取消' && !window.confirm(`确认取消手动采购单 ${selectedManualOrder.orderNo}？`)) return;
     setIsUpdatingManualOrder(true);
     try {
-      const updated = await updatePurchaseOrderStatus(selectedManualOrder.id, status);
+      let updated: PurchaseOrder;
+      if (status === '待审核') {
+        const submissionFingerprint = `${selectedManualOrder.id}:${selectedManualOrder.updatedAt}`;
+        const idempotencyKey =
+          purchaseSubmissionRequestKeys.current.get(submissionFingerprint) ?? createIdempotencyKey('purchase-submit');
+        purchaseSubmissionRequestKeys.current.set(submissionFingerprint, idempotencyKey);
+        updated = await submitPurchaseOrderForApproval(
+          selectedManualOrder.id,
+          selectedManualOrder.updatedAt,
+          idempotencyKey,
+        );
+        purchaseSubmissionRequestKeys.current.delete(submissionFingerprint);
+      } else {
+        updated = await updatePurchaseOrderStatus(selectedManualOrder.id, status);
+      }
       setSelectedManualOrder(updated);
       setManualReceiveQty(Object.fromEntries((updated.items ?? []).map((item) => [
         item.sku,
