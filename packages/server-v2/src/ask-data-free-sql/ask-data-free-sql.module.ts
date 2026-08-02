@@ -6,10 +6,20 @@ import { AskDataFreeSqlAnswerService } from './ask-data-free-sql.answer.service.
 import { AskDataFreeSqlAuditService } from './ask-data-free-sql-audit.service.js';
 import { AskDataFreeSqlController } from './ask-data-free-sql.controller.js';
 import { AskDataFreeSqlService } from './ask-data-free-sql.service.js';
+import { AskDataClarificationPolicy } from './ask-data-clarification-policy.js';
+import { AskDataIntentParser } from './ask-data-intent-parser.js';
+import { AskDataSemanticRouter } from './ask-data-semantic-router.js';
 
 @Module({
   imports: [AiModule, AskDataModule, ReadOnlySqlKernelModule],
   controllers: [AskDataFreeSqlController],
-  providers: [AskDataFreeSqlAnswerService, AskDataFreeSqlAuditService, AskDataFreeSqlService],
+  providers: [
+    AskDataClarificationPolicy,
+    AskDataIntentParser,
+    AskDataSemanticRouter,
+    AskDataFreeSqlAnswerService,
+    AskDataFreeSqlAuditService,
+    AskDataFreeSqlService,
+  ],
 })
 export class AskDataFreeSqlModule {}

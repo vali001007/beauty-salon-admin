@@ -1,5 +1,6 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { useStoreStore } from '@/stores/storeStore';
 import { AskDataWorkbench } from './AskDataWorkbench';
 
 const apiMocks = vi.hoisted(() => ({
@@ -20,12 +21,24 @@ vi.mock('sonner', () => ({
 
 describe('AskDataWorkbench', () => {
   beforeEach(() => {
+    useStoreStore.setState({ currentStoreId: 6, stores: [] });
     apiMocks.queryAskData.mockReset();
     apiMocks.getAskDataCatalog.mockReset();
     apiMocks.getAskDataCatalog.mockResolvedValue({
       tables: [{ model: 'ProductOrder', label: '订单' }],
       examples: ['上个月收入按项目看'],
     });
+  });
+
+  it('waits for the store context before loading the catalog and reloads after store selection', async () => {
+    useStoreStore.setState({ currentStoreId: null, stores: [] });
+
+    render(<AskDataWorkbench />);
+    expect(apiMocks.getAskDataCatalog).not.toHaveBeenCalled();
+
+    act(() => useStoreStore.setState({ currentStoreId: 6 }));
+
+    await waitFor(() => expect(apiMocks.getAskDataCatalog).toHaveBeenCalledTimes(1));
   });
 
   it('shows summary, result table and sources for a successful query', async () => {
@@ -98,7 +111,19 @@ describe('AskDataWorkbench', () => {
         executionMs: 12,
         generatedSql: 'SELECT project_name, SUM(net_amount) FROM agent_v3_project_service_sales_view',
       },
-      queryPlan: { planner: 'llm', explanation: '按项目汇总' },
+      queryPlan: {
+        planner: 'llm',
+        explanation: '按项目汇总',
+        semanticIntent: {
+          intent: 'ranking',
+          answerShape: 'ranking',
+          metricKeys: ['project_sales'],
+          dimensionKeys: ['project'],
+          confidence: 0.94,
+          routeMode: 'deterministic',
+          assumptions: [],
+        },
+      },
     });
 
     render(<AskDataWorkbench />);
@@ -115,6 +140,7 @@ describe('AskDataWorkbench', () => {
     expect(screen.getByText('耗时：12ms')).toBeInTheDocument();
     expect(screen.getByText('仅查询已登记视图。')).toBeInTheDocument();
     expect(screen.getByText('管理员调试 SQL')).toBeInTheDocument();
+    expect(screen.getByText('管理员语义路由')).toBeInTheDocument();
   });
 
   it('shows clarification question and candidates when the backend needs follow-up', async () => {
@@ -158,6 +184,89 @@ describe('AskDataWorkbench', () => {
     render(<AskDataWorkbench />);
 
     expect(await screen.findByText('开发冒烟：管理员库只读事务')).toBeInTheDocument();
+  });
+
+  it('shows the complete permission-filtered catalog in compact domain groups', async () => {
+    apiMocks.getAskDataCatalog.mockResolvedValueOnce({
+      enabled: true,
+      executeReady: true,
+      mode: 'execute',
+      totalCount: 34,
+      groups: [
+        { domain: 'finance', label: '财务利润', count: 2 },
+        { domain: 'marketing', label: '营销效果', count: 1 },
+      ],
+      tables: [
+        {
+          viewName: 'ask_data_confirmed_profit_view',
+          label: '已确认实际利润',
+          domain: 'finance',
+          description: '已确认利润',
+          dataPolicy: '仅使用 confirmed 快照',
+        },
+        {
+          viewName: 'ask_data_reconciliation_issue_view',
+          label: '财务对账异常',
+          domain: 'finance',
+          description: '对账异常',
+        },
+        {
+          viewName: 'ask_data_marketing_roi_view',
+          label: '营销 ROI',
+          domain: 'marketing',
+          description: '营销投产',
+          dataPolicy: 'estimated 成本不代表实际渠道账单',
+        },
+      ],
+      examples: [],
+    });
+
+    render(<AskDataWorkbench />);
+
+    expect(await screen.findByText('覆盖目录 · 34 项')).toBeInTheDocument();
+    expect(screen.getByText('财务利润（2）')).toBeInTheDocument();
+    expect(screen.getByText('营销效果（1）')).toBeInTheDocument();
+    expect(screen.getByText('已确认实际利润')).toHaveAttribute('title', '仅使用 confirmed 快照');
+    expect(screen.getByText('营销 ROI')).toHaveAttribute('title', 'estimated 成本不代表实际渠道账单');
+  });
+
+  it('renders source data policy and data freshness', async () => {
+    apiMocks.queryAskData.mockResolvedValueOnce({
+      status: 'success',
+      summary: '营销 ROI 为 2.5。',
+      keyFindings: [],
+      columns: [{ key: 'roi', label: '投入产出比', type: 'number' }],
+      rows: [{ roi: 2.5 }],
+      sources: [
+        {
+          model: 'ask_data_marketing_roi_view',
+          fields: ['roi', 'cost_source'],
+          filters: ['门店权限'],
+          reason: '营销投产',
+          dataPolicy: 'estimated 成本不代表实际渠道账单',
+          dataAsOf: '2026-08-01T08:00:00.000Z',
+        },
+      ],
+      limitations: ['营销成本可能来自估算触达成本，不代表实际渠道账单。'],
+      queryMeta: {
+        viewNames: ['ask_data_marketing_roi_view'],
+        timeRange: '2026-07-01 至 2026-08-01',
+        storeScope: '门店 6',
+        truncated: false,
+        dataAsOf: '2026-08-01T08:00:00.000Z',
+      },
+      queryPlan: { planner: 'llm' },
+    });
+
+    render(<AskDataWorkbench />);
+    fireEvent.change(screen.getByPlaceholderText('例如：上个月收入按项目看'), {
+      target: { value: '最近30天营销 ROI' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '查询' }));
+
+    expect(await screen.findByText('营销 ROI 为 2.5。')).toBeInTheDocument();
+    expect(screen.getByText('口径：estimated 成本不代表实际渠道账单')).toBeInTheDocument();
+    expect(screen.getAllByText(/数据截至：/)).toHaveLength(2);
   });
 
   it('keeps previous result visible when the next request fails', async () => {

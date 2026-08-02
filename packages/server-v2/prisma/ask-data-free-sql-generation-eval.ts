@@ -4,12 +4,21 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { AiService } from '../src/ai/ai.service.js';
 import { ASK_DATA_FREE_SQL_VIEWS } from '../src/ask-data-free-sql/ask-data-free-sql.catalog.js';
+import { AskDataClarificationPolicy } from '../src/ask-data-free-sql/ask-data-clarification-policy.js';
+import { AskDataIntentParser } from '../src/ask-data-free-sql/ask-data-intent-parser.js';
+import {
+  askDataSemanticRouterConfig,
+  AskDataSemanticRouter,
+} from '../src/ask-data-free-sql/ask-data-semantic-router.js';
+import { selectAskDataViews } from '../src/ask-data-free-sql/ask-data-free-sql-view-selector.js';
 import { resolveAskDataDateRange } from '../src/ask-data-free-sql/ask-data-free-sql.date-range.js';
 import {
   ASK_DATA_SQL_GENERATION_SCHEMA,
+  buildClarificationRepairMessages,
   buildSqlGenerationMessages,
   buildSqlRepairMessages,
   isRepairableSqlGuardReason,
+  shouldRetryClearQuestionClarification,
 } from '../src/ask-data-free-sql/ask-data-free-sql.prompts.js';
 import type { AskDataSqlGeneration } from '../src/ask-data-free-sql/ask-data-free-sql.types.js';
 import { ReadOnlySqlCostGuard } from '../src/read-only-sql-kernel/read-only-sql-cost-guard.js';
@@ -33,6 +42,8 @@ const prismaAuditStub = {
   },
 };
 const ai = new AiService(prismaAuditStub as never, new ConfigService(process.env));
+const semanticRouter = new AskDataSemanticRouter(ai, new AskDataIntentParser(), new AskDataClarificationPolicy());
+const semanticConfig = askDataSemanticRouterConfig();
 const parser = new ReadOnlySqlParser();
 const guard = new ReadOnlySqlGuard(parser);
 const costGuard = new ReadOnlySqlCostGuard();
@@ -47,19 +58,63 @@ const startedAt = Date.now();
 const results = await mapWithConcurrency(selectedQuestions, concurrency, async (item) => {
   const itemStartedAt = Date.now();
   try {
+    const semanticRoute = semanticConfig.enabled
+      ? await semanticRouter.route({ question: item.question, context, authorizedViews: ASK_DATA_FREE_SQL_VIEWS, config: semanticConfig })
+      : undefined;
+    if (semanticRoute?.clarificationQuestion) {
+      return {
+        id: item.id,
+        domain: item.domain,
+        question: item.question,
+        status: 'clarification',
+        generationStatus: 'clarification',
+        explanation: semanticRoute.clarificationReason,
+        clarificationQuestion: semanticRoute.clarificationQuestion,
+        semanticIntent: semanticRoute.semanticIntent,
+        semanticRouteMode: semanticRoute.routeMode,
+        semanticCandidates: [],
+        durationMs: Date.now() - itemStartedAt,
+      };
+    }
+    const candidateViews = semanticRoute?.candidateViews.length
+      ? semanticRoute.candidateViews
+      : selectAskDataViews(item.question, context);
     let generation = await ai.generateStructured<AskDataSqlGeneration>({
       scenario: 'ask_data_free_sql_generation_eval',
       messages: buildSqlGenerationMessages({
         request: { question: item.question },
         context,
-        views: ASK_DATA_FREE_SQL_VIEWS,
+        views: candidateViews,
+        semanticIntent: semanticRoute?.semanticIntent,
       }),
       schema: ASK_DATA_SQL_GENERATION_SCHEMA,
       timeoutMs: 20000,
       temperature: 0,
       storeId,
     });
-    const resolvedDateRange = resolveAskDataDateRange(item.question);
+    let generationAttempts = 1;
+    if (
+      generation.data.status === 'clarification' &&
+      (Boolean(semanticRoute?.semanticIntent.metricKeys.length) ||
+        shouldRetryClearQuestionClarification(item.question, candidateViews))
+    ) {
+      generation = await ai.generateStructured<AskDataSqlGeneration>({
+        scenario: 'ask_data_free_sql_generation_eval_clarification_repair',
+        messages: buildClarificationRepairMessages({
+          request: { question: item.question },
+          context,
+          views: candidateViews,
+          previous: generation.data,
+          semanticIntent: semanticRoute?.semanticIntent,
+        }),
+        schema: ASK_DATA_SQL_GENERATION_SCHEMA,
+        timeoutMs: 20000,
+        temperature: 0,
+        storeId,
+      });
+      generationAttempts = 2;
+    }
+    const resolvedDateRange = semanticRoute?.semanticIntent.timeRange ?? resolveAskDataDateRange(item.question);
     const guardContext = {
       storeIds: [storeId],
       permissions: ['*'],
@@ -74,25 +129,25 @@ const results = await mapWithConcurrency(selectedQuestions, concurrency, async (
       },
     };
     let guarded = guard.inspect(generation.data.sql, ASK_DATA_FREE_SQL_VIEWS, guardContext);
-    let generationAttempts = 1;
     if (guarded.status === 'blocked' && isRepairableSqlGuardReason(guarded.reasonCode)) {
       const repaired = await ai.generateStructured<AskDataSqlGeneration>({
         scenario: 'ask_data_free_sql_generation_eval_repair',
         messages: buildSqlRepairMessages({
           request: { question: item.question },
           context,
-          views: ASK_DATA_FREE_SQL_VIEWS,
+          views: candidateViews,
           previous: generation.data,
           reasonCode: guarded.reasonCode,
           reasonMessage: guarded.message,
           redactedSql: guarded.redactedSql ?? '',
+          semanticIntent: semanticRoute?.semanticIntent,
         }),
         schema: ASK_DATA_SQL_GENERATION_SCHEMA,
         timeoutMs: 20000,
         temperature: 0,
         storeId,
       });
-      generationAttempts = 2;
+      generationAttempts += 1;
       if (repaired.data.status === 'ready') {
         generation = repaired;
         guarded = guard.inspect(repaired.data.sql, ASK_DATA_FREE_SQL_VIEWS, {
@@ -132,6 +187,9 @@ const results = await mapWithConcurrency(selectedQuestions, concurrency, async (
       model: generation.model,
       usage: generation.usage,
       generationAttempts,
+      semanticIntent: semanticRoute?.semanticIntent,
+      semanticRouteMode: semanticRoute?.routeMode,
+      semanticCandidates: semanticRoute?.candidateViews.map((view) => view.viewName),
       durationMs: Date.now() - itemStartedAt,
     };
     console.error(`[ask-data-eval] ${item.id} ${status}`);

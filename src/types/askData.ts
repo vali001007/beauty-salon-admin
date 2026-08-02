@@ -32,6 +32,8 @@ export interface AskDataSource {
   fields: string[];
   filters: string[];
   reason: string;
+  dataPolicy?: string;
+  dataAsOf?: string;
 }
 
 export interface AskDataQueryPlan {
@@ -51,6 +53,17 @@ export interface AskDataQueryPlan {
   assumptions?: string[];
   confidence?: number;
   planner?: 'ai' | 'rule' | 'llm' | 'legacy';
+  explanation?: string;
+  generatedSql?: string;
+  semanticIntent?: {
+    intent: 'query' | 'list' | 'ranking' | 'comparison' | 'trend' | 'diagnosis';
+    answerShape: 'scalar' | 'list' | 'ranking' | 'comparison' | 'trend';
+    metricKeys: string[];
+    dimensionKeys: string[];
+    confidence: number;
+    routeMode: 'deterministic' | 'model_fallback';
+    assumptions: string[];
+  };
 }
 
 export interface AskDataQueryResponse {
@@ -77,6 +90,7 @@ export interface AskDataQueryMeta {
   generatedSql?: string;
   statusReason?: string;
   connectionMode?: 'dedicated_readonly' | 'development_admin';
+  dataAsOf?: string;
 }
 
 export interface AskDataCatalogTable {
@@ -86,11 +100,15 @@ export interface AskDataCatalogTable {
   domain?: string;
   description: string;
   fields?: string[];
+  dataPolicy?: string;
+  freshnessField?: string;
 }
 
 export interface AskDataCatalogResponse {
   tables: AskDataCatalogTable[];
   examples: string[];
+  totalCount?: number;
+  groups?: Array<{ domain: string; label: string; count: number }>;
   enabled?: boolean;
   executeReady?: boolean;
   mode?: 'legacy' | 'dry_run' | 'execute';

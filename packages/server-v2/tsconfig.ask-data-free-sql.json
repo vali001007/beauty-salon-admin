@@ -12,7 +12,8 @@
     "prisma/ask-data-free-sql-generation-eval.ts",
     "prisma/ask-data-free-sql-readiness.ts",
     "prisma/ask-data-free-sql-role-preflight.ts",
-    "prisma/ask-data-free-sql-live-eval.ts"
+    "prisma/ask-data-free-sql-live-eval.ts",
+    "prisma/ask-data-semantic-router-eval.ts"
   ],
   "exclude": ["node_modules", "dist", "src/**/*.spec.ts"]
 }

@@ -33,6 +33,45 @@ export type AskDataSqlGeneration = {
   clarificationQuestion: string;
 };
 
+export type AskDataSemanticIntentName = 'query' | 'list' | 'ranking' | 'comparison' | 'trend' | 'diagnosis';
+
+export type AskDataSemanticAnswerShape = 'scalar' | 'list' | 'ranking' | 'comparison' | 'trend';
+
+export type AskDataSemanticIntent = {
+  intent: AskDataSemanticIntentName;
+  answerShape: AskDataSemanticAnswerShape;
+  metricKeys: string[];
+  dimensionKeys: string[];
+  entities: Array<{ type: string; mention: string; resolvedValue?: string }>;
+  filters: Array<{ key: string; operator: string; value: unknown }>;
+  timeRange?: { label: string; startAt: string; endAt: string };
+  ambiguities: Array<{ slot: string; reason: string; candidates: string[] }>;
+  assumptions: string[];
+  confidence: number;
+};
+
+export type AskDataSemanticRouteMode = 'deterministic' | 'model_fallback';
+
+export type AskDataSemanticRouteMeta = {
+  intent: AskDataSemanticIntentName;
+  answerShape: AskDataSemanticAnswerShape;
+  metricKeys: string[];
+  dimensionKeys: string[];
+  confidence: number;
+  routeMode: AskDataSemanticRouteMode;
+  assumptions: string[];
+};
+
+export type AskDataSemanticAuditMeta = AskDataSemanticRouteMeta & {
+  deterministicCandidates: string[];
+  finalCandidates: string[];
+  fallbackReason?: string;
+  clarificationReason?: string;
+  deterministicLatencyMs: number;
+  modelFallbackLatencyMs?: number;
+  shadow: boolean;
+};
+
 export type AskDataAnswer = {
   summary: string;
   keyFindings: string[];
@@ -50,6 +89,7 @@ export type AskDataQueryMeta = {
   generatedSql?: string;
   statusReason?: string;
   connectionMode?: 'dedicated_readonly' | 'development_admin';
+  dataAsOf?: string;
 };
 
 export type AskDataFreeSqlResponse = {
@@ -58,7 +98,14 @@ export type AskDataFreeSqlResponse = {
   keyFindings: string[];
   columns: Array<{ key: string; label: string; type?: 'text' | 'number' | 'money' | 'percent' | 'date' }>;
   rows: Array<Record<string, unknown>>;
-  sources: Array<{ model: string; fields: string[]; filters: string[]; reason: string }>;
+  sources: Array<{
+    model: string;
+    fields: string[];
+    filters: string[];
+    reason: string;
+    dataPolicy?: string;
+    dataAsOf?: string;
+  }>;
   clarificationQuestion?: string;
   limitations: string[];
   queryMeta: AskDataQueryMeta;
@@ -66,12 +113,17 @@ export type AskDataFreeSqlResponse = {
     planner: 'llm' | 'legacy';
     explanation?: string;
     generatedSql?: string;
+    semanticIntent?: AskDataSemanticRouteMeta;
   };
   auditRunId?: string;
 };
 
 export type AskDataCatalogResponse = {
-  tables: Array<Pick<ReadOnlySqlView, 'viewName' | 'label' | 'domain' | 'description'>>;
+  tables: Array<
+    Pick<ReadOnlySqlView, 'viewName' | 'label' | 'domain' | 'description' | 'dataPolicy' | 'freshnessField'>
+  >;
+  totalCount: number;
+  groups: Array<{ domain: string; label: string; count: number }>;
   examples: string[];
   enabled: boolean;
   executeReady: boolean;
@@ -90,4 +142,5 @@ export type AskDataAuditInput = {
   answer?: AskDataAnswer;
   generatedSql?: string;
   explanation?: string;
+  semanticRouting?: AskDataSemanticAuditMeta;
 };

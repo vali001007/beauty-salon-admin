@@ -4,13 +4,16 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { AiService } from '../src/ai/ai.service.js';
 import { ASK_DATA_FREE_SQL_VIEWS } from '../src/ask-data-free-sql/ask-data-free-sql.catalog.js';
+import { selectAskDataViews } from '../src/ask-data-free-sql/ask-data-free-sql-view-selector.js';
 import { resolveAskDataDateRange } from '../src/ask-data-free-sql/ask-data-free-sql.date-range.js';
 import { AskDataFreeSqlAnswerService } from '../src/ask-data-free-sql/ask-data-free-sql.answer.service.js';
 import {
   ASK_DATA_SQL_GENERATION_SCHEMA,
+  buildClarificationRepairMessages,
   buildSqlGenerationMessages,
   buildSqlRepairMessages,
   isRepairableSqlGuardReason,
+  shouldRetryClearQuestionClarification,
 } from '../src/ask-data-free-sql/ask-data-free-sql.prompts.js';
 import type { AskDataAnswer, AskDataSqlGeneration } from '../src/ask-data-free-sql/ask-data-free-sql.types.js';
 import { ReadOnlySqlCostGuard } from '../src/read-only-sql-kernel/read-only-sql-cost-guard.js';
@@ -33,6 +36,7 @@ type EvalResult = {
   provider?: string;
   model?: string;
   generationAttempts?: number;
+  redactedSql?: string;
 };
 
 const strict = process.argv.includes('--strict');
@@ -125,14 +129,32 @@ async function evaluateQuestion(
   },
 ): Promise<EvalResult> {
   try {
+    const candidateViews = selectAskDataViews(item.question, input.context);
     let generation = await input.ai.generateStructured<AskDataSqlGeneration>({
       scenario: 'ask_data_free_sql_live_eval_generation',
-      messages: buildSqlGenerationMessages({ request: { question: item.question }, context: input.context, views: ASK_DATA_FREE_SQL_VIEWS }),
+      messages: buildSqlGenerationMessages({ request: { question: item.question }, context: input.context, views: candidateViews }),
       schema: ASK_DATA_SQL_GENERATION_SCHEMA,
       timeoutMs: 20000,
       temperature: 0,
       storeId: input.context.storeId,
     });
+    let generationAttempts = 1;
+    if (generation.data.status === 'clarification' && shouldRetryClearQuestionClarification(item.question, candidateViews)) {
+      generation = await input.ai.generateStructured<AskDataSqlGeneration>({
+        scenario: 'ask_data_free_sql_live_eval_clarification_repair',
+        messages: buildClarificationRepairMessages({
+          request: { question: item.question },
+          context: input.context,
+          views: candidateViews,
+          previous: generation.data,
+        }),
+        schema: ASK_DATA_SQL_GENERATION_SCHEMA,
+        timeoutMs: 20000,
+        temperature: 0,
+        storeId: input.context.storeId,
+      });
+      generationAttempts = 2;
+    }
     if (generation.data.status !== 'ready') {
       return {
         id: item.id,
@@ -141,6 +163,7 @@ async function evaluateQuestion(
         reasonCode: generation.data.status,
         provider: generation.provider,
         model: generation.model,
+        generationAttempts,
       };
     }
     const resolvedDateRange = resolveAskDataDateRange(item.question);
@@ -158,14 +181,13 @@ async function evaluateQuestion(
       },
     };
     let guarded = input.guard.inspect(generation.data.sql, ASK_DATA_FREE_SQL_VIEWS, guardContext);
-    let generationAttempts = 1;
     if (guarded.status === 'blocked' && isRepairableSqlGuardReason(guarded.reasonCode)) {
       const repaired = await input.ai.generateStructured<AskDataSqlGeneration>({
         scenario: 'ask_data_free_sql_live_eval_generation_repair',
         messages: buildSqlRepairMessages({
           request: { question: item.question },
           context: input.context,
-          views: ASK_DATA_FREE_SQL_VIEWS,
+          views: candidateViews,
           previous: generation.data,
           reasonCode: guarded.reasonCode,
           reasonMessage: guarded.message,
@@ -176,7 +198,7 @@ async function evaluateQuestion(
         temperature: 0,
         storeId: input.context.storeId,
       });
-      generationAttempts = 2;
+      generationAttempts += 1;
       if (repaired.data.status === 'ready') {
         generation = repaired;
         guarded = input.guard.inspect(repaired.data.sql, ASK_DATA_FREE_SQL_VIEWS, {
@@ -198,6 +220,7 @@ async function evaluateQuestion(
         provider: generation.provider,
         model: generation.model,
         generationAttempts,
+        redactedSql: guarded.redactedSql,
       };
     }
     const cost = input.costGuard.inspect(guarded, 100);
@@ -211,6 +234,7 @@ async function evaluateQuestion(
         provider: generation.provider,
         model: generation.model,
         generationAttempts,
+        redactedSql: guarded.redactedSql,
       };
     }
     const execution = await input.executor.execute({
@@ -232,6 +256,7 @@ async function evaluateQuestion(
         provider: generation.provider,
         model: generation.model,
         generationAttempts,
+        redactedSql: guarded.redactedSql,
       };
     }
     const rows = sanitizeRows(execution.rows);
@@ -264,6 +289,7 @@ async function evaluateQuestion(
       provider: generation.provider,
       model: generation.model,
       generationAttempts,
+      redactedSql: guarded.redactedSql,
     };
   } catch (error) {
     return {

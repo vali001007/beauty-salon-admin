@@ -16,6 +16,7 @@ export class AskDataFreeSqlAnswerService {
     context: AskDataFreeSqlContext;
     timeRange: string;
     truncated: boolean;
+    assumptions?: string[];
   }): Promise<AskDataAnswer> {
     const fallback = this.fallback(input.rows, input.truncated);
     if (!input.rows.length) return { ...fallback, summary: '当前筛选范围内没有匹配数据。' };
@@ -30,6 +31,7 @@ export class AskDataFreeSqlAnswerService {
           timeRange: input.timeRange,
           storeScope: `门店 ${input.context.storeId}`,
           truncated: input.truncated,
+          assumptions: input.assumptions,
         }),
         schema: ASK_DATA_ANSWER_SCHEMA,
         timeoutMs: 15000,

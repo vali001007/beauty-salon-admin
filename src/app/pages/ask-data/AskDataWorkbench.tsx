@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Database, Loader2, MessageSquare, RefreshCcw, Send, Sparkles, Table2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAskDataCatalog, queryAskData } from '@/api/askData';
+import { useStoreStore } from '@/stores/storeStore';
 import type { AskDataCatalogResponse, AskDataHistoryItem, AskDataQueryResponse } from '@/types/askData';
 import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/UI';
 
@@ -39,6 +40,7 @@ function cellText(value: unknown) {
 }
 
 export function AskDataWorkbench() {
+  const currentStoreId = useStoreStore((state) => state.currentStoreId);
   const [question, setQuestion] = useState('');
   const [history, setHistory] = useState<AskDataHistoryItem[]>([]);
   const [result, setResult] = useState<AskDataQueryResponse | null>(null);
@@ -46,17 +48,33 @@ export function AskDataWorkbench() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (currentStoreId === null) {
+      setCatalog(null);
+      return;
+    }
     getAskDataCatalog()
       .then(setCatalog)
       .catch(() => {
         setCatalog({ tables: [], examples: fallbackExamples });
       });
-  }, []);
+  }, [currentStoreId]);
 
   const examples = useMemo(() => {
     const fromCatalog = catalog?.examples?.length ? catalog.examples : fallbackExamples;
     return fromCatalog.slice(0, 4);
   }, [catalog?.examples]);
+
+  const catalogGroups = useMemo(() => {
+    const labels = new Map((catalog?.groups ?? []).map((group) => [group.domain, group.label]));
+    const groups = new Map<string, AskDataCatalogResponse['tables']>();
+    for (const table of catalog?.tables ?? []) {
+      const domain = table.domain ?? 'other';
+      groups.set(domain, [...(groups.get(domain) ?? []), table]);
+    }
+    return [...groups.entries()]
+      .map(([domain, tables]) => ({ domain, label: labels.get(domain) ?? domain, tables }))
+      .sort((left, right) => left.label.localeCompare(right.label, 'zh-Hans-CN'));
+  }, [catalog?.groups, catalog?.tables]);
 
   const submitQuestion = useCallback(async () => {
     const text = question.trim();
@@ -151,7 +169,7 @@ export function AskDataWorkbench() {
         <div className="rounded-lg border border-border bg-muted/20 p-3">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
             <Database className="h-4 w-4" />
-            覆盖目录
+            覆盖目录 · {catalog?.totalCount ?? catalog?.tables?.length ?? 0} 项
           </div>
           <div className="mt-1 text-xs text-muted-foreground">
             {catalog?.mode === 'execute'
@@ -162,11 +180,20 @@ export function AskDataWorkbench() {
                 ? '自由查询演练模式'
                 : '当前使用固定模板'}
           </div>
-          <div className="mt-2 max-h-32 overflow-auto text-xs leading-6 text-muted-foreground">
-            {(catalog?.tables ?? []).slice(0, 14).map((table) => (
-              <span key={table.viewName ?? table.model ?? table.label} className="mr-2 inline-block">
-                {table.label}
-              </span>
+          <div className="mt-2 max-h-52 space-y-1 overflow-auto text-xs text-muted-foreground">
+            {catalogGroups.map((group) => (
+              <details key={group.domain} className="rounded border border-border/70 bg-background px-2 py-1" open={catalogGroups.length <= 4}>
+                <summary className="cursor-pointer font-medium text-foreground">
+                  {group.label}（{group.tables.length}）
+                </summary>
+                <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1">
+                  {group.tables.map((table) => (
+                    <span key={table.viewName ?? table.model ?? table.label} title={table.dataPolicy ?? table.description}>
+                      {table.label}
+                    </span>
+                  ))}
+                </div>
+              </details>
             ))}
           </div>
         </div>
@@ -208,7 +235,25 @@ export function AskDataWorkbench() {
                   {result.queryMeta?.executionMs !== undefined ? (
                     <span>耗时：{result.queryMeta.executionMs}ms</span>
                   ) : null}
+                  {result.queryMeta?.dataAsOf ? (
+                    <span>数据截至：{new Date(result.queryMeta.dataAsOf).toLocaleString('zh-CN')}</span>
+                  ) : null}
                 </div>
+                {result.queryMeta?.generatedSql && result.queryPlan?.semanticIntent ? (
+                  <details className="mt-3 rounded border border-border bg-background p-2 text-xs text-muted-foreground">
+                    <summary className="cursor-pointer font-medium text-foreground">管理员语义路由</summary>
+                    <div className="mt-2 space-y-1">
+                      <div>
+                        识别：{result.queryPlan.semanticIntent.intent} / {result.queryPlan.semanticIntent.answerShape}
+                      </div>
+                      <div>指标：{result.queryPlan.semanticIntent.metricKeys.join('、') || '-'}</div>
+                      <div>
+                        路由：{result.queryPlan.semanticIntent.routeMode}，置信度：
+                        {(result.queryPlan.semanticIntent.confidence * 100).toFixed(0)}%
+                      </div>
+                    </div>
+                  </details>
+                ) : null}
                 {result.queryMeta?.generatedSql ? (
                   <details className="mt-3 rounded border border-border bg-background p-2 text-xs text-muted-foreground">
                     <summary className="cursor-pointer font-medium text-foreground">管理员调试 SQL</summary>
@@ -278,6 +323,12 @@ export function AskDataWorkbench() {
                     <div className="mt-1 text-xs text-muted-foreground">{source.reason}</div>
                     <div className="mt-2 text-xs text-muted-foreground">字段：{source.fields.join('、')}</div>
                     <div className="mt-1 text-xs text-muted-foreground">过滤：{source.filters.join('、')}</div>
+                    {source.dataPolicy ? <div className="mt-1 text-xs text-amber-700">口径：{source.dataPolicy}</div> : null}
+                    {source.dataAsOf ? (
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        数据截至：{new Date(source.dataAsOf).toLocaleString('zh-CN')}
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>

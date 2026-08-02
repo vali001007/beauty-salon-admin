@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 describe('Ask Data Free SQL generation evaluation contract', () => {
-  it('keeps the 24-question real-model gate behind parser, guard and cost checks', () => {
+  it('keeps the 75-question real-model gate behind selector, parser, guard and cost checks', () => {
     const questions = JSON.parse(
       readFileSync(resolve(process.cwd(), 'src/ask-data-free-sql/ask-data-free-sql.questions.json'), 'utf8'),
     ) as Array<{ id: string; domain: string; question: string }>;
@@ -11,9 +11,12 @@ describe('Ask Data Free SQL generation evaluation contract', () => {
       scripts?: Record<string, string>;
     };
 
-    expect(questions).toHaveLength(24);
-    expect(new Set(questions.map((item) => item.domain)).size).toBe(8);
+    expect(questions).toHaveLength(75);
+    expect(new Set(questions.map((item) => item.domain)).size).toBeGreaterThanOrEqual(11);
     expect(source).toContain('ai.generateStructured<AskDataSqlGeneration>');
+    expect(source).toContain('selectAskDataViews(item.question, context)');
+    expect(source).toContain('semanticRouter.route({');
+    expect(source).toContain('semanticIntent: semanticRoute?.semanticIntent');
     expect(source).toContain('buildSqlGenerationMessages({');
     expect(source).toContain("argumentValue('--question-id=')");
     expect(source).toContain('questions.filter((item) => item.id === questionId)');

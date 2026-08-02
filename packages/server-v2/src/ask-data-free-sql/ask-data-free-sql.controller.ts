@@ -34,8 +34,8 @@ export class AskDataFreeSqlController {
   @Get('free-sql/catalog')
   @Permissions('core:dashboard:view')
   @ApiOperation({ summary: '智能问数受控自由 SQL 目录' })
-  getCatalog() {
-    return this.service.getCatalog();
+  getCatalog(@Req() req: AuthenticatedAskDataFreeSqlRequest) {
+    return this.service.getCatalog(this.contextFromRequest(req));
   }
 
   private contextFromRequest(req: AuthenticatedAskDataFreeSqlRequest): AskDataFreeSqlContext {

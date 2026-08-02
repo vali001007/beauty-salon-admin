@@ -29,7 +29,11 @@ export class AskDataFreeSqlAuditService {
           executionMs: input.execution?.executionMs ?? null,
           estimatedCost: input.cost?.estimatedCost ?? null,
           answerJson: input.answer ? this.json(input.answer) : undefined,
-          queryMetaJson: this.json({ explanation: input.explanation, sqlFingerprint: input.guard?.sqlFingerprint }),
+          queryMetaJson: this.json({
+            explanation: input.explanation,
+            sqlFingerprint: input.guard?.sqlFingerprint,
+            semanticRouting: input.semanticRouting,
+          }),
         },
       });
       return String(created.id);

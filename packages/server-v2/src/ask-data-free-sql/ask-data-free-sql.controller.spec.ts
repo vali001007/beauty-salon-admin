@@ -31,6 +31,18 @@ describe('AskDataFreeSqlController', () => {
     );
   });
 
+  it('filters the catalog using the authenticated request context', () => {
+    service.getCatalog.mockReturnValueOnce({ totalCount: 1 });
+    const req = {
+      headers: { 'x-store-id': '6' },
+      user: { id: 9, storeIds: [6], permissions: ['core:dashboard:view'], deniedPermissions: [] },
+    } as any;
+    controller.getCatalog(req);
+    expect(service.getCatalog).toHaveBeenCalledWith(
+      expect.objectContaining({ storeId: 6, permissions: ['core:dashboard:view'] }),
+    );
+  });
+
   it('rejects missing or out-of-scope store', () => {
     expect(() => controller.query({ headers: {}, user: { storeIds: [6] } } as any, { question: 'x' })).toThrow(
       BadRequestException,
