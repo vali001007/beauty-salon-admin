@@ -16,6 +16,7 @@ import { readSeedPassword } from './seed-env.ts';
 const args = new Set(process.argv.slice(2));
 const apply = args.has('--apply');
 const yes = args.has('--yes');
+const skipReport = args.has('--skip-report');
 const dryRun = args.has('--dry-run') || !apply;
 if (apply && !yes) {
   throw new Error('真实写入必须显式传入 --apply --yes');
@@ -27,6 +28,7 @@ function readArg(name: string, fallback: string) {
 }
 
 const STORE_NAME = readArg('--store-name', 'Ami 全量演示门店');
+const TARGET_STORE_ID = optionalPositiveIntegerArg('--store-id');
 const PREFIX = 'AMI-DEMO-FULL';
 const USER_PREFIX = 'ami_demo_full';
 const RANDOM_SEED = readArg('--seed', 'ami-demo-full-2026-06-01');
@@ -110,6 +112,16 @@ const report: Report = {
   warnings: [],
 };
 
+function optionalPositiveIntegerArg(name: string) {
+  const raw = readArg(name, '').trim();
+  if (!raw) return undefined;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1 || value > 2_147_483_647) {
+    throw new Error(`${name} 必须是 1 至 2147483647 之间的正整数`);
+  }
+  return value;
+}
+
 function inc(bucket: Partial<Record<CountKey, number>>, key: CountKey, by = 1) {
   bucket[key] = (bucket[key] ?? 0) + by;
 }
@@ -159,6 +171,14 @@ function dateOnly(date: Date) {
   const copy = new Date(date);
   copy.setHours(0, 0, 0, 0);
   return copy;
+}
+function shanghaiDateText(date: Date) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
 }
 function timeText(date: Date) {
   return date.toTimeString().slice(0, 5);
@@ -460,7 +480,16 @@ function plannedCounts(): Partial<Record<CountKey, number>> {
 }
 
 async function findTargetStore() {
-  return prisma.store.findFirst({ where: { name: STORE_NAME, deletedAt: null } });
+  const byName = await prisma.store.findFirst({ where: { name: STORE_NAME, deletedAt: null } });
+  if (byName && TARGET_STORE_ID && byName.id !== TARGET_STORE_ID) {
+    throw new Error(`演示门店已存在于 storeId=${byName.id}，与指定的 storeId=${TARGET_STORE_ID} 不一致`);
+  }
+  if (!TARGET_STORE_ID) return byName;
+  const byId = await prisma.store.findUnique({ where: { id: TARGET_STORE_ID } });
+  if (byId && byId.name !== STORE_NAME) {
+    throw new Error(`storeId=${TARGET_STORE_ID} 已被门店“${byId.name}”占用`);
+  }
+  return byName ?? byId;
 }
 
 async function refreshStoreData(storeId: number) {
@@ -533,8 +562,9 @@ async function ensureStore() {
     });
   }
   inc(report.createdCounts, 'stores');
-  return prisma.store.create({
+  const store = await prisma.store.create({
     data: {
+      ...(TARGET_STORE_ID ? { id: TARGET_STORE_ID } : {}),
       name: STORE_NAME,
       city: '杭州市',
       address: '西湖区未来科技美业中心 18 号',
@@ -542,6 +572,12 @@ async function ensureStore() {
       status: 'active',
     },
   });
+  if (TARGET_STORE_ID) {
+    await prisma.$queryRaw`
+      SELECT setval(pg_get_serial_sequence('"Store"', 'id'), GREATEST((SELECT MAX(id) FROM "Store"), 1), true)
+    `;
+  }
+  return store;
 }
 
 async function ensureAdminAccess(storeId: number) {
@@ -1166,9 +1202,12 @@ async function seedOrdersAndUsage(storeId: number, customers: any[], products: M
       refundRows.push({
         orderNo,
         refundNo: `${PREFIX}-REF-${String(i + 1).padStart(4, '0')}`,
+        requestId: `${PREFIX}-REF-REQ-${String(i + 1).padStart(4, '0')}`,
+        refundMode: 'refund_only',
         amount: Math.round(totalAmount * 0.8),
         reason: `${PREFIX} 演示退款`,
         status: 'success',
+        inventoryStatus: 'not_required',
         refundedAt: daysFromBase(-rand(1, 30)),
       });
     }
@@ -1186,7 +1225,7 @@ async function seedOrdersAndUsage(storeId: number, customers: any[], products: M
   });
   inc(report.createdCounts, 'paymentRecords', paymentResult.count);
   const refundResult = await prisma.refundRecord.createMany({
-    data: refundRows.map((refund) => ({ ...refund, orderId: orderByNo.get(refund.orderNo)!.id, orderNo: undefined })) as any,
+    data: refundRows.map(({ orderNo, ...refund }) => ({ ...refund, orderId: orderByNo.get(orderNo)!.id })) as any,
   });
   inc(report.createdCounts, 'refundRecords', refundResult.count);
   const cards = await prisma.customerCard.findMany({ where: { customerId: { in: customers.slice(0, 320).map((customer) => customer.id) } } });
@@ -1244,12 +1283,17 @@ async function seedMarketingAndRecommendations(storeId: number, customers: any[]
   });
   inc(report.createdCounts, 'printJobs', printResult.count);
 
+  const predictionStartedAt = daysFromBase(-1);
+  const predictionBusinessDate = shanghaiDateText(predictionStartedAt);
+  const predictionModelVersion = 'ami-demo-full-v1';
   const run = await prisma.predictionRun.create({
     data: {
       storeId,
-      modelVersion: 'ami-demo-full-v1',
+      businessDate: new Date(`${predictionBusinessDate}T00:00:00.000Z`),
+      runKey: `store:${storeId}:date:${predictionBusinessDate}:model:${predictionModelVersion}`,
+      modelVersion: predictionModelVersion,
       status: 'completed',
-      startedAt: daysFromBase(-1),
+      startedAt: predictionStartedAt,
       finishedAt: daysFromBase(-1, 10, 30),
       customerCount: customers.length,
       summaryJson: { source: PREFIX, churnHigh: 186, ltvHigh: 280 },
@@ -1288,6 +1332,7 @@ async function seedMarketingAndRecommendations(storeId: number, customers: any[]
   for (const [index, name] of ['沉睡客户唤醒策略', '高价值会员复购策略', '生日关怀自动触达'].entries()) {
     const strategy = await prisma.marketingAutomationStrategy.create({
       data: {
+        storeId,
         name: `${PREFIX} ${name}`,
         description: `${PREFIX} 演示营销自动化策略`,
         status: MarketingStrategyStatus.enabled,
@@ -1304,7 +1349,9 @@ async function seedMarketingAndRecommendations(storeId: number, customers: any[]
     inc(report.createdCounts, 'marketingStrategies');
     const executionResult = await prisma.marketingAutomationExecution.createMany({
       data: [0, 1].map((e) => ({
+          storeId,
           strategyId: strategy.id,
+          idempotencyKey: `${PREFIX}:strategy:${strategy.id}:execution:${e + 1}`,
           strategyName: strategy.name,
           status: 'completed',
           triggeredCount: 50 + e * 8,
@@ -1433,13 +1480,17 @@ async function main() {
   const existingStore = await findTargetStore();
   report.beforeCounts = await countCurrentStoreData(existingStore?.id);
 
+  if (TARGET_STORE_ID) {
+    report.warnings.push(`固定演示门店 storeId=${TARGET_STORE_ID}，用于与候选题集及数据快照保持一致。`);
+  }
+
   if (dryRun) {
     report.deletedCounts = report.beforeCounts;
     console.log(JSON.stringify(report, null, 2));
     return;
   }
 
-  ensureAssetReports();
+  if (!skipReport) ensureAssetReports();
   const store = await ensureStore();
   await refreshStoreData(store.id);
   await ensureAdminAccess(store.id);
@@ -1455,7 +1506,11 @@ async function main() {
   const orders = await seedOrdersAndUsage(store.id, customers, products, projects, beauticians, devices);
   await seedMarketingAndRecommendations(store.id, customers, orders, devices, tasks);
   report.afterCounts = await countCurrentStoreData(store.id);
-  writeRunReport();
+  if (skipReport) {
+    report.warnings.push('已按 --skip-report 跳过本地文档和图片资产报告写入。');
+  } else {
+    writeRunReport();
+  }
   console.log(JSON.stringify(report, null, 2));
 }
 
