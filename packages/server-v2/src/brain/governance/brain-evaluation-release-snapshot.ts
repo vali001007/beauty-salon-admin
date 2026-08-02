@@ -2,6 +2,7 @@ import type { BrainCapabilityCandidate } from '../capability/brain-capability.ty
 
 export interface BrainEvaluationReleaseSnapshot {
   releaseId: number;
+  releaseKey?: string;
   releaseStatus: 'draft' | 'active';
   releaseFingerprint: string;
   declaredMode: 'rules' | 'shadow' | 'model';

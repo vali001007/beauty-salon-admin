@@ -30,6 +30,7 @@ describe('BrainInspectionService', () => {
     },
   ];
   const prisma = {
+    $queryRaw: jest.fn(),
     brainInspectionRule: { findMany: jest.fn().mockResolvedValue(rules) },
     brainInspectionRun: {
       create: jest.fn().mockResolvedValue({ id: 11, storeId: 6, status: 'running' }),
@@ -39,6 +40,7 @@ describe('BrainInspectionService', () => {
       upsert: jest.fn().mockResolvedValue({ id: 21, dedupeKey: 'customer_churn_risk:customer:7', status: 'open' }),
       updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       findMany: jest.fn().mockResolvedValue([]),
+      findFirst: jest.fn(),
       update: jest.fn(),
     },
     customer: {
@@ -66,6 +68,97 @@ describe('BrainInspectionService', () => {
 
     await expect(service.listRules()).resolves.toEqual(rules);
     expect(prisma.brainInspectionRule.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { enabled: true } }));
+  });
+
+  it('paginates inspection summaries in the database without loading complete evidence JSON', async () => {
+    prisma.brainInspectionRule.findMany.mockResolvedValueOnce([{
+      ...rules[0],
+      condition: { permission: 'core:inventory:stock' },
+      enabled: true,
+    }]);
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{ total: 1n }])
+      .mockResolvedValueOnce([{
+        id: 21,
+        runId: 11,
+        storeId: 6,
+        ruleKey: 'customer_churn_risk',
+        ruleVersion: 2,
+        domain: 'customer',
+        objectType: 'customer',
+        objectId: '7',
+        severity: 'high',
+        title: '高价值客户沉睡',
+        status: 'open',
+        disposition: null,
+        firstDetectedAt: new Date('2026-08-01T00:00:00.000Z'),
+        lastDetectedAt: new Date('2026-08-02T00:00:00.000Z'),
+        resolvedAt: null,
+        evidenceCount: 3,
+        suggestionCount: 2,
+        owner: 'risk-team',
+        candidateKey: 'candidate-21',
+      }]);
+
+    const result = await service.listFindingsPage({
+      storeId: 6,
+      status: 'open',
+      search: '客户',
+      severity: 'high',
+      owner: 'risk-team',
+      candidateKey: 'candidate-21',
+      createdFrom: '2026-08-01',
+      createdTo: '2026-08-02',
+      page: 1,
+      pageSize: 20,
+      permissions: ['core:inventory:stock'],
+      deniedPermissions: [],
+      roles: ['store_manager'],
+      userId: 9,
+      enabledRulesOnly: true,
+    });
+
+    expect(result).toMatchObject({
+      total: 1,
+      page: 1,
+      pageSize: 20,
+      items: [expect.objectContaining({ id: 21, evidenceCount: 3, suggestionCount: 2 })],
+    });
+    expect(result.items[0]).not.toHaveProperty('evidence');
+    expect(result.items[0]).not.toHaveProperty('suggestion');
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(prisma.brainInspectionFinding.findMany).not.toHaveBeenCalled();
+  });
+
+  it('loads complete finding evidence only through the store-scoped detail query', async () => {
+    const finding = {
+      id: 21,
+      storeId: 6,
+      ruleKey: 'customer_churn_risk',
+      ruleVersion: 2,
+      objectType: 'customer',
+      objectId: '7',
+      evidence: { inactiveDays: 90 },
+      suggestion: { action: '创建客户跟进任务' },
+    };
+    prisma.brainInspectionFinding.findFirst.mockResolvedValueOnce(finding);
+    prisma.brainInspectionRule.findMany.mockResolvedValueOnce([{
+      ruleKey: 'customer_churn_risk',
+      version: 2,
+      condition: { permission: 'core:customer:view' },
+      enabled: true,
+    }]);
+
+    await expect(service.getFinding({
+      storeId: 6,
+      findingId: 21,
+      permissions: ['core:customer:view'],
+      deniedPermissions: [],
+      roles: ['store_manager'],
+      userId: 9,
+      enabledRulesOnly: true,
+    })).resolves.toEqual(finding);
+    expect(prisma.brainInspectionFinding.findFirst).toHaveBeenCalledWith({ where: { id: 21, storeId: 6 } });
   });
 
   it('filters the proactive inbox by the rule permission and exposes review only to executors', async () => {

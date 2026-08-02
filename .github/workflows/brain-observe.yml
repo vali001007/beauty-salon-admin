@@ -1,0 +1,124 @@
+name: Ami Brain Observe
+
+on:
+  schedule:
+    - cron: '0 18 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      expected_release_id:
+        description: Active Runtime Release ID to observe
+        required: false
+        type: string
+      store_id:
+        description: Approved development store ID
+        required: false
+        type: string
+      standard_comparison_run_id:
+        description: Previous standard-regression Eval Run ID
+        required: false
+        type: string
+      rotation_comparison_run_id:
+        description: Previous extended-rotation Eval Run ID
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ami-brain-observe-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    defaults:
+      run:
+        working-directory: packages/server-v2
+    env:
+      DATABASE_URL: ${{ secrets.BRAIN_OBSERVE_DATABASE_URL }}
+      BRAIN_OBSERVE_ENVIRONMENT: ${{ vars.BRAIN_OBSERVE_ENVIRONMENT }}
+      LLM_PROVIDER: ${{ vars.BRAIN_LLM_PROVIDER }}
+      LLM_MODEL: ${{ vars.BRAIN_LLM_MODEL }}
+      LLM_BASE_URL: ${{ vars.BRAIN_LLM_BASE_URL }}
+      LLM_API_KEY: ${{ secrets.BRAIN_LLM_API_KEY }}
+      BRAIN_OBSERVE_EXPECTED_RELEASE_ID: ${{ inputs.expected_release_id || vars.BRAIN_OBSERVE_EXPECTED_RELEASE_ID }}
+      BRAIN_OBSERVE_STORE_ID: ${{ inputs.store_id || vars.BRAIN_OBSERVE_STORE_ID }}
+      BRAIN_OBSERVE_PRODUCTION_HEALTH_URL: ${{ vars.BRAIN_OBSERVE_PRODUCTION_HEALTH_URL }}
+      BRAIN_OBSERVE_STANDARD_COMPARISON_RUN_ID: ${{ inputs.standard_comparison_run_id || vars.BRAIN_OBSERVE_STANDARD_COMPARISON_RUN_ID }}
+      BRAIN_OBSERVE_ROTATION_COMPARISON_RUN_ID: ${{ inputs.rotation_comparison_run_id || vars.BRAIN_OBSERVE_ROTATION_COMPARISON_RUN_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: packages/server-v2/package-lock.json
+      - run: npm install --global npm@11.16.0
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Build dynamic Observe plan and validate budget
+        shell: bash
+        run: |
+          comparison_args=()
+          if [ -n "$BRAIN_OBSERVE_STANDARD_COMPARISON_RUN_ID" ]; then
+            comparison_args+=(--standard-comparison-run-id="$BRAIN_OBSERVE_STANDARD_COMPARISON_RUN_ID")
+          fi
+          if [ -n "$BRAIN_OBSERVE_ROTATION_COMPARISON_RUN_ID" ]; then
+            comparison_args+=(--rotation-comparison-run-id="$BRAIN_OBSERVE_ROTATION_COMPARISON_RUN_ID")
+          fi
+          npm run brain:observe -- \
+            --dry-run \
+            --run-key="observe-${{ github.run_id }}-${{ github.run_attempt }}" \
+            --expected-release-id="$BRAIN_OBSERVE_EXPECTED_RELEASE_ID" \
+            --store-id="$BRAIN_OBSERVE_STORE_ID" \
+            --production-health-url="$BRAIN_OBSERVE_PRODUCTION_HEALTH_URL" \
+            --expected-runtime-commit="${{ github.sha }}" \
+            --max-evaluated-cases=1850 \
+            "${comparison_args[@]}"
+      - name: Run non-blocking product observation suites
+        shell: bash
+        run: |
+          comparison_args=()
+          if [ -n "$BRAIN_OBSERVE_STANDARD_COMPARISON_RUN_ID" ]; then
+            comparison_args+=(--standard-comparison-run-id="$BRAIN_OBSERVE_STANDARD_COMPARISON_RUN_ID")
+          fi
+          if [ -n "$BRAIN_OBSERVE_ROTATION_COMPARISON_RUN_ID" ]; then
+            comparison_args+=(--rotation-comparison-run-id="$BRAIN_OBSERVE_ROTATION_COMPARISON_RUN_ID")
+          fi
+          npm run brain:observe -- \
+            --run-key="observe-${{ github.run_id }}-${{ github.run_attempt }}" \
+            --expected-release-id="$BRAIN_OBSERVE_EXPECTED_RELEASE_ID" \
+            --store-id="$BRAIN_OBSERVE_STORE_ID" \
+            --production-health-url="$BRAIN_OBSERVE_PRODUCTION_HEALTH_URL" \
+            --expected-runtime-commit="${{ github.sha }}" \
+            --concurrency=2 \
+            --checkpoint-every=25 \
+            --max-cases-per-invocation=100 \
+            --max-invocations-per-stage=20 \
+            --max-evaluated-cases=1850 \
+            --provider-failure-threshold=8 \
+            "${comparison_args[@]}"
+      - name: Publish Observe summary
+        if: always()
+        shell: bash
+        run: |
+          summary="$GITHUB_WORKSPACE/outputs/ami-brain-observe/observe-${{ github.run_id }}-${{ github.run_attempt }}/latest-summary.md"
+          if [ -f "$summary" ]; then
+            cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Ami Brain Observe 未生成摘要，请检查前置配置或运行日志。" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload Observe evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ami-brain-observe-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            outputs/ami-brain-observe/observe-${{ github.run_id }}-${{ github.run_attempt }}/
+            docs/04-测试数据/Ami-Brain-分层验收/observe-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: warn
+          retention-days: 30

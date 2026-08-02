@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import {
   Users, Store, ShoppingBag, FileText,
@@ -36,6 +36,10 @@ type MenuItem = {
 };
 
 const BRAIN_GOVERNANCE_ICONS: Record<string, LucideIcon> = {
+  workbench: LayoutGrid,
+  quality: MessageSquareWarning,
+  releases: ShieldCheck,
+  settings: Settings,
   overview: LayoutGrid,
   capabilities: Sparkles,
   tasks: ClipboardList,
@@ -203,6 +207,7 @@ export const MENU_ITEMS: MenuItem[] = [
 ];
 
 export function Layout() {
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
     '/dashboard': true,
     '/customers': true,
@@ -246,6 +251,19 @@ export function Layout() {
     setOpenMenus(prev => ({ ...prev, [path]: !prev[path] }));
   };
 
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    if (!mobileSidebarOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileSidebarOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [mobileSidebarOpen]);
+
   // Helper to get the current menu path shown in the header.
   const getBreadcrumbs = () => {
     const currentPath = location.pathname === '/' ? '/dashboard' : location.pathname;
@@ -262,8 +280,22 @@ export function Layout() {
 
   return (
     <div className="flex h-screen bg-background font-sans text-sm text-foreground">
+      {mobileSidebarOpen ? (
+        <button
+          type="button"
+          aria-label="关闭导航遮罩"
+          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      ) : null}
       {/* Sidebar */}
-      <div className="w-64 border-r border-border bg-sidebar text-sidebar-foreground flex flex-col shrink-0 overflow-y-auto">
+      <aside
+        aria-label="主导航"
+        className={cn(
+          'fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 flex-col overflow-y-auto border-r border-border bg-sidebar text-sidebar-foreground transition-transform md:static md:z-auto md:translate-x-0',
+          mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full',
+        )}
+      >
         <div className="flex items-center gap-3 px-6 h-16 shrink-0 border-b border-sidebar-border">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground shadow-sm">
             <span className="text-xs font-bold">Ami</span>
@@ -296,6 +328,7 @@ export function Layout() {
                       <React.Fragment key={child.path}>
                         <NavLink
                           to={child.path}
+                          onClick={() => setMobileSidebarOpen(false)}
                           className={({ isActive }) =>
                             cn(
                               "flex items-center gap-3 pl-14 pr-6 py-2.5 transition-colors",
@@ -316,25 +349,31 @@ export function Layout() {
             </div>
           ))}
         </div>
-      </div>
+      </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="min-w-0 flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="h-16 bg-card border-b border-border flex items-center justify-between px-6 shrink-0">
-          <div className="flex items-center gap-4 text-muted-foreground">
-            <button className="hover:bg-muted p-1.5 rounded-md text-muted-foreground transition-colors">
+        <header className="h-16 bg-card border-b border-border flex items-center justify-between gap-2 px-3 sm:px-6 shrink-0">
+          <div className="min-w-0 flex items-center gap-2 sm:gap-4 text-muted-foreground">
+            <button
+              type="button"
+              aria-label={mobileSidebarOpen ? '关闭主导航' : '打开主导航'}
+              aria-expanded={mobileSidebarOpen}
+              className="hover:bg-muted p-1.5 rounded-md text-muted-foreground transition-colors md:hidden"
+              onClick={() => setMobileSidebarOpen((open) => !open)}
+            >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="text-foreground/70 font-medium">
+            <div className="hidden truncate text-foreground/70 font-medium lg:block">
               {getBreadcrumbs()}
             </div>
             <StoreSwitcher />
           </div>
 
-          <div className="flex items-center gap-3">
-            <span className="text-foreground/80">{user?.name ?? '用户'}</span>
-            <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground shadow-sm">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <span className="hidden text-foreground/80 sm:inline">{user?.name ?? '用户'}</span>
+            <div className="hidden w-8 h-8 bg-primary rounded-full sm:flex items-center justify-center text-primary-foreground shadow-sm">
               <UserCircle className="w-5 h-5" />
             </div>
             <button
@@ -348,8 +387,8 @@ export function Layout() {
         </header>
 
         {/* Page Content */}
-        <main className={cn('flex-1 min-h-0 p-6 bg-background/70', location.pathname === '/brain' ? 'overflow-hidden' : 'overflow-auto')}>
-          <div className={cn('bg-card rounded-xl border border-border shadow-sm min-h-full p-6', location.pathname === '/brain' && 'h-full min-h-0 overflow-hidden')}>
+        <main className={cn('flex-1 min-h-0 p-3 sm:p-6 bg-background/70', location.pathname === '/brain' ? 'overflow-hidden' : 'overflow-auto')}>
+          <div className={cn('bg-card rounded-xl border border-border shadow-sm min-h-full p-3 sm:p-6', location.pathname === '/brain' && 'h-full min-h-0 overflow-hidden')}>
             <Outlet />
           </div>
         </main>

@@ -725,6 +725,7 @@ export class BrainChatService {
       output: this.toJsonValue({
         mode: releaseRuntime.mode ?? null,
         releaseId: releaseRuntime.releaseIdentity?.releaseId ?? null,
+        releaseKey: releaseRuntime.releaseKey ?? null,
         releaseFingerprint: releaseRuntime.releaseIdentity?.releaseFingerprint ?? null,
         capabilityCandidateCount: releaseRuntime.capabilityCandidates?.length ?? null,
         governancePolicyReleaseId: releaseRuntime.governancePolicy?.releaseId ?? null,
@@ -1188,6 +1189,7 @@ export class BrainChatService {
 
   private async resolveReleaseRuntime(context: BrainRequestContext): Promise<{
     mode?: 'rules' | 'shadow' | 'model';
+    releaseKey?: string;
     capabilityCandidates?: readonly BrainCapabilityCandidate[];
     releaseIdentity?: BrainActionReleaseIdentity;
     governancePolicy?: {
@@ -1229,6 +1231,7 @@ export class BrainChatService {
       const releaseIdentity = this.releaseIdentityFromRuntime(resolved);
       return {
         mode,
+        releaseKey: resolved.release.releaseKey,
         capabilityCandidates: resolved.capabilityCandidates,
         ...(releaseIdentity ? { releaseIdentity } : {}),
         ...(resolved.governancePolicy ? { governancePolicy: resolved.governancePolicy } : {}),

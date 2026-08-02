@@ -409,6 +409,7 @@ function ReleaseApprovalCard(props: {
   const summary = summarizeRelease(props.release);
   const isDraft = props.release.status === 'draft';
   const isActive = props.release.status === 'active';
+  const readinessBlocksApproval = Boolean(props.release.releaseReadiness && !props.release.releaseReadiness.canRelease);
 
   return (
     <article className="min-w-0 rounded-md border border-border p-4">
@@ -441,6 +442,15 @@ function ReleaseApprovalCard(props: {
         <p className="text-xs font-medium text-muted-foreground">影响面</p>
         <p className="mt-1 break-words text-sm">{summary.impact}</p>
       </div>
+
+      {props.release.releaseReadiness?.blockers.length ? (
+        <div className={`mt-4 rounded-md border px-3 py-2 text-xs ${props.release.releaseReadiness.status === 'unavailable' ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-destructive/40 bg-destructive/5 text-destructive'}`}>
+          <p className="font-medium">
+            {isActive ? '运行版本已生效，但当前证据状态需要关注' : '当前发布尚未满足激活条件'}
+          </p>
+          {props.release.releaseReadiness.blockers.map((blocker) => <p key={blocker} className="mt-1 break-all">{blocker}</p>)}
+        </div>
+      ) : null}
 
       {props.regenerationJob ? (
         <RegenerationStatus
@@ -491,8 +501,10 @@ function ReleaseApprovalCard(props: {
             type="button"
             className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm text-primary-foreground disabled:opacity-60"
             onClick={props.onApprove}
-            disabled={props.busy || Boolean(props.regenerationJob)}
-            title={props.regenerationJob ? '该发布已提交修改要求，需使用新生成草稿重新创建发布' : undefined}
+            disabled={props.busy || Boolean(props.regenerationJob) || readinessBlocksApproval}
+            title={props.regenerationJob
+              ? '该发布已提交修改要求，需使用新生成草稿重新创建发布'
+              : readinessBlocksApproval ? '正式评测证据尚未就绪或当前不可验证' : undefined}
           >
             {props.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
             批准发布
@@ -628,8 +640,7 @@ function summarizeRelease(release: BrainGovernanceRelease) {
   const sideEffect = snapshots.some((snapshot) => snapshot.sideEffect === true || snapshot.readOnly === false);
   const roles = unique(snapshots.flatMap((snapshot) => strings(snapshot.allowedRoles)));
   const riskLevel = highestRisk(snapshots.map((snapshot) => String(snapshot.riskLevel ?? 'low') as BrainRiskLevel));
-  const tests = snapshots.flatMap((snapshot) => Object.values(record(snapshot.tests)));
-  const testsPassed = tests.length > 0 && tests.every((value) => value === 'passed' || value === true);
+  const readiness = release.releaseReadiness;
   const confirmation = snapshots.some((snapshot) => snapshot.requiresConfirmation === true)
     ? '真实执行需再次确认'
     : sideEffect ? '发布后按风险确认' : '无需执行确认';
@@ -640,7 +651,13 @@ function summarizeRelease(release: BrainGovernanceRelease) {
     roles: roles.length ? roles.map(roleLabel).join('、') : '按权限自动收口',
     riskLevel,
     confirmation,
-    testStatus: testsPassed ? '全部通过' : '等待评测门禁',
+    testStatus: readiness?.status === 'ready'
+      ? `已通过${readiness.evalRunId ? `（Eval Run #${readiness.evalRunId}）` : ''}`
+      : readiness?.status === 'blocked'
+        ? `未就绪${readiness.blockers[0] ? `：${readiness.blockers[0]}` : ''}`
+        : readiness?.status === 'unavailable'
+          ? '证据暂不可用（不代表未执行）'
+          : '证据状态未返回',
     impact: items.length
       ? items.map((item) => businessName(item.snapshot, item.resourceKey)).join('、')
       : itemCount > 0 ? `包含 ${itemCount} 个能力版本` : '尚未绑定能力版本',

@@ -19,6 +19,7 @@ import { extractBrainReleaseDefinitionVersionIds } from './brain-release-definit
 
 const ACTIVE_RUNTIME_RELEASE_CACHE_TTL_MS = 1_000;
 const RUNTIME_RELEASE_SCOPES = ['global', 'store', 'user', 'role', 'percentage'] as const;
+const ROLLOUT_SEQUENCE_STAGES = ['shadow', 'canary_5', 'canary_20', 'canary_50', 'full'] as const;
 const PERFORMANCE_BUCKET_POLICY = {
   quick: { count: 20, budgetsMs: { p50: 1500, p95: 3000, max: 5000 } },
   single: { count: 20, budgetsMs: { p50: 3000, p95: 8000, max: 12000 } },
@@ -31,6 +32,21 @@ const APPROVED_PERFORMANCE_MANIFESTS: Record<string, { manifestChecksum: string;
     caseIdsChecksum: '4f97cc54be8e347cf36bd483f919e261538753645fcb077c864061c5415a1342',
   },
 };
+
+export interface BrainReleaseReadiness {
+  status: 'ready' | 'blocked' | 'unavailable';
+  canRelease: boolean;
+  evaluationReleaseId: number | null;
+  evalRunId: number | null;
+  releaseFingerprint: string | null;
+  suiteChecksum: string | null;
+  questionCount: number | null;
+  provider: string | null;
+  model: string | null;
+  generatedAt: string | null;
+  expiresAt: string | null;
+  blockers: string[];
+}
 
 @Injectable()
 export class BrainReleaseService implements OnModuleInit {
@@ -99,6 +115,14 @@ export class BrainReleaseService implements OnModuleInit {
   async rejectRelease(input: { releaseId: number; reason: string }) {
     const prisma = this.requirePrisma();
     const reason = this.nonEmpty(input.reason, 'reason');
+    const release = await prisma.brainRelease.findUnique({
+      where: { id: input.releaseId },
+      select: { status: true, rolloutSequenceId: true },
+    });
+    if (!release || release.status !== 'draft') throw new BadRequestException('release_not_draft');
+    if (release.rolloutSequenceId) {
+      throw new BadRequestException('rollout_sequence_release_requires_sequence_control');
+    }
     const claim = await prisma.brainRelease.updateMany({
       where: { id: input.releaseId, status: 'draft' },
       data: { status: 'archived', failureReason: reason },
@@ -114,7 +138,7 @@ export class BrainReleaseService implements OnModuleInit {
       return {
         mode: snapshot.mode,
         declaredMode: snapshot.declaredMode,
-        release: { id: snapshot.releaseId, status: snapshot.releaseStatus },
+        release: { id: snapshot.releaseId, releaseKey: snapshot.releaseKey, status: snapshot.releaseStatus },
         capabilityCandidates: snapshot.capabilityCandidates,
         releaseSnapshot: snapshot,
       };
@@ -180,6 +204,7 @@ export class BrainReleaseService implements OnModuleInit {
     );
     return deepCloneFreeze({
       releaseId: release.id,
+      releaseKey: release.releaseKey,
       releaseStatus: release.status as 'draft' | 'active',
       releaseFingerprint: createReleaseFingerprint(release.items),
       declaredMode,
@@ -281,7 +306,11 @@ export class BrainReleaseService implements OnModuleInit {
     });
   }
 
-  async activateRelease(input: { releaseId: number; activatedBy: number }) {
+  async activateRelease(input: {
+    releaseId: number;
+    activatedBy: number;
+    rolloutTransition?: { sequenceId: number; fromStage: string; toStage: string };
+  }) {
     const prisma = this.requirePrisma();
     const release = await prisma.brainRelease.findUnique({
       where: { id: input.releaseId },
@@ -292,6 +321,7 @@ export class BrainReleaseService implements OnModuleInit {
     if (this.record(release.rollout).evaluationOnly === true) {
       throw new BadRequestException('release_evaluation_only');
     }
+    await this.assertRolloutSequenceActivation(prisma, release, input.rolloutTransition);
     const releaseFingerprint = createReleaseFingerprint(release.items);
     const regenerationDelegate = (
       prisma as unknown as {
@@ -332,6 +362,11 @@ export class BrainReleaseService implements OnModuleInit {
       if (this.record(lockedRelease.rollout).evaluationOnly === true) {
         throw new BadRequestException('release_evaluation_only');
       }
+      await this.assertRolloutSequenceActivation(
+        tx as unknown as PrismaService,
+        lockedRelease,
+        input.rolloutTransition,
+      );
       const lockedFingerprint = createReleaseFingerprint(lockedRelease.items);
       this.assertDeployableRuntimeRelease(lockedRelease);
       this.assertSemanticSnapshotFingerprint(lockedRelease);
@@ -379,6 +414,44 @@ export class BrainReleaseService implements OnModuleInit {
     return activated;
   }
 
+  private async assertRolloutSequenceActivation(
+    prisma: PrismaService,
+    release: { rolloutSequenceId?: number | null; rolloutStage?: string | null },
+    transition?: { sequenceId: number; fromStage: string; toStage: string },
+  ) {
+    if (!release.rolloutSequenceId) {
+      if (transition) throw new BadRequestException('rollout_sequence_transition_identity_mismatch');
+      return;
+    }
+    if (!transition) {
+      throw new BadRequestException('rollout_sequence_release_requires_sequence_transition');
+    }
+    if (
+      transition.sequenceId !== release.rolloutSequenceId
+      || transition.toStage !== release.rolloutStage
+    ) {
+      throw new BadRequestException('rollout_sequence_transition_identity_mismatch');
+    }
+    const sequence = await prisma.brainRolloutSequence.findUnique({
+      where: { id: release.rolloutSequenceId },
+      select: { status: true, currentStage: true },
+    });
+    if (!sequence) throw new BadRequestException('rollout_sequence_not_found');
+    if (sequence.currentStage !== transition.fromStage) {
+      throw new BadRequestException('rollout_sequence_stage_changed');
+    }
+    const currentIndex = ROLLOUT_SEQUENCE_STAGES.indexOf(
+      transition.fromStage as (typeof ROLLOUT_SEQUENCE_STAGES)[number],
+    );
+    const expectedNextStage = currentIndex >= 0 ? ROLLOUT_SEQUENCE_STAGES[currentIndex + 1] : undefined;
+    const activatesShadow = transition.fromStage === 'shadow' && transition.toStage === 'shadow'
+      && ['draft', 'paused'].includes(sequence.status);
+    const promotesOneStage = sequence.status === 'active' && expectedNextStage === transition.toStage;
+    if (!activatesShadow && !promotesOneStage) {
+      throw new BadRequestException('rollout_sequence_transition_not_allowed');
+    }
+  }
+
   private async validateCapabilitySourceFreshness(candidates: readonly BrainCapabilityCandidate[]) {
     if (!this.capabilityScanner) {
       return {
@@ -417,7 +490,11 @@ export class BrainReleaseService implements OnModuleInit {
     }
   }
 
-  async rollbackRelease(input: { releaseId: number; reason: string }) {
+  async rollbackRelease(input: {
+    releaseId: number;
+    reason: string;
+    rolloutTransition?: { sequenceId: number; fromStage: string; targetReleaseId: number };
+  }) {
     const prisma = this.requirePrisma();
     const current = await prisma.brainRelease.findUnique({
       where: { id: input.releaseId },
@@ -425,9 +502,11 @@ export class BrainReleaseService implements OnModuleInit {
     });
     if (!current || current.status !== 'active') throw new BadRequestException('release_not_active');
     if (current.scope === 'governance_policy') throw new BadRequestException('policy_snapshot_requires_policy_rollback');
-    const previous = current.previousReleaseId
+    await this.assertRolloutSequenceRollback(prisma, current, input.rolloutTransition);
+    const rollbackTargetId = input.rolloutTransition?.targetReleaseId ?? current.previousReleaseId;
+    const previous = rollbackTargetId
       ? await prisma.brainRelease.findUnique({
-          where: { id: current.previousReleaseId },
+          where: { id: rollbackTargetId },
           include: { items: { include: { resourceVersion: true } } },
         })
       : null;
@@ -440,6 +519,11 @@ export class BrainReleaseService implements OnModuleInit {
     await this.validateDependencies(previousVersions);
     await this.activeReleaseWarmup?.warmRelease({ releaseId: previous.id, expectedStatus: previous.status });
     const rolledBack = await this.runSerializable('release_rollback_conflict', async (tx) => {
+      await this.assertRolloutSequenceRollback(
+        tx as unknown as PrismaService,
+        current,
+        input.rolloutTransition,
+      );
       const rolledBackAt = new Date();
       const claim = await tx.brainRelease.updateMany({
         where: { id: current.id, status: 'active' },
@@ -473,6 +557,37 @@ export class BrainReleaseService implements OnModuleInit {
     return rolledBack;
   }
 
+  private async assertRolloutSequenceRollback(
+    prisma: PrismaService,
+    release: { rolloutSequenceId?: number | null; rolloutStage?: string | null },
+    transition?: { sequenceId: number; fromStage: string; targetReleaseId: number },
+  ) {
+    if (!release.rolloutSequenceId) {
+      if (transition) throw new BadRequestException('rollout_sequence_transition_identity_mismatch');
+      return;
+    }
+    if (!transition) {
+      throw new BadRequestException('rollout_sequence_release_requires_sequence_rollback');
+    }
+    if (
+      transition.sequenceId !== release.rolloutSequenceId
+      || transition.fromStage !== release.rolloutStage
+    ) {
+      throw new BadRequestException('rollout_sequence_transition_identity_mismatch');
+    }
+    const sequence = await prisma.brainRolloutSequence.findUnique({
+      where: { id: release.rolloutSequenceId },
+      select: { status: true, currentStage: true, previousRuntimeReleaseId: true },
+    });
+    if (!sequence) throw new BadRequestException('rollout_sequence_not_found');
+    if (!['active', 'paused'].includes(sequence.status) || sequence.currentStage !== transition.fromStage) {
+      throw new BadRequestException('rollout_sequence_stage_changed');
+    }
+    if (!sequence.previousRuntimeReleaseId || sequence.previousRuntimeReleaseId !== transition.targetReleaseId) {
+      throw new BadRequestException('rollout_sequence_rollback_target_mismatch');
+    }
+  }
+
   async rollbackToRules(input: { releaseId: number; reason: string }) {
     return this.rollbackToProductionBaseline(input);
   }
@@ -485,6 +600,7 @@ export class BrainReleaseService implements OnModuleInit {
     });
     if (!current || current.status !== 'active') throw new BadRequestException('release_not_active');
     if (current.scope === 'governance_policy') throw new BadRequestException('policy_snapshot_requires_policy_rollback');
+    if (current.rolloutSequenceId) throw new BadRequestException('rollout_sequence_release_requires_sequence_rollback');
     if (this.record(current.rollout).mode === 'rules') throw new BadRequestException('release_already_rules');
 
     let previousReleaseId = current.previousReleaseId;
@@ -554,7 +670,7 @@ export class BrainReleaseService implements OnModuleInit {
     return rolledBack;
   }
 
-  async listReleases(input?: { includeSnapshot?: boolean; take?: number }) {
+  async listReleases(input?: { includeSnapshot?: boolean; includeReadiness?: boolean; take?: number }) {
     const take = Math.max(1, Math.min(100, Number(input?.take) || 30));
     if (input?.includeSnapshot === false) {
       const releases = await this.requirePrisma().brainRelease.findMany({
@@ -576,14 +692,99 @@ export class BrainReleaseService implements OnModuleInit {
         },
         take,
       });
-      return releases.map(({ _count, ...release }) => ({ ...release, itemCount: _count.items, items: [] }));
+      const items = releases.map(({ _count, ...release }) => ({ ...release, itemCount: _count.items, items: [] }));
+      return input?.includeReadiness ? this.attachReleaseReadiness(items) : items;
     }
-    return this.requirePrisma().brainRelease.findMany({
+    const releases = await this.requirePrisma().brainRelease.findMany({
       where: { scope: { in: [...RUNTIME_RELEASE_SCOPES] } },
       orderBy: { createdAt: 'desc' },
       include: { items: true },
       take,
     });
+    return input?.includeReadiness ? this.attachReleaseReadiness(releases) : releases;
+  }
+
+  async getReleaseReadiness(releaseId: number): Promise<BrainReleaseReadiness> {
+    const prisma = this.requirePrisma();
+    let releaseFingerprint: string | null = null;
+    try {
+      const release = await prisma.brainRelease.findUnique({
+        where: { id: releaseId },
+        include: { items: { include: { resourceVersion: true } } },
+      });
+      if (!release || release.scope === 'governance_policy') {
+        return unavailableReadiness('runtime_release_not_found');
+      }
+      if (!release.items.length) return blockedReadiness('release_has_no_resource_items');
+      releaseFingerprint = createReleaseFingerprint(release.items);
+      let evaluationReleaseId = release.id;
+      let runs = await this.completedEvalRuns(prisma, release.id);
+      if (!runs.length) {
+        const linkedReleaseId = Number(this.record(release.rollout).evaluationEvidenceReleaseId);
+        if (!Number.isInteger(linkedReleaseId) || linkedReleaseId <= 0 || linkedReleaseId === release.id) {
+          return blockedReadiness('release_eval_gate_failed', releaseFingerprint);
+        }
+        const evidenceRelease = await prisma.brainRelease.findUnique({
+          where: { id: linkedReleaseId },
+          include: { items: { include: { resourceVersion: true } } },
+        });
+        const evidenceRollout = this.record(evidenceRelease?.rollout as Prisma.JsonValue);
+        const validEvidenceRelease = evidenceRelease && (
+          evidenceRollout.evaluationOnly === true ||
+          (evidenceRelease.status === 'active' && evidenceRollout.mode === 'shadow')
+        );
+        if (!validEvidenceRelease) return blockedReadiness('release_eval_evidence_invalid', releaseFingerprint);
+        if (createReleaseFingerprint(evidenceRelease.items) !== releaseFingerprint) {
+          return blockedReadiness('release_eval_evidence_fingerprint_mismatch', releaseFingerprint);
+        }
+        evaluationReleaseId = evidenceRelease.id;
+        runs = await this.completedEvalRuns(prisma, evidenceRelease.id);
+      }
+      if (!runs.length) return blockedReadiness('release_eval_gate_failed', releaseFingerprint, evaluationReleaseId);
+
+      await this.assertReleaseEvidenceRuns(
+        prisma,
+        runs,
+        evaluationReleaseId,
+        releaseFingerprint,
+        this.requiresProductAcceptance(release),
+        this.requiresPerformanceAcceptance(release),
+      );
+      const evidenceRun = runs.find((run) => {
+        const summary = this.record(run.summary);
+        return this.record(summary.productAcceptance as Prisma.JsonValue).contractVersion === 'ami-brain-release-acceptance/v1';
+      }) ?? runs.find((run) => this.record(run.summary).gateMode === 'release_gate') ?? runs[0];
+      const summary = this.record(evidenceRun?.summary);
+      const productAcceptance = this.record(summary.productAcceptance as Prisma.JsonValue);
+      return {
+        status: 'ready',
+        canRelease: true,
+        evaluationReleaseId,
+        evalRunId: positiveNumber(evidenceRun?.id ?? summary.runId),
+        releaseFingerprint,
+        suiteChecksum: optionalText(summary.suiteManifestChecksum ?? productAcceptance.suiteManifestChecksum),
+        questionCount: positiveNumber(summary.suiteCaseCount ?? summary.total ?? evidenceRun?.caseCount),
+        provider: optionalText(summary.provider ?? productAcceptance.provider),
+        model: optionalText(evidenceRun?.modelVersion ?? summary.model ?? productAcceptance.model),
+        generatedAt: optionalIsoDate(productAcceptance.generatedAt ?? evidenceRun?.finishedAt ?? evidenceRun?.createdAt),
+        expiresAt: optionalIsoDate(productAcceptance.expiresAt),
+        blockers: [],
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException || error instanceof ConflictException) {
+        return blockedReadiness(error.message, releaseFingerprint);
+      }
+      return unavailableReadiness(error instanceof Error ? error.message : 'release_readiness_unavailable', releaseFingerprint);
+    }
+  }
+
+  private async attachReleaseReadiness<T extends { id: number; status?: string }>(releases: T[]) {
+    return Promise.all(releases.map(async (release) => ({
+      ...release,
+      releaseReadiness: release.status === 'draft' || release.status === 'active'
+        ? await this.getReleaseReadiness(release.id)
+        : unavailableReadiness('release_not_current'),
+    })));
   }
 
   async resolveRuntimeSummary(input: { storeId: number; userId: number; roleKey: string }) {
@@ -666,6 +867,7 @@ export class BrainReleaseService implements OnModuleInit {
       where: { id: releaseId },
       select: {
         id: true,
+        releaseKey: true,
         scope: true,
         status: true,
         rollout: true,
@@ -1100,8 +1302,22 @@ export class BrainReleaseService implements OnModuleInit {
 
   private async completedEvalRuns(prisma: PrismaService, releaseId: number) {
     const delegate = prisma.brainEvalRun as unknown as {
-      findMany?: (input: Record<string, unknown>) => Promise<Array<{ summary: Prisma.JsonValue }>>;
-      findFirst: (input: Record<string, unknown>) => Promise<{ summary: Prisma.JsonValue } | null>;
+      findMany?: (input: Record<string, unknown>) => Promise<Array<{
+        id?: number;
+        summary: Prisma.JsonValue;
+        modelVersion?: string | null;
+        caseCount?: number;
+        finishedAt?: Date | null;
+        createdAt?: Date;
+      }>>;
+      findFirst: (input: Record<string, unknown>) => Promise<{
+        id?: number;
+        summary: Prisma.JsonValue;
+        modelVersion?: string | null;
+        caseCount?: number;
+        finishedAt?: Date | null;
+        createdAt?: Date;
+      } | null>;
     };
     if (delegate.findMany) {
       return delegate.findMany({
@@ -1671,6 +1887,50 @@ function canonicalizeForFingerprint(value: unknown): unknown {
     );
   }
   return value;
+}
+
+function blockedReadiness(
+  blocker: string,
+  releaseFingerprint: string | null = null,
+  evaluationReleaseId: number | null = null,
+): BrainReleaseReadiness {
+  return {
+    status: 'blocked',
+    canRelease: false,
+    evaluationReleaseId,
+    evalRunId: null,
+    releaseFingerprint,
+    suiteChecksum: null,
+    questionCount: null,
+    provider: null,
+    model: null,
+    generatedAt: null,
+    expiresAt: null,
+    blockers: [blocker],
+  };
+}
+
+function unavailableReadiness(blocker: string, releaseFingerprint: string | null = null): BrainReleaseReadiness {
+  return {
+    ...blockedReadiness(blocker, releaseFingerprint),
+    status: 'unavailable',
+  };
+}
+
+function positiveNumber(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function optionalText(value: unknown): string | null {
+  const text = String(value ?? '').trim();
+  return text || null;
+}
+
+function optionalIsoDate(value: unknown): string | null {
+  if (value instanceof Date) return value.toISOString();
+  const parsed = Date.parse(String(value ?? ''));
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
 }
 
 function governancePolicyBinding(value: Record<string, unknown>): GovernancePolicyBinding | undefined {

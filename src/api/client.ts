@@ -6,6 +6,9 @@ export interface ApiErrorPayload {
   code?: string;
   status?: number;
   details?: unknown;
+  category?: 'business_blocker' | 'permission' | 'system' | 'conflict';
+  resolutionType?: string;
+  retryable?: boolean;
 }
 
 // --- Retry configuration ---
@@ -141,6 +144,9 @@ apiClient.interceptors.response.use(
       code: (responseData?.code as string | undefined) || error.code,
       status,
       details: (responseData?.details ?? responseData) as unknown,
+      category: responseData?.category as ApiErrorPayload['category'],
+      resolutionType: responseData?.resolutionType as string | undefined,
+      retryable: typeof responseData?.retryable === 'boolean' ? responseData.retryable : undefined,
     };
 
     if (status === 401 && !isLoginRequest(config)) {

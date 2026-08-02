@@ -7,12 +7,16 @@ const api = vi.hoisted(() => ({
   getBrainEvalRun: vi.fn(),
   listBrainEvalRuns: vi.fn(),
 }));
+const permissionState = vi.hoisted(() => ({ canManage: true }));
 
 vi.mock('@/api/brain', () => api);
+vi.mock('@/hooks/usePermission', () => ({ usePermission: () => permissionState.canManage }));
+vi.mock('../brainGovernanceNavigation', () => ({ BRAIN_GOVERNANCE_UI_MODE: 'manage' }));
 
 describe('BrainEvalCenter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    permissionState.canManage = true;
     api.listBrainEvalRuns.mockResolvedValue({
       items: [
         {
@@ -67,5 +71,15 @@ describe('BrainEvalCenter', () => {
     expect(await screen.findByText('本月商品销售排行')).toBeInTheDocument();
     expect(screen.getByText('metric_failed')).toBeInTheDocument();
     expect(screen.queryByText(/"evalResults"/)).not.toBeInTheDocument();
+  });
+
+  it('does not expose eval mutation actions to view-only users', async () => {
+    permissionState.canManage = false;
+    render(<BrainEvalCenter />);
+
+    expect((await screen.findAllByText('#41')).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: '发起评测' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '复测失败' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '逐题结果' })).toBeInTheDocument();
   });
 });

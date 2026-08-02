@@ -8,6 +8,7 @@ import {
   listBrainRoleProfiles,
   updateBrainRoleProfile,
 } from '@/api/brain';
+import { usePermission } from '@/hooks/usePermission';
 import {
   Dialog,
   DialogContent,
@@ -16,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/app/components/ui/dialog';
+import { BRAIN_GOVERNANCE_UI_MODE } from '../brainGovernanceNavigation';
 
 interface ResourceRow {
   id?: number;
@@ -155,6 +157,7 @@ function statusLabel(status: string): string {
 }
 
 export function BrainRoleGovernance() {
+  const canManage = usePermission('core:brain-governance:manage') && BRAIN_GOVERNANCE_UI_MODE === 'manage';
   const [versions, setVersions] = useState<ResourceRow[]>([]);
   const [activeItems, setActiveItems] = useState<ResourceRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -192,18 +195,21 @@ export function BrainRoleGovernance() {
   }, []);
 
   function configureRole(row: RoleProfileRow) {
+    if (!canManage) return;
     setSelectedRoleKey(row.roleKey);
     setEditor(JSON.stringify(rolePayload(row), null, 2));
     setEditorOpen(true);
   }
 
   function createRole() {
+    if (!canManage) return;
     setSelectedRoleKey(null);
     setEditor(JSON.stringify(EMPTY_ROLE, null, 2));
     setEditorOpen(true);
   }
 
   async function save() {
+    if (!canManage) return;
     let payload: Record<string, unknown>;
     try {
       payload = JSON.parse(editor) as Record<string, unknown>;
@@ -244,10 +250,12 @@ export function BrainRoleGovernance() {
           <p className="mt-1 text-sm text-muted-foreground">角色技能、业务领域和数据范围按版本发布，roleHint 不改变用户权限。</p>
         </div>
         <div className="flex items-center gap-2">
-          <button type="button" className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm" onClick={createRole}>
-            <Plus className="h-4 w-4" />
-            新建角色
-          </button>
+          {canManage ? (
+            <button type="button" className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm" onClick={createRole}>
+              <Plus className="h-4 w-4" />
+              新建角色
+            </button>
+          ) : null}
           <button type="button" className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm" onClick={() => void load()}>
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             刷新
@@ -307,15 +315,17 @@ export function BrainRoleGovernance() {
                     </td>
                     <td className="whitespace-nowrap px-3 py-3 text-xs text-muted-foreground">{formatDate(role.updatedAt)}</td>
                     <td className="px-3 py-3 text-right">
-                      <button
-                        type="button"
-                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs hover:bg-muted"
-                        aria-label={`配置${role.name}`}
-                        onClick={() => configureRole(role)}
-                      >
-                        <Settings2 className="h-3.5 w-3.5" />
-                        配置
-                      </button>
+                      {canManage ? (
+                        <button
+                          type="button"
+                          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs hover:bg-muted"
+                          aria-label={`配置${role.name}`}
+                          onClick={() => configureRole(role)}
+                        >
+                          <Settings2 className="h-3.5 w-3.5" />
+                          配置
+                        </button>
+                      ) : <span className="text-xs text-muted-foreground">只读</span>}
                     </td>
                   </tr>
                 );
@@ -327,7 +337,7 @@ export function BrainRoleGovernance() {
         </div>
       </div>
 
-      <Dialog open={editorOpen} onOpenChange={(open) => !saving && setEditorOpen(open)}>
+      <Dialog open={canManage && editorOpen} onOpenChange={(open) => !saving && setEditorOpen(open)}>
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>{selectedRoleKey ? `配置角色 · ${selectedRoleKey}` : '新建角色配置'}</DialogTitle>

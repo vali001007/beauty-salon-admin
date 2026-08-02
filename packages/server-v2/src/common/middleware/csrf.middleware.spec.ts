@@ -26,6 +26,19 @@ describe('CsrfMiddleware', () => {
     expect(next).toHaveBeenCalledTimes(1);
   });
 
+  it('skips CSRF only for the exact machine receipt-ingest endpoint', () => {
+    middleware.use(request('POST', '/api/brain/governance/internal/gate-receipts?source=github'), {} as any, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    next.mockClear();
+    expect(() => middleware.use(
+      request('POST', '/api/brain/governance/internal/gate-receipts-forged'),
+      {} as any,
+      next,
+    )).toThrow(ForbiddenException);
+    expect(next).not.toHaveBeenCalled();
+  });
+
   it('still blocks other mutating requests without a matching CSRF token', () => {
     expect(() => middleware.use(request('POST', '/api/marketing/pages'), {} as any, next)).toThrow(ForbiddenException);
     expect(next).not.toHaveBeenCalled();

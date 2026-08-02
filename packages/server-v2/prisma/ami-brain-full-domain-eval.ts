@@ -20,6 +20,7 @@ import {
   summarizeAmiBrainEvalLatencies,
 } from '../src/brain/eval/ami-brain-eval-latency.js';
 import { buildAmiBrainProductAcceptance } from '../src/brain/eval/ami-brain-product-acceptance.js';
+import { compareAmiBrainEvalResults } from '../src/brain/eval/ami-brain-eval-comparison.js';
 import {
   assertAmiBrainGoldManifestContract,
   buildAmiBrainGoldAcceptanceStatus,
@@ -1583,6 +1584,25 @@ async function summarize(
       })
     : null;
   const previous = previousRun ? asRecord(previousRun.summary) : null;
+  const previousRows = previousRun
+    ? await prisma.brainEvalResult.findMany({
+        where: { evalRunId: previousRun.id },
+        select: { caseKey: true, deterministicPassed: true, failureCluster: true },
+      })
+    : [];
+  const sameSuiteIdentity = Boolean(
+    previousRun &&
+      previous?.suiteKey === suite.key &&
+      previous?.suiteCaseIdsChecksum === suite.caseIdsChecksum &&
+      previousRun.caseCount === suite.caseCount,
+  );
+  const caseDelta = previousRun
+    ? compareAmiBrainEvalResults({
+        current: rows,
+        previous: previousRows,
+        comparable: sameSuiteIdentity,
+      })
+    : null;
   const comparison = previousRun
     ? {
         previousRunId: previousRun.id,
@@ -1597,6 +1617,8 @@ async function summarize(
         previousAverageLatencyMs: previous?.averageLatencyMs ?? null,
         previousP95LatencyMs: previous?.p95LatencyMs ?? null,
         previousFailureClusters: previous?.failureClusters ?? {},
+        sameSuiteIdentity,
+        caseDelta,
       }
     : null;
   return {

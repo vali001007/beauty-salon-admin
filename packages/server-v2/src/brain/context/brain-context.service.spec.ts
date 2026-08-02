@@ -69,6 +69,58 @@ describe('BrainContextService', () => {
     ).toThrow(new BadRequestException('当前账号无权访问该门店'));
   });
 
+  it('returns a structured business blocker when a store-scoped request has no store selected', () => {
+    try {
+      service.fromRequest({ headers: {}, user: { id: 1, permissions: ['*'] } } as never);
+      throw new Error('expected store scope rejection');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toEqual(expect.objectContaining({
+        code: 'store_scope_required',
+        category: 'business_blocker',
+        resolutionType: 'select_store',
+        retryable: false,
+      }));
+    }
+  });
+
+  it('builds a global governance identity without requiring a store selection', () => {
+    const context = service.fromGlobalRequest({
+      headers: { 'x-request-id': 'governance-global-1' },
+      user: {
+        id: 12,
+        roles: ['brain_governance_approver'],
+        permissions: ['core:brain-governance:approve'],
+        deniedPermissions: ['core:brain-governance:release'],
+      },
+    } as never);
+
+    expect(context).toEqual(expect.objectContaining({
+      userId: 12,
+      roles: ['brain_governance_approver'],
+      permissions: ['core:brain-governance:approve'],
+      deniedPermissions: ['core:brain-governance:release'],
+      requestId: 'governance-global-1',
+      timezone: 'Asia/Shanghai',
+    }));
+    expect(context).not.toHaveProperty('storeId');
+    expect(context).not.toHaveProperty('visibleStoreIds');
+  });
+
+  it('keeps trusted channel and device hashing on global governance requests', () => {
+    const context = service.fromGlobalRequest({
+      headers: {
+        'x-ami-client-channel': 'admin_web',
+        'x-ami-device-id': 'governance-console-01',
+      },
+      user: { id: 12, permissions: ['core:brain-governance:view'] },
+    } as never);
+
+    expect(context.requestChannel).toBe('admin_web');
+    expect(context.deviceIdHash).toMatch(/^[a-f0-9]{64}$/u);
+    expect(context.deviceIdHash).not.toContain('governance-console-01');
+  });
+
   it('allows wildcard administrators to select the current store when no store list is attached', () => {
     const context = service.fromRequest({
       headers: { 'x-store-id': '7' },

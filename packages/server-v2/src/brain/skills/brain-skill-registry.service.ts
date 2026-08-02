@@ -23,12 +23,20 @@ export class BrainSkillRegistryService {
   constructor(private readonly prisma: PrismaService) {}
 
   async listEnabledSkills() {
-    return this.listLatestEnabledSkills();
+    return this.listSkills();
   }
 
   async listEnabledSkillSummaries(): Promise<BrainSkillSummaryRow[]> {
+    return this.listSkillSummaries();
+  }
+
+  async listSkills(input?: { includeDisabled?: boolean }) {
+    return this.listLatestRows(input?.includeDisabled ? {} : { enabled: true });
+  }
+
+  async listSkillSummaries(input?: { includeDisabled?: boolean }): Promise<BrainSkillSummaryRow[]> {
     const rows = await this.db().brainSkillRegistry.findMany({
-      where: { enabled: true },
+      where: input?.includeDisabled ? {} : { enabled: true },
       orderBy: [{ skillKey: 'asc' }, { version: 'desc' }],
       select: {
         id: true,
@@ -57,7 +65,7 @@ export class BrainSkillRegistryService {
   }
 
   async listLatestEnabledSkills(): Promise<BrainSkillRegistryRow[]> {
-    return this.listLatestRows({ enabled: true });
+    return this.listSkills();
   }
 
   async listLatestEnabledCapabilityCandidates(): Promise<BrainCapabilityCandidate[]> {

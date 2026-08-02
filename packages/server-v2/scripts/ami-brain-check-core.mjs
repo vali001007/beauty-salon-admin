@@ -2,6 +2,13 @@ import { createHash } from 'node:crypto';
 
 export const STAGES = ['dev', 'candidate', 'release', 'observe'];
 export const RISK_ORDER = ['low', 'medium', 'high', 'critical'];
+export const PREVALIDATED_GATE_ALLOWLIST = Object.freeze([
+  'frontend_typecheck',
+  'frontend_brain_unit',
+  'permission_unit',
+  'cross_client_contract',
+  'backend_build',
+]);
 
 export const GATE_CATALOG = Object.freeze({
   brain_unit: {
@@ -85,19 +92,54 @@ export const GATE_CATALOG = Object.freeze({
 });
 
 export function parseArgs(argv) {
-  const options = { stage: 'dev', dryRun: false, force: false, json: false };
+  const options = {
+    stage: 'dev',
+    dryRun: false,
+    force: false,
+    json: false,
+    uploadReceipt: false,
+    consumeGateReceipts: [],
+    prevalidatedGates: [],
+  };
   for (const argument of argv) {
     if (argument.startsWith('--stage=')) options.stage = argument.slice('--stage='.length);
     else if (argument === '--dry-run') options.dryRun = true;
     else if (argument === '--force') options.force = true;
     else if (argument === '--json') options.json = true;
+    else if (argument === '--upload-receipt') options.uploadReceipt = true;
     else if (argument.startsWith('--scope=')) {
       options.scope = argument.slice('--scope='.length).split(',').map((item) => item.trim()).filter(Boolean);
+    } else if (argument.startsWith('--repository=')) options.repository = argument.slice('--repository='.length).trim();
+    else if (argument.startsWith('--branch=')) options.branch = argument.slice('--branch='.length).trim();
+    else if (argument.startsWith('--workflow=')) options.workflow = argument.slice('--workflow='.length).trim();
+    else if (argument.startsWith('--event-name=')) options.eventName = argument.slice('--event-name='.length).trim();
+    else if (argument.startsWith('--base-commit=')) options.baseCommit = argument.slice('--base-commit='.length).trim();
+    else if (argument.startsWith('--head-commit=')) options.headCommit = argument.slice('--head-commit='.length).trim();
+    else if (argument.startsWith('--merge-base=')) options.mergeBaseCommit = argument.slice('--merge-base='.length).trim();
+    else if (argument.startsWith('--candidate-key=')) options.candidateKey = argument.slice('--candidate-key='.length).trim();
+    else if (argument.startsWith('--eval-run-id=')) options.evalRunId = Number(argument.slice('--eval-run-id='.length));
+    else if (argument.startsWith('--evaluation-release-id=')) options.evaluationReleaseId = Number(argument.slice('--evaluation-release-id='.length));
+    else if (argument.startsWith('--receipt-output=')) options.receiptOutput = argument.slice('--receipt-output='.length).trim();
+    else if (argument.startsWith('--consume-gate-receipt=')) {
+      const path = argument.slice('--consume-gate-receipt='.length).trim();
+      if (path) options.consumeGateReceipts.push(path);
+    } else if (argument.startsWith('--prevalidated-gate=')) {
+      const gate = argument.slice('--prevalidated-gate='.length).trim();
+      if (gate) options.prevalidatedGates.push(gate);
     } else if (argument === '--help' || argument === '-h') options.help = true;
     else throw new Error(`unknown_argument:${argument}`);
   }
   if (!STAGES.includes(options.stage)) throw new Error(`invalid_stage:${options.stage}`);
+  for (const [key, value] of [['evalRunId', options.evalRunId], ['evaluationReleaseId', options.evaluationReleaseId]]) {
+    if (value !== undefined && (!Number.isInteger(value) || value <= 0)) throw new Error(`invalid_${key}`);
+  }
   return options;
+}
+
+export function selectPlanFiles({ stage, detectedFiles, scope = [] }) {
+  const explicitScope = [...new Set(scope.filter(Boolean))].sort();
+  if (stage === 'dev' && explicitScope.length) return explicitScope;
+  return [...new Set([...detectedFiles, ...explicitScope].filter(Boolean))].sort();
 }
 
 export function matchesPattern(file, pattern) {
@@ -114,9 +156,11 @@ export function createImpactPlan({ files, stage, manifest }) {
   const ignoredFiles = [];
   const unknownSensitiveFiles = [];
   const matchedRuleIds = new Set();
-  const capabilities = new Set();
+  const domains = new Set();
   const contracts = new Set();
+  const capabilityImpacts = new Set();
   const gateIds = new Set();
+  const gateFiles = new Map();
   let riskLevel = 'low';
 
   for (const file of files) {
@@ -126,8 +170,9 @@ export function createImpactPlan({ files, stage, manifest }) {
         unknownSensitiveFiles.push(file);
         matchedFiles.push(file);
         riskLevel = maxRisk(riskLevel, 'high');
-        gateIds.add('backend_build');
-        gateIds.add('brain_contract');
+        capabilityImpacts.add('all_runtime');
+        addGate(gateIds, gateFiles, 'backend_build', file);
+        addGate(gateIds, gateFiles, 'brain_contract', file);
       } else ignoredFiles.push(file);
       continue;
     }
@@ -135,17 +180,18 @@ export function createImpactPlan({ files, stage, manifest }) {
     for (const rule of rules) {
       matchedRuleIds.add(rule.id);
       riskLevel = maxRisk(riskLevel, rule.riskLevel);
-      for (const value of rule.capabilities ?? []) capabilities.add(value);
+      for (const value of rule.domains ?? rule.capabilities ?? []) domains.add(value);
+      if (rule.capabilityImpact) capabilityImpacts.add(rule.capabilityImpact);
       for (const value of rule.contracts ?? []) contracts.add(value);
-      for (const value of rule.gates?.[stage] ?? []) gateIds.add(value);
+      for (const value of rule.gates?.[stage] ?? []) addGate(gateIds, gateFiles, value, file);
     }
   }
 
-  if (!matchedFiles.length) gateIds.add('brain_check_unit');
+  if (!matchedFiles.length) addGate(gateIds, gateFiles, 'brain_check_unit');
   const gates = [...gateIds].map((id) => {
     const gate = GATE_CATALOG[id];
     if (!gate) throw new Error(`unknown_gate:${id}`);
-    return { id, ...gate };
+    return { id, ...gate, files: [...(gateFiles.get(id) ?? [])].sort() };
   });
   return {
     stage,
@@ -154,10 +200,45 @@ export function createImpactPlan({ files, stage, manifest }) {
     ignoredFiles: [...new Set(ignoredFiles)].sort(),
     unknownSensitiveFiles: [...new Set(unknownSensitiveFiles)].sort(),
     matchedRuleIds: [...matchedRuleIds].sort(),
-    capabilities: [...capabilities].sort(),
+    domains: [...domains].sort(),
+    capabilities: [],
+    capabilityImpacts: [...capabilityImpacts].sort(),
     contracts: [...contracts].sort(),
     gates,
   };
+}
+
+export function withResolvedCapabilities(plan, capabilityKeys) {
+  return {
+    ...plan,
+    capabilities: [...new Set(capabilityKeys.filter((key) => /^[a-z][a-z0-9_]{1,127}$/.test(key)))].sort(),
+  };
+}
+
+export function extractCapabilityKeys(source) {
+  const keys = new Set();
+  let cursor = 0;
+  while (cursor < source.length) {
+    const decoratorStart = source.indexOf('@BrainCapability', cursor);
+    if (decoratorStart < 0) break;
+    const openParen = source.indexOf('(', decoratorStart + '@BrainCapability'.length);
+    if (openParen < 0) break;
+    const objectStart = skipWhitespace(source, openParen + 1);
+    if (source[objectStart] !== '{') {
+      cursor = openParen + 1;
+      continue;
+    }
+    const objectEnd = findBalancedObjectEnd(source, objectStart);
+    if (objectEnd < 0) {
+      cursor = objectStart + 1;
+      continue;
+    }
+    const objectSource = source.slice(objectStart, objectEnd + 1);
+    const match = objectSource.match(/(?:^|[,{]\s*)key\s*:\s*['"]([a-z][a-z0-9_]{1,127})['"]/);
+    if (match) keys.add(match[1]);
+    cursor = objectEnd + 1;
+  }
+  return [...keys].sort();
 }
 
 export function maxRisk(left, right) {
@@ -178,7 +259,11 @@ export function stableStringify(value) {
 }
 
 export function createIdentity({ plan, source, environment }) {
-  const suiteChecksum = checksum(plan.gates.map((gate) => gate.id));
+  const suiteChecksum = checksum(plan.gates.map((gate) => ({
+    id: gate.id,
+    cwd: gate.cwd,
+    command: gate.command,
+  })));
   const identity = {
     stage: plan.stage,
     riskLevel: plan.riskLevel,
@@ -191,12 +276,147 @@ export function createIdentity({ plan, source, environment }) {
     provider: environment.provider ?? null,
     model: environment.model ?? null,
     timeout: environment.timeout ?? null,
+    repository: source.repository ?? null,
+    branch: source.branch ?? null,
+    workflow: source.workflow ?? null,
+    eventName: source.eventName ?? null,
+    baseCommit: source.baseCommit ?? null,
+    mergeBaseCommit: source.mergeBaseCommit ?? null,
+    headCommit: source.headCommit ?? source.head ?? null,
+    candidateKey: source.candidateKey ?? null,
+    evalRunId: source.evalRunId ?? null,
+    evaluationReleaseId: source.evaluationReleaseId ?? null,
   };
   return { ...identity, identityChecksum: checksum(identity) };
 }
 
+export function createGateInputChecksum({ gate, identity, fileFingerprints = {} }) {
+  const gateFiles = gate.files ?? [];
+  return checksum({
+    gateKey: gate.id,
+    cwd: gate.cwd,
+    command: gate.command,
+    stage: identity.stage,
+    riskLevel: identity.riskLevel,
+    files: gateFiles,
+    fileFingerprints: Object.fromEntries(gateFiles.map((file) => [file, fileFingerprints[file] ?? null])),
+    releaseFingerprint: identity.releaseFingerprint,
+    dataSnapshot: identity.dataSnapshot,
+    provider: identity.provider,
+    model: identity.model,
+    timeout: identity.timeout,
+    baseCommit: identity.baseCommit,
+    mergeBaseCommit: identity.mergeBaseCommit,
+    headCommit: identity.headCommit,
+    evalRunId: identity.evalRunId,
+    evaluationReleaseId: identity.evaluationReleaseId,
+  });
+}
+
 export function isReusableReceipt(receipt, identity, now = Date.now()) {
-  if (!receipt || receipt.status !== 'passed') return false;
+  if (!receipt || receipt.schemaVersion !== 3 || receipt.status !== 'passed') return false;
   if (receipt.identityChecksum !== identity.identityChecksum) return false;
   return Number.isFinite(Date.parse(receipt.expiresAt)) && Date.parse(receipt.expiresAt) > now;
+}
+
+export function isReusableGateResult(result, inputChecksum, expiresAt, now = Date.now()) {
+  if (!result || result.status !== 'passed' || result.inputChecksum !== inputChecksum) return false;
+  return Number.isFinite(Date.parse(expiresAt)) && Date.parse(expiresAt) > now;
+}
+
+export function createPrevalidatedGateResult({ gate, inputChecksum, pipelineEvidence, now = new Date() }) {
+  if (!PREVALIDATED_GATE_ALLOWLIST.includes(gate.id)) throw new Error(`prevalidated_gate_not_allowed:${gate.id}`);
+  const outputChecksum = checksum({ source: 'required_pipeline_jobs', pipelineEvidence, gateKey: gate.id });
+  return {
+    gateId: gate.id,
+    gateKey: gate.id,
+    description: gate.description,
+    command: gate.command,
+    status: 'passed',
+    exitCode: 0,
+    inputChecksum,
+    outputChecksum,
+    resultChecksum: checksum({ gateId: gate.id, inputChecksum, exitCode: 0, outputChecksum }),
+    durationMs: 0,
+    modelInvocationCount: 0,
+    reused: true,
+    reusedFromPipeline: true,
+    pipelineEvidence,
+    startedAt: now.toISOString(),
+    finishedAt: now.toISOString(),
+  };
+}
+
+export function validatePrevalidatedGateSelection({ stage, gateIds, githubActions, allowed }) {
+  const selected = [...new Set(gateIds)];
+  if (!selected.length) return [];
+  const blockers = [];
+  if (stage !== 'candidate' || githubActions !== 'true' || allowed !== 'true') {
+    blockers.push('prevalidated_gates_require_trusted_candidate_pipeline');
+  }
+  for (const gateId of selected) {
+    if (!PREVALIDATED_GATE_ALLOWLIST.includes(gateId)) blockers.push(`prevalidated_gate_not_allowed:${gateId}`);
+  }
+  return blockers;
+}
+
+function addGate(gateIds, gateFiles, gateId, file) {
+  gateIds.add(gateId);
+  if (!gateFiles.has(gateId)) gateFiles.set(gateId, new Set());
+  if (file) gateFiles.get(gateId).add(file);
+}
+
+function skipWhitespace(source, start) {
+  let cursor = start;
+  while (cursor < source.length && /\s/.test(source[cursor])) cursor += 1;
+  return cursor;
+}
+
+function findBalancedObjectEnd(source, start) {
+  let depth = 0;
+  let quote = null;
+  let escaped = false;
+  let lineComment = false;
+  let blockComment = false;
+  for (let cursor = start; cursor < source.length; cursor += 1) {
+    const character = source[cursor];
+    const next = source[cursor + 1];
+    if (lineComment) {
+      if (character === '\n') lineComment = false;
+      continue;
+    }
+    if (blockComment) {
+      if (character === '*' && next === '/') {
+        blockComment = false;
+        cursor += 1;
+      }
+      continue;
+    }
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === '\\') escaped = true;
+      else if (character === quote) quote = null;
+      continue;
+    }
+    if (character === '/' && next === '/') {
+      lineComment = true;
+      cursor += 1;
+      continue;
+    }
+    if (character === '/' && next === '*') {
+      blockComment = true;
+      cursor += 1;
+      continue;
+    }
+    if (character === "'" || character === '"' || character === '`') {
+      quote = character;
+      continue;
+    }
+    if (character === '{') depth += 1;
+    else if (character === '}') {
+      depth -= 1;
+      if (depth === 0) return cursor;
+    }
+  }
+  return -1;
 }

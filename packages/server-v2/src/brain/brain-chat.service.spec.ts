@@ -3272,7 +3272,7 @@ describe('BrainChatService', () => {
     const releaseService = {
       resolveRuntimeMode: jest.fn().mockResolvedValue({
         mode: 'model',
-        release: { id: 21 },
+        release: { id: 21, releaseKey: 'runtime-r21' },
         capabilityCandidates: [{ key: 'product_sales_ranking', version: 1 }],
       }),
     };
@@ -3290,7 +3290,7 @@ describe('BrainChatService', () => {
       }),
       filterCapabilities: jest.fn((_roleContext, _context, cards) => cards),
     };
-    const { prisma, modelPipeline, service } = createService({ modelPipeline: {}, roleContextBuilder, releaseService });
+    const { prisma, trace, modelPipeline, service } = createService({ modelPipeline: {}, roleContextBuilder, releaseService });
     prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
     prisma.brainMessage.create.mockResolvedValue({ id: 101 });
     prisma.brainRun.create.mockResolvedValue({ id: 77 });
@@ -3307,6 +3307,10 @@ describe('BrainChatService', () => {
       roleKey: 'store_manager',
       evaluationReleaseId: undefined,
     });
+    expect(trace.recordStep).toHaveBeenCalledWith(expect.objectContaining({
+      stepKey: 'release_runtime_selection',
+      output: expect.objectContaining({ releaseKey: 'runtime-r21', mode: 'model' }),
+    }));
     expect(modelPipeline!.planValidator.validate).toHaveBeenCalledWith(
       expect.objectContaining({
         context: expect.objectContaining({ roles: ['ami_demo_full_manager', 'store_manager'] }),

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { FilePlus2, Loader2, RefreshCw, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { isBrainGovernanceReadCancelled, listBrainResourceVersions } from '@/api/brain';
@@ -19,6 +19,7 @@ interface BrainResourceGovernancePanelProps {
   loadActive: () => Promise<unknown>;
   createResource: (payload: Record<string, unknown>) => Promise<unknown>;
   updateResource: (key: string, payload: Record<string, unknown>) => Promise<unknown>;
+  canManage?: boolean;
 }
 
 function rowsFrom(response: unknown): ResourceRow[] {
@@ -36,6 +37,7 @@ export function BrainResourceGovernancePanel({
   loadActive,
   createResource,
   updateResource,
+  canManage = true,
 }: BrainResourceGovernancePanelProps) {
   const [activeItems, setActiveItems] = useState<ResourceRow[]>([]);
   const [versions, setVersions] = useState<ResourceRow[]>([]);
@@ -45,7 +47,7 @@ export function BrainResourceGovernancePanel({
   const [editor, setEditor] = useState(JSON.stringify(example, null, 2));
   const tableItems = versions.length ? versions : activeItems;
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setLoadError('');
     try {
@@ -61,13 +63,14 @@ export function BrainResourceGovernancePanel({
     } finally {
       setLoading(false);
     }
-  }
+  }, [loadActive, resourceType, title]);
 
   useEffect(() => {
     void load();
-  }, [resourceType]);
+  }, [load]);
 
   async function save() {
+    if (!canManage) return;
     let payload: Record<string, unknown>;
     try {
       payload = JSON.parse(editor) as Record<string, unknown>;
@@ -106,7 +109,7 @@ export function BrainResourceGovernancePanel({
         </button>
       </div>
 
-      <div className="grid gap-6 py-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+      <div className={`grid gap-6 py-5 ${canManage ? 'xl:grid-cols-[minmax(0,1fr)_420px]' : ''}`}>
         <div className="min-w-0 overflow-x-auto border border-border">
           {loadError ? (
             <div className="flex items-center justify-between gap-3 border-b border-border bg-destructive/5 px-3 py-2 text-sm text-destructive">
@@ -135,14 +138,14 @@ export function BrainResourceGovernancePanel({
           </table>
         </div>
 
-        <div className="border-l border-border pl-0 xl:pl-5">
+        {canManage ? <div className="border-l border-border pl-0 xl:pl-5">
           <div className="flex items-center gap-2 text-sm font-medium"><FilePlus2 className="h-4 w-4" />新建不可变草稿版本</div>
           <textarea value={editor} onChange={(event) => setEditor(event.target.value)} className="mt-3 min-h-[360px] w-full rounded-md border border-input bg-background p-3 font-mono text-xs outline-none focus:border-primary" />
           <button type="button" className="mt-3 inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm text-primary-foreground disabled:opacity-60" onClick={() => void save()} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             保存新版本
           </button>
-        </div>
+        </div> : null}
       </div>
     </section>
   );

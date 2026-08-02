@@ -59,6 +59,13 @@ describe('brain real API contract', () => {
     await brainApi.deleteBrainMemory(5, 'obsolete');
     await brainApi.restoreBrainMemory(5);
     await brainApi.listBrainSkills();
+    await brainApi.listBrainSkills({ summary: true, includeDisabled: true });
+    await brainApi.listBrainResourceVersions({
+      resourceType: 'skill',
+      resourceKey: 'appointment_gap_list',
+      includeSnapshot: true,
+      take: 1,
+    });
     await brainApi.listBrainInspectionRules();
     await brainApi.listBrainInspectionInbox(6);
     await brainApi.listBrainInspectionInbox({ page: 2, pageSize: 20 });
@@ -67,6 +74,21 @@ describe('brain real API contract', () => {
     await brainApi.createBrainEvalRun({ releaseId: 1, caseKeys: ['metric_001'] });
     await brainApi.createBrainRelease({ releaseKey: 'brain-mvp-v1' });
     await brainApi.createBrainRolloutSequence({ releaseKey: 'brain-mvp-v1', resourceVersionIds: [11] });
+    await brainApi.getBrainGovernanceProcessLatency({ days: 7 });
+    await brainApi.getBrainGovernanceQualityLatency({
+      createdFrom: '2026-08-01T00:00:00.000Z',
+      createdTo: '2026-08-02T00:00:00.000Z',
+      storeId: 1,
+      model: 'gpt-test',
+      candidateKey: 'candidate-21',
+      percentile: 95,
+    });
+    await brainApi.prepareBrainGovernanceCandidatePolicy('candidate/21', 'ui_prepare');
+    await brainApi.listBrainCapabilityPolicies({ owner: 'finance', blockerType: 'business', actionableOnly: true });
+    await brainApi.updateBrainCapabilityPolicyOwners('customer/facts', {
+      owners: { primary: 'risk-team' },
+      reason: '更新治理负责人：risk-team',
+    });
     await brainApi.getBrainGovernanceRuntimeConfig();
     await brainApi.rejectBrainRelease(61, '风险不可接受');
     await brainApi.submitBrainReleaseModification(61, '只允许店长使用，客户手机号必须脱敏');
@@ -109,6 +131,21 @@ describe('brain real API contract', () => {
     expect(apiClientMock.post).toHaveBeenCalledWith('/brain/governance/memories/5/delete', { reason: 'obsolete' });
     expect(apiClientMock.post).toHaveBeenCalledWith('/brain/governance/memories/5/restore', {});
     expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/skills');
+    expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/skills', {
+      params: { summary: true, includeDisabled: true },
+      signal: expect.anything(),
+      skipRetry: true,
+    });
+    expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/resource-versions', {
+      params: {
+        resourceType: 'skill',
+        resourceKey: 'appointment_gap_list',
+        includeSnapshot: true,
+        take: 1,
+      },
+      signal: expect.anything(),
+      skipRetry: true,
+    });
     expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/inspection-rules');
     expect(apiClientMock.get).toHaveBeenCalledWith('/brain/inspections/inbox', { params: { limit: 6 } });
     expect(apiClientMock.get).toHaveBeenCalledWith('/brain/inspections/inbox', { params: { page: 2, pageSize: 20 } });
@@ -125,6 +162,35 @@ describe('brain real API contract', () => {
     expect(apiClientMock.post).toHaveBeenCalledWith('/brain/governance/releases/rollout-sequence', {
       releaseKey: 'brain-mvp-v1',
       resourceVersionIds: [11],
+    });
+    expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/metrics/latency', {
+      params: { days: 7 },
+      signal: expect.anything(),
+      skipRetry: true,
+    });
+    expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/quality/latency', {
+      params: {
+        createdFrom: '2026-08-01T00:00:00.000Z',
+        createdTo: '2026-08-02T00:00:00.000Z',
+        storeId: 1,
+        model: 'gpt-test',
+        candidateKey: 'candidate-21',
+        percentile: 95,
+      },
+      signal: expect.anything(),
+      skipRetry: true,
+    });
+    expect(apiClientMock.post).toHaveBeenCalledWith('/brain/governance/candidates/candidate%2F21/prepare-policy', {
+      note: 'ui_prepare',
+    });
+    expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/capability-policies', {
+      params: { owner: 'finance', blockerType: 'business', actionableOnly: true },
+      signal: expect.anything(),
+      skipRetry: true,
+    });
+    expect(apiClientMock.post).toHaveBeenCalledWith('/brain/governance/capability-policies/customer%2Ffacts/owners', {
+      owners: { primary: 'risk-team' },
+      reason: '更新治理负责人：risk-team',
     });
     expect(apiClientMock.get).toHaveBeenCalledWith('/brain/governance/runtime-config');
     expect(apiClientMock.post).toHaveBeenCalledWith('/brain/governance/releases/61/reject', {
