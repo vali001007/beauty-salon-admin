@@ -5632,6 +5632,7 @@ model BrainRelease {
   rolloutSequence      BrainRolloutSequence?            @relation("BrainRolloutSequenceReleases", fields: [rolloutSequenceId], references: [id], onDelete: SetNull)
   policySequences      BrainRolloutSequence[]           @relation("BrainRolloutSequencePolicySnapshot")
   previousForSequences BrainRolloutSequence[]           @relation("BrainRolloutSequencePreviousRuntime")
+  warmupArtifacts      BrainWarmupArtifact[]
 
   @@index([scope, status])
   @@index([rolloutSequenceId, rolloutStage])
@@ -5690,6 +5691,40 @@ model BrainReleaseItem {
   @@unique([releaseId, resourceType, resourceKey])
   @@index([resourceVersionId])
   @@map("brain_release_item")
+}
+
+model BrainWarmupArtifact {
+  id                       Int      @id @default(autoincrement())
+  releaseId                Int
+  releaseFingerprint       String   @db.VarChar(64)
+  versionMapChecksum       String   @db.VarChar(64)
+  definitionSetFingerprint String   @db.VarChar(64)
+  builderVersion           String   @db.VarChar(64)
+  status                   String   @default("ready")
+  definitionVersionIds     Json
+  candidates               Json
+  ontologyPayload          Json
+  catalogPayload           Json
+  payloadCompressed        Bytes?
+  compression              String?
+  payloadBytes             Int?
+  ontologyFingerprint      String   @db.VarChar(64)
+  capabilityCount          Int
+  resultChecksum           String   @db.VarChar(64)
+  metrics                  Json?
+  errorCode                String?
+  errorMessage             String?
+  builtAt                  DateTime @default(now())
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  release BrainRelease @relation(fields: [releaseId], references: [id], onDelete: Restrict)
+
+  @@unique([releaseId, builderVersion, releaseFingerprint, versionMapChecksum])
+  @@index([status, builtAt])
+  @@index([releaseFingerprint])
+  @@index([definitionSetFingerprint])
+  @@map("brain_warmup_artifact")
 }
 
 model BrainGovernanceTask {

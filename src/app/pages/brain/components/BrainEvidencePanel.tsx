@@ -409,6 +409,7 @@ function EvidenceContent({
 }: ContextPanelProps) {
   const metadata = message?.metadata;
   const runId = metadata?.runId;
+  const actionsEnabled = metadata?.actionsEnabled !== false;
   const citations = metadata?.citations ?? [];
   const actions = (metadata?.suggestedActions ?? []).filter(isConfirmableAction);
 
@@ -453,6 +454,7 @@ function EvidenceContent({
                       action={action}
                       result={actionResults[action.actionId]}
                       loading={pendingActionId === action.actionId}
+                      executionEnabled={actionsEnabled}
                       onConfirm={() => onConfirmAction(action.actionId, runId)}
                       onReject={() => onRejectAction(action.actionId, runId)}
                       onRetry={() => onRetryAction(action.actionId, runId)}

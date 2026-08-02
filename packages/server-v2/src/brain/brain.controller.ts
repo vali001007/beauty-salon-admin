@@ -893,6 +893,20 @@ export class BrainController {
     return this.governanceControlPlaneService?.getOverview() ?? { pending: {}, risk: {}, whitelist: {}, runtimePending: 0 };
   }
 
+  @Get('governance/runtime/ontology-warmup')
+  @Permissions('core:brain-governance:view')
+  getGovernanceRuntimeOntologyWarmup() {
+    if (!this.governanceControlPlaneService) throw new NotFoundException('Ontology 预热服务不可用');
+    return this.governanceControlPlaneService.getRuntimeOntologyWarmup();
+  }
+
+  @Post('governance/runtime/ontology-warmup/retry')
+  @Permissions('core:brain-governance:manage')
+  retryGovernanceRuntimeOntologyWarmup() {
+    if (!this.governanceControlPlaneService) throw new NotFoundException('Ontology 预热服务不可用');
+    return this.governanceControlPlaneService.retryRuntimeOntologyWarmup();
+  }
+
   @Get('governance/quality/latency')
   @Permissions('core:brain-governance:view')
   getGovernanceQualityLatency(
@@ -1298,13 +1312,17 @@ export class BrainController {
 
   @Post('governance/releases/rollout-sequence')
   @Permissions('core:brain-governance:manage')
-  createRolloutSequence(@Req() req: Request, @Body() body: { releaseKey?: string; resourceVersionIds?: number[] }) {
+  createRolloutSequence(
+    @Req() req: Request,
+    @Body() body: { releaseKey?: string; resourceVersionIds?: number[]; productProfile?: string },
+  ) {
     const context = this.contextService.fromGlobalRequest(req, 'Asia/Shanghai');
     if (!this.releaseService) throw new NotFoundException('发布服务不可用');
     return this.releaseService.createRolloutSequence({
       releaseKey: String(body.releaseKey ?? ''),
       resourceVersionIds: body.resourceVersionIds ?? [],
       createdBy: context.userId,
+      ...(body.productProfile ? { productProfile: body.productProfile } : {}),
     });
   }
 
@@ -1422,7 +1440,7 @@ export class BrainController {
     const roleKey = context.roles?.find((role) => role.trim().length > 0) ?? 'store_manager';
     const resolved = this.releaseService
       ? await this.releaseService.resolveRuntimeSummary({ storeId: context.storeId, userId: context.userId, roleKey })
-      : { mode: undefined, release: null };
+      : { mode: undefined, release: null, productProfile: null };
     const release = resolved.release as
       | { id?: number; releaseKey?: string; rollout?: Prisma.JsonValue }
       | null
@@ -1444,6 +1462,11 @@ export class BrainController {
         releaseKey: release?.releaseKey ?? null,
         stage: typeof rollout.stage === 'string' ? rollout.stage : null,
         userPercentage: Number.isFinite(Number(rollout.userPercentage)) ? Number(rollout.userPercentage) : null,
+        productProfile: resolved.productProfile?.productProfile ?? null,
+        actionsEnabled: resolved.productProfile?.actionsEnabled ?? true,
+        actionExecutionPolicy: resolved.productProfile?.actionExecutionPolicy ?? null,
+        allowedCapabilityManifest: resolved.productProfile?.allowedCapabilityManifest ?? null,
+        productProfileFingerprint: resolved.productProfile?.productProfileFingerprint ?? null,
       },
       catalogValidation,
     };

@@ -16,6 +16,15 @@ import type { BrainEvaluationReleaseSnapshot } from './brain-evaluation-release-
 import { BrainActiveReleaseWarmupService } from './brain-active-release-warmup.service.js';
 import { createReleaseFingerprint, lockReleaseResources } from './brain-capability-regeneration-fingerprint.js';
 import { extractBrainReleaseDefinitionVersionIds } from './brain-release-definition-versions.js';
+import {
+  BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS,
+  BRAIN_QUERY_ONLY_PRODUCT_PROFILE,
+  brainReleaseActionsEnabled,
+  brainReleaseProductProfileSummary,
+  filterCapabilitiesForBrainReleaseProductProfile,
+  normalizeBrainReleaseProductProfileRollout,
+  validateBrainReleaseProductProfile,
+} from './brain-release-product-profile.js';
 
 const ACTIVE_RUNTIME_RELEASE_CACHE_TTL_MS = 1_000;
 const RUNTIME_RELEASE_SCOPES = ['global', 'store', 'user', 'role', 'percentage'] as const;
@@ -82,13 +91,19 @@ export class BrainReleaseService implements OnModuleInit {
     };
   }
 
-  async createRolloutSequence(input: { releaseKey: string; resourceVersionIds: number[]; createdBy: number }) {
+  async createRolloutSequence(input: {
+    releaseKey: string;
+    resourceVersionIds: number[];
+    createdBy: number;
+    productProfile?: string;
+  }) {
+    const productProfile = input.productProfile ? { productProfile: input.productProfile } : {};
     const stages = [
-      { suffix: 'shadow', rollout: { stage: 'shadow', mode: 'shadow', userPercentage: 100 } },
-      { suffix: 'canary-5', rollout: { stage: 'canary_5', mode: 'model', userPercentage: 5 } },
-      { suffix: 'canary-20', rollout: { stage: 'canary_20', mode: 'model', userPercentage: 20 } },
-      { suffix: 'canary-50', rollout: { stage: 'canary_50', mode: 'model', userPercentage: 50 } },
-      { suffix: 'full', rollout: { stage: 'full', mode: 'model', userPercentage: 100, productionBaseline: true } },
+      { suffix: 'shadow', rollout: { ...productProfile, stage: 'shadow', mode: 'shadow', userPercentage: 100 } },
+      { suffix: 'canary-5', rollout: { ...productProfile, stage: 'canary_5', mode: 'model', userPercentage: 5 } },
+      { suffix: 'canary-20', rollout: { ...productProfile, stage: 'canary_20', mode: 'model', userPercentage: 20 } },
+      { suffix: 'canary-50', rollout: { ...productProfile, stage: 'canary_50', mode: 'model', userPercentage: 50 } },
+      { suffix: 'full', rollout: { ...productProfile, stage: 'full', mode: 'model', userPercentage: 100, productionBaseline: true } },
     ] as const;
     const releases: unknown[] = [];
     let previousReleaseId: number | undefined;
@@ -146,7 +161,7 @@ export class BrainReleaseService implements OnModuleInit {
     const release = await this.selectRelease(input);
     const rollout = release ? this.record(release.rollout) : {};
     const declaredMode = rollout.mode;
-    const releaseCapabilityCandidates =
+    const unfilteredReleaseCapabilityCandidates =
       release && (declaredMode === 'model' || declaredMode === 'shadow')
         ? deepCloneFreeze(
             release.items
@@ -154,6 +169,9 @@ export class BrainReleaseService implements OnModuleInit {
               .map((item) => this.record(item.snapshot) as unknown as BrainCapabilityCandidate),
           )
         : undefined;
+    const releaseCapabilityCandidates = unfilteredReleaseCapabilityCandidates
+      ? deepCloneFreeze(filterCapabilitiesForBrainReleaseProductProfile(rollout, unfilteredReleaseCapabilityCandidates))
+      : undefined;
     const governancePolicy = release
       ? await this.resolveGovernancePolicyRuntime(release, releaseCapabilityCandidates)
       : undefined;
@@ -167,8 +185,22 @@ export class BrainReleaseService implements OnModuleInit {
         : releaseCapabilityCandidates;
     const mode = declaredMode;
     return mode === 'rules' || mode === 'shadow' || mode === 'model'
-      ? { mode, declaredMode, release, capabilityCandidates, governancePolicy }
-      : { mode: undefined, declaredMode: undefined, release, capabilityCandidates, governancePolicy };
+      ? {
+          mode,
+          declaredMode,
+          release,
+          capabilityCandidates,
+          governancePolicy,
+          productProfile: brainReleaseProductProfileSummary(rollout),
+        }
+      : {
+          mode: undefined,
+          declaredMode: undefined,
+          release,
+          capabilityCandidates,
+          governancePolicy,
+          productProfile: brainReleaseProductProfileSummary(rollout),
+        };
   }
 
   async freezeEvaluationRelease(releaseId: number): Promise<BrainEvaluationReleaseSnapshot> {
@@ -199,14 +231,21 @@ export class BrainReleaseService implements OnModuleInit {
     if (declaredMode !== 'rules' && declaredMode !== 'shadow' && declaredMode !== 'model') {
       throw new BadRequestException('evaluation_release_mode_invalid');
     }
-    const capabilityCandidates = skillItems.map(
+    const unfilteredCapabilityCandidates = skillItems.map(
       (item) => this.record(item.snapshot) as unknown as BrainCapabilityCandidate,
     );
+    const rollout = this.record(release.rollout);
+    const capabilityCandidates = filterCapabilitiesForBrainReleaseProductProfile(
+      rollout,
+      unfilteredCapabilityCandidates,
+    );
+    const blockers = validateBrainReleaseProductProfile(rollout, unfilteredCapabilityCandidates);
+    if (blockers.length) throw new BadRequestException(blockers[0]);
     return deepCloneFreeze({
       releaseId: release.id,
       releaseKey: release.releaseKey,
       releaseStatus: release.status as 'draft' | 'active',
-      releaseFingerprint: createReleaseFingerprint(release.items),
+      releaseFingerprint: createReleaseFingerprint(release.items, release.rollout),
       declaredMode,
       mode: declaredMode === 'rules' ? 'rules' : 'model',
       resourceVersionIds: release.items.map((item) => item.resourceVersionId).sort((left, right) => left - right),
@@ -215,6 +254,7 @@ export class BrainReleaseService implements OnModuleInit {
         .filter((key): key is string => typeof key === 'string')
         .sort(),
       capabilityCandidates,
+      productProfile: brainReleaseProductProfileSummary(rollout),
     });
   }
 
@@ -276,8 +316,19 @@ export class BrainReleaseService implements OnModuleInit {
     const versionMap = Object.fromEntries(
       versions.map((item) => [`${item.resourceType}:${item.resourceKey}`, item.version]),
     );
+    let normalizedRollout: Record<string, unknown>;
+    try {
+      normalizedRollout = normalizeBrainReleaseProductProfileRollout(input.rollout ?? {});
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : 'brain_release_product_profile_invalid');
+    }
+    const capabilityCandidates = versions
+      .filter((version) => version.resourceType === 'skill')
+      .map((version) => ({ ...this.record(version.snapshot), key: version.resourceKey }));
+    const productProfileBlockers = validateBrainReleaseProductProfile(normalizedRollout, capabilityCandidates);
+    if (productProfileBlockers.length) throw new BadRequestException(productProfileBlockers[0]);
     const rollout = {
-      ...(input.rollout ?? {}),
+      ...normalizedRollout,
       semanticSnapshotFingerprint: createSemanticSnapshotFingerprint(versions),
     };
     return prisma.$transaction(async (tx) => {
@@ -322,7 +373,8 @@ export class BrainReleaseService implements OnModuleInit {
       throw new BadRequestException('release_evaluation_only');
     }
     await this.assertRolloutSequenceActivation(prisma, release, input.rolloutTransition);
-    const releaseFingerprint = createReleaseFingerprint(release.items);
+    this.assertReleaseProductProfile(release);
+    const releaseFingerprint = createReleaseFingerprint(release.items, release.rollout);
     const regenerationDelegate = (
       prisma as unknown as {
         brainCapabilityRegenerationJob?: {
@@ -367,7 +419,8 @@ export class BrainReleaseService implements OnModuleInit {
         lockedRelease,
         input.rolloutTransition,
       );
-      const lockedFingerprint = createReleaseFingerprint(lockedRelease.items);
+      this.assertReleaseProductProfile(lockedRelease);
+      const lockedFingerprint = createReleaseFingerprint(lockedRelease.items, lockedRelease.rollout);
       this.assertDeployableRuntimeRelease(lockedRelease);
       this.assertSemanticSnapshotFingerprint(lockedRelease);
       await this.assertGovernancePolicyBinding(tx as unknown as PrismaService, lockedRelease);
@@ -716,7 +769,8 @@ export class BrainReleaseService implements OnModuleInit {
         return unavailableReadiness('runtime_release_not_found');
       }
       if (!release.items.length) return blockedReadiness('release_has_no_resource_items');
-      releaseFingerprint = createReleaseFingerprint(release.items);
+      this.assertReleaseProductProfile(release);
+      releaseFingerprint = createReleaseFingerprint(release.items, release.rollout);
       let evaluationReleaseId = release.id;
       let runs = await this.completedEvalRuns(prisma, release.id);
       if (!runs.length) {
@@ -734,7 +788,8 @@ export class BrainReleaseService implements OnModuleInit {
           (evidenceRelease.status === 'active' && evidenceRollout.mode === 'shadow')
         );
         if (!validEvidenceRelease) return blockedReadiness('release_eval_evidence_invalid', releaseFingerprint);
-        if (createReleaseFingerprint(evidenceRelease.items) !== releaseFingerprint) {
+        this.assertReleaseProductProfile(evidenceRelease);
+        if (createReleaseFingerprint(evidenceRelease.items, evidenceRelease.rollout) !== releaseFingerprint) {
           return blockedReadiness('release_eval_evidence_fingerprint_mismatch', releaseFingerprint);
         }
         evaluationReleaseId = evidenceRelease.id;
@@ -797,12 +852,102 @@ export class BrainReleaseService implements OnModuleInit {
       declaredMode: mode,
       release,
       governancePolicy: release ? governancePolicyBindingSummary(this.record(release.rollout)) : undefined,
+      productProfile: release
+        ? brainReleaseProductProfileSummary(this.record(release.rollout))
+        : brainReleaseProductProfileSummary({}),
+    };
+  }
+
+  async resolveRuntimeDeploymentIdentity(input: { storeId: number; userId: number; roleKey: string }) {
+    const release = await this.selectRelease(input);
+    const rollout = release ? this.record(release.rollout) : {};
+    const fingerprintRelease = release
+      ? await this.requirePrisma().brainRelease.findUnique({
+          where: { id: release.id },
+          include: { items: { include: { resourceVersion: true } } },
+        })
+      : null;
+    const declaredMode = rollout.mode;
+    const mode =
+      declaredMode === 'rules' || declaredMode === 'shadow' || declaredMode === 'model'
+        ? declaredMode
+        : undefined;
+    return {
+      mode,
+      release: release ? { id: release.id, releaseKey: release.releaseKey } : null,
+      releaseFingerprint: fingerprintRelease
+        ? createReleaseFingerprint(fingerprintRelease.items, fingerprintRelease.rollout)
+        : null,
+      productProfile: brainReleaseProductProfileSummary(rollout),
     };
   }
 
   async selectRelease(input: { storeId: number; userId: number; roleKey: string }) {
     const releases = await this.loadActiveRuntimeReleases();
     return releases.find((release) => this.matchesRollout(release.scope, this.record(release.rollout), input)) ?? null;
+  }
+
+  async resolveActionExecutionPolicy(input: {
+    storeId: number;
+    userId: number;
+    roleKey: string;
+    sourceReleaseId?: number | null;
+    sourceReleaseFingerprint?: string | null;
+  }) {
+    const currentRelease = await this.selectRelease(input);
+    const currentRollout = this.record(currentRelease?.rollout as Prisma.JsonValue);
+    const currentProfile = brainReleaseProductProfileSummary(currentRollout);
+    if (currentRelease && !brainReleaseActionsEnabled(currentRollout)) {
+      return {
+        allowed: false,
+        reason: 'brain_action_execution_disabled_by_release_profile',
+        currentReleaseId: currentRelease.id,
+        currentProfile,
+      } as const;
+    }
+
+    if (!input.sourceReleaseId && !input.sourceReleaseFingerprint) {
+      return { allowed: true, reason: 'legacy_action_without_release_profile', currentReleaseId: currentRelease?.id ?? null, currentProfile } as const;
+    }
+    if (
+      !Number.isInteger(input.sourceReleaseId) ||
+      Number(input.sourceReleaseId) <= 0 ||
+      typeof input.sourceReleaseFingerprint !== 'string' ||
+      !/^[a-f0-9]{64}$/u.test(input.sourceReleaseFingerprint)
+    ) {
+      return { allowed: false, reason: 'brain_action_source_release_identity_invalid', currentReleaseId: currentRelease?.id ?? null, currentProfile } as const;
+    }
+    const sourceRelease = await this.requirePrisma().brainRelease.findUnique({
+      where: { id: Number(input.sourceReleaseId) },
+      include: { items: { include: { resourceVersion: true } } },
+    });
+    if (!sourceRelease) {
+      return { allowed: false, reason: 'brain_action_source_release_not_found', currentReleaseId: currentRelease?.id ?? null, currentProfile } as const;
+    }
+    this.assertReleaseProductProfile(sourceRelease);
+    if (createReleaseFingerprint(sourceRelease.items, sourceRelease.rollout) !== input.sourceReleaseFingerprint) {
+      return { allowed: false, reason: 'brain_action_source_release_fingerprint_mismatch', currentReleaseId: currentRelease?.id ?? null, currentProfile } as const;
+    }
+    const sourceRollout = this.record(sourceRelease.rollout);
+    const sourceProfile = brainReleaseProductProfileSummary(sourceRollout);
+    if (!brainReleaseActionsEnabled(sourceRollout)) {
+      return {
+        allowed: false,
+        reason: 'brain_action_execution_disabled_by_release_profile',
+        currentReleaseId: currentRelease?.id ?? null,
+        currentProfile,
+        sourceReleaseId: sourceRelease.id,
+        sourceProfile,
+      } as const;
+    }
+    return {
+      allowed: true,
+      reason: 'release_profile_allows_action_execution',
+      currentReleaseId: currentRelease?.id ?? null,
+      currentProfile,
+      sourceReleaseId: sourceRelease.id,
+      sourceProfile,
+    } as const;
   }
 
   private async loadActiveRuntimeReleases(): Promise<readonly ActiveRuntimeRelease[]> {
@@ -1405,7 +1550,8 @@ export class BrainReleaseService implements OnModuleInit {
     if (!validEvidenceRelease) {
       throw new BadRequestException('release_eval_evidence_invalid');
     }
-    const evidenceFingerprint = createReleaseFingerprint(evidenceRelease.items);
+    this.assertReleaseProductProfile(evidenceRelease);
+    const evidenceFingerprint = createReleaseFingerprint(evidenceRelease.items, evidenceRelease.rollout);
     if (evidenceFingerprint !== releaseFingerprint) {
       throw new BadRequestException('release_eval_evidence_fingerprint_mismatch');
     }
@@ -1616,6 +1762,21 @@ export class BrainReleaseService implements OnModuleInit {
     }
     if (!release.items.some((item) => item.resourceType === 'skill')) {
       throw new BadRequestException('release_capability_baseline_missing');
+    }
+  }
+
+  private assertReleaseProductProfile(release: BrainReleaseWithItems) {
+    const rollout = this.record(release.rollout);
+    const capabilities = release.items
+      .filter((item) => item.resourceType === 'skill')
+      .map((item) => ({ ...this.record(item.resourceVersion.snapshot), key: item.resourceKey }));
+    const blockers = validateBrainReleaseProductProfile(rollout, capabilities);
+    if (blockers.length) throw new BadRequestException(blockers[0]);
+    if (
+      rollout.productProfile === BRAIN_QUERY_ONLY_PRODUCT_PROFILE &&
+      capabilities.length !== BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS.length
+    ) {
+      throw new BadRequestException('brain_query_only_allowed_capability_count_invalid');
     }
   }
 

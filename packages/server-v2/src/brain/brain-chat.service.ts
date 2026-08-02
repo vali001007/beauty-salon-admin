@@ -469,14 +469,24 @@ export class BrainChatService {
         });
       }
     }
+    const productProfile = await this.resolveResponseProductProfile(context);
+    const responseSuggestedActions = productProfile.actionsEnabled ? chatAnswer.suggestedActions : [];
+    const responseBlocks = productProfile.actionsEnabled
+      ? (chatAnswer.blocks ?? [])
+      : (chatAnswer.blocks ?? []).filter((block) => block.kind !== 'action_preview');
     const responseEnvelope = {
       conversationId,
       runId: run.id,
       status: chatAnswer.status,
       answer: chatAnswer.answer,
       citations: chatAnswer.citations,
-      suggestedActions: chatAnswer.suggestedActions,
-      blocks: chatAnswer.blocks ?? [],
+      suggestedActions: responseSuggestedActions,
+      blocks: responseBlocks,
+      productProfile: productProfile.productProfile,
+      actionsEnabled: productProfile.actionsEnabled,
+      actionExecutionPolicy: productProfile.actionExecutionPolicy,
+      allowedCapabilityManifest: productProfile.allowedCapabilityManifest,
+      productProfileFingerprint: productProfile.productProfileFingerprint,
       ...(chatAnswer.cognition ? { cognition: chatAnswer.cognition } : {}),
       ...(chatAnswer.routePlan ? { routePlan: chatAnswer.routePlan } : {}),
       ...(chatAnswer.adapterKey ? { adapterKey: chatAnswer.adapterKey } : {}),
@@ -1187,6 +1197,49 @@ export class BrainChatService {
     return Boolean(runtime?.cognitionMode === 'model' && runtime.plannerMode === 'model' && runtime.singleToolFastPath);
   }
 
+  private async resolveResponseProductProfile(context: BrainRequestContext): Promise<{
+    productProfile: string | null;
+    actionsEnabled: boolean;
+    actionExecutionPolicy: string | null;
+    allowedCapabilityManifest: string | null;
+    productProfileFingerprint: string | null;
+  }> {
+    if (
+      !this.releaseService ||
+      typeof this.releaseService.resolveActionExecutionPolicy !== 'function'
+    ) {
+      return {
+        productProfile: null,
+        actionsEnabled: true,
+        actionExecutionPolicy: null,
+        allowedCapabilityManifest: null,
+        productProfileFingerprint: null,
+      };
+    }
+    try {
+      const policy = await this.releaseService.resolveActionExecutionPolicy({
+        storeId: context.storeId,
+        userId: context.userId,
+        roleKey: this.modelRoleFromContext(context),
+      });
+      return {
+        productProfile: policy.currentProfile.productProfile,
+        actionsEnabled: policy.allowed,
+        actionExecutionPolicy: policy.currentProfile.actionExecutionPolicy,
+        allowedCapabilityManifest: policy.currentProfile.allowedCapabilityManifest,
+        productProfileFingerprint: policy.currentProfile.productProfileFingerprint,
+      };
+    } catch {
+      return {
+        productProfile: null,
+        actionsEnabled: false,
+        actionExecutionPolicy: 'deny_on_policy_unavailable',
+        allowedCapabilityManifest: null,
+        productProfileFingerprint: null,
+      };
+    }
+  }
+
   private async resolveReleaseRuntime(context: BrainRequestContext): Promise<{
     mode?: 'rules' | 'shadow' | 'model';
     releaseKey?: string;
@@ -1283,7 +1336,7 @@ export class BrainChatService {
     try {
       return {
         releaseId: release.id as number,
-        releaseFingerprint: createReleaseFingerprint(release.items as never),
+        releaseFingerprint: createReleaseFingerprint(release.items as never, release.rollout),
       };
     } catch {
       return undefined;

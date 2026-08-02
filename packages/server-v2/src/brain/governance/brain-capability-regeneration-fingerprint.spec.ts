@@ -10,6 +10,22 @@ describe('brain capability regeneration release identity', () => {
     expect(createReleaseFingerprint(items)).toBe(createReleaseFingerprint([...items].reverse()));
   });
 
+  it('includes an explicit product profile identity without changing legacy fingerprints', () => {
+    const legacy = createReleaseFingerprint(items);
+    expect(createReleaseFingerprint(items, {})).toBe(legacy);
+    expect(
+      createReleaseFingerprint(items, {
+        productProfile: 'query_only_v1',
+        actionsEnabled: false,
+        actionExecutionPolicy: 'deny',
+        allowedCapabilityManifest: 'ami-brain-query-only-v1',
+        allowedCapabilityCount: 33,
+        sideEffectCapabilityCount: 0,
+        productProfileFingerprint: 'b'.repeat(64),
+      }),
+    ).not.toBe(legacy);
+  });
+
   it('selects only a single release item or a uniquely named capability', () => {
     expect(selectAffectedCapability([items[0]!], '限制角色')).toEqual(['customer_facts']);
     expect(selectAffectedCapability(items, '请修改商品销售排行，只允许店长')).toEqual(['product_sales_ranking']);

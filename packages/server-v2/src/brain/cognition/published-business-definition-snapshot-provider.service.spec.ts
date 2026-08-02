@@ -13,6 +13,32 @@ import type { BusinessActionInputSlotDefinition } from './business-definition-sn
 import { PublishedBusinessDefinitionSnapshotProviderService } from './published-business-definition-snapshot-provider.service.js';
 
 describe('PublishedBusinessDefinitionSnapshotProviderService', () => {
+  it('coalesces concurrent active snapshot reads', async () => {
+    let resolveDefinitions!: (value: never[]) => void;
+    const prisma = {
+      businessDefinition: {
+        findMany: jest.fn().mockReturnValue(
+          new Promise<never[]>((resolve) => {
+            resolveDefinitions = resolve;
+          }),
+        ),
+      },
+      businessDefinitionProjection: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const provider = new PublishedBusinessDefinitionSnapshotProviderService(prisma as never);
+
+    const first = provider.loadActiveDefinitions();
+    const second = provider.loadActiveDefinitions();
+    resolveDefinitions([]);
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      { entities: [], relations: [], metrics: [], dimensions: [], actions: [] },
+      { entities: [], relations: [], metrics: [], dimensions: [], actions: [] },
+    ]);
+    expect(prisma.businessDefinition.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.businessDefinitionProjection.findMany).not.toHaveBeenCalled();
+  });
+
   it('reads immutable published version projections without opening a Prisma transaction', async () => {
     const prisma = {
       businessDefinition: { findMany: jest.fn().mockResolvedValue([]) },
@@ -167,6 +193,56 @@ describe('PublishedBusinessDefinitionSnapshotProviderService', () => {
         }),
       }),
     );
+    expect(snapshot.entities).toEqual([expect.objectContaining({ entityKey: 'product' })]);
+  });
+
+  it('reuses the shared definition bundle for evaluation versions', async () => {
+    const entity = projectionV2('entity.product', 'entity', {
+      model: 'Product',
+      aliases: ['商品'],
+      fields: ['id', 'name', 'storeId'],
+      relationFields: [],
+      storeScopeField: 'storeId',
+    });
+    const bundle = {
+      load: jest.fn().mockResolvedValue({
+        rows: [
+          {
+            id: entity.definitionVersionId,
+            version: entity.definitionVersion,
+            lifecycleStatus: 'published',
+            validationStatus: 'passed',
+            fingerprint: entity.definitionFingerprint,
+            sourceFingerprint: entity.sourceFingerprint,
+            definition: {
+              id: 1,
+              definitionKey: entity.definitionKey,
+              kind: entity.kind,
+              domain: entity.domain,
+              name: entity.name,
+              ownerType: 'system',
+              ownerId: null,
+              currentPublishedVersionId: entity.definitionVersionId,
+            },
+            projections: [entity],
+            evidence: [],
+          },
+        ],
+      }),
+    };
+    const prisma = {
+      businessDefinitionVersion: { findMany: jest.fn() },
+      businessDefinition: { findMany: jest.fn().mockResolvedValue([]) },
+      businessDefinitionProjection: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+
+    const snapshot = await new PublishedBusinessDefinitionSnapshotProviderService(
+      prisma as never,
+      bundle as never,
+    ).loadEvaluationDefinitions([entity.definitionVersionId]);
+
+    expect(bundle.load).toHaveBeenCalledWith([entity.definitionVersionId]);
+    expect(prisma.businessDefinitionVersion.findMany).not.toHaveBeenCalled();
     expect(snapshot.entities).toEqual([expect.objectContaining({ entityKey: 'product' })]);
   });
 

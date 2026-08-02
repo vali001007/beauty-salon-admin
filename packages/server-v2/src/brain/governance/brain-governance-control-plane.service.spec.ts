@@ -34,6 +34,68 @@ function policyRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe('BrainGovernanceControlPlaneService', () => {
+  it('exposes runtime ontology warmup summary, detail and single-flight retry result', async () => {
+    const status = {
+      state: 'ready',
+      currentPhase: null,
+      startedAt: '2026-08-02T07:59:40.655Z',
+      completedAt: '2026-08-02T08:00:00.000Z',
+      latencyMs: 19_345,
+      activeReleaseCount: 2,
+      warmedReleaseCount: 2,
+      phases: { releaseDiscoveryMs: 1996, artifactLookupMs: 17_349, itemFetchMs: 0, definitionPreloadMs: 0, releaseWarmupMs: 0 },
+      releases: [{ releaseId: 416, artifactSource: 'persistent' }],
+      failureReason: null,
+    };
+    const warmup = {
+      getStatus: jest.fn().mockReturnValue(status),
+      warmActiveReleases: jest.fn().mockResolvedValue(status),
+    };
+    const prisma = {
+      brainGovernanceTask: { groupBy: jest.fn().mockResolvedValue([]), findMany: jest.fn().mockResolvedValue([]) },
+      brainResourceVersion: { findMany: jest.fn().mockResolvedValue([]) },
+      brainRelease: { findFirst: jest.fn().mockResolvedValue(null) },
+    };
+    const service = new BrainGovernanceControlPlaneService(prisma as never, undefined, warmup as never);
+
+    await expect(service.getOverview()).resolves.toMatchObject({
+      runtimeWarmup: {
+        state: 'ready',
+        latencyMs: 19_345,
+        runtimeReleaseCount: 2,
+        warmedReleaseCount: 2,
+        cacheStatus: 'warm',
+        artifactSource: 'persistent',
+        performanceTargetMet: false,
+      },
+    });
+    expect(service.getRuntimeOntologyWarmup()).toMatchObject({ activeReleaseCount: 2, phases: { artifactLookupMs: 17_349 } });
+    await expect(service.retryRuntimeOntologyWarmup()).resolves.toMatchObject({ state: 'ready' });
+    expect(warmup.warmActiveReleases).toHaveBeenCalledTimes(1);
+  });
+
+  it('classifies database warmup failures separately from lineage blockers', () => {
+    const databaseService = new BrainGovernanceControlPlaneService({} as never, undefined, {
+      getStatus: () => ({
+        state: 'failed', currentPhase: 'artifact_lookup', startedAt: null, completedAt: null, latencyMs: 10_000,
+        activeReleaseCount: 2, warmedReleaseCount: 0,
+        phases: { releaseDiscoveryMs: 0, artifactLookupMs: 0, itemFetchMs: 0, definitionPreloadMs: 0, releaseWarmupMs: 0 },
+        releases: [], failureReason: 'timeout exceeded when trying to connect',
+      }),
+    } as never);
+    const lineageService = new BrainGovernanceControlPlaneService({} as never, undefined, {
+      getStatus: () => ({
+        state: 'failed', currentPhase: 'definition_preload', startedAt: null, completedAt: null, latencyMs: 100,
+        activeReleaseCount: 1, warmedReleaseCount: 0,
+        phases: { releaseDiscoveryMs: 0, artifactLookupMs: 0, itemFetchMs: 0, definitionPreloadMs: 0, releaseWarmupMs: 0 },
+        releases: [], failureReason: 'brain_release_warmup_definition_refs_missing:416',
+      }),
+    } as never);
+
+    expect(databaseService.getRuntimeOntologyWarmup()).toMatchObject({ failureCategory: 'database' });
+    expect(lineageService.getRuntimeOntologyWarmup()).toMatchObject({ failureCategory: 'lineage' });
+  });
+
   it('reports aligned only when the active runtime release binds the active policy snapshot', async () => {
     const service = new BrainGovernanceControlPlaneService({
       brainGovernanceTask: {
@@ -451,7 +513,8 @@ describe('BrainGovernanceControlPlaneService', () => {
     const result = await service.ingestReceipt({
       schemaVersion: 3,
       receiptId: 'receipt-admission',
-      candidateId: 17,
+      candidateId: HASH,
+      governanceCandidateId: 17,
       stage: 'candidate',
       riskLevel: 'low',
       changedFilesChecksum: HASH,
@@ -468,6 +531,12 @@ describe('BrainGovernanceControlPlaneService', () => {
     }, undefined, 'trusted_candidate');
 
     expect(result.rescheduledTaskIds).toEqual([202]);
+    expect(tx.brainGateReceipt.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({
+        candidateId: 17,
+        result: expect.objectContaining({ candidateId: HASH, governanceCandidateId: 17 }),
+      }),
+    }));
     expect(taskUpsert).toHaveBeenCalledWith(expect.objectContaining({
       create: expect.objectContaining({ candidateId: 17, receiptId: 41, resourceKey: 'customer_facts' }),
     }));

@@ -1866,4 +1866,102 @@ describe('BrainActionConfirmationService', () => {
       error: { message: '采购单回执超时' },
     });
   });
+
+  it('blocks preview creation at the deployment kill switch before validation or persistence', async () => {
+    const previous = process.env.BRAIN_ACTION_EXECUTION_ENABLED;
+    process.env.BRAIN_ACTION_EXECUTION_ENABLED = 'false';
+    const prisma = { brainActionConfirmation: { create: jest.fn() } };
+    const gateway = { resolve: jest.fn(), validateForExecution: jest.fn(), execute: jest.fn() };
+    const service = new BrainActionConfirmationService(prisma as never, gateway as never);
+
+    try {
+      await expect(
+        service.createPreview({
+          runId: 7,
+          userId: 9,
+          storeId: 6,
+          skillKey: 'create_reservation',
+          capabilityVersion: 1,
+          riskLevel: 'medium',
+          preview: { summary: '创建预约' },
+          payload: { customerId: 11 },
+        }),
+      ).rejects.toThrow('brain_action_execution_disabled_by_release_profile');
+      expect(gateway.validateForExecution).not.toHaveBeenCalled();
+      expect(prisma.brainActionConfirmation.create).not.toHaveBeenCalled();
+    } finally {
+      if (previous === undefined) delete process.env.BRAIN_ACTION_EXECUTION_ENABLED;
+      else process.env.BRAIN_ACTION_EXECUTION_ENABLED = previous;
+    }
+  });
+
+  it('blocks confirm and retry when the governing Release is query-only', async () => {
+    const action = {
+      actionId: 'act_query_only',
+      id: 31,
+      runId: 7,
+      userId: 9,
+      storeId: 6,
+      skillKey: 'create_reservation',
+      riskLevel: 'medium',
+      status: 'pending',
+      payload: {},
+      preview: {},
+      result: null,
+      releaseId: 452,
+      releaseFingerprint: 'f'.repeat(64),
+      createdAt: new Date(),
+    };
+    const prisma = {
+      brainActionConfirmation: { findFirst: jest.fn().mockResolvedValue(action) },
+      brainActionExecution: { findUnique: jest.fn() },
+      $transaction: jest.fn(),
+    };
+    const gateway = { resolve: jest.fn(), validateForExecution: jest.fn(), execute: jest.fn() };
+    const trace = { recordStep: jest.fn().mockResolvedValue(undefined) };
+    const releaseService = {
+      resolveActionExecutionPolicy: jest.fn().mockResolvedValue({
+        allowed: false,
+        reason: 'brain_action_execution_disabled_by_release_profile',
+      }),
+    };
+    const service = new BrainActionConfirmationService(
+      prisma as never,
+      gateway as never,
+      trace as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      releaseService as never,
+    );
+    const request = {
+      actionId: action.actionId,
+      runId: action.runId,
+      userId: action.userId,
+      storeId: action.storeId,
+      permissions: ['*'],
+      roles: ['store_manager'],
+    };
+
+    await expect(service.confirmAndExecute(request)).rejects.toThrow(
+      'brain_action_execution_disabled_by_release_profile',
+    );
+    await expect(service.retryFailedExecution(request)).rejects.toThrow(
+      'brain_action_execution_disabled_by_release_profile',
+    );
+
+    expect(releaseService.resolveActionExecutionPolicy).toHaveBeenCalledTimes(2);
+    expect(prisma.brainActionExecution.findUnique).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(gateway.execute).not.toHaveBeenCalled();
+    expect(trace.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stepKey: 'action_execution_policy',
+        layer: 'governance',
+        status: 'failed',
+        error: { code: 'brain_action_execution_disabled_by_release_profile' },
+      }),
+    );
+  });
 });

@@ -14,6 +14,7 @@ import {
   getBrainGovernanceProcessLatency,
   getBrainGovernanceTask,
   getBrainGovernanceOverview,
+  getBrainRuntimeOntologyWarmup,
   isBrainGovernanceReadCancelled,
   listBrainCapabilityPolicies,
   listBrainGovernanceCandidates,
@@ -23,6 +24,7 @@ import {
   previewBrainPolicySnapshot,
   prepareBrainGovernanceCandidatePolicy,
   retryBrainGovernanceTask,
+  retryBrainRuntimeOntologyWarmup,
   rollbackBrainPolicySnapshot,
   updateBrainCapabilityPolicyOwners,
 } from '@/api/brain';
@@ -54,6 +56,7 @@ import type {
   BrainGovernanceRelease,
   BrainGovernanceRiskLevel,
   BrainGovernanceTask,
+  BrainRuntimeOntologyWarmupDetail,
   BrainPolicySnapshotPreview,
 } from '@/types/brain';
 import { BRAIN_GOVERNANCE_UI_MODE } from '../brainGovernanceNavigation';
@@ -75,6 +78,10 @@ export function BrainGovernanceOverviewPage() {
   const [candidateDetailOpen, setCandidateDetailOpen] = useState(false);
   const [candidateDetailLoading, setCandidateDetailLoading] = useState(false);
   const [candidateDetailError, setCandidateDetailError] = useState('');
+  const [warmupDetail, setWarmupDetail] = useState<BrainRuntimeOntologyWarmupDetail | null>(null);
+  const [warmupDetailOpen, setWarmupDetailOpen] = useState(false);
+  const [warmupDetailLoading, setWarmupDetailLoading] = useState(false);
+  const [warmupRetrying, setWarmupRetrying] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -96,6 +103,21 @@ export function BrainGovernanceOverviewPage() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (data?.runtimeWarmup?.state !== 'warming') return;
+    let cancelled = false;
+    let timer: ReturnType<typeof globalThis.setTimeout> | undefined;
+    const poll = async () => {
+      await load();
+      if (!cancelled) timer = globalThis.setTimeout(() => void poll(), 3000);
+    };
+    timer = globalThis.setTimeout(() => void poll(), 3000);
+    return () => {
+      cancelled = true;
+      if (timer) globalThis.clearTimeout(timer);
+    };
+  }, [data?.runtimeWarmup?.state, load]);
 
   if (loading) return <LoadingPanel label="正在汇总治理状态…" />;
   if (error) return <ErrorPanel error={error} onRetry={load} />;
@@ -128,6 +150,32 @@ export function BrainGovernanceOverviewPage() {
       if (!isBrainGovernanceReadCancelled(loadError)) setCandidateDetailError(errorMessage(loadError));
     } finally {
       setCandidateDetailLoading(false);
+    }
+  }
+
+  async function openWarmupDetail() {
+    setWarmupDetailOpen(true);
+    setWarmupDetailLoading(true);
+    try {
+      setWarmupDetail(await getBrainRuntimeOntologyWarmup());
+    } catch (loadError) {
+      toast.error(errorMessage(loadError));
+    } finally {
+      setWarmupDetailLoading(false);
+    }
+  }
+
+  async function retryWarmup() {
+    setWarmupRetrying(true);
+    try {
+      const result = await retryBrainRuntimeOntologyWarmup();
+      setWarmupDetail(result);
+      toast.success('Ontology 运行准备已重新加载');
+      await load();
+    } catch (retryError) {
+      toast.error(errorMessage(retryError));
+    } finally {
+      setWarmupRetrying(false);
     }
   }
 
@@ -168,6 +216,7 @@ export function BrainGovernanceOverviewPage() {
           )}
         </CardContent>
       </Card>
+      <WarmupSummaryCard summary={data.runtimeWarmup} onOpen={() => void openWarmupDetail()} />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map(([label, value, path]) => (
           <button key={label} type="button" onClick={() => navigate(path)} className="rounded-xl border bg-card p-4 text-left shadow-sm transition hover:border-primary/40 hover:shadow-md">
@@ -253,6 +302,56 @@ export function BrainGovernanceOverviewPage() {
               <section><h3 className="font-medium">当前阻塞（{candidateDetail.blockers.length}）</h3>{candidateDetail.blockers.length ? <div className="mt-2 space-y-2">{candidateDetail.blockers.map((task) => <div key={task.id} className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900">#{task.id} · {task.resourceKey ?? '全局'} · {task.blockerCode ?? task.blockerType}</div>)}</div> : <p className="mt-2 text-muted-foreground">无当前阻塞</p>}</section>
             </div>
           ) : null}
+        </SheetContent>
+      </Sheet>
+      <Sheet open={warmupDetailOpen} onOpenChange={setWarmupDetailOpen}>
+        <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
+          <SheetHeader>
+            <SheetTitle>Ontology 运行准备详情</SheetTitle>
+            <SheetDescription>仅预热当前 Runtime Active Release；治理策略 Release 不进入此流程。</SheetDescription>
+          </SheetHeader>
+          {warmupDetailLoading ? <LoadingPanel label="正在读取 Ontology 加载详情…" /> : warmupDetail ? (
+            <div className="space-y-4 px-4 pb-6 text-sm">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <StatusRow label="状态" value={warmupStateLabel(warmupDetail.state)} />
+                <StatusRow label="当前阶段" value={warmupDetail.currentPhase ? warmupPhaseLabel(warmupDetail.currentPhase) : '无'} />
+                <StatusRow label="总耗时" value={preciseDuration(warmupDetail.latencyMs)} />
+                <StatusRow label="Runtime Release" value={`${warmupDetail.warmedReleaseCount}/${warmupDetail.activeReleaseCount} Release`} />
+                <StatusRow label="Artifact 来源" value={warmupArtifactLabel(warmupDetail.artifactSource)} />
+                <StatusRow label="性能目标" value={warmupDetail.performanceTargetMet ? '已达到 <10 秒' : '未达到 <10 秒'} />
+              </div>
+              <div className="rounded-lg border p-3">
+                <h3 className="font-medium">分阶段耗时</h3>
+                <div className="mt-3 space-y-2">
+                  <StatusRow label="发现运行版本" value={preciseDuration(warmupDetail.phases.releaseDiscoveryMs)} />
+                  <StatusRow label="读取持久化 Artifact" value={preciseDuration(warmupDetail.phases.artifactLookupMs)} />
+                  <StatusRow label="读取能力快照" value={preciseDuration(warmupDetail.phases.itemFetchMs)} />
+                  <StatusRow label="读取业务定义" value={preciseDuration(warmupDetail.phases.definitionPreloadMs)} />
+                  <StatusRow label="构建 Ontology / Catalog" value={preciseDuration(warmupDetail.phases.releaseWarmupMs)} />
+                </div>
+              </div>
+              {warmupDetail.failureReason ? <WarmupFailure category={warmupDetail.failureCategory} reason={warmupDetail.failureReason} /> : null}
+              <div className="space-y-2">
+                <h3 className="font-medium">Release 明细</h3>
+                {warmupDetail.releases.map((release) => (
+                  <div key={release.releaseId} className="rounded-lg border p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <strong>Release {release.releaseId}</strong>
+                      <Badge variant="outline">{warmupArtifactLabel(release.artifactSource)}</Badge>
+                    </div>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      <StatusRow label="能力数" value={String(release.capabilityCount)} />
+                      <StatusRow label="Release 耗时" value={preciseDuration(release.latencyMs)} />
+                      <StatusRow label="Ontology" value={preciseDuration(release.ontologyLatencyMs)} />
+                      <StatusRow label="Catalog" value={preciseDuration(release.capabilityCatalogLatencyMs)} />
+                    </div>
+                    <div className="mt-2 break-all text-xs text-muted-foreground" title={release.ontologyFingerprint}>Fingerprint：{release.ontologyFingerprint.slice(0, 12)}</div>
+                  </div>
+                ))}
+              </div>
+              {canManage ? <Button disabled={warmupRetrying || warmupDetail.state === 'warming'} onClick={() => void retryWarmup()}><RotateCcw />{warmupRetrying ? '重试中…' : '重试加载'}</Button> : null}
+            </div>
+          ) : <EmptyPanel label="暂无 Ontology 加载详情" />}
         </SheetContent>
       </Sheet>
     </section>
@@ -807,6 +906,46 @@ function evidenceReason(item: Record<string, unknown>) {
   return '仅供历史审计，不参与当前自动准入';
 }
 
+function WarmupSummaryCard({
+  summary,
+  onOpen,
+}: {
+  summary: BrainGovernanceOverview['runtimeWarmup'];
+  onOpen: () => void;
+}) {
+  if (!summary) {
+    return <Card><CardHeader><CardTitle className="text-base">Ontology 运行准备</CardTitle></CardHeader><CardContent><p className="text-sm text-muted-foreground">当前后端未提供 Ontology 加载状态。</p></CardContent></Card>;
+  }
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="text-base">Ontology 运行准备</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">确认当前 Runtime Release 已完成 Ontology 与能力目录准备。</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={onOpen}>查看详情</Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Metric label="状态" value={summary.state === 'warming' && summary.currentPhase ? `${warmupStateLabel(summary.state)} · ${warmupPhaseLabel(summary.currentPhase)}` : warmupStateLabel(summary.state)} />
+          <Metric label="总耗时" value={preciseDuration(summary.latencyMs)} />
+          <Metric label="Runtime Release" value={`${summary.warmedReleaseCount}/${summary.runtimeReleaseCount} Release`} />
+          <Metric label="Artifact" value={`${warmupCacheLabel(summary.cacheStatus)} · ${warmupArtifactLabel(summary.artifactSource)}`} />
+        </div>
+        {summary.state === 'ready' && !summary.performanceTargetMet ? <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">运行准备已完成，但 {preciseDuration(summary.latencyMs)} 尚未达到 &lt;10 秒性能目标；当前不会误报为性能验收通过。</p> : null}
+        {summary.failureReason ? <WarmupFailure category={summary.failureCategory} reason={summary.failureReason} /> : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function WarmupFailure({ category, reason }: { category: 'database' | 'lineage' | 'validation' | 'system' | null; reason: string }) {
+  const businessBlocker = category === 'lineage' || category === 'validation';
+  return <div className={`rounded-lg p-3 text-sm ${businessBlocker ? 'bg-amber-50 text-amber-800' : 'bg-destructive/5 text-destructive'}`}><strong>{businessBlocker ? '版本/校验阻塞' : '数据库/系统错误'}：</strong>{reason}</div>;
+}
+
 function PageHeader({ title, description, action }: { title: string; description: string; action?: ReactNode }) { return <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><h1 className="text-2xl font-semibold">{title}</h1><p className="mt-1 text-sm text-muted-foreground">{description}</p></div>{action}</header>; }
 function SummaryCard({ title, values }: { title: string; values: Record<string, number> }) { return <Card><CardHeader><CardTitle className="text-base">{title}</CardTitle></CardHeader><CardContent className="space-y-2">{Object.entries(values).map(([key, value]) => <StatusRow key={key} label={governanceLabel(key)} value={String(value)} />)}</CardContent></Card>; }
 function StatusRow({ label, value }: { label: string; value: string }) { return <div className="flex items-start justify-between gap-4"><span className="text-muted-foreground">{label}</span><span className="text-right font-medium">{value}</span></div>; }
@@ -863,6 +1002,15 @@ function duration(value: number | null) {
   const remainder = seconds % 60;
   return remainder ? `${minutes} 分 ${remainder} 秒` : `${minutes} 分`;
 }
+function preciseDuration(value: number | null) {
+  if (value === null) return '暂无数据';
+  if (value < 1000) return `${Math.max(0, Math.round(value))} 毫秒`;
+  return `${(value / 1000).toFixed(1)} 秒`;
+}
+function warmupStateLabel(value: string) { return ({ pending: '未开始', warming: '加载中', ready: '已就绪', failed: '加载失败' } as Record<string, string>)[value] ?? value; }
+function warmupPhaseLabel(value: string) { return ({ release_discovery: '发现运行版本', artifact_lookup: '读取持久化 Artifact', item_fetch: '读取能力快照', definition_preload: '读取业务定义', release_warmup: '构建 Ontology / Catalog' } as Record<string, string>)[value] ?? value; }
+function warmupCacheLabel(value: string) { return ({ cold: '冷加载', partial: '部分命中', warm: '全部命中' } as Record<string, string>)[value] ?? value; }
+function warmupArtifactLabel(value: string) { return ({ persistent: '持久化复用', computed: '实时构建', memory: '内存复用', mixed: '混合来源', none: '暂无制品' } as Record<string, string>)[value] ?? value; }
 function percentage(value: number | null) { return value === null ? '暂无数据' : `${Math.round(value * 100)}%`; }
 function processMetric(metric?: BrainLatencyMetricSummary) { return metric?.sampleSize ? `${duration(metric.p50Ms)}（${metric.sampleSize} 个样本）` : '暂无完整样本'; }
 function gateReuseValue(data: BrainGovernanceProcessLatencyResponse | null) { return data?.gateReuse.rate === null || data?.gateReuse.rate === undefined ? '暂无完整样本' : `${percentage(data.gateReuse.rate)}（${data.gateReuse.reused}/${data.gateReuse.total}）`; }

@@ -1,8 +1,12 @@
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { BrainGovernanceEventService } from './brain-governance-event.service.js';
+import {
+  BrainActiveReleaseWarmupService,
+  type BrainActiveReleaseWarmupStatus,
+} from './brain-active-release-warmup.service.js';
 
 export const BRAIN_GOVERNANCE_RISK_LEVELS = ['low', 'medium', 'high', 'critical', 'unclassified'] as const;
 export const BRAIN_GOVERNANCE_MODES = ['readonly', 'preview', 'advisory', 'alert'] as const;
@@ -62,6 +66,7 @@ export class BrainGovernanceControlPlaneService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events?: BrainGovernanceEventService,
+    @Optional() private readonly activeReleaseWarmup?: BrainActiveReleaseWarmupService,
   ) {}
 
   async getOverview() {
@@ -149,6 +154,46 @@ export class BrainGovernanceControlPlaneService {
         autoAdmissionRate: completedTasks.length ? autoApproved / completedTasks.length : null,
         manualOverrideRate: completedTasks.length ? manualOverrides / completedTasks.length : null,
       },
+      runtimeWarmup: this.runtimeWarmupSummary(),
+    };
+  }
+
+  getRuntimeOntologyWarmup() {
+    const status = this.activeReleaseWarmup?.getStatus();
+    if (!status) return null;
+    return {
+      ...status,
+      cacheStatus: warmupCacheStatus(status),
+      artifactSource: warmupArtifactSource(status),
+      failureCategory: warmupFailureCategory(status.failureReason),
+      performanceTargetMs: 10_000,
+      performanceTargetMet: status.state === 'ready' && status.latencyMs !== null && status.latencyMs < 10_000,
+    };
+  }
+
+  async retryRuntimeOntologyWarmup() {
+    if (!this.activeReleaseWarmup) throw new NotFoundException('Ontology 预热服务不可用');
+    await this.activeReleaseWarmup.warmActiveReleases();
+    return this.getRuntimeOntologyWarmup();
+  }
+
+  private runtimeWarmupSummary() {
+    const status = this.activeReleaseWarmup?.getStatus();
+    if (!status) return null;
+    return {
+      state: status.state,
+      currentPhase: status.currentPhase,
+      latencyMs: status.latencyMs,
+      runtimeReleaseCount: status.activeReleaseCount,
+      warmedReleaseCount: status.warmedReleaseCount,
+      cacheStatus: warmupCacheStatus(status),
+      artifactSource: warmupArtifactSource(status),
+      phases: status.phases,
+      completedAt: status.completedAt,
+      failureCategory: warmupFailureCategory(status.failureReason),
+      failureReason: status.failureReason,
+      performanceTargetMs: 10_000,
+      performanceTargetMet: status.state === 'ready' && status.latencyMs !== null && status.latencyMs < 10_000,
     };
   }
 
@@ -754,7 +799,7 @@ export class BrainGovernanceControlPlaneService {
       createdBy: actorId,
       expiresAt,
       schemaVersion: Number.isInteger(Number(input.schemaVersion)) ? Number(input.schemaVersion) : 1,
-      candidateId: optionalPositiveInteger(input.candidateId),
+      candidateId: optionalPositiveInteger(input.governanceCandidateId ?? input.candidateId),
       baseCommit: optionalString(input.baseCommit),
       headCommit: optionalString(input.headCommit),
       mergeBaseCommit: optionalString(input.mergeBaseCommit),
@@ -1780,6 +1825,40 @@ function effectiveWhitelistStatus(policy: CapabilityPolicySnapshot, now: Date): 
 function percentile(values: number[], ratio: number): number | null {
   if (!values.length) return null;
   return values[Math.min(values.length - 1, Math.max(0, Math.ceil(values.length * ratio) - 1))] ?? null;
+}
+
+function warmupCacheStatus(status: BrainActiveReleaseWarmupStatus): 'cold' | 'partial' | 'warm' {
+  if (status.releases.length === 0) return 'cold';
+  const persistentCount = status.releases.filter((release) => release.artifactSource === 'persistent').length;
+  if (persistentCount === status.releases.length) return 'warm';
+  return persistentCount > 0 ? 'partial' : 'cold';
+}
+
+function warmupArtifactSource(
+  status: BrainActiveReleaseWarmupStatus,
+): 'persistent' | 'computed' | 'memory' | 'mixed' | 'none' {
+  const sources = new Set(status.releases.map((release) => release.artifactSource));
+  if (sources.size === 0) return 'none';
+  if (sources.size > 1) return 'mixed';
+  return [...sources][0] ?? 'none';
+}
+
+function warmupFailureCategory(
+  failureReason: string | null,
+): 'database' | 'lineage' | 'validation' | 'system' | null {
+  if (!failureReason) return null;
+  const reason = failureReason.toLowerCase();
+  if (
+    ['timeout exceeded when trying to connect', 'connection', 'too many clients', 'remaining connection slots', 'socket']
+      .some((fragment) => reason.includes(fragment))
+  ) return 'database';
+  if (['lineage', 'definition_refs_missing', 'definition_version', 'fingerprint'].some((fragment) => reason.includes(fragment))) {
+    return 'lineage';
+  }
+  if (['validation', 'catalog_invalid', 'checksum', 'status_invalid', 'mode_invalid'].some((fragment) => reason.includes(fragment))) {
+    return 'validation';
+  }
+  return 'system';
 }
 
 function policySnapshotChecksum(versions: Array<{ resourceKey: string; version: number; checksum: string }>): string {
