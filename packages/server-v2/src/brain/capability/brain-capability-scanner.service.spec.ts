@@ -724,6 +724,77 @@ describe('BrainCapabilityScannerService', () => {
     expect(new BrainCapabilityDriftService().evaluateStrict(drift).passed).toBe(false);
   });
 
+  it('accepts only an exact, auditable approval for added or changed capability drift', () => {
+    const drift = {
+      items: [
+        {
+          key: 'customer_create_preview',
+          type: 'added' as const,
+          highRisk: false,
+          reasons: ['new_capability'],
+          afterFingerprint: 'a'.repeat(64),
+        },
+        {
+          key: 'purchase_order_draft',
+          type: 'changed' as const,
+          highRisk: true,
+          reasons: ['permission_narrowed_or_changed'],
+          beforeFingerprint: 'b'.repeat(64),
+          afterFingerprint: 'c'.repeat(64),
+        },
+      ],
+      summary: { added: 1, changed: 1, removed: 0, stale: 0, blocked: 0 },
+    };
+    const approval = {
+      key: 'customer_create_preview',
+      type: 'added' as const,
+      highRisk: false,
+      reasons: ['new_capability'],
+      afterFingerprint: 'a'.repeat(64),
+      approvedAt: '2026-08-03',
+      authorization: 'product_manager_brain_only_main_merge',
+      note: 'Approve the exact preview capability contract.',
+    };
+    const exact = new BrainCapabilityDriftService().evaluateStrict(drift, [approval]);
+
+    expect(exact).toMatchObject({ passed: false, approved: [drift.items[0]], failures: [drift.items[1]] });
+    expect(
+      new BrainCapabilityDriftService().evaluateStrict(drift, [
+        { ...approval, afterFingerprint: 'd'.repeat(64) },
+      ]),
+    ).toMatchObject({ passed: false, approved: [], failures: drift.items });
+  });
+
+  it('never allows approval manifests to bypass removed, stale or blocked drift', () => {
+    const item = {
+      key: 'customer_create_preview',
+      type: 'blocked' as const,
+      highRisk: true,
+      reasons: ['missing_confirmation'],
+      afterFingerprint: 'a'.repeat(64),
+    };
+    const drift = {
+      items: [item],
+      summary: { added: 0, changed: 0, removed: 0, stale: 0, blocked: 1 },
+    };
+    const unsafeApproval = {
+      key: item.key,
+      type: 'added' as const,
+      highRisk: item.highRisk,
+      reasons: item.reasons,
+      afterFingerprint: item.afterFingerprint,
+      approvedAt: '2026-08-03',
+      authorization: 'invalid_attempt',
+      note: 'This must not bypass strict evaluation.',
+    };
+
+    expect(new BrainCapabilityDriftService().evaluateStrict(drift, [unsafeApproval])).toMatchObject({
+      passed: false,
+      approved: [],
+      failures: [item],
+    });
+  });
+
   it('discovers the four P12 source anchors in the current repository', async () => {
     const workspaceRoot = join(process.cwd(), '..', '..');
     const report = await new BrainCapabilityScannerService().scan({ workspaceRoot });

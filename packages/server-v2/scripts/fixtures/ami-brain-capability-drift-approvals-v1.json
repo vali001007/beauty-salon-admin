@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "approvals": [
+    {
+      "key": "customer_create_preview",
+      "type": "added",
+      "highRisk": false,
+      "reasons": [
+        "new_capability"
+      ],
+      "afterFingerprint": "64971bece686b49e88ff1ad82cbc5222a2d0ad4f0c21a91de450d22a95168931",
+      "approvedAt": "2026-08-03",
+      "authorization": "product_manager_brain_only_main_merge",
+      "note": "Approve the exact governed customer creation preview contract for the Ami Brain mainline merge."
+    },
+    {
+      "key": "purchase_order_draft",
+      "type": "changed",
+      "highRisk": true,
+      "reasons": [
+        "permission_narrowed_or_changed"
+      ],
+      "beforeFingerprint": "8795bcf6df9653a95e9d69ee4a68a26167b2cdd7e1254a2b6a458ddb55f9ad6a",
+      "afterFingerprint": "6804c48beec61ca1bdfaae89ff129a009379599a2dfa52e3152c40faf423011d",
+      "approvedAt": "2026-08-03",
+      "authorization": "product_manager_brain_only_main_merge",
+      "note": "Approve the exact permission change from broad supply management to the narrower inventory purchase permission."
+    },
+    {
+      "key": "purchase_order_submit_for_approval_preview",
+      "type": "added",
+      "highRisk": false,
+      "reasons": [
+        "new_capability"
+      ],
+      "afterFingerprint": "a12401018964247d984c7cd8903b84cea2e89ebd32a76c82d44a106c6e7e87b0",
+      "approvedAt": "2026-08-03",
+      "authorization": "product_manager_brain_only_main_merge",
+      "note": "Approve the exact governed purchase order submission preview contract for the Ami Brain mainline merge."
+    }
+  ]
+}
