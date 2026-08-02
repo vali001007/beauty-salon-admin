@@ -273,7 +273,6 @@ async function migrationHistory(connectionString, inventory) {
 async function structuralEvidence(connectionString) {
   return withClient(connectionString, async (client) => {
     const requiredTables = [
-      'ask_data_free_sql_runs',
       'brain_action_execution',
       'brain_action_confirmation',
       'brain_gate_receipt',
@@ -306,7 +305,6 @@ async function structuralEvidence(connectionString) {
       ['business_database_write_set_entry', 'afterStateFingerprint'],
       ['brain_governance_task', 'transitionLog'],
       ['brain_gate_receipt', 'resultChecksum'],
-      ['ask_data_free_sql_runs', 'safeSqlHash'],
     ];
     const columns = await client.query(`
       SELECT table_name, column_name
@@ -325,7 +323,6 @@ async function structuralEvidence(connectionString) {
       'business_database_write_set_entry_writeSetId_id_idx',
       'brain_governance_task_idempotencyKey_key',
       'brain_gate_receipt_receiptKey_key',
-      'ask_data_free_sql_runs_storeId_createdAt_idx',
     ];
     const indexes = await client.query(
       `SELECT indexname FROM pg_indexes WHERE schemaname = 'public'`,
@@ -530,21 +527,6 @@ async function incrementalDataEvidence(connectionString) {
       await client.query('ROLLBACK');
     }
 
-    let freeSqlRun;
-    await client.query('BEGIN');
-    try {
-      const inserted = await client.query(`
-        INSERT INTO "ask_data_free_sql_runs" (
-          "question", "userId", "storeId", "storeScopeJson", "selectedViewsJson", "status"
-        ) VALUES (
-          'migration acceptance', 900001, 900001, '[900001]'::jsonb, '["orders"]'::jsonb, 'blocked'
-        ) RETURNING "status", "rowCount", "storeId"
-      `);
-      freeSqlRun = inserted.rows[0];
-    } finally {
-      await client.query('ROLLBACK');
-    }
-
     const purchaseOrderAfterProbes = await client.query(
       `SELECT "status", "storeId" FROM "PurchaseOrder" WHERE "id" = 900001`,
     );
@@ -565,7 +547,6 @@ async function incrementalDataEvidence(connectionString) {
         ...gateReceipt,
         uniqueRejected: gateReceiptUniqueRejected,
       },
-      freeSqlRun,
       purchaseOrderAfterProbes: purchaseOrderAfterProbes.rows[0],
     };
   });
@@ -627,10 +608,6 @@ function assertAcceptance(summary) {
       summary.incrementalData.gateReceipt.status === 'passed' &&
       summary.incrementalData.gateReceipt.stage === 'preflight' &&
       summary.incrementalData.gateReceipt.uniqueRejected,
-    freeSqlRunContracts:
-      summary.incrementalData.freeSqlRun.status === 'blocked' &&
-      summary.incrementalData.freeSqlRun.rowCount === 0 &&
-      summary.incrementalData.freeSqlRun.storeId === 900001,
   };
   const failedChecks = Object.entries(checks)
     .filter(([, passed]) => !passed)

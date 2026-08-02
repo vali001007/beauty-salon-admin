@@ -205,7 +205,7 @@
           "status": "missing"
         },
         "decisionEvidence": {
-          "path": "docs/03-开发计划/01-AI智能体与问数能力/07-Ami-Brain-当前主线/Ami-Brain-发布门禁全量验收与性能收敛详细开发计划-2026-07-28.md",
+          "path": "docs/03-开发计划/01-AI智能体与问数能力/07-Ami-Brain-当前主线/Ami-Brain-最新完成状态与试运行差距-2026-08-02.md",
           "anchor": "门店 6 在 2026-06-29 有 30 条有效排班，但“肩颈舒压养护”项目没有任何美容师技能绑定。"
         }
       },
@@ -213,7 +213,7 @@
       "admission": {
         "source": "supplemental_question_registry_v1",
         "questionChecksum": "5ba4a29fb343659b0d5abc87579748e2a8fbe88b7ead0c5f7ba07a98436fef0a",
-        "reviewChecksum": "ffa522b9cb0c43ea0e37a1e41559718d8c267eaf81a8b235fc7a4f35878c2215",
+        "reviewChecksum": "b3f12b082bdd6e9b4fb3c98106e88319d5ee8634161bdb99747611bc9e6ab191",
         "reviewedBy": "product-owner",
         "reviewedAt": "2026-07-29T14:30:00.000Z"
       }
