@@ -3030,7 +3030,7 @@
   "productLoopEligibility": {
     "schemaVersion": "ami-brain-product-loop-eligibility/v1",
     "path": "docs/04-测试数据/Ami-Brain-全领域题集治理/ami-brain-product-loop-eligibility-v1.json",
-    "checksum": "e5cdcc334b0f4f942ffb8fee26c6f7feae9bc859f14cba0df6c5cb2f8ca41bf8",
+    "checksum": "df4e1cb012f4a377c5a2d4f50e849bd945c6b2801db826521b7c0edf5b8fac8a",
     "sourceBaselineChecksum": "eeabcf0ba6d2652cabe91950bfc04bb2fa6f3fd6c95510d583d9ed6d99f186ec",
     "caseCount": 2001,
     "baselineCaseCount": 2000,
@@ -3044,8 +3044,8 @@
     "dataFactsAudit": {
       "schemaVersion": "ami-brain-product-loop-data-facts/v1",
       "path": "docs/04-测试数据/Ami-Brain-全领域题集治理/ami-brain-product-loop-data-facts-v1.json",
-      "checksum": "b80787b3f40b12a1a0047e7bc2cbc030ea7d8f78ca8ac50570daffd058473cfa",
-      "schemaChecksum": "a8a4cbfb50cf6ac62fe98e36345516e7640afd49ff882ac19e7a88e5d4d52b48",
+      "checksum": "e209c8e45b356b32e750a5647864bc272c9543115e3501652139197c7fe7f9d7",
+      "schemaChecksum": "f14f0c5756d1b745e201a2cb868898b9d8c42f6d34daf19333b7a2deca0a8eac",
       "snapshotChecksum": "c1d04ff1c493e40df532257256b90fd8db7a6bbfa93987e215cfb2394f2ff254",
       "databaseHost": "aws-1-ap-northeast-1.pooler.supabase.com",
       "storeId": 6
