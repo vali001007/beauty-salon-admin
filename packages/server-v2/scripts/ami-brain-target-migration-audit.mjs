@@ -2,15 +2,16 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 import { config } from 'dotenv';
 import pg from 'pg';
+import { validateCandidateLock } from './ami-brain-candidate-identity-core.mjs';
 
 const { Client } = pg;
 const packageRoot = resolve(import.meta.dirname, '..');
+const repoRoot = resolve(packageRoot, '..', '..');
 const migrationsRoot = join(packageRoot, 'prisma', 'migrations');
 const checksumExceptionsPath = join(packageRoot, 'prisma', 'migration-checksum-exceptions.json');
-
-config({ path: join(packageRoot, '.env') });
 
 function argValue(name) {
   const prefix = `--${name}=`;
@@ -52,7 +53,7 @@ function inspectMigrations() {
   };
 }
 
-function sanitizeDatabaseTarget(connectionString) {
+export function sanitizeDatabaseTarget(connectionString) {
   const parsed = new URL(connectionString);
   return {
     protocol: parsed.protocol.replace(':', ''),
@@ -60,6 +61,58 @@ function sanitizeDatabaseTarget(connectionString) {
     port: parsed.port || '5432',
     database: parsed.pathname.replace(/^\//, ''),
     schema: parsed.searchParams.get('schema') || 'public',
+  };
+}
+
+export function buildTargetMigrationAuditSummary({
+  candidateLock: candidateLockValue = null,
+  target,
+  inventory,
+  rawHistory,
+  structure,
+  checksumExceptions,
+  targetLabel = 'target-database',
+  generatedAt = new Date().toISOString(),
+}) {
+  const candidateLock = candidateLockValue ? validateCandidateLock(candidateLockValue) : null;
+  const history = applyChecksumExceptions(rawHistory, target, checksumExceptions);
+  const blockers = [];
+  if (!history.migrationTableExists) blockers.push('migration_table_missing');
+  if (history.pending.length) blockers.push('pending_migrations');
+  if (history.checksumMismatches.length) blockers.push('checksum_mismatch');
+  if (history.failedOrRolledBack.length) blockers.push('failed_or_rolled_back_migrations');
+  if (history.unexpected.length) blockers.push('unexpected_migrations');
+  if (structure.missingTables.length || structure.missingColumns.length || structure.missingIndexes.length) {
+    blockers.push('critical_structure_missing');
+  }
+
+  return {
+    schemaVersion: 'ami-brain-target-migration-audit/v2',
+    generatedAt,
+    status: blockers.length ? 'blocked' : 'ready',
+    databaseWritePerformed: false,
+    candidateId: candidateLock?.candidateId ?? null,
+      candidateIdentity: candidateLock ? {
+      productProfile: candidateLock.identity.productProfile,
+      runtimeCommit: candidateLock.identity.runtimeCommit,
+      releaseId: candidateLock.identity.releaseId,
+      releaseFingerprint: candidateLock.identity.releaseFingerprint,
+        dataSnapshot: candidateLock.identity.dataSnapshot,
+        storeId: candidateLock.identity.storeId,
+        databaseTarget: candidateLock.identity.databaseTarget,
+      } : null,
+    targetLabel,
+    target,
+    inventory: {
+      count: inventory.count,
+      first: inventory.first,
+      latest: inventory.latest,
+      rawChainHash: inventory.rawChainHash,
+      canonicalLfChainHash: inventory.canonicalLfChainHash,
+    },
+    history,
+    structure,
+    blockers,
   };
 }
 
@@ -270,8 +323,13 @@ async function collectCriticalStructure(client) {
 }
 
 async function main() {
+  config({ path: join(packageRoot, '.env') });
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) throw new Error('DATABASE_URL is required for read-only target migration audit.');
+  const candidateLockPath = argValue('candidate-lock');
+  const candidateLock = candidateLockPath
+    ? validateCandidateLock(JSON.parse(readFileSync(resolve(repoRoot, candidateLockPath), 'utf8')))
+    : null;
   const inventory = inspectMigrations();
   const checksumExceptions = loadChecksumExceptions();
   const client = new Client({ connectionString, application_name: 'ami-brain-target-migration-audit' });
@@ -289,35 +347,15 @@ async function main() {
     await client.query('COMMIT');
 
     const target = { ...sanitizeDatabaseTarget(connectionString), ...databaseRows[0] };
-    const history = applyChecksumExceptions(rawHistory, target, checksumExceptions);
-
-    const blockers = [];
-    if (!history.migrationTableExists) blockers.push('migration_table_missing');
-    if (history.pending.length) blockers.push('pending_migrations');
-    if (history.checksumMismatches.length) blockers.push('checksum_mismatch');
-    if (history.failedOrRolledBack.length) blockers.push('failed_or_rolled_back_migrations');
-    if (history.unexpected.length) blockers.push('unexpected_migrations');
-    if (structure.missingTables.length || structure.missingColumns.length || structure.missingIndexes.length) {
-      blockers.push('critical_structure_missing');
-    }
-
-    summary = {
-      generatedAt: new Date().toISOString(),
-      status: blockers.length ? 'blocked' : 'ready',
-      databaseWritePerformed: false,
-      targetLabel: argValue('label') ?? 'target-database',
+    summary = buildTargetMigrationAuditSummary({
+      candidateLock,
       target,
-      inventory: {
-        count: inventory.count,
-        first: inventory.first,
-        latest: inventory.latest,
-        rawChainHash: inventory.rawChainHash,
-        canonicalLfChainHash: inventory.canonicalLfChainHash,
-      },
-      history,
+      inventory,
+      rawHistory,
       structure,
-      blockers,
-    };
+      checksumExceptions,
+      targetLabel: argValue('label') ?? 'target-database',
+    });
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined);
     throw error;
@@ -335,7 +373,9 @@ async function main() {
   if (process.argv.includes('--strict') && summary.status !== 'ready') process.exitCode = 1;
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (resolve(process.argv[1] ?? '') === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

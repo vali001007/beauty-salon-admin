@@ -26,7 +26,7 @@ describe('BrainGovernanceReceiptController', () => {
   it('persists only the server-verified receipt and trust level without a human actor', async () => {
     const verificationService = {
       verifyReceipt: jest.fn().mockReturnValue({
-        receipt: { receiptId: 'receipt-verified', status: 'passed' },
+        receipt: { receiptId: 'receipt-verified', status: 'passed', candidateId: 'a'.repeat(64) },
         trustLevel: 'trusted_candidate',
       }),
       verifyReleaseEvidence: jest.fn().mockResolvedValue(undefined),
@@ -48,12 +48,21 @@ describe('BrainGovernanceReceiptController', () => {
     await expect(controller.ingestReceipt(request, body)).resolves.toEqual({ id: 31, status: 'passed' });
     expect(verificationService.verifyReceipt).toHaveBeenCalledWith(body, 'CI/CD');
     expect(verificationService.verifyReleaseEvidence).toHaveBeenCalledWith({
-      receipt: { receiptId: 'receipt-verified', status: 'passed' },
+      receipt: { receiptId: 'receipt-verified', status: 'passed', candidateId: 'a'.repeat(64) },
       trustLevel: 'trusted_candidate',
     });
-    expect(candidateService.upsertFromReceipt).toHaveBeenCalledWith({ receiptId: 'receipt-verified', status: 'passed' });
+    expect(candidateService.upsertFromReceipt).toHaveBeenCalledWith({
+      receiptId: 'receipt-verified',
+      status: 'passed',
+      candidateId: 'a'.repeat(64),
+    });
     expect(governanceControlPlaneService.ingestReceipt).toHaveBeenCalledWith(
-      { receiptId: 'receipt-verified', status: 'passed', candidateId: 17 },
+      {
+        receiptId: 'receipt-verified',
+        status: 'passed',
+        candidateId: 'a'.repeat(64),
+        governanceCandidateId: 17,
+      },
       undefined,
       'trusted_candidate',
     );

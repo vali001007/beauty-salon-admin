@@ -58,9 +58,20 @@ describe('HealthController', () => {
 
   it('checks database connectivity before reporting ready', async () => {
     prisma.$queryRaw.mockResolvedValueOnce([{ database_ready: 1 }]);
+    process.env.DATABASE_URL = 'postgresql://readonly-user:secret@db.example:6543/ami?schema=brain&sslmode=require';
     const controller = new HealthController(prisma as any);
 
-    await expect(controller.ready()).resolves.toMatchObject({ status: 'ready', database: 'connected' });
+    await expect(controller.ready()).resolves.toMatchObject({
+      status: 'ready',
+      database: 'connected',
+      databaseTarget: {
+        protocol: 'postgresql',
+        host: 'db.example',
+        port: '6543',
+        database: 'ami',
+        schema: 'brain',
+      },
+    });
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
   });
 
@@ -99,6 +110,98 @@ describe('HealthController', () => {
     await expect(controller.ready()).rejects.toMatchObject({
       name: 'ServiceUnavailableException',
       message: 'brain_active_release_ontology_warmup_not_ready:failed',
+    });
+  });
+
+  it('fails closed in release stage when immutable deployment identity is missing', async () => {
+    prisma.$queryRaw.mockResolvedValueOnce([{ database_ready: 1 }]);
+    process.env.BRAIN_RELEASE_STAGE = 'release';
+    process.env.BRAIN_EXPECTED_PRODUCT_PROFILE = 'query_only_v1';
+    process.env.BRAIN_RELEASE_HEALTH_STORE_ID = '6';
+    process.env.BRAIN_RELEASE_HEALTH_USER_ID = '9';
+    delete process.env.ZEABUR_GIT_COMMIT_SHA;
+    delete process.env.GIT_COMMIT_SHA;
+    delete process.env.GITHUB_SHA;
+    delete process.env.COMMIT_SHA;
+    delete process.env.SOURCE_COMMIT;
+    const controller = new HealthController(prisma as any);
+
+    await expect(controller.ready()).rejects.toMatchObject({
+      message: 'brain_release_deployment_commit_missing_or_invalid',
+    });
+  });
+
+  it('reports the selected query-only Release only when every release-stage identity is complete', async () => {
+    prisma.$queryRaw.mockResolvedValueOnce([{ database_ready: 1 }]);
+    process.env.BRAIN_RELEASE_STAGE = 'release';
+    process.env.BRAIN_EXPECTED_PRODUCT_PROFILE = 'query_only_v1';
+    process.env.BRAIN_RELEASE_HEALTH_STORE_ID = '6';
+    process.env.BRAIN_RELEASE_HEALTH_USER_ID = '9';
+    process.env.BRAIN_RELEASE_HEALTH_ROLE_KEY = 'store_manager';
+    process.env.BRAIN_ACTION_EXECUTION_ENABLED = 'false';
+    process.env.LLM_PROVIDER = 'openai_responses';
+    process.env.LLM_MODEL = 'gpt-5.6-terra';
+    process.env.LLM_TIMEOUT_MS = '20000';
+    process.env.BRAIN_FALLBACK_POLICY = 'deterministic';
+    process.env.ZEABUR_GIT_COMMIT_SHA = 'a'.repeat(40);
+    process.env.ZEABUR_GIT_BRANCH = 'ami-brain-query-only-candidate';
+    process.env.ZEABUR_DEPLOYMENT_ID = 'deploy-query-only-1';
+    process.env.NODE_ENV = 'production';
+    process.env.DATABASE_URL = 'postgresql://readonly-user:secret@db.example:6543/ami?schema=brain&sslmode=require';
+    const releaseService = {
+      resolveRuntimeDeploymentIdentity: jest.fn().mockResolvedValue({
+        mode: 'model',
+        release: { id: 452, releaseKey: 'query-only-full' },
+        releaseFingerprint: 'e'.repeat(64),
+        productProfile: {
+          productProfile: 'query_only_v1',
+          actionsEnabled: false,
+          actionExecutionPolicy: 'deny',
+          allowedCapabilityManifest: 'ami-brain-query-only-v1',
+          allowedCapabilityCount: 33,
+          sideEffectCapabilityCount: 0,
+          productProfileFingerprint: 'f'.repeat(64),
+        },
+      }),
+    };
+    const controller = new HealthController(prisma as any, undefined, releaseService as never);
+
+    await expect(controller.ready()).resolves.toMatchObject({
+      status: 'ready',
+      deployment: {
+        commit: 'a'.repeat(40),
+        branch: 'ami-brain-query-only-candidate',
+        buildId: 'deploy-query-only-1',
+        environment: 'production',
+      },
+      releaseGate: { enabled: true, stage: 'release' },
+      brainModel: {
+        provider: 'openai_responses',
+        model: 'gpt-5.6-terra',
+        timeoutMs: 20000,
+        fallbackPolicy: 'deterministic',
+      },
+      databaseTarget: {
+        protocol: 'postgresql',
+        host: 'db.example',
+        port: '6543',
+        database: 'ami',
+        schema: 'brain',
+      },
+      brainRuntimeRelease: {
+        releaseId: 452,
+        releaseKey: 'query-only-full',
+        releaseFingerprint: 'e'.repeat(64),
+        productProfile: 'query_only_v1',
+        actionsEnabled: false,
+        actionExecutionPolicy: 'deny',
+        healthContext: { storeId: 6, userId: 9, roleKey: 'store_manager' },
+      },
+    });
+    expect(releaseService.resolveRuntimeDeploymentIdentity).toHaveBeenCalledWith({
+      storeId: 6,
+      userId: 9,
+      roleKey: 'store_manager',
     });
   });
 });

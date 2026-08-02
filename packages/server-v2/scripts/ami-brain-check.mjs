@@ -14,11 +14,17 @@ import {
   isReusableGateResult,
   isReusableReceipt,
   parseArgs,
+  releaseIdentityBlockers,
   selectPlanFiles,
   stableStringify,
   validatePrevalidatedGateSelection,
+  withReleaseCandidateCloseGate,
   withResolvedCapabilities,
 } from './ami-brain-check-core.mjs';
+import {
+  sha256 as candidateSha256,
+  validateReleaseCandidateLockBinding,
+} from './ami-brain-candidate-identity-core.mjs';
 
 const serverRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = resolve(serverRoot, '../..');
@@ -37,20 +43,22 @@ async function main() {
     fail(error instanceof Error ? error.message : String(error));
   }
   if (options.help) {
-    process.stdout.write('Usage: npm run brain:check -- --stage=dev|candidate|release|observe [--dry-run] [--force] [--json] [--scope=file1,file2] [--repository=owner/repo --branch=branch --workflow=name --base-commit=sha --head-commit=sha --merge-base=sha --candidate-key=key] [--eval-run-id=id --evaluation-release-id=id] [--upload-receipt]\n');
+    process.stdout.write('Usage: npm run brain:check -- --stage=dev|candidate|release|observe [--candidate-lock=path] [--dry-run] [--force] [--json] [--scope=file1,file2] [--repository=owner/repo --branch=branch --workflow=name --base-commit=sha --head-commit=sha --merge-base=sha --candidate-key=key] [--eval-run-id=id --evaluation-release-id=id] [--upload-receipt]\n');
     return;
   }
 
   const manifest = JSON.parse(readFileSync(join(serverRoot, 'scripts/ami-brain-check-impact-map.json'), 'utf8'));
   const statusFiles = workingTreeFiles();
-  const candidate = resolveCandidateIdentity(options);
+  const blockers = [];
+  const candidateLock = loadCandidateLock(options, blockers);
+  const candidate = resolveCandidateIdentity(options, candidateLock);
   const diffFiles = candidate
     ? gitNul(['diff', '--name-only', '-z', candidate.mergeBaseCommit, candidate.headCommit, '--'])
     : statusFiles;
   const files = selectPlanFiles({ stage: options.stage, detectedFiles: diffFiles, scope: options.scope });
-  const blockers = [];
   if (['candidate', 'release'].includes(options.stage) && !candidate) blockers.push('candidate_identity_required');
   if (options.stage === 'release' && statusFiles.length > 0) blockers.push('release_stage_requires_clean_worktree');
+  if (options.stage === 'release' && !candidateLock) blockers.push('release_candidate_lock_required');
   const prevalidatedGates = new Set(options.prevalidatedGates);
   blockers.push(...validatePrevalidatedGateSelection({
     stage: options.stage,
@@ -61,28 +69,35 @@ async function main() {
 
   const unresolvedPlan = createImpactPlan({ files, stage: options.stage, manifest });
   const capabilities = resolveCapabilityKeys(unresolvedPlan);
-  const plan = withResolvedCapabilities(unresolvedPlan, capabilities);
+  const capabilityPlan = withResolvedCapabilities(unresolvedPlan, capabilities);
+  const plan = options.stage === 'release' && candidateLock
+    ? withReleaseCandidateCloseGate(capabilityPlan, options.candidateLock)
+    : capabilityPlan;
   if (plan.files.length > 0 && plan.capabilityImpacts.includes('all_runtime') && plan.capabilities.length === 0) {
     blockers.push('real_capability_mapping_missing');
   }
-  const source = createSourceIdentity(plan.files, candidate, options);
+  const detectedSource = createSourceIdentity(plan.files, candidate, options);
+  const source = candidateLock
+    ? {
+        ...detectedSource,
+        diffChecksum: candidateLock.identity.diffChecksum,
+        sourceFingerprint: candidateSha256(candidateLock.identity),
+      }
+    : detectedSource;
+  const releaseEnvironment = candidateLock?.identity;
   const identity = createIdentity({
     plan,
     source,
     environment: {
-      releaseFingerprint: process.env.BRAIN_RELEASE_FINGERPRINT,
-      dataSnapshot: process.env.BRAIN_DATA_SNAPSHOT,
-      provider: process.env.LLM_PROVIDER,
-      model: process.env.LLM_MODEL,
-      timeout: process.env.LLM_TIMEOUT_MS ? Number(process.env.LLM_TIMEOUT_MS) : null,
+      releaseFingerprint: releaseEnvironment?.releaseFingerprint ?? process.env.BRAIN_RELEASE_FINGERPRINT,
+      dataSnapshot: releaseEnvironment?.dataSnapshot ?? process.env.BRAIN_DATA_SNAPSHOT,
+      provider: releaseEnvironment?.provider ?? process.env.LLM_PROVIDER,
+      model: releaseEnvironment?.model ?? process.env.LLM_MODEL,
+      timeout: releaseEnvironment?.timeoutMs ?? (process.env.LLM_TIMEOUT_MS ? Number(process.env.LLM_TIMEOUT_MS) : null),
+      candidateId: candidateLock?.candidateId ?? null,
     },
   });
-  if (options.stage === 'release') {
-    if (!identity.evalRunId || !identity.evaluationReleaseId) blockers.push('release_evaluation_identity_required');
-    if (!identity.releaseFingerprint || !identity.dataSnapshot || !identity.provider || !identity.model) {
-      blockers.push('release_runtime_identity_required');
-    }
-  }
+  blockers.push(...releaseIdentityBlockers(identity));
   const reusable = options.force ? null : findReusableReceipt(identity);
   const externalReceipts = loadExternalReceipts(options.consumeGateReceipts);
   const summary = {
@@ -317,8 +332,37 @@ function workingTreeFiles() {
   ])].sort();
 }
 
-function resolveCandidateIdentity(options) {
+function loadCandidateLock(options, blockers) {
+  if (options.stage !== 'release') return null;
+  if (!options.candidateLock) return null;
+  try {
+    const head = gitText(['rev-parse', 'HEAD']).toLowerCase();
+    return validateReleaseCandidateLockBinding(
+      JSON.parse(readFileSync(resolve(repoRoot, options.candidateLock), 'utf8')),
+      head,
+    );
+  } catch (error) {
+    blockers.push(error instanceof Error ? error.message : 'release_candidate_lock_invalid');
+    return null;
+  }
+}
+
+function resolveCandidateIdentity(options, candidateLock) {
   if (!['candidate', 'release'].includes(options.stage)) return null;
+  if (options.stage === 'release' && candidateLock) {
+    const repository = options.repository || process.env.GITHUB_REPOSITORY || gitRepository();
+    const runtimeCommit = candidateLock.identity.runtimeCommit;
+    return {
+      repository,
+      branch: candidateLock.branch,
+      workflow: options.workflow || process.env.GITHUB_WORKFLOW || 'ami-brain-release-candidate',
+      eventName: options.eventName || 'release_candidate',
+      baseCommit: runtimeCommit,
+      headCommit: runtimeCommit,
+      mergeBaseCommit: runtimeCommit,
+      candidateKey: candidateLock.candidateId,
+    };
+  }
   const baseCommit = options.baseCommit || process.env.BRAIN_BASE_COMMIT || process.env.GITHUB_BASE_SHA;
   const headCommit = options.headCommit || process.env.BRAIN_HEAD_COMMIT || process.env.GITHUB_HEAD_SHA || process.env.GITHUB_SHA;
   if (!baseCommit || !headCommit) return null;

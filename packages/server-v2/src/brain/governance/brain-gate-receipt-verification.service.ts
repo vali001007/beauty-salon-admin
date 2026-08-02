@@ -146,6 +146,7 @@ export class BrainGateReceiptVerificationService {
     const dataSnapshot = optionalString(input.dataSnapshot);
     const provider = optionalString(input.provider);
     const model = optionalString(input.model);
+    const candidateId = optionalHash64(input.candidateId, 'receipt_candidate_id_invalid');
     const evalRunId = optionalPositiveInteger(input.evalRunId, 'receipt_eval_run_id_invalid');
     const evaluationReleaseId = optionalPositiveInteger(input.evaluationReleaseId, 'receipt_evaluation_release_id_invalid');
 
@@ -153,7 +154,7 @@ export class BrainGateReceiptVerificationService {
       const releaseIssuers = envList('BRAIN_GOVERNANCE_RECEIPT_RELEASE_ISSUERS');
       if (!releaseIssuers.length) throw new BadRequestException('release_receipt_issuer_allowlist_missing');
       if (!releaseIssuers.includes(issuer)) throw new BadRequestException('release_receipt_issuer_not_allowed');
-      if (!releaseFingerprint || !dataSnapshot || !provider || !model || !evalRunId || !evaluationReleaseId) {
+      if (!releaseFingerprint || !dataSnapshot || !provider || !model || !candidateId || !evalRunId || !evaluationReleaseId) {
         throw new BadRequestException('release_receipt_identity_incomplete');
       }
     }
@@ -178,6 +179,7 @@ export class BrainGateReceiptVerificationService {
       mergeBaseCommit,
       headCommit,
       candidateKey,
+      candidateId,
       evalRunId,
       evaluationReleaseId,
     };
@@ -210,7 +212,7 @@ export class BrainGateReceiptVerificationService {
       && dataSnapshot
       && provider
       && model
-      && (stage !== 'release' || (evalRunId && evaluationReleaseId)),
+      && (stage !== 'release' || (candidateId && evalRunId && evaluationReleaseId)),
     );
     return {
       receipt: {
@@ -371,6 +373,11 @@ function hash64(value: unknown, code: string) {
   const text = String(value ?? '').trim().toLowerCase();
   if (!HEX_64.test(text)) throw new BadRequestException(code);
   return text;
+}
+
+function optionalHash64(value: unknown, code: string) {
+  if (value === null || value === undefined || value === '') return null;
+  return hash64(value, code);
 }
 
 function gitCommit(value: unknown, code: string) {
