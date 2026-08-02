@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { BrainDefinitionVersionBundleService } from './brain-definition-version-bundle.service.js';
 import {
   createBusinessDefinitionProjectionFingerprint,
   isBusinessDefinitionProjectionV2Payload,
@@ -95,12 +96,55 @@ const TRANSIENT_PRISMA_CODES = new Set(['P1001', 'P1008', 'P1017', 'P2024', 'P20
 export class PublishedBusinessDefinitionSnapshotProviderService implements BusinessDefinitionSnapshotProvider {
   private runtimeDataModel?: PrismaRuntimeDataModel;
   private activeDefinitionSnapshot?: { value: BusinessDefinitionSnapshotInput; expiresAt: number };
+  private activeDefinitionLoading?: Promise<BusinessDefinitionSnapshotInput>;
+  private readonly evaluationIdentities = new Map<string, string>();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly definitionVersionBundle?: BrainDefinitionVersionBundleService,
+  ) {}
 
   async loadActiveDefinitions(): Promise<BusinessDefinitionSnapshotInput> {
     const cached = this.activeDefinitionSnapshot;
     if (cached && cached.expiresAt > Date.now()) return cached.value;
+    if (this.activeDefinitionLoading) return this.activeDefinitionLoading;
+    const loading = this.refreshActiveDefinitions(cached);
+    this.activeDefinitionLoading = loading;
+    try {
+      return await loading;
+    } finally {
+      if (this.activeDefinitionLoading === loading) this.activeDefinitionLoading = undefined;
+    }
+  }
+
+  invalidateActiveDefinitions(): void {
+    this.activeDefinitionSnapshot = undefined;
+    this.evaluationIdentities.clear();
+  }
+
+  async getEvaluationCacheIdentity(definitionVersionIds: readonly number[]): Promise<string> {
+    const ids = [...new Set(definitionVersionIds.filter((id) => Number.isInteger(id) && id > 0))].sort(
+      (left, right) => left - right,
+    );
+    const cacheKey = ids.join(',');
+    const primed = this.evaluationIdentities.get(cacheKey);
+    if (primed) return primed;
+    if (!this.definitionVersionBundle || !ids.length) return cacheKey;
+    const identity = (await this.definitionVersionBundle.load(ids)).versionSetFingerprint;
+    this.evaluationIdentities.set(cacheKey, identity);
+    return identity;
+  }
+
+  primeEvaluationCacheIdentity(definitionVersionIds: readonly number[], identity: string): void {
+    const ids = [...new Set(definitionVersionIds.filter((id) => Number.isInteger(id) && id > 0))].sort(
+      (left, right) => left - right,
+    );
+    this.evaluationIdentities.set(ids.join(','), identity);
+  }
+
+  private async refreshActiveDefinitions(
+    cached?: { value: BusinessDefinitionSnapshotInput; expiresAt: number },
+  ): Promise<BusinessDefinitionSnapshotInput> {
     try {
       const readSnapshot = async (client: SnapshotReadClient) => {
         const currentDefinitions = await client.businessDefinition.findMany({
@@ -214,30 +258,32 @@ export class PublishedBusinessDefinitionSnapshotProviderService implements Busin
   async loadEvaluationDefinitions(definitionVersionIds: readonly number[]): Promise<BusinessDefinitionSnapshotInput> {
     const ids = [...new Set(definitionVersionIds.filter((id) => Number.isInteger(id) && id > 0))];
     if (!ids.length) return this.loadActiveDefinitions();
-    const versions = await (this.prisma as any).businessDefinitionVersion.findMany({
-      where: { id: { in: ids } },
-      select: {
-        id: true,
-        version: true,
-        lifecycleStatus: true,
-        validationStatus: true,
-        fingerprint: true,
-        sourceFingerprint: true,
-        definition: {
+    const versions = this.definitionVersionBundle
+      ? [...(await this.definitionVersionBundle.load(ids)).rows]
+      : await (this.prisma as any).businessDefinitionVersion.findMany({
+          where: { id: { in: ids } },
           select: {
-            definitionKey: true,
-            kind: true,
-            domain: true,
-            name: true,
+            id: true,
+            version: true,
+            lifecycleStatus: true,
+            validationStatus: true,
+            fingerprint: true,
+            sourceFingerprint: true,
+            definition: {
+              select: {
+                definitionKey: true,
+                kind: true,
+                domain: true,
+                name: true,
+              },
+            },
+            projections: {
+              where: { targetType: { in: ['intent_semantic_index', 'metric_query_view'] } },
+              orderBy: [{ id: 'asc' }],
+            },
           },
-        },
-        projections: {
-          where: { targetType: { in: ['intent_semantic_index', 'metric_query_view'] } },
-          orderBy: [{ id: 'asc' }],
-        },
-      },
-      orderBy: [{ definition: { definitionKey: 'asc' } }, { version: 'asc' }],
-    });
+          orderBy: [{ definition: { definitionKey: 'asc' } }, { version: 'asc' }],
+        });
     if (versions.length !== ids.length) {
       const found = new Set(versions.map((version: any) => version.id));
       throw new Error(`business_definition_evaluation_runtime_missing:${ids.filter((id) => !found.has(id)).join(',')}`);

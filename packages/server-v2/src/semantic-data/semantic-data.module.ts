@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { BUSINESS_DEFINITION_SNAPSHOT_PROVIDER } from '../brain/cognition/business-definition-snapshot.types.js';
 import { PublishedBusinessDefinitionSnapshotProviderService } from '../brain/cognition/published-business-definition-snapshot-provider.service.js';
+import { BrainDefinitionVersionBundleService } from '../brain/cognition/brain-definition-version-bundle.service.js';
 import { BrainMetricCandidateGeneratorService } from './brain-metric-candidate-generator.service.js';
 import { BrainMetricSourceAdapters } from './brain-metric-source-adapters.js';
 import { BusinessMetricCatalogService } from './business-metric-catalog.service.js';
@@ -16,6 +17,7 @@ import { DimensionRegistryService } from './dimension-registry.service.js';
 @Module({
   imports: [PrismaModule],
   providers: [
+    BrainDefinitionVersionBundleService,
     PublishedBusinessDefinitionSnapshotProviderService,
     {
       provide: BUSINESS_DEFINITION_SNAPSHOT_PROVIDER,
@@ -31,6 +33,7 @@ import { DimensionRegistryService } from './dimension-registry.service.js';
     BrainMetricCandidateGeneratorService,
   ],
   exports: [
+    BrainDefinitionVersionBundleService,
     PublishedBusinessDefinitionSnapshotProviderService,
     BUSINESS_DEFINITION_SNAPSHOT_PROVIDER,
     BusinessMetricCatalogService,

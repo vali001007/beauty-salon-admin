@@ -22,6 +22,7 @@ const brainApi = vi.hoisted(() => ({
   getBrainGovernanceCandidate: vi.fn(),
   getBrainGovernanceProcessLatency: vi.fn(),
   getBrainGovernanceOverview: vi.fn(),
+  getBrainRuntimeOntologyWarmup: vi.fn(),
   isBrainGovernanceReadCancelled: vi.fn(() => false),
   listBrainCapabilityPolicies: vi.fn(),
   listBrainGovernanceCandidates: vi.fn(),
@@ -31,6 +32,7 @@ const brainApi = vi.hoisted(() => ({
   prepareBrainGovernanceCandidatePolicy: vi.fn(),
   previewBrainPolicySnapshot: vi.fn(),
   retryBrainGovernanceTask: vi.fn(),
+  retryBrainRuntimeOntologyWarmup: vi.fn(),
   rollbackBrainPolicySnapshot: vi.fn(),
   updateBrainCapabilityPolicyOwners: vi.fn(),
   createBrainSkill: vi.fn(),
@@ -101,6 +103,50 @@ describe('Brain governance V2 workbench', () => {
       runtimeConsistency: 'policy_published_runtime_pending',
       runtimeGovernance: null,
       efficiency: { completed7d: 8, p50DurationMs: 2000, p95DurationMs: 8000, autoAdmissionRate: 0.5, manualOverrideRate: 0.125 },
+      runtimeWarmup: {
+        state: 'ready',
+        currentPhase: null,
+        latencyMs: 19_345,
+        runtimeReleaseCount: 2,
+        warmedReleaseCount: 2,
+        cacheStatus: 'warm',
+        artifactSource: 'persistent',
+        phases: { releaseDiscoveryMs: 1996, artifactLookupMs: 17_349, itemFetchMs: 0, definitionPreloadMs: 0, releaseWarmupMs: 0 },
+        completedAt: '2026-08-02T08:00:00.000Z',
+        failureCategory: null,
+        failureReason: null,
+        performanceTargetMs: 10_000,
+        performanceTargetMet: false,
+      },
+    });
+    brainApi.getBrainRuntimeOntologyWarmup.mockResolvedValue({
+      state: 'ready',
+      currentPhase: null,
+      startedAt: '2026-08-02T07:59:40.655Z',
+      completedAt: '2026-08-02T08:00:00.000Z',
+      latencyMs: 19_345,
+      activeReleaseCount: 2,
+      warmedReleaseCount: 2,
+      cacheStatus: 'warm',
+      artifactSource: 'persistent',
+      phases: { releaseDiscoveryMs: 1996, artifactLookupMs: 17_349, itemFetchMs: 0, definitionPreloadMs: 0, releaseWarmupMs: 0 },
+      releases: [{
+        releaseId: 416,
+        releaseStatus: 'active',
+        mode: 'model',
+        definitionVersionIds: [1, 2],
+        capabilityCount: 71,
+        ontologyFingerprint: 'abcdef1234567890',
+        ontologyLatencyMs: 0,
+        capabilityCatalogLatencyMs: 0,
+        latencyMs: 0,
+        artifactSource: 'persistent',
+        artifactBuiltAt: '2026-08-02T07:00:00.000Z',
+      }],
+      failureCategory: null,
+      failureReason: null,
+      performanceTargetMs: 10_000,
+      performanceTargetMet: false,
     });
     brainApi.getBrainGovernanceProcessLatency.mockResolvedValue({
       range: { from: '2026-07-26T00:00:00.000Z', to: '2026-08-02T00:00:00.000Z' },
@@ -195,6 +241,14 @@ describe('Brain governance V2 workbench', () => {
     expect(screen.getByText('60%（6/10）')).toBeInTheDocument();
     expect(screen.getByText('75% / 25%')).toBeInTheDocument();
     expect(screen.getByText('4 / 2')).toBeInTheDocument();
+    expect(screen.getByText('19.3 秒')).toBeInTheDocument();
+    expect(screen.getByText('2/2 Release')).toBeInTheDocument();
+    expect(screen.getByText(/尚未达到 <10 秒性能目标/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '查看详情' }));
+    expect(await screen.findByText('17.3 秒')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '重试加载' })).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Ontology 运行准备详情' })).not.toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: /待审批/ }));
     expect(screen.getByTestId('location')).toHaveTextContent('/brain-governance/workbench?tab=tasks&status=pending_approval');
   });

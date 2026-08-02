@@ -73,7 +73,7 @@ export function parseTerminalBrainAction(action: string): TerminalBrainActionCod
 
 function mapBrainResult(response: BrainChatResponse, role: Role): AgentRunResultV2 {
   const finalBusinessResult = response.status === 'completed' || response.status === 'needs_confirmation';
-  const confirmationActions = finalBusinessResult
+  const confirmationActions = finalBusinessResult && response.actionsEnabled !== false
     ? response.suggestedActions.filter((action) => action.requiresConfirmation)
     : [];
   const citations = response.citations;
@@ -162,6 +162,12 @@ function safeBrainBlocks(response: BrainChatResponse): NonNullable<BrainChatResp
   }
   if (response.status === 'queued' || response.status === 'running') {
     return [{ kind: 'limitations', items: ['request_processing'] }];
+  }
+  if (response.actionsEnabled === false) {
+    return [
+      ...(response.blocks ?? []).filter((block) => block.kind !== 'action_preview'),
+      { kind: 'limitations', items: ['query_only_actions_disabled'] },
+    ];
   }
   return (response.blocks ?? []).filter((block) => block.kind !== 'action_preview');
 }

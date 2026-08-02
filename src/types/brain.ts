@@ -224,6 +224,11 @@ export interface BrainMessageMetadata {
   planId?: string | null;
   model?: string | null;
   provider?: string | null;
+  productProfile?: string | null;
+  actionsEnabled?: boolean;
+  actionExecutionPolicy?: string | null;
+  allowedCapabilityManifest?: string | null;
+  productProfileFingerprint?: string | null;
 }
 
 export interface BrainMessage {
@@ -388,6 +393,11 @@ export interface BrainChatResponse {
   citations: BrainCitation[];
   suggestedActions: BrainActionPreview[];
   blocks: BrainResponseBlock[];
+  productProfile?: string | null;
+  actionsEnabled?: boolean;
+  actionExecutionPolicy?: string | null;
+  allowedCapabilityManifest?: string | null;
+  productProfileFingerprint?: string | null;
   clarification?: {
     question: string;
     options: Array<{ id: string; label: string; value: unknown }>;
@@ -450,6 +460,11 @@ export interface BrainGovernanceRuntimeConfigResponse {
     releaseKey: string | null;
     stage: string | null;
     userPercentage: number | null;
+    productProfile: string | null;
+    actionsEnabled: boolean;
+    actionExecutionPolicy: string | null;
+    allowedCapabilityManifest: string | null;
+    productProfileFingerprint: string | null;
   };
   catalogValidation: {
     valid: boolean;
@@ -1145,6 +1160,58 @@ export interface BrainGovernanceOverview {
     autoAdmissionRate: number | null;
     manualOverrideRate: number | null;
   };
+  runtimeWarmup: BrainRuntimeOntologyWarmupSummary | null;
+}
+
+export type BrainRuntimeOntologyWarmupState = 'pending' | 'warming' | 'ready' | 'failed';
+export type BrainRuntimeOntologyWarmupPhase =
+  | 'release_discovery'
+  | 'artifact_lookup'
+  | 'item_fetch'
+  | 'definition_preload'
+  | 'release_warmup';
+
+export interface BrainRuntimeOntologyWarmupPhases {
+  releaseDiscoveryMs: number;
+  artifactLookupMs: number;
+  itemFetchMs: number;
+  definitionPreloadMs: number;
+  releaseWarmupMs: number;
+}
+
+export interface BrainRuntimeOntologyWarmupSummary {
+  state: BrainRuntimeOntologyWarmupState;
+  currentPhase: BrainRuntimeOntologyWarmupPhase | null;
+  latencyMs: number | null;
+  runtimeReleaseCount: number;
+  warmedReleaseCount: number;
+  cacheStatus: 'cold' | 'partial' | 'warm';
+  artifactSource: 'persistent' | 'computed' | 'memory' | 'mixed' | 'none';
+  phases: BrainRuntimeOntologyWarmupPhases;
+  completedAt: string | null;
+  failureCategory: 'database' | 'lineage' | 'validation' | 'system' | null;
+  failureReason: string | null;
+  performanceTargetMs: number;
+  performanceTargetMet: boolean;
+}
+
+export interface BrainRuntimeOntologyWarmupDetail extends Omit<BrainRuntimeOntologyWarmupSummary, 'runtimeReleaseCount'> {
+  startedAt: string | null;
+  activeReleaseCount: number;
+  warmedReleaseCount: number;
+  releases: Array<{
+    releaseId: number;
+    releaseStatus: 'active' | 'draft' | 'rolled_back' | 'archived';
+    mode: 'model' | 'shadow';
+    definitionVersionIds: number[];
+    capabilityCount: number;
+    ontologyFingerprint: string;
+    ontologyLatencyMs: number;
+    capabilityCatalogLatencyMs: number;
+    latencyMs: number;
+    artifactSource: 'persistent' | 'computed' | 'memory';
+    artifactBuiltAt: string | null;
+  }>;
 }
 
 export interface BrainLatencyMetricSummary {

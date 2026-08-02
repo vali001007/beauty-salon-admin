@@ -9,6 +9,8 @@ import {
 import { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { BrainDefinitionVersionBundleService } from '../brain/cognition/brain-definition-version-bundle.service.js';
+import { PublishedBusinessDefinitionSnapshotProviderService } from '../brain/cognition/published-business-definition-snapshot-provider.service.js';
 import type {
   CreateBusinessDefinitionDraftInput,
   ListBusinessDefinitionsDto,
@@ -48,9 +50,18 @@ const SERIALIZABLE_TRANSACTION_OPTIONS = {
   maxWait: 5_000,
   timeout: 30_000,
 } as const;
+const BUSINESS_DEFINITION_SNAPSHOT_TTL_MS = 30_000;
 
 @Injectable()
 export class BusinessDefinitionRegistryService {
+  private readonly publishedSnapshotCache = new Map<string, { value: unknown; expiresAt: number }>();
+  private readonly publishedSnapshotLoadings = new Map<string, Promise<unknown>>();
+  private readonly evaluationSnapshotCache = new Map<string, Promise<unknown>>();
+  private readonly evaluationSnapshotCacheMax = positiveInteger(
+    process.env.BRAIN_CAPABILITY_DEFINITION_SNAPSHOT_CACHE_MAX,
+    128,
+  );
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly projectionCompiler: BusinessDefinitionProjectionCompilerService,
@@ -58,6 +69,8 @@ export class BusinessDefinitionRegistryService {
     @Optional()
     @Inject(BUSINESS_METRIC_CATALOG_REFRESHER)
     private readonly metricCatalogRefresher?: BusinessMetricCatalogRefresher,
+    @Optional() private readonly definitionVersionBundle?: BrainDefinitionVersionBundleService,
+    @Optional() private readonly publishedSnapshotProvider?: PublishedBusinessDefinitionSnapshotProviderService,
   ) {}
 
   async list(query: ListBusinessDefinitionsDto = {}) {
@@ -206,7 +219,7 @@ export class BusinessDefinitionRegistryService {
       this.canonicalVerifier,
     );
 
-    return this.db().businessDefinitionVersion.update({
+    const validated = await this.db().businessDefinitionVersion.update({
       where: { id: versionId },
       data: {
         lifecycleStatus: report.passed ? 'validated' : 'draft',
@@ -217,6 +230,8 @@ export class BusinessDefinitionRegistryService {
       },
       include: VERSION_INCLUDE,
     });
+    await this.invalidateSnapshotCaches([versionId]);
+    return validated;
   }
 
   async validateVersionForEvaluation(versionId: number, input: ValidateBusinessDefinitionVersionInput) {
@@ -250,6 +265,7 @@ export class BusinessDefinitionRegistryService {
         })),
       });
     }
+    await this.invalidateSnapshotCaches([versionId]);
     return this.db().businessDefinitionVersion.findUnique({
       where: { id: versionId },
       include: VERSION_INCLUDE,
@@ -328,6 +344,7 @@ export class BusinessDefinitionRegistryService {
           }
           return published;
         }, SERIALIZABLE_TRANSACTION_OPTIONS);
+        await this.invalidateSnapshotCaches([versionId]);
         await this.metricCatalogRefresher?.refresh();
         return published;
       } catch (error) {
@@ -351,6 +368,29 @@ export class BusinessDefinitionRegistryService {
   }
 
   async getPublishedSnapshot(filters: { kind?: string; domain?: string } = {}) {
+    const cacheKey = `${filters.kind ?? '*'}:${filters.domain ?? '*'}`;
+    const cached = this.publishedSnapshotCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.value;
+    const existing = this.publishedSnapshotLoadings.get(cacheKey);
+    if (existing) return existing;
+    const loading = this.loadPublishedSnapshot(filters).then((value) => {
+      this.publishedSnapshotCache.set(cacheKey, {
+        value,
+        expiresAt: Date.now() + BUSINESS_DEFINITION_SNAPSHOT_TTL_MS,
+      });
+      return value;
+    });
+    this.publishedSnapshotLoadings.set(cacheKey, loading);
+    try {
+      return await loading;
+    } finally {
+      if (this.publishedSnapshotLoadings.get(cacheKey) === loading) {
+        this.publishedSnapshotLoadings.delete(cacheKey);
+      }
+    }
+  }
+
+  private async loadPublishedSnapshot(filters: { kind?: string; domain?: string } = {}) {
     const delegate = (this.prisma as unknown as { businessDefinition?: { findMany?: Function } }).businessDefinition;
     if (!delegate?.findMany) return this.getPublishedSnapshotFromSql(filters);
     const definitions = await this.db().businessDefinition.findMany({
@@ -397,41 +437,70 @@ export class BusinessDefinitionRegistryService {
   async getEvaluationSnapshot(candidateVersionIds: readonly number[]) {
     const uniqueIds = [...new Set(candidateVersionIds.filter((id) => Number.isInteger(id) && id > 0))];
     if (!uniqueIds.length) return this.getPublishedSnapshot();
-    const versions = await this.db().businessDefinitionVersion.findMany({
-      where: { id: { in: uniqueIds } },
-      select: {
-        id: true,
-        version: true,
-        schemaVersion: true,
-        payload: true,
-        lifecycleStatus: true,
-        fingerprint: true,
-        sourceFingerprint: true,
-        validationStatus: true,
-        validationReport: true,
-        canonicalQueryRef: true,
-        fixtureSetKey: true,
-        timezone: true,
-        storeScope: true,
-        definition: {
+    uniqueIds.sort((left, right) => left - right);
+    const cacheKey = uniqueIds.join(',');
+    const existing = this.evaluationSnapshotCache.get(cacheKey);
+    if (existing) return existing;
+    const loading = this.loadEvaluationSnapshot(uniqueIds);
+    this.evaluationSnapshotCache.set(cacheKey, loading);
+    trimOldest(this.evaluationSnapshotCache, this.evaluationSnapshotCacheMax);
+    try {
+      return await loading;
+    } catch (error) {
+      if (this.evaluationSnapshotCache.get(cacheKey) === loading) this.evaluationSnapshotCache.delete(cacheKey);
+      throw error;
+    }
+  }
+
+  private async loadEvaluationSnapshot(uniqueIds: readonly number[]) {
+    const bundleRows = this.definitionVersionBundle
+      ? [...(await this.definitionVersionBundle.load(uniqueIds)).rows]
+      : null;
+    const versions = bundleRows
+      ? bundleRows.map((version) => {
+          const capabilityProjections = version.projections.filter(
+            (projection) => projection.targetType === 'capability_semantic_view',
+          );
+          return {
+            ...version,
+            projections: capabilityProjections,
+          };
+        })
+      : await this.db().businessDefinitionVersion.findMany({
+          where: { id: { in: uniqueIds } },
           select: {
             id: true,
-            definitionKey: true,
-            kind: true,
-            domain: true,
-            name: true,
-            ownerType: true,
-            ownerId: true,
-            currentPublishedVersionId: true,
+            version: true,
+            schemaVersion: true,
+            payload: true,
+            lifecycleStatus: true,
+            fingerprint: true,
+            sourceFingerprint: true,
+            validationStatus: true,
+            validationReport: true,
+            canonicalQueryRef: true,
+            fixtureSetKey: true,
+            timezone: true,
+            storeScope: true,
+            definition: {
+              select: {
+                id: true,
+                definitionKey: true,
+                kind: true,
+                domain: true,
+                name: true,
+                ownerType: true,
+                ownerId: true,
+                currentPublishedVersionId: true,
+              },
+            },
+            projections: {
+              where: { targetType: 'capability_semantic_view' },
+              orderBy: [{ id: 'asc' }],
+            },
           },
-        },
-        projections: {
-          where: { targetType: 'capability_semantic_view' },
-          orderBy: [{ id: 'asc' }],
-        },
-      },
-      orderBy: [{ definition: { definitionKey: 'asc' } }, { version: 'asc' }],
-    });
+          orderBy: [{ definition: { definitionKey: 'asc' } }, { version: 'asc' }],
+        });
     if (versions.length !== uniqueIds.length) {
       const found = new Set(versions.map((version: any) => version.id));
       throw new Error(
@@ -489,6 +558,30 @@ export class BusinessDefinitionRegistryService {
     );
     const snapshotFingerprint = createHash('sha256').update(canonicalizeBusinessDefinition(definitions)).digest('hex');
     return deepFreeze({ snapshotFingerprint, definitions });
+  }
+
+  private async invalidateSnapshotCaches(definitionVersionIds?: readonly number[]): Promise<void> {
+    this.publishedSnapshotCache.clear();
+    this.evaluationSnapshotCache.clear();
+    this.definitionVersionBundle?.invalidate(definitionVersionIds);
+    this.publishedSnapshotProvider?.invalidateActiveDefinitions();
+    const artifactDelegate = (
+      this.prisma as unknown as {
+        brainWarmupArtifact?: {
+          updateMany?: (args: unknown) => Promise<unknown>;
+        };
+      }
+    ).brainWarmupArtifact;
+    await artifactDelegate?.updateMany?.({
+      where: { status: { in: ['building', 'ready'] } },
+      data: {
+        status: 'invalid',
+        errorCode: 'definition_identity_changed',
+        errorMessage: definitionVersionIds?.length
+          ? `definition_versions_changed:${definitionVersionIds.join(',')}`
+          : 'definition_versions_changed',
+      },
+    });
   }
 
   private async getPublishedSnapshotFromSql(filters: { kind?: string; domain?: string }) {
@@ -636,6 +729,19 @@ export class BusinessDefinitionRegistryService {
       throw new ConflictException('business_definition_reusable_draft_identity_mismatch');
     }
     return version;
+  }
+}
+
+function positiveInteger(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function trimOldest<K, V>(cache: Map<K, V>, maxEntries: number): void {
+  while (cache.size > maxEntries) {
+    const oldest = cache.keys().next().value as K | undefined;
+    if (oldest === undefined) return;
+    cache.delete(oldest);
   }
 }
 

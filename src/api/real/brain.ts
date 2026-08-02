@@ -28,6 +28,7 @@ import type {
   BrainGovernanceCandidateDetail,
   BrainGovernanceCandidateListResponse,
   BrainGovernanceOverview,
+  BrainRuntimeOntologyWarmupDetail,
   BrainGovernanceProcessLatencyResponse,
   BrainGovernanceQualityLatencyResponse,
   BrainGovernanceTask,
@@ -462,6 +463,14 @@ export async function createBrainRelease(payload: Record<string, unknown>) {
 
 export function getBrainGovernanceOverview(): Promise<BrainGovernanceOverview> {
   return governanceGet<BrainGovernanceOverview>('/brain/governance/overview');
+}
+
+export function getBrainRuntimeOntologyWarmup(): Promise<BrainRuntimeOntologyWarmupDetail | null> {
+  return governanceGet<BrainRuntimeOntologyWarmupDetail | null>('/brain/governance/runtime/ontology-warmup');
+}
+
+export function retryBrainRuntimeOntologyWarmup(): Promise<BrainRuntimeOntologyWarmupDetail | null> {
+  return apiClient.post('/brain/governance/runtime/ontology-warmup/retry', {});
 }
 
 export function getBrainGovernanceProcessLatency(params: {

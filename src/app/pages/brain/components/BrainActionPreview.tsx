@@ -5,6 +5,7 @@ interface BrainActionPreviewProps {
   action: BrainActionPreviewType;
   result?: BrainActionDecisionResponse;
   loading?: boolean;
+  executionEnabled?: boolean;
   onConfirm: () => void;
   onReject: () => void;
   onRetry: () => void;
@@ -28,7 +29,15 @@ const statusLabels: Record<BrainActionDecisionResponse['status'], string> = {
   rejected: '已拒绝该动作',
 };
 
-export function BrainActionPreview({ action, result, loading, onConfirm, onReject, onRetry }: BrainActionPreviewProps) {
+export function BrainActionPreview({
+  action,
+  result,
+  loading,
+  executionEnabled = true,
+  onConfirm,
+  onReject,
+  onRetry,
+}: BrainActionPreviewProps) {
   const receipt = result?.receipt;
   const businessResult = receipt?.result && typeof receipt.result === 'object' && !Array.isArray(receipt.result)
     ? receipt.result as Record<string, unknown>
@@ -41,7 +50,9 @@ export function BrainActionPreview({ action, result, loading, onConfirm, onRejec
         <div className="min-w-0">
           <div className="text-sm font-medium text-foreground">{action.summary}</div>
           <div className="mt-1 text-xs text-muted-foreground">
-            {riskLabels[action.riskLevel]} · 确认后将执行真实业务写入并生成回执
+            {riskLabels[action.riskLevel]} · {executionEnabled
+              ? '确认后将执行真实业务写入并生成回执'
+              : '当前试运行版本仅开放查询，真实业务写入已禁用'}
           </div>
         </div>
       </div>
@@ -64,7 +75,7 @@ export function BrainActionPreview({ action, result, loading, onConfirm, onRejec
               type="button"
               className="mt-2 inline-flex h-8 items-center justify-center gap-1 rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground disabled:opacity-60"
               onClick={onRetry}
-              disabled={loading}
+              disabled={loading || !executionEnabled}
             >
               {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
               重试执行
@@ -80,10 +91,10 @@ export function BrainActionPreview({ action, result, loading, onConfirm, onRejec
             type="button"
             className="inline-flex h-8 flex-1 items-center justify-center gap-1 rounded-md bg-primary px-2 text-xs font-medium text-primary-foreground disabled:opacity-60"
             onClick={onConfirm}
-            disabled={loading}
+            disabled={loading || !executionEnabled}
           >
             {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-            确认执行
+            {executionEnabled ? '确认执行' : '查询版不可执行'}
           </button>
           <button
             type="button"

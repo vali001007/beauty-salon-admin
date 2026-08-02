@@ -86,6 +86,7 @@ import { BrainEvalService } from './governance/brain-eval.service.js';
 import { BrainFeedbackService } from './governance/brain-feedback.service.js';
 import { BrainReleaseService } from './governance/brain-release.service.js';
 import { BrainActiveReleaseWarmupService } from './governance/brain-active-release-warmup.service.js';
+import { BrainWarmupArtifactService } from './governance/brain-warmup-artifact.service.js';
 import { BrainTraceService } from './governance/brain-trace.service.js';
 import { BrainGovernanceResourceService } from './governance/brain-governance-resource.service.js';
 import { BrainGovernanceApprovalService } from './governance/brain-governance-approval.service.js';
@@ -249,6 +250,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BrainCapabilityRegenerationService,
     BrainCapabilityRegenerationWorkerService,
     BrainEvalService,
+    BrainWarmupArtifactService,
     BrainActiveReleaseWarmupService,
     BrainReleaseService,
     BrainFeedbackService,

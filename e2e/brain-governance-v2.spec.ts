@@ -421,7 +421,22 @@ async function installGovernanceMocks(
       latestPolicySnapshot: { id: 7, releaseKey: 'governance-v7', scope: 'governance_policy', rollout: {}, status: 'active', createdAt: '2026-08-01T00:00:00.000Z' },
       runtimeRelease: { id: 416, releaseKey: 'runtime-r416', scope: 'global', rollout: {}, status: 'active', createdAt: '2026-07-22T00:00:00.000Z' },
       runtimeConsistency: 'policy_published_runtime_pending',
+      runtimeGovernance: null,
       efficiency: { completed7d: 4, p50DurationMs: 2000, p95DurationMs: 5000, autoAdmissionRate: 0.5, manualOverrideRate: 0.25 },
+      runtimeWarmup: {
+        state: 'ready', currentPhase: null, latencyMs: 19_345, runtimeReleaseCount: 2, warmedReleaseCount: 2,
+        cacheStatus: 'warm', artifactSource: 'persistent',
+        phases: { releaseDiscoveryMs: 1996, artifactLookupMs: 17_349, itemFetchMs: 0, definitionPreloadMs: 0, releaseWarmupMs: 0 },
+        completedAt: '2026-08-02T08:00:00.000Z', failureCategory: null, failureReason: null,
+        performanceTargetMs: 10_000, performanceTargetMet: false,
+      },
+    });
+    if (path === '/brain/governance/runtime/ontology-warmup' && request.method() === 'GET') return fulfillJson(route, {
+      state: 'ready', currentPhase: null, startedAt: '2026-08-02T07:59:40.655Z', completedAt: '2026-08-02T08:00:00.000Z',
+      latencyMs: 19_345, activeReleaseCount: 2, warmedReleaseCount: 2, cacheStatus: 'warm', artifactSource: 'persistent',
+      phases: { releaseDiscoveryMs: 1996, artifactLookupMs: 17_349, itemFetchMs: 0, definitionPreloadMs: 0, releaseWarmupMs: 0 },
+      releases: [{ releaseId: 416, releaseStatus: 'active', mode: 'model', definitionVersionIds: [42], capabilityCount: 41, ontologyFingerprint: 'a'.repeat(64), ontologyLatencyMs: 0, capabilityCatalogLatencyMs: 0, latencyMs: 0, artifactSource: 'persistent', artifactBuiltAt: '2026-08-02T07:00:00.000Z' }],
+      failureCategory: null, failureReason: null, performanceTargetMs: 10_000, performanceTargetMet: false,
     });
     if (path === '/brain/governance/quality/latency' && request.method() === 'GET') {
       return fulfillJson(route, {
@@ -713,6 +728,12 @@ test('governance overview opens a URL-restorable pending approval filter', async
   await expect(page.getByRole('link', { name: '策略与发布' })).toBeVisible();
   await expect(page.getByRole('link', { name: '技能治理' })).toHaveCount(0);
   await expect(page.getByText('策略已发布，运行待接入')).toBeVisible();
+  await expect(page.getByText('19.3 秒', { exact: true })).toBeVisible();
+  await expect(page.getByText('2/2 Release')).toBeVisible();
+  await page.getByRole('button', { name: '查看详情' }).click();
+  await expect(page.getByRole('heading', { name: 'Ontology 运行准备详情' })).toBeVisible();
+  await expect(page.getByText('17.3 秒')).toBeVisible();
+  await page.getByRole('button', { name: 'Close' }).click();
   await page.getByRole('button', { name: /待审批/ }).click();
   await expect(page).toHaveURL(/\/brain-governance\/workbench\?tab=tasks&status=pending_approval$/);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

@@ -951,6 +951,23 @@ describe('BrainOntologyRuntimeService', () => {
     expect(loadEvaluationDefinitions).toHaveBeenCalledWith([11, 12]);
   });
 
+  it('rebuilds an evaluation snapshot when the provider identity changes', async () => {
+    const { runtime, provider } = runtimeFor(validInput(), 'rules');
+    const loadEvaluationDefinitions = jest.fn().mockResolvedValue(validInput());
+    const getEvaluationCacheIdentity = jest
+      .fn()
+      .mockResolvedValueOnce('bundle-v1')
+      .mockResolvedValueOnce('bundle-v2');
+    (provider as BusinessDefinitionSnapshotProvider).loadEvaluationDefinitions = loadEvaluationDefinitions;
+    (provider as BusinessDefinitionSnapshotProvider).getEvaluationCacheIdentity = getEvaluationCacheIdentity;
+
+    await runtime.loadEvaluationSnapshot([31]);
+    await runtime.loadEvaluationSnapshot([31]);
+
+    expect(getEvaluationCacheIdentity).toHaveBeenCalledTimes(2);
+    expect(loadEvaluationDefinitions).toHaveBeenCalledTimes(2);
+  });
+
   it('evicts a failed evaluation snapshot load so the next request can recover', async () => {
     const { runtime, provider } = runtimeFor(validInput(), 'rules');
     const loadEvaluationDefinitions = jest
