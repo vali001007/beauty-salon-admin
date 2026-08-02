@@ -22,7 +22,7 @@ GRANT USAGE ON SCHEMA public TO ask_data_free_sql_readonly;
 REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM ask_data_free_sql_readonly;
 REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM ask_data_free_sql_readonly;
 
--- The first phase reads only the 13 registered views. No base-table access is granted.
+-- Ami Ask reads only the 34 registered views. No base-table access is granted.
 GRANT SELECT ON
   agent_v3_order_summary_view,
   agent_v3_order_item_sales_view,
@@ -32,11 +32,32 @@ GRANT SELECT ON
   agent_v3_product_inventory_view,
   agent_v3_stock_movement_view,
   agent_v3_inventory_scrap_view,
-  agent_v3_customer_profile_summary_view,
+  ask_data_customer_profile_summary_view,
   agent_v3_staff_profile_view,
-  agent_v3_staff_performance_view,
+  ask_data_staff_performance_view,
   agent_v3_reservation_view,
-  agent_v3_marketing_conversion_view
+  agent_v3_marketing_conversion_view,
+  agent_v3_card_asset_view,
+  agent_v3_card_usage_view,
+  agent_v3_customer_balance_view,
+  agent_v3_service_quality_view,
+  agent_v3_appointment_gap_view,
+  agent_v3_project_catalog_view,
+  agent_v3_marketing_activity_view,
+  agent_v3_marketing_automation_view,
+  agent_v3_promotion_offer_view,
+  ask_data_operating_cost_view,
+  agent_v3_purchase_procurement_view,
+  agent_v3_supplier_performance_view,
+  ask_data_confirmed_profit_view,
+  ask_data_reconciliation_issue_view,
+  ask_data_member_liability_view,
+  ask_data_staff_capacity_view,
+  ask_data_transfer_status_view,
+  ask_data_bom_consumption_variance_view,
+  ask_data_customer_feedback_view,
+  ask_data_customer_lifecycle_view,
+  ask_data_marketing_roi_view
 TO ask_data_free_sql_readonly;
 
 ALTER ROLE ask_data_free_sql_readonly SET default_transaction_read_only = on;

@@ -17,7 +17,7 @@ import { config as loadEnv } from 'dotenv';
 import pg from 'pg';
 
 const { Client } = pg;
-const TARGET_MIGRATION = '20260801020000_ask_data_free_sql';
+const TARGET_MIGRATION = '20260802121500_ask_data_service_quality_status_contract';
 const EXCLUDED_BRAIN_MIGRATION = '20260801010000_brain_governance_tasks_and_gate_receipts';
 const packageRoot = resolve(import.meta.dirname, '..');
 const prismaRoot = join(packageRoot, 'prisma');
@@ -61,7 +61,7 @@ try {
     if (
       after.blockers.length ||
       !after.targetApplied ||
-      after.excludedBrainMigrationApplied ||
+      after.excludedBrainMigrationApplied !== before.excludedBrainMigrationApplied ||
       !after.auditTablePresent
     ) {
       process.exitCode = 1;
@@ -92,14 +92,14 @@ function inspectLocalMigrations() {
   if (laterMigrations.length) {
     throw new Error(`Refusing because later migrations exist: ${laterMigrations.join(', ')}`);
   }
-  const selectedMigrations = names.filter((name) => name !== EXCLUDED_BRAIN_MIGRATION);
+  // The shared development database can contain unrelated migration-history
+  // differences. Copy only the Ask target so Prisma cannot opportunistically
+  // deploy another product line while completing this isolated rollout.
+  const selectedMigrations = [TARGET_MIGRATION];
   const targetSql = readFileSync(join(migrationsRoot, TARGET_MIGRATION, 'migration.sql'));
   return {
     names,
     selectedMigrations,
-    predecessorMigrations: names.filter(
-      (name) => name.localeCompare(TARGET_MIGRATION) < 0 && name !== EXCLUDED_BRAIN_MIGRATION,
-    ),
     targetChecksum: sha256(targetSql),
   };
 }
@@ -114,7 +114,6 @@ async function inspectDatabase(db, local) {
       targetApplied: false,
       excludedBrainMigrationApplied: false,
       auditTablePresent: false,
-      missingPredecessors: local.predecessorMigrations,
       failedMigrations: [],
       targetChecksumMatches: false,
     };
@@ -135,9 +134,8 @@ async function inspectDatabase(db, local) {
   const completedRows = (name) =>
     (rowsByName.get(name) ?? []).filter((row) => Boolean(row.finished_at && !row.rolled_back_at));
   const completed = (name) => completedRows(name).length > 0;
-  const missingPredecessors = local.predecessorMigrations.filter((name) => !completed(name));
-  const failedMigrations = local.names.filter(
-    (name) => (rowsByName.get(name) ?? []).length > 0 && !completed(name),
+  const failedMigrations = local.names.filter((name) =>
+    (rowsByName.get(name) ?? []).some((row) => !row.finished_at && !row.rolled_back_at),
   );
   const target = completedRows(TARGET_MIGRATION).at(-1);
   const targetApplied = completed(TARGET_MIGRATION);
@@ -147,7 +145,6 @@ async function inspectDatabase(db, local) {
     "SELECT to_regclass('public.ask_data_free_sql_runs') IS NOT NULL AS present",
   );
   const blockers = [];
-  if (missingPredecessors.length) blockers.push('predecessor_migrations_missing');
   if (failedMigrations.length) blockers.push('failed_or_rolled_back_migrations_present');
   if (!targetChecksumMatches) blockers.push('target_checksum_mismatch');
   if (targetApplied && !auditTable.rows[0]?.present) blockers.push('target_applied_but_audit_table_missing');
@@ -156,7 +153,6 @@ async function inspectDatabase(db, local) {
     targetApplied,
     excludedBrainMigrationApplied,
     auditTablePresent: Boolean(auditTable.rows[0]?.present),
-    missingPredecessors,
     failedMigrations,
     targetChecksumMatches,
   };
@@ -217,9 +213,9 @@ function printSummary(phase, state, local, hostname) {
         isolatedMigrationCount: local.selectedMigrations.length,
         targetApplied: state.targetApplied,
         excludedBrainMigrationApplied: state.excludedBrainMigrationApplied,
+        excludedBrainMigrationPolicy: 'preserve_existing_state',
         auditTablePresent: state.auditTablePresent,
         targetChecksumMatches: state.targetChecksumMatches,
-        missingPredecessors: state.missingPredecessors,
         failedMigrations: state.failedMigrations,
         blockers: state.blockers,
       },

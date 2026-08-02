@@ -42,6 +42,14 @@ const STRUCTURAL_IDENTIFIERS = new Set([
   'with',
   'by',
   'on',
+  'case',
+  'when',
+  'then',
+  'else',
+  'end',
+  'nulls',
+  'first',
+  'last',
 ]);
 
 @Injectable()
@@ -83,7 +91,7 @@ export class ReadOnlySqlGuard {
       return this.block('view_join_not_allowed', '当前数据域不允许跨视图关联。', sql, parsed, fingerprint);
     }
 
-    const permissionFailure = selectedViews.find((view) => !this.hasPermission(view, context));
+    const permissionFailure = selectedViews.find((view) => !hasReadOnlySqlViewPermission(view, context));
     if (permissionFailure) {
       return this.block(
         'permission_denied',
@@ -100,6 +108,28 @@ export class ReadOnlySqlGuard {
     );
     if (unsupportedFunction) {
       return this.block('function_not_allowed', `函数 ${unsupportedFunction} 未进入白名单。`, sql, parsed, fingerprint);
+    }
+    if (/:(?:startAt|endAt)\s*[+-]\s*INTERVAL\b/i.test(sql)) {
+      return this.block(
+        'ambiguous_interval_parameter_type',
+        '日期参数参与 INTERVAL 运算前必须显式转换为与目录字段一致的 date 或 timestamp 类型。',
+        sql,
+        parsed,
+        fingerprint,
+      );
+    }
+    if (
+      /(?:date_trunc|extract|coalesce|greatest|least)\s*\([^)]*:(?:startAt|endAt)(?!\s*::\s*(?:date|timestamp|timestamptz)\b)/i.test(
+        sql,
+      )
+    ) {
+      return this.block(
+        'ambiguous_date_parameter_type',
+        '日期参数作为函数参数时必须显式转换为与目录字段一致的 date、timestamp 或 timestamptz 类型。',
+        sql,
+        parsed,
+        fingerprint,
+      );
     }
 
     const policies = this.fieldPolicies(selectedViews);
@@ -199,15 +229,6 @@ export class ReadOnlySqlGuard {
       ],
       sqlFingerprint: this.parser.fingerprint(safeSql),
     };
-  }
-
-  private hasPermission(view: ReadOnlySqlView, context: ReadOnlySqlRequestContext) {
-    if (context.permissions.includes('*')) return true;
-    const denied = new Set(context.deniedPermissions ?? []);
-    if (view.requiredPermissions.some((permission) => denied.has(permission))) return false;
-    return view.permissionMode === 'any'
-      ? view.requiredPermissions.some((permission) => context.permissions.includes(permission))
-      : view.requiredPermissions.every((permission) => context.permissions.includes(permission));
   }
 
   private fieldPolicies(views: ReadOnlySqlView[]) {
@@ -382,4 +403,16 @@ export class ReadOnlySqlGuard {
       sqlFingerprint: fingerprint,
     };
   }
+}
+
+export function hasReadOnlySqlViewPermission(
+  view: ReadOnlySqlView,
+  context: Pick<ReadOnlySqlRequestContext, 'permissions' | 'deniedPermissions'>,
+) {
+  const denied = new Set(context.deniedPermissions ?? []);
+  if (view.requiredPermissions.some((permission) => denied.has(permission))) return false;
+  if (context.permissions.includes('*')) return true;
+  return view.permissionMode === 'any'
+    ? view.requiredPermissions.some((permission) => context.permissions.includes(permission))
+    : view.requiredPermissions.every((permission) => context.permissions.includes(permission));
 }

@@ -105,11 +105,48 @@ describe('ReadOnlySqlGuard', () => {
     expect(result.status).toBe('pass');
   });
 
+  it('allows a bounded CASE expression over registered fields', () => {
+    const result = guard.inspect(
+      'SELECT strategy_name, CASE WHEN SUM(marketing_cost) = 0 THEN NULL ELSE SUM(attributed_net_revenue) / SUM(marketing_cost) END AS roi FROM ask_data_marketing_roi_view m GROUP BY strategy_name ORDER BY roi DESC NULLS LAST LIMIT 20',
+      ASK_DATA_FREE_SQL_VIEWS,
+      { ...context, permissions: ['core:marketing:analytics'] },
+    );
+    expect(result.status).toBe('pass');
+  });
+
   it('allows a catalog date field to use the explicit PostgreSQL date cast', () => {
     const result = guard.inspect(
       'SELECT settlement_date::date AS settlement_day, SUM(net_amount) AS settled_amount FROM agent_v3_daily_settlement_view f GROUP BY settlement_date::date ORDER BY settlement_day LIMIT 31',
       ASK_DATA_FREE_SQL_VIEWS,
       { ...context, permissions: ['core:finance:view'] },
+    );
+    expect(result.status).toBe('pass');
+  });
+
+  it('blocks ambiguous date-parameter interval arithmetic before database execution', () => {
+    const result = guard.inspect(
+      "SELECT customer_id FROM ask_data_customer_profile_summary_view c WHERE COALESCE(last_visit_at, :startAt - INTERVAL '1 day') < :startAt LIMIT 20",
+      ASK_DATA_FREE_SQL_VIEWS,
+      { ...context, permissions: ['core:customer:view'] },
+    );
+    expect(result.status).toBe('blocked');
+    expect(result.status === 'blocked' && result.reasonCode).toBe('ambiguous_interval_parameter_type');
+  });
+
+  it.each([
+    "SELECT COUNT(service_task_id) FROM agent_v3_service_quality_view s WHERE DATE_TRUNC('month', completed_at) = DATE_TRUNC('month', :startAt) LIMIT 1",
+    'SELECT customer_id FROM ask_data_customer_profile_summary_view c WHERE COALESCE(last_visit_at, :startAt) < :endAt LIMIT 20',
+  ])('blocks an untyped date parameter used inside a function: %s', (sql) => {
+    const result = guard.inspect(sql, ASK_DATA_FREE_SQL_VIEWS, { ...context, permissions: ['*'] });
+    expect(result.status).toBe('blocked');
+    expect(result.status === 'blocked' && result.reasonCode).toBe('ambiguous_date_parameter_type');
+  });
+
+  it('allows explicitly typed date parameters inside functions', () => {
+    const result = guard.inspect(
+      "SELECT COUNT(service_task_id) FROM agent_v3_service_quality_view s WHERE DATE_TRUNC('month', completed_at) = DATE_TRUNC('month', :startAt::timestamp) LIMIT 1",
+      ASK_DATA_FREE_SQL_VIEWS,
+      { ...context, permissions: ['*'] },
     );
     expect(result.status).toBe('pass');
   });
@@ -136,6 +173,18 @@ describe('ReadOnlySqlGuard', () => {
     );
     expect(denied.status).toBe('blocked');
     expect(denied.status === 'blocked' && denied.reasonCode).toBe('permission_denied');
+
+    const wildcardDenied = guard.inspect(
+      'SELECT settlement_date, net_amount FROM agent_v3_daily_settlement_view f LIMIT 10',
+      ASK_DATA_FREE_SQL_VIEWS,
+      {
+        ...context,
+        permissions: ['*'],
+        deniedPermissions: ['core:finance:view'],
+      },
+    );
+    expect(wildcardDenied.status).toBe('blocked');
+    expect(wildcardDenied.status === 'blocked' && wildcardDenied.reasonCode).toBe('permission_denied');
   });
 
   it('allows a limited CTE only when scope and time are explicit', () => {

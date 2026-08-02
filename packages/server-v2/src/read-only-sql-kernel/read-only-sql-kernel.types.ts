@@ -12,6 +12,10 @@ export type ReadOnlySqlView = {
   label: string;
   domain: string;
   description: string;
+  keywords?: string[];
+  dataPolicy?: string;
+  noDataHint?: string;
+  freshnessField?: string;
   requiredPermissions: string[];
   permissionMode?: 'all' | 'any';
   storeScopeField?: string;
