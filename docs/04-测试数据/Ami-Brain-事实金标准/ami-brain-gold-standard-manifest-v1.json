@@ -11,7 +11,7 @@
     "standardRegressionSuiteKey": "ami_brain_standard_regression_v2",
     "standardRegressionCaseIdsChecksum": "d1a8afc646f802da057a3fe9b4e806b9b86bf5ef31807d525ff8cad572fca98f",
     "productLoopEligibilityPath": "docs/04-测试数据/Ami-Brain-全领域题集治理/ami-brain-product-loop-eligibility-v1.json",
-    "productLoopEligibilityChecksum": "e5cdcc334b0f4f942ffb8fee26c6f7feae9bc859f14cba0df6c5cb2f8ca41bf8",
+    "productLoopEligibilityChecksum": "df4e1cb012f4a377c5a2d4f50e849bd945c6b2801db826521b7c0edf5b8fac8a",
     "releaseCapabilitySnapshot": {
       "releaseId": 416,
       "releaseKey": "ami-brain-production-baseline-p0-release-20260722-full",
