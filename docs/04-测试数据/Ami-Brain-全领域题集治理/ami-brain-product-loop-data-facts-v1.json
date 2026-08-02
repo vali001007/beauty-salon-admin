@@ -1,12 +1,12 @@
 {
   "schemaVersion": "ami-brain-product-loop-data-facts/v1",
-  "generatedAt": "2026-08-01T16:42:19.204Z",
+  "generatedAt": "2026-08-01T22:12:39.161Z",
   "environment": "approved_supabase_development_read_only",
   "databaseHost": "aws-1-ap-northeast-1.pooler.supabase.com",
   "storeId": 6,
   "schemaPath": "packages/server-v2/prisma/schema.prisma",
-  "schemaChecksum": "042aab4a622df408c914f5244611e93ac7b19bc3cd219d04f20e34b8e9212550",
-  "snapshotChecksum": "176075481dff65b7d201d10723ba8390840eb5a3006876fdbc9e8518a1a9c57a",
+  "schemaChecksum": "a8a4cbfb50cf6ac62fe98e36345516e7640afd49ff882ac19e7a88e5d4d52b48",
+  "snapshotChecksum": "c1d04ff1c493e40df532257256b90fd8db7a6bbfa93987e215cfb2394f2ff254",
   "summary": {
     "featureCount": 32,
     "present": 32,
@@ -855,7 +855,7 @@
         {
           "model": "DailySettlement",
           "status": "queried",
-          "count": 42,
+          "count": 43,
           "scope": "storeId=6"
         },
         {
@@ -899,7 +899,7 @@
         {
           "model": "DailySettlement",
           "status": "queried",
-          "count": 42,
+          "count": 43,
           "scope": "storeId=6"
         },
         {
