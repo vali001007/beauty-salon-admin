@@ -3,6 +3,11 @@ import https from 'node:https';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  describeApiHealthFailure,
+  isHealthyHttpStatus,
+  shouldRecycleManagedApi,
+} from './dev-local-health.mjs';
 
 const rawArgs = process.argv.slice(2);
 const args = new Set(rawArgs);
@@ -17,6 +22,8 @@ const apiHealthUrl = new URL(healthPath, apiTarget);
 const waitTimeoutMs = Number(process.env.VITE_API_WAIT_TIMEOUT_MS || 120000);
 const waitIntervalMs = Number(process.env.VITE_API_WAIT_INTERVAL_MS || 1500);
 const apiWatchIntervalMs = Number(process.env.VITE_API_WATCH_INTERVAL_MS || 15000);
+const apiRestartAfterFailures = positiveInteger(process.env.VITE_API_RESTART_AFTER_FAILURES, 3);
+const apiRestartDelayMs = positiveInteger(process.env.VITE_API_RESTART_DELAY_MS, 1000);
 const apiWatchDisabled = args.has('--no-api-watch') || process.env.VITE_API_WATCH === '0';
 const webCwd = path.resolve(repoRoot, getArg('--web-cwd', '.'));
 const webScript = getArg('--web-script', 'dev:web');
@@ -24,6 +31,13 @@ const webHost = getArg('--web-host', process.env.VITE_DEV_HOST || '127.0.0.1');
 const webPort = getArg('--web-port', process.env.VITE_DEV_PORT || '5173');
 const webLabel = getArg('--web-label', 'admin web app');
 const fullCommand = getArg('--full-command', 'npm.cmd run dev:full');
+const children = new Set();
+let apiProcess = null;
+let webProcess = null;
+let apiWatchRunning = false;
+let consecutiveApiHealthFailures = 0;
+let apiWatchTimer = null;
+let shuttingDown = false;
 
 function getArg(name, fallback) {
   const index = rawArgs.indexOf(name);
@@ -32,6 +46,11 @@ function getArg(name, fallback) {
   }
   const value = rawArgs[index + 1];
   return value && !value.startsWith('--') ? value : fallback;
+}
+
+function positiveInteger(value, fallback) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function requestApi() {
@@ -46,9 +65,11 @@ function requestApi() {
       (res) => {
         res.resume();
         res.on('end', () => {
+          const status = res.statusCode ?? 0;
           resolve({
-            ok: true,
-            status: res.statusCode,
+            ok: isHealthyHttpStatus(status),
+            reachable: true,
+            status,
           });
         });
       },
@@ -61,6 +82,7 @@ function requestApi() {
     req.on('error', (error) => {
       resolve({
         ok: false,
+        reachable: false,
         error,
       });
     });
@@ -72,7 +94,7 @@ function requestApi() {
 async function ensureApi(options = {}) {
   const shouldWait = Boolean(options.wait);
   const startedAt = Date.now();
-  let lastError = null;
+  let lastResult = null;
 
   while (Date.now() - startedAt < waitTimeoutMs) {
     const result = await requestApi();
@@ -83,14 +105,14 @@ async function ensureApi(options = {}) {
       return true;
     }
 
-    lastError = result.error;
+    lastResult = result;
     if (!shouldWait) {
       break;
     }
     await new Promise((resolve) => setTimeout(resolve, waitIntervalMs));
   }
 
-  const message = lastError ? `${lastError.code || lastError.name || 'ERROR'} ${lastError.message || ''}`.trim() : 'unknown error';
+  const message = describeApiHealthFailure(lastResult);
   console.error(`[dev-local] API is not reachable: ${apiHealthUrl.href}`);
   console.error(`[dev-local] Last error: ${message}`);
   console.error('[dev-local] Start the backend with: npm.cmd run dev:api');
@@ -102,6 +124,7 @@ function spawnNpm(label, commandArgs, cwd = repoRoot) {
   const child = spawn(npmCommand, commandArgs, {
     stdio: ['ignore', 'pipe', 'pipe'],
     shell: process.platform === 'win32',
+    detached: process.platform !== 'win32',
     env: process.env,
     cwd,
   });
@@ -118,6 +141,14 @@ function spawnNpm(label, commandArgs, cwd = repoRoot) {
 
 function stopChild(child) {
   if (child && child.exitCode === null && child.signalCode === null) {
+    if (process.platform !== 'win32' && child.pid) {
+      try {
+        process.kill(-child.pid, 'SIGTERM');
+        return;
+      } catch {
+        // Fall back to the direct child when the process group has already exited.
+      }
+    }
     child.kill('SIGTERM');
   }
 }
@@ -126,8 +157,49 @@ function isChildRunning(child) {
   return Boolean(child && child.exitCode === null && child.signalCode === null);
 }
 
+function trackChild(child, role) {
+  children.add(child);
+  child.on('exit', (code) => {
+    children.delete(child);
+    if (shuttingDown) return;
+    if (role === 'web' && child === webProcess) {
+      shutdown(code ?? 0);
+      return;
+    }
+    if (role === 'api' && child === apiProcess) {
+      apiProcess = null;
+      console.error(`[dev-local] Managed API process exited with code ${code ?? 0}; health watcher will restart it.`);
+    }
+  });
+  return child;
+}
+
 function startApi() {
-  return spawnNpm('api', ['run', 'dev:api'], repoRoot);
+  return trackChild(spawnNpm('api', ['run', 'dev:api'], repoRoot), 'api');
+}
+
+function waitForExit(child, timeoutMs = 5000) {
+  if (!isChildRunning(child)) return Promise.resolve();
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, timeoutMs);
+    child.once('exit', () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
+async function recycleApiProcess(reason) {
+  const previous = apiProcess;
+  apiProcess = null;
+  if (previous) {
+    console.error(`[dev-local] Recycling unhealthy server-v2 process: ${reason}`);
+    const exited = waitForExit(previous);
+    stopChild(previous);
+    await exited;
+  }
+  await new Promise((resolve) => setTimeout(resolve, apiRestartDelayMs));
+  apiProcess = startApi();
 }
 
 if (checkOnly && process.env.VITE_API_MODE === 'mock') {
@@ -141,14 +213,16 @@ if (checkOnly) {
 }
 
 const initial = await requestApi();
-let apiProcess = null;
-let apiWatchRunning = false;
 
 if (process.env.VITE_API_MODE === 'mock') {
   console.log(`[dev-local] VITE_API_MODE=mock, starting ${webLabel} only.`);
 } else if (!initial.ok) {
-  console.log('[dev-local] API is not running, starting server-v2 first...');
-  apiProcess = startApi();
+  if (initial.reachable) {
+    console.log(`[dev-local] API is reachable but not ready (${describeApiHealthFailure(initial)}), waiting...`);
+  } else {
+    console.log('[dev-local] API is not running, starting server-v2 first...');
+    apiProcess = startApi();
+  }
   const apiReady = await ensureApi({ wait: true });
   if (!apiReady) {
     stopChild(apiProcess);
@@ -159,9 +233,10 @@ if (process.env.VITE_API_MODE === 'mock') {
 }
 
 console.log(`[dev-local] Starting ${webLabel} on http://${webHost}:${webPort} ...`);
-const webProcess = spawnNpm('web', ['run', webScript, '--', '--host', webHost, '--port', webPort], webCwd);
-const children = [apiProcess, webProcess].filter(Boolean);
-let apiWatchTimer = null;
+webProcess = trackChild(
+  spawnNpm('web', ['run', webScript, '--', '--host', webHost, '--port', webPort], webCwd),
+  'web',
+);
 
 async function watchApiHealth() {
   if (apiWatchRunning || process.env.VITE_API_MODE === 'mock') {
@@ -171,23 +246,35 @@ async function watchApiHealth() {
   try {
     const result = await requestApi();
     if (result.ok) {
+      consecutiveApiHealthFailures = 0;
       return;
     }
 
-    const message = result.error
-      ? `${result.error.code || result.error.name || 'ERROR'} ${result.error.message || ''}`.trim()
-      : 'unknown error';
+    consecutiveApiHealthFailures += 1;
+    const message = describeApiHealthFailure(result);
     console.error(`[dev-local] API health check failed: ${message}`);
+    let restarted = false;
 
-    if (!isChildRunning(apiProcess)) {
+    if (!apiProcess && !result.reachable) {
       console.error('[dev-local] Restarting server-v2 for the running web app...');
       apiProcess = startApi();
-      if (!children.includes(apiProcess)) {
-        children.push(apiProcess);
-      }
+      restarted = true;
+    } else if (
+      shouldRecycleManagedApi({
+        managed: Boolean(apiProcess),
+        running: isChildRunning(apiProcess),
+        consecutiveFailures: consecutiveApiHealthFailures,
+        restartAfterFailures: apiRestartAfterFailures,
+      })
+    ) {
+      await recycleApiProcess(`${consecutiveApiHealthFailures} consecutive health failures; last=${message}`);
+      restarted = true;
     }
 
-    await ensureApi({ wait: true });
+    if (restarted && apiProcess) {
+      const ready = await ensureApi({ wait: true });
+      if (ready) consecutiveApiHealthFailures = 0;
+    }
   } finally {
     apiWatchRunning = false;
   }
@@ -200,6 +287,8 @@ if (!apiWatchDisabled && process.env.VITE_API_MODE !== 'mock') {
 }
 
 function shutdown(code = 0) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   if (apiWatchTimer) {
     clearInterval(apiWatchTimer);
   }
@@ -211,9 +300,3 @@ function shutdown(code = 0) {
 
 process.on('SIGINT', () => shutdown(0));
 process.on('SIGTERM', () => shutdown(0));
-
-for (const child of children) {
-  child.on('exit', (code) => {
-    shutdown(code ?? 0);
-  });
-}
