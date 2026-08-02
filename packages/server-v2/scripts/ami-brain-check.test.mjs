@@ -6,6 +6,7 @@ import test from 'node:test';
 import { createReceiptUploadHeaders, writeReceiptArtifacts } from './ami-brain-check.mjs';
 import manifest from './ami-brain-check-impact-map.json' with { type: 'json' };
 import {
+  GATE_CATALOG,
   checksum,
   createGateInputChecksum,
   createIdentity,
@@ -22,6 +23,17 @@ import {
   withReleaseCandidateCloseGate,
   withResolvedCapabilities,
 } from './ami-brain-check-core.mjs';
+
+test('candidate migration gate explicitly authorizes isolated database creation', () => {
+  assert.deepEqual(GATE_CATALOG.migration_contract.command, [
+    'npm',
+    'run',
+    'brain:migration:acceptance',
+    '--',
+    '--apply',
+    '--yes',
+  ]);
+});
 
 test('parses the four gate stages', () => {
   assert.equal(parseArgs(['--stage=candidate', '--dry-run']).stage, 'candidate');

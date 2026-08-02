@@ -71,7 +71,7 @@ export const GATE_CATALOG = Object.freeze({
   },
   migration_contract: {
     cwd: 'packages/server-v2',
-    command: ['npm', 'run', 'brain:migration:acceptance'],
+    command: ['npm', 'run', 'brain:migration:acceptance', '--', '--apply', '--yes'],
     description: 'Brain 隔离迁移验收',
   },
   release_acceptance: {
