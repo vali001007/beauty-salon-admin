@@ -1,11 +1,11 @@
 {
   "schemaVersion": "ami-brain-product-loop-data-facts/v1",
-  "generatedAt": "2026-08-01T22:12:39.161Z",
+  "generatedAt": "2026-08-02T10:04:50.206Z",
   "environment": "approved_supabase_development_read_only",
   "databaseHost": "aws-1-ap-northeast-1.pooler.supabase.com",
   "storeId": 6,
   "schemaPath": "packages/server-v2/prisma/schema.prisma",
-  "schemaChecksum": "a8a4cbfb50cf6ac62fe98e36345516e7640afd49ff882ac19e7a88e5d4d52b48",
+  "schemaChecksum": "f14f0c5756d1b745e201a2cb868898b9d8c42f6d34daf19333b7a2deca0a8eac",
   "snapshotChecksum": "c1d04ff1c493e40df532257256b90fd8db7a6bbfa93987e215cfb2394f2ff254",
   "summary": {
     "featureCount": 32,
