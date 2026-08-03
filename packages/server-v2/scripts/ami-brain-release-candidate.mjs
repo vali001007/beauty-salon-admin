@@ -63,25 +63,18 @@ function writeEvidenceTemplate(options) {
 }
 
 async function lockCandidate(options) {
-  const required = ['productProfile', 'releaseId', 'runtimeCommit', 'productionHealthUrl', 'storeId', 'runKey'];
+  const required = ['productProfile', 'runtimeCommit', 'productionHealthUrl', 'storeId', 'runKey'];
   for (const key of required) if (!options[key]) throw new Error(`candidate_${key}_required`);
+  if (!options.evaluationReleaseId) throw new Error('candidate_evaluation_release_id_required');
   if (workingTreeStatus()) throw new Error('candidate_lock_requires_clean_worktree');
   const head = git(['rev-parse', 'HEAD']).toLowerCase();
   if (head !== String(options.runtimeCommit).toLowerCase()) throw new Error('candidate_runtime_commit_head_mismatch');
 
   const health = await fetchHealth(options.productionHealthUrl);
   if (health.status !== 'ready') throw new Error('candidate_deployment_not_ready');
-  if (health.releaseGate?.enabled !== true) throw new Error('candidate_deployment_release_gate_not_enabled');
-  if (Number(health.brainRuntimeRelease?.releaseId) !== Number(options.releaseId)) {
-    throw new Error('candidate_release_id_mismatch');
-  }
-  if (health.brainRuntimeRelease?.productProfile !== options.productProfile) {
-    throw new Error('candidate_product_profile_mismatch');
-  }
-  if (health.brainRuntimeRelease?.actionsEnabled !== false) throw new Error('candidate_actions_not_disabled');
-  if (Number(health.brainRuntimeRelease?.healthContext?.storeId) !== Number(options.storeId)) {
-    throw new Error('candidate_health_store_mismatch');
-  }
+  if (health.deployment?.commit?.toLowerCase() !== head) throw new Error('candidate_deployment_commit_mismatch');
+  const evaluation = await loadEvaluationIdentity(options.evaluationReleaseId, options.productProfile);
+  assertDatabaseTarget(health.databaseTarget, databaseTargetFromUrl(process.env.DATABASE_URL));
 
   const suiteManifestPath = resolveInput(options.suiteManifest ?? DEFAULT_SUITE_MANIFEST);
   const dataSnapshotPath = resolveInput(options.dataSnapshot ?? DEFAULT_DATA_SNAPSHOT);
@@ -95,8 +88,13 @@ async function lockCandidate(options) {
       productProfile: options.productProfile,
       runtimeCommit: options.runtimeCommit,
       diffChecksum,
-      releaseId: options.releaseId,
-      releaseFingerprint: health.brainRuntimeRelease?.releaseFingerprint,
+      releaseId: evaluation.id,
+      releaseFingerprint: evaluation.releaseFingerprint,
+      evaluationIdentity: {
+        family: 'evaluation',
+        code: evaluation.code,
+        internalReleaseId: evaluation.id,
+      },
       suiteManifestChecksum,
       dataSnapshot,
       provider: health.brainModel?.provider,
@@ -357,7 +355,12 @@ export function parseOptions(argv) {
     else if (argument === '--help' || argument === '-h') options.help = true;
     else if (argument === '--no-persist') options.noPersist = true;
     else if (argument.startsWith('--product-profile=')) options.productProfile = value(argument);
-    else if (argument.startsWith('--release-id=')) options.releaseId = positive(value(argument), 'candidate_release_id_invalid');
+    else if (argument.startsWith('--evaluation-release-id=')) {
+      options.evaluationReleaseId = positive(value(argument), 'candidate_evaluation_release_id_invalid');
+    }
+    else if (argument.startsWith('--release-id=')) {
+      options.evaluationReleaseId = positive(value(argument), 'candidate_evaluation_release_id_invalid');
+    }
     else if (argument.startsWith('--runtime-commit=')) options.runtimeCommit = value(argument).toLowerCase();
     else if (argument.startsWith('--production-health-url=')) options.productionHealthUrl = value(argument);
     else if (argument.startsWith('--store-id=')) options.storeId = positive(value(argument), 'candidate_store_id_invalid');
@@ -420,6 +423,91 @@ export function verifyEvidenceReceiptForCandidate(lockValue, receipt, {
     validatePassedEvidenceArtifacts(lock, verified.evidenceType, artifacts, readFile);
   }
   return verified;
+}
+
+async function loadEvaluationIdentity(evaluationReleaseId, expectedProductProfile) {
+  return withPrisma(async (prisma) => {
+    const release = await prisma.brainRelease.findUnique({
+      where: { id: evaluationReleaseId },
+      select: {
+        id: true,
+        status: true,
+        scope: true,
+        rollout: true,
+        releaseFamily: true,
+        displayCode: true,
+        displayName: true,
+        items: {
+          select: {
+            resourceVersionId: true,
+            resourceType: true,
+            resourceVersion: { select: { checksum: true } },
+          },
+        },
+      },
+    });
+    if (!release) throw new Error('candidate_evaluation_release_not_found');
+    const rollout = object(release.rollout);
+    if (release.status !== 'draft' || release.scope === 'governance_policy' || rollout.evaluationOnly !== true) {
+      throw new Error('candidate_evaluation_release_contract_invalid');
+    }
+    if (release.releaseFamily !== 'evaluation' || !/^EV-\d{3,}$/u.test(release.displayCode ?? '')) {
+      throw new Error('candidate_evaluation_version_identity_missing');
+    }
+    if (rollout.productProfile !== expectedProductProfile) {
+      throw new Error('candidate_evaluation_product_profile_mismatch');
+    }
+    if (
+      rollout.actionsEnabled !== false
+      || rollout.actionExecutionPolicy !== 'deny'
+      || rollout.sideEffectCapabilityCount !== 0
+      || rollout.allowedCapabilityCount !== 33
+      || release.items.filter((item) => item.resourceType === 'skill').length !== 33
+    ) {
+      throw new Error('candidate_evaluation_query_only_contract_invalid');
+    }
+    return {
+      id: release.id,
+      code: release.displayCode,
+      name: release.displayName,
+      releaseFingerprint: evaluationReleaseFingerprint(release.items, rollout),
+    };
+  });
+}
+
+function evaluationReleaseFingerprint(items, rollout) {
+  const resources = items
+    .map((item) => ({
+      resourceVersionId: item.resourceVersionId,
+      checksum: item.resourceVersion.checksum,
+    }))
+    .sort((left, right) => left.resourceVersionId - right.resourceVersionId || left.checksum.localeCompare(right.checksum));
+  const productProfile = {
+    productProfile: String(rollout.productProfile ?? ''),
+    actionsEnabled: rollout.actionsEnabled === true,
+    actionExecutionPolicy: String(rollout.actionExecutionPolicy ?? ''),
+    allowedCapabilityManifest: String(rollout.allowedCapabilityManifest ?? ''),
+    allowedCapabilityCount: Number.isInteger(rollout.allowedCapabilityCount) ? Number(rollout.allowedCapabilityCount) : null,
+    sideEffectCapabilityCount: Number.isInteger(rollout.sideEffectCapabilityCount) ? Number(rollout.sideEffectCapabilityCount) : null,
+    productProfileFingerprint: String(rollout.productProfileFingerprint ?? ''),
+  };
+  return sha256({ resources, productProfile });
+}
+
+function databaseTargetFromUrl(value) {
+  if (!value) throw new Error('DATABASE_URL is required');
+  const parsed = new URL(value);
+  return {
+    protocol: parsed.protocol.replace(':', ''),
+    host: parsed.hostname,
+    port: parsed.port || '5432',
+    database: parsed.pathname.replace(/^\//u, ''),
+    schema: parsed.searchParams.get('schema') || 'public',
+  };
+}
+
+function object(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
 async function fetchHealth(url) {
@@ -497,6 +585,7 @@ function receiptData(receiptKey, lock, result, resultChecksum, stage = 'candidat
     trustLevel: stage === 'release' ? 'verified_release' : 'candidate_lock',
     verificationStatus: 'self_verified',
     verifiedAt: new Date(),
+    evaluationReleaseId: lock.identity.evaluationIdentity.internalReleaseId,
     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
   };
 }
@@ -583,7 +672,7 @@ function isoTimestamp(value, code) {
 
 function printHelp() {
   process.stdout.write(
-    'Usage: npm run brain:release:candidate -- lock --product-profile=query_only_v1 --release-id=<id> --runtime-commit=<sha> --production-health-url=<ready-url> --store-id=<id> --run-key=<key>\n' +
+    'Usage: npm run brain:release:candidate -- lock --product-profile=query_only_v1 --evaluation-release-id=<EV internal id> --runtime-commit=<sha> --production-health-url=<ready-url> --store-id=<id> --run-key=<key>\n' +
     '       npm run brain:release:candidate -- template --candidate-lock=<path> --evidence-type=<manual-type>\n' +
     '       npm run brain:release:candidate -- receipt --candidate-lock=<path> --evidence-type=<type> --status=passed --artifact=<path> [--expires-in-hours=168] [review options]\n' +
     '       npm run brain:release:candidate -- close --candidate-lock=<path> [--evidence-dir=<dir>] [--evidence-receipt=<path>]\n',

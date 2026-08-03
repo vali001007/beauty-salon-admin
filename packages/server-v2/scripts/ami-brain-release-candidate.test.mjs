@@ -28,6 +28,7 @@ function candidateLock() {
       runtimeCommit: 'a'.repeat(40),
       diffChecksum: 'b'.repeat(64),
       releaseId: 453,
+      evaluationIdentity: { family: 'evaluation', code: 'EV-001', internalReleaseId: 453 },
       releaseFingerprint: 'c'.repeat(64),
       suiteManifestChecksum: 'd'.repeat(64),
       dataSnapshot: 'snapshot-6',
@@ -62,7 +63,7 @@ test('parses lock identity inputs without allowing caller-supplied fingerprints'
   const options = parseOptions([
     'lock',
     '--product-profile=query_only_v1',
-    '--release-id=453',
+    '--evaluation-release-id=453',
     `--runtime-commit=${'a'.repeat(40)}`,
     '--production-health-url=https://candidate.example/api/health/ready',
     '--store-id=6',
@@ -70,7 +71,7 @@ test('parses lock identity inputs without allowing caller-supplied fingerprints'
     '--no-persist',
   ]);
   assert.equal(options.command, 'lock');
-  assert.equal(options.releaseId, 453);
+  assert.equal(options.evaluationReleaseId, 453);
   assert.equal(options.storeId, 6);
   assert.equal(options.noPersist, true);
   assert.throws(() => parseOptions(['lock', '--release-fingerprint=x']), /unknown_argument/);
@@ -86,7 +87,7 @@ test('parses close evidence inputs and rejects invalid numeric identity', () => 
   assert.equal(options.command, 'close');
   assert.equal(options.candidateLock, 'outputs/candidate-lock.json');
   assert.deepEqual(options.evidenceReceipts, ['outputs/manual.json']);
-  assert.throws(() => parseOptions(['lock', '--release-id=0']), /candidate_release_id_invalid/);
+  assert.throws(() => parseOptions(['lock', '--evaluation-release-id=0']), /candidate_evaluation_release_id_invalid/);
 });
 
 test('parses evidence receipt artifact and manual review inputs', () => {

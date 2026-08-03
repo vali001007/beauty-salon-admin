@@ -266,6 +266,9 @@ export class BrainReleaseService implements OnModuleInit {
       releaseKey: release.releaseKey,
       releaseStatus: release.status as 'draft' | 'active',
       releaseFingerprint: createReleaseFingerprint(release.items, release.rollout),
+      evaluationIdentity:
+        this.releaseIdentity?.productIdentity(release)
+        ?? legacyEvaluationIdentity(release),
       declaredMode,
       mode: declaredMode === 'rules' ? 'rules' : 'model',
       resourceVersionIds: release.items.map((item) => item.resourceVersionId).sort((left, right) => left - right),
@@ -311,6 +314,7 @@ export class BrainReleaseService implements OnModuleInit {
     rollout: Record<string, unknown>;
     resourceVersionIds: number[];
     createdBy: number;
+    displayName?: string;
   }) {
     const prisma = this.requirePrisma();
     const releaseKey = this.nonEmpty(input.releaseKey, 'releaseKey');
@@ -347,11 +351,11 @@ export class BrainReleaseService implements OnModuleInit {
       .map((version) => ({ ...this.record(version.snapshot), key: version.resourceKey }));
     const productProfileBlockers = validateBrainReleaseProductProfile(normalizedRollout, capabilityCandidates);
     if (productProfileBlockers.length) throw new BadRequestException(productProfileBlockers[0]);
-    const rollout = {
+    const rollout: Record<string, unknown> = {
       ...normalizedRollout,
       semanticSnapshotFingerprint: createSemanticSnapshotFingerprint(versions),
     };
-    return prisma.$transaction(async (tx) => {
+    const created = await prisma.$transaction(async (tx) => {
       const release = await tx.brainRelease.create({
         data: {
           releaseKey,
@@ -375,6 +379,13 @@ export class BrainReleaseService implements OnModuleInit {
       });
       return release;
     });
+    if (rollout.evaluationOnly === true && this.releaseIdentity) {
+      return this.releaseIdentity.assignEvaluationIdentity(
+        created.id,
+        input.displayName ?? input.releaseKey,
+      );
+    }
+    return created;
   }
 
   async activateRelease(input: {
@@ -1093,6 +1104,9 @@ export class BrainReleaseService implements OnModuleInit {
         scope: true,
         status: true,
         rollout: true,
+        releaseFamily: true,
+        displayCode: true,
+        displayName: true,
         items: {
           select: {
             resourceVersionId: true,
@@ -2130,6 +2144,16 @@ function legacyPolicyIdentity(release: { id: number; releaseKey: string }) {
     code: `LEGACY-GP-${release.id}`,
     stageCode: null,
     name: release.releaseKey,
+    internalReleaseId: release.id,
+  };
+}
+
+function legacyEvaluationIdentity(release: { id: number; releaseKey: string; displayName?: string | null }) {
+  return {
+    family: 'legacy' as const,
+    code: `LEGACY-EV-${release.id}`,
+    stageCode: null,
+    name: release.displayName ?? release.releaseKey,
     internalReleaseId: release.id,
   };
 }

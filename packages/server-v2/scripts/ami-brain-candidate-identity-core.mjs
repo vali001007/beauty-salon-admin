@@ -34,6 +34,7 @@ export function createCandidateIdentity(input) {
     diffChecksum: hash64(candidate.diffChecksum, 'candidate_diff_checksum_invalid'),
     releaseId: positiveInteger(candidate.releaseId, 'candidate_release_id_invalid'),
     releaseFingerprint: hash64(candidate.releaseFingerprint, 'candidate_release_fingerprint_invalid'),
+    evaluationIdentity: evaluationIdentity(candidate.evaluationIdentity, candidate.releaseId),
     suiteManifestChecksum: hash64(candidate.suiteManifestChecksum, 'candidate_suite_manifest_checksum_invalid'),
     dataSnapshot: requiredText(candidate.dataSnapshot, 'candidate_data_snapshot_missing'),
     provider: requiredText(candidate.provider, 'candidate_provider_missing'),
@@ -242,6 +243,7 @@ export function closeCandidateEvidence(input, now = new Date()) {
     candidateId: lock.candidateId,
     productProfile: lock.identity.productProfile,
     releaseId: lock.identity.releaseId,
+    evaluationVersionCode: lock.identity.evaluationIdentity.code,
     releaseFingerprint: lock.identity.releaseFingerprint,
     requiredEvidenceTypes: [...requiredEvidenceTypes],
     evidenceChecksums,
@@ -256,6 +258,24 @@ export function closeCandidateEvidence(input, now = new Date()) {
     ...result,
     receiptKey: `release-eligibility:${lock.candidateId}`,
     resultChecksum: sha256(result),
+  };
+}
+
+function evaluationIdentity(value, releaseId) {
+  const identity = record(value);
+  const code = requiredText(identity.code, 'candidate_evaluation_version_code_missing');
+  if (!/^EV-\d{3,}$/u.test(code)) throw new Error('candidate_evaluation_version_code_invalid');
+  const internalReleaseId = positiveInteger(
+    identity.internalReleaseId,
+    'candidate_evaluation_release_id_invalid',
+  );
+  if (internalReleaseId !== positiveInteger(releaseId, 'candidate_release_id_invalid')) {
+    throw new Error('candidate_evaluation_release_id_mismatch');
+  }
+  return {
+    family: 'evaluation',
+    code,
+    internalReleaseId,
   };
 }
 
