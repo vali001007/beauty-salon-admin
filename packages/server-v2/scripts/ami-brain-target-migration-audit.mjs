@@ -75,7 +75,14 @@ export function buildTargetMigrationAuditSummary({
   generatedAt = new Date().toISOString(),
 }) {
   const candidateLock = candidateLockValue ? validateCandidateLock(candidateLockValue) : null;
-  const history = applyChecksumExceptions(rawHistory, target, checksumExceptions);
+  const checkedHistory = applyChecksumExceptions(rawHistory, target, checksumExceptions);
+  const outOfScopeAppliedMigrations = checkedHistory.unexpected.filter(isAmiBrainOutOfScopeMigration);
+  const history = {
+    ...checkedHistory,
+    unexpected: checkedHistory.unexpected.filter((migration) => !isAmiBrainOutOfScopeMigration(migration)),
+    outOfScopeAppliedMigrations,
+    outOfScopePolicy: 'Ami Ask migrations are reported for audit only and do not block Ami Brain.',
+  };
   const blockers = [];
   if (!history.migrationTableExists) blockers.push('migration_table_missing');
   if (history.pending.length) blockers.push('pending_migrations');
@@ -114,6 +121,10 @@ export function buildTargetMigrationAuditSummary({
     structure,
     blockers,
   };
+}
+
+export function isAmiBrainOutOfScopeMigration(migrationName) {
+  return /^\d{14}_ask_data_/u.test(String(migrationName ?? ''));
 }
 
 function loadChecksumExceptions() {
@@ -260,6 +271,8 @@ async function collectCriticalStructure(client) {
     'agent_v3_text_to_sql_semantic_views',
     'brain_action_execution',
     'brain_capability_regeneration_job',
+    'brain_governance_transition',
+    'brain_version_counter',
     'customer_service_feedback',
     'customer_waiting_episode',
     'store_metric_target',
@@ -287,6 +300,23 @@ async function collectCriticalStructure(client) {
     ['ProcurementOrder', 'creationFingerprint'],
     ['ProcurementReceipt', 'idempotencyKey'],
     ['ProcurementReceipt', 'creationFingerprint'],
+    ['brain_release', 'releaseFamily'],
+    ['brain_release', 'displayCode'],
+    ['brain_release', 'displayName'],
+    ['brain_release', 'retiredAt'],
+    ['brain_release', 'retirementReason'],
+    ['brain_release', 'supersededByReleaseId'],
+    ['brain_rollout_sequence', 'runtimeVersionNumber'],
+    ['brain_rollout_sequence', 'runtimeVersionCode'],
+    ['brain_rollout_sequence', 'displayName'],
+    ['brain_rollout_sequence', 'productProfile'],
+    ['brain_governance_transition', 'transitionKey'],
+    ['brain_governance_transition', 'candidateId'],
+    ['brain_governance_transition', 'oldPolicyReleaseId'],
+    ['brain_governance_transition', 'newPolicyReleaseId'],
+    ['brain_governance_transition', 'oldRuntimeReleaseId'],
+    ['brain_governance_transition', 'runtimeSequenceId'],
+    ['brain_governance_transition', 'currentStep'],
   ];
   const requiredIndexes = [
     'CardUsageRecord_idempotencyKey_key',
@@ -295,6 +325,10 @@ async function collectCriticalStructure(client) {
     'TerminalFollowUpTask_idempotencyKey_key',
     'ProcurementOrder_idempotencyKey_key',
     'ProcurementReceipt_idempotencyKey_key',
+    'brain_release_displayCode_key',
+    'brain_rollout_sequence_runtimeVersionCode_key',
+    'brain_governance_transition_transitionKey_key',
+    'brain_governance_transition_candidate_open_key',
   ];
 
   const tables = await queryRows(

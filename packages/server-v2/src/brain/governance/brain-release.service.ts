@@ -16,6 +16,7 @@ import type { BrainEvaluationReleaseSnapshot } from './brain-evaluation-release-
 import { BrainActiveReleaseWarmupService } from './brain-active-release-warmup.service.js';
 import { createReleaseFingerprint, lockReleaseResources } from './brain-capability-regeneration-fingerprint.js';
 import { extractBrainReleaseDefinitionVersionIds } from './brain-release-definition-versions.js';
+import { BrainReleaseIdentityService } from './brain-release-identity.service.js';
 import {
   BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS,
   BRAIN_QUERY_ONLY_PRODUCT_PROFILE,
@@ -76,6 +77,7 @@ export class BrainReleaseService implements OnModuleInit {
     @Optional() private readonly capabilityCatalog?: BrainCapabilityCatalogService,
     @Optional() private readonly capabilityScanner?: BrainCapabilityScannerService,
     @Optional() private readonly activeReleaseWarmup?: BrainActiveReleaseWarmupService,
+    @Optional() private readonly releaseIdentity?: BrainReleaseIdentityService,
   ) {}
 
   onModuleInit(): void {
@@ -184,6 +186,16 @@ export class BrainReleaseService implements OnModuleInit {
           )
         : releaseCapabilityCandidates;
     const mode = declaredMode;
+    const productIdentity = release
+      ? this.releaseIdentity?.productIdentity(release) ?? legacyRuntimeIdentity(release)
+      : null;
+    const governancePolicyIdentity = release?.rolloutSequence?.policySnapshot
+      ? this.releaseIdentity?.productIdentity(release.rolloutSequence.policySnapshot)
+        ?? legacyPolicyIdentity(release.rolloutSequence.policySnapshot)
+      : governancePolicy?.releaseId
+        ? legacyPolicyIdentity({ id: governancePolicy.releaseId, releaseKey: `governance-policy-${governancePolicy.releaseId}` })
+        : null;
+    const governanceTransition = release?.rolloutSequence?.transitions?.[0] ?? null;
     return mode === 'rules' || mode === 'shadow' || mode === 'model'
       ? {
           mode,
@@ -192,6 +204,10 @@ export class BrainReleaseService implements OnModuleInit {
           capabilityCandidates,
           governancePolicy,
           productProfile: brainReleaseProductProfileSummary(rollout),
+          productIdentity,
+          governancePolicyIdentity,
+          governanceTransitionStatus: governanceTransition?.status ?? null,
+          governanceTransitionStep: governanceTransition?.currentStep ?? null,
         }
       : {
           mode: undefined,
@@ -200,6 +216,10 @@ export class BrainReleaseService implements OnModuleInit {
           capabilityCandidates,
           governancePolicy,
           productProfile: brainReleaseProductProfileSummary(rollout),
+          productIdentity,
+          governancePolicyIdentity,
+          governanceTransitionStatus: governanceTransition?.status ?? null,
+          governanceTransitionStep: governanceTransition?.currentStep ?? null,
         };
   }
 
@@ -861,11 +881,35 @@ export class BrainReleaseService implements OnModuleInit {
   async resolveRuntimeDeploymentIdentity(input: { storeId: number; userId: number; roleKey: string }) {
     const release = await this.selectRelease(input);
     const rollout = release ? this.record(release.rollout) : {};
+    const governancePolicy = release ? governancePolicyBindingSummary(rollout) : undefined;
+    const prisma = this.requirePrisma();
     const fingerprintRelease = release
-      ? await this.requirePrisma().brainRelease.findUnique({
+      ? await prisma.brainRelease.findUnique({
           where: { id: release.id },
           include: { items: { include: { resourceVersion: true } } },
         })
+      : null;
+    const governancePolicyRelease = governancePolicy?.releaseId
+      ? await prisma.brainRelease.findUnique({
+          where: { id: governancePolicy.releaseId },
+          select: { id: true, releaseKey: true, scope: true, releaseFamily: true, displayCode: true, displayName: true },
+        })
+      : null;
+    const transitionRepository = prisma.brainGovernanceTransition as unknown as {
+      findFirst?: (input: Record<string, unknown>) => Promise<{ status: string; currentStep: string } | null>;
+    };
+    const transition = release && transitionRepository.findFirst
+      ? await transitionRepository.findFirst({
+          where: {
+            status: { in: ['draft', 'validated', 'approved', 'switching', 'observing'] },
+            OR: [
+              ...(release.rolloutSequenceId ? [{ runtimeSequenceId: release.rolloutSequenceId }] : []),
+              ...(governancePolicy?.releaseId ? [{ newPolicyReleaseId: governancePolicy.releaseId }] : []),
+            ],
+          },
+          orderBy: { updatedAt: 'desc' },
+          select: { status: true, currentStep: true },
+        }).catch(() => null)
       : null;
     const declaredMode = rollout.mode;
     const mode =
@@ -875,6 +919,14 @@ export class BrainReleaseService implements OnModuleInit {
     return {
       mode,
       release: release ? { id: release.id, releaseKey: release.releaseKey } : null,
+      productIdentity: release
+        ? this.releaseIdentity?.productIdentity(release) ?? legacyRuntimeIdentity(release)
+        : null,
+      governancePolicyIdentity: governancePolicyRelease
+        ? this.releaseIdentity?.productIdentity(governancePolicyRelease) ?? legacyPolicyIdentity(governancePolicyRelease)
+        : null,
+      governanceTransitionStatus: transition?.status ?? null,
+      governanceTransitionStep: transition?.currentStep ?? null,
       releaseFingerprint: fingerprintRelease
         ? createReleaseFingerprint(fingerprintRelease.items, fingerprintRelease.rollout)
         : null,
@@ -970,7 +1022,32 @@ export class BrainReleaseService implements OnModuleInit {
       .brainRelease.findMany({
         where: { status: 'active', scope: { in: [...RUNTIME_RELEASE_SCOPES] } },
         orderBy: { activatedAt: 'desc' },
-        include: { items: true },
+        include: {
+          items: true,
+          rolloutSequence: {
+            select: {
+              runtimeVersionCode: true,
+              displayName: true,
+              productProfile: true,
+              policySnapshot: {
+                select: {
+                  id: true,
+                  releaseKey: true,
+                  scope: true,
+                  releaseFamily: true,
+                  displayCode: true,
+                  displayName: true,
+                },
+              },
+              transitions: {
+                where: { status: { in: ['draft', 'validated', 'approved', 'switching', 'observing'] } },
+                orderBy: { updatedAt: 'desc' },
+                take: 1,
+                select: { status: true, currentStep: true },
+              },
+            },
+          },
+        },
       })
       .then((releases) => {
         const fingerprint = createActiveRuntimeReleaseFingerprint(releases);
@@ -2037,6 +2114,26 @@ function createActiveRuntimeReleaseFingerprint(releases: readonly ActiveRuntimeR
     .digest('hex');
 }
 
+function legacyRuntimeIdentity(release: { id: number; releaseKey: string }) {
+  return {
+    family: 'legacy' as const,
+    code: `LEGACY-RT-${release.id}`,
+    stageCode: null,
+    name: release.releaseKey,
+    internalReleaseId: release.id,
+  };
+}
+
+function legacyPolicyIdentity(release: { id: number; releaseKey: string }) {
+  return {
+    family: 'legacy' as const,
+    code: `LEGACY-GP-${release.id}`,
+    stageCode: null,
+    name: release.releaseKey,
+    internalReleaseId: release.id,
+  };
+}
+
 function canonicalizeForFingerprint(value: unknown): unknown {
   if (value instanceof Date) return value.toISOString();
   if (Array.isArray(value)) return value.map(canonicalizeForFingerprint);
@@ -2176,7 +2273,32 @@ type BrainReleaseWithItems = Prisma.BrainReleaseGetPayload<{
 }>;
 
 type ActiveRuntimeRelease = Prisma.BrainReleaseGetPayload<{
-  include: { items: true };
+  include: {
+    items: true;
+    rolloutSequence: {
+      select: {
+        runtimeVersionCode: true;
+        displayName: true;
+        productProfile: true;
+        policySnapshot: {
+          select: {
+            id: true;
+            releaseKey: true;
+            scope: true;
+            releaseFamily: true;
+            displayCode: true;
+            displayName: true;
+          };
+        };
+        transitions: {
+          where: { status: { in: ['draft', 'validated', 'approved', 'switching', 'observing'] } };
+          orderBy: { updatedAt: 'desc' };
+          take: 1;
+          select: { status: true; currentStep: true };
+        };
+      };
+    };
+  };
 }>;
 
 type GovernancePolicyBinding = {

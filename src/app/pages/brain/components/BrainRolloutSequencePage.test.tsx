@@ -56,8 +56,9 @@ describe('BrainRolloutSequencePage', () => {
   it('shows one candidate sequence with five stages and keeps policy/runtime wording distinct', async () => {
     render(<MemoryRouter><BrainRolloutSequencePage /></MemoryRouter>);
 
-    expect(await screen.findByText('rollout:17:head')).toBeInTheDocument();
-    expect(screen.getByText(/治理策略已发布不等于 Runtime 已生效/)).toBeInTheDocument();
+    expect(await screen.findByText('LEGACY-RT-101')).toBeInTheDocument();
+    expect(screen.getByText(/rollout:17:head/)).toBeInTheDocument();
+    expect(screen.getByText(/治理策略（GP）已启用，不代表运行版本（RT）已生效/)).toBeInTheDocument();
     expect(screen.getAllByText('Shadow').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('5%')).toBeInTheDocument();
     expect(screen.getByText('20%')).toBeInTheDocument();
@@ -163,9 +164,9 @@ describe('BrainRolloutSequencePage', () => {
 
     render(<MemoryRouter><BrainRolloutSequencePage /></MemoryRouter>);
 
-    expect(await screen.findByText('rollout:current')).toBeInTheDocument();
+    expect(await screen.findByText('LEGACY-RT-102')).toBeInTheDocument();
     expect(screen.getByText('历史灰度序列（1）')).toBeInTheDocument();
-    expect(screen.getByText('rollout:historical').closest('details')).not.toHaveAttribute('open');
+    expect(screen.getByText('LEGACY-RT-101').closest('details')).not.toHaveAttribute('open');
     expect(screen.getByText('历史序列仅供审计，不进入当前审批队列。')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /校验当前阶段/ })).toHaveLength(1);
   });
@@ -195,7 +196,7 @@ describe('BrainRolloutSequencePage', () => {
     const prompt = vi.spyOn(window, 'prompt').mockReturnValue('暂停观察异常');
 
     render(<MemoryRouter><BrainRolloutSequencePage /></MemoryRouter>);
-    expect(await screen.findByText('rollout:active')).toBeInTheDocument();
+    expect(await screen.findByText('LEGACY-RT-103')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '暂停' }));
     await waitFor(() => expect(api.pauseBrainGovernanceRolloutSequence).toHaveBeenCalledWith(51, '暂停观察异常'));
@@ -228,13 +229,13 @@ describe('BrainRolloutSequencePage', () => {
     const prompt = vi.spyOn(window, 'prompt').mockReturnValue('恢复候选前基线');
 
     render(<MemoryRouter><BrainRolloutSequencePage /></MemoryRouter>);
-    expect(await screen.findByText('rollout:paused')).toBeInTheDocument();
+    expect(await screen.findByText('LEGACY-RT-103')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '恢复' }));
     await waitFor(() => expect(api.resumeBrainGovernanceRolloutSequence).toHaveBeenCalledWith(51));
     await user.click(screen.getByRole('button', { name: '回滚' }));
     await waitFor(() => expect(api.rollbackBrainGovernanceRolloutSequence).toHaveBeenCalledWith(51, '恢复候选前基线'));
-    expect(prompt).toHaveBeenCalledWith('填写回滚原因；将恢复该 Candidate 开始前记录的 Runtime Release');
+    expect(prompt).toHaveBeenCalledWith('填写回滚原因；将恢复该 Candidate 开始前记录的运行版本');
     prompt.mockRestore();
   });
 });

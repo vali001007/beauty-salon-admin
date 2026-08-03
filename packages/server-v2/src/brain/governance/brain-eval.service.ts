@@ -152,7 +152,7 @@ export class BrainEvalService {
         {
           id: null,
           suiteKey: 'ami_brain_release_362_baseline_650',
-          suiteLabel: '650 题 Release #362 基线',
+          suiteLabel: '650 题历史评测基线（数据库快照 #362，仅审计）',
           stage: 'baseline',
           status: 'completed',
           caseCount: evalCatalogSnapshot.metadata.total,

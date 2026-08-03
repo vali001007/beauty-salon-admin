@@ -129,7 +129,7 @@ describe('BrainEvidencePanel', () => {
     expect(screen.getAllByText('输入')).toHaveLength(events.length);
     expect(screen.getAllByText('输出')).toHaveLength(events.length);
     expect(screen.getByText(/"role": "store_manager"/)).toBeInTheDocument();
-    expect(screen.getByText('runtime-r416')).toBeInTheDocument();
+    expect(screen.getByText('运行版本（历史）· runtime-r416')).toBeInTheDocument();
     expect(screen.getByText(/语义版本 1.0/)).toBeInTheDocument();
     expect(screen.getByText('营收汇总')).toBeInTheDocument();
     expect(screen.getByText('入选依据：intent、metric')).toBeInTheDocument();

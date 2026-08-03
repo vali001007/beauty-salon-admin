@@ -153,8 +153,9 @@ describe('BrainReleaseCenter regeneration polling', () => {
     renderReleaseCenter();
     await flush();
 
-    expect(screen.getByText('runtime-draft-v1')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '批准发布' })).not.toBeInTheDocument();
+    expect(screen.getByText('LEGACY-RT-61')).toBeInTheDocument();
+    expect(screen.getByText(/内部 key：runtime-draft-v1/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '批准运行阶段' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '拒绝' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '修改要求' })).toBeInTheDocument();
   });
@@ -193,7 +194,7 @@ describe('BrainReleaseCenter regeneration polling', () => {
 
     expect(screen.getByText('已通过（Eval Run #249）')).toBeInTheDocument();
     expect(screen.queryByText('等待评测门禁')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '批准发布' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '批准运行阶段' })).toBeEnabled();
   });
 
   it('blocks activation when the backend readiness contract reports missing evidence', async () => {
@@ -229,7 +230,7 @@ describe('BrainReleaseCenter regeneration polling', () => {
     await flush();
 
     expect(screen.getByText('未就绪：release_eval_gate_failed')).toBeInTheDocument();
-    expect(screen.getByText('当前发布尚未满足激活条件')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '批准发布' })).toBeDisabled();
+    expect(screen.getByText('当前运行阶段尚未满足激活条件')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '批准运行阶段' })).toBeDisabled();
   });
 });

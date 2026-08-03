@@ -125,8 +125,8 @@ export function BrainSemanticGraph() {
         <div>
           <h2 className="text-base font-semibold">语义图谱</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            展示已发布业务口径及本地受治理动作候选；动作、前置条件、效果、角色与竞争关系只用于治理可见性，不代表当前
-            Release 已发布。
+            展示已发布业务口径及本地受治理动作候选；动作、前置条件、效果、角色与竞争关系只用于治理可见性，不代表已进入当前
+            运行版本（RT）的已发布能力目录。
           </p>
         </div>
         <button

@@ -3,10 +3,15 @@ import { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { BrainGovernanceEventService } from './brain-governance-event.service.js';
+import { BrainReleaseIdentityService } from './brain-release-identity.service.js';
 import {
   BrainActiveReleaseWarmupService,
   type BrainActiveReleaseWarmupStatus,
 } from './brain-active-release-warmup.service.js';
+import {
+  BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS,
+  BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS,
+} from './brain-release-product-profile.js';
 
 export const BRAIN_GOVERNANCE_RISK_LEVELS = ['low', 'medium', 'high', 'critical', 'unclassified'] as const;
 export const BRAIN_GOVERNANCE_MODES = ['readonly', 'preview', 'advisory', 'alert'] as const;
@@ -67,6 +72,7 @@ export class BrainGovernanceControlPlaneService {
     private readonly prisma: PrismaService,
     private readonly events?: BrainGovernanceEventService,
     @Optional() private readonly activeReleaseWarmup?: BrainActiveReleaseWarmupService,
+    @Optional() private readonly releaseIdentity?: BrainReleaseIdentityService,
   ) {}
 
   async getOverview() {
@@ -82,12 +88,24 @@ export class BrainGovernanceControlPlaneService {
       this.prisma.brainRelease.findFirst({
         where: { scope: 'governance_policy', status: { in: ['active', 'draft'] } },
         orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-        select: { id: true, releaseKey: true, status: true, activatedAt: true, createdAt: true, _count: { select: { items: true } } },
+        select: { id: true, releaseKey: true, releaseFamily: true, displayCode: true, displayName: true, scope: true, status: true, activatedAt: true, createdAt: true, _count: { select: { items: true } } },
       }),
       this.prisma.brainRelease.findFirst({
         where: { status: 'active', scope: { in: ['global', 'store', 'user', 'role', 'percentage'] } },
         orderBy: { activatedAt: 'desc' },
-        select: { id: true, releaseKey: true, scope: true, status: true, rollout: true, activatedAt: true },
+        select: {
+          id: true,
+          releaseKey: true,
+          releaseFamily: true,
+          displayCode: true,
+          displayName: true,
+          scope: true,
+          status: true,
+          rollout: true,
+          rolloutStage: true,
+          activatedAt: true,
+          rolloutSequence: { select: { runtimeVersionCode: true, displayName: true } },
+        },
       }),
       this.prisma.brainGovernanceTask.findMany({
         where: { completedAt: { gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) } },
@@ -136,9 +154,16 @@ export class BrainGovernanceControlPlaneService {
       whitelist: withZeroCounts(whitelist, BRAIN_GOVERNANCE_WHITELIST_STATUSES),
       runtimePending,
       latestPolicySnapshot: latestPolicySnapshot
-        ? { ...latestPolicySnapshot, itemCount: latestPolicySnapshot._count.items, _count: undefined }
+        ? {
+            ...latestPolicySnapshot,
+            itemCount: latestPolicySnapshot._count.items,
+            _count: undefined,
+            productIdentity: this.releaseIdentity?.productIdentity(latestPolicySnapshot) ?? null,
+          }
         : null,
-      runtimeRelease,
+      runtimeRelease: runtimeRelease
+        ? { ...runtimeRelease, productIdentity: this.releaseIdentity?.productIdentity(runtimeRelease) ?? null }
+        : null,
       runtimeConsistency,
       runtimeGovernance: policyBound
         ? {
@@ -928,10 +953,18 @@ export class BrainGovernanceControlPlaneService {
       }),
       this.prisma.brainRelease.count({ where }),
     ]);
-    return { items, total, page, pageSize };
+    return {
+      items: items.map((item) => ({
+        ...item,
+        productIdentity: this.releaseIdentity?.productIdentity(item) ?? null,
+      })),
+      total,
+      page,
+      pageSize,
+    };
   }
 
-  async createPolicySnapshot(input: { releaseKey: string; resourceVersionIds?: number[]; actorId: number; note?: string }) {
+  async createPolicySnapshot(input: { releaseKey: string; resourceVersionIds?: number[]; actorId: number; note?: string; displayName?: string }) {
     const releaseKey = nonEmpty(input.releaseKey, 'releaseKey');
     const requestedIds = uniqueNumbers(input.resourceVersionIds);
     const versions = requestedIds.length
@@ -949,43 +982,75 @@ export class BrainGovernanceControlPlaneService {
       if (policy.riskLevel === 'unclassified') throw new BadRequestException(`policy_snapshot_unclassified:${version.resourceKey}`);
       if (effectiveWhitelistStatus(policy, new Date()) === 'expired') throw new BadRequestException(`policy_snapshot_evidence_expired:${version.resourceKey}`);
     }
+    const existing = await this.prisma.brainRelease.findUnique({
+      where: { releaseKey },
+      include: { items: { select: { resourceVersionId: true } } },
+    });
+    if (existing) {
+      assertReusablePolicySnapshot(existing, versions.map((version) => version.id));
+      if (this.releaseIdentity && !existing.displayCode) {
+        await this.releaseIdentity.assignPolicyIdentity(existing.id, input.displayName ?? 'Governance Policy');
+      }
+      return this.prisma.brainRelease.findUniqueOrThrow({ where: { id: existing.id }, include: { items: true } });
+    }
     const previous = await this.prisma.brainRelease.findFirst({
       where: { scope: 'governance_policy', status: 'active' },
       orderBy: { activatedAt: 'desc' },
     });
-    const created = await this.prisma.$transaction(async (tx) => {
-      const release = await tx.brainRelease.create({
-        data: {
-          releaseKey,
-          scope: 'governance_policy',
-          versionMap: this.json(Object.fromEntries(versions.map((item) => [`capability_policy:${item.resourceKey}`, item.version]))),
-          rollout: this.json({ note: input.note ?? '', policySnapshotChecksum: policySnapshotChecksum(versions) }),
-          status: 'draft',
-          createdBy: input.actorId,
-          previousReleaseId: previous?.id,
-        },
+    let created: { id: number; releaseKey: string; displayCode: string | null; items: Array<unknown> };
+    let newlyCreated = false;
+    try {
+      created = await this.prisma.$transaction(async (tx) => {
+        const release = await tx.brainRelease.create({
+          data: {
+            releaseKey,
+            scope: 'governance_policy',
+            versionMap: this.json(Object.fromEntries(versions.map((item) => [`capability_policy:${item.resourceKey}`, item.version]))),
+            rollout: this.json({ note: input.note ?? '', policySnapshotChecksum: policySnapshotChecksum(versions) }),
+            status: 'draft',
+            createdBy: input.actorId,
+            previousReleaseId: previous?.id,
+          },
+        });
+        await tx.brainReleaseItem.createMany({
+          data: versions.map((version) => ({
+            releaseId: release.id,
+            resourceVersionId: version.id,
+            resourceType: version.resourceType,
+            resourceKey: version.resourceKey,
+            version: version.version,
+            snapshot: this.json(version.snapshot),
+          })),
+        });
+        return tx.brainRelease.findUniqueOrThrow({ where: { id: release.id }, include: { items: true } });
       });
-      await tx.brainReleaseItem.createMany({
-        data: versions.map((version) => ({
-          releaseId: release.id,
-          resourceVersionId: version.id,
-          resourceType: version.resourceType,
-          resourceKey: version.resourceKey,
-          version: version.version,
-          snapshot: this.json(version.snapshot),
-        })),
+      newlyCreated = true;
+    } catch (error) {
+      if (!isPrismaCode(error, 'P2002')) throw error;
+      const raced = await this.prisma.brainRelease.findUnique({
+        where: { releaseKey },
+        include: { items: { select: { resourceVersionId: true } } },
       });
-      return tx.brainRelease.findUniqueOrThrow({ where: { id: release.id }, include: { items: true } });
-    });
-    await this.events?.record({
+      if (!raced) throw error;
+      assertReusablePolicySnapshot(raced, versions.map((version) => version.id));
+      created = await this.prisma.brainRelease.findUniqueOrThrow({ where: { id: raced.id }, include: { items: true } });
+    }
+    const identified = this.releaseIdentity
+      ? await this.releaseIdentity.assignPolicyIdentity(created.id, input.displayName ?? 'Governance Policy')
+      : created;
+    if (newlyCreated) await this.events?.record({
       eventType: 'policy_snapshot_created',
       entityType: 'policy_snapshot',
       entityId: created.id,
       actorType: 'user',
       actorId: input.actorId,
-      payload: { releaseKey: created.releaseKey, itemCount: created.items.length },
+      payload: {
+        releaseKey: created.releaseKey,
+        displayCode: identified.displayCode,
+        itemCount: created.items.length,
+      },
     });
-    return created;
+    return this.prisma.brainRelease.findUniqueOrThrow({ where: { id: created.id }, include: { items: true } });
   }
 
   async createRuntimePolicyTransition(input: {
@@ -1070,6 +1135,168 @@ export class BrainGovernanceControlPlaneService {
       payload: { runtimeStatus: input.runtimeStatus, resourceVersionIds: transitioned.map((item) => item.id), reason },
     });
     return transitioned;
+  }
+
+  async createQueryOnlyPolicyVersions(input: { candidateKey: string; actorId: number }) {
+    const candidate = await this.prisma.brainGovernanceCandidate.findUnique({
+      where: { candidateKey: nonEmpty(input.candidateKey, 'candidateKey') },
+      include: {
+        receipts: {
+          where: {
+            status: 'passed',
+            expiresAt: { gt: new Date() },
+            trustLevel: { in: ['trusted_candidate', 'verified_release'] },
+            verificationStatus: 'verified',
+            result: { path: ['verification', 'admissionEligible'], equals: true },
+          },
+          orderBy: { createdAt: 'desc' },
+          include: { capabilities: true },
+        },
+      },
+    });
+    if (!candidate) throw new NotFoundException('brain_governance_candidate_not_found');
+    const active = await this.prisma.brainRelease.findFirst({
+      where: { scope: 'governance_policy', status: 'active' },
+      orderBy: { activatedAt: 'desc' },
+      include: { items: { orderBy: { resourceKey: 'asc' } } },
+    });
+    if (!active) throw new BadRequestException('active_policy_snapshot_missing');
+
+    const allowed = new Set<string>(BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS);
+    const disabled = new Set<string>(BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS);
+    const expected = new Set<string>([...allowed, ...disabled]);
+    const actual = new Set(active.items.map((item) => item.resourceKey));
+    const missing = [...expected].filter((key) => !actual.has(key));
+    const extra = [...actual].filter((key) => !expected.has(key));
+    if (missing.length || extra.length || active.items.length !== expected.size) {
+      throw new BadRequestException(
+        `brain_query_only_policy_manifest_mismatch:missing=${missing.join(',') || 'none'}:extra=${extra.join(',') || 'none'}`,
+      );
+    }
+
+    const receiptByCapability = new Map<string, typeof candidate.receipts[number]>();
+    for (const receipt of candidate.receipts) {
+      for (const capability of receipt.capabilities) {
+        if (!receiptByCapability.has(capability.capabilityKey)) receiptByCapability.set(capability.capabilityKey, receipt);
+      }
+    }
+    const missingEvidence = [...expected].filter((key) => !receiptByCapability.has(key));
+    if (missingEvidence.length) {
+      throw new BadRequestException(`query_only_policy_valid_evidence_missing:${missingEvidence.sort().join(',')}`);
+    }
+
+    const policies = active.items.map((item) => {
+      const current = this.policySnapshot(item.snapshot, item.resourceKey);
+      const receipt = receiptByCapability.get(item.resourceKey)!;
+      const isAllowed = allowed.has(item.resourceKey);
+      return {
+        capabilityKey: item.resourceKey,
+        snapshot: {
+          ...current,
+          riskLevel: isAllowed ? 'low' as const : 'high' as const,
+          mode: isAllowed ? 'readonly' as const : current.mode,
+          whitelistStatus: isAllowed ? 'approved' as const : 'not_allowed' as const,
+          runtimeEnforcementStatus: 'enforced' as const,
+          evidence: [{
+            receiptId: receipt.receiptKey,
+            stage: receipt.stage,
+            resultChecksum: receipt.resultChecksum,
+            expiresAt: receipt.expiresAt.toISOString(),
+            candidateKey: candidate.candidateKey,
+          }],
+          impact: {
+            ...current.impact,
+            productProfile: 'query_only_v1',
+            admission: isAllowed ? 'approved_readonly' : 'denied_action',
+            sourcePolicyReleaseId: active.id,
+            candidateKey: candidate.candidateKey,
+          },
+          reason: isAllowed
+            ? 'query_only_v1_readonly_capability_approved'
+            : 'query_only_v1_action_capability_denied',
+          updatedAt: new Date().toISOString(),
+        } satisfies CapabilityPolicySnapshot,
+      };
+    });
+
+    let result: { versions: Array<{ id: number; resourceKey: string }>; createdCount: number } | null = null;
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      try {
+        result = await this.prisma.$transaction(async (tx) => {
+          const existing = await tx.brainResourceVersion.findMany({
+            where: { resourceType: 'capability_policy', resourceKey: { in: [...expected] } },
+            select: { id: true, resourceKey: true, version: true, snapshot: true },
+            orderBy: [{ resourceKey: 'asc' }, { version: 'desc' }],
+          });
+          const latest = new Map<string, typeof existing[number]>();
+          for (const row of existing) if (!latest.has(row.resourceKey)) latest.set(row.resourceKey, row);
+          const reused: Array<{ id: number; resourceKey: string }> = [];
+          const rows = policies.flatMap((policy) => {
+            const current = latest.get(policy.capabilityKey);
+            if (current && queryOnlyPolicyVersionMatches(current.snapshot, policy.snapshot)) {
+              reused.push({ id: current.id, resourceKey: current.resourceKey });
+              return [];
+            }
+            const snapshot = this.json(policy.snapshot);
+            return [{
+              resourceType: 'capability_policy',
+              resourceKey: policy.capabilityKey,
+              version: (current?.version ?? 0) + 1,
+              status: 'draft',
+              snapshot,
+              checksum: sha256(snapshot),
+              createdBy: input.actorId,
+            }];
+          });
+          if (rows.length) await tx.brainResourceVersion.createMany({ data: rows });
+          const created = rows.length
+            ? await tx.brainResourceVersion.findMany({
+                where: { resourceType: 'capability_policy', OR: rows.map((row) => ({ resourceKey: row.resourceKey, version: row.version })) },
+                select: { id: true, resourceKey: true },
+              })
+            : [];
+          const versions = [...reused, ...created].sort((left, right) => left.resourceKey.localeCompare(right.resourceKey));
+          if (versions.length !== expected.size) throw new ConflictException('query_only_policy_version_set_incomplete');
+          return { versions, createdCount: created.length };
+        }, {
+          maxWait: 10_000,
+          timeout: 30_000,
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        });
+        break;
+      } catch (error) {
+        if ((isPrismaCode(error, 'P2034') || isPrismaCode(error, 'P2002')) && attempt < 3) continue;
+        if (isPrismaCode(error, 'P2034') || isPrismaCode(error, 'P2002')) {
+          throw new ConflictException('query_only_policy_version_concurrency_conflict');
+        }
+        throw error;
+      }
+    }
+    if (!result) throw new ConflictException('query_only_policy_version_concurrency_conflict');
+    if (result.createdCount > 0) {
+      await this.events?.record({
+        candidateId: candidate.id,
+        eventType: 'query_only_policy_versions_created',
+        entityType: 'candidate',
+        entityId: candidate.id,
+        actorType: 'user',
+        actorId: input.actorId,
+        payload: {
+          policyVersionCount: result.versions.length,
+          createdPolicyVersionCount: result.createdCount,
+          reusedPolicyVersionCount: result.versions.length - result.createdCount,
+          allowedCapabilityCount: allowed.size,
+          deniedCapabilityCount: disabled.size,
+          sourcePolicyReleaseId: active.id,
+        },
+      });
+    }
+    return {
+      sourcePolicyReleaseId: active.id,
+      resourceVersionIds: result.versions.map((item) => item.id),
+      allowedCapabilityCount: allowed.size,
+      deniedCapabilityCount: disabled.size,
+    };
   }
 
   async publishPolicySnapshot(id: number, actorId?: number) {
@@ -1798,6 +2025,41 @@ function isRiskDowngrade(current: BrainGovernanceRiskLevel, next: BrainGovernanc
 
 function sha256(value: unknown): string {
   return createHash('sha256').update(typeof value === 'string' ? value : JSON.stringify(value)).digest('hex');
+}
+
+function queryOnlyPolicyVersionMatches(existing: Prisma.JsonValue, expected: CapabilityPolicySnapshot): boolean {
+  const current = record(existing);
+  const { updatedAt: _currentUpdatedAt, ...currentIdentity } = current;
+  const { updatedAt: _expectedUpdatedAt, ...expectedIdentity } = expected;
+  return stableJson(currentIdentity) === stableJson(expectedIdentity);
+}
+
+function assertReusablePolicySnapshot(
+  release: { scope: string; status: string; items: Array<{ resourceVersionId: number }> },
+  expectedResourceVersionIds: number[],
+) {
+  const actual = [...new Set(release.items.map((item) => item.resourceVersionId))].sort((left, right) => left - right);
+  const expected = [...new Set(expectedResourceVersionIds)].sort((left, right) => left - right);
+  const matches = actual.length === expected.length && actual.every((id, index) => id === expected[index]);
+  if (release.scope !== 'governance_policy' || !['draft', 'active'].includes(release.status) || !matches) {
+    throw new ConflictException('policy_snapshot_release_key_conflict');
+  }
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .filter(([, item]) => item !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'null';
+}
+
+function isPrismaCode(error: unknown, code: string): boolean {
+  return Boolean(error && typeof error === 'object' && 'code' in error && (error as { code?: unknown }).code === code);
 }
 
 function hash64(value: unknown, field: string): string {

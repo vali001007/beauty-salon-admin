@@ -229,6 +229,9 @@ export interface BrainMessageMetadata {
   actionExecutionPolicy?: string | null;
   allowedCapabilityManifest?: string | null;
   productProfileFingerprint?: string | null;
+  runtimeProductIdentity?: BrainProductIdentity | null;
+  governancePolicyIdentity?: BrainProductIdentity | null;
+  governanceTransitionStatus?: string | null;
 }
 
 export interface BrainMessage {
@@ -833,6 +836,14 @@ export interface BrainGovernanceReleaseItem {
   snapshot: Record<string, unknown>;
 }
 
+export interface BrainProductIdentity {
+  family: 'policy' | 'runtime' | 'evaluation' | 'legacy';
+  code: string;
+  stageCode: string | null;
+  name: string;
+  internalReleaseId: number | null;
+}
+
 export interface BrainReleaseReadiness {
   status: 'ready' | 'blocked' | 'unavailable';
   canRelease: boolean;
@@ -852,6 +863,10 @@ export interface BrainGovernanceRelease {
   id: number;
   releaseKey: string;
   scope: string;
+  releaseFamily?: 'policy' | 'runtime' | 'evaluation' | 'legacy' | string;
+  displayCode?: string | null;
+  displayName?: string | null;
+  productIdentity?: BrainProductIdentity | null;
   rollout?: Record<string, unknown>;
   status: string;
   previousReleaseId?: number | null;
@@ -865,6 +880,9 @@ export interface BrainGovernanceRelease {
   rolloutSequenceId?: number | null;
   rolloutStage?: string | null;
   supersededAt?: string | null;
+  retiredAt?: string | null;
+  retirementReason?: string | null;
+  supersededByReleaseId?: number | null;
 }
 
 export interface BrainPolicySnapshotDiff {
@@ -890,6 +908,11 @@ export interface BrainPolicySnapshotPreview {
 export interface BrainGovernanceRolloutSequence {
   id: number;
   sequenceKey: string;
+  runtimeVersionNumber?: number | null;
+  runtimeVersionCode?: string | null;
+  displayName?: string | null;
+  productProfile?: string | null;
+  productIdentity?: BrainProductIdentity | null;
   status: string;
   currentStage: string;
   governanceMode: 'shadow' | 'enforced' | string;
@@ -905,6 +928,65 @@ export interface BrainGovernanceRolloutSequence {
   updatedAt: string;
   startedAt?: string | null;
   completedAt?: string | null;
+}
+
+export interface BrainGovernanceTransition {
+  id: number;
+  transitionKey: string;
+  status: string;
+  candidateId: number;
+  candidate: Pick<BrainGovernanceCandidate, 'id' | 'candidateKey' | 'headCommit' | 'status'>;
+  oldPolicyReleaseId: number;
+  newPolicyReleaseId: number;
+  oldRuntimeReleaseId: number;
+  runtimeSequenceId: number;
+  oldPolicy: BrainGovernanceRelease;
+  newPolicy: BrainGovernanceRelease;
+  oldRuntime: BrainGovernanceRelease;
+  runtimeSequence: BrainGovernanceRolloutSequence;
+  policyApprovedBy?: number | null;
+  policyApprovedAt?: string | null;
+  runtimeApprovedBy?: number | null;
+  runtimeApprovedAt?: string | null;
+  currentStep: string;
+  failureCode?: string | null;
+  failureMessage?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  createdBy: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BrainGovernanceTransitionPreview {
+  candidate: Pick<BrainGovernanceCandidate, 'id' | 'candidateKey' | 'headCommit' | 'status'>;
+  oldPolicy: BrainGovernanceRelease;
+  oldRuntime: BrainGovernanceRelease;
+  existingTransition: BrainGovernanceTransition | null;
+  target: {
+    policyCode: string;
+    runtimeCode: string;
+    productProfile: string;
+    allowedCapabilityCount: number;
+    deniedCapabilityCount: number;
+  };
+  missingEvidence: string[];
+  canPrepare: boolean;
+  blockers: string[];
+}
+
+export interface BrainGovernanceTransitionValidation {
+  transitionId: number;
+  valid: boolean;
+  blockers: string[];
+  readiness: BrainReleaseReadiness | null;
+}
+
+export interface BrainGovernanceTransitionListResponse {
+  items: BrainGovernanceTransition[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export interface BrainGovernanceRolloutSequenceListResponse {

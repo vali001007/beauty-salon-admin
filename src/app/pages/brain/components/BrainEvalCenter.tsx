@@ -158,7 +158,7 @@ export function BrainEvalCenter() {
         <div className="flex flex-wrap items-end gap-2">
           {canManage ? <>
           <label className="text-xs text-muted-foreground">
-            发布 ID
+            目标运行数据库 ID（审计）
             <input
               value={releaseId}
               onChange={(event) => setReleaseId(event.target.value)}
@@ -247,7 +247,7 @@ export function BrainEvalCenter() {
                   </td>
                   <td className="px-3 py-3">{run.failedCount}</td>
                   <td className="px-3 py-3 text-xs">
-                    Release #{run.releaseId ?? '-'}
+                    {run.releaseId ? `目标评测快照：数据库记录 #${run.releaseId}` : '未绑定目标快照'}
                     <br />
                     {run.roleKey ?? '全部角色'}
                   </td>

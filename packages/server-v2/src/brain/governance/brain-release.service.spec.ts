@@ -8,6 +8,7 @@ import { caseIdsChecksum } from '../eval/ami-brain-suite-manifest.js';
 import { createReleaseFingerprint } from './brain-capability-regeneration-fingerprint.js';
 import {
   BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS,
+  BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS,
   BRAIN_QUERY_ONLY_PRODUCT_PROFILE,
   normalizeBrainReleaseProductProfileRollout,
 } from './brain-release-product-profile.js';
@@ -2209,6 +2210,60 @@ describe('BrainReleaseService', () => {
     });
   });
 
+  it('reports independent RT and GP identities with the active transition state', async () => {
+    const runtime = {
+      id: 460,
+      releaseKey: 'query-only-full',
+      scope: 'global',
+      status: 'active',
+      activatedAt: new Date('2026-08-04T00:00:00.000Z'),
+      rolloutSequenceId: 71,
+      rolloutStage: 'full',
+      rollout: {
+        mode: 'model',
+        productProfile: 'query_only_v1',
+        actionsEnabled: false,
+        actionExecutionPolicy: 'deny',
+        allowedCapabilityManifest: 'ami-brain-query-only-v1',
+        allowedCapabilityCount: 33,
+        sideEffectCapabilityCount: 0,
+        productProfileFingerprint: 'f'.repeat(64),
+        governancePolicyReleaseId: 436,
+        governancePolicyMode: 'enforced',
+      },
+      items: [],
+      rolloutSequence: {
+        runtimeVersionCode: 'RT-001',
+        displayName: 'Query Only V1',
+        productProfile: 'query_only_v1',
+        policySnapshot: { id: 436, releaseKey: 'query-only-policy', scope: 'governance_policy', releaseFamily: 'policy', displayCode: 'GP-003', displayName: 'Query Only V1 强制治理策略' },
+        transitions: [{ status: 'observing', currentStep: 'runtime_shadow_active' }],
+      },
+    };
+    const prisma = {
+      brainRelease: {
+        findMany: jest.fn().mockResolvedValue([runtime]),
+        findUnique: jest.fn()
+          .mockResolvedValueOnce({ ...runtime, items: [] })
+          .mockResolvedValueOnce(runtime.rolloutSequence.policySnapshot),
+      },
+      brainGovernanceTransition: { findFirst: jest.fn().mockResolvedValue({ status: 'observing', currentStep: 'runtime_shadow_active' }) },
+    };
+    const identity = {
+      productIdentity: jest.fn((release: { id: number; scope: string }) => release.scope === 'governance_policy'
+        ? { family: 'policy', code: 'GP-003', stageCode: null, name: 'Query Only V1 强制治理策略', internalReleaseId: release.id }
+        : { family: 'runtime', code: 'RT-001', stageCode: 'RT-001-FULL', name: 'Query Only V1', internalReleaseId: release.id }),
+    };
+    const service = new BrainReleaseService(prisma as never, undefined, undefined, undefined, undefined, identity as never);
+
+    await expect(service.resolveRuntimeDeploymentIdentity({ storeId: 6, userId: 9, roleKey: 'store_manager' })).resolves.toMatchObject({
+      productIdentity: { code: 'RT-001', stageCode: 'RT-001-FULL' },
+      governancePolicyIdentity: { code: 'GP-003' },
+      governanceTransitionStatus: 'observing',
+      governanceTransitionStep: 'runtime_shadow_active',
+    });
+  });
+
   it('rejects a side-effect capability from query_only_v1 before opening a transaction', async () => {
     const versions = BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS.map((resourceKey, index) => ({
       id: index + 1,
@@ -3381,7 +3436,7 @@ describe('BrainReleaseService', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it('filters runtime capabilities and denies action execution for an active query-only Release', async () => {
+  it('exposes exactly 33 read-only planner candidates and excludes all eight Actions for an active query-only Runtime', async () => {
     const rollout = normalizeBrainReleaseProductProfileRollout({
       mode: 'model',
       stage: 'full',
@@ -3394,11 +3449,11 @@ describe('BrainReleaseService', () => {
         resourceKey,
         snapshot: { key: resourceKey, readOnly: true, sideEffect: false },
       })),
-      {
+      ...BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS.map((resourceKey) => ({
         resourceType: 'skill',
-        resourceKey: 'reservation_action_preview',
-        snapshot: { key: 'reservation_action_preview', readOnly: false, sideEffect: true },
-      },
+        resourceKey,
+        snapshot: { key: resourceKey, readOnly: false, sideEffect: true },
+      })),
     ];
     const release = {
       id: 452,
@@ -3415,10 +3470,14 @@ describe('BrainReleaseService', () => {
     const runtime = await service.resolveRuntimeMode({ storeId: 6, userId: 9, roleKey: 'store_manager' });
     const policy = await service.resolveActionExecutionPolicy({ storeId: 6, userId: 9, roleKey: 'store_manager' });
 
-    expect(runtime.capabilityCandidates).toHaveLength(33);
-    expect(runtime.capabilityCandidates).not.toEqual(
-      expect.arrayContaining([expect.objectContaining({ key: 'reservation_action_preview' })]),
-    );
+    const plannerCandidates = runtime.capabilityCandidates ?? [];
+    expect(plannerCandidates).toHaveLength(33);
+    const plannerCandidateKeys = plannerCandidates.map((candidate) => candidate.key).sort();
+    expect(plannerCandidateKeys).toEqual([...BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS].sort());
+    expect(plannerCandidateKeys).toContain('marketing_automation_rule_preview');
+    for (const disabledKey of BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS) {
+      expect(plannerCandidateKeys).not.toContain(disabledKey);
+    }
     expect(runtime.productProfile).toMatchObject({
       productProfile: 'query_only_v1',
       actionsEnabled: false,

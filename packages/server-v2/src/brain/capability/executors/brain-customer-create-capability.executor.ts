@@ -87,6 +87,7 @@ export class BrainCustomerCreateCapabilityExecutor implements BrainCapabilityExe
       runId: input.runId,
       userId: input.context.userId,
       storeId: input.context.storeId,
+      roles: input.context.roles,
       skillKey: ACTION_KEY,
       capabilityVersion: 1,
       riskLevel: 'high',

@@ -85,6 +85,7 @@ import { BrainPlanGraderService } from './eval/brain-plan-grader.service.js';
 import { BrainEvalService } from './governance/brain-eval.service.js';
 import { BrainFeedbackService } from './governance/brain-feedback.service.js';
 import { BrainReleaseService } from './governance/brain-release.service.js';
+import { BrainReleaseIdentityService } from './governance/brain-release-identity.service.js';
 import { BrainActiveReleaseWarmupService } from './governance/brain-active-release-warmup.service.js';
 import { BrainWarmupArtifactService } from './governance/brain-warmup-artifact.service.js';
 import { BrainTraceService } from './governance/brain-trace.service.js';
@@ -96,6 +97,7 @@ import { BrainGovernancePolicyOrchestratorService } from './governance/brain-gov
 import { BrainRolloutSequenceService } from './governance/brain-rollout-sequence.service.js';
 import { BrainGovernanceEventService } from './governance/brain-governance-event.service.js';
 import { BrainGovernanceMetricsService } from './governance/brain-governance-metrics.service.js';
+import { BrainGovernanceTransitionService } from './governance/brain-governance-transition.service.js';
 import { BrainRolloutHealthService } from './governance/brain-rollout-health.service.js';
 import { BrainGovernanceTaskWorkerService } from './governance/brain-governance-task-worker.service.js';
 import { BrainGateReceiptVerificationService } from './governance/brain-gate-receipt-verification.service.js';
@@ -241,6 +243,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BrainRolloutSequenceService,
     BrainGovernanceEventService,
     BrainGovernanceMetricsService,
+    BrainGovernanceTransitionService,
     BrainRolloutHealthService,
     BrainGovernanceTaskWorkerService,
     BrainGateReceiptVerificationService,
@@ -252,6 +255,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BrainEvalService,
     BrainWarmupArtifactService,
     BrainActiveReleaseWarmupService,
+    BrainReleaseIdentityService,
     BrainReleaseService,
     BrainFeedbackService,
     BrainPermissionService,
@@ -395,6 +399,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BrainCapabilityRegenerationService,
     BrainEvalService,
     BrainActiveReleaseWarmupService,
+    BrainReleaseIdentityService,
     BrainReleaseService,
     BrainFeedbackService,
     BrainPermissionService,

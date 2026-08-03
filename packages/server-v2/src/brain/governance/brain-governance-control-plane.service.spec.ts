@@ -1,5 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
 import { BrainGovernanceControlPlaneService } from './brain-governance-control-plane.service.js';
+import {
+  BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS,
+  BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS,
+} from './brain-release-product-profile.js';
 
 const HASH = 'a'.repeat(64);
 
@@ -34,6 +38,110 @@ function policyRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe('BrainGovernanceControlPlaneService', () => {
+  it('reuses the same candidate-bound Query Only policy versions on repeated preparation', async () => {
+    const keys = [...BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS, ...BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS];
+    const disabled = new Set<string>(BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS);
+    const activeItems = keys.map((capabilityKey, index) => policyRow({
+      id: 100 + index,
+      resourceKey: capabilityKey,
+      snapshot: {
+        ...policyRow().snapshot as object,
+        capabilityKey,
+        riskLevel: disabled.has(capabilityKey) ? 'high' : 'low',
+        mode: disabled.has(capabilityKey) ? 'preview' : 'readonly',
+        whitelistStatus: disabled.has(capabilityKey) ? 'not_allowed' : 'approved',
+        runtimeEnforcementStatus: 'shadow',
+      },
+    }));
+    const stored: Array<Record<string, unknown>> = [];
+    let nextId = 1000;
+    const findMany = jest.fn(async ({ where }: { where: { OR?: Array<{ resourceKey: string; version: number }> } }) => {
+      if (where.OR) {
+        return stored.filter((row) => where.OR!.some((item) => item.resourceKey === row.resourceKey && item.version === row.version));
+      }
+      return [...stored].sort((left, right) => String(left.resourceKey).localeCompare(String(right.resourceKey)) || Number(right.version) - Number(left.version));
+    });
+    const createMany = jest.fn(async ({ data }: { data: Array<Record<string, unknown>> }) => {
+      for (const row of data) stored.push({ id: nextId++, ...row });
+      return { count: data.length };
+    });
+    const tx = { brainResourceVersion: { findMany, createMany } };
+    const prisma = {
+      brainGovernanceCandidate: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 17,
+          candidateKey: 'repo:commit:merge',
+          receipts: [{
+            id: 91,
+            receiptKey: 'trusted-receipt',
+            stage: 'release',
+            resultChecksum: 'b'.repeat(64),
+            expiresAt: new Date('2026-08-05T00:00:00.000Z'),
+            capabilities: keys.map((capabilityKey) => ({ capabilityKey })),
+          }],
+        }),
+      },
+      brainRelease: {
+        findFirst: jest.fn().mockResolvedValue({ id: 436, items: activeItems }),
+      },
+      $transaction: jest.fn(async (work: (client: typeof tx) => unknown) => work(tx)),
+    };
+    const events = { record: jest.fn().mockResolvedValue({}) };
+    const service = new BrainGovernanceControlPlaneService(prisma as never, events as never);
+
+    const first = await service.createQueryOnlyPolicyVersions({ candidateKey: 'repo:commit:merge', actorId: 9 });
+    const second = await service.createQueryOnlyPolicyVersions({ candidateKey: 'repo:commit:merge', actorId: 9 });
+
+    expect(first.resourceVersionIds).toEqual(second.resourceVersionIds);
+    expect(first.resourceVersionIds).toHaveLength(41);
+    expect(createMany).toHaveBeenCalledTimes(1);
+    expect(events.record).toHaveBeenCalledTimes(1);
+  });
+
+  it('reuses a matching policy snapshot release key without creating duplicate releases or audit events', async () => {
+    const version = policyRow({
+      id: 11,
+      resourceKey: 'customer_facts',
+      snapshot: {
+        ...policyRow().snapshot as object,
+        capabilityKey: 'customer_facts',
+        riskLevel: 'low',
+        mode: 'readonly',
+        whitelistStatus: 'approved',
+        runtimeEnforcementStatus: 'enforced',
+        evidence: [{ expiresAt: '2026-08-05T00:00:00.000Z' }],
+      },
+    });
+    const existing = {
+      id: 460,
+      releaseKey: 'ami-brain-policy-query-only-v1-abcdef123456',
+      scope: 'governance_policy',
+      status: 'draft',
+      displayCode: 'GP-003',
+      items: [{ resourceVersionId: 11 }],
+    };
+    const prisma = {
+      brainResourceVersion: { findMany: jest.fn().mockResolvedValue([version]) },
+      brainRelease: {
+        findUnique: jest.fn().mockResolvedValue(existing),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ ...existing, items: [{ ...version, releaseId: 460, resourceVersionId: 11 }] }),
+        findFirst: jest.fn(),
+      },
+      $transaction: jest.fn(),
+    };
+    const events = { record: jest.fn() };
+    const service = new BrainGovernanceControlPlaneService(prisma as never, events as never);
+
+    await expect(service.createPolicySnapshot({
+      releaseKey: existing.releaseKey,
+      resourceVersionIds: [11],
+      actorId: 9,
+      displayName: 'Query Only V1 强制治理策略',
+    })).resolves.toMatchObject({ id: 460, releaseKey: existing.releaseKey });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(events.record).not.toHaveBeenCalled();
+  });
+
   it('exposes runtime ontology warmup summary, detail and single-flight retry result', async () => {
     const status = {
       state: 'ready',

@@ -182,6 +182,11 @@ const governanceCandidate = {
 const rolloutSequence = {
   id: 701,
   sequenceKey: 'candidate-head-rollout',
+  runtimeVersionNumber: 1,
+  runtimeVersionCode: 'RT-001',
+  displayName: 'Query Only V1',
+  productProfile: 'query_only_v1',
+  productIdentity: { family: 'runtime', code: 'RT-001', stageCode: 'RT-001-SHADOW', name: 'Query Only V1', internalReleaseId: 711 },
   status: 'active',
   currentStage: 'shadow',
   governanceMode: 'shadow',
@@ -190,7 +195,7 @@ const rolloutSequence = {
   pauseReason: null,
   candidateId: governanceCandidate.id,
   candidate: governanceCandidate,
-  policySnapshot: { id: 7, releaseKey: 'governance-v7', scope: 'governance_policy', status: 'active', createdAt: '2026-08-01T00:00:00.000Z' },
+  policySnapshot: { id: 7, releaseKey: 'governance-v7', scope: 'governance_policy', status: 'active', releaseFamily: 'policy', displayCode: 'GP-003', displayName: 'Query Only V1 强制治理策略', productIdentity: { family: 'policy', code: 'GP-003', stageCode: null, name: 'Query Only V1 强制治理策略', internalReleaseId: 7 }, createdAt: '2026-08-01T00:00:00.000Z' },
   previousRuntimeRelease: { id: 416, releaseKey: 'runtime-r416', status: 'active' },
   releases: [
     { ...runtimeDraftRelease, id: 711, releaseKey: 'candidate-shadow', status: 'active', rolloutStage: 'shadow', releaseReadiness: { status: 'ready', canRelease: true, evaluationReleaseId: 610, evalRunId: 240, releaseFingerprint: 'f'.repeat(64), suiteChecksum: 's'.repeat(64), questionCount: 100, provider: 'openai_responses', model: 'gpt-5.6-terra', generatedAt: '2026-08-01T00:00:00.000Z', expiresAt: '2099-08-03T00:00:00.000Z', blockers: [] } },
@@ -203,6 +208,27 @@ const rolloutSequence = {
   updatedAt: '2026-08-01T01:00:00.000Z',
   startedAt: '2026-08-01T00:30:00.000Z',
   completedAt: null,
+};
+const governanceTransition = {
+  id: 801,
+  transitionKey: 'query-only-v1-transition',
+  status: 'validated',
+  candidateId: governanceCandidate.id,
+  candidate: governanceCandidate,
+  oldPolicyReleaseId: 436,
+  newPolicyReleaseId: 7,
+  oldRuntimeReleaseId: 416,
+  runtimeSequenceId: rolloutSequence.id,
+  oldPolicy: { id: 436, releaseKey: 'legacy-shadow-policy', scope: 'governance_policy', status: 'active', productIdentity: { family: 'policy', code: 'GP-002', stageCode: null, name: 'Legacy Shadow Policy', internalReleaseId: 436 }, createdAt: '2026-08-01T00:00:00.000Z' },
+  newPolicy: rolloutSequence.policySnapshot,
+  oldRuntime: { id: 416, releaseKey: 'runtime-r416', scope: 'global', status: 'active', productIdentity: { family: 'legacy', code: 'LEGACY-RT-416', stageCode: null, name: 'Production Baseline', internalReleaseId: 416 }, createdAt: '2026-07-22T00:00:00.000Z' },
+  runtimeSequence: rolloutSequence,
+  policyApprovedAt: null,
+  runtimeApprovedAt: null,
+  currentStep: 'validated',
+  createdBy: 1,
+  createdAt: '2026-08-04T00:00:00.000Z',
+  updatedAt: '2026-08-04T00:00:00.000Z',
 };
 const governanceRole = {
   id: 61,
@@ -312,6 +338,8 @@ const traceEvents = [
       releaseKey: 'runtime-r416',
       releaseId: 416,
       mode: 'model',
+      runtimeProductIdentity: { family: 'legacy', code: 'LEGACY-RT-416', stageCode: null, name: 'Production Baseline', internalReleaseId: 416 },
+      governancePolicyIdentity: { family: 'legacy', code: 'LEGACY-GP-436', stageCode: null, name: 'Legacy Shadow Policy', internalReleaseId: 436 },
       releaseFingerprint: 'f'.repeat(64),
       provider: 'openai_responses',
       model: 'gpt-5.6-terra',
@@ -380,6 +408,7 @@ async function installGovernanceMocks(
     evidenceRecovery?: boolean;
     lowRiskAutoAdmission?: boolean;
     reusePolicy?: boolean;
+    combinedTransition?: boolean;
   } = {},
 ) {
   let policyPublished = false;
@@ -490,6 +519,13 @@ async function installGovernanceMocks(
     }
     if (path === '/brain/governance/candidates' && request.method() === 'GET') {
       return fulfillJson(route, { items: [governanceCandidate], total: 1, page: 1, pageSize: 50 });
+    }
+    if (path === '/brain/governance/transitions' && request.method() === 'GET') {
+      return fulfillJson(route, { items: options.combinedTransition ? [governanceTransition] : [], total: options.combinedTransition ? 1 : 0, page: 1, pageSize: 5 });
+    }
+    if (path === '/brain/governance/transitions/801/validate' && request.method() === 'POST') {
+      if (!permissions.includes('*') && !permissions.includes('core:brain-governance:manage')) return fulfillJson(route, { message: 'Forbidden' }, 403); // ami-brain-unit-only: mocked permission response.
+      return fulfillJson(route, { transitionId: 801, valid: true, blockers: [] });
     }
     if (path === '/brain/governance/rollout-sequences' && request.method() === 'GET') {
       const sequence = rolloutPaused
@@ -725,11 +761,12 @@ test('governance overview opens a URL-restorable pending approval filter', async
   await expect(page.getByLabel('治理界面模式')).toContainText('环境变量显式配置');
   await expect(page.getByRole('link', { name: '治理工作台' })).toBeVisible();
   await expect(page.getByRole('link', { name: '质量中心' })).toBeVisible();
-  await expect(page.getByRole('link', { name: '策略与发布' })).toBeVisible();
+  await expect(page.getByRole('link', { name: '治理策略与运行版本' })).toBeVisible();
   await expect(page.getByRole('link', { name: '技能治理' })).toHaveCount(0);
   await expect(page.getByText('策略已发布，运行待接入')).toBeVisible();
   await expect(page.getByText('19.3 秒', { exact: true })).toBeVisible();
-  await expect(page.getByText('2/2 Release')).toBeVisible();
+  await expect(page.getByText('运行阶段快照')).toBeVisible();
+  await expect(page.getByText('2/2', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: '查看详情' }).click();
   await expect(page.getByRole('heading', { name: 'Ontology 运行准备详情' })).toBeVisible();
   await expect(page.getByText('17.3 秒')).toBeVisible();
@@ -737,6 +774,27 @@ test('governance overview opens a URL-restorable pending approval filter', async
   await page.getByRole('button', { name: /待审批/ }).click();
   await expect(page).toHaveURL(/\/brain-governance\/workbench\?tab=tasks&status=pending_approval$/);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test('combined transition keeps GP and RT identities separate and hides validation from view-only users', async ({ page }) => {
+  await installGovernanceMocks(page, ['core:brain-governance:view'], { combinedTransition: true });
+  await page.goto('/brain-governance');
+
+  await expect(page.getByText('GP-003 · Query Only V1 强制治理策略')).toBeVisible();
+  await expect(page.getByText('RT-001 · Query Only V1')).toBeVisible();
+  await expect(page.getByText('旧策略：GP-002 · Legacy Shadow Policy')).toBeVisible();
+  await expect(page.getByText('旧运行：LEGACY-RT-416 · Production Baseline')).toBeVisible();
+  await expect(page.getByRole('button', { name: '组合校验' })).toHaveCount(0);
+});
+
+test('combined transition validation requires manage permission and remains separate from GP and RT approval', async ({ page }) => {
+  await installGovernanceMocks(page, ['core:brain-governance:view', 'core:brain-governance:manage'], { combinedTransition: true });
+  await page.goto('/brain-governance');
+
+  await page.getByRole('button', { name: '组合校验' }).click();
+  await expect(page.getByText('治理策略与运行版本组合校验已完成')).toBeVisible();
+  await expect(page.getByRole('button', { name: '审批 GP' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '审批 RT' })).toHaveCount(0);
 });
 
 test('low-risk trusted receipt is machine-ingested and becomes automatically admitted', async ({ page }) => {
@@ -823,7 +881,7 @@ test('policy preparation reuses the active snapshot when the candidate has no po
 test('publishing a governance policy snapshot does not claim runtime activation', async ({ page }) => {
   await installGovernanceMocks(page, ['core:brain-governance:view', 'core:brain-governance:manage', 'core:brain-governance:publish']);
   await page.goto('/brain-governance/releases?tab=policy');
-  await expect(page.getByText(/不会自动激活 Skill、Semantic 或当前 Brain Runtime Release/)).toBeVisible();
+  await expect(page.getByText(/不会自动激活 Skill、Semantic 或当前运行版本（RT）/)).toBeVisible();
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: '发布策略' }).click();
   await expect(page.getByText('治理策略已发布；运行接入状态仍需单独确认')).toBeVisible();
@@ -896,7 +954,7 @@ test('legacy planning opens a complete runtime trace with explicit duration unit
   await page.goto('/brain-governance/planning');
   await expect(page).toHaveURL(/\/brain\?panel=trace$/);
   await expect(page.getByText('问答耗时 22秒')).toBeVisible();
-  await expect(page.getByText('runtime-r416', { exact: true })).toBeVisible();
+  await expect(page.getByText('LEGACY-RT-416 · Production Baseline', { exact: true })).toBeVisible();
   await expect(page.getByText(/语义版本 intent-v3/)).toBeVisible();
   await expect(page.getByRole('heading', { name: '预约空档查询' })).toBeVisible();
   await expect(page.getByText(/入选依据：intent、entity\.reservation、metric\.appointment_count/)).toBeVisible();
@@ -924,7 +982,7 @@ test('quality latency uses explicit duration units and remains responsive at des
 test('runtime release controls require the dedicated release permission', async ({ page }) => {
   await installGovernanceMocks(page, ['core:brain-governance:view', 'core:brain-governance:manage']);
   await page.goto('/brain-governance/releases?tab=runtime');
-  await expect(page.getByText('candidate-head-rollout')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'RT-001 · Query Only V1' })).toBeVisible();
   await expect(page.getByRole('button', { name: /按真实观察晋级/ })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /暂停/ })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /回滚/ })).toHaveCount(0);
@@ -970,7 +1028,7 @@ test('draft rollout sequence validates and activates Shadow without switching En
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: /校验并激活 Shadow/ }).click();
   await expect(page.getByText('Shadow 已激活，开始观察')).toBeVisible();
-  await expect(page.getByText(/治理策略已发布不等于 Runtime 已生效/)).toBeVisible();
+  await expect(page.getByText(/治理策略（GP）已启用，不代表运行版本（RT）已生效/)).toBeVisible();
   await expect(page.getByText(/Enforced/)).toHaveCount(0);
 });
 
@@ -991,7 +1049,7 @@ test('rollout promotion uses server-observed health and rejects insufficient obs
 test('sequence-owned releases reject direct activation and cannot skip rollout stages', async ({ page }) => {
   await installGovernanceMocks(page, ['core:brain-governance:view', 'core:brain-governance:release']);
   await page.goto('/brain-governance/releases?tab=runtime');
-  await expect(page.getByText('candidate-head-rollout')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'RT-001 · Query Only V1' })).toBeVisible();
   const response = await page.evaluate(async () => {
     const result = await fetch('/api/brain/governance/releases/713/activate', {
       method: 'POST',
