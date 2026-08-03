@@ -302,6 +302,13 @@ describe('BrainReleaseService', () => {
       releaseId: 21,
       releaseStatus: 'draft',
       releaseFingerprint: 'c'.repeat(64),
+      evaluationIdentity: {
+        family: 'evaluation',
+        code: 'EV-001',
+        stageCode: null,
+        name: 'Query Only V1 候选评测',
+        internalReleaseId: 21,
+      },
       declaredMode: 'shadow',
       mode: 'model',
       resourceVersionIds: [11],
@@ -1690,6 +1697,9 @@ describe('BrainReleaseService', () => {
         scope: true,
         status: true,
         rollout: true,
+        releaseFamily: true,
+        displayCode: true,
+        displayName: true,
         items: {
           select: {
             resourceVersionId: true,
@@ -2208,6 +2218,63 @@ describe('BrainReleaseService', () => {
         }),
       }),
     });
+  });
+
+  it('assigns an EV identity to an evaluation-only release without consuming an RT identity', async () => {
+    const versions = BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS.map((resourceKey, index) => ({
+      id: index + 1,
+      resourceType: 'skill',
+      resourceKey,
+      version: 1,
+      status: 'draft',
+      checksum: String(index + 1).padStart(64, '0'),
+      snapshot: { key: resourceKey, readOnly: true, sideEffect: false },
+    }));
+    const tx = {
+      brainRelease: { create: jest.fn().mockResolvedValue({ id: 453, releaseKey: 'query-only-eval', status: 'draft' }) },
+      brainReleaseItem: { createMany: jest.fn().mockResolvedValue({ count: versions.length }) },
+    };
+    const prisma = {
+      brainResourceVersion: { findMany: jest.fn().mockResolvedValue(versions) },
+      brainRelease: { findFirst: jest.fn().mockResolvedValue(null) },
+      $transaction: jest.fn((callback) => callback(tx)),
+    };
+    const identity = {
+      assignEvaluationIdentity: jest.fn().mockResolvedValue({
+        id: 453,
+        releaseKey: 'query-only-eval',
+        status: 'draft',
+        releaseFamily: 'evaluation',
+        displayCode: 'EV-001',
+        displayName: 'Query Only V1 候选评测',
+      }),
+    };
+    const service = new BrainReleaseService(
+      prisma as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      identity as never,
+    );
+
+    await expect(service.createRelease({
+      releaseKey: 'query-only-eval',
+      scope: 'percentage',
+      rollout: {
+        stage: 'shadow',
+        mode: 'shadow',
+        evaluationOnly: true,
+        userPercentage: 100,
+        productProfile: BRAIN_QUERY_ONLY_PRODUCT_PROFILE,
+        actionsEnabled: false,
+        actionExecutionPolicy: 'deny',
+      },
+      resourceVersionIds: versions.map((version) => version.id),
+      createdBy: 9,
+      displayName: 'Query Only V1 候选评测',
+    })).resolves.toMatchObject({ releaseFamily: 'evaluation', displayCode: 'EV-001' });
+    expect(identity.assignEvaluationIdentity).toHaveBeenCalledWith(453, 'Query Only V1 候选评测');
   });
 
   it('reports independent RT and GP identities with the active transition state', async () => {

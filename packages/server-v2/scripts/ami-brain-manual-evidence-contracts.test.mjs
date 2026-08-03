@@ -14,6 +14,7 @@ function candidateLock() {
       runtimeCommit: 'a'.repeat(40),
       diffChecksum: 'b'.repeat(64),
       releaseId: 453,
+      evaluationIdentity: { family: 'evaluation', code: 'EV-001', internalReleaseId: 453 },
       releaseFingerprint: 'c'.repeat(64),
       suiteManifestChecksum: 'd'.repeat(64),
       dataSnapshot: 'snapshot-6',

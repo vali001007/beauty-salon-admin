@@ -126,16 +126,19 @@ export class HealthController {
 }
 
 function deploymentIdentity() {
+  const commit = firstPresentEnv([
+    'ZEABUR_GIT_COMMIT_SHA',
+    'GIT_COMMIT_SHA',
+    'GITHUB_SHA',
+    'COMMIT_SHA',
+    'SOURCE_COMMIT',
+  ]);
+  const platformBuildId = firstPresentEnv(['ZEABUR_DEPLOYMENT_ID', 'DEPLOYMENT_ID', 'BUILD_ID', 'GITHUB_RUN_ID']);
   return {
-    commit: firstPresentEnv([
-      'ZEABUR_GIT_COMMIT_SHA',
-      'GIT_COMMIT_SHA',
-      'GITHUB_SHA',
-      'COMMIT_SHA',
-      'SOURCE_COMMIT',
-    ]),
+    commit,
     branch: firstPresentEnv(['ZEABUR_GIT_BRANCH', 'GIT_BRANCH', 'GITHUB_REF_NAME', 'BRANCH_NAME']),
-    buildId: firstPresentEnv(['ZEABUR_DEPLOYMENT_ID', 'DEPLOYMENT_ID', 'BUILD_ID', 'GITHUB_RUN_ID']),
+    buildId: platformBuildId ?? (commit ? `commit:${commit}` : null),
+    buildIdentitySource: platformBuildId ? 'platform' : commit ? 'commit_fallback' : null,
     environment: firstPresentEnv(['NODE_ENV', 'APP_ENV', 'RAILWAY_ENVIRONMENT', 'VERCEL_ENV']),
   };
 }

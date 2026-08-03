@@ -23,6 +23,7 @@ describe('HealthController', () => {
       commit: 'abc123',
       branch: 'main',
       buildId: 'deploy-1',
+      buildIdentitySource: 'platform',
       environment: 'production',
     });
   });
@@ -52,6 +53,7 @@ describe('HealthController', () => {
       commit: null,
       branch: null,
       buildId: null,
+      buildIdentitySource: null,
       environment: null,
     });
   });

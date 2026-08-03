@@ -12,11 +12,13 @@ import {
 } from './ami-brain-candidate-identity-core.mjs';
 
 function identity(overrides = {}) {
+  const releaseId = overrides.releaseId ?? 453;
   return {
     productProfile: 'query_only_v1',
     runtimeCommit: 'a'.repeat(40),
     diffChecksum: 'b'.repeat(64),
-    releaseId: 453,
+    releaseId,
+    evaluationIdentity: { family: 'evaluation', code: 'EV-001', internalReleaseId: releaseId },
     releaseFingerprint: 'c'.repeat(64),
     suiteManifestChecksum: 'd'.repeat(64),
     dataSnapshot: 'store-6:snapshot-20260802',
@@ -95,6 +97,7 @@ test('changes candidateId whenever deployment, model, data or Release identity c
   const base = createCandidateLock({ identity: identity() }).candidateId;
   for (const changed of [
     identity({ releaseId: 454 }),
+    identity({ evaluationIdentity: { family: 'evaluation', code: 'EV-002', internalReleaseId: 453 } }),
     identity({ model: 'gpt-next' }),
     identity({ dataSnapshot: 'store-6:snapshot-next' }),
     identity({ deployment: { ...identity().deployment, buildId: 'deploy-next' } }),
@@ -106,6 +109,10 @@ test('changes candidateId whenever deployment, model, data or Release identity c
 
 test('rejects incomplete identities and deployment commit drift', () => {
   assert.throws(() => createCandidateIdentity(identity({ provider: null })), /candidate_provider_missing/);
+  assert.throws(
+    () => createCandidateIdentity(identity({ evaluationIdentity: { family: 'evaluation', code: 'RT-001', internalReleaseId: 453 } })),
+    /candidate_evaluation_version_code_invalid/,
+  );
   assert.throws(
     () => createCandidateIdentity(identity({ deployment: { ...identity().deployment, commit: 'e'.repeat(40) } })),
     /candidate_deployment_commit_mismatch/,
