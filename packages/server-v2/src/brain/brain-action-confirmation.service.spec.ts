@@ -1895,6 +1895,59 @@ describe('BrainActionConfirmationService', () => {
     }
   });
 
+  it('blocks legacy preview creation under a query-only Runtime before validation or persistence', async () => {
+    const prisma = {
+      brainActionConfirmation: { create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
+      brainActionExecution: { create: jest.fn(), update: jest.fn() },
+      $transaction: jest.fn(),
+    };
+    const gateway = { resolve: jest.fn(), validateForExecution: jest.fn(), execute: jest.fn() };
+    const trace = { recordStep: jest.fn().mockResolvedValue(undefined) };
+    const releaseService = {
+      resolveActionExecutionPolicy: jest.fn().mockResolvedValue({
+        allowed: false,
+        reason: 'brain_action_execution_disabled_by_release_profile',
+      }),
+    };
+    const service = new BrainActionConfirmationService(
+      prisma as never,
+      gateway as never,
+      trace as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      releaseService as never,
+    );
+
+    await expect(service.createPreview({
+      runId: 7,
+      userId: 9,
+      storeId: 6,
+      roles: ['receptionist'],
+      skillKey: 'create_reservation',
+      capabilityVersion: 1,
+      riskLevel: 'medium',
+      preview: { summary: '创建预约' },
+      payload: { customerId: 11 },
+    })).rejects.toThrow('brain_action_execution_disabled_by_release_profile');
+
+    expect(releaseService.resolveActionExecutionPolicy).toHaveBeenCalledWith(expect.objectContaining({
+      storeId: 6,
+      userId: 9,
+      roleKey: 'receptionist',
+    }));
+    expect(gateway.resolve).not.toHaveBeenCalled();
+    expect(gateway.validateForExecution).not.toHaveBeenCalled();
+    expect(gateway.execute).not.toHaveBeenCalled();
+    expect(prisma.brainActionConfirmation.create).not.toHaveBeenCalled();
+    expect(prisma.brainActionConfirmation.update).not.toHaveBeenCalled();
+    expect(prisma.brainActionConfirmation.updateMany).not.toHaveBeenCalled();
+    expect(prisma.brainActionExecution.create).not.toHaveBeenCalled();
+    expect(prisma.brainActionExecution.update).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
   it('blocks confirm and retry when the governing Release is query-only', async () => {
     const action = {
       actionId: 'act_query_only',

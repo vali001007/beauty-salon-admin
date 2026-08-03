@@ -4,6 +4,8 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import {
   approveBrainCapabilityPolicy,
+  approveBrainGovernanceTransitionPolicy,
+  approveBrainGovernanceTransitionRuntime,
   cancelBrainGovernanceReads,
   cancelBrainGovernanceTask,
   classifyBrainCapabilityPolicy,
@@ -19,13 +21,20 @@ import {
   listBrainCapabilityPolicies,
   listBrainGovernanceCandidates,
   listBrainGovernanceTasks,
+  listBrainGovernanceTransitions,
   listBrainPolicySnapshots,
   publishBrainPolicySnapshot,
   previewBrainPolicySnapshot,
   prepareBrainGovernanceCandidatePolicy,
+  prepareBrainGovernanceTransition,
+  previewBrainGovernanceTransition,
   retryBrainGovernanceTask,
   retryBrainRuntimeOntologyWarmup,
   rollbackBrainPolicySnapshot,
+  rollbackBrainGovernanceTransition,
+  switchBrainGovernanceTransition,
+  validateBrainGovernanceTransition,
+  finalizeBrainGovernanceTransition,
   updateBrainCapabilityPolicyOwners,
 } from '@/api/brain';
 import type { ApiErrorPayload } from '@/api/client';
@@ -56,6 +65,8 @@ import type {
   BrainGovernanceRelease,
   BrainGovernanceRiskLevel,
   BrainGovernanceTask,
+  BrainGovernanceTransition,
+  BrainGovernanceTransitionPreview,
   BrainRuntimeOntologyWarmupDetail,
   BrainPolicySnapshotPreview,
 } from '@/types/brain';
@@ -68,6 +79,8 @@ const terminalCandidateStatuses = new Set(['completed', 'superseded']);
 export function BrainGovernanceOverviewPage() {
   const navigate = useNavigate();
   const canManage = usePermission('core:brain-governance:manage') && BRAIN_GOVERNANCE_UI_MODE === 'manage';
+  const canPublish = usePermission('core:brain-governance:publish') && BRAIN_GOVERNANCE_UI_MODE === 'manage';
+  const canRelease = usePermission('core:brain-governance:release') && BRAIN_GOVERNANCE_UI_MODE === 'manage';
   const [data, setData] = useState<BrainGovernanceOverview | null>(null);
   const [processLatency, setProcessLatency] = useState<BrainGovernanceProcessLatencyResponse | null>(null);
   const [candidates, setCandidates] = useState<BrainGovernanceCandidate[]>([]);
@@ -82,19 +95,24 @@ export function BrainGovernanceOverviewPage() {
   const [warmupDetailOpen, setWarmupDetailOpen] = useState(false);
   const [warmupDetailLoading, setWarmupDetailLoading] = useState(false);
   const [warmupRetrying, setWarmupRetrying] = useState(false);
+  const [transition, setTransition] = useState<BrainGovernanceTransition | null>(null);
+  const [transitionPreview, setTransitionPreview] = useState<BrainGovernanceTransitionPreview | null>(null);
+  const [transitionBusy, setTransitionBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [overview, candidatePage, latency] = await Promise.all([
+      const [overview, candidatePage, latency, transitionPage] = await Promise.all([
         getBrainGovernanceOverview(),
         listBrainGovernanceCandidates({ page: 1, pageSize: 3 }),
         getBrainGovernanceProcessLatency({ days: 7 }).catch(() => null),
+        listBrainGovernanceTransitions({ page: 1, pageSize: 5 }).catch(() => ({ items: [], total: 0, page: 1, pageSize: 5 })),
       ]);
       setData(overview);
       setCandidates(candidatePage.items ?? []);
       setProcessLatency(latency);
+      setTransition(transitionPage.items.find((item) => !['completed', 'rolled_back', 'failed'].includes(item.status)) ?? transitionPage.items[0] ?? null);
     } catch (loadError) {
       if (!isBrainGovernanceReadCancelled(loadError)) setError(governanceErrorView(loadError));
     } finally {
@@ -179,6 +197,58 @@ export function BrainGovernanceOverviewPage() {
     }
   }
 
+  async function previewTransition() {
+    if (!currentCandidate) return;
+    setTransitionBusy(true);
+    try {
+      const result = await previewBrainGovernanceTransition(currentCandidate.candidateKey);
+      setTransitionPreview(result);
+      if (result.existingTransition) setTransition(result.existingTransition);
+    } catch (previewError) {
+      toast.error(errorMessage(previewError));
+    } finally {
+      setTransitionBusy(false);
+    }
+  }
+
+  async function prepareTransition() {
+    if (!currentCandidate) return;
+    setTransitionBusy(true);
+    try {
+      setTransition(await prepareBrainGovernanceTransition(currentCandidate.candidateKey));
+      setTransitionPreview(null);
+      toast.success('已分别创建新治理策略和新运行版本，尚未切换流量');
+      await load();
+    } catch (prepareError) {
+      toast.error(errorMessage(prepareError));
+    } finally {
+      setTransitionBusy(false);
+    }
+  }
+
+  async function runTransitionAction(action: () => Promise<unknown>, success: string) {
+    setTransitionBusy(true);
+    try {
+      await action();
+      toast.success(success);
+      await load();
+    } catch (actionError) {
+      toast.error(errorMessage(actionError));
+    } finally {
+      setTransitionBusy(false);
+    }
+  }
+
+  async function rollbackTransition() {
+    if (!transition) return;
+    const reason = window.prompt('填写治理切换回滚原因');
+    if (!reason?.trim()) return;
+    await runTransitionAction(
+      () => rollbackBrainGovernanceTransition(transition.id, reason.trim()),
+      '已恢复切换前的治理策略与运行版本',
+    );
+  }
+
   const cards = [
     ['待分类', data.pending.unclassified, '/brain-governance/workbench?tab=capabilities&riskLevel=unclassified'],
     ['评估中', data.pending.evaluating, '/brain-governance/workbench?tab=tasks&status=evaluating'],
@@ -216,6 +286,71 @@ export function BrainGovernanceOverviewPage() {
           )}
         </CardContent>
       </Card>
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <CardTitle className="text-base">治理策略与运行版本切换</CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">治理策略使用 GP 编号，运行版本使用 RT 编号；两条版本线独立审批、组合切换。</p>
+            </div>
+            <Badge variant={transition?.status === 'observing' ? 'default' : 'outline'}>{transition ? transitionStatusLabel(transition.status) : '未开始切换'}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          <div className="grid gap-3 md:grid-cols-2">
+            <VersionIdentityPanel
+              title="当前治理策略"
+              kind="policy"
+              release={data.latestPolicySnapshot}
+              fallback="尚未发布治理策略"
+            />
+            <VersionIdentityPanel
+              title="当前运行版本"
+              kind="runtime"
+              release={data.runtimeRelease}
+              fallback="规则模式 / 无运行版本"
+            />
+          </div>
+          {transition ? (
+            <div className="rounded-lg border p-4">
+              <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
+                <div>
+                  <div className="text-xs text-muted-foreground">治理策略目标</div>
+                  <div className="mt-1 font-medium">{productIdentityText(transition.newPolicy, 'policy')}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">旧策略：{productIdentityText(transition.oldPolicy, 'policy')}</div>
+                </div>
+                <ArrowRight className="hidden size-5 text-muted-foreground md:block" />
+                <div>
+                  <div className="text-xs text-muted-foreground">运行版本目标</div>
+                  <div className="mt-1 font-medium">{sequenceIdentityText(transition.runtimeSequence)}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">旧运行：{productIdentityText(transition.oldRuntime, 'runtime')}</div>
+                </div>
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                <StatusRow label="当前步骤" value={transitionStepLabel(transition.currentStep)} />
+                <StatusRow label="策略审批" value={transition.policyApprovedAt ? '已审批' : '待审批'} />
+                <StatusRow label="运行审批" value={transition.runtimeApprovedAt ? '已审批' : '待审批'} />
+              </div>
+              {transition.failureMessage ? <p className="mt-3 rounded-lg bg-amber-50 p-3 text-amber-800">{transition.failureMessage}</p> : null}
+              <div className="mt-4 flex flex-wrap gap-2">
+                {canManage && ['draft', 'validated', 'approved'].includes(transition.status) ? <Button variant="outline" disabled={transitionBusy} onClick={() => void runTransitionAction(() => validateBrainGovernanceTransition(transition.id), '治理策略与运行版本组合校验已完成')}><ShieldCheck />组合校验</Button> : null}
+                {canPublish && !transition.policyApprovedAt && ['draft', 'validated', 'approved'].includes(transition.status) ? <Button variant="outline" disabled={transitionBusy} onClick={() => void runTransitionAction(() => approveBrainGovernanceTransitionPolicy(transition.id), '治理策略已审批')} >审批 GP</Button> : null}
+                {canRelease && !transition.runtimeApprovedAt && ['draft', 'validated', 'approved'].includes(transition.status) ? <Button variant="outline" disabled={transitionBusy} onClick={() => void runTransitionAction(() => approveBrainGovernanceTransitionRuntime(transition.id), '运行版本已审批')}>审批 RT</Button> : null}
+                {canPublish && canRelease && transition.policyApprovedAt && transition.runtimeApprovedAt && ['validated', 'approved'].includes(transition.status) ? <Button disabled={transitionBusy} onClick={() => window.confirm('将同时发布新治理策略并激活新运行版本 Shadow，失败会自动补偿回滚。确认继续？') && void runTransitionAction(() => switchBrainGovernanceTransition(transition.id), '新治理策略与运行版本 Shadow 已组合生效')}>组合切换</Button> : null}
+                {canPublish && canRelease && ['switching', 'observing'].includes(transition.status) ? <Button variant="destructive" disabled={transitionBusy} onClick={() => void rollbackTransition()}><RotateCcw />组合回滚</Button> : null}
+                {canRelease && transition.status === 'observing' && transition.runtimeSequence.status === 'completed' && transition.runtimeSequence.currentStage === 'full' ? <Button disabled={transitionBusy} onClick={() => void runTransitionAction(() => finalizeBrainGovernanceTransition(transition.id), '旧运行版本已标记为被取代，切换完成')}>完成退役</Button> : null}
+              </div>
+              <details className="mt-3 text-xs text-muted-foreground"><summary className="cursor-pointer">审计信息</summary><p className="mt-1 break-all">Transition {transition.transitionKey} · 内部记录 #{transition.id}</p></details>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed p-4">
+              <p className="text-muted-foreground">尚未创建新的 GP/RT 组合。先预检同一 Candidate 的 41 项可信证据，再分别生成治理策略与运行版本。</p>
+              {transitionPreview ? <div className={`mt-3 rounded-lg p-3 ${transitionPreview.canPrepare ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}><div className="font-medium">目标：{transitionPreview.target.policyCode} + {transitionPreview.target.runtimeCode}</div><p className="mt-1">{transitionPreview.target.allowedCapabilityCount} 项只读能力允许，{transitionPreview.target.deniedCapabilityCount} 项 Action 能力禁止。</p>{transitionPreview.blockers.length ? <p className="mt-1 break-all">阻塞：{transitionPreview.blockers.join('、')}</p> : null}</div> : null}
+              <div className="mt-3 flex flex-wrap gap-2"><Button variant="outline" disabled={!currentCandidate || transitionBusy} onClick={() => void previewTransition()}>预检新策略与运行版本</Button>{canManage && transitionPreview?.canPrepare ? <Button disabled={transitionBusy} onClick={() => void prepareTransition()}>创建 GP 与 RT 草稿</Button> : null}</div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
       <WarmupSummaryCard summary={data.runtimeWarmup} onOpen={() => void openWarmupDetail()} />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map(([label, value, path]) => (
@@ -231,8 +366,8 @@ export function BrainGovernanceOverviewPage() {
         <Card>
           <CardHeader><CardTitle className="text-base">策略与运行</CardTitle></CardHeader>
           <CardContent className="space-y-3 text-sm">
-            <StatusRow label="最新治理策略" value={data.latestPolicySnapshot?.releaseKey ?? '尚未发布'} />
-            <StatusRow label="当前运行 Release" value={data.runtimeRelease?.releaseKey ?? '规则模式/无 Release'} />
+            <StatusRow label="最新治理策略" value={data.latestPolicySnapshot ? productIdentityText(data.latestPolicySnapshot, 'policy') : '尚未发布'} />
+            <StatusRow label="当前运行版本" value={data.runtimeRelease ? productIdentityText(data.runtimeRelease, 'runtime') : '规则模式/无运行版本'} />
             <StatusRow
               label="治理运行模式"
               value={data.runtimeGovernance ? (data.runtimeGovernance.mode === 'shadow' ? 'Shadow 观察' : 'Enforced 强制') : '尚未接入'}
@@ -273,7 +408,7 @@ export function BrainGovernanceOverviewPage() {
         <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
           <SheetHeader>
             <SheetTitle>当前 Candidate</SheetTitle>
-            <SheetDescription>门禁、策略差异、受影响能力和运行发布准备度按同一候选身份展示。</SheetDescription>
+            <SheetDescription>门禁、策略差异、受影响能力和运行版本准备度按同一候选身份展示。</SheetDescription>
           </SheetHeader>
           {candidateDetailLoading ? <LoadingPanel label="正在加载 Candidate…" /> : candidateDetailError ? (
             <div className="m-4 rounded-lg border border-destructive/30 p-3 text-sm text-destructive">{candidateDetailError}</div>
@@ -293,7 +428,7 @@ export function BrainGovernanceOverviewPage() {
                 </div>
                 <div className={`mt-2 rounded-lg p-3 ${candidateDetail.releaseReadiness.canRelease ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
                   {candidateDetail.releaseReadiness.canRelease
-                    ? `Release ${candidateDetail.releaseReadiness.releaseKey ?? ''} 已满足当前阶段门禁`
+                    ? '目标运行快照已满足当前阶段门禁'
                     : `运行尚未就绪：${candidateDetail.releaseReadiness.blockers.join('、')}`}
                 </div>
               </section>
@@ -308,7 +443,7 @@ export function BrainGovernanceOverviewPage() {
         <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
           <SheetHeader>
             <SheetTitle>Ontology 运行准备详情</SheetTitle>
-            <SheetDescription>仅预热当前 Runtime Active Release；治理策略 Release 不进入此流程。</SheetDescription>
+            <SheetDescription>仅预热当前生效的运行版本；治理策略不进入此流程。</SheetDescription>
           </SheetHeader>
           {warmupDetailLoading ? <LoadingPanel label="正在读取 Ontology 加载详情…" /> : warmupDetail ? (
             <div className="space-y-4 px-4 pb-6 text-sm">
@@ -316,7 +451,7 @@ export function BrainGovernanceOverviewPage() {
                 <StatusRow label="状态" value={warmupStateLabel(warmupDetail.state)} />
                 <StatusRow label="当前阶段" value={warmupDetail.currentPhase ? warmupPhaseLabel(warmupDetail.currentPhase) : '无'} />
                 <StatusRow label="总耗时" value={preciseDuration(warmupDetail.latencyMs)} />
-                <StatusRow label="Runtime Release" value={`${warmupDetail.warmedReleaseCount}/${warmupDetail.activeReleaseCount} Release`} />
+                <StatusRow label="运行阶段快照" value={`${warmupDetail.warmedReleaseCount}/${warmupDetail.activeReleaseCount}`} />
                 <StatusRow label="Artifact 来源" value={warmupArtifactLabel(warmupDetail.artifactSource)} />
                 <StatusRow label="性能目标" value={warmupDetail.performanceTargetMet ? '已达到 <10 秒' : '未达到 <10 秒'} />
               </div>
@@ -332,20 +467,20 @@ export function BrainGovernanceOverviewPage() {
               </div>
               {warmupDetail.failureReason ? <WarmupFailure category={warmupDetail.failureCategory} reason={warmupDetail.failureReason} /> : null}
               <div className="space-y-2">
-                <h3 className="font-medium">Release 明细</h3>
+                <h3 className="font-medium">运行阶段明细</h3>
                 {warmupDetail.releases.map((release) => (
                   <div key={release.releaseId} className="rounded-lg border p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <strong>Release {release.releaseId}</strong>
+                      <strong>运行阶段快照</strong>
                       <Badge variant="outline">{warmupArtifactLabel(release.artifactSource)}</Badge>
                     </div>
                     <div className="mt-2 grid gap-2 sm:grid-cols-2">
                       <StatusRow label="能力数" value={String(release.capabilityCount)} />
-                      <StatusRow label="Release 耗时" value={preciseDuration(release.latencyMs)} />
+                      <StatusRow label="阶段耗时" value={preciseDuration(release.latencyMs)} />
                       <StatusRow label="Ontology" value={preciseDuration(release.ontologyLatencyMs)} />
                       <StatusRow label="Catalog" value={preciseDuration(release.capabilityCatalogLatencyMs)} />
                     </div>
-                    <div className="mt-2 break-all text-xs text-muted-foreground" title={release.ontologyFingerprint}>Fingerprint：{release.ontologyFingerprint.slice(0, 12)}</div>
+                    <details className="mt-2 break-all text-xs text-muted-foreground"><summary className="cursor-pointer">审计信息</summary><div title={release.ontologyFingerprint}>数据库记录 #{release.releaseId} · Fingerprint：{release.ontologyFingerprint.slice(0, 12)}</div></details>
                   </div>
                 ))}
               </div>
@@ -831,18 +966,18 @@ export function BrainPolicySnapshotsPage() {
   async function rollback(item: BrainGovernanceRelease) {
     const reason = window.prompt('填写策略回滚理由');
     if (!reason?.trim()) return;
-    try { await rollbackBrainPolicySnapshot(item.id, reason); toast.success('治理策略已回滚，运行 Release 未改变'); await load(); } catch (saveError) { toast.error(errorMessage(saveError)); }
+    try { await rollbackBrainPolicySnapshot(item.id, reason); toast.success('治理策略已回滚，运行版本未改变'); await load(); } catch (saveError) { toast.error(errorMessage(saveError)); }
   }
 
   return (
     <section className="space-y-4">
       <PageHeader title="策略快照" description="先对 Candidate 生成差异；无 diff 时复用当前快照，不制造新审批。" />
-      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900"><strong>生效边界：</strong>这里发布的是治理规则，不会自动激活 Skill、Semantic 或当前 Brain Runtime Release。</div>
+      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900"><strong>生效边界：</strong>这里发布的是治理策略（GP），不会自动激活 Skill、Semantic 或当前运行版本（RT）。</div>
       <Card><CardHeader><CardTitle className="text-base">Candidate 策略准备</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex flex-col gap-2 sm:flex-row"><select aria-label="Candidate" className="h-10 min-w-0 flex-1 rounded-md border bg-background px-3 text-sm" value={selectedCandidateKey} onChange={(event) => { updateParam(params, setParams, 'candidateKey', event.target.value); setPreview(null); }}><option value="">请选择 Candidate</option>{candidates.map((candidate) => <option key={candidate.id} value={candidate.candidateKey}>{candidate.branch ?? candidate.candidateKey} · {shortCommit(candidate.headCommit)}</option>)}</select><Button variant="outline" disabled={!selectedCandidateKey} onClick={() => void previewCandidate()}>预览 diff</Button>{canManage && <Button disabled={!selectedCandidateKey || preparing} onClick={() => void prepareCandidate()}><ShieldCheck />{preparing ? '准备中…' : '准备策略'}</Button>}</div>{preview ? <div className={`rounded-lg border p-4 text-sm ${preview.decision === 'blocked' ? 'border-amber-300 bg-amber-50' : 'bg-muted/30'}`}><div className="flex flex-wrap items-center justify-between gap-2"><strong>{preview.decision === 'reuse_active' ? '无策略差异，复用当前快照' : preview.decision === 'blocked' ? '暂不可准备策略' : '需创建新策略快照'}</strong><Badge variant="outline">{preview.affectedCapabilities.length} 个受影响能力</Badge></div><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4"><StatusRow label="新增" value={String(preview.diff.added.length)} /><StatusRow label="变更" value={String(preview.diff.changed.length)} /><StatusRow label="移除" value={String(preview.diff.removed.length)} /><StatusRow label="未变" value={String(preview.diff.unchanged.length)} /></div>{preview.blockers.length ? <div className="mt-3 space-y-1 text-amber-800">{preview.blockers.map((blocker) => <p key={`${blocker.code}-${blocker.capabilityKey ?? ''}`}>{blocker.capabilityKey ? `${blocker.capabilityKey}：` : ''}{blocker.code}</p>)}</div> : null}</div> : null}</CardContent></Card>
       <div className="grid gap-2 sm:max-w-2xl sm:grid-cols-2"><FilterInput label="搜索快照" value={search ?? ''} onChange={(value) => updateParam(params, setParams, 'search', value)} /><FilterSelect label="状态" value={snapshotStatus ?? ''} options={['draft', 'active', 'archived', 'rolled_back']} onChange={(value) => updateParam(params, setParams, 'status', value)} /></div>
       {loading ? <LoadingPanel label="正在加载策略快照…" /> : error ? <ErrorPanel error={error} onRetry={load} /> : items.length === 0 ? <EmptyPanel label="暂无策略快照" /> : (
         <div className="grid gap-3 xl:grid-cols-2">
-          {items.map((item) => <Card key={item.id}><CardHeader><div className="flex items-start justify-between gap-3"><div><CardTitle className="text-base">{item.releaseKey}</CardTitle><div className="mt-1 text-xs text-muted-foreground">{new Date(item.createdAt).toLocaleString()}</div></div><Badge variant={item.status === 'active' ? 'default' : 'outline'}>{releaseStatusLabel(item.status)}</Badge></div></CardHeader><CardContent className="space-y-3 text-sm"><StatusRow label="能力策略数量" value={String(item.items?.length ?? item.itemCount ?? 0)} /><StatusRow label="快照范围" value="governance_policy" /><p className="text-muted-foreground">运行接入状态需在治理总览和运行发布页单独核对。</p><div className="flex gap-2">{canPublish && item.status === 'draft' && <Button size="sm" onClick={() => void publish(item)}><Send />发布策略</Button>}{canPublish && item.status === 'active' && item.previousReleaseId && <Button size="sm" variant="outline" onClick={() => void rollback(item)}><RotateCcw />回滚策略</Button>}</div></CardContent></Card>)}
+          {items.map((item) => <Card key={item.id}><CardHeader><div className="flex items-start justify-between gap-3"><div><CardTitle className="text-base">{productIdentityText(item, 'policy')}</CardTitle><div className="mt-1 text-xs text-muted-foreground">{new Date(item.createdAt).toLocaleString()}</div></div><Badge variant={item.status === 'active' ? 'default' : 'outline'}>{releaseStatusLabel(item.status)}</Badge></div></CardHeader><CardContent className="space-y-3 text-sm"><StatusRow label="能力策略数量" value={String(item.items?.length ?? item.itemCount ?? 0)} /><StatusRow label="对象类型" value="治理策略（GP）" /><p className="text-muted-foreground">运行版本（RT）需在治理总览和运行版本页单独核对。</p><details className="text-xs text-muted-foreground"><summary className="cursor-pointer">审计信息</summary><p className="mt-1 break-all">内部 key：{item.releaseKey} · 数据库记录 #{item.id}</p></details><div className="flex gap-2">{canPublish && item.status === 'draft' && <Button size="sm" onClick={() => void publish(item)}><Send />发布策略</Button>}{canPublish && item.status === 'active' && item.previousReleaseId && <Button size="sm" variant="outline" onClick={() => void rollback(item)}><RotateCcw />回滚策略</Button>}</div></CardContent></Card>)}
         </div>
       )}
     </section>
@@ -922,7 +1057,7 @@ function WarmupSummaryCard({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <CardTitle className="text-base">Ontology 运行准备</CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">确认当前 Runtime Release 已完成 Ontology 与能力目录准备。</p>
+            <p className="mt-1 text-sm text-muted-foreground">确认当前运行版本（RT）已完成 Ontology 与能力目录准备。</p>
           </div>
           <Button variant="outline" size="sm" onClick={onOpen}>查看详情</Button>
         </div>
@@ -931,7 +1066,7 @@ function WarmupSummaryCard({
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Metric label="状态" value={summary.state === 'warming' && summary.currentPhase ? `${warmupStateLabel(summary.state)} · ${warmupPhaseLabel(summary.currentPhase)}` : warmupStateLabel(summary.state)} />
           <Metric label="总耗时" value={preciseDuration(summary.latencyMs)} />
-          <Metric label="Runtime Release" value={`${summary.warmedReleaseCount}/${summary.runtimeReleaseCount} Release`} />
+          <Metric label="运行阶段快照" value={`${summary.warmedReleaseCount}/${summary.runtimeReleaseCount}`} />
           <Metric label="Artifact" value={`${warmupCacheLabel(summary.cacheStatus)} · ${warmupArtifactLabel(summary.artifactSource)}`} />
         </div>
         {summary.state === 'ready' && !summary.performanceTargetMet ? <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">运行准备已完成，但 {preciseDuration(summary.latencyMs)} 尚未达到 &lt;10 秒性能目标；当前不会误报为性能验收通过。</p> : null}
@@ -945,6 +1080,28 @@ function WarmupFailure({ category, reason }: { category: 'database' | 'lineage' 
   const businessBlocker = category === 'lineage' || category === 'validation';
   return <div className={`rounded-lg p-3 text-sm ${businessBlocker ? 'bg-amber-50 text-amber-800' : 'bg-destructive/5 text-destructive'}`}><strong>{businessBlocker ? '版本/校验阻塞' : '数据库/系统错误'}：</strong>{reason}</div>;
 }
+
+function VersionIdentityPanel({ title, kind, release, fallback }: { title: string; kind: 'policy' | 'runtime'; release: BrainGovernanceRelease | null; fallback: string }) {
+  return <div className="rounded-lg bg-muted/50 p-3"><div className="text-xs text-muted-foreground">{title}</div><div className="mt-1 font-semibold">{release ? productIdentityText(release, kind) : fallback}</div><div className="mt-1 text-xs text-muted-foreground">{kind === 'policy' ? '决定能力准入与禁止边界' : '决定当前回答实际装载的能力'}</div></div>;
+}
+
+function productIdentityText(release: BrainGovernanceRelease, kind: 'policy' | 'runtime') {
+  const identity = release.productIdentity;
+  const code = identity?.stageCode ?? identity?.code ?? release.displayCode ?? (kind === 'policy' ? `LEGACY-GP-${release.id}` : `LEGACY-RT-${release.id}`);
+  const name = identity?.name ?? release.displayName;
+  return name && name !== code ? `${code} · ${name}` : code;
+}
+
+function sequenceIdentityText(sequence: BrainGovernanceTransition['runtimeSequence']) {
+  const identity = sequence.productIdentity;
+  const release = sequence.releases.find((item) => item.rolloutStage === sequence.currentStage) ?? sequence.releases[0];
+  const code = identity?.code ?? sequence.runtimeVersionCode ?? (release ? `LEGACY-RT-${release.id}` : 'RT 编号待分配');
+  const name = identity?.name ?? sequence.displayName;
+  return name && name !== code ? `${code} · ${name}` : code;
+}
+
+function transitionStatusLabel(value: string) { return ({ draft: '草稿', validated: '已校验', approved: '已双审批', switching: '切换中', observing: 'Shadow 观察中', completed: '已完成', rolling_back: '回滚中', rolled_back: '已回滚', failed: '切换失败' } as Record<string, string>)[value] ?? value; }
+function transitionStepLabel(value: string) { return ({ prepared: '草稿已创建', validated: '组合校验通过', validation_blocked: '组合校验阻塞', policy_approved: '治理策略已审批', runtime_approved: '运行版本已审批', publishing_policy: '发布治理策略', activating_runtime_shadow: '激活运行版本 Shadow', runtime_shadow_active: 'Shadow 观察中', rolling_back: '组合回滚中', rollback_completed: '组合回滚完成', completed: '旧版已退役', compensation_completed: '失败后已自动恢复', compensation_failed: '自动恢复未完成' } as Record<string, string>)[value] ?? value; }
 
 function PageHeader({ title, description, action }: { title: string; description: string; action?: ReactNode }) { return <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><h1 className="text-2xl font-semibold">{title}</h1><p className="mt-1 text-sm text-muted-foreground">{description}</p></div>{action}</header>; }
 function SummaryCard({ title, values }: { title: string; values: Record<string, number> }) { return <Card><CardHeader><CardTitle className="text-base">{title}</CardTitle></CardHeader><CardContent className="space-y-2">{Object.entries(values).map(([key, value]) => <StatusRow key={key} label={governanceLabel(key)} value={String(value)} />)}</CardContent></Card>; }

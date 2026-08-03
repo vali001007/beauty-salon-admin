@@ -5580,34 +5580,56 @@ model BrainResourceVersion {
 }
 
 model BrainRelease {
-  id                Int                @id @default(autoincrement())
-  releaseKey        String             @unique
-  scope             String
-  versionMap        Json
-  rollout           Json
-  status            BrainReleaseStatus @default(draft)
-  createdBy         Int
-  previousReleaseId Int?
-  activatedAt       DateTime?
-  rolledBackAt      DateTime?
-  failureReason     String?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  rolloutSequenceId Int?
-  rolloutStage      String?
-  supersededAt      DateTime?
+  id                    Int                @id @default(autoincrement())
+  releaseKey            String             @unique
+  scope                 String
+  versionMap            Json
+  rollout               Json
+  status                BrainReleaseStatus @default(draft)
+  createdBy             Int
+  previousReleaseId     Int?
+  activatedAt           DateTime?
+  rolledBackAt          DateTime?
+  failureReason         String?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  rolloutSequenceId     Int?
+  rolloutStage          String?
+  supersededAt          DateTime?
+  releaseFamily         String             @default("legacy")
+  displayCode           String?            @unique
+  displayName           String?
+  retiredAt             DateTime?
+  retirementReason      String?
+  supersededByReleaseId Int?
 
-  items                BrainReleaseItem[]
-  regenerationJobs     BrainCapabilityRegenerationJob[]
-  governanceCandidates BrainGovernanceCandidate[]       @relation("BrainGovernanceCandidatePolicySnapshot")
-  rolloutSequence      BrainRolloutSequence?            @relation("BrainRolloutSequenceReleases", fields: [rolloutSequenceId], references: [id], onDelete: SetNull)
-  policySequences      BrainRolloutSequence[]           @relation("BrainRolloutSequencePolicySnapshot")
-  previousForSequences BrainRolloutSequence[]           @relation("BrainRolloutSequencePreviousRuntime")
-  warmupArtifacts      BrainWarmupArtifact[]
+  items                 BrainReleaseItem[]
+  regenerationJobs      BrainCapabilityRegenerationJob[]
+  governanceCandidates  BrainGovernanceCandidate[]       @relation("BrainGovernanceCandidatePolicySnapshot")
+  rolloutSequence       BrainRolloutSequence?            @relation("BrainRolloutSequenceReleases", fields: [rolloutSequenceId], references: [id], onDelete: SetNull)
+  policySequences       BrainRolloutSequence[]           @relation("BrainRolloutSequencePolicySnapshot")
+  previousForSequences  BrainRolloutSequence[]           @relation("BrainRolloutSequencePreviousRuntime")
+  warmupArtifacts       BrainWarmupArtifact[]
+  supersededBy          BrainRelease?                    @relation("BrainReleaseSupersession", fields: [supersededByReleaseId], references: [id], onDelete: SetNull)
+  supersedes            BrainRelease[]                   @relation("BrainReleaseSupersession")
+  transitionOldPolicies BrainGovernanceTransition[]      @relation("BrainGovernanceTransitionOldPolicy")
+  transitionNewPolicies BrainGovernanceTransition[]      @relation("BrainGovernanceTransitionNewPolicy")
+  transitionOldRuntimes BrainGovernanceTransition[]      @relation("BrainGovernanceTransitionOldRuntime")
 
   @@index([scope, status])
   @@index([rolloutSequenceId, rolloutStage])
+  @@index([releaseFamily, status])
+  @@index([supersededByReleaseId])
   @@map("brain_release")
+}
+
+model BrainVersionCounter {
+  family     String   @id
+  lastNumber Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("brain_version_counter")
 }
 
 model BrainCapabilityRegenerationJob {
@@ -5817,11 +5839,12 @@ model BrainGovernanceCandidate {
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  policySnapshot  BrainRelease?          @relation("BrainGovernanceCandidatePolicySnapshot", fields: [policySnapshotId], references: [id], onDelete: SetNull)
+  policySnapshot  BrainRelease?               @relation("BrainGovernanceCandidatePolicySnapshot", fields: [policySnapshotId], references: [id], onDelete: SetNull)
   receipts        BrainGateReceipt[]
   tasks           BrainGovernanceTask[]
-  rolloutSequence BrainRolloutSequence?  @relation("BrainGovernanceCandidateRolloutSequence")
+  rolloutSequence BrainRolloutSequence?       @relation("BrainGovernanceCandidateRolloutSequence")
   events          BrainGovernanceEvent[]
+  transitions     BrainGovernanceTransition[]
 
   @@index([status, updatedAt])
   @@index([repository, headCommit])
@@ -5864,18 +5887,58 @@ model BrainRolloutSequence {
   approvedBy               Int?
   startedAt                DateTime?
   completedAt              DateTime?
+  runtimeVersionNumber     Int?
+  runtimeVersionCode       String?   @unique
+  displayName              String?
+  productProfile           String?
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
 
-  candidate              BrainGovernanceCandidate @relation("BrainGovernanceCandidateRolloutSequence", fields: [candidateId], references: [id], onDelete: Restrict)
-  policySnapshot         BrainRelease             @relation("BrainRolloutSequencePolicySnapshot", fields: [policySnapshotId], references: [id], onDelete: Restrict)
-  previousRuntimeRelease BrainRelease?            @relation("BrainRolloutSequencePreviousRuntime", fields: [previousRuntimeReleaseId], references: [id], onDelete: SetNull)
-  releases               BrainRelease[]           @relation("BrainRolloutSequenceReleases")
+  candidate              BrainGovernanceCandidate    @relation("BrainGovernanceCandidateRolloutSequence", fields: [candidateId], references: [id], onDelete: Restrict)
+  policySnapshot         BrainRelease                @relation("BrainRolloutSequencePolicySnapshot", fields: [policySnapshotId], references: [id], onDelete: Restrict)
+  previousRuntimeRelease BrainRelease?               @relation("BrainRolloutSequencePreviousRuntime", fields: [previousRuntimeReleaseId], references: [id], onDelete: SetNull)
+  releases               BrainRelease[]              @relation("BrainRolloutSequenceReleases")
+  transitions            BrainGovernanceTransition[]
 
   @@index([status, updatedAt])
   @@index([policySnapshotId])
   @@index([previousRuntimeReleaseId])
   @@map("brain_rollout_sequence")
+}
+
+model BrainGovernanceTransition {
+  id                  Int       @id @default(autoincrement())
+  transitionKey       String    @unique
+  status              String    @default("draft")
+  candidateId         Int
+  oldPolicyReleaseId  Int
+  newPolicyReleaseId  Int
+  oldRuntimeReleaseId Int
+  runtimeSequenceId   Int
+  policyApprovedBy    Int?
+  policyApprovedAt    DateTime?
+  runtimeApprovedBy   Int?
+  runtimeApprovedAt   DateTime?
+  currentStep         String    @default("prepared")
+  failureCode         String?
+  failureMessage      String?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  createdBy           Int
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  candidate       BrainGovernanceCandidate @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  oldPolicy       BrainRelease             @relation("BrainGovernanceTransitionOldPolicy", fields: [oldPolicyReleaseId], references: [id], onDelete: Restrict)
+  newPolicy       BrainRelease             @relation("BrainGovernanceTransitionNewPolicy", fields: [newPolicyReleaseId], references: [id], onDelete: Restrict)
+  oldRuntime      BrainRelease             @relation("BrainGovernanceTransitionOldRuntime", fields: [oldRuntimeReleaseId], references: [id], onDelete: Restrict)
+  runtimeSequence BrainRolloutSequence     @relation(fields: [runtimeSequenceId], references: [id], onDelete: Restrict)
+
+  @@index([status, updatedAt])
+  @@index([candidateId, status])
+  @@index([newPolicyReleaseId])
+  @@index([runtimeSequenceId])
+  @@map("brain_governance_transition")
 }
 
 model BrainGateReceiptGate {

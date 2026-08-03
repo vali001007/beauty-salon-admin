@@ -402,7 +402,7 @@ describe('BrainSemanticGovernance', () => {
     expect(screen.getByText('采购收货入库')).toBeInTheDocument();
     expect(screen.getByText('词义/竞争动作 1.0')).toBeInTheDocument();
     expect(screen.getByText('副作用/不变量 1.1')).toBeInTheDocument();
-    expect(screen.getByText('结构 Profile 齐全；发布身份仍由 Release Contract 校验')).toBeInTheDocument();
+    expect(screen.getByText('结构 Profile 齐全；发布身份仍由发布合同（Release Contract）校验')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '未纳管' })).toBeDisabled();
   });
 

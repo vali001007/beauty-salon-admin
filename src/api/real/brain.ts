@@ -38,6 +38,10 @@ import type {
   BrainGovernanceSkillListResponse,
   BrainGovernanceTrace,
   BrainGovernanceTraceListResponse,
+  BrainGovernanceTransition,
+  BrainGovernanceTransitionListResponse,
+  BrainGovernanceTransitionPreview,
+  BrainGovernanceTransitionValidation,
   BrainInspectionRepairDecision,
   BrainInspectionRepairDecisionResponse,
   BrainInspectionFinding,
@@ -604,7 +608,7 @@ export function listBrainPolicySnapshots(params: { page?: number; pageSize?: num
   return governanceGet<BrainPolicySnapshotListResponse>('/brain/governance/policy-snapshots', { params });
 }
 
-export function createBrainPolicySnapshot(payload: { releaseKey: string; resourceVersionIds?: number[]; note?: string }): Promise<BrainGovernanceRelease> {
+export function createBrainPolicySnapshot(payload: { releaseKey: string; resourceVersionIds?: number[]; note?: string; displayName?: string }): Promise<BrainGovernanceRelease> {
   return apiClient.post('/brain/governance/policy-snapshots', payload);
 }
 
@@ -640,7 +644,7 @@ export function getBrainGovernanceRolloutSequence(id: number): Promise<BrainGove
   return governanceGet<BrainGovernanceRolloutSequence>(`/brain/governance/rollout-sequences/${id}`);
 }
 
-export function createBrainGovernanceRolloutSequence(payload: { candidateKey: string; releaseKey: string; resourceVersionIds: number[]; governanceMode?: string }): Promise<BrainGovernanceRolloutSequence> {
+export function createBrainGovernanceRolloutSequence(payload: { candidateKey: string; releaseKey: string; resourceVersionIds: number[]; governanceMode?: string; displayName?: string; productProfile?: string }): Promise<BrainGovernanceRolloutSequence> {
   return apiClient.post('/brain/governance/rollout-sequences', payload);
 }
 
@@ -666,6 +670,46 @@ export function resumeBrainGovernanceRolloutSequence(id: number) {
 
 export function rollbackBrainGovernanceRolloutSequence(id: number, reason: string) {
   return apiClient.post(`/brain/governance/rollout-sequences/${id}/rollback`, { reason });
+}
+
+export function listBrainGovernanceTransitions(params: { page?: number; pageSize?: number; status?: string } = {}): Promise<BrainGovernanceTransitionListResponse> {
+  return governanceGet<BrainGovernanceTransitionListResponse>('/brain/governance/transitions', { params });
+}
+
+export function previewBrainGovernanceTransition(candidateKey: string): Promise<BrainGovernanceTransitionPreview> {
+  return apiClient.post('/brain/governance/transitions/preview', { candidateKey });
+}
+
+export function prepareBrainGovernanceTransition(candidateKey: string): Promise<BrainGovernanceTransition> {
+  return apiClient.post('/brain/governance/transitions/prepare', { candidateKey });
+}
+
+export function getBrainGovernanceTransition(id: number): Promise<BrainGovernanceTransition> {
+  return governanceGet<BrainGovernanceTransition>(`/brain/governance/transitions/${id}`);
+}
+
+export function validateBrainGovernanceTransition(id: number): Promise<BrainGovernanceTransitionValidation> {
+  return apiClient.post(`/brain/governance/transitions/${id}/validate`, {});
+}
+
+export function approveBrainGovernanceTransitionPolicy(id: number): Promise<BrainGovernanceTransition> {
+  return apiClient.post(`/brain/governance/transitions/${id}/approve-policy`, {});
+}
+
+export function approveBrainGovernanceTransitionRuntime(id: number): Promise<BrainGovernanceTransition> {
+  return apiClient.post(`/brain/governance/transitions/${id}/approve-runtime`, {});
+}
+
+export function switchBrainGovernanceTransition(id: number): Promise<BrainGovernanceTransition> {
+  return apiClient.post(`/brain/governance/transitions/${id}/switch`, {});
+}
+
+export function rollbackBrainGovernanceTransition(id: number, reason: string): Promise<BrainGovernanceTransition> {
+  return apiClient.post(`/brain/governance/transitions/${id}/rollback`, { reason });
+}
+
+export function finalizeBrainGovernanceTransition(id: number): Promise<BrainGovernanceTransition> {
+  return apiClient.post(`/brain/governance/transitions/${id}/finalize`, {});
 }
 
 export async function createBrainRolloutSequence(payload: {

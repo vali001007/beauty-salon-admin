@@ -137,7 +137,7 @@ export function BrainSemanticGovernance() {
               <h2 className="text-base font-semibold">{config.title}</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 {resource === 'actions'
-                  ? '同时展示 Registry 版本与尚未同步的本地受治理候选；本地候选不可启用，也不代表当前 Release 已发布。'
+                  ? '同时展示 Registry 版本与尚未同步的本地受治理候选；本地候选不可启用，也不代表已进入当前运行版本（RT）。'
                   : '展示业务口径中心发布后的运行投影；命中率为当前门店近 30 天已完成问答中的真实命中占比。'}
               </p>
             </div>
@@ -584,7 +584,7 @@ function ActionProfiles({ item }: { item: ActionGovernanceItem }) {
             ]
               .filter(Boolean)
               .join('；')
-          : '结构 Profile 齐全；发布身份仍由 Release Contract 校验'}
+          : '结构 Profile 齐全；发布身份仍由发布合同（Release Contract）校验'}
       </div>
     </div>
   );
