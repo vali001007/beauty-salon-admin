@@ -1,12 +1,12 @@
 {
   "schemaVersion": "ami-brain-product-loop-data-facts/v1",
-  "generatedAt": "2026-08-02T17:18:45.355Z",
+  "generatedAt": "2026-08-03T20:51:26.425Z",
   "environment": "approved_supabase_development_read_only",
   "databaseHost": "aws-1-ap-northeast-1.pooler.supabase.com",
   "storeId": 6,
   "schemaPath": "packages/server-v2/prisma/schema.prisma",
-  "schemaChecksum": "55da3779e6e6f164d0690c770ad0de6785685ccb13f358765b70be346a690b2e",
-  "snapshotChecksum": "520cb1b23c850d94ccb2c98544a79b15b089ebbc8357c463a52073735b1cedd8",
+  "schemaChecksum": "645afb4f5d382e68eb9b92b96e8183e5f9baf801e1da76e009a3042220a6bbbd",
+  "snapshotChecksum": "35ab01f08072e6f3552ba3c67a8a03ff2de7b787b48795ea7a79bd8e2be34bf2",
   "summary": {
     "featureCount": 32,
     "present": 32,
@@ -56,13 +56,13 @@
         {
           "model": "ProductOrder",
           "status": "queried",
-          "count": 668,
+          "count": 670,
           "scope": "storeId=6"
         },
         {
           "model": "OrderItem",
           "status": "queried",
-          "count": 714,
+          "count": 716,
           "scope": "global"
         },
         {
@@ -97,13 +97,13 @@
         {
           "model": "ProductOrder",
           "status": "queried",
-          "count": 668,
+          "count": 670,
           "scope": "storeId=6"
         },
         {
           "model": "CustomerPredictionSnapshot",
           "status": "queried",
-          "count": 63497,
+          "count": 66003,
           "scope": "storeId=6"
         },
         {
@@ -132,13 +132,13 @@
         {
           "model": "CustomerPredictionSnapshot",
           "status": "queried",
-          "count": 63497,
+          "count": 66003,
           "scope": "storeId=6"
         },
         {
           "model": "PredictionRun",
           "status": "queried",
-          "count": 19,
+          "count": 21,
           "scope": "storeId=6"
         }
       ]
@@ -167,7 +167,7 @@
         {
           "model": "ProductOrder",
           "status": "queried",
-          "count": 668,
+          "count": 670,
           "scope": "storeId=6"
         }
       ]
@@ -270,7 +270,7 @@
         {
           "model": "CommissionRecord",
           "status": "queried",
-          "count": 144,
+          "count": 148,
           "scope": "storeId=6"
         },
         {
@@ -282,7 +282,7 @@
         {
           "model": "ProductOrder",
           "status": "queried",
-          "count": 668,
+          "count": 670,
           "scope": "storeId=6"
         },
         {
@@ -317,7 +317,7 @@
         {
           "model": "CommissionRecord",
           "status": "queried",
-          "count": 144,
+          "count": 148,
           "scope": "storeId=6"
         }
       ]
@@ -417,13 +417,13 @@
         {
           "model": "ProductOrder",
           "status": "queried",
-          "count": 668,
+          "count": 670,
           "scope": "storeId=6"
         },
         {
           "model": "OrderItem",
           "status": "queried",
-          "count": 714,
+          "count": 716,
           "scope": "global"
         },
         {
@@ -471,7 +471,7 @@
         {
           "model": "OrderItem",
           "status": "queried",
-          "count": 714,
+          "count": 716,
           "scope": "global"
         },
         {
@@ -526,19 +526,19 @@
         {
           "model": "ProductOrder",
           "status": "queried",
-          "count": 668,
+          "count": 670,
           "scope": "storeId=6"
         },
         {
           "model": "OrderItem",
           "status": "queried",
-          "count": 714,
+          "count": 716,
           "scope": "global"
         },
         {
           "model": "PaymentRecord",
           "status": "queried",
-          "count": 669,
+          "count": 671,
           "scope": "global"
         },
         {
@@ -567,19 +567,19 @@
         {
           "model": "ProductOrder",
           "status": "queried",
-          "count": 668,
+          "count": 670,
           "scope": "storeId=6"
         },
         {
           "model": "OrderItem",
           "status": "queried",
-          "count": 714,
+          "count": 716,
           "scope": "global"
         },
         {
           "model": "PaymentRecord",
           "status": "queried",
-          "count": 669,
+          "count": 671,
           "scope": "global"
         },
         {
@@ -608,19 +608,19 @@
         {
           "model": "ProductOrder",
           "status": "queried",
-          "count": 668,
+          "count": 670,
           "scope": "storeId=6"
         },
         {
           "model": "OrderItem",
           "status": "queried",
-          "count": 714,
+          "count": 716,
           "scope": "global"
         },
         {
           "model": "PaymentRecord",
           "status": "queried",
-          "count": 669,
+          "count": 671,
           "scope": "global"
         },
         {
@@ -669,7 +669,7 @@
         {
           "model": "CardUsageRecord",
           "status": "queried",
-          "count": 256,
+          "count": 258,
           "scope": "storeId=6"
         }
       ]
@@ -779,7 +779,7 @@
         {
           "model": "StockMovement",
           "status": "queried",
-          "count": 555,
+          "count": 570,
           "scope": "storeId=6"
         },
         {
@@ -855,13 +855,13 @@
         {
           "model": "DailySettlement",
           "status": "queried",
-          "count": 44,
+          "count": 45,
           "scope": "storeId=6"
         },
         {
           "model": "CommissionRecord",
           "status": "queried",
-          "count": 144,
+          "count": 148,
           "scope": "storeId=6"
         },
         {
@@ -873,7 +873,7 @@
         {
           "model": "PaymentRecord",
           "status": "queried",
-          "count": 669,
+          "count": 671,
           "scope": "global"
         },
         {
@@ -899,13 +899,13 @@
         {
           "model": "DailySettlement",
           "status": "queried",
-          "count": 44,
+          "count": 45,
           "scope": "storeId=6"
         },
         {
           "model": "CommissionRecord",
           "status": "queried",
-          "count": 144,
+          "count": 148,
           "scope": "storeId=6"
         },
         {
@@ -917,19 +917,19 @@
         {
           "model": "ProductOrder",
           "status": "queried",
-          "count": 668,
+          "count": 670,
           "scope": "storeId=6"
         },
         {
           "model": "OrderItem",
           "status": "queried",
-          "count": 714,
+          "count": 716,
           "scope": "global"
         },
         {
           "model": "PaymentRecord",
           "status": "queried",
-          "count": 669,
+          "count": 671,
           "scope": "global"
         }
       ]
@@ -946,7 +946,7 @@
         {
           "model": "CommissionRecord",
           "status": "queried",
-          "count": 144,
+          "count": 148,
           "scope": "storeId=6"
         },
         {
@@ -983,13 +983,13 @@
         {
           "model": "MarketingAutomationExecution",
           "status": "queried",
-          "count": 175,
+          "count": 177,
           "scope": "storeId=6"
         },
         {
           "model": "MarketingAutomationTouch",
           "status": "queried",
-          "count": 12233,
+          "count": 12241,
           "scope": "global"
         }
       ]
@@ -1014,13 +1014,13 @@
         {
           "model": "MarketingAttribution",
           "status": "queried",
-          "count": 138,
+          "count": 140,
           "scope": "global"
         },
         {
           "model": "MarketingAutomationTouch",
           "status": "queried",
-          "count": 12233,
+          "count": 12241,
           "scope": "global"
         },
         {
@@ -1043,19 +1043,19 @@
         {
           "model": "CustomerPredictionSnapshot",
           "status": "queried",
-          "count": 63497,
+          "count": 66003,
           "scope": "storeId=6"
         },
         {
           "model": "PredictionRun",
           "status": "queried",
-          "count": 19,
+          "count": 21,
           "scope": "storeId=6"
         },
         {
           "model": "MarketingRecommendationSnapshot",
           "status": "queried",
-          "count": 43,
+          "count": 45,
           "scope": "storeId=6"
         }
       ]
@@ -1167,13 +1167,13 @@
         {
           "model": "BrainConversation",
           "status": "queried",
-          "count": 40688,
+          "count": 40694,
           "scope": "storeId=6"
         },
         {
           "model": "BrainRun",
           "status": "queried",
-          "count": 41068,
+          "count": 41082,
           "scope": "storeId=6"
         },
         {
@@ -1196,13 +1196,13 @@
         {
           "model": "BrainConversation",
           "status": "queried",
-          "count": 40688,
+          "count": 40694,
           "scope": "storeId=6"
         },
         {
           "model": "BrainRun",
           "status": "queried",
-          "count": 41068,
+          "count": 41082,
           "scope": "storeId=6"
         },
         {
@@ -1225,13 +1225,13 @@
         {
           "model": "BrainConversation",
           "status": "queried",
-          "count": 40688,
+          "count": 40694,
           "scope": "storeId=6"
         },
         {
           "model": "BrainRun",
           "status": "queried",
-          "count": 41068,
+          "count": 41082,
           "scope": "storeId=6"
         },
         {
