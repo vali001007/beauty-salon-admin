@@ -35,8 +35,8 @@ const qualityTabs = [
 ] as const;
 
 const releaseTabs = [
-  { key: 'policy', label: '治理策略' },
-  { key: 'runtime', label: '运行发布' },
+  { key: 'policy', label: '治理策略（GP）' },
+  { key: 'runtime', label: '运行版本（RT）' },
 ] as const;
 
 const settingsTabs = [
@@ -90,8 +90,8 @@ export function BrainGovernanceReleasesPage() {
   const legacyRuntime = params.get('legacy') === '1';
   return (
     <GovernanceContainer
-      title="策略与发布"
-      description="治理策略和 Runtime Release 分开操作、分开回滚，避免把策略发布误认为运行已生效。"
+      title="治理策略与运行版本"
+      description="治理策略（GP）决定允许与禁止边界；运行版本（RT）决定用户问答实际装载的能力。两条编号线独立演进、组合切换。"
       tabs={tabs}
     >
       {activeTab === 'policy' ? <BrainPolicySnapshotsPage /> : null}

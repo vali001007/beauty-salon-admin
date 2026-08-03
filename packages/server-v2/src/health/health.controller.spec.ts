@@ -152,6 +152,10 @@ describe('HealthController', () => {
       resolveRuntimeDeploymentIdentity: jest.fn().mockResolvedValue({
         mode: 'model',
         release: { id: 452, releaseKey: 'query-only-full' },
+        productIdentity: { family: 'runtime', code: 'RT-001', stageCode: 'RT-001-FULL', name: 'Query Only V1', internalReleaseId: 452 },
+        governancePolicyIdentity: { family: 'policy', code: 'GP-003', stageCode: null, name: 'Query Only V1 强制治理策略', internalReleaseId: 436 },
+        governanceTransitionStatus: 'observing',
+        governanceTransitionStep: 'runtime_shadow_active',
         releaseFingerprint: 'e'.repeat(64),
         productProfile: {
           productProfile: 'query_only_v1',
@@ -191,6 +195,10 @@ describe('HealthController', () => {
       brainRuntimeRelease: {
         releaseId: 452,
         releaseKey: 'query-only-full',
+        runtimeIdentity: { code: 'RT-001', stageCode: 'RT-001-FULL' },
+        governancePolicyIdentity: { code: 'GP-003' },
+        governanceTransitionStatus: 'observing',
+        governanceTransitionStep: 'runtime_shadow_active',
         releaseFingerprint: 'e'.repeat(64),
         productProfile: 'query_only_v1',
         actionsEnabled: false,

@@ -67,13 +67,14 @@ describe('Brain governance compact containers', () => {
     expect(screen.getByText('semantic-content')).toBeInTheDocument();
   });
 
-  it('keeps governance policy and runtime release as separate tabs', async () => {
+  it('keeps governance policy and runtime version as separately named tabs', async () => {
     const user = userEvent.setup();
     renderPage(<BrainGovernanceReleasesPage />, '/brain-governance/releases?tab=policy');
 
     expect(screen.getByText('policy-content')).toBeInTheDocument();
-    expect(screen.getByText(/治理策略和 Runtime Release 分开操作/)).toBeInTheDocument();
-    await user.click(screen.getByRole('tab', { name: '运行发布' }));
+    expect(screen.getByText(/治理策略（GP）决定允许与禁止边界/)).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '治理策略（GP）' })).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: '运行版本（RT）' }));
     expect(screen.getByText('sequence-content')).toBeInTheDocument();
   });
 
@@ -113,7 +114,7 @@ describe('Brain governance compact containers', () => {
     const cases = [
       { element: <BrainGovernanceWorkbenchPage />, path: '/brain-governance/workbench?tab=removed', content: 'overview-content', tab: '总览' },
       { element: <BrainGovernanceQualityPage />, path: '/brain-governance/quality?tab=removed', content: 'semantic-content', tab: '语义' },
-      { element: <BrainGovernanceReleasesPage />, path: '/brain-governance/releases?tab=removed', content: 'policy-content', tab: '治理策略' },
+      { element: <BrainGovernanceReleasesPage />, path: '/brain-governance/releases?tab=removed', content: 'policy-content', tab: '治理策略（GP）' },
       { element: <BrainGovernanceSettingsPage />, path: '/brain-governance/settings?tab=removed', content: 'role-content', tab: '角色与权限' },
     ];
 

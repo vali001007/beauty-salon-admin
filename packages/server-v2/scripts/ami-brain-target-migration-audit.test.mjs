@@ -3,6 +3,7 @@ import test from 'node:test';
 import { createCandidateLock } from './ami-brain-candidate-identity-core.mjs';
 import {
   buildTargetMigrationAuditSummary,
+  isAmiBrainOutOfScopeMigration,
   sanitizeDatabaseTarget,
 } from './ami-brain-target-migration-audit.mjs';
 import { validatePassedEvidenceArtifacts } from './ami-brain-release-candidate.mjs';
@@ -117,4 +118,35 @@ test('rejects a drifted or tampered candidate lock before producing an audit sum
     () => buildTargetMigrationAuditSummary(readyInput({ ...lock, candidateId: 'f'.repeat(64) })),
     /candidate_id_mismatch/,
   );
+});
+
+test('reports Ami Ask migration history without treating it as an Ami Brain blocker', () => {
+  const lock = candidateLock();
+  const input = readyInput(lock);
+  input.rawHistory.unexpected = [
+    '20260804090000_ask_data_inventory_turnover',
+    '20260804100000_ask_data_customer_behavior_profile',
+  ];
+  const summary = buildTargetMigrationAuditSummary(input);
+
+  assert.equal(summary.status, 'ready');
+  assert.deepEqual(summary.history.unexpected, []);
+  assert.deepEqual(summary.history.outOfScopeAppliedMigrations, input.rawHistory.unexpected);
+  assert.equal(isAmiBrainOutOfScopeMigration('20260804090000_ask_data_inventory_turnover'), true);
+  assert.equal(isAmiBrainOutOfScopeMigration('20260804183000_brain_release_identity_and_transition'), false);
+});
+
+test('still blocks unexpected migrations that are not explicitly outside Ami Brain scope', () => {
+  const lock = candidateLock();
+  const input = readyInput(lock);
+  input.rawHistory.unexpected = [
+    '20260804090000_ask_data_inventory_turnover',
+    '20260804190000_unknown_shared_schema_change',
+  ];
+  const summary = buildTargetMigrationAuditSummary(input);
+
+  assert.equal(summary.status, 'blocked');
+  assert.deepEqual(summary.history.outOfScopeAppliedMigrations, ['20260804090000_ask_data_inventory_turnover']);
+  assert.deepEqual(summary.history.unexpected, ['20260804190000_unknown_shared_schema_change']);
+  assert.ok(summary.blockers.includes('unexpected_migrations'));
 });

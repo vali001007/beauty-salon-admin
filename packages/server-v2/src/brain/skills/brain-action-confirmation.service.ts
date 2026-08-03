@@ -93,6 +93,7 @@ export class BrainActionConfirmationService {
     runId: number;
     userId: number;
     storeId: number;
+    roles?: string[];
     skillKey: string;
     capabilityVersion?: number;
     riskLevel: BrainRiskLevel;
@@ -104,6 +105,17 @@ export class BrainActionConfirmationService {
     expiresInMs?: number;
   }) {
     this.assertDeploymentActionExecutionEnabled();
+    const actionProvenance = input.actionProvenance
+      ? this.validateActionProvenance(input.actionProvenance, input.skillKey)
+      : undefined;
+    await this.assertReleaseActionExecutionEnabled({
+      runId: input.runId,
+      userId: input.userId,
+      storeId: input.storeId,
+      roleKey: actionProvenance?.situationContext.qualifiedRole ?? this.authenticatedRole(input.roles),
+      releaseId: actionProvenance?.release?.releaseId,
+      releaseFingerprint: actionProvenance?.release?.releaseFingerprint,
+    });
     const actionId = `brain_action_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     this.assertNoConfirmationClaim(input.payload);
     const capabilityVersion = input.capabilityVersion ?? this.capabilityGateway?.resolve(input.skillKey).version ?? 1;
@@ -112,18 +124,7 @@ export class BrainActionConfirmationService {
       throw new BadRequestException(`action_risk_mismatch:${input.skillKey}`);
     }
     let validatedArgs = validation?.payload ?? this.asRecord(input.payload);
-    const actionProvenance = input.actionProvenance
-      ? this.validateActionProvenance(input.actionProvenance, input.skillKey)
-      : undefined;
     if (actionProvenance) {
-      await this.assertReleaseActionExecutionEnabled({
-        runId: input.runId,
-        userId: input.userId,
-        storeId: input.storeId,
-        roleKey: actionProvenance.situationContext.qualifiedRole,
-        releaseId: actionProvenance.release?.releaseId,
-        releaseFingerprint: actionProvenance.release?.releaseFingerprint,
-      });
       if (
         actionProvenance.situationContext.runId !== input.runId ||
         actionProvenance.situationContext.storeId !== input.storeId ||

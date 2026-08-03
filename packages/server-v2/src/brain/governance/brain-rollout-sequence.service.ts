@@ -1,9 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { BrainReleaseService } from './brain-release.service.js';
 import { BrainGovernanceEventService } from './brain-governance-event.service.js';
 import { BrainRolloutHealthService } from './brain-rollout-health.service.js';
+import { BrainReleaseIdentityService } from './brain-release-identity.service.js';
 
 const STAGES = [
   { key: 'shadow', suffix: 'shadow', mode: 'shadow', percentage: 100 },
@@ -20,6 +21,7 @@ export class BrainRolloutSequenceService {
     private readonly releaseService: BrainReleaseService,
     private readonly healthService?: BrainRolloutHealthService,
     private readonly events?: BrainGovernanceEventService,
+    @Optional() private readonly releaseIdentity?: BrainReleaseIdentityService,
   ) {}
 
   async list(input: { page?: number; pageSize?: number; status?: string; candidateKey?: string }) {
@@ -37,13 +39,13 @@ export class BrainRolloutSequenceService {
         take: pageSize,
         include: {
           candidate: { select: { candidateKey: true, headCommit: true, status: true } },
-          policySnapshot: { select: { id: true, releaseKey: true, status: true } },
+          policySnapshot: { select: { id: true, releaseKey: true, releaseFamily: true, displayCode: true, displayName: true, scope: true, status: true } },
           releases: { orderBy: { id: 'asc' }, select: { id: true, releaseKey: true, status: true, rolloutStage: true, activatedAt: true, failureReason: true } },
         },
       }),
       this.prisma.brainRolloutSequence.count({ where }),
     ]);
-    return { items, total, page, pageSize };
+    return { items: items.map((item) => this.withProductIdentities(item)), total, page, pageSize };
   }
 
   async get(id: number, includeReadiness = true) {
@@ -76,7 +78,7 @@ export class BrainRolloutSequenceService {
           })),
         })))
       : sequence.releases;
-    return { ...sequence, releases };
+    return this.withProductIdentities({ ...sequence, releases });
   }
 
   async create(input: {
@@ -86,6 +88,9 @@ export class BrainRolloutSequenceService {
     governanceMode?: string;
     promotionPolicy?: Record<string, unknown>;
     healthThresholds?: Record<string, unknown>;
+    displayName?: string;
+    productProfile?: string;
+    allowDraftPolicy?: boolean;
     actorId: number;
   }) {
     const candidate = await this.prisma.brainGovernanceCandidate.findUnique({
@@ -110,7 +115,9 @@ export class BrainRolloutSequenceService {
     if (candidate.rolloutSequence && !['ready', 'releasing'].includes(candidate.status)) {
       throw new BadRequestException('candidate_rollout_sequence_not_repairable');
     }
-    if (!candidate.policySnapshot || candidate.policySnapshot.scope !== 'governance_policy' || candidate.policySnapshot.status !== 'active') {
+    const policyStatusAllowed = candidate.policySnapshot?.status === 'active'
+      || (input.allowDraftPolicy === true && candidate.policySnapshot?.status === 'draft');
+    if (!candidate.policySnapshot || candidate.policySnapshot.scope !== 'governance_policy' || !policyStatusAllowed) {
       throw new BadRequestException('active_governance_policy_snapshot_required');
     }
     if (!input.resourceVersionIds.length) throw new BadRequestException('release_resource_versions_required');
@@ -155,6 +162,13 @@ export class BrainRolloutSequenceService {
     if (sequence.governanceMode !== expectedMode) {
       throw new BadRequestException('rollout_sequence_governance_mode_conflict');
     }
+    if (this.releaseIdentity && !sequence.runtimeVersionCode) {
+      sequence = await this.releaseIdentity.assignRuntimeIdentity(
+        sequence.id,
+        input.displayName ?? input.releaseKey,
+        input.productProfile,
+      ) as typeof sequence;
+    }
     const existingByStage = new Map(sequence.releases.map((release) => [release.rolloutStage, release]));
     let previousReleaseId = sequence.previousRuntimeReleaseId ?? previousRuntimeRelease?.id;
     for (const stage of STAGES) {
@@ -189,6 +203,7 @@ export class BrainRolloutSequenceService {
                 governancePolicyMode: sequence.governanceMode,
                 candidateKey: candidate.candidateKey,
                 rolloutSequenceId: sequence.id,
+                ...(input.productProfile ? { productProfile: input.productProfile } : {}),
               },
               resourceVersionIds: input.resourceVersionIds,
               createdBy: input.actorId,
@@ -424,6 +439,43 @@ export class BrainRolloutSequenceService {
       promotionPolicy: sequence.promotionPolicy,
       healthThresholds: sequence.healthThresholds,
     });
+  }
+
+  private withProductIdentities<T extends {
+    id: number;
+    currentStage?: string | null;
+    runtimeVersionCode?: string | null;
+    displayName?: string | null;
+    policySnapshot?: Record<string, unknown> | null;
+    releases?: Array<Record<string, unknown> & { id: number; releaseKey: string; rolloutStage?: string | null }>;
+  }>(sequence: T) {
+    const legacyReleaseId = sequence.releases?.find((release) => release.rolloutStage === sequence.currentStage)?.id
+      ?? sequence.releases?.[0]?.id;
+    const runtimeCode = sequence.runtimeVersionCode ?? (legacyReleaseId ? `LEGACY-RT-${legacyReleaseId}` : 'RT-UNASSIGNED');
+    const runtimeIdentity = {
+      family: sequence.runtimeVersionCode ? 'runtime' : 'legacy',
+      code: runtimeCode,
+      stageCode: null,
+      name: sequence.displayName ?? (legacyReleaseId ? runtimeCode : '运行版本待分配'),
+      internalReleaseId: legacyReleaseId ?? null,
+    };
+    const policySnapshot = sequence.policySnapshot
+      ? {
+          ...sequence.policySnapshot,
+          productIdentity: this.releaseIdentity?.productIdentity(sequence.policySnapshot as never) ?? null,
+        }
+      : sequence.policySnapshot;
+    const releases = sequence.releases?.map((release) => ({
+      ...release,
+      productIdentity: this.releaseIdentity?.productIdentity({
+        id: release.id,
+        releaseKey: release.releaseKey,
+        scope: 'percentage',
+        rolloutStage: release.rolloutStage,
+        rolloutSequence: { runtimeVersionCode: sequence.runtimeVersionCode, displayName: sequence.displayName },
+      }) ?? null,
+    }));
+    return { ...sequence, productIdentity: runtimeIdentity, policySnapshot, ...(releases ? { releases } : {}) };
   }
 }
 

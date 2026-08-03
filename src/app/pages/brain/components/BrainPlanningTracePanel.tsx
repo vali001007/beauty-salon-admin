@@ -48,6 +48,8 @@ export function BrainPlanningTracePanel({
   const completion = record(adapterMetadata.completion ?? boundedOutput.completion);
   const intentDiff = record(findEvent(events, 'cognition_diff')?.output);
   const runtime = record(findEvent(events, 'release_runtime_selection')?.output);
+  const runtimeIdentity = record(runtime.runtimeProductIdentity);
+  const policyIdentity = record(runtime.governancePolicyIdentity);
   const model = findModelIdentity(events, message.metadata);
   const semanticVersion = String(
     message.metadata?.intentSchemaVersion
@@ -73,14 +75,12 @@ export function BrainPlanningTracePanel({
         <TraceSummary
           icon={ShieldCheck}
           title="运行身份"
-          value={runtime.releaseKey
-            ? String(runtime.releaseKey)
-            : runtime.releaseId
-              ? `Runtime Release #${String(runtime.releaseId)}`
-              : '未记录 Runtime Release'}
+          value={identityLabel(runtimeIdentity, '运行版本', runtime.releaseKey)}
           detail={[
-            runtime.releaseId ? `#${String(runtime.releaseId)}` : '',
+            runtimeIdentity.stageCode ? `当前阶段 ${String(runtimeIdentity.stageCode)}` : '',
             runtime.mode ? `模式 ${String(runtime.mode)}` : '',
+            policyIdentity.code ? `治理策略 ${String(policyIdentity.code)}` : '',
+            runtime.governanceTransitionStatus ? `切换 ${String(runtime.governanceTransitionStatus)}` : '',
             runtime.releaseFingerprint ? `fingerprint ${String(runtime.releaseFingerprint).slice(0, 12)}` : '',
             model.provider,
             model.model,
@@ -243,6 +243,14 @@ function findModelIdentity(events: BrainRunEvent[], metadata: unknown) {
 
 function record(value: unknown): RecordValue {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as RecordValue : {};
+}
+
+function identityLabel(identity: RecordValue, fallbackType: string, fallbackKey: unknown) {
+  const code = String(identity.stageCode ?? identity.code ?? '').trim();
+  const name = String(identity.name ?? '').trim();
+  if (code) return name && name !== code ? `${code} · ${name}` : code;
+  if (typeof fallbackKey === 'string' && fallbackKey.trim()) return `${fallbackType}（历史）· ${fallbackKey}`;
+  return `未记录${fallbackType}`;
 }
 
 function arrayOfRecords(value: unknown): RecordValue[] {

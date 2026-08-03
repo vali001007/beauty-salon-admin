@@ -270,7 +270,7 @@ describe('BrainGovernanceCenter', () => {
     expect(screen.getByText('只读')).toBeInTheDocument();
     expect(screen.getByText('低风险')).toBeInTheDocument();
     expect(screen.getByText('店长、财务')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '批准发布' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '批准运行阶段' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '修改要求' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '拒绝' })).toBeInTheDocument();
 
@@ -328,7 +328,7 @@ describe('BrainGovernanceCenter', () => {
     renderCenter('/brain-governance/releases?tab=runtime&legacy=1');
     await waitFor(() => expect(brainApi.listBrainCapabilityRegenerationJobs).toHaveBeenCalled());
     expect(await screen.findByText('等待自动再生成')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '批准发布' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '批准运行阶段' })).toBeDisabled();
 
     expect(await screen.findByText('已生成新草稿', {}, { timeout: 5_000 })).toBeInTheDocument();
     const callsAtCompletion = brainApi.listBrainCapabilityRegenerationJobs.mock.calls.length;

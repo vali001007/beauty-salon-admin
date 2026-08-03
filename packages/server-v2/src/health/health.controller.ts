@@ -109,6 +109,10 @@ export class HealthController {
     return {
       releaseId,
       releaseKey,
+      runtimeIdentity: runtime.productIdentity ?? null,
+      governancePolicyIdentity: runtime.governancePolicyIdentity ?? null,
+      governanceTransitionStatus: runtime.governanceTransitionStatus ?? null,
+      governanceTransitionStep: runtime.governanceTransitionStep ?? null,
       releaseFingerprint: runtime.releaseFingerprint,
       mode: runtime.mode ?? null,
       productProfile: profile.productProfile,

@@ -13,7 +13,7 @@ describe('brain governance navigation retirement', () => {
     const navigation = await import('./brainGovernanceNavigation');
 
     expect(navigation.DEFAULT_BRAIN_GOVERNANCE_PATH).toBe('/brain-governance/workbench?tab=overview');
-    expect(navigation.BRAIN_GOVERNANCE_SECTIONS.map((item) => item.label)).toEqual(['治理工作台', '质量中心', '策略与发布']);
+    expect(navigation.BRAIN_GOVERNANCE_SECTIONS.map((item) => item.label)).toEqual(['治理工作台', '质量中心', '治理策略与运行版本']);
     expect(navigation.BRAIN_GOVERNANCE_ROUTE_SECTIONS.map((item) => item.path)).toEqual(expect.arrayContaining([
       '/brain-governance/workbench',
       '/brain-governance/quality',

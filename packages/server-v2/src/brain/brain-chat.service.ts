@@ -741,6 +741,10 @@ export class BrainChatService {
         governancePolicyReleaseId: releaseRuntime.governancePolicy?.releaseId ?? null,
         governancePolicyMode: releaseRuntime.governancePolicy?.mode ?? null,
         governancePolicyWouldBlockCount: releaseRuntime.governancePolicy?.blockedCapabilityKeys.length ?? null,
+        runtimeProductIdentity: releaseRuntime.productIdentity ?? null,
+        governancePolicyIdentity: releaseRuntime.governancePolicyIdentity ?? null,
+        governanceTransitionStatus: releaseRuntime.governanceTransitionStatus ?? null,
+        governanceTransitionStep: releaseRuntime.governanceTransitionStep ?? null,
         failureCode: releaseRuntime.failureCode ?? null,
       }),
     });
@@ -1250,6 +1254,22 @@ export class BrainChatService {
       mode: 'shadow' | 'enforced';
       blockedCapabilityKeys: readonly string[];
     };
+    productIdentity?: {
+      family: string;
+      code: string;
+      stageCode: string | null;
+      name: string;
+      internalReleaseId: number | null;
+    } | null;
+    governancePolicyIdentity?: {
+      family: string;
+      code: string;
+      stageCode: string | null;
+      name: string;
+      internalReleaseId: number | null;
+    } | null;
+    governanceTransitionStatus?: string | null;
+    governanceTransitionStep?: string | null;
     failureCode?: 'PRODUCTION_BASELINE_UNAVAILABLE' | 'PRODUCTION_BASELINE_INVALID';
   }> {
     if (context.governanceEvalReleaseSnapshot) {
@@ -1288,6 +1308,10 @@ export class BrainChatService {
         capabilityCandidates: resolved.capabilityCandidates,
         ...(releaseIdentity ? { releaseIdentity } : {}),
         ...(resolved.governancePolicy ? { governancePolicy: resolved.governancePolicy } : {}),
+        productIdentity: resolved.productIdentity ?? null,
+        governancePolicyIdentity: resolved.governancePolicyIdentity ?? null,
+        governanceTransitionStatus: resolved.governanceTransitionStatus ?? null,
+        governanceTransitionStep: resolved.governanceTransitionStep ?? null,
       };
     } catch (error) {
       if (context.governanceEvalReleaseId !== undefined) throw error;
@@ -6569,6 +6593,7 @@ export class BrainChatService {
         runId,
         userId: _context.userId,
         storeId: _context.storeId,
+        roles: _context.roles,
         skillKey: preview.actionType,
         riskLevel: preview.riskLevel as BrainRiskLevel,
         preview: preview as unknown as Prisma.InputJsonValue,

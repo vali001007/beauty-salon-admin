@@ -11,7 +11,7 @@ const LEGACY_SECTIONS = [
   { key: 'memory', label: '记忆治理', path: '/brain-governance/memory' },
   { key: 'inspection', label: '巡检治理', path: '/brain-governance/inspection' },
   { key: 'eval', label: '评测中心', path: '/brain-governance/eval' },
-  { key: 'release', label: '发布中心', path: '/brain-governance/release' },
+  { key: 'release', label: '运行版本（旧）', path: '/brain-governance/release' },
   { key: 'feedback', label: '反馈指标', path: '/brain-governance/feedback' },
 ] as const;
 
@@ -20,10 +20,10 @@ const V2_SECTIONS = [
   { key: 'capabilities', label: '能力治理', path: '/brain-governance/capabilities' },
   { key: 'semantic', label: '语义治理', path: '/brain-governance/semantic' },
   { key: 'tasks', label: '治理任务', path: '/brain-governance/tasks' },
-  { key: 'policy-snapshots', label: '策略快照', path: '/brain-governance/policy-snapshots' },
+  { key: 'policy-snapshots', label: '治理策略（GP）', path: '/brain-governance/policy-snapshots' },
   { key: 'roles', label: '角色治理', path: '/brain-governance/roles' },
   { key: 'eval', label: '评测中心', path: '/brain-governance/eval' },
-  { key: 'runtime-releases', label: '运行发布', path: '/brain-governance/runtime-releases' },
+  { key: 'runtime-releases', label: '运行版本（RT）', path: '/brain-governance/runtime-releases' },
   { key: 'planning', label: '高级·模型规划', path: '/brain-governance/planning' },
   { key: 'memory', label: '高级·记忆', path: '/brain-governance/memory' },
   { key: 'inspection', label: '高级·巡检', path: '/brain-governance/inspection' },
@@ -33,7 +33,7 @@ const V2_SECTIONS = [
 const COMPACT_SECTIONS = [
   { key: 'workbench', label: '治理工作台', path: '/brain-governance/workbench?tab=overview' },
   { key: 'quality', label: '质量中心', path: '/brain-governance/quality?tab=semantic' },
-  { key: 'releases', label: '策略与发布', path: '/brain-governance/releases?tab=policy' },
+  { key: 'releases', label: '治理策略与运行版本', path: '/brain-governance/releases?tab=policy' },
 ] as const;
 
 const COMPACT_ROUTE_SECTIONS = [

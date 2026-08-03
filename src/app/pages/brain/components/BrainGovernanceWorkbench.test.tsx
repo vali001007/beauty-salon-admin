@@ -12,6 +12,8 @@ import {
 const state = vi.hoisted(() => ({ permissions: new Set<string>() }));
 const brainApi = vi.hoisted(() => ({
   approveBrainCapabilityPolicy: vi.fn(),
+  approveBrainGovernanceTransitionPolicy: vi.fn(),
+  approveBrainGovernanceTransitionRuntime: vi.fn(),
   cancelBrainGovernanceReads: vi.fn(),
   cancelBrainGovernanceTask: vi.fn(),
   classifyBrainCapabilityPolicy: vi.fn(),
@@ -27,13 +29,20 @@ const brainApi = vi.hoisted(() => ({
   listBrainCapabilityPolicies: vi.fn(),
   listBrainGovernanceCandidates: vi.fn(),
   listBrainGovernanceTasks: vi.fn(),
+  listBrainGovernanceTransitions: vi.fn(),
   listBrainPolicySnapshots: vi.fn(),
   publishBrainPolicySnapshot: vi.fn(),
   prepareBrainGovernanceCandidatePolicy: vi.fn(),
+  prepareBrainGovernanceTransition: vi.fn(),
+  previewBrainGovernanceTransition: vi.fn(),
   previewBrainPolicySnapshot: vi.fn(),
   retryBrainGovernanceTask: vi.fn(),
   retryBrainRuntimeOntologyWarmup: vi.fn(),
   rollbackBrainPolicySnapshot: vi.fn(),
+  rollbackBrainGovernanceTransition: vi.fn(),
+  switchBrainGovernanceTransition: vi.fn(),
+  validateBrainGovernanceTransition: vi.fn(),
+  finalizeBrainGovernanceTransition: vi.fn(),
   updateBrainCapabilityPolicyOwners: vi.fn(),
   createBrainSkill: vi.fn(),
   listBrainSkills: vi.fn(),
@@ -164,6 +173,7 @@ describe('Brain governance V2 workbench', () => {
     });
     brainApi.listBrainCapabilityPolicies.mockResolvedValue({ items: [highRiskPolicy], total: 1, page: 1, pageSize: 20 });
     brainApi.listBrainGovernanceCandidates.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 3 });
+    brainApi.listBrainGovernanceTransitions.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 5 });
     brainApi.getBrainCapabilityPolicy.mockResolvedValue({ current: highRiskPolicy, history: [highRiskPolicy], evidence: [] });
     brainApi.getBrainGovernanceCandidate.mockResolvedValue({
       id: 17,
@@ -232,8 +242,9 @@ describe('Brain governance V2 workbench', () => {
     renderPage(<BrainGovernanceOverviewPage />, '/brain-governance/workbench?tab=overview');
 
     expect(await screen.findByText('治理策略发布不会自动改变当前 Brain 运行状态。')).toBeInTheDocument();
-    expect(screen.getByText('governance-v7')).toBeInTheDocument();
-    expect(screen.getByText('runtime-r416')).toBeInTheDocument();
+    expect(screen.getAllByText('LEGACY-GP-7').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('LEGACY-RT-416').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/治理策略使用 GP 编号，运行版本使用 RT 编号/)).toBeInTheDocument();
     expect(screen.getByText('最近 7 天端到端治理效率')).toBeInTheDocument();
     expect(screen.getByText('12 秒（3 个样本）')).toBeInTheDocument();
     expect(screen.getByText('<1 秒（3 个样本）')).toBeInTheDocument();
@@ -242,7 +253,7 @@ describe('Brain governance V2 workbench', () => {
     expect(screen.getByText('75% / 25%')).toBeInTheDocument();
     expect(screen.getByText('4 / 2')).toBeInTheDocument();
     expect(screen.getByText('19.3 秒')).toBeInTheDocument();
-    expect(screen.getByText('2/2 Release')).toBeInTheDocument();
+    expect(screen.getByText('2/2')).toBeInTheDocument();
     expect(screen.getByText(/尚未达到 <10 秒性能目标/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '查看详情' }));
     expect(await screen.findByText('17.3 秒')).toBeInTheDocument();
@@ -251,6 +262,43 @@ describe('Brain governance V2 workbench', () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Ontology 运行准备详情' })).not.toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: /待审批/ }));
     expect(screen.getByTestId('location')).toHaveTextContent('/brain-governance/workbench?tab=tasks&status=pending_approval');
+  });
+
+  it('shows GP and RT as independent product identities during a combined transition', async () => {
+    brainApi.listBrainGovernanceTransitions.mockResolvedValue({
+      items: [{
+        id: 81,
+        transitionKey: 'transition-query-only-v1',
+        status: 'validated',
+        candidateId: 17,
+        candidate: { id: 17, candidateKey: 'repo:head:merge', headCommit: '3'.repeat(40), status: 'ready' },
+        oldPolicyReleaseId: 436,
+        newPolicyReleaseId: 460,
+        oldRuntimeReleaseId: 452,
+        runtimeSequenceId: 71,
+        oldPolicy: { id: 436, releaseKey: 'legacy-policy', scope: 'governance_policy', status: 'active', createdAt: '2026-08-01T00:00:00.000Z', productIdentity: { family: 'policy', code: 'GP-002', stageCode: null, name: 'Legacy Shadow Policy', internalReleaseId: 436 } },
+        newPolicy: { id: 460, releaseKey: 'query-only-policy', scope: 'governance_policy', status: 'draft', createdAt: '2026-08-04T00:00:00.000Z', productIdentity: { family: 'policy', code: 'GP-003', stageCode: null, name: 'Query Only V1 强制治理策略', internalReleaseId: 460 } },
+        oldRuntime: { id: 452, releaseKey: 'legacy-runtime', scope: 'global', status: 'active', createdAt: '2026-08-01T00:00:00.000Z', productIdentity: { family: 'legacy', code: 'LEGACY-RT-452', stageCode: null, name: 'Governance Shadow Runtime', internalReleaseId: 452 } },
+        runtimeSequence: { id: 71, sequenceKey: 'rollout:17:head', runtimeVersionCode: 'RT-001', displayName: 'Query Only V1', productProfile: 'query_only_v1', productIdentity: { family: 'runtime', code: 'RT-001', stageCode: null, name: 'Query Only V1', internalReleaseId: null }, status: 'draft', currentStage: 'shadow', governanceMode: 'enforced', promotionPolicy: {}, healthThresholds: {}, candidateId: 17, candidate: { id: 17, candidateKey: 'repo:head:merge' }, policySnapshot: { id: 460, releaseKey: 'query-only-policy', scope: 'governance_policy', status: 'draft', createdAt: '2026-08-04T00:00:00.000Z' }, releases: [], createdAt: '2026-08-04T00:00:00.000Z', updatedAt: '2026-08-04T00:00:00.000Z' },
+        policyApprovedAt: null,
+        runtimeApprovedAt: null,
+        currentStep: 'validated',
+        createdBy: 9,
+        createdAt: '2026-08-04T00:00:00.000Z',
+        updatedAt: '2026-08-04T00:00:00.000Z',
+      }],
+      total: 1,
+      page: 1,
+      pageSize: 5,
+    });
+
+    renderPage(<BrainGovernanceOverviewPage />, '/brain-governance/workbench?tab=overview');
+
+    expect(await screen.findByText('GP-003 · Query Only V1 强制治理策略')).toBeInTheDocument();
+    expect(screen.getByText('RT-001 · Query Only V1')).toBeInTheDocument();
+    expect(screen.getByText('旧策略：GP-002 · Legacy Shadow Policy')).toBeInTheDocument();
+    expect(screen.getByText('旧运行：LEGACY-RT-452 · Governance Shadow Runtime')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '组合校验' })).not.toBeInTheDocument();
   });
 
   it('shows the current Candidate as the governance command context and evaluates affected capabilities in one action', async () => {
@@ -287,7 +335,7 @@ describe('Brain governance V2 workbench', () => {
     await user.click(screen.getByRole('button', { name: '评估受影响能力' }));
     expect(brainApi.evaluateBrainGovernanceCandidate).toHaveBeenCalledWith('owner/repo:head:merge');
     await user.click(screen.getByRole('button', { name: '候选详情' }));
-    expect(await screen.findByText(/Release candidate-shadow 已满足当前阶段门禁/)).toBeInTheDocument();
+    expect(await screen.findByText('目标运行快照已满足当前阶段门禁')).toBeInTheDocument();
     expect(screen.getByText('策略差异与发布准备度')).toBeInTheDocument();
   });
 
@@ -512,8 +560,8 @@ describe('Brain governance V2 workbench', () => {
   it('keeps policy snapshots read-only without manage/publish permission and states the activation boundary', async () => {
     renderPage(<BrainPolicySnapshotsPage />, '/brain-governance/policy-snapshots');
 
-    expect(await screen.findByText(/这里发布的是治理规则/)).toBeInTheDocument();
-    expect(screen.getByText(/不会自动激活 Skill、Semantic 或当前 Brain Runtime Release/)).toBeInTheDocument();
+    expect(await screen.findByText(/这里发布的是治理策略（GP）/)).toBeInTheDocument();
+    expect(screen.getByText(/不会自动激活 Skill、Semantic 或当前运行版本（RT）/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /创建快照/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /发布策略/ })).not.toBeInTheDocument();
   });

@@ -36,6 +36,7 @@ import { BrainGovernanceCandidateService } from './governance/brain-governance-c
 import { BrainGovernancePolicyOrchestratorService } from './governance/brain-governance-policy-orchestrator.service.js';
 import { BrainRolloutSequenceService } from './governance/brain-rollout-sequence.service.js';
 import { BrainGovernanceMetricsService } from './governance/brain-governance-metrics.service.js';
+import { BrainGovernanceTransitionService } from './governance/brain-governance-transition.service.js';
 import { BrainCapabilityRegenerationService } from './governance/brain-capability-regeneration.service.js';
 import { BrainInspectionService } from './inspection/brain-inspection.service.js';
 import {
@@ -79,6 +80,7 @@ export class BrainController {
     private readonly governancePolicyOrchestratorService?: BrainGovernancePolicyOrchestratorService,
     private readonly rolloutSequenceService?: BrainRolloutSequenceService,
     private readonly governanceMetricsService?: BrainGovernanceMetricsService,
+    private readonly governanceTransitionService?: BrainGovernanceTransitionService,
   ) {}
 
   @Post('conversations')
@@ -1241,6 +1243,92 @@ export class BrainController {
       ?? { items: [], total: 0, page: 1, pageSize: 20 };
   }
 
+  @Get('governance/transitions')
+  @Permissions('core:brain-governance:view')
+  listGovernanceTransitions(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('status') status?: string,
+  ) {
+    if (!this.governanceTransitionService) throw new NotFoundException('治理切换服务不可用');
+    return this.governanceTransitionService.list({ page: Number(page), pageSize: Number(pageSize), status });
+  }
+
+  @Post('governance/transitions/preview')
+  @Permissions('core:brain-governance:view')
+  previewGovernanceTransition(@Body() body: { candidateKey?: string }) {
+    if (!this.governanceTransitionService) throw new NotFoundException('治理切换服务不可用');
+    return this.governanceTransitionService.preview(String(body.candidateKey ?? ''));
+  }
+
+  @Post('governance/transitions/prepare')
+  @Permissions('core:brain-governance:manage')
+  prepareGovernanceTransition(@Req() req: Request, @Body() body: { candidateKey?: string }) {
+    const context = this.contextService.fromGlobalRequest(req, 'Asia/Shanghai');
+    if (!this.governanceTransitionService) throw new NotFoundException('治理切换服务不可用');
+    return this.governanceTransitionService.prepare({ candidateKey: String(body.candidateKey ?? ''), actorId: context.userId });
+  }
+
+  @Get('governance/transitions/:id')
+  @Permissions('core:brain-governance:view')
+  getGovernanceTransition(@Param('id') id: string) {
+    if (!this.governanceTransitionService) throw new NotFoundException('治理切换服务不可用');
+    return this.governanceTransitionService.get(Number(id));
+  }
+
+  @Post('governance/transitions/:id/validate')
+  @Permissions('core:brain-governance:manage')
+  validateGovernanceTransition(@Param('id') id: string) {
+    if (!this.governanceTransitionService) throw new NotFoundException('治理切换服务不可用');
+    return this.governanceTransitionService.validate(Number(id));
+  }
+
+  @Post('governance/transitions/:id/approve-policy')
+  @Permissions('core:brain-governance:publish')
+  approveGovernanceTransitionPolicy(@Req() req: Request, @Param('id') id: string) {
+    const context = this.contextService.fromGlobalRequest(req, 'Asia/Shanghai');
+    if (!this.governanceTransitionService) throw new NotFoundException('治理切换服务不可用');
+    return this.governanceTransitionService.approvePolicy(Number(id), context.userId);
+  }
+
+  @Post('governance/transitions/:id/approve-runtime')
+  @Permissions('core:brain-governance:release')
+  approveGovernanceTransitionRuntime(@Req() req: Request, @Param('id') id: string) {
+    const context = this.contextService.fromGlobalRequest(req, 'Asia/Shanghai');
+    if (!this.governanceTransitionService) throw new NotFoundException('治理切换服务不可用');
+    return this.governanceTransitionService.approveRuntime(Number(id), context.userId);
+  }
+
+  @Post('governance/transitions/:id/switch')
+  @Permissions('core:brain-governance:publish', 'core:brain-governance:release')
+  switchGovernanceTransition(@Req() req: Request, @Param('id') id: string) {
+    const context = this.contextService.fromRequest(req, 'Asia/Shanghai');
+    if (!this.governanceTransitionService) throw new NotFoundException('治理切换服务不可用');
+    return this.governanceTransitionService.switch({
+      id: Number(id),
+      actorId: context.userId,
+      storeId: context.storeId,
+      userId: context.userId,
+      roleKey: context.roles?.[0] ?? 'unknown',
+    });
+  }
+
+  @Post('governance/transitions/:id/rollback')
+  @Permissions('core:brain-governance:publish', 'core:brain-governance:release')
+  rollbackGovernanceTransition(@Req() req: Request, @Param('id') id: string, @Body() body: { reason?: string }) {
+    const context = this.contextService.fromGlobalRequest(req, 'Asia/Shanghai');
+    if (!this.governanceTransitionService) throw new NotFoundException('治理切换服务不可用');
+    return this.governanceTransitionService.rollback(Number(id), String(body.reason ?? ''), context.userId);
+  }
+
+  @Post('governance/transitions/:id/finalize')
+  @Permissions('core:brain-governance:release')
+  finalizeGovernanceTransition(@Req() req: Request, @Param('id') id: string) {
+    const context = this.contextService.fromGlobalRequest(req, 'Asia/Shanghai');
+    if (!this.governanceTransitionService) throw new NotFoundException('治理切换服务不可用');
+    return this.governanceTransitionService.finalize(Number(id), context.userId);
+  }
+
   @Post('governance/policy-snapshots/preview')
   @Permissions('core:brain-governance:view')
   previewPolicySnapshot(@Body() body: { candidateKey?: string }) {
@@ -1265,13 +1353,14 @@ export class BrainController {
 
   @Post('governance/policy-snapshots')
   @Permissions('core:brain-governance:manage')
-  createPolicySnapshot(@Req() req: Request, @Body() body: { releaseKey?: string; resourceVersionIds?: number[]; note?: string }) {
+  createPolicySnapshot(@Req() req: Request, @Body() body: { releaseKey?: string; resourceVersionIds?: number[]; note?: string; displayName?: string }) {
     const context = this.contextService.fromGlobalRequest(req, 'Asia/Shanghai');
     if (!this.governanceControlPlaneService) throw new NotFoundException('治理控制面服务不可用');
     return this.governanceControlPlaneService.createPolicySnapshot({
       releaseKey: String(body.releaseKey ?? ''),
       resourceVersionIds: body.resourceVersionIds,
       note: body.note,
+      displayName: body.displayName,
       actorId: context.userId,
     });
   }
@@ -1349,7 +1438,7 @@ export class BrainController {
   @Permissions('core:brain-governance:manage')
   createGovernanceRolloutSequence(
     @Req() req: Request,
-    @Body() body: { candidateKey?: string; releaseKey?: string; resourceVersionIds?: number[]; governanceMode?: string; promotionPolicy?: Record<string, unknown>; healthThresholds?: Record<string, unknown> },
+    @Body() body: { candidateKey?: string; releaseKey?: string; resourceVersionIds?: number[]; governanceMode?: string; promotionPolicy?: Record<string, unknown>; healthThresholds?: Record<string, unknown>; displayName?: string; productProfile?: string },
   ) {
     const context = this.contextService.fromGlobalRequest(req, 'Asia/Shanghai');
     if (!this.rolloutSequenceService) throw new NotFoundException('灰度序列服务不可用');
@@ -1360,6 +1449,8 @@ export class BrainController {
       governanceMode: body.governanceMode,
       promotionPolicy: body.promotionPolicy,
       healthThresholds: body.healthThresholds,
+      displayName: body.displayName,
+      productProfile: body.productProfile,
       actorId: context.userId,
     });
   }
