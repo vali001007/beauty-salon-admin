@@ -1078,6 +1078,104 @@ describe('AiService', () => {
     });
   });
 
+  it('can give a forced fallback retry the full deadline without calling primary again', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'resp-forced-fallback',
+        output: [{ type: 'message', content: [{ type: 'output_text', text: '{"answer":"fallback","count":1}' }] }],
+        usage: { input_tokens: 12, output_tokens: 5 },
+      }),
+    });
+    global.fetch = fetchMock as any;
+    const { service: structuredService } = await createConfiguredService({
+      LLM_PROVIDER: 'openai_responses',
+      LLM_API_KEY: 'primary-key',
+      LLM_BASE_URL: 'https://primary.example/v1',
+      LLM_MODEL: 'primary-model',
+      LLM_FALLBACK_PROVIDER: 'openai_responses',
+      LLM_FALLBACK_API_KEY: 'fallback-key',
+      LLM_FALLBACK_BASE_URL: 'https://fallback.example/v1',
+      LLM_FALLBACK_CHAT_PATH: '/responses',
+      LLM_FALLBACK_MODEL: 'fallback-model',
+    });
+
+    const result = await structuredService.generateStructured<{ answer: string; count: number }>({
+      scenario: 'ask.forced-fallback-retry',
+      allowFallback: true,
+      forceFallbackRoute: true,
+      messages: [{ role: 'assistant', content: 'primary' }],
+      fallbackMessages: [{ role: 'assistant', content: 'fallback' }],
+      schema: structuredSchema,
+      timeoutMs: 20_000,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://fallback.example/v1/responses');
+    expect(result).toMatchObject({
+      provider: 'openai_responses(fallback)',
+      model: 'fallback-model',
+      routing: { primarySkipped: true, fallbackUsed: true },
+    });
+  });
+
+  it('allows one forced fallback recovery probe after tail-budget failures open its circuit', async () => {
+    const fetchMock = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('fallback timeout'))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: 'resp-forced-fallback-recovery',
+          output: [{ type: 'message', content: [{ type: 'output_text', text: '{"answer":"recovered","count":1}' }] }],
+          usage: { input_tokens: 12, output_tokens: 5 },
+        }),
+      });
+    global.fetch = fetchMock as any;
+    const { service: structuredService } = await createConfiguredService({
+      LLM_PROVIDER: 'openai_responses',
+      LLM_API_KEY: 'primary-key',
+      LLM_BASE_URL: 'https://primary.example/v1',
+      LLM_MODEL: 'primary-model',
+      LLM_FALLBACK_PROVIDER: 'openai_responses',
+      LLM_FALLBACK_API_KEY: 'fallback-key',
+      LLM_FALLBACK_BASE_URL: 'https://fallback.example/v1',
+      LLM_FALLBACK_CHAT_PATH: '/responses',
+      LLM_FALLBACK_MODEL: 'fallback-model',
+      LLM_CIRCUIT_FAILURE_THRESHOLD: '1',
+      LLM_CIRCUIT_OPEN_MS: '60000',
+    });
+    const request = {
+      scenario: 'ask.forced-fallback-circuit-recovery',
+      allowFallback: true,
+      forceFallbackRoute: true,
+      messages: [{ role: 'assistant', content: 'primary' }],
+      fallbackMessages: [{ role: 'assistant', content: 'fallback' }],
+      schema: structuredSchema,
+      timeoutMs: 20_000,
+    };
+
+    await expect(structuredService.generateStructured(request)).rejects.toMatchObject({
+      code: 'PROVIDER_UNAVAILABLE',
+      provider: 'openai_responses(fallback)',
+    });
+    expect(structuredService.getProviderHealth().circuits).toEqual(
+      expect.arrayContaining([expect.objectContaining({ state: 'open', lastErrorCode: 'PROVIDER_UNAVAILABLE' })]),
+    );
+
+    const recovered = await structuredService.generateStructured<{ answer: string; count: number }>({
+      ...request,
+      scenario: 'ask.forced-fallback-circuit-recovery-probe',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(recovered).toMatchObject({
+      data: { answer: 'recovered', count: 1 },
+      provider: 'openai_responses(fallback)',
+      routing: { primarySkipped: true, fallbackUsed: true, fallbackCircuitState: 'open' },
+    });
+  });
+
   it('inherits the verified primary credential for a same-route retry', async () => {
     const fetchMock = jest
       .fn()
@@ -2265,6 +2363,62 @@ describe('AiService', () => {
     expect(structuredService.getProviderHealth().circuits).toEqual(
       expect.arrayContaining([expect.objectContaining({ state: 'closed', consecutiveFailures: 0 })]),
     );
+  });
+
+  it('allows one forced primary probe after an independent fallback fails authentication', async () => {
+    const fetchMock = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('primary unavailable'))
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: async () => 'invalid fallback key',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: '{"answer":"primary recovered","count":1}' } }] }),
+      });
+    global.fetch = fetchMock as any;
+    const { service: structuredService } = await createConfiguredService({
+      LLM_PROVIDER: 'openai_compatible',
+      LLM_API_KEY: 'primary-key',
+      LLM_BASE_URL: 'https://primary.example/v1',
+      LLM_MODEL: 'primary-model',
+      LLM_FALLBACK_PROVIDER: 'openai_compatible',
+      LLM_FALLBACK_API_KEY: 'invalid-fallback-key',
+      LLM_FALLBACK_BASE_URL: 'https://fallback.example/v1',
+      LLM_FALLBACK_MODEL: 'fallback-model',
+      LLM_CIRCUIT_FAILURE_THRESHOLD: '1',
+      LLM_CIRCUIT_OPEN_MS: '60000',
+    });
+    const request = {
+      scenario: 'ask.fallback-auth',
+      messages: [{ role: 'assistant', content: 'primary request' }],
+      fallbackMessages: [{ role: 'assistant', content: 'fallback request' }],
+      allowFallback: true,
+      schema: structuredSchema,
+      timeoutMs: 5000,
+    };
+
+    await expect(structuredService.generateStructured(request)).rejects.toMatchObject({
+      code: 'PROVIDER_AUTH_FAILED',
+      provider: 'openai_compatible(fallback)',
+    });
+
+    const recovered = await structuredService.generateStructured<{ answer: string; count: number }>({
+      ...request,
+      scenario: 'ask.fallback-auth-primary-probe',
+      allowFallback: false,
+      forcePrimaryProbe: true,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(recovered.data).toEqual({ answer: 'primary recovered', count: 1 });
+    expect(recovered.routing).toMatchObject({
+      primarySkipped: false,
+      fallbackUsed: false,
+      primaryCircuitState: 'open',
+    });
   });
 
   it('rejects a fourth reserved call without incrementing callCount', async () => {

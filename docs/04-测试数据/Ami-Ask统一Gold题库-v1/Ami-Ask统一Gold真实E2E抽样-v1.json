@@ -1,0 +1,3698 @@
+{
+  "generatedAt": "2026-08-02T18:02:05.574Z",
+  "sourcePath": "/Users/ju/Documents/ami/beauty-salon-admin-ask/docs/04-测试数据/Ami-Ask统一Gold题库-v1/Ami-Ask统一Gold题库-v1.json",
+  "sourceQuestionCount": 435,
+  "targetPerView": 3,
+  "viewCount": 34,
+  "coveredViews": 34,
+  "selectedCaseCount": 107,
+  "multiViewCaseCount": 5,
+  "holdoutCaseCount": 66,
+  "sourceGoldChecksum": "28bf37281253da680e828d4f142e9378840f9b7a47196f4df07200ffa4cc5ff9",
+  "sourceContractChecksum": "2847b9567753273eb09eaf33000f878634b1991f208f445ed3a7f08971f6334b",
+  "selectedQuestionsChecksum": "8af46ecaaf321de7c6a31c75c579c0a24186d64508aa8d2898ca9898c6579f6b",
+  "checksum": "0cc1017d2c00c39de3fba1ec322addc60cefe5723402b068cd0c364a797a9957",
+  "insufficientViews": [],
+  "selectedQuestions": [
+    {
+      "id": "agent_650:frontdesk-034",
+      "domain": "三、前台接待 Agent",
+      "role": "三、前台接待 Agent",
+      "type": "ask_query_low_confidence",
+      "difficulty": "development",
+      "question": "这周哪天最忙，哪天还有空档",
+      "expected_target": "appointment_gap",
+      "notes": "requiredViews=agent_v3_appointment_gap_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_appointment_gap_view",
+      "expectedViewLabel": "agent_v3_appointment_gap_view",
+      "expectedMetricKeys": [
+        "appointment_gap"
+      ],
+      "acceptableViews": [
+        "agent_v3_appointment_gap_view",
+        "agent_v3_reservation_view",
+        "ask_data_staff_capacity_view"
+      ],
+      "requiredViews": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "requiredOutputFields": [
+        "date",
+        "available_capacity"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "5da847e8992ebbceeedc933e7743e027d7a4464baf7944dbce80459da0ccc90b"
+    },
+    {
+      "id": "agent_650:frontdesk-042",
+      "domain": "三、前台接待 Agent",
+      "role": "三、前台接待 Agent",
+      "type": "ask_query_low_confidence",
+      "difficulty": "development",
+      "question": "帮我看一下这周的预约密度，哪里有空位",
+      "expected_target": "appointment_gap",
+      "notes": "requiredViews=agent_v3_appointment_gap_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_appointment_gap_view",
+      "expectedViewLabel": "agent_v3_appointment_gap_view",
+      "expectedMetricKeys": [
+        "appointment_gap"
+      ],
+      "acceptableViews": [
+        "agent_v3_appointment_gap_view",
+        "agent_v3_reservation_view",
+        "ask_data_staff_capacity_view"
+      ],
+      "requiredViews": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "requiredOutputFields": [
+        "date",
+        "start_time",
+        "available_capacity"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "9728cd3fc8d6452dd388ebcd5c3e2232079025dbc2fa4d43dca9993e717d50ee"
+    },
+    {
+      "id": "agent_650:frontdesk-096",
+      "domain": "三、前台接待 Agent",
+      "role": "三、前台接待 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "帮我查一下今天下午哪个时段可以加客",
+      "expected_target": "appointment_gap",
+      "notes": "requiredViews=agent_v3_appointment_gap_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_appointment_gap_view",
+      "expectedViewLabel": "agent_v3_appointment_gap_view",
+      "expectedMetricKeys": [
+        "appointment_gap"
+      ],
+      "acceptableViews": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "requiredViews": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "requiredOutputFields": [
+        "date",
+        "start_time",
+        "available_capacity"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "453f2b398a360042dd4bd0b559955e31e35f6b5316954cbb6ab317bfad54e9ec"
+    },
+    {
+      "id": "ami_brain_2000:BQ0504",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "哪些敏感修护 8 次卡快过期还没核销完",
+      "expected_target": "card_assets",
+      "notes": "requiredViews=agent_v3_card_asset_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "agent_v3_card_asset_view",
+      "expectedViewLabel": "agent_v3_card_asset_view",
+      "expectedMetricKeys": [
+        "card_assets"
+      ],
+      "acceptableViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "requiredViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "requiredOutputFields": [
+        "customer_card_id",
+        "customer_id",
+        "customer_name_masked",
+        "remaining_times",
+        "card_name",
+        "expiry_date"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "development",
+      "questionChecksum": "8fb63376b4c66dc5fc3bec19245dadea49ead55ea1de7bdfa01156f27e783c42"
+    },
+    {
+      "id": "ami_brain_2000:BQ0515",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "哪些焕肤清洁 12 次卡快过期还没核销完",
+      "expected_target": "card_assets",
+      "notes": "requiredViews=agent_v3_card_asset_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "agent_v3_card_asset_view",
+      "expectedViewLabel": "agent_v3_card_asset_view",
+      "expectedMetricKeys": [
+        "card_assets"
+      ],
+      "acceptableViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "requiredViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "requiredOutputFields": [
+        "customer_card_id",
+        "customer_id",
+        "customer_name_masked",
+        "remaining_times",
+        "card_name",
+        "expiry_date"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "development",
+      "questionChecksum": "3a284cdf29645ee4860b167e35e8b713b2b2646d7152bd14711096584b1e9db4"
+    },
+    {
+      "id": "ami_brain_2000:BQ0526",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "哪些抗衰管理 6 次卡快过期还没核销完",
+      "expected_target": "card_assets",
+      "notes": "requiredViews=agent_v3_card_asset_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "agent_v3_card_asset_view",
+      "expectedViewLabel": "agent_v3_card_asset_view",
+      "expectedMetricKeys": [
+        "card_assets"
+      ],
+      "acceptableViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "requiredViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "requiredOutputFields": [
+        "customer_card_id",
+        "customer_id",
+        "customer_name_masked",
+        "remaining_times",
+        "card_name",
+        "expiry_date"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "development",
+      "questionChecksum": "3bb872848f34b6291c3d53c696a97d679bee994e18949199d693987fca555678"
+    },
+    {
+      "id": "ami_brain_2000:BQ0514",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "焕肤清洁 12 次卡的核销率是多少",
+      "expected_target": "card_usage",
+      "notes": "requiredViews=agent_v3_card_usage_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_card_usage_view",
+      "expectedViewLabel": "agent_v3_card_usage_view",
+      "expectedMetricKeys": [
+        "card_usage"
+      ],
+      "acceptableViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "requiredViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "requiredOutputFields": [
+        "usage_times"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "af9faf33dbf57950c3997a9659a7383ff69b4ccf29ce28c1a16620668a6aab37"
+    },
+    {
+      "id": "ask_supplemental:SUP-CARD-USAGE-001",
+      "domain": "finance",
+      "role": "finance",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近 30 天次卡核销次数和确认收入各是多少",
+      "expected_target": "card_usage",
+      "notes": "requiredViews=agent_v3_card_usage_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "agent_v3_card_usage_view",
+      "expectedViewLabel": "agent_v3_card_usage_view",
+      "expectedMetricKeys": [
+        "card_usage"
+      ],
+      "acceptableViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "requiredViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "requiredOutputFields": [
+        "usage_times"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "6100a13e58c333fcee406b3765454d705a9ad1ff99507e9247096b22733e3ff0"
+    },
+    {
+      "id": "ask_supplemental:SUP-CARD-USAGE-004",
+      "domain": "frontdesk",
+      "role": "frontdesk",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "列出最近 30 天次卡核销明细",
+      "expected_target": "card_usage",
+      "notes": "requiredViews=agent_v3_card_usage_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "agent_v3_card_usage_view",
+      "expectedViewLabel": "agent_v3_card_usage_view",
+      "expectedMetricKeys": [
+        "card_usage"
+      ],
+      "acceptableViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "requiredViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "card_name",
+        "project_name",
+        "usage_times",
+        "remaining_times",
+        "verified_at"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "holdout",
+      "questionChecksum": "17588501481da7e1652eacdb75ec805eddf5e6b1806617cd3292f9d1ea6f0244"
+    },
+    {
+      "id": "ami_brain_2000:BQ0122",
+      "domain": "客服",
+      "role": "客服",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "哪些客户的储值余额异常偏高",
+      "expected_target": "customer_balance",
+      "notes": "requiredViews=agent_v3_customer_balance_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items,amount_unit",
+      "expectedView": "agent_v3_customer_balance_view",
+      "expectedViewLabel": "agent_v3_customer_balance_view",
+      "expectedMetricKeys": [
+        "customer_balance"
+      ],
+      "acceptableViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "requiredViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "cash_balance",
+        "gift_balance"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "6c8375ef8d21098448e4b3c8bb2948c0e498e8971b1ff4b7ba9db1b938cffca7"
+    },
+    {
+      "id": "ask_supplemental:SUP-BAL-004",
+      "domain": "finance",
+      "role": "finance",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "哪些客户现金余额已经为 0 但仍有赠送余额",
+      "expected_target": "customer_balance",
+      "notes": "requiredViews=agent_v3_customer_balance_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items,amount_unit",
+      "expectedView": "agent_v3_customer_balance_view",
+      "expectedViewLabel": "agent_v3_customer_balance_view",
+      "expectedMetricKeys": [
+        "customer_balance"
+      ],
+      "acceptableViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "requiredViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "cash_balance",
+        "gift_balance"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "0b8e0a39b7a45e9c0e7571a8f695779fa17b1e93b07edb7a85fa82dbb5c8a9f2"
+    },
+    {
+      "id": "ami_brain_2000:BQ0058",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "哪些客户同时有储值余额和未用完的敏感修护 8 次卡",
+      "expected_target": "customer_balance",
+      "notes": "requiredViews=agent_v3_customer_balance_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items,amount_unit",
+      "expectedView": "agent_v3_customer_balance_view",
+      "expectedViewLabel": "agent_v3_customer_balance_view",
+      "expectedMetricKeys": [
+        "customer_balance"
+      ],
+      "acceptableViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "requiredViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "cash_balance",
+        "gift_balance"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items",
+        "amount_unit"
+      ],
+      "split": "development",
+      "questionChecksum": "1c277706b98873360afe78518c8aba07b4ae032a46a45ad4fec5c256909551cd"
+    },
+    {
+      "id": "agent_650:finance-020",
+      "domain": "六、财务风控 Agent",
+      "role": "六、财务风控 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "这个月到账的钱和开单的钱差多少",
+      "expected_target": "payment_order_difference,daily_net_receipts",
+      "notes": "requiredViews=agent_v3_daily_settlement_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_daily_settlement_view",
+      "expectedViewLabel": "agent_v3_daily_settlement_view",
+      "expectedMetricKeys": [
+        "payment_order_difference",
+        "daily_net_receipts"
+      ],
+      "acceptableViews": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "requiredOutputFields": [
+        "payment_amount",
+        "order_amount",
+        "payment_order_difference"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "a36a03d0fc4ba5834fefa390fdff0ee2830df9647a1695c2abe2812d9697625c"
+    },
+    {
+      "id": "agent_650:finance-003",
+      "domain": "六、财务风控 Agent",
+      "role": "六、财务风控 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "昨天的日结做了没，结果怎么样",
+      "expected_target": "daily_net_receipts",
+      "notes": "requiredViews=agent_v3_daily_settlement_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_daily_settlement_view",
+      "expectedViewLabel": "agent_v3_daily_settlement_view",
+      "expectedMetricKeys": [
+        "daily_net_receipts"
+      ],
+      "acceptableViews": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "requiredOutputFields": [
+        "net_receipts"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "7f774d6cbbe2d083815a48d770fd80b75c92907366af2a4f24b30e955cca6765"
+    },
+    {
+      "id": "agent_650:finance-004",
+      "domain": "六、财务风控 Agent",
+      "role": "六、财务风控 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "帮我做一个今天的收入汇总",
+      "expected_target": "daily_net_receipts",
+      "notes": "requiredViews=agent_v3_daily_settlement_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "agent_v3_daily_settlement_view",
+      "expectedViewLabel": "agent_v3_daily_settlement_view",
+      "expectedMetricKeys": [
+        "daily_net_receipts"
+      ],
+      "acceptableViews": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "requiredOutputFields": [
+        "net_receipts"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "development",
+      "questionChecksum": "0da8ee91df8c14269fda6f4c54698282900a3d09225de2e61c3f266bf2f38356"
+    },
+    {
+      "id": "agent_650:inventory-042",
+      "domain": "五、库存采购 Agent",
+      "role": "五、库存采购 Agent",
+      "type": "ask_query_low_confidence",
+      "difficulty": "holdout",
+      "question": "我们每个月大概会损耗多少货值",
+      "expected_target": "inventory_scrap",
+      "notes": "requiredViews=agent_v3_inventory_scrap_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_inventory_scrap_view",
+      "expectedViewLabel": "agent_v3_inventory_scrap_view",
+      "expectedMetricKeys": [
+        "inventory_scrap"
+      ],
+      "acceptableViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "requiredViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "requiredOutputFields": [
+        "trend_month",
+        "loss_amount"
+      ],
+      "requiredResultMode": "trend",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "455e9904ef935fa6a22924689957d9ee3a4dfe387a4e682611e6dae670f7c869"
+    },
+    {
+      "id": "agent_650:inventory-032",
+      "domain": "五、库存采购 Agent",
+      "role": "五、库存采购 Agent",
+      "type": "ask_query_low_confidence",
+      "difficulty": "development",
+      "question": "这个月有没有因为过期而损耗的产品",
+      "expected_target": "inventory_scrap",
+      "notes": "requiredViews=agent_v3_inventory_scrap_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_inventory_scrap_view",
+      "expectedViewLabel": "agent_v3_inventory_scrap_view",
+      "expectedMetricKeys": [
+        "inventory_scrap"
+      ],
+      "acceptableViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "requiredViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "requiredOutputFields": [
+        "loss_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "0374bd6ee47bc0fbd566acd18c09b42b1494bcb76868c941ebc2bb2053d3a4b2"
+    },
+    {
+      "id": "ask_supplemental:SUP-SCRAP-001",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "本月库存报废造成的损耗金额合计是多少",
+      "expected_target": "inventory_scrap",
+      "notes": "requiredViews=agent_v3_inventory_scrap_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "agent_v3_inventory_scrap_view",
+      "expectedViewLabel": "agent_v3_inventory_scrap_view",
+      "expectedMetricKeys": [
+        "inventory_scrap"
+      ],
+      "acceptableViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "requiredViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "requiredOutputFields": [
+        "loss_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "development",
+      "questionChecksum": "018195df746ab5e83e4988c1df2a3dcd911d4487556eb85ea1ef8d131e4104aa"
+    },
+    {
+      "id": "ami_brain_2000:BQ1494",
+      "domain": "营销",
+      "role": "营销",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近7天活动的参与人数",
+      "expected_target": "marketing_activity",
+      "notes": "requiredViews=agent_v3_marketing_activity_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_marketing_activity_view",
+      "expectedViewLabel": "agent_v3_marketing_activity_view",
+      "expectedMetricKeys": [
+        "marketing_activity"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "requiredOutputFields": [
+        "participants"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "5afdfcd74cdd62681c99be8d9eff6b7e5f1c03968f493dd7d649b93f31393fc4"
+    },
+    {
+      "id": "ami_brain_2000:BQ1512",
+      "domain": "营销",
+      "role": "营销",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "今年有哪些营销活动在跑",
+      "expected_target": "marketing_activity",
+      "notes": "requiredViews=agent_v3_marketing_activity_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "agent_v3_marketing_activity_view",
+      "expectedViewLabel": "agent_v3_marketing_activity_view",
+      "expectedMetricKeys": [
+        "marketing_activity"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "requiredOutputFields": [
+        "activity_id",
+        "activity_title",
+        "participants"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "holdout",
+      "questionChecksum": "6fe1b3af5abd8e24cdab1c243abb76f264a7c5dbb962ad292d5e76649f45c62b"
+    },
+    {
+      "id": "ami_brain_2000:BQ1481",
+      "domain": "营销",
+      "role": "营销",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "最近14天有哪些营销活动在跑",
+      "expected_target": "marketing_activity",
+      "notes": "requiredViews=agent_v3_marketing_activity_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "agent_v3_marketing_activity_view",
+      "expectedViewLabel": "agent_v3_marketing_activity_view",
+      "expectedMetricKeys": [
+        "marketing_activity"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "requiredOutputFields": [
+        "activity_id",
+        "activity_title",
+        "participants"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "development",
+      "questionChecksum": "402716e8e9a8cc092619fb8559cbeacd72ee216c8ff7b35eed931d994d23c632"
+    },
+    {
+      "id": "ami_brain_2000:BQ1490",
+      "domain": "营销",
+      "role": "营销",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近7天触达的成功率",
+      "expected_target": "marketing_automation",
+      "notes": "requiredViews=agent_v3_marketing_automation_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_marketing_automation_view",
+      "expectedViewLabel": "agent_v3_marketing_automation_view",
+      "expectedMetricKeys": [
+        "marketing_automation"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredOutputFields": [
+        "task_count",
+        "completed_count"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "1bf2c31a61de3c2b3a3f80897f9e4e2c027d24bccb1bbe426d9cb27232f4c662"
+    },
+    {
+      "id": "ami_brain_2000:BQ1499",
+      "domain": "营销",
+      "role": "营销",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "上周发出去多少条触达",
+      "expected_target": "marketing_automation",
+      "notes": "requiredViews=agent_v3_marketing_automation_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_marketing_automation_view",
+      "expectedViewLabel": "agent_v3_marketing_automation_view",
+      "expectedMetricKeys": [
+        "marketing_automation"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredOutputFields": [
+        "task_count",
+        "completed_count"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "29ebe9424b4e1a7818114990ce7bd16a83d8a298ac97d22b3a191177f4a1dbb1"
+    },
+    {
+      "id": "ami_brain_2000:BQ1504",
+      "domain": "营销",
+      "role": "营销",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "本周末触达的成功率",
+      "expected_target": "marketing_automation",
+      "notes": "requiredViews=agent_v3_marketing_automation_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_marketing_automation_view",
+      "expectedViewLabel": "agent_v3_marketing_automation_view",
+      "expectedMetricKeys": [
+        "marketing_automation"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredOutputFields": [
+        "task_count",
+        "completed_count"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "0e1395089453b50ecb4b214d6b1008ea7fe4c99eb3056293129408085fd50441"
+    },
+    {
+      "id": "agent_650:marketing-066",
+      "domain": "二、营销增长 Agent",
+      "role": "二、营销增长 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "免费体验活动来的客人转化率多少",
+      "expected_target": "marketing_conversion",
+      "notes": "requiredViews=agent_v3_marketing_conversion_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_marketing_conversion_view",
+      "expectedViewLabel": "agent_v3_marketing_conversion_view",
+      "expectedMetricKeys": [
+        "marketing_conversion"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredOutputFields": [
+        "conversion_count"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "e30a2b0013c13e5c8fa8b7f0b8c8a38ff7ce8d563055c4c2390fe237656e02f8"
+    },
+    {
+      "id": "ami_brain_2000:BQ1488",
+      "domain": "营销",
+      "role": "营销",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近7天新增了多少线索",
+      "expected_target": "marketing_conversion",
+      "notes": "requiredViews=agent_v3_marketing_conversion_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_marketing_conversion_view",
+      "expectedViewLabel": "agent_v3_marketing_conversion_view",
+      "expectedMetricKeys": [
+        "marketing_conversion"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredOutputFields": [
+        "conversion_count"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "4f4ef4ef0798c4c53d5b208008350238c68835e829cba47b7d24db35085512cb"
+    },
+    {
+      "id": "ami_brain_2000:BQ1495",
+      "domain": "营销",
+      "role": "营销",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "今年新增了多少线索",
+      "expected_target": "marketing_conversion",
+      "notes": "requiredViews=agent_v3_marketing_conversion_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_marketing_conversion_view",
+      "expectedViewLabel": "agent_v3_marketing_conversion_view",
+      "expectedMetricKeys": [
+        "marketing_conversion"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredOutputFields": [
+        "conversion_count"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "0b89ac27a3a52d15cee30263e5f7b2a85d721dd3975a87fc140bb5ff6408b9db"
+    },
+    {
+      "id": "agent_650:manager-064",
+      "domain": "一、店长经营 Agent",
+      "role": "一、店长经营 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近卖得最好的产品是什么",
+      "expected_target": "product_sales",
+      "notes": "requiredViews=agent_v3_order_item_sales_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_order_item_sales_view",
+      "expectedViewLabel": "agent_v3_order_item_sales_view",
+      "expectedMetricKeys": [
+        "product_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "sales_quantity"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "66db1017276949e04d733331f8fbf7a9e183a458cd66f0dd605a5a3b2f379699"
+    },
+    {
+      "id": "agent_650:manager-069",
+      "domain": "一、店长经营 Agent",
+      "role": "一、店长经营 Agent",
+      "type": "ask_query_low_confidence",
+      "difficulty": "holdout",
+      "question": "这个月产品销售额是多少",
+      "expected_target": "product_sales",
+      "notes": "requiredViews=agent_v3_order_item_sales_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_order_item_sales_view",
+      "expectedViewLabel": "agent_v3_order_item_sales_view",
+      "expectedMetricKeys": [
+        "product_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredOutputFields": [
+        "net_sales_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "6791604c8a5e4ec76db269bfb19f65d53bcd24ac5b5f54ba36db16e45daaecef"
+    },
+    {
+      "id": "ami_brain_2000:BQ0629",
+      "domain": "财务",
+      "role": "财务",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近三个月产品订单有多少",
+      "expected_target": "product_sales",
+      "notes": "requiredViews=agent_v3_order_item_sales_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_order_item_sales_view",
+      "expectedViewLabel": "agent_v3_order_item_sales_view",
+      "expectedMetricKeys": [
+        "product_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredOutputFields": [
+        "sales_quantity"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "e0eeea687c93ba21e6126524fa5cc48c495a3daea480576405c413fab274f66d"
+    },
+    {
+      "id": "agent_650:finance-012",
+      "domain": "六、财务风控 Agent",
+      "role": "六、财务风控 Agent",
+      "type": "ask_query_low_confidence",
+      "difficulty": "holdout",
+      "question": "帮我看一下最近三个月的收入趋势",
+      "expected_target": "order_revenue",
+      "notes": "requiredViews=agent_v3_order_summary_view; requiredAnswerFacts=metric_value,time_range,data_policy,trend_granularity,trend_points,amount_unit",
+      "expectedView": "agent_v3_order_summary_view",
+      "expectedViewLabel": "agent_v3_order_summary_view",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "trend_month",
+        "net_revenue"
+      ],
+      "requiredResultMode": "trend",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "trend_granularity",
+        "trend_points",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "375d92ec336603b0012b2fadb3b6ab691332a43faacdf56a186c661609d7dc74"
+    },
+    {
+      "id": "agent_650:finance-023",
+      "domain": "六、财务风控 Agent",
+      "role": "六、财务风控 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "今天的日均客单价是多少",
+      "expected_target": "order_revenue",
+      "notes": "requiredViews=agent_v3_order_summary_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_order_summary_view",
+      "expectedViewLabel": "agent_v3_order_summary_view",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "net_revenue"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "bed2a3b1d969dd62ba07b79453ce2b5e8f4dcb449b122526297f9d1d74c7380c"
+    },
+    {
+      "id": "ami_brain_2000:BQ0622",
+      "domain": "财务",
+      "role": "财务",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近三个月的营业额是多少",
+      "expected_target": "order_revenue",
+      "notes": "requiredViews=agent_v3_order_summary_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "agent_v3_order_summary_view",
+      "expectedViewLabel": "agent_v3_order_summary_view",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "net_revenue"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "c09648a620bf9b871f32cb78d395c985ad1cbc9719601b2f9c9f9440c5eaf234"
+    },
+    {
+      "id": "agent_650:finance-005",
+      "domain": "六、财务风控 Agent",
+      "role": "六、财务风控 Agent",
+      "type": "ask_query_low_confidence",
+      "difficulty": "holdout",
+      "question": "今天现金、微信、支付宝各收了多少",
+      "expected_target": "payment_flow",
+      "notes": "requiredViews=agent_v3_payment_refund_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_payment_refund_view",
+      "expectedViewLabel": "agent_v3_payment_refund_view",
+      "expectedMetricKeys": [
+        "payment_flow"
+      ],
+      "acceptableViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredOutputFields": [
+        "cash_payment_amount",
+        "wechat_payment_amount",
+        "alipay_payment_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "7388a19ebd759a250f3afa7acf526e264856778bee21da41f1c7a959d97c61ec"
+    },
+    {
+      "id": "agent_650:finance-065",
+      "domain": "六、财务风控 Agent",
+      "role": "六、财务风控 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "这个月因为退款损失了多少收入",
+      "expected_target": "payment_flow",
+      "notes": "requiredViews=agent_v3_payment_refund_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "agent_v3_payment_refund_view",
+      "expectedViewLabel": "agent_v3_payment_refund_view",
+      "expectedMetricKeys": [
+        "payment_flow"
+      ],
+      "acceptableViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredOutputFields": [
+        "refund_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "c1262f75ac348c3bfcd123d4dc4079b1edd77f2ccc1b33a64c24f216c0dabfe2"
+    },
+    {
+      "id": "agent_650:frontdesk-067",
+      "domain": "三、前台接待 Agent",
+      "role": "三、前台接待 Agent",
+      "type": "ask_query_low_confidence",
+      "difficulty": "holdout",
+      "question": "今天刷卡消费有几笔，金额多少",
+      "expected_target": "payment_flow",
+      "notes": "requiredViews=agent_v3_payment_refund_view; requiredAnswerFacts=metric_value,time_range,data_policy,count,amount_unit",
+      "expectedView": "agent_v3_payment_refund_view",
+      "expectedViewLabel": "agent_v3_payment_refund_view",
+      "expectedMetricKeys": [
+        "payment_flow"
+      ],
+      "acceptableViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredOutputFields": [
+        "payment_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "count",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "162870e2bc20c4216e3e4a71e0af4c2d9d9dd4d511197322d38dcac665f91e21"
+    },
+    {
+      "id": "agent_650:frontdesk-083",
+      "domain": "三、前台接待 Agent",
+      "role": "三、前台接待 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "客人要买产品带走，我们现在有什么产品可以卖",
+      "expected_target": "inventory_on_hand",
+      "notes": "requiredViews=agent_v3_product_inventory_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_product_inventory_view",
+      "expectedViewLabel": "agent_v3_product_inventory_view",
+      "expectedMetricKeys": [
+        "inventory_on_hand"
+      ],
+      "acceptableViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredOutputFields": [
+        "current_stock"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "8a51cac2bbcfbc8c633c6f82d7ad1d5e902d2f7d6240009c610e5ace67a83f0e"
+    },
+    {
+      "id": "agent_650:inventory-001",
+      "domain": "五、库存采购 Agent",
+      "role": "五、库存采购 Agent",
+      "type": "ask_query_low_confidence",
+      "difficulty": "holdout",
+      "question": "现在哪些东西快没了",
+      "expected_target": "inventory_on_hand",
+      "notes": "requiredViews=agent_v3_product_inventory_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "agent_v3_product_inventory_view",
+      "expectedViewLabel": "agent_v3_product_inventory_view",
+      "expectedMetricKeys": [
+        "inventory_on_hand"
+      ],
+      "acceptableViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "current_stock"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "holdout",
+      "questionChecksum": "dba8733a5191efe963dbb21c7939cbe3c19ef83b04bd262253ea9d42fdb43722"
+    },
+    {
+      "id": "agent_650:inventory-006",
+      "domain": "五、库存采购 Agent",
+      "role": "五、库存采购 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "帮我看一下所有低于安全库存的产品",
+      "expected_target": "inventory_on_hand",
+      "notes": "requiredViews=agent_v3_product_inventory_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "agent_v3_product_inventory_view",
+      "expectedViewLabel": "agent_v3_product_inventory_view",
+      "expectedMetricKeys": [
+        "inventory_on_hand"
+      ],
+      "acceptableViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "current_stock"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "holdout",
+      "questionChecksum": "1b0e2287207c8c4c7d1ea8afc5f6e4b9ba49b3d7f62c3ddca4333ae7f2b6b91c"
+    },
+    {
+      "id": "ami_brain_2000:BQ0462",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "水氧清洁焕肤的价格是多少",
+      "expected_target": "project_catalog",
+      "notes": "requiredViews=agent_v3_project_catalog_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_project_catalog_view",
+      "expectedViewLabel": "agent_v3_project_catalog_view",
+      "expectedMetricKeys": [
+        "project_catalog"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "requiredOutputFields": [
+        "price"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "0b152eb19aa0384acf334cda2bb11cd0da5bf65bc65e49df0c3e6578ec269ae1"
+    },
+    {
+      "id": "ami_brain_2000:BQ0463",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "全身精油 SPA做一次要多久",
+      "expected_target": "project_catalog",
+      "notes": "requiredViews=agent_v3_project_catalog_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_project_catalog_view",
+      "expectedViewLabel": "agent_v3_project_catalog_view",
+      "expectedMetricKeys": [
+        "project_catalog"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "requiredOutputFields": [
+        "duration"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "8f765d657262e7fa4abc96e53cc45f0b4b22eeeaf9ada3fe42989c9ba964a517"
+    },
+    {
+      "id": "ami_brain_2000:BQ0461",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "店里一共有多少个项目",
+      "expected_target": "project_catalog",
+      "notes": "requiredViews=agent_v3_project_catalog_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_project_catalog_view",
+      "expectedViewLabel": "agent_v3_project_catalog_view",
+      "expectedMetricKeys": [
+        "project_catalog"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "requiredOutputFields": [
+        "price"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "600d5d907a700374d10fe7acfbcb495e3edf1f0c006f7522503d85fd7fc35d96"
+    },
+    {
+      "id": "agent_650:finance-022",
+      "domain": "六、财务风控 Agent",
+      "role": "六、财务风控 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "帮我统计一下这个月每个项目的收入占比",
+      "expected_target": "project_sales",
+      "notes": "requiredViews=agent_v3_project_service_sales_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "agent_v3_project_service_sales_view",
+      "expectedViewLabel": "agent_v3_project_service_sales_view",
+      "expectedMetricKeys": [
+        "project_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredOutputFields": [
+        "project_revenue"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "31b2fe862fead43fdddb14a77b2554c3e1eda69c78a7d372193697f3826395cb"
+    },
+    {
+      "id": "ami_brain_2000:BQ0497",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近30天哪个项目最受欢迎",
+      "expected_target": "project_sales",
+      "notes": "requiredViews=agent_v3_project_service_sales_view; requiredAnswerFacts=metric_value,time_range,data_policy,ranking_order,ranking_limit",
+      "expectedView": "agent_v3_project_service_sales_view",
+      "expectedViewLabel": "agent_v3_project_service_sales_view",
+      "expectedMetricKeys": [
+        "project_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "service_count"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "3c9330194851ecdd97f956a5d3b4ac4b0df070814ef373399b7fa5922c98c1de"
+    },
+    {
+      "id": "ami_brain_2000:BQ0508",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "去年同期哪个项目最受欢迎",
+      "expected_target": "project_sales",
+      "notes": "requiredViews=agent_v3_project_service_sales_view; requiredAnswerFacts=metric_value,time_range,data_policy,ranking_order,ranking_limit",
+      "expectedView": "agent_v3_project_service_sales_view",
+      "expectedViewLabel": "agent_v3_project_service_sales_view",
+      "expectedMetricKeys": [
+        "project_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "service_count"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "dc947221fabe441611c7e3c8cb0a24a208b64efdc80257e591c8a05210e7b56a"
+    },
+    {
+      "id": "ask_supplemental:SUP-PROMO-004",
+      "domain": "manager",
+      "role": "manager",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "全局优惠和门店优惠各有多少个",
+      "expected_target": "promotion_offer",
+      "notes": "requiredViews=agent_v3_promotion_offer_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_promotion_offer_view",
+      "expectedViewLabel": "agent_v3_promotion_offer_view",
+      "expectedMetricKeys": [
+        "promotion_offer"
+      ],
+      "acceptableViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "requiredViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "requiredOutputFields": [
+        "scope_type",
+        "promotion_count"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "7d95183e949c93dc36795bc391deac5fe39471463f29b90ad35606083382758e"
+    },
+    {
+      "id": "ask_supplemental:SUP-PROMO-006",
+      "domain": "marketing",
+      "role": "marketing",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "哪些优惠活动已经发放但还没有被使用",
+      "expected_target": "promotion_offer",
+      "notes": "requiredViews=agent_v3_promotion_offer_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "agent_v3_promotion_offer_view",
+      "expectedViewLabel": "agent_v3_promotion_offer_view",
+      "expectedMetricKeys": [
+        "promotion_offer"
+      ],
+      "acceptableViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "requiredViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "requiredOutputFields": [
+        "promotion_id",
+        "promotion_name",
+        "issued_count",
+        "used_count"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "holdout",
+      "questionChecksum": "b8195691583b0677c88f909e69d1e7dd89124e137121d6bfae9c83a63e637f68"
+    },
+    {
+      "id": "agent_650:finance-059",
+      "domain": "六、财务风控 Agent",
+      "role": "六、财务风控 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "这个月优惠券核销了多少",
+      "expected_target": "promotion_offer",
+      "notes": "requiredViews=agent_v3_promotion_offer_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_promotion_offer_view",
+      "expectedViewLabel": "agent_v3_promotion_offer_view",
+      "expectedMetricKeys": [
+        "promotion_offer"
+      ],
+      "acceptableViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "requiredViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "requiredOutputFields": [
+        "used_count"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "8fe8f21019d4d3019abb7f3831f8319f9e8dfba76c57b8a41250a49babfd63f1"
+    },
+    {
+      "id": "agent_650:manager-070",
+      "domain": "一、店长经营 Agent",
+      "role": "一、店长经营 Agent",
+      "type": "ask_query_low_confidence",
+      "difficulty": "holdout",
+      "question": "最近采购了什么，花了多少钱",
+      "expected_target": "procurement_detail",
+      "notes": "requiredViews=agent_v3_purchase_procurement_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_purchase_procurement_view",
+      "expectedViewLabel": "agent_v3_purchase_procurement_view",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "procurement_id",
+        "procurement_no",
+        "procurement_amount"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "bfff18ebe7efaa910d8eaea8fded363527d0b6da97008b0f31a85144de0dd888"
+    },
+    {
+      "id": "ami_brain_2000:BQ1725",
+      "domain": "库存",
+      "role": "库存",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "今天的采购总额",
+      "expected_target": "procurement_detail",
+      "notes": "requiredViews=agent_v3_purchase_procurement_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_purchase_procurement_view",
+      "expectedViewLabel": "agent_v3_purchase_procurement_view",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "procurement_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "e0bd9387852297575e993192e6710cd4bb7e815ebf7e12da9d31df090a9749ae"
+    },
+    {
+      "id": "ami_brain_2000:BQ1726",
+      "domain": "库存",
+      "role": "库存",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "有哪些发货在途",
+      "expected_target": "procurement_detail",
+      "notes": "requiredViews=agent_v3_purchase_procurement_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "agent_v3_purchase_procurement_view",
+      "expectedViewLabel": "agent_v3_purchase_procurement_view",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "procurement_id",
+        "procurement_no",
+        "procurement_amount"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "holdout",
+      "questionChecksum": "9b13962e180e6836a0b12a945017f8c82b04e6776e93e9d82d223deac36d6e94"
+    },
+    {
+      "id": "agent_650:frontdesk-023",
+      "domain": "三、前台接待 Agent",
+      "role": "三、前台接待 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "帮我看一下今天所有到店客人的基本信息",
+      "expected_target": "reservation_metrics",
+      "notes": "requiredViews=agent_v3_reservation_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "agent_v3_reservation_view",
+      "expectedViewLabel": "agent_v3_reservation_view",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "reservation_id",
+        "date",
+        "start_time",
+        "project_name"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "holdout",
+      "questionChecksum": "f6329e24fa5e9fd65732b1a45007c88af326ac2321dbc67004be0fc621d1f9a9"
+    },
+    {
+      "id": "agent_650:frontdesk-050",
+      "domain": "三、前台接待 Agent",
+      "role": "三、前台接待 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "帮我看一下这个月预约最多的是哪几天",
+      "expected_target": "reservation_metrics",
+      "notes": "requiredViews=agent_v3_reservation_view; requiredAnswerFacts=metric_value,time_range,data_policy,ranking_order,ranking_limit",
+      "expectedView": "agent_v3_reservation_view",
+      "expectedViewLabel": "agent_v3_reservation_view",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "reservation_count"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "d94b521031bb151b0b3798f55a1c70c3f50e794eacb0963fbca080080acd6330"
+    },
+    {
+      "id": "agent_650:manager-013",
+      "domain": "一、店长经营 Agent",
+      "role": "一、店长经营 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "现在几点了，下午还有几个预约",
+      "expected_target": "reservation_metrics",
+      "notes": "requiredViews=agent_v3_reservation_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_reservation_view",
+      "expectedViewLabel": "agent_v3_reservation_view",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "reservation_count"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "b0fea636d441335c2ce5a7183e982f4e006177482a587111cf02ea93d83d5c14"
+    },
+    {
+      "id": "agent_650:manager-051",
+      "domain": "一、店长经营 Agent",
+      "role": "一、店长经营 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "今天谁服务了几个客人",
+      "expected_target": "service_quality",
+      "notes": "requiredViews=agent_v3_service_quality_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_service_quality_view",
+      "expectedViewLabel": "agent_v3_service_quality_view",
+      "expectedMetricKeys": [
+        "service_quality"
+      ],
+      "acceptableViews": [
+        "agent_v3_service_quality_view"
+      ],
+      "requiredViews": [
+        "agent_v3_service_quality_view"
+      ],
+      "requiredOutputFields": [
+        "beautician_id",
+        "beautician_name",
+        "service_task_count"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "4e868b7e2d3d7cc19bade8e2a9b90e0804f688b0af29c17ec9d89a9ebdce63af"
+    },
+    {
+      "id": "ami_brain_2000:BQ0381",
+      "domain": "美容师",
+      "role": "美容师",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "我今天有几个服务任务",
+      "expected_target": "service_quality",
+      "notes": "requiredViews=agent_v3_service_quality_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_service_quality_view",
+      "expectedViewLabel": "agent_v3_service_quality_view",
+      "expectedMetricKeys": [
+        "service_quality"
+      ],
+      "acceptableViews": [
+        "agent_v3_service_quality_view"
+      ],
+      "requiredViews": [
+        "agent_v3_service_quality_view"
+      ],
+      "requiredOutputFields": [
+        "service_task_count"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "a13a3e482df8ffe0152ec92d74dec1c75aeed767a70ef4c8eb2697b2b2d8ac89"
+    },
+    {
+      "id": "ami_brain_2000:BQ0389",
+      "domain": "美容师",
+      "role": "美容师",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "我上周有几个服务任务",
+      "expected_target": "service_quality",
+      "notes": "requiredViews=agent_v3_service_quality_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_service_quality_view",
+      "expectedViewLabel": "agent_v3_service_quality_view",
+      "expectedMetricKeys": [
+        "service_quality"
+      ],
+      "acceptableViews": [
+        "agent_v3_service_quality_view"
+      ],
+      "requiredViews": [
+        "agent_v3_service_quality_view"
+      ],
+      "requiredOutputFields": [
+        "service_task_count"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "8c6e0ab29ce2693c338199816bd9f2b7d7330f087bf092715c6804e71de8d1e1"
+    },
+    {
+      "id": "ami_brain_2000:BQ0269",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "顾然是什么职级",
+      "expected_target": "staff_profile",
+      "notes": "requiredViews=agent_v3_staff_profile_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_staff_profile_view",
+      "expectedViewLabel": "agent_v3_staff_profile_view",
+      "expectedMetricKeys": [
+        "staff_profile"
+      ],
+      "acceptableViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "requiredViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "requiredOutputFields": [
+        "staff_id",
+        "staff_name",
+        "level_name"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "1391a1be68faa7f5b0150c380fe08f00b0a52940bceaa7187d558a06881da4f9"
+    },
+    {
+      "id": "ami_brain_2000:BQ0241",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "店里现在有多少个在职美容师",
+      "expected_target": "staff_profile",
+      "notes": "requiredViews=agent_v3_staff_profile_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_staff_profile_view",
+      "expectedViewLabel": "agent_v3_staff_profile_view",
+      "expectedMetricKeys": [
+        "staff_profile"
+      ],
+      "acceptableViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "requiredViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "requiredOutputFields": [
+        "staff_count"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "c533e6c60ad2294d4688eb9272c2b5f39c7323d7b53d2ebd9db45d40e8450516"
+    },
+    {
+      "id": "ami_brain_2000:BQ0242",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "唐伊是什么职级",
+      "expected_target": "staff_profile",
+      "notes": "requiredViews=agent_v3_staff_profile_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_staff_profile_view",
+      "expectedViewLabel": "agent_v3_staff_profile_view",
+      "expectedMetricKeys": [
+        "staff_profile"
+      ],
+      "acceptableViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "requiredViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "requiredOutputFields": [
+        "staff_id",
+        "staff_name",
+        "level_name"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "dba4a77b26d69aaba5657f8fade55238b25ae025e25c857abe0d9fcbb18a5383"
+    },
+    {
+      "id": "ami_brain_2000:BQ1104",
+      "domain": "库存",
+      "role": "库存",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近14天耗材消耗排行",
+      "expected_target": "inventory_movement",
+      "notes": "requiredViews=agent_v3_stock_movement_view; requiredAnswerFacts=metric_value,time_range,data_policy,ranking_order,ranking_limit",
+      "expectedView": "agent_v3_stock_movement_view",
+      "expectedViewLabel": "agent_v3_stock_movement_view",
+      "expectedMetricKeys": [
+        "inventory_movement"
+      ],
+      "acceptableViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "movement_quantity"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "fbc30f77f9b8965428ebb91747f0f9fe016fa5064799076cfb1e904d4e0ece23"
+    },
+    {
+      "id": "ami_brain_2000:BQ1105",
+      "domain": "库存",
+      "role": "库存",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "今天屏障修护精华消耗了多少",
+      "expected_target": "inventory_movement",
+      "notes": "requiredViews=agent_v3_stock_movement_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_stock_movement_view",
+      "expectedViewLabel": "agent_v3_stock_movement_view",
+      "expectedMetricKeys": [
+        "inventory_movement"
+      ],
+      "acceptableViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredOutputFields": [
+        "movement_quantity"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "10eeda94e0738b0d3225fa499c1d522ac90b0d25a203d9d705f0dac63515b9cd"
+    },
+    {
+      "id": "agent_650:inventory-008",
+      "domain": "五、库存采购 Agent",
+      "role": "五、库存采购 Agent",
+      "type": "ask_query_low_confidence",
+      "difficulty": "development",
+      "question": "哪些产品这周消耗特别快",
+      "expected_target": "inventory_movement",
+      "notes": "requiredViews=agent_v3_stock_movement_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "agent_v3_stock_movement_view",
+      "expectedViewLabel": "agent_v3_stock_movement_view",
+      "expectedMetricKeys": [
+        "inventory_movement"
+      ],
+      "acceptableViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "movement_quantity"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "development",
+      "questionChecksum": "0c75d2e48344d343c1c6f36ebbf9efb1f7b1889462218ac5f6ae49b3501f906f"
+    },
+    {
+      "id": "ami_brain_2000:BQ1728",
+      "domain": "库存",
+      "role": "库存",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "哪些供应商合作最多",
+      "expected_target": "supplier_performance",
+      "notes": "requiredViews=agent_v3_supplier_performance_view; requiredAnswerFacts=metric_value,time_range,data_policy,ranking_order,ranking_limit,list_items",
+      "expectedView": "agent_v3_supplier_performance_view",
+      "expectedViewLabel": "agent_v3_supplier_performance_view",
+      "expectedMetricKeys": [
+        "supplier_performance"
+      ],
+      "acceptableViews": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "requiredViews": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "requiredOutputFields": [
+        "supplier_id",
+        "supplier_name",
+        "procurement_amount"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit",
+        "list_items"
+      ],
+      "split": "holdout",
+      "questionChecksum": "402b7e66b489c6502e9897dee3904870cb962840f3dbf88ddbc5f67d5e729693"
+    },
+    {
+      "id": "ami_brain_2000:BQ1769",
+      "domain": "库存",
+      "role": "库存",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "去年同期各供应商的采购金额",
+      "expected_target": "supplier_performance",
+      "notes": "requiredViews=agent_v3_supplier_performance_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "agent_v3_supplier_performance_view",
+      "expectedViewLabel": "agent_v3_supplier_performance_view",
+      "expectedMetricKeys": [
+        "supplier_performance"
+      ],
+      "acceptableViews": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "requiredViews": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "requiredOutputFields": [
+        "supplier_id",
+        "supplier_name",
+        "procurement_amount"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "64c44b72a179dfa3d48e84f3bb0afbbfe6ad68df555461c42a16cdcc0f9da007"
+    },
+    {
+      "id": "agent_650:inventory-094",
+      "domain": "五、库存采购 Agent",
+      "role": "五、库存采购 Agent",
+      "type": "ask_query_low_confidence",
+      "difficulty": "development",
+      "question": "我们哪个供应商的交货最稳定",
+      "expected_target": "supplier_performance",
+      "notes": "requiredViews=agent_v3_supplier_performance_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_supplier_performance_view",
+      "expectedViewLabel": "agent_v3_supplier_performance_view",
+      "expectedMetricKeys": [
+        "supplier_performance"
+      ],
+      "acceptableViews": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "requiredViews": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "requiredOutputFields": [
+        "procurement_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "fb4430ec98cc039d7a0d68eebfd038a18fb42b451e79cd56e08999af14ea133f"
+    },
+    {
+      "id": "agent_650:inventory-082",
+      "domain": "五、库存采购 Agent",
+      "role": "五、库存采购 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近消耗异常的产品有没有",
+      "expected_target": "bom_variance",
+      "notes": "requiredViews=ask_data_bom_consumption_variance_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_bom_consumption_variance_view",
+      "expectedViewLabel": "ask_data_bom_consumption_variance_view",
+      "expectedMetricKeys": [
+        "bom_variance"
+      ],
+      "acceptableViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "requiredViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "requiredOutputFields": [
+        "deviation_rate"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "9d9aed982b0f4f17c4527f5bdffbf2d131735a03ba58579a4ff7875e029b9e5d"
+    },
+    {
+      "id": "ask_supplemental:SUP-BOM-001",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近 30 天有哪些 BOM 消耗偏差超过 20% 的记录",
+      "expected_target": "bom_variance",
+      "notes": "requiredViews=ask_data_bom_consumption_variance_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "ask_data_bom_consumption_variance_view",
+      "expectedViewLabel": "ask_data_bom_consumption_variance_view",
+      "expectedMetricKeys": [
+        "bom_variance"
+      ],
+      "acceptableViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "requiredViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "requiredOutputFields": [
+        "movement_id",
+        "project_id",
+        "project_name",
+        "product_id",
+        "product_name",
+        "deviation_rate"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "holdout",
+      "questionChecksum": "fe4224dbe19097102ea57eebe9eb2e3bf5498b2069773742ecfd0072e5d3e82e"
+    },
+    {
+      "id": "ask_supplemental:SUP-BOM-002",
+      "domain": "manager",
+      "role": "manager",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "按项目列出实际耗材偏差率最高的前 10 名",
+      "expected_target": "bom_variance",
+      "notes": "requiredViews=ask_data_bom_consumption_variance_view; requiredAnswerFacts=metric_value,time_range,data_policy,ranking_order,ranking_limit",
+      "expectedView": "ask_data_bom_consumption_variance_view",
+      "expectedViewLabel": "ask_data_bom_consumption_variance_view",
+      "expectedMetricKeys": [
+        "bom_variance"
+      ],
+      "acceptableViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "requiredViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "deviation_rate"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "85b6d0436b2a7968849cdf4401ebff4e1b0916abcdcc4b6fe9bd4a333c68f10d"
+    },
+    {
+      "id": "agent_650:finance-029",
+      "domain": "六、财务风控 Agent",
+      "role": "六、财务风控 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "这个月耗材成本占了多少",
+      "expected_target": "confirmed_profit",
+      "notes": "requiredViews=ask_data_confirmed_profit_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "ask_data_confirmed_profit_view",
+      "expectedViewLabel": "ask_data_confirmed_profit_view",
+      "expectedMetricKeys": [
+        "confirmed_profit"
+      ],
+      "acceptableViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "requiredViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "requiredOutputFields": [
+        "material_cost",
+        "operating_revenue",
+        "material_cost_rate"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "5f21def0cd8dd204f8b1a65922e176c74e13dfa98a8b45f83d95cae20d11e14d"
+    },
+    {
+      "id": "ami_brain_2000:BQ1261",
+      "domain": "财务",
+      "role": "财务",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "这半年的毛利是多少",
+      "expected_target": "confirmed_profit",
+      "notes": "requiredViews=ask_data_confirmed_profit_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_confirmed_profit_view",
+      "expectedViewLabel": "ask_data_confirmed_profit_view",
+      "expectedMetricKeys": [
+        "confirmed_profit"
+      ],
+      "acceptableViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "requiredViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "requiredOutputFields": [
+        "operating_profit"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "8599243039a388854b0ea0e3ee2964f13072894f97e01a6ab65b593ed27467bc"
+    },
+    {
+      "id": "ami_brain_2000:BQ1271",
+      "domain": "财务",
+      "role": "财务",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "昨天的毛利是多少",
+      "expected_target": "confirmed_profit",
+      "notes": "requiredViews=ask_data_confirmed_profit_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_confirmed_profit_view",
+      "expectedViewLabel": "ask_data_confirmed_profit_view",
+      "expectedMetricKeys": [
+        "confirmed_profit"
+      ],
+      "acceptableViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "requiredViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "requiredOutputFields": [
+        "operating_profit"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "3c91a4975de0ffc2f15c3f074552044b0e1e71a11c6f98de8365a82e0fa6df6e"
+    },
+    {
+      "id": "ami_brain_2000:BQ0290",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "唐伊服务过的客户昨天满意度如何",
+      "expected_target": "customer_feedback",
+      "notes": "requiredViews=ask_data_customer_feedback_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_customer_feedback_view",
+      "expectedViewLabel": "ask_data_customer_feedback_view",
+      "expectedMetricKeys": [
+        "customer_feedback"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_feedback_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_feedback_view"
+      ],
+      "requiredOutputFields": [
+        "feedback_id",
+        "customer_id",
+        "customer_name_masked",
+        "average_rating",
+        "feedback_type",
+        "rating"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "fcb0376bb4c9c7360155314bc81c8056f72257bf2cfe88f66ba61cc8363be391"
+    },
+    {
+      "id": "ami_brain_2000:BQ0308",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "沈晴服务过的客户最近30天满意度如何",
+      "expected_target": "customer_feedback",
+      "notes": "requiredViews=ask_data_customer_feedback_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_customer_feedback_view",
+      "expectedViewLabel": "ask_data_customer_feedback_view",
+      "expectedMetricKeys": [
+        "customer_feedback"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_feedback_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_feedback_view"
+      ],
+      "requiredOutputFields": [
+        "feedback_id",
+        "customer_id",
+        "customer_name_masked",
+        "average_rating",
+        "feedback_type",
+        "rating"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "b3a3eefa369a1b239bcffc34c3153d0d95874464fab6b9f8515685d17b76939c"
+    },
+    {
+      "id": "agent_650:manager-025",
+      "domain": "一、店长经营 Agent",
+      "role": "一、店长经营 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "最近有没有客户投诉或者表达不满",
+      "expected_target": "customer_feedback",
+      "notes": "requiredViews=ask_data_customer_feedback_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_customer_feedback_view",
+      "expectedViewLabel": "ask_data_customer_feedback_view",
+      "expectedMetricKeys": [
+        "customer_feedback"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_feedback_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_feedback_view"
+      ],
+      "requiredOutputFields": [
+        "feedback_id",
+        "customer_id",
+        "customer_name_masked",
+        "feedback_count",
+        "feedback_type",
+        "rating"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "b6f400837f932142f921487158aec49f093f4897f5e650931d256c9ecb14e51b"
+    },
+    {
+      "id": "ask_supplemental:SUP-LIFECYCLE-004",
+      "domain": "manager",
+      "role": "manager",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "列出当前客户的生命周期阶段、LTV 档位和流失风险等级",
+      "expected_target": "customer_lifecycle",
+      "notes": "requiredViews=ask_data_customer_lifecycle_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_customer_lifecycle_view",
+      "expectedViewLabel": "ask_data_customer_lifecycle_view",
+      "expectedMetricKeys": [
+        "customer_lifecycle"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "churn_risk_level",
+        "computed_at",
+        "ltv_tier"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "a09084315e3fb6fe9346b087c119da5a4533010d69047a9131a84fec794e7cd9"
+    },
+    {
+      "id": "ask_supplemental:SUP-LIFECYCLE-005",
+      "domain": "manager",
+      "role": "manager",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "按最高优先级机会类型统计当前客户数量",
+      "expected_target": "customer_lifecycle",
+      "notes": "requiredViews=ask_data_customer_lifecycle_view; requiredAnswerFacts=metric_value,time_range,data_policy,ranking_order,ranking_limit",
+      "expectedView": "ask_data_customer_lifecycle_view",
+      "expectedViewLabel": "ask_data_customer_lifecycle_view",
+      "expectedMetricKeys": [
+        "customer_lifecycle"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "requiredOutputFields": [
+        "top_opportunity_type",
+        "customer_count"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "cffad514410e58fca6491243a3bb208e98abfa6e7084d9a1eb0931a102fa5b8e"
+    },
+    {
+      "id": "ask_supplemental:SUP-LIFECYCLE-001",
+      "domain": "manager",
+      "role": "manager",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "按流失风险等级统计当前客户数量",
+      "expected_target": "customer_lifecycle",
+      "notes": "requiredViews=ask_data_customer_lifecycle_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_customer_lifecycle_view",
+      "expectedViewLabel": "ask_data_customer_lifecycle_view",
+      "expectedMetricKeys": [
+        "customer_lifecycle"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "customer_count"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "eda0464cc3e4c7e24600e7e9877940b24883cc13ae53f443fbb959f18d9c2084"
+    },
+    {
+      "id": "agent_650:manager-023",
+      "domain": "一、店长经营 Agent",
+      "role": "一、店长经营 Agent",
+      "type": "ask_query_low_confidence",
+      "difficulty": "development",
+      "question": "我们店里的 VIP 客户有多少个",
+      "expected_target": "customer_profile",
+      "notes": "requiredViews=ask_data_customer_profile_summary_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_customer_profile_summary_view",
+      "expectedViewLabel": "ask_data_customer_profile_summary_view",
+      "expectedMetricKeys": [
+        "customer_profile"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredOutputFields": [
+        "customer_count"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "458c0e4f627a4a65a151cbced847c0cc6d828b21b3364133488fb9423f4a6021"
+    },
+    {
+      "id": "agent_650:manager-032",
+      "domain": "一、店长经营 Agent",
+      "role": "一、店长经营 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "哪些客户消费了钱但很少用次卡",
+      "expected_target": "customer_profile",
+      "notes": "requiredViews=ask_data_customer_profile_summary_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "ask_data_customer_profile_summary_view",
+      "expectedViewLabel": "ask_data_customer_profile_summary_view",
+      "expectedMetricKeys": [
+        "customer_profile"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "development",
+      "questionChecksum": "de0da06664d583b7d414b21f9b018aef77b0ff76c8981b418c69198afd3b022c"
+    },
+    {
+      "id": "agent_650:manager-040",
+      "domain": "一、店长经营 Agent",
+      "role": "一、店长经营 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "哪些客户最近消费频率明显下降",
+      "expected_target": "customer_profile",
+      "notes": "requiredViews=ask_data_customer_profile_summary_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "ask_data_customer_profile_summary_view",
+      "expectedViewLabel": "ask_data_customer_profile_summary_view",
+      "expectedMetricKeys": [
+        "customer_profile"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "development",
+      "questionChecksum": "2a610c64ea2436ade733c8f79a03eb91bd02deb568e1a4273c6a3031a336ab7f"
+    },
+    {
+      "id": "ami_brain_2000:BQ1542",
+      "domain": "营销",
+      "role": "营销",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "本周末哪些活动ROI最高",
+      "expected_target": "marketing_roi",
+      "notes": "requiredViews=ask_data_marketing_roi_view; requiredAnswerFacts=metric_value,time_range,data_policy,ranking_order,ranking_limit,list_items",
+      "expectedView": "ask_data_marketing_roi_view",
+      "expectedViewLabel": "ask_data_marketing_roi_view",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "roi"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit",
+        "list_items"
+      ],
+      "split": "holdout",
+      "questionChecksum": "31cd910641b33a6a35292697da3d6d9cf16095bb197620bcd4d8f81c3b82d295"
+    },
+    {
+      "id": "ami_brain_2000:BQ1563",
+      "domain": "营销",
+      "role": "营销",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近7天拓客成本的趋势",
+      "expected_target": "marketing_roi",
+      "notes": "requiredViews=ask_data_marketing_roi_view; requiredAnswerFacts=metric_value,time_range,data_policy,trend_granularity,trend_points,amount_unit",
+      "expectedView": "ask_data_marketing_roi_view",
+      "expectedViewLabel": "ask_data_marketing_roi_view",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "trend_day",
+        "roi"
+      ],
+      "requiredResultMode": "trend",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "trend_granularity",
+        "trend_points",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "b39d284a28d0fbb8f2b4145cc922fe81676de39d028e8a6bbec5a01f16926b3d"
+    },
+    {
+      "id": "agent_650:marketing-063",
+      "domain": "二、营销增长 Agent",
+      "role": "二、营销增长 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "这个月活动花了多少钱，带来了多少收入",
+      "expected_target": "marketing_roi",
+      "notes": "requiredViews=ask_data_marketing_roi_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "ask_data_marketing_roi_view",
+      "expectedViewLabel": "ask_data_marketing_roi_view",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "roi"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "development",
+      "questionChecksum": "2dbbf2f87b72874ab958f67f2bf551b21abdf3b3e2ee97045faf3e9cec64375e"
+    },
+    {
+      "id": "agent_650:finance-021",
+      "domain": "六、财务风控 Agent",
+      "role": "六、财务风控 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "有没有客人预付了但还没使用的金额",
+      "expected_target": "member_liability",
+      "notes": "requiredViews=ask_data_member_liability_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "ask_data_member_liability_view",
+      "expectedViewLabel": "ask_data_member_liability_view",
+      "expectedMetricKeys": [
+        "member_liability"
+      ],
+      "acceptableViews": [
+        "ask_data_member_liability_view"
+      ],
+      "requiredViews": [
+        "ask_data_member_liability_view"
+      ],
+      "requiredOutputFields": [
+        "total_liability"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "635b210c59f8d2a2de5ea5cef0f09549e11425016178a5272e2fee0445b9f075"
+    },
+    {
+      "id": "ask_supplemental:SUP-LIABILITY-001",
+      "domain": "finance",
+      "role": "finance",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最新已确认会员履约负债总额和剩余次数是多少",
+      "expected_target": "member_liability",
+      "notes": "requiredViews=ask_data_member_liability_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_member_liability_view",
+      "expectedViewLabel": "ask_data_member_liability_view",
+      "expectedMetricKeys": [
+        "member_liability"
+      ],
+      "acceptableViews": [
+        "ask_data_member_liability_view"
+      ],
+      "requiredViews": [
+        "ask_data_member_liability_view"
+      ],
+      "requiredOutputFields": [
+        "total_liability"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "940b9e85df772b92b8a99962c3e20a77e156c77ce449fc3c0afbf2f5be29d302"
+    },
+    {
+      "id": "agent_650:finance-080",
+      "domain": "六、财务风控 Agent",
+      "role": "六、财务风控 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "帮我看一下储值卡的未消耗余额有多少，这是我们的负债",
+      "expected_target": "member_liability",
+      "notes": "requiredViews=ask_data_member_liability_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "ask_data_member_liability_view",
+      "expectedViewLabel": "ask_data_member_liability_view",
+      "expectedMetricKeys": [
+        "member_liability"
+      ],
+      "acceptableViews": [
+        "ask_data_member_liability_view"
+      ],
+      "requiredViews": [
+        "ask_data_member_liability_view"
+      ],
+      "requiredOutputFields": [
+        "total_liability"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "development",
+      "questionChecksum": "602504c23008431a6be4e608b662df73134981bca50f64d4d9648ffb7e3c92a0"
+    },
+    {
+      "id": "agent_650:finance-034",
+      "domain": "六、财务风控 Agent",
+      "role": "六、财务风控 Agent",
+      "type": "ask_query_low_confidence",
+      "difficulty": "holdout",
+      "question": "房租水电这个月花了多少",
+      "expected_target": "operating_cost",
+      "notes": "requiredViews=ask_data_operating_cost_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_operating_cost_view",
+      "expectedViewLabel": "ask_data_operating_cost_view",
+      "expectedMetricKeys": [
+        "operating_cost"
+      ],
+      "acceptableViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredOutputFields": [
+        "operating_cost"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "35c98ab7257f331f17a1c41d3d08f50b64ddf08d983cce3228014a9ba0158ea9"
+    },
+    {
+      "id": "agent_650:finance-047",
+      "domain": "六、财务风控 Agent",
+      "role": "六、财务风控 Agent",
+      "type": "ask_query_low_confidence",
+      "difficulty": "holdout",
+      "question": "这个季度和上个季度的成本结构有什么变化",
+      "expected_target": "operating_cost",
+      "notes": "requiredViews=ask_data_operating_cost_view; requiredAnswerFacts=metric_value,time_range,data_policy,trend_granularity,trend_points,amount_unit",
+      "expectedView": "ask_data_operating_cost_view",
+      "expectedViewLabel": "ask_data_operating_cost_view",
+      "expectedMetricKeys": [
+        "operating_cost"
+      ],
+      "acceptableViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredOutputFields": [
+        "trend_month",
+        "category",
+        "operating_cost"
+      ],
+      "requiredResultMode": "trend",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "trend_granularity",
+        "trend_points",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "49ff8d2e15e1d119b3dc1fd15bbf6e0145cd6cf6f541d02d7b683961a2d63b76"
+    },
+    {
+      "id": "ami_brain_2000:BQ1281",
+      "domain": "财务",
+      "role": "财务",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "本月的经营成本有多少",
+      "expected_target": "operating_cost",
+      "notes": "requiredViews=ask_data_operating_cost_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "ask_data_operating_cost_view",
+      "expectedViewLabel": "ask_data_operating_cost_view",
+      "expectedMetricKeys": [
+        "operating_cost"
+      ],
+      "acceptableViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredOutputFields": [
+        "operating_cost"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "e3da7cec4eef63e390f69ee4fee6f652166278bc25e49f54783c23d4c1dc99a9"
+    },
+    {
+      "id": "ami_brain_2000:BQ0755",
+      "domain": "财务",
+      "role": "财务",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "这个季度有订单支付和金额对不上吗",
+      "expected_target": "reconciliation_issue",
+      "notes": "requiredViews=ask_data_reconciliation_issue_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "ask_data_reconciliation_issue_view",
+      "expectedViewLabel": "ask_data_reconciliation_issue_view",
+      "expectedMetricKeys": [
+        "reconciliation_issue"
+      ],
+      "acceptableViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "requiredViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "requiredOutputFields": [
+        "issue_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "ce951d51d306ef00ce6c33bd92916bf22e35ed1bba55032ae2a6e764b2e327de"
+    },
+    {
+      "id": "agent_650:finance-009",
+      "domain": "六、财务风控 Agent",
+      "role": "六、财务风控 Agent",
+      "type": "ask_query_low_confidence",
+      "difficulty": "development",
+      "question": "帮我核对一下今天的收款和系统记录是否一致",
+      "expected_target": "reconciliation_issue",
+      "notes": "requiredViews=ask_data_reconciliation_issue_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "ask_data_reconciliation_issue_view",
+      "expectedViewLabel": "ask_data_reconciliation_issue_view",
+      "expectedMetricKeys": [
+        "reconciliation_issue"
+      ],
+      "acceptableViews": [
+        "ask_data_reconciliation_issue_view",
+        "agent_v3_daily_settlement_view",
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "requiredOutputFields": [
+        "issue_id",
+        "issue_count"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "development",
+      "questionChecksum": "ce607eb3f7946c86d592816181b22c9f7ecfd49dd78a0fabe506298c84cc2bfe"
+    },
+    {
+      "id": "agent_650:finance-010",
+      "domain": "六、财务风控 Agent",
+      "role": "六、财务风控 Agent",
+      "type": "ask_query_low_confidence",
+      "difficulty": "development",
+      "question": "今天有没有漏收或者多收的情况",
+      "expected_target": "reconciliation_issue",
+      "notes": "requiredViews=ask_data_reconciliation_issue_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_reconciliation_issue_view",
+      "expectedViewLabel": "ask_data_reconciliation_issue_view",
+      "expectedMetricKeys": [
+        "reconciliation_issue"
+      ],
+      "acceptableViews": [
+        "ask_data_reconciliation_issue_view",
+        "agent_v3_daily_settlement_view",
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "requiredOutputFields": [
+        "issue_id",
+        "issue_count"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "7f00b68294e66974fc56d397fc25ca21b76b400e991b5f89b8cebebfc8a535b5"
+    },
+    {
+      "id": "agent_650:frontdesk-079",
+      "domain": "三、前台接待 Agent",
+      "role": "三、前台接待 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "帮我看一下今天哪个美容师可以接新单",
+      "expected_target": "staff_capacity",
+      "notes": "requiredViews=ask_data_staff_capacity_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_staff_capacity_view",
+      "expectedViewLabel": "ask_data_staff_capacity_view",
+      "expectedMetricKeys": [
+        "staff_capacity"
+      ],
+      "acceptableViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "requiredViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "requiredOutputFields": [
+        "scheduled_minutes",
+        "booked_minutes",
+        "idle_minutes"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "835db70e029975bf131ddbe1838312cb17ffb5942b26c2bfaa96479b76cb3de4"
+    },
+    {
+      "id": "agent_650:manager-046",
+      "domain": "一、店长经营 Agent",
+      "role": "一、店长经营 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "各美容师今天的排班情况，有没有空档",
+      "expected_target": "staff_capacity",
+      "notes": "requiredViews=ask_data_staff_capacity_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_staff_capacity_view",
+      "expectedViewLabel": "ask_data_staff_capacity_view",
+      "expectedMetricKeys": [
+        "staff_capacity"
+      ],
+      "acceptableViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "requiredViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "requiredOutputFields": [
+        "scheduled_minutes",
+        "booked_minutes",
+        "idle_minutes"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "5fcf995e240d7e4a8735cc95b4e10f81ba30ebc21a1c0757e14e20f65401271e"
+    },
+    {
+      "id": "agent_650:manager-059",
+      "domain": "一、店长经营 Agent",
+      "role": "一、店长经营 Agent",
+      "type": "ask_query_low_confidence",
+      "difficulty": "development",
+      "question": "帮我看一下员工这周的工作饱和度",
+      "expected_target": "staff_capacity",
+      "notes": "requiredViews=ask_data_staff_capacity_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_staff_capacity_view",
+      "expectedViewLabel": "ask_data_staff_capacity_view",
+      "expectedMetricKeys": [
+        "staff_capacity"
+      ],
+      "acceptableViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "requiredViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "requiredOutputFields": [
+        "scheduled_minutes",
+        "booked_minutes",
+        "idle_minutes"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "9bc83bb601b147a3aa4dda039036cafc60da0d7a76ec52a23d3501e0af9c353c"
+    },
+    {
+      "id": "agent_650:manager-041",
+      "domain": "一、店长经营 Agent",
+      "role": "一、店长经营 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "这个月谁的业绩最好",
+      "expected_target": "staff_performance",
+      "notes": "requiredViews=ask_data_staff_performance_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_staff_performance_view",
+      "expectedViewLabel": "ask_data_staff_performance_view",
+      "expectedMetricKeys": [
+        "staff_performance"
+      ],
+      "acceptableViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "requiredViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "requiredOutputFields": [
+        "staff_id",
+        "staff_name",
+        "paid_amount"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "66f17d07e5093abc709d99f0df996f4c5501d0850161fc1b7c5ba88642c4e0fc"
+    },
+    {
+      "id": "agent_650:manager-042",
+      "domain": "一、店长经营 Agent",
+      "role": "一、店长经营 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "哪个美容师接的客人最多",
+      "expected_target": "staff_performance",
+      "notes": "requiredViews=ask_data_staff_performance_view; requiredAnswerFacts=metric_value,time_range,data_policy,ranking_order,ranking_limit",
+      "expectedView": "ask_data_staff_performance_view",
+      "expectedViewLabel": "ask_data_staff_performance_view",
+      "expectedMetricKeys": [
+        "staff_performance"
+      ],
+      "acceptableViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "requiredViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "requiredOutputFields": [
+        "staff_id",
+        "staff_name",
+        "service_count"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "c96362fc0f08d828527609bb8552b256be3d38b2ac7ab0093535dcce41face02"
+    },
+    {
+      "id": "agent_650:manager-050",
+      "domain": "一、店长经营 Agent",
+      "role": "一、店长经营 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "帮我看一下各美容师的服务次数对比",
+      "expected_target": "staff_performance",
+      "notes": "requiredViews=ask_data_staff_performance_view; requiredAnswerFacts=metric_value,time_range,data_policy,comparison_current,comparison_previous,comparison_difference",
+      "expectedView": "ask_data_staff_performance_view",
+      "expectedViewLabel": "ask_data_staff_performance_view",
+      "expectedMetricKeys": [
+        "staff_performance"
+      ],
+      "acceptableViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "requiredViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "requiredOutputFields": [
+        "service_count"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "comparison_current",
+        "comparison_previous",
+        "comparison_difference"
+      ],
+      "split": "holdout",
+      "questionChecksum": "7aad6c07eeaa47115218a2f59258d8fb1e24edd1873aadec7c9192938622bf42"
+    },
+    {
+      "id": "ask_supplemental:SUP-TRANSFER-001",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "当前有哪些未完成的调出单",
+      "expected_target": "transfer_status",
+      "notes": "requiredViews=ask_data_transfer_status_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "ask_data_transfer_status_view",
+      "expectedViewLabel": "ask_data_transfer_status_view",
+      "expectedMetricKeys": [
+        "transfer_status"
+      ],
+      "acceptableViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "requiredViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "requiredOutputFields": [
+        "transfer_id",
+        "transfer_no",
+        "product_count",
+        "status",
+        "direction",
+        "updated_at"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "holdout",
+      "questionChecksum": "819a47609fd18741ee3517cb1bc4b95aa2cd06b48ac7a259d67bc29961cf42bf"
+    },
+    {
+      "id": "ask_supplemental:SUP-TRANSFER-002",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "当前有哪些待接收的调入单",
+      "expected_target": "transfer_status",
+      "notes": "requiredViews=ask_data_transfer_status_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "ask_data_transfer_status_view",
+      "expectedViewLabel": "ask_data_transfer_status_view",
+      "expectedMetricKeys": [
+        "transfer_status"
+      ],
+      "acceptableViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "requiredViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "requiredOutputFields": [
+        "transfer_id",
+        "transfer_no",
+        "product_count",
+        "status",
+        "direction",
+        "updated_at"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "development",
+      "questionChecksum": "e9e8246b2d7057d88552050e7fe32df5169ed0a1b79d6eb18a8eb9007a1875d0"
+    },
+    {
+      "id": "ask_supplemental:SUP-TRANSFER-003",
+      "domain": "manager",
+      "role": "manager",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "按状态统计库存调拨单数量",
+      "expected_target": "transfer_status",
+      "notes": "requiredViews=ask_data_transfer_status_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_transfer_status_view",
+      "expectedViewLabel": "ask_data_transfer_status_view",
+      "expectedMetricKeys": [
+        "transfer_status"
+      ],
+      "acceptableViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "requiredViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "requiredOutputFields": [
+        "status",
+        "transfer_count"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "75fc0a1d0b0f657139bc47f783de42a87348e6f293a397b3bbe80001de305bb4"
+    },
+    {
+      "id": "agent_650:finance-013",
+      "domain": "六、财务风控 Agent",
+      "role": "六、财务风控 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "今天项目收入和产品销售各多少",
+      "expected_target": "project_sales,product_sales",
+      "notes": "requiredViews=agent_v3_project_service_sales_view,agent_v3_order_item_sales_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "agent_v3_project_service_sales_view",
+      "expectedViewLabel": "agent_v3_project_service_sales_view",
+      "expectedMetricKeys": [
+        "project_sales",
+        "product_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_service_sales_view",
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_service_sales_view",
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredOutputFields": [
+        "project_revenue",
+        "net_sales_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "development",
+      "questionChecksum": "c6c38a252276bba625bdaa2bb0455f2f0645f90bc48b028e0858ce27a94dec47"
+    },
+    {
+      "id": "agent_650:frontdesk-073",
+      "domain": "三、前台接待 Agent",
+      "role": "三、前台接待 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "今天第一笔收款是几点，是谁的",
+      "expected_target": "payment_customer_detail,payment_flow,order_revenue",
+      "notes": "requiredViews=agent_v3_payment_refund_view,agent_v3_order_summary_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_payment_refund_view",
+      "expectedViewLabel": "agent_v3_payment_refund_view",
+      "expectedMetricKeys": [
+        "payment_customer_detail",
+        "payment_flow",
+        "order_revenue"
+      ],
+      "acceptableViews": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "order_id",
+        "paid_at",
+        "payment_amount"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "2d99310574d23491c68c8632312a98bb111c4e7544da3120950aa817841e825a"
+    },
+    {
+      "id": "agent_650:inventory-004",
+      "domain": "五、库存采购 Agent",
+      "role": "五、库存采购 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "这个月用了多少洗面奶，还剩多少",
+      "expected_target": "inventory_usage_balance,inventory_movement,inventory_on_hand",
+      "notes": "requiredViews=agent_v3_stock_movement_view,agent_v3_product_inventory_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_stock_movement_view",
+      "expectedViewLabel": "agent_v3_stock_movement_view",
+      "expectedMetricKeys": [
+        "inventory_usage_balance",
+        "inventory_movement",
+        "inventory_on_hand"
+      ],
+      "acceptableViews": [
+        "agent_v3_stock_movement_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredViews": [
+        "agent_v3_stock_movement_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "consumed_quantity",
+        "current_stock"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "a3fef9e7c4e8e284a0eb7b49512b1439f7747bf9b12f767134ae98fef0dbfbff"
+    },
+    {
+      "id": "agent_650:inventory-078",
+      "domain": "五、库存采购 Agent",
+      "role": "五、库存采购 Agent",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "这个季度耗材消耗和收入的对比怎么样",
+      "expected_target": "inventory_movement,order_revenue",
+      "notes": "requiredViews=agent_v3_stock_movement_view,agent_v3_order_summary_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "agent_v3_stock_movement_view",
+      "expectedViewLabel": "agent_v3_stock_movement_view",
+      "expectedMetricKeys": [
+        "inventory_movement",
+        "order_revenue"
+      ],
+      "acceptableViews": [
+        "agent_v3_stock_movement_view",
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_stock_movement_view",
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "movement_quantity",
+        "net_revenue"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "development",
+      "questionChecksum": "47f337ad16dd5cad317b87cd965e3bfb6079b44af5dd23a126a31f2f45e89568"
+    },
+    {
+      "id": "ami_brain_2000:BQ0048",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "哪些客户同时有储值余额和未用完的综合养护 20 次卡",
+      "expected_target": "customer_balance,card_assets",
+      "notes": "requiredViews=agent_v3_customer_balance_view,agent_v3_card_asset_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items,amount_unit",
+      "expectedView": "agent_v3_customer_balance_view",
+      "expectedViewLabel": "agent_v3_customer_balance_view",
+      "expectedMetricKeys": [
+        "customer_balance",
+        "card_assets"
+      ],
+      "acceptableViews": [
+        "agent_v3_customer_balance_view",
+        "agent_v3_card_asset_view"
+      ],
+      "requiredViews": [
+        "agent_v3_customer_balance_view",
+        "agent_v3_card_asset_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "cash_balance",
+        "gift_balance",
+        "card_name",
+        "remaining_times"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items",
+        "amount_unit"
+      ],
+      "split": "development",
+      "questionChecksum": "d5597cfa2286fef5a7c12590d498fbbb9e9df30655097ba0252a72e8a31c80e4"
+    }
+  ]
+}

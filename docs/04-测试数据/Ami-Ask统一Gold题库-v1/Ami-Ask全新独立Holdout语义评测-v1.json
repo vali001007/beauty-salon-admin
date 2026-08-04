@@ -1,0 +1,4206 @@
+{
+  "version": 1,
+  "generatedAt": "2026-08-02T19:08:49.209Z",
+  "goldPath": "/Users/ju/Documents/ami/beauty-salon-admin-ask/docs/04-测试数据/Ami-Ask统一Gold题库-v1/Ami-Ask全新独立Holdout合同-v1.json",
+  "summary": {
+    "caseCount": 77,
+    "metricTop1Hit": 0.8442,
+    "acceptableTop1Hit": 0.8442,
+    "acceptableRecallAt4": 0.8701,
+    "requiredRecallAt4": 0.8442,
+    "routeAcceptableHit": 0.8442,
+    "controlledPlanValidRate": 0.9351,
+    "controlledPlanGoldOutputRate": 0.7532,
+    "fallbackEligibleRate": 0.1688,
+    "clarificationAccuracy": 1,
+    "unjustifiedClarificationRate": 0,
+    "trueAmbiguityRetention": 1,
+    "averageMs": 0.9724545454545453,
+    "p95Ms": 1.109
+  },
+  "ambiguitySummary": {
+    "caseCount": 22,
+    "retentionRate": 0.8182,
+    "slotAccuracy": 0.8182
+  },
+  "bySplit": {
+    "development": {
+      "caseCount": 0,
+      "metricTop1Hit": 0,
+      "acceptableTop1Hit": 0,
+      "acceptableRecallAt4": 0,
+      "requiredRecallAt4": 0,
+      "routeAcceptableHit": 0,
+      "controlledPlanValidRate": 0,
+      "controlledPlanGoldOutputRate": 0,
+      "fallbackEligibleRate": 0,
+      "clarificationAccuracy": 0,
+      "unjustifiedClarificationRate": 0,
+      "trueAmbiguityRetention": 1,
+      "averageMs": 0,
+      "p95Ms": 0
+    },
+    "holdout": {
+      "caseCount": 77,
+      "metricTop1Hit": 0.8442,
+      "acceptableTop1Hit": 0.8442,
+      "acceptableRecallAt4": 0.8701,
+      "requiredRecallAt4": 0.8442,
+      "routeAcceptableHit": 0.8442,
+      "controlledPlanValidRate": 0.9351,
+      "controlledPlanGoldOutputRate": 0.7532,
+      "fallbackEligibleRate": 0.1688,
+      "clarificationAccuracy": 1,
+      "unjustifiedClarificationRate": 0,
+      "trueAmbiguityRetention": 1,
+      "averageMs": 0.9724545454545453,
+      "p95Ms": 1.109
+    }
+  },
+  "results": [
+    {
+      "id": "ami_brain_2000:BQ0652",
+      "split": "holdout",
+      "question": "最近14天的营业额是多少",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "net_revenue"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "order_revenue"
+      ],
+      "indexViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "routeViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "planOutputFields": [
+        "net_revenue",
+        "order_count"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 20.18
+    },
+    {
+      "id": "ami_brain_2000:BQ0665",
+      "split": "holdout",
+      "question": "周语嫣的全部消费记录",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "order_id",
+        "net_revenue"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [],
+      "indexViews": [],
+      "routeViews": [],
+      "metricTop1Hit": false,
+      "acceptableTop1Hit": false,
+      "acceptableRecallAt4": false,
+      "requiredRecallAt4": false,
+      "routeAcceptableHit": false,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.35,
+      "planValid": false,
+      "planReason": "query_plan_metric_missing",
+      "planRequiredViews": [],
+      "planOutputFields": [],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 1.285
+    },
+    {
+      "id": "ami_brain_2000:BQ0667",
+      "split": "holdout",
+      "question": "最近三个月的客单价是多少",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "average_order_value"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "order_revenue",
+        "staff_performance"
+      ],
+      "indexViews": [
+        "agent_v3_order_summary_view",
+        "ask_data_staff_performance_view"
+      ],
+      "routeViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "planOutputFields": [
+        "net_revenue",
+        "order_count"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.792
+    },
+    {
+      "id": "ami_brain_2000:BQ0696",
+      "split": "holdout",
+      "question": "最近14天项目订单和产品订单各占多少",
+      "expectedMetricKeys": [
+        "product_sales",
+        "project_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_item_sales_view",
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_item_sales_view",
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredOutputFields": [
+        "net_sales_amount",
+        "project_revenue"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "project_sales",
+        "product_sales",
+        "order_revenue"
+      ],
+      "indexViews": [
+        "agent_v3_project_service_sales_view",
+        "agent_v3_order_item_sales_view",
+        "agent_v3_order_summary_view"
+      ],
+      "routeViews": [
+        "agent_v3_project_service_sales_view",
+        "agent_v3_order_item_sales_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.96,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_project_service_sales_view",
+        "agent_v3_order_item_sales_view"
+      ],
+      "planOutputFields": [
+        "service_count",
+        "project_revenue",
+        "sales_quantity",
+        "net_sales_amount"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 1.109
+    },
+    {
+      "id": "ami_brain_2000:BQ0530",
+      "split": "holdout",
+      "question": "开业至今哪个项目最受欢迎",
+      "expectedMetricKeys": [
+        "project_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "service_count"
+      ],
+      "requiredResultMode": "ranking",
+      "mustClarify": false,
+      "indexMetrics": [
+        "project_sales"
+      ],
+      "indexViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "routeViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "planOutputFields": [
+        "project_id",
+        "project_name",
+        "service_count",
+        "project_revenue"
+      ],
+      "planResultMode": "ranking",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.933
+    },
+    {
+      "id": "ami_brain_2000:BQ0536",
+      "split": "holdout",
+      "question": "分析下最近三个月各项目的毛利",
+      "expectedMetricKeys": [
+        "project_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "estimated_margin"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "confirmed_profit"
+      ],
+      "indexViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "routeViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "metricTop1Hit": false,
+      "acceptableTop1Hit": false,
+      "acceptableRecallAt4": false,
+      "requiredRecallAt4": false,
+      "routeAcceptableHit": false,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.72,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "planOutputFields": [
+        "operating_revenue",
+        "gross_profit",
+        "operating_profit",
+        "gross_margin_rate",
+        "operating_margin_rate"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.733
+    },
+    {
+      "id": "ami_brain_2000:BQ0543",
+      "split": "holdout",
+      "question": "今年哪些项目贡献了主要营收",
+      "expectedMetricKeys": [
+        "project_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "service_count"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "project_catalog"
+      ],
+      "indexViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "routeViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "metricTop1Hit": false,
+      "acceptableTop1Hit": false,
+      "acceptableRecallAt4": false,
+      "requiredRecallAt4": false,
+      "routeAcceptableHit": false,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "planOutputFields": [
+        "project_id",
+        "project_name",
+        "price",
+        "duration"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.835
+    },
+    {
+      "id": "ami_brain_2000:BQ0544",
+      "split": "holdout",
+      "question": "分析下这个季度各项目的毛利",
+      "expectedMetricKeys": [
+        "project_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "estimated_margin"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "confirmed_profit"
+      ],
+      "indexViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "routeViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "metricTop1Hit": false,
+      "acceptableTop1Hit": false,
+      "acceptableRecallAt4": false,
+      "requiredRecallAt4": false,
+      "routeAcceptableHit": false,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.72,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "planOutputFields": [
+        "operating_revenue",
+        "gross_profit",
+        "operating_profit",
+        "gross_margin_rate",
+        "operating_margin_rate"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 1.843
+    },
+    {
+      "id": "ami_brain_2000:BQ0694",
+      "split": "holdout",
+      "question": "最近14天各支付方式的金额分别多少",
+      "expectedMetricKeys": [
+        "payment_flow"
+      ],
+      "acceptableViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredOutputFields": [
+        "payment_method",
+        "payment_amount"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "payment_flow",
+        "payment_customer_detail"
+      ],
+      "indexViews": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "routeViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "planOutputFields": [
+        "payment_method",
+        "payment_amount",
+        "refund_amount",
+        "flow_count"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.857
+    },
+    {
+      "id": "ami_brain_2000:BQ0705",
+      "split": "holdout",
+      "question": "今天各支付方式的金额分别多少",
+      "expectedMetricKeys": [
+        "payment_flow"
+      ],
+      "acceptableViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredOutputFields": [
+        "payment_method",
+        "payment_amount"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "payment_flow",
+        "payment_customer_detail"
+      ],
+      "indexViews": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "routeViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "planOutputFields": [
+        "payment_method",
+        "payment_amount",
+        "refund_amount",
+        "flow_count"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.759
+    },
+    {
+      "id": "ami_brain_2000:BQ0710",
+      "split": "holdout",
+      "question": "最近三个月支付方式结构分析",
+      "expectedMetricKeys": [
+        "payment_flow"
+      ],
+      "acceptableViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredOutputFields": [
+        "payment_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "payment_flow",
+        "order_revenue"
+      ],
+      "indexViews": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "routeViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "planOutputFields": [
+        "payment_method",
+        "payment_amount",
+        "refund_amount",
+        "flow_count"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": false,
+      "durationMs": 0.688
+    },
+    {
+      "id": "ami_brain_2000:BQ1405",
+      "split": "holdout",
+      "question": "本周的日结平不平",
+      "expectedMetricKeys": [
+        "reconciliation_issue"
+      ],
+      "acceptableViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "requiredViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "requiredOutputFields": [
+        "issue_id",
+        "issue_count"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "reconciliation_issue",
+        "daily_net_receipts",
+        "payment_order_difference"
+      ],
+      "indexViews": [
+        "ask_data_reconciliation_issue_view",
+        "agent_v3_daily_settlement_view",
+        "agent_v3_daily_settlement_view"
+      ],
+      "routeViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.97,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "planOutputFields": [
+        "issue_count",
+        "issue_amount"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": false,
+      "durationMs": 0.688
+    },
+    {
+      "id": "ami_brain_2000:BQ1075",
+      "split": "holdout",
+      "question": "射频仪器导入凝胶的安全库存是多少",
+      "expectedMetricKeys": [
+        "inventory_on_hand"
+      ],
+      "acceptableViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredOutputFields": [
+        "current_stock"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "inventory_on_hand"
+      ],
+      "indexViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "routeViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.96,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "planOutputFields": [
+        "current_stock",
+        "stock_value"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.707
+    },
+    {
+      "id": "ami_brain_2000:BQ1077",
+      "split": "holdout",
+      "question": "今天低于安全库存的有几个",
+      "expectedMetricKeys": [
+        "inventory_on_hand"
+      ],
+      "acceptableViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredOutputFields": [
+        "current_stock"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "inventory_on_hand"
+      ],
+      "indexViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "routeViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.95,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "planOutputFields": [
+        "current_stock",
+        "stock_value"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.715
+    },
+    {
+      "id": "ami_brain_2000:BQ1080",
+      "split": "holdout",
+      "question": "屏障修护精华现在还有多少库存",
+      "expectedMetricKeys": [
+        "inventory_on_hand"
+      ],
+      "acceptableViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredOutputFields": [
+        "current_stock"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "inventory_on_hand"
+      ],
+      "indexViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "routeViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.94,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "planOutputFields": [
+        "current_stock",
+        "stock_value"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.69
+    },
+    {
+      "id": "ami_brain_2000:BQ1109",
+      "split": "holdout",
+      "question": "今天的出入库流水",
+      "expectedMetricKeys": [
+        "inventory_movement"
+      ],
+      "acceptableViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredOutputFields": [
+        "movement_id",
+        "product_id",
+        "product_name",
+        "movement_quantity"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "inventory_movement",
+        "inventory_usage_balance"
+      ],
+      "indexViews": [
+        "agent_v3_stock_movement_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "routeViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "planOutputFields": [
+        "movement_id",
+        "product_id",
+        "product_name",
+        "movement_quantity",
+        "movement_count"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.701
+    },
+    {
+      "id": "ami_brain_2000:BQ1113",
+      "split": "holdout",
+      "question": "今天耗材消耗排行",
+      "expectedMetricKeys": [
+        "inventory_movement"
+      ],
+      "acceptableViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "movement_quantity"
+      ],
+      "requiredResultMode": "ranking",
+      "mustClarify": false,
+      "indexMetrics": [
+        "inventory_movement"
+      ],
+      "indexViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "routeViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "planOutputFields": [
+        "product_id",
+        "product_name",
+        "sku",
+        "movement_quantity",
+        "movement_count"
+      ],
+      "planResultMode": "ranking",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.981
+    },
+    {
+      "id": "ami_brain_2000:BQ1114",
+      "split": "holdout",
+      "question": "上周一次性护理巾消耗了多少",
+      "expectedMetricKeys": [
+        "inventory_movement"
+      ],
+      "acceptableViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredOutputFields": [
+        "movement_quantity"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "inventory_movement"
+      ],
+      "indexViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "routeViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "planOutputFields": [
+        "movement_quantity",
+        "movement_count"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.719
+    },
+    {
+      "id": "ami_brain_2000:BQ1118",
+      "split": "holdout",
+      "question": "上周的出入库流水",
+      "expectedMetricKeys": [
+        "inventory_movement"
+      ],
+      "acceptableViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredOutputFields": [
+        "movement_id",
+        "product_id",
+        "product_name",
+        "movement_quantity"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "inventory_movement",
+        "inventory_usage_balance"
+      ],
+      "indexViews": [
+        "agent_v3_stock_movement_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "routeViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "planOutputFields": [
+        "movement_id",
+        "product_id",
+        "product_name",
+        "movement_quantity",
+        "movement_count"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.653
+    },
+    {
+      "id": "ami_brain_2000:BQ1122",
+      "split": "holdout",
+      "question": "上周耗材消耗排行",
+      "expectedMetricKeys": [
+        "inventory_movement"
+      ],
+      "acceptableViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "movement_quantity"
+      ],
+      "requiredResultMode": "ranking",
+      "mustClarify": false,
+      "indexMetrics": [
+        "inventory_movement"
+      ],
+      "indexViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "routeViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "planOutputFields": [
+        "product_id",
+        "product_name",
+        "sku",
+        "movement_quantity",
+        "movement_count"
+      ],
+      "planResultMode": "ranking",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.751
+    },
+    {
+      "id": "ami_brain_2000:BQ0023",
+      "split": "holdout",
+      "question": "金卡会员一共有多少人",
+      "expectedMetricKeys": [
+        "customer_profile"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredOutputFields": [
+        "customer_count"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "customer_profile"
+      ],
+      "indexViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "routeViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "planOutputFields": [
+        "customer_count",
+        "total_paid_amount"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.791
+    },
+    {
+      "id": "ami_brain_2000:BQ0027",
+      "split": "holdout",
+      "question": "何思琪的会员等级是什么",
+      "expectedMetricKeys": [
+        "customer_profile"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "customer_profile"
+      ],
+      "indexViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "routeViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "planOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "member_level",
+        "customer_status"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.989
+    },
+    {
+      "id": "ami_brain_2000:BQ0029",
+      "split": "holdout",
+      "question": "徐雅婷累计消费了多少钱",
+      "expectedMetricKeys": [
+        "customer_profile"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredOutputFields": [
+        "customer_count"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "customer_profile"
+      ],
+      "indexViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "routeViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.94,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "planOutputFields": [
+        "customer_count",
+        "total_paid_amount"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.648
+    },
+    {
+      "id": "ami_brain_2000:BQ0037",
+      "split": "holdout",
+      "question": "郭若兰的会员等级是什么",
+      "expectedMetricKeys": [
+        "customer_profile"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "customer_profile"
+      ],
+      "indexViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "routeViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "planOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "member_level",
+        "customer_status"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.725
+    },
+    {
+      "id": "ami_brain_2000:BQ0305",
+      "split": "holdout",
+      "question": "沈晴最近30天的提成是多少",
+      "expectedMetricKeys": [
+        "staff_performance"
+      ],
+      "acceptableViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "requiredViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "requiredOutputFields": [
+        "staff_id",
+        "staff_name",
+        "commission_amount"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "staff_performance"
+      ],
+      "indexViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "routeViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.97,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "planOutputFields": [
+        "staff_id",
+        "staff_name",
+        "paid_amount",
+        "service_count",
+        "commission_amount",
+        "settle_month"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.769
+    },
+    {
+      "id": "ami_brain_2000:BQ0310",
+      "split": "holdout",
+      "question": "按最近30天业绩给我美容师榜单",
+      "expectedMetricKeys": [
+        "staff_performance"
+      ],
+      "acceptableViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "requiredViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "requiredOutputFields": [
+        "paid_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "staff_performance",
+        "staff_profile"
+      ],
+      "indexViews": [
+        "ask_data_staff_performance_view",
+        "agent_v3_staff_profile_view"
+      ],
+      "routeViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "planOutputFields": [
+        "paid_amount",
+        "service_count",
+        "commission_amount"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.662
+    },
+    {
+      "id": "ami_brain_2000:BQ0313",
+      "split": "holdout",
+      "question": "去年同期哪个美容师业绩最高",
+      "expectedMetricKeys": [
+        "staff_performance"
+      ],
+      "acceptableViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "requiredViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "requiredOutputFields": [
+        "staff_id",
+        "staff_name",
+        "paid_amount"
+      ],
+      "requiredResultMode": "ranking",
+      "mustClarify": false,
+      "indexMetrics": [
+        "staff_performance",
+        "staff_profile"
+      ],
+      "indexViews": [
+        "ask_data_staff_performance_view",
+        "agent_v3_staff_profile_view"
+      ],
+      "routeViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "planOutputFields": [
+        "staff_id",
+        "staff_name",
+        "paid_amount",
+        "service_count",
+        "commission_amount"
+      ],
+      "planResultMode": "ranking",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.712
+    },
+    {
+      "id": "ami_brain_2000:BQ0314",
+      "split": "holdout",
+      "question": "顾然去年同期的提成是多少",
+      "expectedMetricKeys": [
+        "staff_performance"
+      ],
+      "acceptableViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "requiredViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "requiredOutputFields": [
+        "commission_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "staff_performance"
+      ],
+      "indexViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "routeViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.97,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "planOutputFields": [
+        "paid_amount",
+        "service_count",
+        "commission_amount"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.68
+    },
+    {
+      "id": "ami_brain_2000:BQ0876",
+      "split": "holdout",
+      "question": "本周末的到店人数",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "reservation_count"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "reservation_metrics"
+      ],
+      "indexViews": [
+        "agent_v3_reservation_view"
+      ],
+      "routeViews": [
+        "agent_v3_reservation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.97,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "planOutputFields": [
+        "reservation_count"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.702
+    },
+    {
+      "id": "ami_brain_2000:BQ0877",
+      "split": "holdout",
+      "question": "宋乔本周末有几个预约",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "reservation_count"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "reservation_metrics"
+      ],
+      "indexViews": [
+        "agent_v3_reservation_view"
+      ],
+      "routeViews": [
+        "agent_v3_reservation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.72,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "planOutputFields": [
+        "reservation_count"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.673
+    },
+    {
+      "id": "ami_brain_2000:BQ0879",
+      "split": "holdout",
+      "question": "今年有多少个预约",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "reservation_count"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "reservation_metrics"
+      ],
+      "indexViews": [
+        "agent_v3_reservation_view"
+      ],
+      "routeViews": [
+        "agent_v3_reservation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.97,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "planOutputFields": [
+        "reservation_count"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.643
+    },
+    {
+      "id": "ami_brain_2000:BQ0880",
+      "split": "holdout",
+      "question": "今年的预约都有谁",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "reservation_id",
+        "date",
+        "start_time",
+        "project_name"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "reservation_metrics"
+      ],
+      "indexViews": [
+        "agent_v3_reservation_view"
+      ],
+      "routeViews": [
+        "agent_v3_reservation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.97,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "planOutputFields": [
+        "reservation_count"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": false,
+      "durationMs": 0.657
+    },
+    {
+      "id": "ami_brain_2000:BQ0881",
+      "split": "holdout",
+      "question": "黄婉清本周末有预约吗",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "reservation_count"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "reservation_metrics"
+      ],
+      "indexViews": [
+        "agent_v3_reservation_view"
+      ],
+      "routeViews": [
+        "agent_v3_reservation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.97,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "planOutputFields": [
+        "reservation_count"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 1.052
+    },
+    {
+      "id": "ami_brain_2000:BQ1529",
+      "split": "holdout",
+      "question": "今年触达的客户有多少转化了",
+      "expectedMetricKeys": [
+        "marketing_conversion"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredOutputFields": [
+        "conversion_count"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_conversion",
+        "customer_profile"
+      ],
+      "indexViews": [
+        "agent_v3_marketing_conversion_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "routeViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "planOutputFields": [
+        "event_count",
+        "lead_count",
+        "conversion_count",
+        "attributed_revenue"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.61
+    },
+    {
+      "id": "ami_brain_2000:BQ1530",
+      "split": "holdout",
+      "question": "今年营销页的线索转化率",
+      "expectedMetricKeys": [
+        "marketing_conversion"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredOutputFields": [
+        "conversion_count"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_conversion"
+      ],
+      "indexViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "routeViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "planOutputFields": [
+        "event_count",
+        "lead_count",
+        "conversion_count",
+        "attributed_revenue"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.605
+    },
+    {
+      "id": "ami_brain_2000:BQ1533",
+      "split": "holdout",
+      "question": "今年活动归因的收益分别多少",
+      "expectedMetricKeys": [
+        "marketing_conversion"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredOutputFields": [
+        "attributed_revenue"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_conversion"
+      ],
+      "indexViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "routeViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.97,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "planOutputFields": [
+        "event_count",
+        "lead_count",
+        "conversion_count",
+        "attributed_revenue"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.599
+    },
+    {
+      "id": "ami_brain_2000:BQ1536",
+      "split": "holdout",
+      "question": "今年各活动的参与转化对比",
+      "expectedMetricKeys": [
+        "marketing_conversion"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredOutputFields": [
+        "conversion_count"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_conversion"
+      ],
+      "indexViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "routeViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "planOutputFields": [
+        "event_count",
+        "lead_count",
+        "conversion_count",
+        "attributed_revenue"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.683
+    },
+    {
+      "id": "ami_brain_2000:BQ1538",
+      "split": "holdout",
+      "question": "本周末活动带来了多少营收",
+      "expectedMetricKeys": [
+        "marketing_conversion"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredOutputFields": [
+        "conversion_count"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_conversion"
+      ],
+      "indexViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "routeViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.97,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "planOutputFields": [
+        "event_count",
+        "lead_count",
+        "conversion_count",
+        "attributed_revenue"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.613
+    },
+    {
+      "id": "ami_brain_2000:BQ0823",
+      "split": "holdout",
+      "question": "最近三个月次卡核销确认的收入有多少",
+      "expectedMetricKeys": [
+        "card_usage"
+      ],
+      "acceptableViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "requiredViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "requiredOutputFields": [
+        "usage_times"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "card_usage",
+        "card_assets",
+        "promotion_offer"
+      ],
+      "indexViews": [
+        "agent_v3_card_usage_view",
+        "agent_v3_card_asset_view",
+        "agent_v3_promotion_offer_view"
+      ],
+      "routeViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "planOutputFields": [
+        "usage_times",
+        "recognized_amount"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.677
+    },
+    {
+      "id": "ami_brain_2000:BQ0828",
+      "split": "holdout",
+      "question": "综合养护 20 次卡的确认收入进度",
+      "expectedMetricKeys": [
+        "card_usage"
+      ],
+      "acceptableViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "requiredViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "requiredOutputFields": [
+        "recognized_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "card_assets",
+        "card_usage"
+      ],
+      "indexViews": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view"
+      ],
+      "routeViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "metricTop1Hit": false,
+      "acceptableTop1Hit": false,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": false,
+      "routeAcceptableHit": false,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.62,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "planOutputFields": [
+        "remaining_times",
+        "paid_amount"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.723
+    },
+    {
+      "id": "ami_brain_2000:BQ0831",
+      "split": "holdout",
+      "question": "这个季度次卡核销确认的收入有多少",
+      "expectedMetricKeys": [
+        "card_usage"
+      ],
+      "acceptableViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "requiredViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "requiredOutputFields": [
+        "usage_times"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "card_usage",
+        "card_assets",
+        "promotion_offer"
+      ],
+      "indexViews": [
+        "agent_v3_card_usage_view",
+        "agent_v3_card_asset_view",
+        "agent_v3_promotion_offer_view"
+      ],
+      "routeViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "planOutputFields": [
+        "usage_times",
+        "recognized_amount"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.643
+    },
+    {
+      "id": "ami_brain_2000:BQ0836",
+      "split": "holdout",
+      "question": "敏感修护 8 次卡的确认收入进度",
+      "expectedMetricKeys": [
+        "card_usage"
+      ],
+      "acceptableViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "requiredViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "requiredOutputFields": [
+        "recognized_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "card_assets",
+        "card_usage"
+      ],
+      "indexViews": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view"
+      ],
+      "routeViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "metricTop1Hit": false,
+      "acceptableTop1Hit": false,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": false,
+      "routeAcceptableHit": false,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.62,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "planOutputFields": [
+        "remaining_times",
+        "paid_amount"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.633
+    },
+    {
+      "id": "ami_brain_2000:BQ0483",
+      "split": "holdout",
+      "question": "精华导入护理属于哪个项目类型",
+      "expectedMetricKeys": [
+        "project_catalog"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "project_type"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "project_catalog"
+      ],
+      "indexViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "routeViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "planOutputFields": [
+        "project_type",
+        "project_id",
+        "project_name",
+        "price",
+        "duration"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.622
+    },
+    {
+      "id": "ami_brain_2000:BQ0485",
+      "split": "holdout",
+      "question": "手部细嫩护理的价格是多少",
+      "expectedMetricKeys": [
+        "project_catalog"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "requiredOutputFields": [
+        "price"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "project_catalog"
+      ],
+      "indexViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "routeViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "planOutputFields": [
+        "price",
+        "duration"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.613
+    },
+    {
+      "id": "ami_brain_2000:BQ0486",
+      "split": "holdout",
+      "question": "射频紧致提升护理做一次要多久",
+      "expectedMetricKeys": [
+        "project_catalog"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "requiredOutputFields": [
+        "duration"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "project_catalog"
+      ],
+      "indexViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "routeViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "planOutputFields": [
+        "price",
+        "duration"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.607
+    },
+    {
+      "id": "ami_brain_2000:BQ0490",
+      "split": "holdout",
+      "question": "痘肌净颜舒缓护理属于哪个项目类型",
+      "expectedMetricKeys": [
+        "project_catalog"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "project_type"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "project_catalog"
+      ],
+      "indexViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "routeViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "planOutputFields": [
+        "project_type",
+        "project_id",
+        "project_name",
+        "price",
+        "duration"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.641
+    },
+    {
+      "id": "ami_brain_2000:BQ0492",
+      "split": "holdout",
+      "question": "季节屏障养护的价格是多少",
+      "expectedMetricKeys": [
+        "project_catalog"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "requiredOutputFields": [
+        "price"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "project_catalog"
+      ],
+      "indexViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "routeViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.96,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "planOutputFields": [
+        "price",
+        "duration"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.667
+    },
+    {
+      "id": "ami_brain_2000:BQ1513",
+      "split": "holdout",
+      "question": "今年发出去多少条触达",
+      "expectedMetricKeys": [
+        "marketing_automation"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredOutputFields": [
+        "task_count",
+        "completed_count"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_automation"
+      ],
+      "indexViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "routeViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.97,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "planOutputFields": [
+        "task_count",
+        "completed_count",
+        "completion_rate"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.737
+    },
+    {
+      "id": "ami_brain_2000:BQ1517",
+      "split": "holdout",
+      "question": "最近7天哪个自动化策略转化最好",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "strategy_name",
+        "conversion_rate"
+      ],
+      "requiredResultMode": "ranking",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_automation"
+      ],
+      "indexViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "routeViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "metricTop1Hit": false,
+      "acceptableTop1Hit": false,
+      "acceptableRecallAt4": false,
+      "requiredRecallAt4": false,
+      "routeAcceptableHit": false,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.72,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "planOutputFields": [
+        "automation_source",
+        "trigger_type",
+        "task_count",
+        "completed_count",
+        "completion_rate"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": false,
+      "durationMs": 0.691
+    },
+    {
+      "id": "ami_brain_2000:BQ1523",
+      "split": "holdout",
+      "question": "最近7天跟进任务的完成率",
+      "expectedMetricKeys": [
+        "marketing_automation"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredOutputFields": [
+        "task_count",
+        "completed_count"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_automation"
+      ],
+      "indexViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "routeViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.95,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "planOutputFields": [
+        "task_count",
+        "completed_count",
+        "completion_rate"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.666
+    },
+    {
+      "id": "ami_brain_2000:BQ1528",
+      "split": "holdout",
+      "question": "今年哪个自动化策略转化最好",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "strategy_name",
+        "conversion_rate"
+      ],
+      "requiredResultMode": "ranking",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_automation"
+      ],
+      "indexViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "routeViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "metricTop1Hit": false,
+      "acceptableTop1Hit": false,
+      "acceptableRecallAt4": false,
+      "requiredRecallAt4": false,
+      "routeAcceptableHit": false,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.72,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "planOutputFields": [
+        "automation_source",
+        "trigger_type",
+        "task_count",
+        "completed_count",
+        "completion_rate"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": false,
+      "durationMs": 0.65
+    },
+    {
+      "id": "ami_brain_2000:BQ1534",
+      "split": "holdout",
+      "question": "今年跟进任务的完成率",
+      "expectedMetricKeys": [
+        "marketing_automation"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredOutputFields": [
+        "task_count",
+        "completed_count"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_automation"
+      ],
+      "indexViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "routeViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.95,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "planOutputFields": [
+        "task_count",
+        "completed_count",
+        "completion_rate"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.628
+    },
+    {
+      "id": "ami_brain_2000:BQ1319",
+      "split": "holdout",
+      "question": "开业至今各成本科目占比",
+      "expectedMetricKeys": [
+        "operating_cost"
+      ],
+      "acceptableViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredOutputFields": [
+        "operating_cost"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "operating_cost"
+      ],
+      "indexViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "routeViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.94,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "planOutputFields": [
+        "operating_cost"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.677
+    },
+    {
+      "id": "ami_brain_2000:BQ1333",
+      "split": "holdout",
+      "question": "本周各成本科目占比",
+      "expectedMetricKeys": [
+        "operating_cost"
+      ],
+      "acceptableViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredOutputFields": [
+        "operating_cost"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "operating_cost"
+      ],
+      "indexViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "routeViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.97,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "planOutputFields": [
+        "operating_cost"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.664
+    },
+    {
+      "id": "ami_brain_2000:BQ1338",
+      "split": "holdout",
+      "question": "去年同期成本结构分析",
+      "expectedMetricKeys": [
+        "operating_cost"
+      ],
+      "acceptableViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredOutputFields": [
+        "operating_cost"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "operating_cost"
+      ],
+      "indexViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "routeViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.9,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "planOutputFields": [
+        "category",
+        "operating_cost"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": false,
+      "durationMs": 0.636
+    },
+    {
+      "id": "ami_brain_2000:BQ1344",
+      "split": "holdout",
+      "question": "去年同期人力成本占比分析",
+      "expectedMetricKeys": [
+        "operating_cost"
+      ],
+      "acceptableViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredOutputFields": [
+        "operating_cost"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [],
+      "indexViews": [],
+      "routeViews": [],
+      "metricTop1Hit": false,
+      "acceptableTop1Hit": false,
+      "acceptableRecallAt4": false,
+      "requiredRecallAt4": false,
+      "routeAcceptableHit": false,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.35,
+      "planValid": false,
+      "planReason": "query_plan_metric_missing",
+      "planRequiredViews": [],
+      "planOutputFields": [],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.635
+    },
+    {
+      "id": "ami_brain_2000:BQ1739",
+      "split": "holdout",
+      "question": "本周末的采购总额",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "procurement_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "procurement_detail"
+      ],
+      "indexViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "routeViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.97,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "planOutputFields": [
+        "procurement_amount",
+        "procurement_count"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.651
+    },
+    {
+      "id": "ami_brain_2000:BQ1743",
+      "split": "holdout",
+      "question": "这半年采购结算待付款多少",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "procurement_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "procurement_detail"
+      ],
+      "indexViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "routeViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.94,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "planOutputFields": [
+        "procurement_amount",
+        "procurement_count"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.667
+    },
+    {
+      "id": "ami_brain_2000:BQ1745",
+      "split": "holdout",
+      "question": "这半年的采购总额",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "procurement_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "procurement_detail"
+      ],
+      "indexViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "routeViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.94,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "planOutputFields": [
+        "procurement_amount",
+        "procurement_count"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.61
+    },
+    {
+      "id": "ami_brain_2000:BQ1301",
+      "split": "holdout",
+      "question": "本月哪个项目的利润贡献最大",
+      "expectedMetricKeys": [
+        "project_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "estimated_margin"
+      ],
+      "requiredResultMode": "ranking",
+      "mustClarify": false,
+      "indexMetrics": [],
+      "indexViews": [],
+      "routeViews": [],
+      "metricTop1Hit": false,
+      "acceptableTop1Hit": false,
+      "acceptableRecallAt4": false,
+      "requiredRecallAt4": false,
+      "routeAcceptableHit": false,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.35,
+      "planValid": false,
+      "planReason": "query_plan_metric_missing",
+      "planRequiredViews": [],
+      "planOutputFields": [],
+      "planResultMode": "ranking",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.78
+    },
+    {
+      "id": "ami_brain_2000:BQ1306",
+      "split": "holdout",
+      "question": "本月的经营利润是多少",
+      "expectedMetricKeys": [
+        "confirmed_profit"
+      ],
+      "acceptableViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "requiredViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "requiredOutputFields": [
+        "operating_profit"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "confirmed_profit"
+      ],
+      "indexViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "routeViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "planOutputFields": [
+        "operating_revenue",
+        "gross_profit",
+        "operating_profit",
+        "gross_margin_rate",
+        "operating_margin_rate"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.633
+    },
+    {
+      "id": "ami_brain_2000:BQ1308",
+      "split": "holdout",
+      "question": "本月毛利率是多少",
+      "expectedMetricKeys": [
+        "confirmed_profit"
+      ],
+      "acceptableViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "requiredViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "requiredOutputFields": [
+        "operating_profit"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "confirmed_profit"
+      ],
+      "indexViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "routeViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "planOutputFields": [
+        "operating_revenue",
+        "gross_profit",
+        "operating_profit",
+        "gross_margin_rate",
+        "operating_margin_rate"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.627
+    },
+    {
+      "id": "ami_brain_2000:BQ1310",
+      "split": "holdout",
+      "question": "最近30天哪个项目的利润贡献最大",
+      "expectedMetricKeys": [
+        "project_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "estimated_margin"
+      ],
+      "requiredResultMode": "ranking",
+      "mustClarify": false,
+      "indexMetrics": [],
+      "indexViews": [],
+      "routeViews": [],
+      "metricTop1Hit": false,
+      "acceptableTop1Hit": false,
+      "acceptableRecallAt4": false,
+      "requiredRecallAt4": false,
+      "routeAcceptableHit": false,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.35,
+      "planValid": false,
+      "planReason": "query_plan_metric_missing",
+      "planRequiredViews": [],
+      "planOutputFields": [],
+      "planResultMode": "ranking",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.639
+    },
+    {
+      "id": "ami_brain_2000:BQ1386",
+      "split": "holdout",
+      "question": "开业至今对账有异常吗",
+      "expectedMetricKeys": [
+        "reconciliation_issue"
+      ],
+      "acceptableViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "requiredViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "requiredOutputFields": [
+        "issue_count"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "reconciliation_issue"
+      ],
+      "indexViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "routeViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.94,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "planOutputFields": [
+        "issue_count",
+        "issue_amount"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.606
+    },
+    {
+      "id": "ami_brain_2000:BQ1389",
+      "split": "holdout",
+      "question": "开业至今现金和系统数对得上吗",
+      "expectedMetricKeys": [
+        "reconciliation_issue"
+      ],
+      "acceptableViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "requiredViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "requiredOutputFields": [
+        "issue_count"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [],
+      "indexViews": [],
+      "routeViews": [],
+      "metricTop1Hit": false,
+      "acceptableTop1Hit": false,
+      "acceptableRecallAt4": false,
+      "requiredRecallAt4": false,
+      "routeAcceptableHit": false,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.35,
+      "planValid": false,
+      "planReason": "query_plan_metric_missing",
+      "planRequiredViews": [],
+      "planOutputFields": [],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.61
+    },
+    {
+      "id": "ami_brain_2000:BQ1406",
+      "split": "holdout",
+      "question": "本周储值负债是不是异常增长",
+      "expectedMetricKeys": [
+        "member_liability"
+      ],
+      "acceptableViews": [
+        "ask_data_member_liability_view"
+      ],
+      "requiredViews": [
+        "ask_data_member_liability_view"
+      ],
+      "requiredOutputFields": [
+        "total_liability"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "member_liability"
+      ],
+      "indexViews": [
+        "ask_data_member_liability_view"
+      ],
+      "routeViews": [
+        "ask_data_member_liability_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_member_liability_view"
+      ],
+      "planOutputFields": [
+        "total_liability",
+        "remaining_times"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.694
+    },
+    {
+      "id": "ami_brain_2000:BQ0335",
+      "split": "holdout",
+      "question": "开业至今团队整体产能利用率",
+      "expectedMetricKeys": [
+        "staff_capacity"
+      ],
+      "acceptableViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "requiredViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "requiredOutputFields": [
+        "scheduled_minutes",
+        "booked_minutes",
+        "idle_minutes"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "staff_capacity"
+      ],
+      "indexViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "routeViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.95,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "planOutputFields": [
+        "scheduled_minutes",
+        "booked_minutes",
+        "idle_minutes",
+        "overbooked_minutes",
+        "utilization_rate"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.601
+    },
+    {
+      "id": "ami_brain_2000:BQ0350",
+      "split": "holdout",
+      "question": "本周团队整体产能利用率",
+      "expectedMetricKeys": [
+        "staff_capacity"
+      ],
+      "acceptableViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "requiredViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "requiredOutputFields": [
+        "scheduled_minutes",
+        "booked_minutes",
+        "idle_minutes"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "staff_capacity"
+      ],
+      "indexViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "routeViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.97,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "planOutputFields": [
+        "scheduled_minutes",
+        "booked_minutes",
+        "idle_minutes",
+        "overbooked_minutes",
+        "utilization_rate"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.614
+    },
+    {
+      "id": "ami_brain_2000:BQ0352",
+      "split": "holdout",
+      "question": "哪些美容师本周排班过载",
+      "expectedMetricKeys": [
+        "staff_capacity"
+      ],
+      "acceptableViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "requiredViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "requiredOutputFields": [
+        "staff_id",
+        "staff_name",
+        "scheduled_minutes",
+        "booked_minutes",
+        "idle_minutes",
+        "work_date"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "staff_capacity",
+        "staff_profile"
+      ],
+      "indexViews": [
+        "ask_data_staff_capacity_view",
+        "agent_v3_staff_profile_view"
+      ],
+      "routeViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "planOutputFields": [
+        "staff_id",
+        "staff_name",
+        "scheduled_minutes",
+        "booked_minutes",
+        "idle_minutes",
+        "overbooked_minutes",
+        "utilization_rate",
+        "work_date"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.598
+    },
+    {
+      "id": "ami_brain_2000:BQ0206",
+      "split": "holdout",
+      "question": "预测刘梦瑶的流失风险有多高",
+      "expectedMetricKeys": [
+        "customer_lifecycle"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "churn_risk_level",
+        "computed_at"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "customer_lifecycle"
+      ],
+      "indexViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "routeViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "planOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "churn_risk_level",
+        "computed_at"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.68
+    },
+    {
+      "id": "ami_brain_2000:BQ0209",
+      "split": "holdout",
+      "question": "罗婉清的客户价值分层预测",
+      "expectedMetricKeys": [
+        "customer_lifecycle"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "ltv_tier",
+        "computed_at"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "customer_lifecycle",
+        "customer_profile"
+      ],
+      "indexViews": [
+        "ask_data_customer_lifecycle_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "routeViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.62,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "planOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "ltv_tier",
+        "computed_at"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.628
+    },
+    {
+      "id": "ami_brain_2000:BQ0210",
+      "split": "holdout",
+      "question": "预测罗思琪的流失风险有多高",
+      "expectedMetricKeys": [
+        "customer_lifecycle"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "churn_risk_level",
+        "computed_at"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "customer_lifecycle"
+      ],
+      "indexViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "routeViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "planOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "churn_risk_level",
+        "computed_at"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.636
+    },
+    {
+      "id": "ami_brain_2000:BQ1568",
+      "split": "holdout",
+      "question": "最近7天营销投入产出分析",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "roi"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_roi"
+      ],
+      "indexViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "routeViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "planOutputFields": [
+        "exposure_count",
+        "click_count",
+        "conversion_count",
+        "attributed_net_revenue",
+        "marketing_cost",
+        "roi"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.62
+    },
+    {
+      "id": "ami_brain_2000:BQ1573",
+      "split": "holdout",
+      "question": "今年拓客成本的趋势",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "trend_month",
+        "acquisition_cost"
+      ],
+      "requiredResultMode": "trend",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_roi"
+      ],
+      "indexViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "routeViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "planOutputFields": [
+        "trend_month",
+        "exposure_count",
+        "click_count",
+        "conversion_count",
+        "attributed_net_revenue",
+        "marketing_cost",
+        "roi"
+      ],
+      "planResultMode": "trend",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.683
+    },
+    {
+      "id": "ami_brain_2000:BQ1576",
+      "split": "holdout",
+      "question": "今年活动ROI对比钱花哪最值",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "roi"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_roi"
+      ],
+      "indexViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "routeViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "planOutputFields": [
+        "exposure_count",
+        "click_count",
+        "conversion_count",
+        "attributed_net_revenue",
+        "marketing_cost",
+        "roi"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.626
+    },
+    {
+      "id": "ami_brain_2000:BQ1578",
+      "split": "holdout",
+      "question": "今年营销投入产出分析",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "roi"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_roi"
+      ],
+      "indexViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "routeViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "planOutputFields": [
+        "exposure_count",
+        "click_count",
+        "conversion_count",
+        "attributed_net_revenue",
+        "marketing_cost",
+        "roi"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.7
+    },
+    {
+      "id": "ami_brain_2000:BQ1583",
+      "split": "holdout",
+      "question": "本周末拓客成本的趋势",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "trend_day",
+        "acquisition_cost"
+      ],
+      "requiredResultMode": "trend",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_roi"
+      ],
+      "indexViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "routeViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "planOutputFields": [
+        "trend_day",
+        "exposure_count",
+        "click_count",
+        "conversion_count",
+        "attributed_net_revenue",
+        "marketing_cost",
+        "roi"
+      ],
+      "planResultMode": "trend",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.734
+    }
+  ],
+  "ambiguityResults": [
+    {
+      "id": "ami_brain_2000:BQ0685",
+      "question": "双十一期间项目订单和产品订单各占多少",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0691",
+      "question": "双十一期间连带销售的订单比例",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0693",
+      "question": "双十一期间各品类销售额",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0533",
+      "question": "五一假期各项目的销量排行",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0688",
+      "question": "双十一期间哪些订单有大额退款",
+      "expectedSlots": [
+        "year",
+        "threshold"
+      ],
+      "actualSlots": [
+        "year",
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0699",
+      "question": "最近14天哪些订单有大额退款",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充金额阈值，例如“退款金额超过 1000 元”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1398",
+      "question": "春节期间的日结平不平",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0028",
+      "question": "徐雅婷上次到店是五一假期吗，具体哪天",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0839",
+      "question": "双十一期间次卡核销确认的收入有多少",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1561",
+      "question": "分析下最近7天所有活动的效果",
+      "expectedSlots": [
+        "comparison_relation"
+      ],
+      "actualSlots": [],
+      "retained": false,
+      "slotMatched": false
+    },
+    {
+      "id": "ami_brain_2000:BQ1571",
+      "question": "分析下今年所有活动的效果",
+      "expectedSlots": [
+        "comparison_relation"
+      ],
+      "actualSlots": [],
+      "retained": false,
+      "slotMatched": false
+    },
+    {
+      "id": "ami_brain_2000:BQ1581",
+      "question": "分析下本周末所有活动的效果",
+      "expectedSlots": [
+        "comparison_relation"
+      ],
+      "actualSlots": [],
+      "retained": false,
+      "slotMatched": false
+    },
+    {
+      "id": "ami_brain_2000:BQ1591",
+      "question": "分析下国庆期间所有活动的效果",
+      "expectedSlots": [
+        "year",
+        "comparison_relation"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1326",
+      "question": "春节期间各成本科目占比",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1740",
+      "question": "国庆期间采购结算待付款多少",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1742",
+      "question": "国庆期间的采购总额",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1382",
+      "question": "五一假期现金和系统数对得上吗",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1393",
+      "question": "春节期间对账有异常吗",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1396",
+      "question": "春节期间现金和系统数对得上吗",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1399",
+      "question": "春节期间储值负债是不是异常增长",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0343",
+      "question": "春节期间团队整体产能利用率",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0353",
+      "question": "有美容师长期闲置产能浪费吗",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [],
+      "retained": false,
+      "slotMatched": false
+    }
+  ]
+}

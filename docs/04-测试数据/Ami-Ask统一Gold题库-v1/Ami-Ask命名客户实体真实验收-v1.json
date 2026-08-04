@@ -1,0 +1,576 @@
+{
+  "version": 1,
+  "generatedAt": "2026-08-02T17:34:23.682Z",
+  "connectionMode": "development_admin_entity_resolution",
+  "databaseHost": "aws-1-ap-northeast-1.pooler.supabase.com",
+  "storeId": 6,
+  "caseCount": 27,
+  "passedCount": 27,
+  "passRate": 1,
+  "results": [
+    {
+      "id": "ami_brain_2000:BQ0242",
+      "question": "唐伊是什么职级",
+      "supportClass": "ask_query_supported",
+      "entityMentions": [
+        {
+          "type": "员工",
+          "mention": "唐伊"
+        }
+      ],
+      "expectedSlots": [],
+      "actualSlots": [],
+      "expectedClarification": false,
+      "actualClarification": false,
+      "classificationMatched": true,
+      "allResolved": true,
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0251",
+      "question": "宋乔是什么职级",
+      "supportClass": "ask_query_supported",
+      "entityMentions": [
+        {
+          "type": "员工",
+          "mention": "宋乔"
+        }
+      ],
+      "expectedSlots": [],
+      "actualSlots": [],
+      "expectedClarification": false,
+      "actualClarification": false,
+      "classificationMatched": true,
+      "allResolved": true,
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0260",
+      "question": "沈晴是什么职级",
+      "supportClass": "ask_query_supported",
+      "entityMentions": [
+        {
+          "type": "员工",
+          "mention": "沈晴"
+        }
+      ],
+      "expectedSlots": [],
+      "actualSlots": [],
+      "expectedClarification": false,
+      "actualClarification": false,
+      "classificationMatched": true,
+      "allResolved": true,
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0269",
+      "question": "顾然是什么职级",
+      "supportClass": "ask_query_supported",
+      "entityMentions": [
+        {
+          "type": "员工",
+          "mention": "顾然"
+        }
+      ],
+      "expectedSlots": [],
+      "actualSlots": [],
+      "expectedClarification": false,
+      "actualClarification": false,
+      "classificationMatched": true,
+      "allResolved": true,
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0278",
+      "question": "顾然这半年的提成是多少",
+      "supportClass": "ask_query_supported",
+      "entityMentions": [
+        {
+          "type": "员工",
+          "mention": "顾然"
+        }
+      ],
+      "expectedSlots": [],
+      "actualSlots": [],
+      "expectedClarification": false,
+      "actualClarification": false,
+      "classificationMatched": true,
+      "allResolved": true,
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0287",
+      "question": "唐伊昨天的提成是多少",
+      "supportClass": "ask_query_supported",
+      "entityMentions": [
+        {
+          "type": "员工",
+          "mention": "唐伊"
+        }
+      ],
+      "expectedSlots": [],
+      "actualSlots": [],
+      "expectedClarification": false,
+      "actualClarification": false,
+      "classificationMatched": true,
+      "allResolved": true,
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0296",
+      "question": "宋乔本月的提成是多少",
+      "supportClass": "ask_query_supported",
+      "entityMentions": [
+        {
+          "type": "员工",
+          "mention": "宋乔"
+        }
+      ],
+      "expectedSlots": [],
+      "actualSlots": [],
+      "expectedClarification": false,
+      "actualClarification": false,
+      "classificationMatched": true,
+      "allResolved": true,
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0869",
+      "question": "唐伊今年有几个预约",
+      "supportClass": "ask_query_supported",
+      "entityMentions": [
+        {
+          "type": "员工",
+          "mention": "唐伊"
+        }
+      ],
+      "expectedSlots": [],
+      "actualSlots": [],
+      "expectedClarification": false,
+      "actualClarification": false,
+      "classificationMatched": true,
+      "allResolved": true,
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0243",
+      "question": "唐伊上个月的排班是怎样的",
+      "supportClass": "ask_query_supported",
+      "entityMentions": [
+        {
+          "type": "员工",
+          "mention": "唐伊"
+        }
+      ],
+      "expectedSlots": [],
+      "actualSlots": [],
+      "expectedClarification": false,
+      "actualClarification": false,
+      "classificationMatched": true,
+      "allResolved": true,
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0261",
+      "question": "沈晴这个季度的排班是怎样的",
+      "supportClass": "ask_query_supported",
+      "entityMentions": [
+        {
+          "type": "员工",
+          "mention": "沈晴"
+        }
+      ],
+      "expectedSlots": [],
+      "actualSlots": [],
+      "expectedClarification": false,
+      "actualClarification": false,
+      "classificationMatched": true,
+      "allResolved": true,
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0281",
+      "question": "顾然服务过的客户这半年满意度如何",
+      "supportClass": "ask_query_supported",
+      "entityMentions": [
+        {
+          "type": "员工",
+          "mention": "顾然"
+        }
+      ],
+      "expectedSlots": [],
+      "actualSlots": [],
+      "expectedClarification": false,
+      "actualClarification": false,
+      "classificationMatched": true,
+      "allResolved": true,
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0290",
+      "question": "唐伊服务过的客户昨天满意度如何",
+      "supportClass": "ask_query_supported",
+      "entityMentions": [
+        {
+          "type": "员工",
+          "mention": "唐伊"
+        }
+      ],
+      "expectedSlots": [],
+      "actualSlots": [],
+      "expectedClarification": false,
+      "actualClarification": false,
+      "classificationMatched": true,
+      "allResolved": true,
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0299",
+      "question": "宋乔服务过的客户本月满意度如何",
+      "supportClass": "ask_query_supported",
+      "entityMentions": [
+        {
+          "type": "员工",
+          "mention": "宋乔"
+        }
+      ],
+      "expectedSlots": [],
+      "actualSlots": [],
+      "expectedClarification": false,
+      "actualClarification": false,
+      "classificationMatched": true,
+      "allResolved": true,
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0308",
+      "question": "沈晴服务过的客户最近30天满意度如何",
+      "supportClass": "ask_query_supported",
+      "entityMentions": [
+        {
+          "type": "员工",
+          "mention": "沈晴"
+        }
+      ],
+      "expectedSlots": [],
+      "actualSlots": [],
+      "expectedClarification": false,
+      "actualClarification": false,
+      "classificationMatched": true,
+      "allResolved": true,
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0003",
+      "question": "吴晓雯的会员等级是什么",
+      "supportClass": "clarification_required",
+      "entityMentions": [
+        {
+          "type": "客户",
+          "mention": "吴晓雯"
+        }
+      ],
+      "expectedSlots": [
+        "entity_identity"
+      ],
+      "actualSlots": [
+        "entity_identity"
+      ],
+      "expectedClarification": true,
+      "actualClarification": true,
+      "classificationMatched": true,
+      "allResolved": false,
+      "clarificationReason": "customer_entity_not_unique",
+      "clarificationQuestion": "当前门店有多位姓名为“吴晓雯”的客户，无法唯一定位。请补充客户 ID。",
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0015",
+      "question": "吴梦瑶的会员等级是什么",
+      "supportClass": "clarification_required",
+      "entityMentions": [
+        {
+          "type": "客户",
+          "mention": "吴梦瑶"
+        }
+      ],
+      "expectedSlots": [
+        "entity_identity"
+      ],
+      "actualSlots": [
+        "entity_identity"
+      ],
+      "expectedClarification": true,
+      "actualClarification": true,
+      "classificationMatched": true,
+      "allResolved": false,
+      "clarificationReason": "customer_entity_not_unique",
+      "clarificationQuestion": "当前门店有多位姓名为“吴梦瑶”的客户，无法唯一定位。请补充客户 ID。",
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0181",
+      "question": "预测马欣怡的流失风险有多高",
+      "supportClass": "clarification_required",
+      "entityMentions": [
+        {
+          "type": "客户",
+          "mention": "马欣怡"
+        }
+      ],
+      "expectedSlots": [
+        "entity_identity"
+      ],
+      "actualSlots": [
+        "entity_identity"
+      ],
+      "expectedClarification": true,
+      "actualClarification": true,
+      "classificationMatched": true,
+      "allResolved": false,
+      "clarificationReason": "customer_entity_not_unique",
+      "clarificationQuestion": "当前门店有多位姓名为“马欣怡”的客户，无法唯一定位。请补充客户 ID。",
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0186",
+      "question": "杨紫萱的客户价值分层预测",
+      "supportClass": "clarification_required",
+      "entityMentions": [
+        {
+          "type": "客户",
+          "mention": "杨紫萱"
+        }
+      ],
+      "expectedSlots": [
+        "entity_identity"
+      ],
+      "actualSlots": [
+        "entity_identity"
+      ],
+      "expectedClarification": true,
+      "actualClarification": true,
+      "classificationMatched": true,
+      "allResolved": false,
+      "clarificationReason": "customer_entity_not_unique",
+      "clarificationQuestion": "当前门店有多位姓名为“杨紫萱”的客户，无法唯一定位。请补充客户 ID。",
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0189",
+      "question": "预测孙婉清的流失风险有多高",
+      "supportClass": "clarification_required",
+      "entityMentions": [
+        {
+          "type": "客户",
+          "mention": "孙婉清"
+        }
+      ],
+      "expectedSlots": [
+        "entity_identity"
+      ],
+      "actualSlots": [
+        "entity_identity"
+      ],
+      "expectedClarification": true,
+      "actualClarification": true,
+      "classificationMatched": true,
+      "allResolved": false,
+      "clarificationReason": "customer_entity_not_unique",
+      "clarificationQuestion": "当前门店有多位姓名为“孙婉清”的客户，无法唯一定位。请补充客户 ID。",
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0192",
+      "question": "黄思琪的客户价值分层预测",
+      "supportClass": "clarification_required",
+      "entityMentions": [
+        {
+          "type": "客户",
+          "mention": "黄思琪"
+        }
+      ],
+      "expectedSlots": [
+        "entity_identity"
+      ],
+      "actualSlots": [
+        "entity_identity"
+      ],
+      "expectedClarification": true,
+      "actualClarification": true,
+      "classificationMatched": true,
+      "allResolved": false,
+      "clarificationReason": "customer_entity_not_unique",
+      "clarificationQuestion": "当前门店有多位姓名为“黄思琪”的客户，无法唯一定位。请补充客户 ID。",
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0194",
+      "question": "预测朱梦瑶的流失风险有多高",
+      "supportClass": "clarification_required",
+      "entityMentions": [
+        {
+          "type": "客户",
+          "mention": "朱梦瑶"
+        }
+      ],
+      "expectedSlots": [
+        "entity_identity"
+      ],
+      "actualSlots": [
+        "entity_identity"
+      ],
+      "expectedClarification": true,
+      "actualClarification": true,
+      "classificationMatched": true,
+      "allResolved": false,
+      "clarificationReason": "customer_entity_not_unique",
+      "clarificationQuestion": "当前门店有多位姓名为“朱梦瑶”的客户，无法唯一定位。请补充客户 ID。",
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0197",
+      "question": "周若兰的客户价值分层预测",
+      "supportClass": "clarification_required",
+      "entityMentions": [
+        {
+          "type": "客户",
+          "mention": "周若兰"
+        }
+      ],
+      "expectedSlots": [
+        "entity_identity"
+      ],
+      "actualSlots": [
+        "entity_identity"
+      ],
+      "expectedClarification": true,
+      "actualClarification": true,
+      "classificationMatched": true,
+      "allResolved": false,
+      "clarificationReason": "customer_entity_not_unique",
+      "clarificationQuestion": "当前门店有多位姓名为“周若兰”的客户，无法唯一定位。请补充客户 ID。",
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0198",
+      "question": "预测林雨薇的流失风险有多高",
+      "supportClass": "clarification_required",
+      "entityMentions": [
+        {
+          "type": "客户",
+          "mention": "林雨薇"
+        }
+      ],
+      "expectedSlots": [
+        "entity_identity"
+      ],
+      "actualSlots": [
+        "entity_identity"
+      ],
+      "expectedClarification": true,
+      "actualClarification": true,
+      "classificationMatched": true,
+      "allResolved": false,
+      "clarificationReason": "customer_entity_not_unique",
+      "clarificationQuestion": "当前门店有多位姓名为“林雨薇”的客户，无法唯一定位。请补充客户 ID。",
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0201",
+      "question": "王静怡的客户价值分层预测",
+      "supportClass": "clarification_required",
+      "entityMentions": [
+        {
+          "type": "客户",
+          "mention": "王静怡"
+        }
+      ],
+      "expectedSlots": [
+        "entity_identity"
+      ],
+      "actualSlots": [
+        "entity_identity"
+      ],
+      "expectedClarification": true,
+      "actualClarification": true,
+      "classificationMatched": true,
+      "allResolved": false,
+      "clarificationReason": "customer_entity_not_unique",
+      "clarificationQuestion": "当前门店有多位姓名为“王静怡”的客户，无法唯一定位。请补充客户 ID。",
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0202",
+      "question": "预测徐佳慧的流失风险有多高",
+      "supportClass": "clarification_required",
+      "entityMentions": [
+        {
+          "type": "客户",
+          "mention": "徐佳慧"
+        }
+      ],
+      "expectedSlots": [
+        "entity_identity"
+      ],
+      "actualSlots": [
+        "entity_identity"
+      ],
+      "expectedClarification": true,
+      "actualClarification": true,
+      "classificationMatched": true,
+      "allResolved": false,
+      "clarificationReason": "customer_entity_not_unique",
+      "clarificationQuestion": "当前门店有多位姓名为“徐佳慧”的客户，无法唯一定位。请补充客户 ID。",
+      "passed": true
+    },
+    {
+      "id": "ami_brain_2000:BQ0205",
+      "question": "朱静怡的客户价值分层预测",
+      "supportClass": "clarification_required",
+      "entityMentions": [
+        {
+          "type": "客户",
+          "mention": "朱静怡"
+        }
+      ],
+      "expectedSlots": [
+        "entity_identity"
+      ],
+      "actualSlots": [
+        "entity_identity"
+      ],
+      "expectedClarification": true,
+      "actualClarification": true,
+      "classificationMatched": true,
+      "allResolved": false,
+      "clarificationReason": "customer_entity_not_unique",
+      "clarificationQuestion": "当前门店有多位姓名为“朱静怡”的客户，无法唯一定位。请补充客户 ID。",
+      "passed": true
+    },
+    {
+      "id": "agent_650:frontdesk-030",
+      "question": "张美丽的预约是几点，做什么项目",
+      "supportClass": "clarification_required",
+      "entityMentions": [
+        {
+          "type": "客户",
+          "mention": "张美丽"
+        }
+      ],
+      "expectedSlots": [
+        "entity_identity"
+      ],
+      "actualSlots": [
+        "entity_identity"
+      ],
+      "expectedClarification": true,
+      "actualClarification": true,
+      "classificationMatched": true,
+      "allResolved": false,
+      "clarificationReason": "customer_entity_not_found",
+      "clarificationQuestion": "当前门店未找到姓名为“张美丽”的客户。请补充客户 ID。",
+      "passed": true
+    }
+  ]
+}

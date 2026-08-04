@@ -1,0 +1,5388 @@
+{
+  "version": 1,
+  "generatedAt": "2026-08-03T11:59:35.839Z",
+  "goldPath": "/Users/ju/Documents/ami/beauty-salon-admin-ask/docs/04-测试数据/Ami-Ask统一Gold题库-v1/Ami-Ask全新独立Holdout合同-v4.json",
+  "summary": {
+    "caseCount": 80,
+    "metricTop1Hit": 0.9875,
+    "acceptableTop1Hit": 1,
+    "acceptableRecallAt4": 1,
+    "requiredRecallAt4": 0.9875,
+    "routeAcceptableHit": 1,
+    "controlledPlanValidRate": 0.9875,
+    "controlledPlanGoldOutputRate": 0.4625,
+    "fallbackEligibleRate": 0.025,
+    "clarificationAccuracy": 1,
+    "unjustifiedClarificationRate": 0,
+    "trueAmbiguityRetention": 1,
+    "averageMs": 1.1562875,
+    "p95Ms": 1.192
+  },
+  "ambiguitySummary": {
+    "caseCount": 52,
+    "retentionRate": 0.9808,
+    "slotAccuracy": 0.9615
+  },
+  "bySplit": {
+    "development": {
+      "caseCount": 0,
+      "metricTop1Hit": 0,
+      "acceptableTop1Hit": 0,
+      "acceptableRecallAt4": 0,
+      "requiredRecallAt4": 0,
+      "routeAcceptableHit": 0,
+      "controlledPlanValidRate": 0,
+      "controlledPlanGoldOutputRate": 0,
+      "fallbackEligibleRate": 0,
+      "clarificationAccuracy": 0,
+      "unjustifiedClarificationRate": 0,
+      "trueAmbiguityRetention": 1,
+      "averageMs": 0,
+      "p95Ms": 0
+    },
+    "holdout": {
+      "caseCount": 80,
+      "metricTop1Hit": 0.9875,
+      "acceptableTop1Hit": 1,
+      "acceptableRecallAt4": 1,
+      "requiredRecallAt4": 0.9875,
+      "routeAcceptableHit": 1,
+      "controlledPlanValidRate": 0.9875,
+      "controlledPlanGoldOutputRate": 0.4625,
+      "fallbackEligibleRate": 0.025,
+      "clarificationAccuracy": 1,
+      "unjustifiedClarificationRate": 0,
+      "trueAmbiguityRetention": 1,
+      "averageMs": 1.1562875,
+      "p95Ms": 1.192
+    }
+  },
+  "results": [
+    {
+      "id": "ask_holdout_v4:V4-Q001",
+      "split": "holdout",
+      "question": "把这礼拜和上礼拜的开单净收入放一起，差额也给我",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "net_amount"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "order_revenue"
+      ],
+      "indexViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "routeViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.92,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "planOutputFields": [
+        "current_period_net_revenue",
+        "previous_period_net_revenue",
+        "revenue_difference"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": false,
+      "durationMs": 33.308
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q002",
+      "split": "holdout",
+      "question": "最近四个自然周订单净收是往上还是往下，按周列数",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "order_created_at",
+        "net_amount"
+      ],
+      "requiredResultMode": "trend",
+      "mustClarify": false,
+      "indexMetrics": [
+        "order_revenue"
+      ],
+      "indexViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "routeViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.97,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "planOutputFields": [
+        "trend_week",
+        "net_revenue",
+        "order_count"
+      ],
+      "planResultMode": "trend",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 2.013
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q003",
+      "split": "holdout",
+      "question": "近四十五天卖出去的商品按件数列前十名",
+      "expectedMetricKeys": [
+        "product_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "quantity"
+      ],
+      "requiredResultMode": "ranking",
+      "mustClarify": false,
+      "indexMetrics": [
+        "product_sales"
+      ],
+      "indexViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "routeViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "planOutputFields": [
+        "product_id",
+        "product_name",
+        "sku",
+        "sales_quantity",
+        "net_sales_amount"
+      ],
+      "planResultMode": "ranking",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 1.192
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q004",
+      "split": "holdout",
+      "question": "这个月每种商品扣掉退款后分别卖了多少钱",
+      "expectedMetricKeys": [
+        "product_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "net_amount",
+        "refund_amount"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "product_sales",
+        "payment_flow",
+        "payment_customer_detail"
+      ],
+      "indexViews": [
+        "agent_v3_order_item_sales_view",
+        "agent_v3_payment_refund_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "routeViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "planOutputFields": [
+        "product_id",
+        "product_name",
+        "sku",
+        "sales_quantity",
+        "gross_net_sales_amount",
+        "refund_amount",
+        "net_sales_after_refund"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.777
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q005",
+      "split": "holdout",
+      "question": "近六周项目服务次数每周怎么走",
+      "expectedMetricKeys": [
+        "project_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredOutputFields": [
+        "order_created_at",
+        "service_quantity"
+      ],
+      "requiredResultMode": "trend",
+      "mustClarify": false,
+      "indexMetrics": [
+        "project_sales",
+        "service_quality"
+      ],
+      "indexViews": [
+        "agent_v3_project_service_sales_view",
+        "agent_v3_service_quality_view"
+      ],
+      "routeViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "planOutputFields": [
+        "project_id",
+        "project_name",
+        "trend_week",
+        "service_count",
+        "project_revenue"
+      ],
+      "planResultMode": "trend",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.773
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q006",
+      "split": "holdout",
+      "question": "这个季度项目净收入榜前十，项目名字要带上",
+      "expectedMetricKeys": [
+        "project_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "net_amount"
+      ],
+      "requiredResultMode": "ranking",
+      "mustClarify": false,
+      "indexMetrics": [
+        "project_sales",
+        "order_revenue"
+      ],
+      "indexViews": [
+        "agent_v3_project_service_sales_view",
+        "agent_v3_order_summary_view"
+      ],
+      "routeViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "planOutputFields": [
+        "project_id",
+        "project_name",
+        "service_count",
+        "project_revenue"
+      ],
+      "planResultMode": "ranking",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 1.719
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q007",
+      "split": "holdout",
+      "question": "昨天各种支付方式实际收款各是多少",
+      "expectedMetricKeys": [
+        "payment_flow"
+      ],
+      "acceptableViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredOutputFields": [
+        "payment_method",
+        "payment_amount"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "payment_flow",
+        "order_revenue"
+      ],
+      "indexViews": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "routeViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "planOutputFields": [
+        "payment_method",
+        "payment_amount"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.715
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q008",
+      "split": "holdout",
+      "question": "近二十一天的退款逐笔列出来，带订单和退款分类",
+      "expectedMetricKeys": [
+        "payment_flow"
+      ],
+      "acceptableViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredOutputFields": [
+        "order_id",
+        "refunded_at",
+        "refund_amount",
+        "refund_reason_category"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "payment_flow",
+        "payment_customer_detail"
+      ],
+      "indexViews": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "routeViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.95,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "planOutputFields": [
+        "order_id",
+        "payment_amount",
+        "refund_amount",
+        "flow_count",
+        "paid_at",
+        "payment_method",
+        "refunded_at",
+        "refund_status",
+        "refund_reason_category"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.859
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q009",
+      "split": "holdout",
+      "question": "最近十个营业日每天的净收排成时间线",
+      "expectedMetricKeys": [
+        "daily_net_receipts"
+      ],
+      "acceptableViews": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "requiredOutputFields": [
+        "settlement_date",
+        "net_amount"
+      ],
+      "requiredResultMode": "trend",
+      "mustClarify": false,
+      "indexMetrics": [
+        "daily_net_receipts",
+        "order_revenue"
+      ],
+      "indexViews": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_order_summary_view"
+      ],
+      "routeViews": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "planOutputFields": [
+        "trend_day",
+        "net_receipts",
+        "order_count"
+      ],
+      "planResultMode": "trend",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.684
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q010",
+      "split": "holdout",
+      "question": "本周日结合计净收和订单数各是多少",
+      "expectedMetricKeys": [
+        "daily_net_receipts"
+      ],
+      "acceptableViews": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "requiredOutputFields": [
+        "net_amount",
+        "order_count"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "daily_net_receipts",
+        "payment_order_difference"
+      ],
+      "indexViews": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_daily_settlement_view"
+      ],
+      "routeViews": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "planOutputFields": [
+        "net_receipts",
+        "order_count"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.815
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q011",
+      "split": "holdout",
+      "question": "现在哪些商品库存不超过三件，名称和余量都列出",
+      "expectedMetricKeys": [
+        "inventory_on_hand"
+      ],
+      "acceptableViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "current_stock"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "inventory_on_hand"
+      ],
+      "indexViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "routeViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.97,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "planOutputFields": [
+        "product_id",
+        "product_name",
+        "sku",
+        "current_stock",
+        "safety_stock",
+        "stock_value",
+        "unit",
+        "status",
+        "nearest_expiry_date"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.916
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q012",
+      "split": "holdout",
+      "question": "未来四十五天会到期的商品库存和货值给我一张清单",
+      "expectedMetricKeys": [
+        "inventory_on_hand"
+      ],
+      "acceptableViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "current_stock",
+        "stock_value",
+        "nearest_expiry_date"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "inventory_on_hand",
+        "card_assets"
+      ],
+      "indexViews": [
+        "agent_v3_product_inventory_view",
+        "agent_v3_card_asset_view"
+      ],
+      "routeViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "planOutputFields": [
+        "product_id",
+        "product_name",
+        "sku",
+        "current_stock",
+        "safety_stock",
+        "stock_value",
+        "unit",
+        "status",
+        "nearest_expiry_date"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.818
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q013",
+      "split": "holdout",
+      "question": "这周每种耗材净出库量分别多少",
+      "expectedMetricKeys": [
+        "inventory_movement"
+      ],
+      "acceptableViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "quantity"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "inventory_movement",
+        "inventory_usage_balance"
+      ],
+      "indexViews": [
+        "agent_v3_stock_movement_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "routeViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.9,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "planOutputFields": [
+        "product_id",
+        "product_name",
+        "sku",
+        "movement_quantity",
+        "movement_count"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.669
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q014",
+      "split": "holdout",
+      "question": "昨天库存变动逐条给我，变动前后数量都要",
+      "expectedMetricKeys": [
+        "inventory_movement"
+      ],
+      "acceptableViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredOutputFields": [
+        "movement_id",
+        "product_id",
+        "product_name",
+        "movement_type",
+        "quantity",
+        "before_stock",
+        "after_stock",
+        "occurred_at"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "inventory_movement",
+        "inventory_on_hand"
+      ],
+      "indexViews": [
+        "agent_v3_stock_movement_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "routeViews": [
+        "agent_v3_stock_movement_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.95,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_stock_movement_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "planOutputFields": [
+        "movement_id",
+        "product_id",
+        "product_name",
+        "movement_quantity",
+        "current_stock",
+        "safety_stock",
+        "stock_value",
+        "sku",
+        "unit",
+        "status",
+        "nearest_expiry_date",
+        "movement_type",
+        "occurred_at",
+        "before_stock",
+        "after_stock"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.668
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q015",
+      "split": "holdout",
+      "question": "本月报损货值最高的五个商品是什么",
+      "expectedMetricKeys": [
+        "inventory_scrap"
+      ],
+      "acceptableViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "requiredViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "loss_amount"
+      ],
+      "requiredResultMode": "ranking",
+      "mustClarify": false,
+      "indexMetrics": [
+        "inventory_scrap"
+      ],
+      "indexViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "routeViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "planOutputFields": [
+        "product_id",
+        "product_name",
+        "sku",
+        "scrap_quantity",
+        "loss_amount"
+      ],
+      "planResultMode": "ranking",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.616
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q016",
+      "split": "holdout",
+      "question": "近三十天每天报废了多少数量和金额",
+      "expectedMetricKeys": [
+        "inventory_scrap"
+      ],
+      "acceptableViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "requiredViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "requiredOutputFields": [
+        "occurred_at",
+        "scrap_quantity",
+        "loss_amount"
+      ],
+      "requiredResultMode": "trend",
+      "mustClarify": false,
+      "indexMetrics": [
+        "inventory_scrap"
+      ],
+      "indexViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "routeViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "planOutputFields": [
+        "trend_day",
+        "scrap_quantity",
+        "loss_amount"
+      ],
+      "planResultMode": "trend",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.655
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q017",
+      "split": "holdout",
+      "question": "把九十天没到店但还有未用次卡的客户列出来",
+      "expectedMetricKeys": [
+        "customer_profile"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "days_since_last_visit",
+        "active_card_count",
+        "remaining_card_times"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "customer_profile",
+        "card_assets",
+        "reservation_metrics"
+      ],
+      "indexViews": [
+        "ask_data_customer_profile_summary_view",
+        "agent_v3_card_asset_view",
+        "agent_v3_reservation_view"
+      ],
+      "routeViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "planOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "last_visit_at",
+        "days_since_last_visit",
+        "active_card_count",
+        "remaining_card_times",
+        "unused_card_count",
+        "low_remaining_card_count",
+        "last_card_usage_at",
+        "customer_status"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.743
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q018",
+      "split": "holdout",
+      "question": "当前各会员等级有多少客户，累计消费也一起汇总",
+      "expectedMetricKeys": [
+        "customer_profile"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredOutputFields": [
+        "member_level",
+        "customer_id",
+        "total_paid_amount"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "customer_profile"
+      ],
+      "indexViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "routeViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "planOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "member_level",
+        "customer_count",
+        "total_paid_amount"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.785
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q019",
+      "split": "holdout",
+      "question": "现在在职员工按职级各有几人",
+      "expectedMetricKeys": [
+        "staff_profile"
+      ],
+      "acceptableViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "requiredViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "requiredOutputFields": [
+        "level_name",
+        "staff_id"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "staff_profile"
+      ],
+      "indexViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "routeViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "planOutputFields": [
+        "level_name",
+        "staff_count"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.69
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q020",
+      "split": "holdout",
+      "question": "近六十天新入职的员工名单和职级",
+      "expectedMetricKeys": [
+        "staff_profile"
+      ],
+      "acceptableViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "requiredViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "requiredOutputFields": [
+        "staff_id",
+        "staff_name",
+        "level_name",
+        "created_at"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "staff_profile"
+      ],
+      "indexViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "routeViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "planOutputFields": [
+        "staff_id",
+        "staff_name",
+        "level_name",
+        "created_at"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.655
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q021",
+      "split": "holdout",
+      "question": "上个月美容师实收业绩前五名和对应提成",
+      "expectedMetricKeys": [
+        "staff_performance"
+      ],
+      "acceptableViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "requiredViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "requiredOutputFields": [
+        "staff_id",
+        "staff_name",
+        "paid_amount",
+        "commission_amount"
+      ],
+      "requiredResultMode": "ranking",
+      "mustClarify": false,
+      "indexMetrics": [
+        "staff_performance",
+        "staff_profile",
+        "order_revenue"
+      ],
+      "indexViews": [
+        "ask_data_staff_performance_view",
+        "agent_v3_staff_profile_view",
+        "agent_v3_order_summary_view"
+      ],
+      "routeViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "planOutputFields": [
+        "staff_id",
+        "staff_name",
+        "paid_amount",
+        "service_count",
+        "commission_amount"
+      ],
+      "planResultMode": "ranking",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.666
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q022",
+      "split": "holdout",
+      "question": "最近三个月每位员工服务次数按月怎么变化",
+      "expectedMetricKeys": [
+        "staff_performance"
+      ],
+      "acceptableViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "requiredViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "requiredOutputFields": [
+        "staff_id",
+        "staff_name",
+        "settle_month",
+        "service_count"
+      ],
+      "requiredResultMode": "trend",
+      "mustClarify": false,
+      "indexMetrics": [
+        "staff_performance",
+        "project_sales"
+      ],
+      "indexViews": [
+        "ask_data_staff_performance_view",
+        "agent_v3_project_service_sales_view"
+      ],
+      "routeViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "planOutputFields": [
+        "trend_month",
+        "staff_id",
+        "staff_name",
+        "paid_amount",
+        "service_count",
+        "commission_amount"
+      ],
+      "planResultMode": "trend",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.696
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q023",
+      "split": "holdout",
+      "question": "明天下午预约的客人、项目和美容师排个清单",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "reservation_id",
+        "customer_id",
+        "customer_name_masked",
+        "project_id",
+        "project_name",
+        "beautician_id",
+        "beautician_name",
+        "date",
+        "start_time"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "reservation_metrics",
+        "staff_profile"
+      ],
+      "indexViews": [
+        "agent_v3_reservation_view",
+        "agent_v3_staff_profile_view"
+      ],
+      "routeViews": [
+        "agent_v3_reservation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.95,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "planOutputFields": [
+        "reservation_id",
+        "beautician_id",
+        "beautician_name",
+        "project_id",
+        "project_name",
+        "customer_id",
+        "customer_name_masked",
+        "date",
+        "start_time",
+        "status"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.954
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q024",
+      "split": "holdout",
+      "question": "最近四周各项目的非取消预约量排行",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "reservation_id"
+      ],
+      "requiredResultMode": "ranking",
+      "mustClarify": false,
+      "indexMetrics": [
+        "reservation_metrics",
+        "project_sales"
+      ],
+      "indexViews": [
+        "agent_v3_reservation_view",
+        "agent_v3_project_service_sales_view"
+      ],
+      "routeViews": [
+        "agent_v3_reservation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.95,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "planOutputFields": [
+        "project_id",
+        "project_name",
+        "reservation_count"
+      ],
+      "planResultMode": "ranking",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 1.111
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q025",
+      "split": "holdout",
+      "question": "近三十天每场活动带来的线索和转化分别多少",
+      "expectedMetricKeys": [
+        "marketing_conversion"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredOutputFields": [
+        "activity_id",
+        "activity_title",
+        "lead_count",
+        "conversion_count"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_conversion"
+      ],
+      "indexViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "routeViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "planOutputFields": [
+        "activity_id",
+        "activity_title",
+        "event_count",
+        "lead_count",
+        "conversion_count",
+        "attributed_revenue"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.686
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q026",
+      "split": "holdout",
+      "question": "最近八周活动归因收入按周的走势",
+      "expectedMetricKeys": [
+        "marketing_conversion"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredOutputFields": [
+        "latest_event_at",
+        "attributed_revenue"
+      ],
+      "requiredResultMode": "trend",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_conversion",
+        "marketing_roi"
+      ],
+      "indexViews": [
+        "agent_v3_marketing_conversion_view",
+        "ask_data_marketing_roi_view"
+      ],
+      "routeViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "planOutputFields": [
+        "activity_id",
+        "activity_title",
+        "trend_week",
+        "event_count",
+        "lead_count",
+        "conversion_count",
+        "attributed_revenue"
+      ],
+      "planResultMode": "trend",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.637
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q027",
+      "split": "holdout",
+      "question": "六十天内到期并且还剩五次以上的卡项客户有哪些",
+      "expectedMetricKeys": [
+        "card_assets"
+      ],
+      "acceptableViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "requiredViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "requiredOutputFields": [
+        "customer_card_id",
+        "customer_id",
+        "customer_name_masked",
+        "card_name",
+        "remaining_times",
+        "expiry_date"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "card_assets",
+        "customer_profile"
+      ],
+      "indexViews": [
+        "agent_v3_card_asset_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "routeViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.72,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "planOutputFields": [
+        "customer_card_id",
+        "customer_id",
+        "customer_name_masked",
+        "card_name",
+        "remaining_times",
+        "expiry_date"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.667
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q028",
+      "split": "holdout",
+      "question": "当前各卡项剩余次数合计和客户数分别多少",
+      "expectedMetricKeys": [
+        "card_assets"
+      ],
+      "acceptableViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "requiredViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "requiredOutputFields": [
+        "card_name",
+        "remaining_times",
+        "customer_id"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "card_assets",
+        "customer_profile",
+        "daily_net_receipts",
+        "payment_order_difference"
+      ],
+      "indexViews": [
+        "agent_v3_card_asset_view",
+        "ask_data_customer_profile_summary_view",
+        "agent_v3_daily_settlement_view",
+        "agent_v3_daily_settlement_view"
+      ],
+      "routeViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "planOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "customer_card_id",
+        "card_name",
+        "remaining_times",
+        "paid_amount"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 1.07
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q029",
+      "split": "holdout",
+      "question": "本月每个项目通过次卡核销确认了多少收入",
+      "expectedMetricKeys": [
+        "card_usage"
+      ],
+      "acceptableViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "requiredViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "requiredOutputFields": [
+        "project_name",
+        "times",
+        "recognized_amount"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "card_usage",
+        "project_sales",
+        "card_assets",
+        "promotion_offer"
+      ],
+      "indexViews": [
+        "agent_v3_card_usage_view",
+        "agent_v3_project_service_sales_view",
+        "agent_v3_card_asset_view",
+        "agent_v3_promotion_offer_view"
+      ],
+      "routeViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.9,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "planOutputFields": [
+        "project_name",
+        "card_name",
+        "usage_times",
+        "recognized_amount"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.598
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q030",
+      "split": "holdout",
+      "question": "近十四天次卡核销明细，客户只显示脱敏姓名",
+      "expectedMetricKeys": [
+        "card_usage"
+      ],
+      "acceptableViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "requiredViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "card_name",
+        "project_name",
+        "times",
+        "recognized_amount",
+        "verified_at"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "card_usage",
+        "card_assets",
+        "customer_profile",
+        "promotion_offer"
+      ],
+      "indexViews": [
+        "agent_v3_card_usage_view",
+        "agent_v3_card_asset_view",
+        "ask_data_customer_profile_summary_view",
+        "agent_v3_promotion_offer_view"
+      ],
+      "routeViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "planOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "card_name",
+        "project_name",
+        "usage_times",
+        "recognized_amount",
+        "remaining_times",
+        "verified_at"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.566
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q031",
+      "split": "holdout",
+      "question": "当前现金余额超过一千的客户名单和赠送余额",
+      "expectedMetricKeys": [
+        "customer_balance"
+      ],
+      "acceptableViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "requiredViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "cash_balance",
+        "gift_balance"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "customer_balance",
+        "customer_profile"
+      ],
+      "indexViews": [
+        "agent_v3_customer_balance_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "routeViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "planOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "cash_balance",
+        "gift_balance"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.622
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q032",
+      "split": "holdout",
+      "question": "门店现有现金余额和赠送余额分别合计多少",
+      "expectedMetricKeys": [
+        "customer_balance"
+      ],
+      "acceptableViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "requiredViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "requiredOutputFields": [
+        "cash_balance",
+        "gift_balance"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "customer_balance"
+      ],
+      "indexViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "routeViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.94,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "planOutputFields": [
+        "cash_balance",
+        "gift_balance"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": false,
+      "durationMs": 0.58
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q033",
+      "split": "holdout",
+      "question": "昨天没有完成的服务任务由谁负责、做什么项目",
+      "expectedMetricKeys": [
+        "service_quality"
+      ],
+      "acceptableViews": [
+        "agent_v3_service_quality_view"
+      ],
+      "requiredViews": [
+        "agent_v3_service_quality_view"
+      ],
+      "requiredOutputFields": [
+        "service_task_id",
+        "project_id",
+        "project_name",
+        "beautician_id",
+        "beautician_name",
+        "status",
+        "appointment_time"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "service_quality"
+      ],
+      "indexViews": [
+        "agent_v3_service_quality_view"
+      ],
+      "routeViews": [
+        "agent_v3_service_quality_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_service_quality_view"
+      ],
+      "planOutputFields": [
+        "service_task_id",
+        "project_id",
+        "project_name",
+        "beautician_id",
+        "beautician_name",
+        "status",
+        "appointment_time"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.577
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q034",
+      "split": "holdout",
+      "question": "最近四周每位美容师完成服务的数量趋势",
+      "expectedMetricKeys": [
+        "service_quality"
+      ],
+      "acceptableViews": [
+        "agent_v3_service_quality_view"
+      ],
+      "requiredViews": [
+        "agent_v3_service_quality_view"
+      ],
+      "requiredOutputFields": [
+        "beautician_id",
+        "beautician_name",
+        "completed_at",
+        "service_task_id"
+      ],
+      "requiredResultMode": "trend",
+      "mustClarify": false,
+      "indexMetrics": [
+        "service_quality"
+      ],
+      "indexViews": [
+        "agent_v3_service_quality_view"
+      ],
+      "routeViews": [
+        "agent_v3_service_quality_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_service_quality_view"
+      ],
+      "planOutputFields": [
+        "beautician_id",
+        "beautician_name",
+        "trend_day",
+        "completed_at",
+        "service_task_count"
+      ],
+      "planResultMode": "trend",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.608
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q035",
+      "split": "holdout",
+      "question": "后天哪些时段还能加两位客人",
+      "expectedMetricKeys": [
+        "appointment_gap"
+      ],
+      "acceptableViews": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "requiredViews": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "requiredOutputFields": [
+        "date",
+        "start_time",
+        "end_time",
+        "available_capacity",
+        "candidate_count"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "appointment_gap"
+      ],
+      "indexViews": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "routeViews": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "planOutputFields": [
+        "date",
+        "start_time",
+        "available_capacity",
+        "estimated_revenue",
+        "candidate_count"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.781
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q036",
+      "split": "holdout",
+      "question": "未来七天每天可用容量和预计收入怎么分布",
+      "expectedMetricKeys": [
+        "appointment_gap"
+      ],
+      "acceptableViews": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "requiredViews": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "requiredOutputFields": [
+        "date",
+        "available_capacity",
+        "estimated_revenue"
+      ],
+      "requiredResultMode": "trend",
+      "mustClarify": false,
+      "indexMetrics": [
+        "appointment_gap"
+      ],
+      "indexViews": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "routeViews": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "planOutputFields": [
+        "trend_day",
+        "available_capacity",
+        "estimated_revenue",
+        "candidate_count"
+      ],
+      "planResultMode": "trend",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.606
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q037",
+      "split": "holdout",
+      "question": "把身体护理类项目的价格、时长和疗程次数列出来",
+      "expectedMetricKeys": [
+        "project_catalog"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "project_type",
+        "price",
+        "duration",
+        "treatment_course_times"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "project_catalog"
+      ],
+      "indexViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "routeViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "planOutputFields": [
+        "project_id",
+        "project_name",
+        "price",
+        "duration",
+        "project_type",
+        "treatment_course_times"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.605
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q038",
+      "split": "holdout",
+      "question": "当前启用项目按类型各有多少个，平均价格多少",
+      "expectedMetricKeys": [
+        "project_catalog"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "requiredOutputFields": [
+        "project_type",
+        "project_id",
+        "price"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "project_catalog"
+      ],
+      "indexViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "routeViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "planOutputFields": [
+        "project_id",
+        "project_name",
+        "project_type",
+        "project_count",
+        "average_price"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.598
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q039",
+      "split": "holdout",
+      "question": "现在正在发布并且还没结束的活动清单",
+      "expectedMetricKeys": [
+        "marketing_activity"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "requiredOutputFields": [
+        "activity_id",
+        "activity_title",
+        "status",
+        "publish_status",
+        "start_at",
+        "end_at",
+        "participants"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_activity"
+      ],
+      "indexViews": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "routeViews": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "planOutputFields": [
+        "activity_id",
+        "activity_title",
+        "status",
+        "publish_status",
+        "start_at",
+        "end_at",
+        "participants",
+        "conversion"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.583
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q040",
+      "split": "holdout",
+      "question": "本季度每场活动参与人数和转化数分别多少",
+      "expectedMetricKeys": [
+        "marketing_activity"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "requiredOutputFields": [
+        "activity_id",
+        "activity_title",
+        "participants",
+        "conversion"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_activity",
+        "marketing_conversion"
+      ],
+      "indexViews": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "routeViews": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "planOutputFields": [
+        "activity_id",
+        "activity_title",
+        "participants",
+        "conversion_count",
+        "event_count",
+        "lead_count",
+        "attributed_revenue"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.646
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q041",
+      "split": "holdout",
+      "question": "最近三十天各触发类型任务量和完成量对比",
+      "expectedMetricKeys": [
+        "marketing_automation"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredOutputFields": [
+        "trigger_type",
+        "task_count",
+        "completed_count"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_automation"
+      ],
+      "indexViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "routeViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "planOutputFields": [
+        "automation_source",
+        "trigger_type",
+        "task_count",
+        "completed_count",
+        "completion_rate",
+        "status",
+        "latest_task_at"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.63
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q042",
+      "split": "holdout",
+      "question": "当前没有完成任务的自动触达来源有哪些",
+      "expectedMetricKeys": [
+        "marketing_automation"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredOutputFields": [
+        "automation_source",
+        "trigger_type",
+        "status",
+        "task_count",
+        "completed_count",
+        "latest_task_at"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_automation"
+      ],
+      "indexViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "routeViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "planOutputFields": [
+        "automation_source",
+        "trigger_type",
+        "task_count",
+        "completed_count",
+        "completion_rate",
+        "status",
+        "latest_task_at"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.663
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q043",
+      "split": "holdout",
+      "question": "未来十五天仍有效的优惠，区分全局和门店范围",
+      "expectedMetricKeys": [
+        "promotion_offer"
+      ],
+      "acceptableViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "requiredViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "requiredOutputFields": [
+        "promotion_id",
+        "promotion_name",
+        "discount_text",
+        "scope_type",
+        "start_at",
+        "end_at",
+        "status"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "promotion_offer"
+      ],
+      "indexViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "routeViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.94,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "planOutputFields": [
+        "promotion_id",
+        "promotion_name",
+        "issued_count",
+        "used_count",
+        "type",
+        "scope_type",
+        "status",
+        "start_at",
+        "end_at",
+        "discount_text"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.708
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q044",
+      "split": "holdout",
+      "question": "本月各优惠活动发放量、使用量和使用率排行",
+      "expectedMetricKeys": [
+        "promotion_offer"
+      ],
+      "acceptableViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "requiredViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "requiredOutputFields": [
+        "promotion_id",
+        "promotion_name",
+        "issued_count",
+        "used_count"
+      ],
+      "requiredResultMode": "ranking",
+      "mustClarify": false,
+      "indexMetrics": [
+        "promotion_offer"
+      ],
+      "indexViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "routeViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "planOutputFields": [
+        "promotion_id",
+        "promotion_name",
+        "issued_count",
+        "used_count"
+      ],
+      "planResultMode": "ranking",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.828
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q045",
+      "split": "holdout",
+      "question": "本季度各成本科目金额和占比",
+      "expectedMetricKeys": [
+        "operating_cost"
+      ],
+      "acceptableViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredOutputFields": [
+        "category",
+        "amount"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "operating_cost"
+      ],
+      "indexViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "routeViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": false,
+      "planReason": "query_plan_derived_metric_invalid",
+      "planRequiredViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "planOutputFields": [
+        "category",
+        "operating_cost",
+        "cost_share"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.637
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q046",
+      "split": "holdout",
+      "question": "最近六个月经营成本按月的变化",
+      "expectedMetricKeys": [
+        "operating_cost"
+      ],
+      "acceptableViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredOutputFields": [
+        "period_month",
+        "amount"
+      ],
+      "requiredResultMode": "trend",
+      "mustClarify": false,
+      "indexMetrics": [
+        "operating_cost"
+      ],
+      "indexViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "routeViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "planOutputFields": [
+        "trend_month",
+        "operating_cost"
+      ],
+      "planResultMode": "trend",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.614
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q047",
+      "split": "holdout",
+      "question": "还没到货的采购单、供应商和预计到货日列出来",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "procurement_id",
+        "procurement_no",
+        "supplier_id",
+        "supplier_name",
+        "status",
+        "total_amount",
+        "expected_arrival_date"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "procurement_detail"
+      ],
+      "indexViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "routeViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "planOutputFields": [
+        "procurement_id",
+        "procurement_no",
+        "supplier_id",
+        "supplier_name",
+        "procurement_amount",
+        "status",
+        "total_amount",
+        "expected_arrival_date"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.952
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q048",
+      "split": "holdout",
+      "question": "最近三个月采购金额按月怎么变化",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "created_at",
+        "total_amount"
+      ],
+      "requiredResultMode": "trend",
+      "mustClarify": false,
+      "indexMetrics": [
+        "procurement_detail"
+      ],
+      "indexViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "routeViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "planOutputFields": [
+        "trend_month",
+        "procurement_amount",
+        "procurement_count"
+      ],
+      "planResultMode": "trend",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.668
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q049",
+      "split": "holdout",
+      "question": "供应商平均交付天数从短到长排一下",
+      "expectedMetricKeys": [
+        "supplier_performance"
+      ],
+      "acceptableViews": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "requiredViews": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "requiredOutputFields": [
+        "supplier_id",
+        "supplier_name",
+        "avg_delivery_days"
+      ],
+      "requiredResultMode": "ranking",
+      "mustClarify": false,
+      "indexMetrics": [
+        "supplier_performance",
+        "procurement_detail"
+      ],
+      "indexViews": [
+        "agent_v3_supplier_performance_view",
+        "agent_v3_purchase_procurement_view"
+      ],
+      "routeViews": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "planOutputFields": [
+        "supplier_id",
+        "supplier_name",
+        "procurement_amount",
+        "procurement_count",
+        "avg_delivery_days"
+      ],
+      "planResultMode": "ranking",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.606
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q050",
+      "split": "holdout",
+      "question": "目前每家供应商累计采购次数和金额",
+      "expectedMetricKeys": [
+        "supplier_performance"
+      ],
+      "acceptableViews": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "requiredViews": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "requiredOutputFields": [
+        "supplier_id",
+        "supplier_name",
+        "procurement_count",
+        "procurement_amount"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "supplier_performance",
+        "procurement_detail"
+      ],
+      "indexViews": [
+        "agent_v3_supplier_performance_view",
+        "agent_v3_purchase_procurement_view"
+      ],
+      "routeViews": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "planOutputFields": [
+        "supplier_id",
+        "supplier_name",
+        "procurement_amount",
+        "procurement_count",
+        "avg_delivery_days"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.573
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q051",
+      "split": "holdout",
+      "question": "最近六个已确认月结的经营利润和利润率趋势",
+      "expectedMetricKeys": [
+        "confirmed_profit"
+      ],
+      "acceptableViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "requiredViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "requiredOutputFields": [
+        "period_month",
+        "operating_profit",
+        "operating_margin_rate",
+        "confirmed_at"
+      ],
+      "requiredResultMode": "trend",
+      "mustClarify": false,
+      "indexMetrics": [
+        "confirmed_profit"
+      ],
+      "indexViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "routeViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "planOutputFields": [
+        "trend_day",
+        "operating_revenue",
+        "gross_profit",
+        "operating_profit",
+        "gross_margin_rate",
+        "operating_margin_rate",
+        "confirmed_at"
+      ],
+      "planResultMode": "trend",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.62
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q052",
+      "split": "holdout",
+      "question": "最新已确认月结里各项成本和毛利是多少",
+      "expectedMetricKeys": [
+        "confirmed_profit"
+      ],
+      "acceptableViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "requiredViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "requiredOutputFields": [
+        "material_cost",
+        "product_cost",
+        "commission_cost",
+        "operating_cost",
+        "gross_profit",
+        "operating_profit",
+        "confirmed_at"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "confirmed_profit",
+        "operating_cost"
+      ],
+      "indexViews": [
+        "ask_data_confirmed_profit_view",
+        "ask_data_operating_cost_view"
+      ],
+      "routeViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.72,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "planOutputFields": [
+        "material_cost",
+        "product_cost",
+        "commission_cost",
+        "operating_cost",
+        "gross_profit",
+        "operating_profit",
+        "confirmed_at"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.751
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q053",
+      "split": "holdout",
+      "question": "近三十天还没处理的高严重度对账异常有哪些",
+      "expectedMetricKeys": [
+        "reconciliation_issue"
+      ],
+      "acceptableViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "requiredViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "requiredOutputFields": [
+        "issue_id",
+        "business_date",
+        "category",
+        "severity",
+        "issue_status",
+        "title",
+        "amount",
+        "last_detected_at"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "reconciliation_issue"
+      ],
+      "indexViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "routeViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "planOutputFields": [
+        "issue_id",
+        "business_date",
+        "run_status",
+        "category",
+        "severity",
+        "issue_status",
+        "amount",
+        "title",
+        "last_detected_at"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.57
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q054",
+      "split": "holdout",
+      "question": "本季度每天对账异常金额的走势",
+      "expectedMetricKeys": [
+        "reconciliation_issue"
+      ],
+      "acceptableViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "requiredViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "requiredOutputFields": [
+        "business_date",
+        "amount"
+      ],
+      "requiredResultMode": "trend",
+      "mustClarify": false,
+      "indexMetrics": [
+        "reconciliation_issue"
+      ],
+      "indexViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "routeViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "planOutputFields": [
+        "trend_day",
+        "issue_count",
+        "issue_amount"
+      ],
+      "planResultMode": "trend",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.549
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q055",
+      "split": "holdout",
+      "question": "最近六个确认快照的会员总负债怎么变化",
+      "expectedMetricKeys": [
+        "member_liability"
+      ],
+      "acceptableViews": [
+        "ask_data_member_liability_view"
+      ],
+      "requiredViews": [
+        "ask_data_member_liability_view"
+      ],
+      "requiredOutputFields": [
+        "snapshot_date",
+        "total_liability",
+        "confirmed_at"
+      ],
+      "requiredResultMode": "trend",
+      "mustClarify": false,
+      "indexMetrics": [
+        "member_liability"
+      ],
+      "indexViews": [
+        "ask_data_member_liability_view"
+      ],
+      "routeViews": [
+        "ask_data_member_liability_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_member_liability_view"
+      ],
+      "planOutputFields": [
+        "trend_day",
+        "total_liability",
+        "confirmed_at"
+      ],
+      "planResultMode": "trend",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.665
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q056",
+      "split": "holdout",
+      "question": "最新确认快照里现金合同负债、赠送义务和次卡负债各多少",
+      "expectedMetricKeys": [
+        "member_liability"
+      ],
+      "acceptableViews": [
+        "ask_data_member_liability_view"
+      ],
+      "requiredViews": [
+        "ask_data_member_liability_view"
+      ],
+      "requiredOutputFields": [
+        "cash_contract_liability",
+        "gift_obligation",
+        "card_liability",
+        "total_liability",
+        "confirmed_at"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "member_liability"
+      ],
+      "indexViews": [
+        "ask_data_member_liability_view"
+      ],
+      "routeViews": [
+        "ask_data_member_liability_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_member_liability_view"
+      ],
+      "planOutputFields": [
+        "cash_contract_liability",
+        "gift_obligation",
+        "card_liability",
+        "total_liability",
+        "confirmed_at"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.603
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q057",
+      "split": "holdout",
+      "question": "未来七天美容师利用率从高到低排，超排分钟也带上",
+      "expectedMetricKeys": [
+        "staff_capacity"
+      ],
+      "acceptableViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "requiredViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "requiredOutputFields": [
+        "staff_id",
+        "staff_name",
+        "work_date",
+        "utilization_rate",
+        "overbooked_minutes"
+      ],
+      "requiredResultMode": "ranking",
+      "mustClarify": false,
+      "indexMetrics": [
+        "staff_capacity",
+        "staff_profile"
+      ],
+      "indexViews": [
+        "ask_data_staff_capacity_view",
+        "agent_v3_staff_profile_view"
+      ],
+      "routeViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "planOutputFields": [
+        "staff_id",
+        "staff_name",
+        "scheduled_minutes",
+        "booked_minutes",
+        "idle_minutes",
+        "overbooked_minutes",
+        "utilization_rate"
+      ],
+      "planResultMode": "ranking",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.611
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q058",
+      "split": "holdout",
+      "question": "明天每位员工排班、预约和空闲分钟分别多少",
+      "expectedMetricKeys": [
+        "staff_capacity"
+      ],
+      "acceptableViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "requiredViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "requiredOutputFields": [
+        "staff_id",
+        "staff_name",
+        "scheduled_minutes",
+        "booked_minutes",
+        "idle_minutes"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "staff_capacity",
+        "reservation_metrics"
+      ],
+      "indexViews": [
+        "ask_data_staff_capacity_view",
+        "agent_v3_reservation_view"
+      ],
+      "routeViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.95,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "planOutputFields": [
+        "staff_id",
+        "staff_name",
+        "scheduled_minutes",
+        "booked_minutes",
+        "idle_minutes",
+        "overbooked_minutes",
+        "utilization_rate"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.642
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q059",
+      "split": "holdout",
+      "question": "本周待接收的调入单和对方门店清单",
+      "expectedMetricKeys": [
+        "transfer_status"
+      ],
+      "acceptableViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "requiredViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "requiredOutputFields": [
+        "transfer_id",
+        "transfer_no",
+        "direction",
+        "counterpart_store_id",
+        "counterpart_store_name",
+        "product_count",
+        "status",
+        "created_at"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "transfer_status"
+      ],
+      "indexViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "routeViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "planOutputFields": [
+        "transfer_id",
+        "transfer_no",
+        "direction",
+        "counterpart_store_id",
+        "counterpart_store_name",
+        "product_count",
+        "status",
+        "created_at",
+        "updated_at"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.618
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q060",
+      "split": "holdout",
+      "question": "近三个月调入和调出单量分别多少",
+      "expectedMetricKeys": [
+        "transfer_status"
+      ],
+      "acceptableViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "requiredViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "requiredOutputFields": [
+        "direction",
+        "transfer_id"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "transfer_status"
+      ],
+      "indexViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "routeViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "planOutputFields": [
+        "direction",
+        "transfer_count",
+        "product_count"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.775
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q061",
+      "split": "holdout",
+      "question": "近三十天实际用量偏离标准超过百分之二十的耗材明细",
+      "expectedMetricKeys": [
+        "bom_variance"
+      ],
+      "acceptableViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "requiredViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "requiredOutputFields": [
+        "movement_id",
+        "project_id",
+        "project_name",
+        "product_id",
+        "product_name",
+        "standard_qty",
+        "actual_qty",
+        "deviation_qty",
+        "deviation_rate",
+        "standard_status"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "bom_variance",
+        "inventory_movement",
+        "inventory_usage_balance"
+      ],
+      "indexViews": [
+        "ask_data_bom_consumption_variance_view",
+        "agent_v3_stock_movement_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "routeViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "planOutputFields": [
+        "movement_id",
+        "project_id",
+        "project_name",
+        "product_id",
+        "product_name",
+        "sku",
+        "standard_qty",
+        "actual_qty",
+        "deviation_qty",
+        "deviation_rate",
+        "standard_status",
+        "occurred_at"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.633
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q062",
+      "split": "holdout",
+      "question": "本月各项目的标准缺失耗材数量排行",
+      "expectedMetricKeys": [
+        "bom_variance"
+      ],
+      "acceptableViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "requiredViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "product_id",
+        "product_name",
+        "standard_status"
+      ],
+      "requiredResultMode": "ranking",
+      "mustClarify": false,
+      "indexMetrics": [
+        "bom_variance",
+        "project_sales",
+        "inventory_movement"
+      ],
+      "indexViews": [
+        "ask_data_bom_consumption_variance_view",
+        "agent_v3_project_service_sales_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "routeViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "planOutputFields": [
+        "project_id",
+        "project_name",
+        "product_id",
+        "product_name",
+        "sku",
+        "standard_qty",
+        "actual_qty",
+        "deviation_qty",
+        "deviation_rate"
+      ],
+      "planResultMode": "ranking",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.643
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q063",
+      "split": "holdout",
+      "question": "最近三十天未解决的低评分反馈，客户只显示脱敏姓名",
+      "expectedMetricKeys": [
+        "customer_feedback"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_feedback_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_feedback_view"
+      ],
+      "requiredOutputFields": [
+        "feedback_id",
+        "customer_id",
+        "customer_name_masked",
+        "staff_id",
+        "staff_name",
+        "project_id",
+        "project_name",
+        "rating",
+        "severity",
+        "status",
+        "occurred_at"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "customer_feedback",
+        "customer_profile"
+      ],
+      "indexViews": [
+        "ask_data_customer_feedback_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "routeViews": [
+        "ask_data_customer_feedback_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_customer_feedback_view"
+      ],
+      "planOutputFields": [
+        "feedback_id",
+        "customer_id",
+        "customer_name_masked",
+        "staff_id",
+        "staff_name",
+        "project_id",
+        "project_name",
+        "feedback_type",
+        "rating",
+        "severity",
+        "status",
+        "occurred_at"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 2.827
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q064",
+      "split": "holdout",
+      "question": "本季度各项目收到的反馈数量和平均评分排行",
+      "expectedMetricKeys": [
+        "customer_feedback"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_feedback_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_feedback_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "feedback_id",
+        "rating"
+      ],
+      "requiredResultMode": "ranking",
+      "mustClarify": false,
+      "indexMetrics": [
+        "customer_feedback",
+        "project_sales"
+      ],
+      "indexViews": [
+        "ask_data_customer_feedback_view",
+        "agent_v3_project_service_sales_view"
+      ],
+      "routeViews": [
+        "ask_data_customer_feedback_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_customer_feedback_view"
+      ],
+      "planOutputFields": [
+        "project_id",
+        "project_name",
+        "feedback_count",
+        "average_rating"
+      ],
+      "planResultMode": "ranking",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.633
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q065",
+      "split": "holdout",
+      "question": "当前高流失风险且有未关闭机会的客户名单",
+      "expectedMetricKeys": [
+        "customer_lifecycle"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "lifecycle_stage",
+        "ltv_tier",
+        "churn_risk_level",
+        "open_opportunity_count",
+        "top_opportunity_type",
+        "top_priority"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "customer_lifecycle",
+        "customer_profile"
+      ],
+      "indexViews": [
+        "ask_data_customer_lifecycle_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "routeViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "planOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "churn_risk_level",
+        "open_opportunity_count",
+        "top_opportunity_type",
+        "top_priority",
+        "top_score",
+        "computed_at"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.633
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q066",
+      "split": "holdout",
+      "question": "现有客户按生命周期阶段和价值档位怎么分布",
+      "expectedMetricKeys": [
+        "customer_lifecycle"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "requiredOutputFields": [
+        "lifecycle_stage",
+        "ltv_tier",
+        "customer_id"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "customer_lifecycle",
+        "customer_profile"
+      ],
+      "indexViews": [
+        "ask_data_customer_lifecycle_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "routeViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "planOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "lifecycle_stage",
+        "ltv_tier",
+        "customer_count",
+        "average_opportunity_score"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.615
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q067",
+      "split": "holdout",
+      "question": "近六十天各渠道估算营销投入产出率排行",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "channel",
+        "attributed_net_revenue",
+        "marketing_cost",
+        "roi",
+        "cost_source"
+      ],
+      "requiredResultMode": "ranking",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_roi"
+      ],
+      "indexViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "routeViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "planOutputFields": [
+        "channel",
+        "exposure_count",
+        "click_count",
+        "conversion_count",
+        "attributed_net_revenue",
+        "marketing_cost",
+        "roi",
+        "cost_source"
+      ],
+      "planResultMode": "ranking",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.707
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q068",
+      "split": "holdout",
+      "question": "最近十二周归因净收入和估算营销成本的周趋势",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "effect_date",
+        "attributed_net_revenue",
+        "marketing_cost",
+        "cost_source"
+      ],
+      "requiredResultMode": "trend",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_roi",
+        "order_revenue"
+      ],
+      "indexViews": [
+        "ask_data_marketing_roi_view",
+        "agent_v3_order_summary_view"
+      ],
+      "routeViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "planOutputFields": [
+        "trend_week",
+        "latest_event_at",
+        "exposure_count",
+        "click_count",
+        "conversion_count",
+        "attributed_net_revenue",
+        "marketing_cost",
+        "roi",
+        "cost_source"
+      ],
+      "planResultMode": "trend",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.698
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q069",
+      "split": "holdout",
+      "question": "这周订单净收和日结净收各多少，差额单独给我",
+      "expectedMetricKeys": [
+        "order_revenue",
+        "daily_net_receipts"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view"
+      ],
+      "requiredOutputFields": [
+        "net_amount",
+        "order_created_at",
+        "settlement_date"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "daily_net_receipts",
+        "order_revenue",
+        "payment_order_difference"
+      ],
+      "indexViews": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view"
+      ],
+      "routeViews": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_order_summary_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.95,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_order_summary_view"
+      ],
+      "planOutputFields": [
+        "net_receipts",
+        "order_count",
+        "net_revenue"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.869
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q070",
+      "split": "holdout",
+      "question": "昨天订单实收和支付流水金额能不能对上，两个数和差额都要",
+      "expectedMetricKeys": [
+        "order_revenue",
+        "payment_flow"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_summary_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredOutputFields": [
+        "paid_amount",
+        "payment_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "order_revenue",
+        "payment_flow",
+        "payment_customer_detail"
+      ],
+      "indexViews": [
+        "agent_v3_order_summary_view",
+        "agent_v3_payment_refund_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "routeViews": [
+        "agent_v3_order_summary_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.92,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_order_summary_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "planOutputFields": [
+        "net_revenue",
+        "order_count",
+        "payment_amount",
+        "refund_amount",
+        "flow_count"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.682
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q071",
+      "split": "holdout",
+      "question": "这个月洗面奶用了多少，现在还剩多少",
+      "expectedMetricKeys": [
+        "inventory_movement",
+        "inventory_on_hand"
+      ],
+      "acceptableViews": [
+        "agent_v3_stock_movement_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredViews": [
+        "agent_v3_stock_movement_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "quantity",
+        "current_stock"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "inventory_usage_balance"
+      ],
+      "indexViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "routeViews": [
+        "agent_v3_stock_movement_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "metricTop1Hit": false,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_stock_movement_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "planOutputFields": [
+        "product_id",
+        "product_name",
+        "sku",
+        "consumed_quantity",
+        "current_stock"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": false,
+      "durationMs": 0.622
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q072",
+      "split": "holdout",
+      "question": "列出现金余额超过五百且还有未用次卡的客户",
+      "expectedMetricKeys": [
+        "customer_balance",
+        "card_assets"
+      ],
+      "acceptableViews": [
+        "agent_v3_customer_balance_view",
+        "agent_v3_card_asset_view"
+      ],
+      "requiredViews": [
+        "agent_v3_customer_balance_view",
+        "agent_v3_card_asset_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "cash_balance",
+        "card_name",
+        "remaining_times"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "customer_balance",
+        "card_assets",
+        "customer_profile"
+      ],
+      "indexViews": [
+        "agent_v3_customer_balance_view",
+        "agent_v3_card_asset_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "routeViews": [
+        "agent_v3_customer_balance_view",
+        "agent_v3_card_asset_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.94,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_customer_balance_view",
+        "agent_v3_card_asset_view"
+      ],
+      "planOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "customer_card_id",
+        "card_name",
+        "cash_balance",
+        "gift_balance",
+        "remaining_times",
+        "expiry_date"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.771
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q073",
+      "split": "holdout",
+      "question": "九十天没到店的高价值客户里，哪些现在是高流失风险",
+      "expectedMetricKeys": [
+        "customer_profile",
+        "customer_lifecycle"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_profile_summary_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_profile_summary_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "days_since_last_visit",
+        "ltv_tier",
+        "churn_risk_level"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "customer_profile",
+        "customer_lifecycle",
+        "reservation_metrics"
+      ],
+      "indexViews": [
+        "ask_data_customer_profile_summary_view",
+        "ask_data_customer_lifecycle_view",
+        "agent_v3_reservation_view"
+      ],
+      "routeViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": false,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "planOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "churn_risk_level",
+        "last_visit_at",
+        "days_since_last_visit",
+        "lifecycle_stage",
+        "ltv_tier",
+        "customer_status"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.623
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q074",
+      "split": "holdout",
+      "question": "明天有预约的美容师里谁还剩最多空闲分钟",
+      "expectedMetricKeys": [
+        "staff_capacity",
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "ask_data_staff_capacity_view",
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "ask_data_staff_capacity_view",
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "staff_id",
+        "staff_name",
+        "idle_minutes",
+        "reservation_id"
+      ],
+      "requiredResultMode": "ranking",
+      "mustClarify": false,
+      "indexMetrics": [
+        "staff_capacity",
+        "reservation_metrics",
+        "staff_profile"
+      ],
+      "indexViews": [
+        "ask_data_staff_capacity_view",
+        "agent_v3_reservation_view",
+        "agent_v3_staff_profile_view"
+      ],
+      "routeViews": [
+        "ask_data_staff_capacity_view",
+        "agent_v3_reservation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.94,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_staff_capacity_view",
+        "agent_v3_reservation_view"
+      ],
+      "planOutputFields": [
+        "staff_id",
+        "staff_name",
+        "scheduled_minutes",
+        "booked_minutes",
+        "idle_minutes",
+        "overbooked_minutes",
+        "utilization_rate",
+        "reservation_count"
+      ],
+      "planResultMode": "ranking",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.622
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q075",
+      "split": "holdout",
+      "question": "本月各活动转化数和估算 ROI 放在一起看",
+      "expectedMetricKeys": [
+        "marketing_conversion",
+        "marketing_roi"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_conversion_view",
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_conversion_view",
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "activity_id",
+        "activity_title",
+        "conversion_count",
+        "attributed_net_revenue",
+        "marketing_cost",
+        "roi",
+        "cost_source"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_roi",
+        "marketing_conversion"
+      ],
+      "indexViews": [
+        "ask_data_marketing_roi_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "routeViews": [
+        "ask_data_marketing_roi_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_marketing_roi_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "planOutputFields": [
+        "activity_id",
+        "activity_title",
+        "exposure_count",
+        "click_count",
+        "conversion_count",
+        "attributed_net_revenue",
+        "marketing_cost",
+        "roi",
+        "cost_source",
+        "event_count",
+        "lead_count",
+        "attributed_revenue"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.613
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q076",
+      "split": "holdout",
+      "question": "每家供应商未到货采购单有多少，平均交付天数也带上",
+      "expectedMetricKeys": [
+        "procurement_detail",
+        "supplier_performance"
+      ],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_supplier_performance_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_supplier_performance_view"
+      ],
+      "requiredOutputFields": [
+        "supplier_id",
+        "supplier_name",
+        "procurement_id",
+        "status",
+        "avg_delivery_days"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "supplier_performance",
+        "procurement_detail"
+      ],
+      "indexViews": [
+        "agent_v3_supplier_performance_view",
+        "agent_v3_purchase_procurement_view"
+      ],
+      "routeViews": [
+        "agent_v3_supplier_performance_view",
+        "agent_v3_purchase_procurement_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.95,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_supplier_performance_view",
+        "agent_v3_purchase_procurement_view"
+      ],
+      "planOutputFields": [
+        "supplier_id",
+        "supplier_name",
+        "procurement_amount",
+        "procurement_count",
+        "avg_delivery_days",
+        "average_procurement_amount"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.688
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q077",
+      "split": "holdout",
+      "question": "本月项目预估毛利高但耗材偏差异常的项目有哪些",
+      "expectedMetricKeys": [
+        "project_sales",
+        "bom_variance"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_service_sales_view",
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_service_sales_view",
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "estimated_margin",
+        "deviation_rate",
+        "standard_status"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "bom_variance",
+        "project_sales",
+        "confirmed_profit",
+        "inventory_movement",
+        "inventory_usage_balance",
+        "reconciliation_issue"
+      ],
+      "indexViews": [
+        "ask_data_bom_consumption_variance_view",
+        "agent_v3_project_service_sales_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_stock_movement_view",
+        "agent_v3_stock_movement_view",
+        "ask_data_reconciliation_issue_view"
+      ],
+      "routeViews": [
+        "ask_data_bom_consumption_variance_view",
+        "agent_v3_project_service_sales_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_bom_consumption_variance_view",
+        "agent_v3_project_service_sales_view"
+      ],
+      "planOutputFields": [
+        "movement_id",
+        "project_id",
+        "project_name",
+        "product_id",
+        "product_name",
+        "sku",
+        "standard_qty",
+        "actual_qty",
+        "deviation_qty",
+        "deviation_rate",
+        "project_revenue",
+        "estimated_margin",
+        "standard_status",
+        "occurred_at"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.603
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q078",
+      "split": "holdout",
+      "question": "现在进行中的活动数量和仍有效优惠数量分别多少",
+      "expectedMetricKeys": [
+        "marketing_activity",
+        "promotion_offer"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_promotion_offer_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_promotion_offer_view"
+      ],
+      "requiredOutputFields": [
+        "activity_id",
+        "promotion_id",
+        "status",
+        "start_at",
+        "end_at"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_activity",
+        "promotion_offer"
+      ],
+      "indexViews": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_promotion_offer_view"
+      ],
+      "routeViews": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_promotion_offer_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.92,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_promotion_offer_view"
+      ],
+      "planOutputFields": [
+        "activity_count",
+        "promotion_count"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.57
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q079",
+      "split": "holdout",
+      "question": "最近一个月按项目对比未完成服务数量、反馈数量和平均评分",
+      "expectedMetricKeys": [
+        "service_quality",
+        "customer_feedback"
+      ],
+      "acceptableViews": [
+        "agent_v3_service_quality_view",
+        "ask_data_customer_feedback_view"
+      ],
+      "requiredViews": [
+        "agent_v3_service_quality_view",
+        "ask_data_customer_feedback_view"
+      ],
+      "requiredOutputFields": [
+        "service_task_id",
+        "project_id",
+        "project_name",
+        "status",
+        "feedback_id",
+        "rating"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "customer_feedback",
+        "service_quality"
+      ],
+      "indexViews": [
+        "ask_data_customer_feedback_view",
+        "agent_v3_service_quality_view"
+      ],
+      "routeViews": [
+        "ask_data_customer_feedback_view",
+        "agent_v3_service_quality_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_customer_feedback_view",
+        "agent_v3_service_quality_view"
+      ],
+      "planOutputFields": [
+        "project_id",
+        "project_name",
+        "feedback_count",
+        "average_rating",
+        "service_task_count"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.647
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q080",
+      "split": "holdout",
+      "question": "本月调出单数量和调拨出库流水条数分别多少",
+      "expectedMetricKeys": [
+        "transfer_status",
+        "inventory_movement"
+      ],
+      "acceptableViews": [
+        "ask_data_transfer_status_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredViews": [
+        "ask_data_transfer_status_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredOutputFields": [
+        "transfer_id",
+        "direction",
+        "movement_id",
+        "movement_type"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "inventory_movement",
+        "transfer_status",
+        "inventory_loss_rate"
+      ],
+      "indexViews": [
+        "agent_v3_stock_movement_view",
+        "ask_data_transfer_status_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "routeViews": [
+        "agent_v3_stock_movement_view",
+        "ask_data_transfer_status_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_stock_movement_view",
+        "ask_data_transfer_status_view"
+      ],
+      "planOutputFields": [
+        "movement_quantity",
+        "movement_count",
+        "transfer_count",
+        "product_count"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.594
+    }
+  ],
+  "ambiguityResults": [
+    {
+      "id": "ask_holdout_v4:V4-C001",
+      "question": "春节那几天订单净收多少",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C002",
+      "question": "国庆期间哪场活动转化最好",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C003",
+      "question": "双十一退款总额是多少",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C004",
+      "question": "五一前后采购金额怎么变",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C005",
+      "question": "春节所在月份的确认利润是多少",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C006",
+      "question": "今年中秋那轮营销的 ROI 怎样",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [],
+      "retained": false,
+      "slotMatched": false
+    },
+    {
+      "id": "ask_holdout_v4:V4-C007",
+      "question": "元旦假期预约高峰在几点",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C008",
+      "question": "国庆那几天对账异常金额",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C009",
+      "question": "双十二优惠用了多少次",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C010",
+      "question": "春节前临期货值是多少",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C011",
+      "question": "最近大额退款有哪些",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充金额阈值或次数阈值，例如“退款金额超过 1000 元”或“剩余次数超过 5 次”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C012",
+      "question": "库存金额太高的商品列一下",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充金额阈值或次数阈值，例如“退款金额超过 1000 元”或“剩余次数超过 5 次”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C013",
+      "question": "高客单价订单有几笔",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充金额阈值或次数阈值，例如“退款金额超过 1000 元”或“剩余次数超过 5 次”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C014",
+      "question": "ROI 偏低的渠道有哪些",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充金额阈值或次数阈值，例如“退款金额超过 1000 元”或“剩余次数超过 5 次”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C015",
+      "question": "利用率过高的美容师是谁",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充观察周期或利用率阈值，例如“连续 30 天利用率低于 30%”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C016",
+      "question": "耗材偏差很大的项目有哪些",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充金额阈值或次数阈值，例如“退款金额超过 1000 元”或“剩余次数超过 5 次”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C017",
+      "question": "储值余额异常的客户名单",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充金额阈值或次数阈值，例如“退款金额超过 1000 元”或“剩余次数超过 5 次”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C018",
+      "question": "异常经营成本有哪些",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充成本异常标准，例如“单项超过 5000 元”“环比增加 30%”或“高于近 3 个月均值”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C019",
+      "question": "低评分反馈最近多不多",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充金额阈值或次数阈值，例如“退款金额超过 1000 元”或“剩余次数超过 5 次”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C020",
+      "question": "交付太慢的供应商有哪些",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充金额阈值或次数阈值，例如“退款金额超过 1000 元”或“剩余次数超过 5 次”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C021",
+      "question": "小王明天下午的预约是什么项目",
+      "expectedSlots": [
+        "entity_identity"
+      ],
+      "actualSlots": [
+        "entity_identity"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充更完整的名称或对象 ID，以便唯一定位。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C022",
+      "question": "张老师这个月业绩多少",
+      "expectedSlots": [
+        "entity_identity"
+      ],
+      "actualSlots": [
+        "entity_identity"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充更完整的名称或对象 ID，以便唯一定位。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C023",
+      "question": "丽丽的次卡还剩多少次",
+      "expectedSlots": [
+        "entity_identity"
+      ],
+      "actualSlots": [
+        "entity_identity"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充更完整的名称或对象 ID，以便唯一定位。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C024",
+      "question": "那个精华现在库存多少",
+      "expectedSlots": [
+        "entity_identity"
+      ],
+      "actualSlots": [
+        "entity_identity"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充更完整的名称或对象 ID，以便唯一定位。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C025",
+      "question": "那笔退款金额是多少",
+      "expectedSlots": [
+        "entity_identity"
+      ],
+      "actualSlots": [
+        "entity_identity"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充更完整的名称或对象 ID，以便唯一定位。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C026",
+      "question": "那个活动的转化数多少",
+      "expectedSlots": [
+        "entity_identity"
+      ],
+      "actualSlots": [
+        "entity_identity"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充更完整的名称或对象 ID，以便唯一定位。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C027",
+      "question": "美白项目做一次多久",
+      "expectedSlots": [
+        "entity_identity"
+      ],
+      "actualSlots": [
+        "entity_identity"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充更完整的名称或对象 ID，以便唯一定位。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C028",
+      "question": "那家供应商最近采购了多少",
+      "expectedSlots": [
+        "entity_identity"
+      ],
+      "actualSlots": [
+        "entity_identity"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充更完整的名称或对象 ID，以便唯一定位。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C029",
+      "question": "陈小姐的现金余额还有多少",
+      "expectedSlots": [
+        "entity_identity"
+      ],
+      "actualSlots": [
+        "entity_identity"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充更完整的名称或对象 ID，以便唯一定位。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C030",
+      "question": "那个美容师还有多少空闲时间",
+      "expectedSlots": [
+        "entity_identity",
+        "time_point"
+      ],
+      "actualSlots": [
+        "entity_identity",
+        "time_point"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请同时补充：更完整的名称或对象 ID，以便唯一定位；具体日期，例如“上周三”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C031",
+      "question": "这个月营业额算好还是不好",
+      "expectedSlots": [
+        "comparison_baseline"
+      ],
+      "actualSlots": [
+        "comparison_baseline"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请明确“平时”的比较基线，例如最近 7 天、最近 30 天或上月。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C032",
+      "question": "本月利润表现正常吗",
+      "expectedSlots": [
+        "comparison_baseline"
+      ],
+      "actualSlots": [
+        "comparison_baseline"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请明确“平时”的比较基线，例如最近 7 天、最近 30 天或上月。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C033",
+      "question": "现在的库存结构合理吗",
+      "expectedSlots": [
+        "comparison_baseline"
+      ],
+      "actualSlots": [
+        "comparison_baseline"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请明确库存结构的判断基线，例如目标品类占比、上月结构或近 30 天平均结构。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C034",
+      "question": "最近的转化率表现怎么样",
+      "expectedSlots": [
+        "comparison_baseline"
+      ],
+      "actualSlots": [
+        "comparison_baseline"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请明确“平时”的比较基线，例如最近 7 天、最近 30 天或上月。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C035",
+      "question": "美容师产能是不是健康",
+      "expectedSlots": [
+        "comparison_baseline"
+      ],
+      "actualSlots": [
+        "comparison_baseline"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请明确“平时”的比较基线，例如最近 7 天、最近 30 天或上月。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C036",
+      "question": "采购结构有变化吗",
+      "expectedSlots": [
+        "comparison_relation"
+      ],
+      "actualSlots": [
+        "comparison_relation"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请明确采购结构维度，例如按供应商、采购状态或月份分析。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C037",
+      "question": "退款情况跟以前比怎么样",
+      "expectedSlots": [
+        "comparison_baseline"
+      ],
+      "actualSlots": [
+        "comparison_baseline",
+        "comparison_relation"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请同时补充：“平时”的比较基线，例如最近 7 天、最近 30 天或上月；要比较的指标，例如营业额、实收或日结净收。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C038",
+      "question": "各渠道 ROI 哪个更值得继续投",
+      "expectedSlots": [
+        "comparison_baseline"
+      ],
+      "actualSlots": [
+        "comparison_baseline"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请明确“平时”的比较基线，例如最近 7 天、最近 30 天或上月。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C039",
+      "question": "会员负债变化是否安全",
+      "expectedSlots": [
+        "comparison_baseline"
+      ],
+      "actualSlots": [
+        "comparison_baseline"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请明确“平时”的比较基线，例如最近 7 天、最近 30 天或上月。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C040",
+      "question": "客户流失风险结构变差了吗",
+      "expectedSlots": [
+        "comparison_baseline"
+      ],
+      "actualSlots": [
+        "comparison_baseline"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请明确“平时”的比较基线，例如最近 7 天、最近 30 天或上月。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C041",
+      "question": "去年双十一的大额退款有哪些",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充金额阈值或次数阈值，例如“退款金额超过 1000 元”或“剩余次数超过 5 次”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C042",
+      "question": "国庆期间 ROI 很低的活动",
+      "expectedSlots": [
+        "year",
+        "threshold"
+      ],
+      "actualSlots": [
+        "year",
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请同时补充：要查询的具体年份，例如“2025 年双十一”；金额阈值或次数阈值，例如“退款金额超过 1000 元”或“剩余次数超过 5 次”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C043",
+      "question": "春节前交付很慢的供应商",
+      "expectedSlots": [
+        "year",
+        "threshold"
+      ],
+      "actualSlots": [
+        "year",
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请同时补充：要查询的具体年份，例如“2025 年双十一”；金额阈值或次数阈值，例如“退款金额超过 1000 元”或“剩余次数超过 5 次”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C044",
+      "question": "张老师国庆期间的业绩算好吗",
+      "expectedSlots": [
+        "year",
+        "entity_identity",
+        "comparison_baseline"
+      ],
+      "actualSlots": [
+        "year",
+        "comparison_baseline",
+        "entity_identity"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请同时补充：要查询的具体年份，例如“2025 年双十一”；“平时”的比较基线，例如最近 7 天、最近 30 天或上月；更完整的名称或对象 ID，以便唯一定位。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C045",
+      "question": "小陈那张快到期的卡还剩多少",
+      "expectedSlots": [
+        "entity_identity",
+        "threshold"
+      ],
+      "actualSlots": [
+        "entity_identity",
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请同时补充：更完整的名称或对象 ID，以便唯一定位；金额阈值或次数阈值，例如“退款金额超过 1000 元”或“剩余次数超过 5 次”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C046",
+      "question": "那个项目耗材偏差异常吗",
+      "expectedSlots": [
+        "entity_identity",
+        "threshold"
+      ],
+      "actualSlots": [
+        "entity_identity"
+      ],
+      "retained": true,
+      "slotMatched": false,
+      "clarificationQuestion": "请补充更完整的名称或对象 ID，以便唯一定位。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C047",
+      "question": "小王那天几点有预约",
+      "expectedSlots": [
+        "entity_identity",
+        "time_point"
+      ],
+      "actualSlots": [
+        "entity_identity",
+        "time_point"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请同时补充：更完整的名称或对象 ID，以便唯一定位；具体日期，例如“上周三”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C048",
+      "question": "春节所在月的成本是不是太高",
+      "expectedSlots": [
+        "year",
+        "threshold"
+      ],
+      "actualSlots": [
+        "year",
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请同时补充：要查询的具体年份，例如“2025 年双十一”；成本异常标准，例如“单项超过 5000 元”“环比增加 30%”或“高于近 3 个月均值”。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C049",
+      "question": "那个优惠活动使用率正常吗",
+      "expectedSlots": [
+        "entity_identity",
+        "comparison_baseline"
+      ],
+      "actualSlots": [
+        "comparison_baseline",
+        "entity_identity"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请同时补充：“平时”的比较基线，例如最近 7 天、最近 30 天或上月；更完整的名称或对象 ID，以便唯一定位。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-C050",
+      "question": "李老师最近服务完成得算好吗",
+      "expectedSlots": [
+        "entity_identity",
+        "comparison_baseline"
+      ],
+      "actualSlots": [
+        "comparison_baseline",
+        "entity_identity"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请同时补充：“平时”的比较基线，例如最近 7 天、最近 30 天或上月；更完整的名称或对象 ID，以便唯一定位。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-B008",
+      "question": "参考活动效果写三条朋友圈文案",
+      "expectedSlots": [
+        "comparison_relation"
+      ],
+      "actualSlots": [
+        "comparison_relation"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请明确要比较的指标，例如营业额、实收或日结净收。"
+    },
+    {
+      "id": "ask_holdout_v4:V4-B014",
+      "question": "把这笔退款审批通过",
+      "expectedSlots": [
+        "entity_identity"
+      ],
+      "actualSlots": [
+        "entity_identity"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充更完整的名称或对象 ID，以便唯一定位。"
+    }
+  ]
+}
