@@ -72,6 +72,7 @@ describe('BrainGovernanceTransitionService', () => {
     const prisma = {
       brainGovernanceTransition: {
         update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       brainRelease: {
         update: jest.fn().mockResolvedValue({}),
@@ -118,12 +119,31 @@ describe('BrainGovernanceTransitionService', () => {
       where: { id: 436 },
       data: expect.objectContaining({ supersededByReleaseId: 453 }),
     }));
+    expect(events.record.mock.calls.map(([event]) => event.eventType)).toEqual([
+      'runtime_shadow_activated',
+      'policy_switched',
+      'legacy_policy_retired',
+    ]);
+    expect(events.record).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'runtime_shadow_activated',
+      candidateId: 3,
+      entityType: 'governance_transition',
+      entityId: 7,
+      payload: expect.objectContaining({
+        policyCode: 'GP-003',
+        runtimeCode: 'RT-001',
+        effectiveReleaseId: 454,
+      }),
+    }));
   });
 
   it('restores the previous policy when runtime activation fails', async () => {
     const row = transition();
     const prisma = {
-      brainGovernanceTransition: { update: jest.fn().mockResolvedValue({}) },
+      brainGovernanceTransition: {
+        update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
       brainRelease: {
         findUnique: jest.fn().mockResolvedValue({ id: 453, status: 'active' }),
         findFirst: jest.fn().mockResolvedValue({ id: 436, status: 'active' }),
@@ -138,11 +158,13 @@ describe('BrainGovernanceTransitionService', () => {
       activateShadow: jest.fn().mockRejectedValue(new Error('runtime_activation_failed')),
       rollback: jest.fn(),
     };
+    const events = { record: jest.fn().mockResolvedValue({}) };
     const service = new BrainGovernanceTransitionService(
       prisma as never,
       controlPlane as never,
       {} as never,
       rollout as never,
+      events as never,
     );
     jest.spyOn(service, 'get').mockResolvedValue(row as never);
 
@@ -152,6 +174,95 @@ describe('BrainGovernanceTransitionService', () => {
     expect(prisma.brainGovernanceTransition.update).toHaveBeenLastCalledWith(expect.objectContaining({
       data: expect.objectContaining({ status: 'rolled_back', currentStep: 'compensation_completed' }),
     }));
+    expect(prisma.brainGovernanceTransition.updateMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: 7, mutationLeaseToken: expect.any(String) }),
+      data: {
+        mutationLeaseToken: null,
+        mutationLeaseOperation: null,
+        mutationLeaseExpiresAt: null,
+      },
+    }));
+    expect(events.record.mock.calls.map(([event]) => event.eventType)).toEqual([
+      'transition_compensation_started',
+      'transition_compensation_completed',
+    ]);
+    expect(events.record).toHaveBeenLastCalledWith(expect.objectContaining({
+      eventType: 'transition_compensation_completed',
+      payload: expect.objectContaining({ failureCode: 'runtime_activation_failed' }),
+    }));
+  });
+
+  it('rejects a concurrent transition mutation while another live lease is held', async () => {
+    const prisma = {
+      brainGovernanceTransition: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+    };
+    const controlPlane = { publishPolicySnapshot: jest.fn() };
+    const rollout = { activateShadow: jest.fn() };
+    const service = new BrainGovernanceTransitionService(
+      prisma as never,
+      controlPlane as never,
+      {} as never,
+      rollout as never,
+    );
+    const get = jest.spyOn(service, 'get');
+
+    await expect(service.switch({ id: 7, actorId: 5, storeId: 1, userId: 5, roleKey: 'manager' }))
+      .rejects.toThrow('governance_transition_mutation_in_progress');
+    expect(get).not.toHaveBeenCalled();
+    expect(controlPlane.publishPolicySnapshot).not.toHaveBeenCalled();
+    expect(rollout.activateShadow).not.toHaveBeenCalled();
+    expect(prisma.brainGovernanceTransition.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        id: 7,
+        OR: [
+          { mutationLeaseToken: null },
+          { mutationLeaseExpiresAt: { lte: expect.any(Date) } },
+        ],
+      }),
+      data: expect.objectContaining({
+        mutationLeaseToken: expect.any(String),
+        mutationLeaseOperation: 'switch',
+        mutationLeaseExpiresAt: expect.any(Date),
+      }),
+    }));
+  });
+
+  it('does not expose the mutation lease token in transition DTOs', () => {
+    const service = new BrainGovernanceTransitionService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const expiresAt = new Date('2026-08-04T00:05:00.000Z');
+    const result = (service as unknown as {
+      withProductIdentities: (value: Record<string, unknown>) => Record<string, unknown>;
+    }).withProductIdentities({
+      ...transition(),
+      mutationLeaseToken: 'internal-lease-token',
+      mutationLeaseOperation: 'switch',
+      mutationLeaseExpiresAt: expiresAt,
+      oldPolicy: { id: 436, releaseKey: 'legacy-policy', scope: 'governance_policy', status: 'active' },
+      newPolicy: { id: 453, releaseKey: 'query-only-policy', scope: 'governance_policy', status: 'draft' },
+      oldRuntime: { id: 452, releaseKey: 'legacy-runtime', scope: 'percentage', status: 'active' },
+      runtimeSequence: {
+        id: 9,
+        runtimeVersionCode: 'RT-001',
+        displayName: 'Query Only V1',
+        productProfile: 'query_only_v1',
+        status: 'draft',
+        currentStage: 'shadow',
+        policySnapshot: { id: 453, releaseKey: 'query-only-policy', scope: 'governance_policy' },
+        releases: [{ id: 454, releaseKey: 'query-only-shadow', scope: 'percentage', rolloutStage: 'shadow', status: 'draft' }],
+      },
+    });
+
+    expect(result).not.toHaveProperty('mutationLeaseToken');
+    expect(result).not.toHaveProperty('mutationLeaseOperation');
+    expect(result).not.toHaveProperty('mutationLeaseExpiresAt');
+    expect(result).toMatchObject({ mutationLease: { operation: 'switch', expiresAt } });
   });
 
   it('reuses an existing open transition without creating duplicate GP or RT drafts', async () => {
@@ -186,6 +297,7 @@ describe('BrainGovernanceTransitionService', () => {
       events as never,
     );
     jest.spyOn(service, 'validate').mockResolvedValue({ transitionId: 7, valid: true, blockers: [], readiness: null } as never);
+    jest.spyOn(service, 'get').mockResolvedValue({ id: 7, status: 'approved' } as never);
 
     await expect(service.approvePolicy(7, 5)).resolves.toMatchObject({ status: 'approved' });
     expect(prisma.brainGovernanceTransition.updateMany).toHaveBeenCalledWith(expect.objectContaining({
@@ -213,9 +325,11 @@ describe('BrainGovernanceTransitionService', () => {
       events as never,
     );
     const validate = jest.spyOn(service, 'validate');
+    const get = jest.spyOn(service, 'get').mockResolvedValue(approved as never);
 
     await expect(service.approvePolicy(7, 5)).resolves.toBe(approved);
     expect(validate).not.toHaveBeenCalled();
+    expect(get).toHaveBeenCalledWith(7);
     expect(prisma.brainGovernanceTransition.updateMany).not.toHaveBeenCalled();
     expect(events.record).not.toHaveBeenCalled();
   });
@@ -234,7 +348,10 @@ describe('BrainGovernanceTransitionService', () => {
       },
     });
     const prisma = {
-      brainGovernanceTransition: { update: jest.fn().mockResolvedValue({}) },
+      brainGovernanceTransition: {
+        update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
       brainRelease: {
         update: jest.fn().mockResolvedValue({}),
         findUnique: jest.fn(),
@@ -272,7 +389,10 @@ describe('BrainGovernanceTransitionService', () => {
   it('returns an already rolled-back transition without repeating rollback side effects', async () => {
     const row = transition({ status: 'rolled_back' });
     const prisma = {
-      brainGovernanceTransition: { update: jest.fn() },
+      brainGovernanceTransition: {
+        update: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
       brainRelease: { findUnique: jest.fn() },
       $transaction: transactionMock(),
     };
@@ -305,7 +425,10 @@ describe('BrainGovernanceTransitionService', () => {
       },
     });
     const prisma = {
-      brainGovernanceTransition: { update: jest.fn().mockResolvedValue({}) },
+      brainGovernanceTransition: {
+        update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
       brainRelease: {
         findUnique: jest.fn().mockResolvedValue({ id: 453, status: 'active' }),
         update: jest.fn().mockResolvedValue({}),
@@ -347,7 +470,10 @@ describe('BrainGovernanceTransitionService', () => {
     });
     const prisma = {
       brainRelease: { update: jest.fn().mockResolvedValue({}) },
-      brainGovernanceTransition: { update: jest.fn().mockResolvedValue({}) },
+      brainGovernanceTransition: {
+        update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
       $transaction: transactionMock(),
     };
     const events = { record: jest.fn().mockResolvedValue({}) };
@@ -368,5 +494,16 @@ describe('BrainGovernanceTransitionService', () => {
       data: expect.objectContaining({ status: 'archived', supersededByReleaseId: 458 }),
     });
     expect(prisma).not.toHaveProperty('brainRelease.delete');
+    expect(events.record.mock.calls.map(([event]) => event.eventType)).toEqual([
+      'legacy_runtime_superseded',
+      'transition_completed',
+    ]);
+    expect(events.record).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'legacy_runtime_superseded',
+      payload: expect.objectContaining({
+        supersededRuntimeReleaseId: 452,
+        activeRuntimeReleaseId: 458,
+      }),
+    }));
   });
 });
