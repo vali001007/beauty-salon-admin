@@ -3,9 +3,9 @@ import { resolve } from 'node:path';
 import { ASK_DATA_FREE_SQL_VIEWS } from './ask-data-free-sql.catalog.js';
 
 describe('Ask Data Free SQL catalog and independence', () => {
-  it('registers 36 governed views with store and permission policies', () => {
-    expect(ASK_DATA_FREE_SQL_VIEWS).toHaveLength(36);
-    expect(new Set(ASK_DATA_FREE_SQL_VIEWS.map((view) => view.viewName)).size).toBe(36);
+  it('registers 37 governed views with store and permission policies', () => {
+    expect(ASK_DATA_FREE_SQL_VIEWS).toHaveLength(37);
+    expect(new Set(ASK_DATA_FREE_SQL_VIEWS.map((view) => view.viewName)).size).toBe(37);
     for (const view of ASK_DATA_FREE_SQL_VIEWS) {
       expect(view.requiredPermissions.length).toBeGreaterThan(0);
       expect(view.storeScopeField).toBe('store_id');
@@ -14,6 +14,38 @@ describe('Ask Data Free SQL catalog and independence', () => {
       expect(view.dataPolicy?.length).toBeGreaterThan(0);
       expect(view.defaultTimeField || view.requiresTimeScope === false).toBeTruthy();
     }
+  });
+
+  it('registers item contribution margin without exposing order or customer internals', () => {
+    const view = ASK_DATA_FREE_SQL_VIEWS.find((item) => item.viewName === 'ask_data_item_margin_view');
+    expect(view?.requiredPermissions).toEqual(['core:operation-profit:view']);
+    expect(view?.defaultTimeField).toBe('event_at');
+    expect(view?.allowJoin).toBe(false);
+    expect(view?.dataPolicy).toContain('贡献毛利');
+    expect(view?.dataPolicy).toContain('不等同已确认月结利润');
+    expect(view?.fields.map((field) => field.name)).toEqual(expect.arrayContaining([
+      'event_id',
+      'event_type',
+      'event_at',
+      'item_type',
+      'item_id',
+      'item_name',
+      'net_revenue',
+      'attributed_cost',
+      'contribution_margin',
+      'contribution_margin_rate',
+      'cost_basis',
+      'is_estimated_cost',
+      'cost_completeness',
+    ]));
+    expect(view?.fields.map((field) => field.name)).not.toEqual(expect.arrayContaining([
+      'customer_id',
+      'customer_name',
+      'phone',
+      'remark',
+      'refund_reason',
+      'items',
+    ]));
   });
 
   it('registers approved supplier quote terms without sensitive supplier fields', () => {

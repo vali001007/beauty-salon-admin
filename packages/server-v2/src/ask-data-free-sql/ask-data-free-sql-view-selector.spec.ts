@@ -52,7 +52,7 @@ describe('Ask Data view selector', () => {
       deniedPermissions: [],
       visible: ['ask_data_confirmed_profit_view', 'ask_data_marketing_roi_view'],
       hidden: [],
-      count: 36,
+      count: 37,
     },
     {
       role: '财务',
@@ -146,6 +146,6 @@ describe('Ask Data view selector', () => {
   });
 
   it('keeps the selector independent from Agent and Brain runtime registries', () => {
-    expect(ASK_DATA_FREE_SQL_VIEWS).toHaveLength(36);
+    expect(ASK_DATA_FREE_SQL_VIEWS).toHaveLength(37);
   });
 });

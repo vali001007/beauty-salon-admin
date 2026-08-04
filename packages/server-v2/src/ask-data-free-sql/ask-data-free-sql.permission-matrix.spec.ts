@@ -40,6 +40,7 @@ const matrix: MatrixRole[] = [
       'agent_v3_customer_balance_view',
       'ask_data_operating_cost_view',
       'ask_data_confirmed_profit_view',
+      'ask_data_item_margin_view',
       'ask_data_reconciliation_issue_view',
       'ask_data_member_liability_view',
     ],

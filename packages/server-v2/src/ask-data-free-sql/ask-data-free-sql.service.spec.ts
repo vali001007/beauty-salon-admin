@@ -123,7 +123,7 @@ describe('AskDataFreeSqlService', () => {
 
     expect(catalog.connectionMode).toBe('development_admin');
     expect(catalog.executeReady).toBe(true);
-    expect(catalog.totalCount).toBe(36);
+    expect(catalog.totalCount).toBe(37);
     expect((executor.execute as jest.Mock).mock.calls[0][0].connectionString).toContain('admin:secret');
     expect(result.queryMeta.connectionMode).toBe('development_admin');
     expect(result.limitations.join(' ')).toContain('开发环境管理员数据库连接冒烟模式');

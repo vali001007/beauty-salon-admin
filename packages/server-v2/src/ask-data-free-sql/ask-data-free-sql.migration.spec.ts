@@ -12,7 +12,7 @@ describe('Ask Data Free SQL migration and grants', () => {
     expect(sql).toContain('"storeId" INTEGER NOT NULL');
   });
 
-  it('grants the read-only role only the 36 registered views', () => {
+  it('grants the read-only role only the 37 registered views', () => {
     const sql = readFileSync(resolve(process.cwd(), 'prisma/ask-data-free-sql-readonly-grants.template.sql'), 'utf8');
     expect(sql).toContain('ALTER ROLE ask_data_free_sql_readonly SET default_transaction_read_only = on');
     expect(sql).toContain('NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS');
@@ -22,7 +22,54 @@ describe('Ask Data Free SQL migration and grants', () => {
     expect(sql).toContain('REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public');
     expect(sql).not.toContain('GRANT SELECT ON ALL TABLES');
     expect(sql).not.toContain('GRANT INSERT');
-    expect((sql.match(/(?:agent_v3|ask_data)_[a-z_]+_view/g) ?? []).length).toBe(36);
+    expect((sql.match(/(?:agent_v3|ask_data)_[a-z_]+_view/g) ?? []).length).toBe(37);
+  });
+
+  it('keeps the deferred next-version discount/refund artifact free of sensitive internals and revokes readonly access', () => {
+    const sql = readFileSync(
+      resolve(process.cwd(), 'prisma/migrations/20260804190000_ask_data_discount_refund_governance/migration.sql'),
+      'utf8',
+    );
+    expect(sql).toContain('CREATE VIEW ask_data_discount_refund_governance_view AS');
+    expect(sql).toContain("THEN 'review_manual_source'");
+    expect(sql).toContain("THEN 'review_unlinked_discount'");
+    expect(sql).toContain('successful_refund_processing_hours');
+    expect(sql).toContain('refund_after_completed_service');
+    expect(sql).toContain('repurchased_within_7d');
+    expect(sql).toContain('staff_attribution_status');
+    expect(sql).toContain('GRANT SELECT ON ask_data_discount_refund_governance_view TO ask_data_free_sql_readonly');
+    expect(sql).not.toContain('refund."reason"');
+    expect(sql).not.toContain('orders."remark"');
+    expect(sql).not.toContain('orders."discountPayload"');
+    expect(sql).not.toContain('item."discountPayload"');
+    expect(sql).not.toContain('approvalJson');
+
+    const deferralSql = readFileSync(
+      resolve(process.cwd(), 'prisma/migrations/20260804193000_defer_ask_data_discount_refund_governance/migration.sql'),
+      'utf8',
+    );
+    expect(deferralSql).toContain('REVOKE SELECT ON ask_data_discount_refund_governance_view FROM ask_data_free_sql_readonly');
+    expect(deferralSql).not.toContain('DROP VIEW');
+  });
+
+  it('creates the Ask-only item contribution margin view with governed cost completeness', () => {
+    const sql = readFileSync(
+      resolve(process.cwd(), 'prisma/migrations/20260804170000_ask_data_item_margin/migration.sql'),
+      'utf8',
+    );
+    expect(sql).toContain('CREATE VIEW ask_data_item_margin_view AS');
+    expect(sql).toContain("'order_sale'::text AS event_type");
+    expect(sql).toContain("'card_redemption'::text AS event_type");
+    expect(sql).toContain("'refund'::text AS event_type");
+    expect(sql).toContain("THEN 'cost_missing'");
+    expect(sql).toContain("THEN 'bom_standard_estimate'");
+    expect(sql).toContain("ELSE 'order_proportional_allocation'");
+    expect(sql).toContain("movement.\"movementType\" = 'sale_return_in'");
+    expect(sql).toContain('event.net_revenue - event.attributed_cost');
+    expect(sql).toContain('GRANT SELECT ON ask_data_item_margin_view TO ask_data_free_sql_readonly');
+    expect(sql).not.toContain('customer."phone"');
+    expect(sql).not.toContain('refund."reason"');
+    expect(sql).not.toContain('orders."remark"');
   });
 
   it('creates the Ask-only approved supplier quote and commercial terms view', () => {
@@ -241,7 +288,7 @@ describe('Ask Data Free SQL migration and grants', () => {
       scripts?: Record<string, string>;
     };
     expect(source).toContain(
-      "const TARGET_MIGRATION = '20260804124500_ask_data_supplier_quote_terms_rank_fix'",
+      "const TARGET_MIGRATION = '20260804170000_ask_data_item_margin'",
     );
     expect(source).toContain(
       "const EXCLUDED_BRAIN_MIGRATION = '20260801010000_brain_governance_tasks_and_gate_receipts'",
@@ -305,7 +352,7 @@ describe('Ask Data Free SQL migration and grants', () => {
     expect(source).not.toContain('console.log(token)');
   });
 
-  it('provides a 36-view real SQL smoke gate for dedicated and development-admin connections', () => {
+  it('provides a 37-view real SQL smoke gate for dedicated and development-admin connections', () => {
     const source = readFileSync(resolve(process.cwd(), 'prisma/ask-data-free-sql-view-smoke.ts'), 'utf8');
     const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')) as {
       scripts?: Record<string, string>;

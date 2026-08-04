@@ -41,6 +41,8 @@ export class AskDataClarificationPolicy {
             ? '请补充空档判断标准，例如“可用容量超过 20 个”“空档时段超过 10 个”或“利用率低于 50%”。'
             : /差评|负面反馈/.test(ambiguity.reason)
               ? '请补充负面反馈判断标准，例如“本月差评超过 5 条”“负面反馈占比超过 10%”或“高于上月”。'
+              : /贡献毛利/.test(ambiguity.reason)
+                ? '请补充贡献毛利判断标准，例如“贡献毛利率低于 20%”“贡献毛利为负”或“低于上月”。'
               : /供应商集中度/.test(ambiguity.reason)
                 ? '请补充供应商集中度标准，例如“第一大供应商采购金额占比超过 50%”或“高于上月”。'
                 : /余额.*异常偏高/.test(ambiguity.reason)

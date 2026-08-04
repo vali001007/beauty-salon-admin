@@ -31,3 +31,13 @@ test('keeps catalog contracts deterministic', () => {
   assert.equal(sameStringSet(['b', 'a'], ['a', 'b']), true);
   assert.equal(sameStringSet(['a'], ['b']), false);
 });
+
+test('includes item-margin in the current 37-view permission contract', () => {
+  const admin = ASK_DATA_PERMISSION_ACCEPTANCE_ROLES.find((item) => item.key === 'admin');
+  const finance = ASK_DATA_PERMISSION_ACCEPTANCE_ROLES.find((item) => item.key === 'finance');
+
+  assert.equal(admin.expectedViews, '*');
+  assert.equal(admin.expectedViewCount, 37);
+  assert.ok(finance.expectedViews.includes('ask_data_item_margin_view'));
+  assert.equal(finance.expectedViews.length, 9);
+});

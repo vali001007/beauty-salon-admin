@@ -50,6 +50,15 @@ const METRIC_FIELDS: Record<string, AskDataQueryAggregation[]> = {
   order_revenue: [sum('net_amount', 'net_revenue'), countDistinct('order_id', 'order_count')],
   product_sales: [sum('quantity', 'sales_quantity'), sum('net_amount', 'net_sales_amount')],
   project_sales: [sum('service_quantity', 'service_count'), sum('net_amount', 'project_revenue')],
+  item_contribution_margin: itemContributionMarginAggregations(),
+  project_attributed_cost: [
+    sum('net_revenue', 'net_revenue'),
+    sum('attributed_cost', 'attributed_cost'),
+    derived('attributed_cost_rate', 'SUM(attributed_cost) / NULLIF(SUM(net_revenue), 0)', ['attributed_cost', 'net_revenue']),
+    derived('estimated_cost_event_count', 'COUNT(*) FILTER (WHERE is_estimated_cost)', ['is_estimated_cost']),
+    derived('cost_missing_event_count', 'COUNT(*) FILTER (WHERE attributed_cost IS NULL)', ['attributed_cost']),
+  ],
+  below_cost_sale: itemContributionMarginAggregations(),
   payment_flow: [sum('payment_amount', 'payment_amount'), sum('refund_amount', 'refund_amount'), count('order_id', 'flow_count')],
   daily_net_receipts: [sum('net_amount', 'net_receipts'), sum('order_count', 'order_count')],
   inventory_on_hand: [sum('current_stock', 'current_stock'), sum('stock_value', 'stock_value')],
@@ -114,17 +123,19 @@ const METRIC_FIELDS: Record<string, AskDataQueryAggregation[]> = {
 };
 
 const DIMENSION_FIELDS: Record<string, string[]> = {
-  date: ['order_created_at', 'paid_at', 'settlement_date', 'occurred_at', 'verified_at', 'appointment_time', 'completed_at', 'latest_task_at', 'date', 'business_date', 'period_month', 'settle_month', 'work_date', 'effect_date', 'latest_event_at', 'snapshot_date', 'start_at', 'created_at', 'computed_at'],
+  date: ['order_created_at', 'paid_at', 'settlement_date', 'occurred_at', 'event_at', 'verified_at', 'appointment_time', 'completed_at', 'latest_task_at', 'date', 'business_date', 'period_month', 'settle_month', 'work_date', 'effect_date', 'latest_event_at', 'snapshot_date', 'start_at', 'created_at', 'computed_at'],
   time_slot: ['start_time'],
   month: ['period_month', 'settle_month'],
   snapshot_date: ['snapshot_date'],
   customer: ['customer_id', 'customer_name_masked'],
   member_level: ['member_level'],
-  staff: ['staff_id', 'staff_name', 'beautician_id', 'beautician_name'],
+  staff: ['staff_id', 'staff_name', 'beautician_id', 'beautician_name', 'primary_staff_id', 'primary_staff_name'],
   staff_level: ['level_name'],
   operator: ['operator_name'],
   project: ['project_id', 'project_name'],
   product: ['product_id', 'product_name', 'sku'],
+  item_type: ['item_type'],
+  cost_basis: ['cost_basis', 'cost_completeness'],
   product_category: ['category_name'],
   sku: ['sku'],
   supplier: ['supplier_id', 'supplier_name'],
@@ -180,6 +191,7 @@ const DETAIL_IDENTITY_FIELDS: Record<string, string[]> = {
   agent_v3_service_quality_view: ['service_task_id'],
   agent_v3_appointment_gap_view: ['date', 'start_time'],
   agent_v3_project_catalog_view: ['project_id', 'project_name'],
+  ask_data_item_margin_view: ['event_id', 'item_id', 'item_name'],
   agent_v3_marketing_activity_view: ['activity_id'],
   agent_v3_marketing_automation_view: ['automation_source', 'trigger_type'],
   agent_v3_promotion_offer_view: ['promotion_id', 'promotion_name'],
@@ -226,7 +238,7 @@ export function buildAskDataQueryPlan(input: {
     resultMode = 'scalar';
   }
   if (input.semanticIntent.entities.some((entity) => /^(?:project|项目|product|商品|supplier|供应商)$/.test(entity.type))) {
-    resultMode = metricKeys.every((metricKey) => ['project_catalog', 'inventory_on_hand', 'inventory_days_of_stock', 'inventory_operational_turnover', 'inventory_slow_moving', 'inventory_demand_change', 'inventory_procurement_coverage', 'inventory_outbound_usage', 'inventory_outbound_cost_estimate', 'supplier_performance', 'supplier_latest_quote', 'supplier_price_comparison', 'supplier_minimum_order_quantity', 'supplier_payment_terms', 'supplier_lead_time'].includes(metricKey))
+    resultMode = metricKeys.every((metricKey) => ['project_catalog', 'inventory_on_hand', 'inventory_days_of_stock', 'inventory_operational_turnover', 'inventory_slow_moving', 'inventory_demand_change', 'inventory_procurement_coverage', 'inventory_outbound_usage', 'inventory_outbound_cost_estimate', 'supplier_performance', 'supplier_latest_quote', 'supplier_price_comparison', 'supplier_minimum_order_quantity', 'supplier_payment_terms', 'supplier_lead_time', 'item_contribution_margin', 'project_attributed_cost', 'below_cost_sale'].includes(metricKey))
       ? 'detail'
       : 'grouped';
   }
@@ -237,6 +249,25 @@ export function buildAskDataQueryPlan(input: {
     resultMode = 'grouped';
   }
   if (metricKeys.includes('marketing_roi') && /活动.*(?:亏钱|亏损|赔钱|不赚钱)/.test(input.question)) {
+    resultMode = 'grouped';
+  }
+  if (metricKeys.includes('below_cost_sale')) resultMode = 'ranking';
+  if (metricKeys.includes('item_contribution_margin') && /各项目|每个项目|各商品|每个商品|各产品|每个产品/.test(input.question)) {
+    resultMode = 'grouped';
+  }
+  if (metricKeys.includes('item_contribution_margin')
+    && input.semanticIntent.answerShape === 'comparison'
+    && /商品|产品/.test(input.question)
+    && /项目|服务/.test(input.question)) {
+    resultMode = 'grouped';
+  } else if (metricKeys.includes('item_contribution_margin') && /(?:最高|最低|排行|排名|哪个|哪些)/.test(input.question)) {
+    resultMode = 'ranking';
+  }
+  if (metricKeys.includes('project_attributed_cost') && /(?:各项目|每个项目|哪个项目|最高)/.test(input.question)) {
+    resultMode = /最高|哪个/.test(input.question) ? 'ranking' : 'grouped';
+  }
+  if (metricKeys.some((metricKey) => ['item_contribution_margin', 'project_attributed_cost'].includes(metricKey))
+    && /按成本口径|各成本口径|按成本来源|各成本来源/.test(input.question)) {
     resultMode = 'grouped';
   }
   if (input.semanticIntent.answerShape === 'comparison' && metricKeys.length > 1 && /各多少|分别(?:是多少|多少)/.test(input.question)) {
@@ -359,6 +390,12 @@ export function buildAskDataQueryPlan(input: {
       : []),
     ...(metricKeys.includes('inventory_outbound_cost_estimate')
       ? ['耗材出库费用使用商品档案成本估算，不代表批次实际采购成本或已确认财务成本。']
+      : []),
+    ...(metricKeys.some((metricKey) => ['item_contribution_margin', 'project_attributed_cost', 'below_cost_sale'].includes(metricKey))
+      ? ['本结果为商品/项目贡献毛利口径：已识别净收入减可归属商品/耗材成本，不含员工提成和经营费用，不等同已确认月结利润。']
+      : []),
+    ...(metricKeys.some((metricKey) => ['item_contribution_margin', 'project_attributed_cost', 'below_cost_sale'].includes(metricKey))
+      ? ['成本优先使用库存/耗材流水；未覆盖部分使用商品档案成本或 BOM 标准成本估算，回答必须披露估算性。']
       : []),
     ...(/权益.*吸引力/.test(input.question)
       ? ['权益吸引力默认按归因转化率排名。']
@@ -501,6 +538,8 @@ function resolveDimensionKeys(
   add('supplier', /各供应商|每家供应商|供应商.*(?:排行|前\s*[一二三四五六七八九十\d]+|比较)/);
   add('project', /按项目|各项目|每个项目|哪个项目|项目.*前\s*[一二三四五六七八九十\d]+|耗材最多的项目/);
   add('product', /按商品|各商品|每种商品|哪些商品|哪些产品|产品.*前\s*[一二三四五六七八九十\d]+|卖得最好.*(?:产品|商品)|(?:产品|商品).*卖得最好|(?:产品|商品).*动销|动销分析|补水|防晒|洗面奶|耗材/);
+  add('item_type', /(?:商品|产品).*(?:项目|服务).*毛利|(?:项目|服务).*(?:商品|产品).*毛利|按品项类型|商品与项目/);
+  add('cost_basis', /成本口径|成本来源|估算成本|成本完整性/);
   add('product', /缺货最紧急/);
   add('product', /有什么(?:产品|商品)|有没有什么(?:产品|商品)|(?:过期|临期).*(?:产品|商品|东西)|(?:产品|商品|东西).*过期/);
   add('product_category', /各品类|按品类|商品分类|产品分类/);
@@ -536,6 +575,24 @@ function resolveDimensionKeys(
     keys.delete('customer');
     keys.delete('staff');
     keys.delete('project');
+  }
+  if (metricKeys.includes('item_contribution_margin')
+    && /商品|产品/.test(question)
+    && /项目|服务/.test(question)
+    && /毛利/.test(question)) {
+    keys.add('item_type');
+    keys.delete('product');
+    keys.delete('project');
+  }
+  if (metricKeys.includes('project_attributed_cost') && /项目/.test(question)) {
+    keys.add('project');
+    keys.delete('product');
+  }
+  if (metricKeys.includes('item_contribution_margin')
+    && keys.has('cost_basis')
+    && !/各项目|每个项目|按项目|各商品|每个商品|按商品|各产品|每个产品|按产品/.test(question)) {
+    keys.delete('project');
+    keys.delete('product');
   }
   if (metricKeys.includes('inventory_outbound_cost_estimate')
     && !/(?:按|各|每个|哪些)(?:产品|商品|耗材)|(?:产品|商品|耗材).*(?:排行|排名)/.test(question)) {
@@ -615,6 +672,9 @@ function metricAggregationsForQuestion(
       derived('net_sales_after_refund', 'SUM(net_amount) - SUM(refund_amount)', ['net_amount', 'refund_amount']),
     ];
   }
+  if (metricKey === 'item_contribution_margin') return METRIC_FIELDS.item_contribution_margin;
+  if (metricKey === 'project_attributed_cost') return METRIC_FIELDS.project_attributed_cost;
+  if (metricKey === 'below_cost_sale') return METRIC_FIELDS.below_cost_sale;
   if (metricKey === 'project_sales' && /毛利|利润贡献/.test(question)) {
     return [
       sum('net_amount', 'project_revenue'),
@@ -1181,6 +1241,10 @@ function resolveSort(
     (/发放数量/.test(question) ? byAlias('issued_count') : undefined) ??
     (/偏差率/.test(question) ? byAlias('deviation_rate') : undefined) ??
     (/耗材最多/.test(question) ? byAlias('actual_qty') : undefined) ??
+    (/(?:毛利率|贡献毛利率).*(?:最高|最低|排行|排名)|(?:最高|最低).*(?:毛利率|贡献毛利率)/.test(question) ? byAlias('contribution_margin_rate') : undefined) ??
+    (/(?:项目|耗材).*成本.*(?:最高|最多|排行|排名)|(?:最高|最多).*(?:项目|耗材).*成本/.test(question) ? byAlias('attributed_cost') : undefined) ??
+    (/(?:亏损|亏本|低于成本|毛利最低)/.test(question) ? byAlias('contribution_margin') : undefined) ??
+    (/(?:贡献)?毛利.*(?:最高|最低|排行|排名)|(?:最高|最低).*(?:贡献)?毛利/.test(question) ? byAlias('contribution_margin') : undefined) ??
     (/利润贡献|项目毛利/.test(question) ? byAlias('estimated_margin') : undefined) ??
     (/贡献.*主要营收/.test(question) ? byAlias('project_revenue') : undefined) ??
     (/(?:获客|拓客)成本/.test(question) ? byAlias('acquisition_cost') : undefined) ??
@@ -1216,7 +1280,7 @@ function resolveSort(
     ?? (resultMode === 'detail' ? undefined : aggregations[0]?.alias ?? dimensions[0]?.field);
   if (!field) return [];
   const direction = field === 'lead_days'
-    || /最低|最少|最短|最早|第一笔|首笔|下一个|即将结束|最容易过期|缺货最紧急/.test(question)
+    || /最低|最少|最短|最早|第一笔|首笔|下一个|即将结束|最容易过期|缺货最紧急|亏损|亏本|低于成本/.test(question)
     ? 'asc' as const
     : 'desc' as const;
   const nulls = aggregations.some((aggregation) => aggregation.alias === field && aggregation.fn === 'derived')
@@ -1377,6 +1441,23 @@ function deriveQuestionFilters(question: string, metricKeys: string[]) {
     'supplier_lead_time',
   ].includes(metricKey))) {
     filters.push({ field: 'is_current_valid', operator: 'eq', value: true });
+  }
+  if (metricKeys.some((metricKey) => ['item_contribution_margin', 'project_attributed_cost', 'below_cost_sale'].includes(metricKey))) {
+    const mentionsProduct = /商品|产品/.test(question);
+    const mentionsProject = /项目|服务/.test(question);
+    if (mentionsProduct && !mentionsProject) filters.push({ field: 'item_type', operator: 'eq', value: 'product' });
+    if (mentionsProject && !mentionsProduct) filters.push({ field: 'item_type', operator: 'eq', value: 'project' });
+  }
+  if (metricKeys.includes('item_contribution_margin') && /次卡核销/.test(question)) {
+    filters.push({ field: 'event_type', operator: 'eq', value: 'card_redemption' });
+  }
+  if (metricKeys.includes('item_contribution_margin')
+    && /退款.*(?:冲减|影响).*(?:收入|成本|毛利)|(?:收入|成本|毛利).*退款冲减/.test(question)) {
+    filters.push({ field: 'event_type', operator: 'eq', value: 'refund' });
+  }
+  if (metricKeys.includes('below_cost_sale')) {
+    filters.push({ field: 'attributed_cost', operator: 'is_not_null', value: true });
+    filters.push({ field: 'net_revenue', operator: 'aggregate_lt', value: 'attributed_cost' });
   }
   if (metricKeys.includes('supplier_price_comparison') && /(?:更低|最低|降低成本|报价差额)/.test(question)) {
     filters.push({ field: 'alternative_supplier_count', operator: 'gt', value: 0 });
@@ -1858,6 +1939,28 @@ const PAYMENT_METHODS: Array<RequestedPaymentMethod & { pattern: RegExp }> = [
 
 function resolveRequestedPaymentMethods(question: string): RequestedPaymentMethod[] {
   return PAYMENT_METHODS.filter((method) => method.pattern.test(question)).map(({ pattern: _pattern, ...method }) => method);
+}
+
+function itemContributionMarginAggregations(): AskDataQueryAggregation[] {
+  return [
+    sumZero('gross_revenue', 'gross_revenue'),
+    sumZero('discount_amount', 'discount_amount'),
+    sumZero('refund_amount', 'refund_amount'),
+    sumZero('net_revenue', 'net_revenue'),
+    sumZero('attributed_cost', 'attributed_cost'),
+    derived(
+      'contribution_margin',
+      'CASE WHEN COUNT(*) FILTER (WHERE attributed_cost IS NULL) > 0 THEN NULL ELSE COALESCE(SUM(net_revenue), 0) - COALESCE(SUM(attributed_cost), 0) END',
+      ['net_revenue', 'attributed_cost'],
+    ),
+    derived(
+      'contribution_margin_rate',
+      'CASE WHEN COUNT(*) FILTER (WHERE attributed_cost IS NULL) > 0 THEN NULL ELSE (COALESCE(SUM(net_revenue), 0) - COALESCE(SUM(attributed_cost), 0)) / NULLIF(COALESCE(SUM(net_revenue), 0), 0) END',
+      ['net_revenue', 'attributed_cost'],
+    ),
+    derived('estimated_cost_event_count', 'COUNT(*) FILTER (WHERE is_estimated_cost)', ['is_estimated_cost']),
+    derived('cost_missing_event_count', 'COUNT(*) FILTER (WHERE attributed_cost IS NULL)', ['attributed_cost']),
+  ];
 }
 
 function sum(field: string, alias: string): AskDataQueryAggregation { return { field, alias, fn: 'sum' }; }

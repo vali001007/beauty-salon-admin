@@ -70,10 +70,53 @@ describe('Ami Ask independent semantic router', () => {
     ['各品类的最低采购量要求是什么', 'supplier_minimum_order_quantity', 'list'],
     ['我们和供应商的账期是怎么约定的', 'supplier_payment_terms', 'list'],
     ['哪些供应商报价交期最短', 'supplier_lead_time', 'ranking'],
+    ['哪些产品毛利率最高', 'item_contribution_margin', 'ranking'],
+    ['帮我看各项目毛利', 'item_contribution_margin', 'list'],
+    ['哪个项目耗材成本最高', 'project_attributed_cost', 'ranking'],
+    ['有没有产品卖价低于成本', 'below_cost_sale', 'list'],
+    ['产品销售和服务项目毛利哪个高', 'item_contribution_margin', 'comparison'],
+    ['本月次卡核销项目贡献毛利是多少', 'item_contribution_margin', 'scalar'],
+    ['本月商品退款冲减了多少收入和成本', 'item_contribution_margin', 'scalar'],
   ])('maps governed wording to a unique metric: %s', (question, metricKey, answerShape) => {
     const parsed = parser.parse(question, new Date('2026-08-02T00:00:00.000Z'));
     expect(parsed.semanticIntent.metricKeys[0]).toBe(metricKey);
     expect(parsed.semanticIntent.answerShape).toBe(answerShape);
+  });
+
+  it.each([
+    ['哪些产品毛利率最高', 'item_contribution_margin'],
+    ['帮我看各项目毛利', 'item_contribution_margin'],
+    ['哪个项目耗材成本最高', 'project_attributed_cost'],
+    ['有没有产品卖价低于成本', 'below_cost_sale'],
+    ['产品销售和服务项目毛利哪个高', 'item_contribution_margin'],
+  ])('routes contribution-margin wording only to the Ask item margin view: %s', async (question, metricKey) => {
+    const ai = { generateStructured: jest.fn() };
+    const router = new AskDataSemanticRouter(ai as any, parser, policy);
+    const result = await router.route({
+      question,
+      context: adminContext,
+      authorizedViews: ASK_DATA_FREE_SQL_VIEWS,
+      config: { enabled: true, shadow: false, modelFallback: false, minConfidence: 0.75 },
+    });
+
+    expect(result.semanticIntent.metricKeys).toEqual([metricKey]);
+    expect(result.candidateViews.map((view) => view.viewName)).toEqual(['ask_data_item_margin_view']);
+    expect(result.clarificationQuestion).toBeUndefined();
+    expect(ai.generateStructured).not.toHaveBeenCalled();
+  });
+
+  it('requires a governed threshold or comparison baseline before declaring contribution margin abnormal', () => {
+    const parsed = parser.parse('哪些项目毛利明显偏低', new Date('2026-08-04T00:00:00.000Z'));
+    const decision = policy.inspect(parsed.semanticIntent);
+
+    expect(parsed.semanticIntent.metricKeys).toEqual(['item_contribution_margin']);
+    expect(parsed.semanticIntent.ambiguities).toEqual(expect.arrayContaining([
+      expect.objectContaining({ slot: 'threshold' }),
+    ]));
+    expect(decision.required).toBe(true);
+    expect(decision.question).toContain('贡献毛利率低于 20%');
+    expect(decision.question).toContain('贡献毛利为负');
+    expect(decision.question).toContain('低于上月');
   });
 
   it('routes inventory turnover only to the stock-authorized Ask view', async () => {

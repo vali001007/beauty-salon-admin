@@ -100,6 +100,171 @@ describe('Ami Ask controlled query plan', () => {
     expect(plan.requiredAnswerFacts).toEqual(expect.arrayContaining(['ranking_order', 'ranking_limit']));
   });
 
+  it.each([
+    {
+      question: '哪些产品毛利率最高',
+      metricKey: 'item_contribution_margin',
+      mode: 'ranking',
+      groupBy: ['product_id', 'product_name', 'sku'],
+      filter: { field: 'item_type', operator: 'eq', value: 'product' },
+      sort: { field: 'contribution_margin_rate', direction: 'desc', nulls: 'last' },
+    },
+    {
+      question: '帮我看各项目毛利',
+      metricKey: 'item_contribution_margin',
+      mode: 'grouped',
+      groupBy: ['project_id', 'project_name'],
+      filter: { field: 'item_type', operator: 'eq', value: 'project' },
+      sort: undefined,
+    },
+    {
+      question: '哪个项目耗材成本最高',
+      metricKey: 'project_attributed_cost',
+      mode: 'ranking',
+      groupBy: ['project_id', 'project_name'],
+      filter: { field: 'item_type', operator: 'eq', value: 'project' },
+      sort: { field: 'attributed_cost', direction: 'desc' },
+    },
+  ])('builds governed item margin aggregation: $question', ({ question, metricKey, mode, groupBy, filter, sort }) => {
+    const parsed = parser.parse(question, new Date('2026-08-04T00:00:00.000Z'));
+    const candidates = ASK_DATA_FREE_SQL_VIEWS.filter((view) => view.viewName === 'ask_data_item_margin_view');
+    const plan = buildAskDataQueryPlan({
+      question,
+      semanticIntent: { ...parsed.semanticIntent, metricKeys: [metricKey] },
+      candidateViews: candidates,
+    });
+
+    expect(plan.requiredViewNames).toEqual(['ask_data_item_margin_view']);
+    expect(plan.resultMode).toBe(mode);
+    expect(plan.requiredGroupByFields).toEqual(expect.arrayContaining(groupBy));
+    expect(plan.filters).toContainEqual(filter);
+    if (sort) expect(plan.sort).toEqual([sort]);
+    expect(plan.requiredOutputFields).toEqual(expect.arrayContaining([
+      'net_revenue',
+      'attributed_cost',
+      metricKey === 'project_attributed_cost' ? 'attributed_cost_rate' : 'contribution_margin',
+      'estimated_cost_event_count',
+      'cost_missing_event_count',
+    ]));
+    if (metricKey !== 'project_attributed_cost') {
+      for (const alias of ['gross_revenue', 'discount_amount', 'refund_amount', 'net_revenue', 'attributed_cost']) {
+        expect(plan.aggregations).toContainEqual(expect.objectContaining({ alias, zeroOnEmpty: true }));
+      }
+    }
+    expect(plan.assumptions.join(' ')).toContain('不等同已确认月结利润');
+    expect(plan.assumptions.join(' ')).toContain('估算');
+    expect(validateAskDataQueryPlan(plan, candidates)).toEqual({ valid: true });
+  });
+
+  it('keeps project attributable-cost ranking at project grain instead of splitting by consumable product', () => {
+    const question = '哪个项目耗材成本最高';
+    const parsed = parser.parse(question, new Date('2026-08-04T00:00:00.000Z'));
+    const candidates = ASK_DATA_FREE_SQL_VIEWS.filter((view) => view.viewName === 'ask_data_item_margin_view');
+    const plan = buildAskDataQueryPlan({
+      question,
+      semanticIntent: { ...parsed.semanticIntent, metricKeys: ['project_attributed_cost'] },
+      candidateViews: candidates,
+    });
+
+    expect(plan.requiredGroupByFields).toEqual(['project_id', 'project_name']);
+    expect(plan.requiredOutputFields).not.toEqual(expect.arrayContaining(['product_id', 'product_name', 'sku']));
+  });
+
+  it.each([
+    ['本月次卡核销项目贡献毛利是多少', { field: 'event_type', operator: 'eq', value: 'card_redemption' }],
+    ['本月商品退款冲减了多少收入和成本', { field: 'event_type', operator: 'eq', value: 'refund' }],
+  ])('filters item margin economic event type: %s', (question, expectedFilter) => {
+    const parsed = parser.parse(question, new Date('2026-08-04T00:00:00.000Z'));
+    const candidates = ASK_DATA_FREE_SQL_VIEWS.filter((view) => view.viewName === 'ask_data_item_margin_view');
+    const plan = buildAskDataQueryPlan({
+      question,
+      semanticIntent: { ...parsed.semanticIntent, metricKeys: ['item_contribution_margin'] },
+      candidateViews: candidates,
+    });
+
+    expect(plan.filters).toContainEqual(expectedFilter);
+    expect(plan.requiredViewNames).toEqual(['ask_data_item_margin_view']);
+    expect(validateAskDataQueryPlan(plan, candidates)).toEqual({ valid: true });
+  });
+
+  it('groups contribution margin by governed cost basis without leaking economic-event detail', () => {
+    const question = '本月按成本口径统计项目贡献毛利';
+    const parsed = parser.parse(question, new Date('2026-08-04T00:00:00.000Z'));
+    const candidates = ASK_DATA_FREE_SQL_VIEWS.filter((view) => view.viewName === 'ask_data_item_margin_view');
+    const plan = buildAskDataQueryPlan({
+      question,
+      semanticIntent: { ...parsed.semanticIntent, metricKeys: ['item_contribution_margin'] },
+      candidateViews: candidates,
+    });
+
+    expect(plan.resultMode).toBe('grouped');
+    expect(plan.requiredGroupByFields).toEqual(['cost_basis', 'cost_completeness']);
+    expect(plan.requiredOutputFields).not.toContain('event_id');
+    expect(plan.filters).toContainEqual({ field: 'item_type', operator: 'eq', value: 'project' });
+  });
+
+  it('keeps contribution-margin trends grouped by item type and calendar month', () => {
+    const question = '最近三个月商品与项目贡献毛利趋势';
+    const parsed = parser.parse(question, new Date('2026-08-04T00:00:00.000Z'));
+    const candidates = ASK_DATA_FREE_SQL_VIEWS.filter((view) => view.viewName === 'ask_data_item_margin_view');
+    const plan = buildAskDataQueryPlan({
+      question,
+      semanticIntent: { ...parsed.semanticIntent, metricKeys: ['item_contribution_margin'] },
+      candidateViews: candidates,
+    });
+
+    expect(plan.resultMode).toBe('trend');
+    expect(plan.timeGrain).toEqual({
+      sourceField: 'event_at',
+      granularity: 'month',
+      alias: 'trend_month',
+      expression: "DATE_TRUNC('month', event_at)::date",
+    });
+    expect(plan.requiredGroupByFields).toEqual(['item_type', 'trend_month']);
+    expect(plan.requiredOutputFields).toEqual(expect.arrayContaining(['item_type', 'trend_month', 'contribution_margin']));
+  });
+
+  it('keeps below-cost sales on non-null attributable costs and a governed aggregate comparison', () => {
+    const question = '有没有产品卖价低于成本';
+    const parsed = parser.parse(question, new Date('2026-08-04T00:00:00.000Z'));
+    const candidates = ASK_DATA_FREE_SQL_VIEWS.filter((view) => view.viewName === 'ask_data_item_margin_view');
+    const plan = buildAskDataQueryPlan({
+      question,
+      semanticIntent: { ...parsed.semanticIntent, metricKeys: ['below_cost_sale'] },
+      candidateViews: candidates,
+    });
+
+    expect(plan.resultMode).toBe('ranking');
+    expect(plan.filters).toEqual(expect.arrayContaining([
+      { field: 'item_type', operator: 'eq', value: 'product' },
+      { field: 'attributed_cost', operator: 'is_not_null', value: true },
+      { field: 'net_revenue', operator: 'aggregate_lt', value: 'attributed_cost' },
+    ]));
+    expect(plan.sort).toEqual([{ field: 'contribution_margin', direction: 'asc', nulls: 'last' }]);
+    expect(plan.requiredGroupByFields).toEqual(expect.arrayContaining(['product_id', 'product_name', 'sku']));
+    expect(validateAskDataQueryPlan(plan, candidates)).toEqual({ valid: true });
+  });
+
+  it('compares product and project contribution margin by item type instead of mixing units or views', () => {
+    const question = '产品销售和服务项目毛利哪个高';
+    const parsed = parser.parse(question, new Date('2026-08-04T00:00:00.000Z'));
+    const candidates = ASK_DATA_FREE_SQL_VIEWS.filter((view) => view.viewName === 'ask_data_item_margin_view');
+    const plan = buildAskDataQueryPlan({
+      question,
+      semanticIntent: { ...parsed.semanticIntent, metricKeys: ['item_contribution_margin'] },
+      candidateViews: candidates,
+    });
+
+    expect(plan.resultMode).toBe('grouped');
+    expect(plan.comparisonMode).toBeDefined();
+    expect(plan.requiredGroupByFields).toEqual(['item_type']);
+    expect(plan.filters).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ field: 'item_type' }),
+    ]));
+    expect(plan.requiredViewNames).toEqual(['ask_data_item_margin_view']);
+    expect(validateAskDataQueryPlan(plan, candidates)).toEqual({ valid: true });
+  });
+
   it('treats best-selling product wording as a product ranking instead of a scalar store total', () => {
     const question = '最近卖得最好的产品是什么';
     const parsed = parser.parse(question, new Date('2026-08-02T00:00:00.000Z'));

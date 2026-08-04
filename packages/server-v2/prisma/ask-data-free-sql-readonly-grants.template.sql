@@ -22,11 +22,12 @@ GRANT USAGE ON SCHEMA public TO ask_data_free_sql_readonly;
 REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM ask_data_free_sql_readonly;
 REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM ask_data_free_sql_readonly;
 
--- Ami Ask reads only the 36 registered views. No base-table access is granted.
+-- Ami Ask reads only the 37 registered views. No base-table access is granted.
 GRANT SELECT ON
   agent_v3_order_summary_view,
   agent_v3_order_item_sales_view,
   agent_v3_project_service_sales_view,
+  ask_data_item_margin_view,
   agent_v3_payment_refund_view,
   agent_v3_daily_settlement_view,
   agent_v3_product_inventory_view,

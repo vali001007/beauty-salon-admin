@@ -38,12 +38,27 @@ const ASK_DATA_METRIC_GOVERNANCE: Partial<Record<string, Partial<AskDataMetricGo
     conflictsWith: ['order_revenue', 'payment_flow'],
   },
   product_sales: {
-    negativeAliases: ['项目销量', '项目收入', '项目价格', '项目时长', '慢动销', '库存积压', '运营周转率'],
-    conflictsWith: ['project_sales', 'project_catalog'],
+    negativeAliases: ['项目销量', '项目收入', '项目价格', '项目时长', '商品毛利', '产品毛利', '低于成本', '慢动销', '库存积压', '运营周转率'],
+    conflictsWith: ['project_sales', 'project_catalog', 'item_contribution_margin', 'below_cost_sale'],
   },
   project_sales: {
-    negativeAliases: ['项目价格', '项目时长', '项目类型', '预约数量', '美容师服务次数', '已确认利润', '月结利润'],
-    conflictsWith: ['project_catalog', 'reservation_metrics', 'staff_performance'],
+    negativeAliases: ['项目价格', '项目时长', '项目类型', '预约数量', '美容师服务次数', '项目毛利', '项目耗材成本', '已确认利润', '月结利润'],
+    conflictsWith: ['project_catalog', 'reservation_metrics', 'staff_performance', 'item_contribution_margin', 'project_attributed_cost'],
+  },
+  item_contribution_margin: {
+    negativeAliases: ['已确认利润', '月结利润', '经营利润', '净利润', '销量', '销售额'],
+    conflictsWith: ['confirmed_profit', 'product_sales', 'project_sales'],
+    defaultAssumptions: ['商品/项目毛利按贡献毛利口径计算：已识别净收入减可归属商品/耗材成本，不含员工提成和经营费用。'],
+  },
+  project_attributed_cost: {
+    negativeAliases: ['经营成本', '租金', '水电', '月结材料成本', 'BOM偏差', '耗材浪费'],
+    conflictsWith: ['operating_cost', 'confirmed_profit', 'bom_variance', 'inventory_outbound_cost_estimate'],
+    defaultAssumptions: ['项目可归属耗材成本优先使用实际消耗，未覆盖部分使用 BOM 标准用量和商品档案成本估算。'],
+  },
+  below_cost_sale: {
+    negativeAliases: ['目录价', '售价最低', '促销折扣'],
+    conflictsWith: ['product_sales', 'project_catalog', 'promotion_offer'],
+    defaultAssumptions: ['“低于成本/亏损”按期间已识别净收入低于可归属成本判断，不代表已确认经营利润。'],
   },
   project_catalog: {
     negativeAliases: ['项目销量', '项目收入', '预约数量'],
@@ -88,8 +103,8 @@ const ASK_DATA_METRIC_GOVERNANCE: Partial<Record<string, Partial<AskDataMetricGo
     conflictsWith: ['confirmed_profit', 'marketing_roi'],
   },
   confirmed_profit: {
-    negativeAliases: ['成本明细', '费用结构', '固定成本', '变动成本', '渠道roi', '项目毛利', '项目利润贡献'],
-    conflictsWith: ['operating_cost', 'marketing_roi'],
+    negativeAliases: ['成本明细', '费用结构', '固定成本', '变动成本', '渠道roi', '项目毛利', '商品毛利', '产品毛利', '项目利润贡献'],
+    conflictsWith: ['operating_cost', 'marketing_roi', 'item_contribution_margin'],
   },
   marketing_roi: {
     negativeAliases: ['经营成本', '固定成本', '变动成本', '月结利润'],
@@ -178,7 +193,10 @@ const ASK_DATA_METRIC_GOVERNANCE: Partial<Record<string, Partial<AskDataMetricGo
 export const ASK_DATA_SEMANTIC_CONTRACTS: AskDataSemanticMetricContract[] = [
   contract('order_revenue', '订单经营收入', ['营业额', '订单收入', '订单金额', '订单净收', '开单净收入', '订单数', '客单价'], 'agent_v3_order_summary_view', ['date', 'customer', 'payment_method'], ['scalar', 'trend', 'comparison', 'ranking']),
   contract('product_sales', '商品销售', ['产品订单', '商品订单', '商品销量', '产品销量', '产品销售', '商品销售额', '商品排行', '商品卖出件数', '商品退款后销售额', 'sku销量', '卖得最好的产品', '产品动销', '商品动销', '动销分析'], 'agent_v3_order_item_sales_view', ['date', 'product', 'sku'], ['scalar', 'list', 'ranking', 'trend'], false, 20),
-  contract('project_sales', '项目服务销售', ['项目订单', '项目销量', '项目销售', '项目收入', '项目毛利', '项目利润贡献', '服务次数', '项目排行', '最受欢迎项目', '项目最受欢迎', '最热门项目', '项目最热门'], 'agent_v3_project_service_sales_view', ['date', 'project'], ['scalar', 'list', 'ranking', 'trend'], false, 30),
+  contract('project_sales', '项目服务销售', ['项目订单', '项目销量', '项目销售', '项目收入', '服务次数', '项目排行', '最受欢迎项目', '项目最受欢迎', '最热门项目', '项目最热门'], 'agent_v3_project_service_sales_view', ['date', 'project'], ['scalar', 'list', 'ranking', 'trend'], false, 30),
+  contract('item_contribution_margin', '商品与项目贡献毛利', ['商品毛利', '产品毛利', '项目毛利', '项目利润贡献', '贡献毛利', '毛利率最高', '毛利排行', '毛利异常低', '产品销售的毛利和服务项目的毛利', '次卡核销项目贡献毛利', '退款冲减收入和成本', '退款冲减了多少收入和成本', '退款冲减贡献毛利'], 'ask_data_item_margin_view', ['date', 'item_type', 'product', 'project', 'cost_basis'], ['scalar', 'list', 'ranking', 'trend', 'comparison'], false, 60),
+  contract('project_attributed_cost', '项目可归属耗材成本', ['各项目的耗材成本', '项目耗材成本', '项目成本最高', '哪个项目的成本最高', '耗材成本占服务收入的比例', '项目成本明显上涨'], 'ask_data_item_margin_view', ['date', 'project', 'cost_basis'], ['scalar', 'list', 'ranking', 'trend', 'comparison'], false, 65),
+  contract('below_cost_sale', '低于成本销售', ['卖出去的价格低于成本', '销售价低于成本', '卖价低于成本', '低于成本的产品', '亏本产品', '亏损项目', '低价项目其实在亏损'], 'ask_data_item_margin_view', ['date', 'item_type', 'product', 'project'], ['scalar', 'list', 'ranking'], false, 70),
   contract('payment_flow', '支付退款明细', ['实收流水', '支付流水', '支付记录', '收款记录', '退款流水', '退款记录', '退款明细', '售后退款', '退款原因', '支付方式', '现金收款', '储值收款', '收了多少钱', '收了多少现金', '储值卡消费'], 'agent_v3_payment_refund_view', ['date', 'payment_method', 'refund_reason'], ['scalar', 'list', 'ranking', 'trend'], false, 10, ['agent_v3_order_summary_view']),
   contract('daily_net_receipts', '日结净收', ['日结', '日结净收', '营业日净收', '每日净收', '每日收入', '收入汇总', '收银汇总', '结账金额', '净收趋势'], 'agent_v3_daily_settlement_view', ['date'], ['scalar', 'list', 'trend', 'comparison']),
   contract('inventory_on_hand', '商品库存', ['商品库存', '当前库存', '库存数量', '低库存', '库存不足', '安全库存', '库存金额', '效期', '缺货', '仓库库存', '库存价值', '可售商品'], 'agent_v3_product_inventory_view', ['product', 'sku'], ['scalar', 'list', 'ranking'], true),
@@ -243,6 +261,8 @@ export const ASK_DATA_DIMENSION_ALIASES: Array<{ key: string; aliases: string[] 
   { key: 'staff_level', aliases: ['员工级别', '员工职级', '职级', '级别'] },
   { key: 'operator', aliases: ['操作人'] },
   { key: 'project', aliases: ['项目', '护理', '服务项目'] },
+  { key: 'item_type', aliases: ['商品与项目', '产品销售与服务项目', '品项类型'] },
+  { key: 'cost_basis', aliases: ['成本口径', '成本来源', '成本完整性'] },
   { key: 'project_type', aliases: ['项目类型', '项目分类'] },
   { key: 'product', aliases: ['商品', '产品', 'sku'] },
   { key: 'product_category', aliases: ['品类', '商品分类', '产品分类'] },

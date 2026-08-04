@@ -31,6 +31,9 @@ const GOVERNED_OVERRIDES: Array<{ metricKey: string; patterns: RegExp[]; weight:
   { metricKey: 'payment_flow', patterns: [/退款.*(?:逐笔|分类)|逐笔.*退款/], weight: 220 },
   { metricKey: 'product_sales', patterns: [/(?:产品|商品).*(?:卖得最好|卖出去|件数|扣掉退款|退款后)|卖得最好.*(?:产品|商品)/, /(?:产品|商品).*动销|动销.*(?:产品|商品)|动销分析/], weight: 130 },
   { metricKey: 'project_sales', patterns: [/(?:哪个|哪些|各).*项目.*(?:做得最多|最受欢迎|最热门|销量|收入)/, /项目做得最多/, /项目订单/], weight: 120 },
+  { metricKey: 'item_contribution_margin', patterns: [/(?:商品|产品|项目).*(?:贡献)?毛利(?:率)?|(?:贡献)?毛利(?:率)?.*(?:商品|产品|项目)|产品销售的毛利.*服务项目的毛利/, /次卡核销.*(?:贡献)?毛利/, /退款.*(?:冲减|影响).*(?:收入|成本|毛利)|(?:收入|成本|毛利).*退款冲减/], weight: 260 },
+  { metricKey: 'project_attributed_cost', patterns: [/(?:各|每个|哪个)?项目.*(?:耗材)?成本|耗材成本.*(?:服务收入|项目)/], weight: 275 },
+  { metricKey: 'below_cost_sale', patterns: [/(?:商品|产品|项目).*(?:低于成本|亏本|亏损)|(?:销售价|卖出去的价格).*低于成本|低价项目.*亏损/], weight: 300 },
   { metricKey: 'project_catalog', patterns: [/项目.*(?:价格|时长|类型|疗程|周期)/], weight: 120 },
   { metricKey: 'staff_performance', patterns: [/(?:各|每位)?美容师.*服务次数/, /员工.*(?:业绩|提成|客单价)/], weight: 115 },
   { metricKey: 'staff_capacity', patterns: [/(?:工作饱和度|超过接待能力|接待能力|工时利用率|产能利用率|超排)/], weight: 125 },
@@ -183,6 +186,7 @@ export function rankAskDataSemanticIndex(input: {
 export function hasExplicitMetricCombination(question: string, answerShape?: AskDataSemanticAnswerShape) {
   if (/库存变动.*前后数量都要|变动前后数量都要/.test(question)) return false;
   if (/(?:更低.*供应商.*报价|供应商.*报价.*(?:差额|更低))/.test(question)) return false;
+  if (/(?:商品|产品).*(?:和|与).*(?:项目|服务).*毛利|(?:项目|服务).*(?:和|与).*(?:商品|产品).*毛利/.test(question)) return false;
   if (answerShape === 'comparison') return true;
   return /(?:同时|一并)(?:(?:查询|统计|分析|查看)|有)|以及|放在?一起|一块看|也(?:带上|一起)|(?:和|与|、|，|,|且).*(?:各(?:占)?多少|分别|都要|差额)|(?:现金|赠送|储值)?余额.*(?:且|并且|同时|还).*(?:未用|没用).*次卡|有预约的美容师.*空闲|未到货采购单.*平均交付|预估毛利.*耗材偏差|未完成服务.*反馈|活动数量.*优惠数量|调出单.*出库流水/.test(question);
 }

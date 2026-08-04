@@ -47,7 +47,7 @@ for (const contract of ASK_DATA_PERMISSION_ACCEPTANCE_ROLES) {
       catalog?.executeReady === true &&
       catalog?.totalCount === catalogViews.length &&
       (contract.expectedViews === '*'
-        ? catalog.totalCount === 36
+        ? catalog.totalCount === contract.expectedViewCount
         : sameStringSet(catalogViews, expectedViews));
     if (!catalogValid) throw new Error(`catalog_mismatch:${catalog?.totalCount ?? 'missing'}`);
     const csrf = await fetchCsrf(actor);

@@ -102,6 +102,15 @@ export class AskDataIntentParser {
     if (/(大额退款|大额订单|大额消费|高消费金额|高价值订单)/.test(normalized) && !this.hasExplicitThreshold(question)) {
       ambiguities.push({ slot: 'threshold', reason: '“大额/高价值”没有统一金额阈值。', candidates: [] });
     }
+    if (/(?:毛利|毛利率).*(?:异常低|明显偏低|偏低)|(?:异常低|明显偏低|偏低).*(?:毛利|毛利率)/.test(normalized)
+      && !this.hasExplicitThreshold(question)
+      && !/上月|环比|同比|相比|对比|排名|排行|最低/.test(normalized)) {
+      ambiguities.push({
+        slot: 'threshold',
+        reason: '贡献毛利或贡献毛利率“异常低”缺少金额、比例阈值或比较基线。',
+        candidates: ['指定贡献毛利率阈值', '与上月比较', '返回贡献毛利率最低排行但不判断异常'],
+      });
+    }
     if (/(?:储值余额|现金余额|赠送余额).*(?:异常偏高|明显偏高)|(?:异常偏高|明显偏高).*(?:储值余额|现金余额|赠送余额)/.test(normalized)
       && !this.hasExplicitThreshold(question)) {
       ambiguities.push({
@@ -323,6 +332,9 @@ export class AskDataIntentParser {
 
   private answerShape(text: string): AskDataSemanticAnswerShape {
     const comparisonText = text.replace(/比较(?:好|合适|安全|敏感)/g, '');
+    if (/(?:商品|产品).*(?:和|与).*(?:项目|服务).*(?:哪个|哪类|哪种).*(?:更高|更低|高|低)|(?:项目|服务).*(?:和|与).*(?:商品|产品).*(?:哪个|哪类|哪种).*(?:更高|更低|高|低)/.test(text)) {
+      return 'comparison';
+    }
     // A relative time phrase such as “前 30 天” is not a Top-N request.
     // Remove the time window before applying ranking markers, while keeping
     // the rest of the question (for example “前 30 天销量最高”) intact.
