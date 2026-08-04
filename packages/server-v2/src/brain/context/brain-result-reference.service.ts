@@ -200,9 +200,7 @@ export class BrainResultReferenceService {
       artifactKey: resolved.reference.refId,
       artifactVersion: 1 as const,
       sourceRunId: resolved.set.sourceRunId,
-      ...(resolved.set.sourceCapabilityKey
-        ? { sourceCapabilityKey: resolved.set.sourceCapabilityKey }
-        : {}),
+      ...(resolved.set.sourceCapabilityKey ? { sourceCapabilityKey: resolved.set.sourceCapabilityKey } : {}),
       ...(resolved.set.sourceCapabilityVersion
         ? { sourceCapabilityVersion: resolved.set.sourceCapabilityVersion }
         : {}),
@@ -263,7 +261,7 @@ export class BrainResultReferenceService {
 
   isFollowUpReferenceQuestion(question: string, resultSets: readonly BrainModelResultSet[] = []) {
     return (
-      /(?:第\s*(?:\d+|一|二|三|四|五|六|七|八|九|十)\s*(?:个|位|项|名)|排名第|最高|最大|最好|最急|最优先|最多|最少|她|他|她们|他们|它|它们|这些|其中|上轮|刚才|前面|消化掉|搭配什么活动)/.test(
+      /(?:第\s*(?:\d+|一|二|三|四|五|六|七|八|九|十)(?!\s*次)\s*(?:个|位|项|名)|排名第|最高|最大|最好|最急|最优先|最多|最少|她|他|她们|他们|它|它们|这些|其中|上轮|刚才|前面|消化掉|搭配什么活动)/.test(
         question,
       ) ||
       resultSets.some((set) => set.items.some((item) => item.mention.length >= 2 && question.includes(item.mention)))
@@ -277,13 +275,14 @@ export class BrainResultReferenceService {
   requiresPriorResultSelection(question: string): boolean {
     if (this.isExplicitTimeReservationQuestion(question)) return false;
     const explicitSelectionCue =
-      /(?:第\s*(?:\d+|一|二|三|四|五|六|七|八|九|十)\s*(?:个|位|项|名)?|排名第|那个|上轮|刚才|前面|这些|它们|他们|她们)/.test(
+      /(?:第\s*(?:\d+|一|二|三|四|五|六|七|八|九|十)(?!\s*次)\s*(?:个|位|项|名)?|排名第|那个|上轮|刚才|前面|这些|它们|他们|她们)/.test(
         question,
       );
     const requestedEntityType = this.requestedEntityType(question);
     const contextualSelectionCue = Boolean(requestedEntityType && /其中/.test(question));
-    const rerunTopSelectionCue =
-      /(?:最(?:高|大|好|急|优先|多|少)|第一名|榜首).*(?:再\s*(?:跑|执行|来)|重新执行)/.test(question);
+    const rerunTopSelectionCue = /(?:最(?:高|大|好|急|优先|多|少)|第一名|榜首).*(?:再\s*(?:跑|执行|来)|重新执行)/.test(
+      question,
+    );
     return explicitSelectionCue || contextualSelectionCue || Boolean(requestedEntityType && rerunTopSelectionCue);
   }
 
@@ -478,7 +477,7 @@ export class BrainResultReferenceService {
   }
 
   private requestedRank(question: string): number | undefined {
-    const match = question.match(/(?:第|排名第)\s*(\d+|一|二|三|四|五|六|七|八|九|十)\s*(?:个|位|项|名)?/);
+    const match = question.match(/(?:第|排名第)\s*(\d+|一|二|三|四|五|六|七|八|九|十)(?!\s*次)\s*(?:个|位|项|名)?/);
     if (!match) return undefined;
     const chinese: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
     return chinese[match[1]!] ?? Math.max(1, Number(match[1]) || 1);

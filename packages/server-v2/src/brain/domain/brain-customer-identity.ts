@@ -11,7 +11,9 @@ export function extractSpecificCustomerNameFromMention(mention: string): string 
     .trim();
   if (
     !nameOnly ||
-    /(客户|顾客|老客|新客|会员|客群|人群|消费者|用户|手机|号码|尾号|后四位|\d{4})/.test(nameOnly)
+    /(客户|顾客|老客|新客|会员|客群|人群|消费者|用户|手机|号码|尾号|后四位|\d{4}|高价值|高净值|潜力|沉睡|流失|活跃|不活跃|过敏|健康档案|金卡|银卡|钻石|普通会员|VIP)/i.test(
+      nameOnly,
+    )
   ) {
     return undefined;
   }

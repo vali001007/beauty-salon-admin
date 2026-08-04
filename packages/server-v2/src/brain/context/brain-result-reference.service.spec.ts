@@ -57,8 +57,8 @@ describe('BrainResultReferenceService', () => {
       refId: 'run:191:productRanking:1',
       resultSets: [set!],
       scope,
-      profileFingerprint: createTestBusinessActionInformationArtifactProfile('action.create_purchase_order')
-        .fingerprint,
+      profileFingerprint:
+        createTestBusinessActionInformationArtifactProfile('action.create_purchase_order').fingerprint,
     });
 
     expect(artifact).toMatchObject({
@@ -138,14 +138,12 @@ describe('BrainResultReferenceService', () => {
     expect(service.isFollowUpReferenceQuestion('跟宋乔比呢', [set!])).toBe(true);
   });
 
-  it.each([
-    '哪些商品卖得最好',
-    '哪个美容师退款率最高',
-    '哪些产品库存风险最大',
-    '员工里谁的业绩最多',
-  ])('does not require a prior result set for an independent ranking question: %s', (question) => {
-    expect(service.requiresPriorResultSelection(question)).toBe(false);
-  });
+  it.each(['哪些商品卖得最好', '哪个美容师退款率最高', '哪些产品库存风险最大', '员工里谁的业绩最多'])(
+    'does not require a prior result set for an independent ranking question: %s',
+    (question) => {
+      expect(service.requiresPriorResultSelection(question)).toBe(false);
+    },
+  );
 
   it.each(['其中最高那个怎么处理', '上轮第二个客户怎么召回', '刚才这些商品里最急的是哪个'])(
     'still requires a prior result set for an explicit continuation: %s',
@@ -482,6 +480,14 @@ describe('BrainResultReferenceService', () => {
         createdAt: new Date().toISOString(),
       }),
     ).toBe(false);
+  });
+
+  it('does not interpret a second purchase as selecting the second prior result', () => {
+    const service = new BrainResultReferenceService();
+    const question = '统计近期新客户完成第二次消费的人数'; // ami-brain-unit-only
+
+    expect(service.isFollowUpReferenceQuestion(question)).toBe(false);
+    expect(service.requiresPriorResultSelection(question)).toBe(false);
   });
 });
 

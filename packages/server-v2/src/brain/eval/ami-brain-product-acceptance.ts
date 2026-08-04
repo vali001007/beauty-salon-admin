@@ -50,18 +50,16 @@ export function buildAmiBrainProductAcceptance(input: {
   coreResultCaseIds: string[];
   standardDeltaResultCaseIds: string[];
   goldStandardExpectedCaseIds: string[];
-  goldStandardRun:
-    | {
-        id: number;
-        status: unknown;
-        summary: Record<string, unknown>;
-        results: Array<{
-          caseKey: string;
-          deterministicPassed: unknown;
-          deterministicGrade: unknown;
-        }>;
-      }
-    | null;
+  goldStandardRun: {
+    id: number;
+    status: unknown;
+    summary: Record<string, unknown>;
+    results: Array<{
+      caseKey: string;
+      deterministicPassed: unknown;
+      deterministicGrade: unknown;
+    }>;
+  } | null;
   coreFinishedAt: Date | null | undefined;
   now?: Date;
 }): AmiBrainProductAcceptanceEvidence {
@@ -147,6 +145,9 @@ export function buildAmiBrainProductAcceptance(input: {
   ] as const) {
     if (Number(summary.failed ?? 0) !== 0) blockingReasons.push(`${stage}:deterministic_failures`);
     if (Number(summary.providerUnavailable ?? 0) !== 0) blockingReasons.push(`${stage}:provider_unavailable`);
+    if (Number(summary.judgeInfrastructureFailures ?? 0) !== 0) {
+      blockingReasons.push(`${stage}:judge_infrastructure_failure`);
+    }
     if (record(summary).productSafetyGate === 'blocked') blockingReasons.push(`${stage}:safety_blocked`);
     if (Number(record(record(summary.scorecards).suspectedFalseSuccess).count ?? 0) !== 0) {
       blockingReasons.push(`${stage}:suspected_false_success`);
@@ -158,7 +159,9 @@ export function buildAmiBrainProductAcceptance(input: {
   if (verifiedCapabilityTotal <= 0) blockingReasons.push('verified_capability_denominator_empty');
   const goldStandard = record(standardSummary.goldStandardAcceptance);
   const goldStandardManifestVersion =
-    typeof goldStandard.manifestVersion === 'string' && goldStandard.manifestVersion ? goldStandard.manifestVersion : null;
+    typeof goldStandard.manifestVersion === 'string' && goldStandard.manifestVersion
+      ? goldStandard.manifestVersion
+      : null;
   const goldStandardManifestChecksum =
     typeof goldStandard.manifestChecksum === 'string' && /^[0-9a-f]{64}$/iu.test(goldStandard.manifestChecksum)
       ? goldStandard.manifestChecksum
@@ -178,10 +181,7 @@ export function buildAmiBrainProductAcceptance(input: {
     blockingReasons.push('gold_standard_run_missing');
   } else {
     if (goldStandardRun.status !== 'completed') blockingReasons.push('gold_standard_run_not_completed');
-    if (
-      goldStandardRun.id === input.releaseCoreRunId ||
-      goldStandardRun.id === input.standardRegressionRunId
-    ) {
+    if (goldStandardRun.id === input.releaseCoreRunId || goldStandardRun.id === input.standardRegressionRunId) {
       blockingReasons.push('gold_standard_run_id_not_distinct');
     }
     if (
@@ -229,7 +229,10 @@ export function buildAmiBrainProductAcceptance(input: {
     });
     if (invalidActualResults.length) {
       blockingReasons.push(
-        `gold_standard_actual_results_failed:${invalidActualResults.slice(0, 20).map((item) => item.caseKey).join(',')}`,
+        `gold_standard_actual_results_failed:${invalidActualResults
+          .slice(0, 20)
+          .map((item) => item.caseKey)
+          .join(',')}`,
       );
     }
     const compactGoldIds = Array.isArray(goldRunSummary.compactResults)
@@ -247,10 +250,7 @@ export function buildAmiBrainProductAcceptance(input: {
     ) {
       blockingReasons.push('gold_standard_run_summary_count_invalid');
     }
-    if (
-      !goldStandardAcceptanceChecksum ||
-      jsonChecksum(goldRunAcceptance) !== goldStandardAcceptanceChecksum
-    ) {
+    if (!goldStandardAcceptanceChecksum || jsonChecksum(goldRunAcceptance) !== goldStandardAcceptanceChecksum) {
       blockingReasons.push('gold_standard_parent_child_acceptance_mismatch');
     }
   }
@@ -337,7 +337,9 @@ function record(value: unknown): Record<string, unknown> {
 }
 
 export function jsonChecksum(value: unknown) {
-  return createHash('sha256').update(JSON.stringify(canonicalJson(value)), 'utf8').digest('hex');
+  return createHash('sha256')
+    .update(JSON.stringify(canonicalJson(value)), 'utf8')
+    .digest('hex');
 }
 
 function canonicalJson(value: unknown): unknown {
