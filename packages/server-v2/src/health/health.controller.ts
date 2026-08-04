@@ -19,6 +19,7 @@ export class HealthController {
       status: 'ok',
       timestamp: new Date().toISOString(),
       deployment: deploymentIdentity(),
+      runtime: runtimeIdentity(),
     };
   }
 
@@ -42,6 +43,7 @@ export class HealthController {
       status: 'ready',
       database: 'connected',
       deployment,
+      runtime: runtimeIdentity(),
       databaseTarget,
       brainModel,
       releaseGate: {
@@ -119,6 +121,17 @@ export class HealthController {
       healthContext: { storeId: gate.storeId, userId: gate.userId, roleKey: gate.roleKey },
     };
   }
+}
+
+function runtimeIdentity() {
+  return {
+    slotId: process.env.AMI_DEV_SLOT?.trim() || null,
+    worktree: process.env.AMI_WORKTREE?.trim() || null,
+    mode: process.env.AMI_RUNTIME_MODE?.trim() || null,
+    dataEnvironment: process.env.AMI_DATA_ENV?.trim() || null,
+    redisKeyPrefix: process.env.REDIS_KEY_PREFIX?.trim() || null,
+    brainWarmupPipeline: process.env.BRAIN_ONTOLOGY_WARMUP_PIPELINE?.trim() || 'shared',
+  };
 }
 
 function deploymentIdentity() {

@@ -15,6 +15,11 @@ describe('HealthController', () => {
     process.env.ZEABUR_GIT_BRANCH = 'main';
     process.env.ZEABUR_DEPLOYMENT_ID = 'deploy-1';
     process.env.NODE_ENV = 'production';
+    process.env.AMI_DEV_SLOT = 's07';
+    process.env.AMI_WORKTREE = '/tmp/ami-s07';
+    process.env.AMI_RUNTIME_MODE = 'local-fast';
+    process.env.AMI_DATA_ENV = 'local-synthetic';
+    process.env.REDIS_KEY_PREFIX = 'ami:s07:';
 
     const result = new HealthController(prisma as any).check();
 
@@ -24,6 +29,14 @@ describe('HealthController', () => {
       branch: 'main',
       buildId: 'deploy-1',
       environment: 'production',
+    });
+    expect(result.runtime).toEqual({
+      slotId: 's07',
+      worktree: '/tmp/ami-s07',
+      mode: 'local-fast',
+      dataEnvironment: 'local-synthetic',
+      redisKeyPrefix: 'ami:s07:',
+      brainWarmupPipeline: 'shared',
     });
   });
 
