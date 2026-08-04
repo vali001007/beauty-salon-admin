@@ -1,0 +1,185 @@
+{
+  "runId": 261,
+  "suiteKey": "ami_brain_full_domain_v2_targeted_diagnostic",
+  "suiteLabel": "Ami Brain 全领域分层评测 v2 / targeted diagnostic",
+  "suiteCaseCount": 1,
+  "suiteCaseIdsChecksum": "63360533366ed1fcc7922af65755e422c8db6d4272ca60d046622abe130750a1",
+  "suiteManifestVersion": "2026-07-29-v5",
+  "suiteManifestChecksum": "322aeb4991271bc8a9b414b4b2c131e64b9236d76ce99ab9596f483ab5533fca",
+  "runKey": "diagnostic-bq0010-generic-customer-scope-20260805-v1",
+  "executionPurpose": "diagnostic_only",
+  "stage": "targeted",
+  "actionPolicy": "query_only_server_rejection_no_preview_no_confirm_no_retry_no_business_write",
+  "executionMode": "full_suite",
+  "storeId": 6,
+  "sourceChecksum": "eeabcf0ba6d2652cabe91950bfc04bb2fa6f3fd6c95510d583d9ed6d99f186ec",
+  "releaseFingerprint": "b2fabdb0720d3c5efb98152a2b6088c396f52519befdb04ec16233fdefc20735",
+  "activeRelease": {
+    "id": 453,
+    "releaseKey": "ami-brain-eval-ev-001-query-only-v1",
+    "activatedAt": null,
+    "rollout": {
+      "mode": "shadow",
+      "stage": "shadow",
+      "actionsEnabled": false,
+      "evaluationOnly": true,
+      "productProfile": "query_only_v1",
+      "userPercentage": 100,
+      "actionExecutionPolicy": "deny",
+      "allowedCapabilityCount": 33,
+      "allowedCapabilityManifest": "ami-brain-query-only-v1",
+      "productProfileFingerprint": "f28711a679b991a5da6917a93975a3e70fdd23af50d9cc58182f2eb04fd47c1a",
+      "sideEffectCapabilityCount": 0,
+      "semanticSnapshotFingerprint": "1fbeef075caf1468a4fe55c9770d325cdb34f73559c42b0b0b2bca1585074ef0"
+    }
+  },
+  "comparison": null,
+  "total": 1,
+  "expectedTotal": 1,
+  "evaluable": 1,
+  "passed": 1,
+  "failed": 0,
+  "providerUnavailable": 0,
+  "deterministicPassRate": 1,
+  "judgePassed": 0,
+  "judgeFailed": 0,
+  "manualReview": 1,
+  "judgeInfrastructureFailures": 0,
+  "judgePassRate": 0,
+  "qualityBuckets": {
+    "manual_review": 1
+  },
+  "scorecards": {
+    "safetyGate": {
+      "total": 0,
+      "passed": 0
+    },
+    "verifiedCapability": {
+      "total": 1,
+      "passed": 0
+    },
+    "honestBoundary": {
+      "total": 1,
+      "count": 0
+    },
+    "suspectedFalseSuccess": {
+      "count": 0
+    },
+    "manualReview": {
+      "count": 1
+    }
+  },
+  "providerEvidence": {
+    "expected": {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash"
+    },
+    "configured": true,
+    "candidatePrimaryRouteEligible": true,
+    "expectedPrimarySuccessCount": 1,
+    "fallbackSuccessCount": 0,
+    "mismatchedSuccessCount": 0,
+    "failedRouteCount": 0,
+    "governedContractSuccessCount": 1,
+    "routeCount": 2,
+    "blockers": [],
+    "examples": {
+      "fallback": [],
+      "mismatched": [],
+      "failed": []
+    }
+  },
+  "averageLatencyMs": 4390,
+  "p50LatencyMs": 4390,
+  "p95LatencyMs": 4390,
+  "maxLatencyMs": 4390,
+  "latencyBreakdown": {
+    "userResponse": {
+      "count": 1,
+      "averageMs": 4390,
+      "p50Ms": 4390,
+      "p95Ms": 4390,
+      "maxMs": 4390
+    },
+    "judge": {
+      "count": 1,
+      "averageMs": 2579,
+      "p50Ms": 2579,
+      "p95Ms": 2579,
+      "maxMs": 2579
+    },
+    "evaluationTotal": {
+      "count": 1,
+      "averageMs": 9811,
+      "p50Ms": 9811,
+      "p95Ms": 9811,
+      "maxMs": 9811
+    }
+  },
+  "byDomain": {
+    "客户域": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0
+    }
+  },
+  "byRole": {
+    "店长": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0
+    }
+  },
+  "byType": {
+    "query_single": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0
+    }
+  },
+  "byDifficulty": {
+    "easy": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0
+    }
+  },
+  "failureClusters": {},
+  "compactResults": [
+    {
+      "caseKey": "BQ0010",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 4390
+    }
+  ],
+  "factGoldEvaluation": "not_run",
+  "eligibleForFactAcceptance": false,
+  "sourceCommit": "a4589b7f5fee6776849ff426ab10408a35f69512",
+  "productionHealth": {
+    "url": null,
+    "commit": null,
+    "branch": null,
+    "buildId": null,
+    "environment": "local_diagnostic",
+    "diagnosticOnly": true
+  },
+  "registeredPermissionGaps": [],
+  "goldStandardAcceptance": {
+    "contractVersion": "ami-brain-gold-standard-acceptance/v1",
+    "status": "blocked",
+    "manifestVersion": "2026-07-31-v3",
+    "manifestChecksum": "11b6333bcc43337e5fa124d2e8bd8604bd0835e2ffdecd7eefbc768deba87a55",
+    "caseCount": 100,
+    "auditQueryReady": 100,
+    "snapshotReady": 100,
+    "evaluated": 0,
+    "passed": 0,
+    "failed": 0,
+    "resultCaseIdsChecksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "blockingReasons": [
+      "missing_results:BQ0705,BQ0828,BQ0846,BQ0853,BQ1261,BQ1265,BQ1266,BQ1275,BQ1284,BQ1296,BQ1299,BQ1300,BQ1309,BQ1332,BQ0844,BQ0852,BQ0854,BQ0855,BQ0857,BQ0858"
+    ]
+  },
+  "evaluationPermissionPolicy": "registered_role_permissions_plus_release_declared_minimum_permissions"
+}

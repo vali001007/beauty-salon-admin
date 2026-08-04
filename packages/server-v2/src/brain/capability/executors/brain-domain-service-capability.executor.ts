@@ -7,6 +7,7 @@ import {
 import {
   extractCustomerPhoneTail,
   extractSpecificCustomerNameFromMention,
+  isSpecificCustomerProjectRecommendationQuestion,
 } from '../../domain/brain-customer-identity.js';
 import { defaultBrainDateRange } from '../../domain/brain-domain-formatters.js';
 import { MarketingService } from '../../../marketing/marketing.service.js';
@@ -5808,9 +5809,18 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         }
         return this.answer({
           answer,
-          citationId: 'capability_customer_facts',
-          citationLabel: '客户精确事实查询',
-          metadata: { rangeLabel: range.label },
+          citationId: isSpecificCustomerProjectRecommendationQuestion(input.question)
+            ? 'customer_exact_project_recommendation_facts'
+            : 'capability_customer_facts',
+          citationLabel: isSpecificCustomerProjectRecommendationQuestion(input.question)
+            ? '客户历史服务与消费事实'
+            : '客户精确事实查询',
+          metadata: {
+            rangeLabel: range.label,
+            answerScope: isSpecificCustomerProjectRecommendationQuestion(input.question)
+              ? 'exact_customer_project_recommendation'
+              : 'exact_customer_facts',
+          },
         });
       }
       case 'marketing_customer_segment': {

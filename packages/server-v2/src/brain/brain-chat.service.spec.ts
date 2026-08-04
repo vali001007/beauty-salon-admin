@@ -7529,6 +7529,73 @@ describe('BrainChatService', () => {
     expect(normalized).toMatchObject({ intent: 'ranking', answerShape: 'ranking' });
   });
 
+  it('keeps a named-customer project recommendation on the governed customer facts single-capability path', () => {
+    const { service } = createService({ modelPipeline: {} });
+    const question = '王思琪适合推荐什么项目，为什么'; // BQ0152
+    const customerFactsCard = {
+      key: 'customer_facts',
+      version: 51,
+      name: '客户事实与客群查询',
+      domains: ['customer'],
+      intents: ['query', 'ranking', 'comparison', 'diagnosis'],
+      examples: [],
+      readOnly: true,
+      sideEffect: false,
+      definitionRefs: [{ ...definitionRef('entity.customer'), version: 1 }],
+    };
+    const campaignCard = {
+      key: 'marketing_campaign_plan',
+      version: 8,
+      name: '营销活动方案',
+      domains: ['customer', 'marketing'],
+      intents: ['recommendation'],
+      examples: [],
+      readOnly: true,
+      sideEffect: false,
+      definitionRefs: [],
+    };
+    const intent = {
+      schemaVersion: '1.0',
+      objective: question,
+      domains: ['customer', 'project'],
+      intent: 'recommendation',
+      entities: [
+        {
+          entityType: 'customer',
+          mention: '王思琪',
+          source: 'user',
+          confidence: 1,
+          definitionRef: definitionRef('entity.customer'),
+        },
+      ],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'diagnosis',
+      successCriteria: ['读取客户事实', '给出人工可复核建议'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [],
+      confidence: 1,
+      decisionSummary: '具体客户项目建议',
+    };
+
+    const compilerCards = (service as any).modelCompilerCapabilityCards(
+      [campaignCard, customerFactsCard],
+      [{ card: campaignCard, score: 0.9, matchedFields: ['examples'] }],
+      campaignCard,
+      undefined,
+      question,
+    );
+    const normalized = (service as any).normalizeExactCustomerFactIntent({ intent, question });
+    const selected = (service as any).findDeterministicCustomerFactsCard(question, normalized, compilerCards);
+
+    expect(compilerCards.map((card: { key: string }) => card.key)).toContain('customer_facts');
+    expect(normalized).toMatchObject({ intent: 'recommendation', answerShape: 'diagnosis', domains: ['customer'] });
+    expect(selected).toMatchObject({ key: 'customer_facts', readOnly: true, sideEffect: false });
+  });
+
   it('does not treat role-relative customer references as explicit customer identities', () => {
     const { service } = createService({ modelPipeline: {} });
     const customerRef = definitionRef('entity.customer');

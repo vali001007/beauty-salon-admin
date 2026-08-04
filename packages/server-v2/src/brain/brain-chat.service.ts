@@ -28,6 +28,11 @@ import { BrainSemanticQueryEngineService } from './semantic/brain-semantic-query
 import type { BrainDomainAnswer, BrainRoleIntentPlan } from './domain/brain-domain-adapter.types.js';
 import { BrainDomainAdapterRegistryService } from './domain/brain-domain-adapter-registry.service.js';
 import { BrainRoleIntentRouterService } from './domain/brain-role-intent-router.service.js';
+import {
+  extractSpecificCustomerNameFromQuestion,
+  isSpecificCustomerProjectRecommendationQuestion,
+  isSpecificCustomerReadOnlyQuestion,
+} from './domain/brain-customer-identity.js';
 import { BrainActionConfirmationService } from './skills/brain-action-confirmation.service.js';
 import { BrainSkillRuntimeService } from './skills/brain-skill-runtime.service.js';
 import { BrainMemoryService } from './memory/brain-memory.service.js';
@@ -4193,6 +4198,7 @@ export class BrainChatService {
     question = '',
   ): readonly BrainCapabilityCard[] {
     const governedExampleCapability = this.findGovernedCapabilityExampleCard(question, cards);
+    const specificCustomerCapability = this.modelSpecificCustomerCapabilityCard(cards, question);
     const customerLevelCapability = this.modelCustomerLevelCapabilityCard(cards, question);
     const managerStaffDirectoryCapability = this.modelManagerStaffDirectoryCapabilityCard(cards, question);
     const projectCatalogCapability = this.modelProjectCatalogCapabilityCard(cards, question);
@@ -4200,6 +4206,7 @@ export class BrainChatService {
       selected,
       continuationCapability,
       governedExampleCapability,
+      specificCustomerCapability,
       customerLevelCapability,
       managerStaffDirectoryCapability,
       projectCatalogCapability,
@@ -4208,6 +4215,16 @@ export class BrainChatService {
     const unique = new Map(ordered.map((card) => [card.key, card]));
     if (unique.size) return [...unique.values()].slice(0, 12);
     return cards.slice(0, 12);
+  }
+
+  private modelSpecificCustomerCapabilityCard(
+    cards: readonly BrainCapabilityCard[],
+    question: string,
+  ): BrainCapabilityCard | undefined {
+    if (!isSpecificCustomerReadOnlyQuestion(question)) return undefined;
+    return cards.find(
+      (card) => card.key === 'customer_facts' && card.readOnly && !card.sideEffect && card.intents.includes('query'),
+    );
   }
 
   private modelCustomerLevelCapabilityCard(
@@ -4804,11 +4821,12 @@ export class BrainChatService {
   }): BrainSemanticIntent {
     if (!this.isSpecificCustomerFactQuestion(input.question, input.intent)) return input.intent;
     const phoneTail = input.question.match(/(?:尾号|手机尾号|手机号后四位|手机后四位)[^0-9]*(\d{4})/)?.[1];
+    const recommendation = isSpecificCustomerProjectRecommendationQuestion(input.question);
     return {
       ...input.intent,
       domains: ['customer'],
-      intent: 'query',
-      answerShape: 'list',
+      intent: recommendation ? 'recommendation' : 'query',
+      answerShape: recommendation ? 'diagnosis' : 'list',
       entities: input.intent.entities.map((entity) =>
         phoneTail &&
         entity.entityType === 'customer' &&
@@ -5368,11 +5386,23 @@ export class BrainChatService {
     if (/(?:预约).*(?:几点|时间|安排|改期|取消|确认)|(?:几点|时间|安排).*(?:预约)/.test(question)) {
       return false;
     }
+    const directCustomerName = extractSpecificCustomerNameFromQuestion(question);
+    const hasPhoneTail = /(?:尾号|手机尾号|手机号后四位|手机后四位)[^0-9]*\d{4}/.test(question);
+    if (
+      !directCustomerName &&
+      !hasPhoneTail &&
+      /(?:今天|明天|后天|本周|上周|本月|上月)?(?:预约|到店|来店).{0,8}(?:客户|客人|会员)|(?:预约|到店|来店)(?:客户|客人|会员)/.test(
+        question,
+      )
+    ) {
+      return false;
+    }
     const hasIdentity =
       intent.entities.some((entity) => entity.entityType === 'customer' && this.isSpecificModelEntity(entity)) ||
-      /(?:尾号|手机尾号|手机号后四位|手机后四位)[^0-9]*\d{4}/.test(question);
+      Boolean(directCustomerName) ||
+      hasPhoneTail;
     if (!hasIdentity) return false;
-    return /(?:上次来|最近来|到店|消费|会员等级|办过卡|卡项|还有多少次|余额|来源|渠道|标签|备注|上次做|最近服务|服务记录|做的什么项目|过敏|皮肤|注意事项)/.test(
+    return /(?:上次来|最近来|到店|消费|会员等级|办过卡|卡项|还有多少次|余额|来源|渠道|标签|备注|上次做|最近服务|服务记录|做的什么项目|过敏|皮肤|注意事项|适合.*(?:推荐|项目)|推荐.*项目)/.test(
       question,
     );
   }

@@ -107,6 +107,42 @@ describe('Ami Brain Query Only action gate used by the executable evaluator', ()
 });
 
 describe('Ami Brain Judge infrastructure classification', () => {
+  it('keeps a database-grounded same-name clarification as an honest boundary', () => {
+    const test = {
+      id: 'BQ-unit-customer-recommendation-ambiguity',
+      domain: '客户域',
+      role: '营销',
+      roleKey: 'marketing',
+      type: 'advice' as const,
+      difficulty: 'hard',
+      question: '王思琪适合推荐什么项目，为什么', // ami-brain-unit-only
+      expectedTarget: '客户经营建议',
+      notes: '',
+      turns: ['王思琪适合推荐什么项目，为什么'], // ami-brain-unit-only
+    };
+    const citations = [{ sourceType: 'db_skill', sourceId: 'customer_identity_candidates', label: '客户身份匹配事实' }];
+    const answer = '需要确认：找到多位匹配客户，请补充手机号后四位后继续。可选：王思琪（***9128）。';
+    const deterministic = deterministicFullDomainGrade({
+      test,
+      answer,
+      status: 'completed',
+      citations,
+      completedTurns: 1,
+    });
+
+    expect(deterministic.passed).toBe(true);
+    expect(
+      classifyFullDomainOutcome({
+        test,
+        deterministic,
+        answer,
+        citations,
+        judge: { verdict: 'insufficient_evidence', targetAlignment: false, factualGrounding: 'insufficient' },
+        judgeEvidenceStatus: 'success',
+      }),
+    ).toBe('honest_boundary');
+  });
+
   it('keeps a deterministic cited answer in manual review when the Judge schema remains unavailable', () => {
     const test = {
       id: 'BQ-unit-judge-schema',

@@ -1,0 +1,2 @@
+case_id,domain,role,type,quality_bucket,failure_cluster,reason
+"BQ0152","客户域","营销","advice","suspected_false_success","suspected_false_success","回答未提供任何客户经营建议，仅列出客户身份信息，未对齐目标；且缺少可验证的标准数值，无法判断事实依据。"
