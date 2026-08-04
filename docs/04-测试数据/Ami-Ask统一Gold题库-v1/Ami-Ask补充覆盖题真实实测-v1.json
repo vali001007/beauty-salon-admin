@@ -1,0 +1,2791 @@
+{
+  "generatedAt": "2026-08-02T09:47:36.589Z",
+  "complete": true,
+  "strict": false,
+  "connectionMode": "development_admin",
+  "databaseHost": "aws-1-ap-northeast-1.pooler.supabase.com",
+  "storeId": 6,
+  "concurrency": 3,
+  "manifest": {
+    "path": "/Users/ju/Documents/ami/beauty-salon-admin-ask/docs/04-测试数据/Ami-Ask统一Gold题库-v1/Ami-Ask补充覆盖题实测清单-v1.json",
+    "sourcePath": "prisma/ask-data-supplemental-question-bank.ts",
+    "sourceQuestionCount": 45,
+    "targetPerView": 10,
+    "viewCount": 34,
+    "coveredViews": 9,
+    "insufficientViews": []
+  },
+  "summary": {
+    "plannedCases": 45,
+    "completedCases": 45,
+    "strictPassed": 42,
+    "strictFailed": 3,
+    "strictAccuracy": 0.9333,
+    "pipelinePassRate": 0.9333,
+    "expectedViewHitRate": 0.9333,
+    "noDataRate": 0.3778,
+    "averageMs": 17093,
+    "p50Ms": 14984,
+    "p95Ms": 31067,
+    "durationMs": 266135,
+    "failureCounts": {
+      "AiStructuredOutputError": 2,
+      "guard_field_not_allowed": 1
+    }
+  },
+  "byView": [
+    {
+      "viewName": "agent_v3_order_summary_view",
+      "label": "订单摘要",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_order_item_sales_view",
+      "label": "商品销售",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_project_service_sales_view",
+      "label": "项目服务销售",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_payment_refund_view",
+      "label": "支付与退款",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_daily_settlement_view",
+      "label": "日结",
+      "plannedCount": 1,
+      "completedCount": 1,
+      "strictPassed": 1,
+      "strictAccuracy": 1,
+      "pipelinePassRate": 1,
+      "expectedViewHitRate": 1,
+      "noDataRate": 0,
+      "averageMs": 12968,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_product_inventory_view",
+      "label": "商品库存",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_stock_movement_view",
+      "label": "库存流水",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_inventory_scrap_view",
+      "label": "库存报废",
+      "plannedCount": 8,
+      "completedCount": 8,
+      "strictPassed": 8,
+      "strictAccuracy": 1,
+      "pipelinePassRate": 1,
+      "expectedViewHitRate": 1,
+      "noDataRate": 0,
+      "averageMs": 15960,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_customer_profile_summary_view",
+      "label": "客户档案摘要",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_staff_profile_view",
+      "label": "员工档案",
+      "plannedCount": 5,
+      "completedCount": 5,
+      "strictPassed": 4,
+      "strictAccuracy": 0.8,
+      "pipelinePassRate": 0.8,
+      "expectedViewHitRate": 0.8,
+      "noDataRate": 0,
+      "averageMs": 19770,
+      "failureCounts": {
+        "guard_field_not_allowed": 1
+      }
+    },
+    {
+      "viewName": "ask_data_staff_performance_view",
+      "label": "员工绩效",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_reservation_view",
+      "label": "预约",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_marketing_conversion_view",
+      "label": "营销转化",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_card_asset_view",
+      "label": "次卡资产",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_card_usage_view",
+      "label": "次卡核销",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_customer_balance_view",
+      "label": "客户余额",
+      "plannedCount": 5,
+      "completedCount": 5,
+      "strictPassed": 5,
+      "strictAccuracy": 1,
+      "pipelinePassRate": 1,
+      "expectedViewHitRate": 1,
+      "noDataRate": 0.2,
+      "averageMs": 12371,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_service_quality_view",
+      "label": "服务质量",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_appointment_gap_view",
+      "label": "预约空档",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_project_catalog_view",
+      "label": "项目目录",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_marketing_activity_view",
+      "label": "营销活动",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_marketing_automation_view",
+      "label": "自动触达",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_promotion_offer_view",
+      "label": "优惠活动",
+      "plannedCount": 7,
+      "completedCount": 7,
+      "strictPassed": 7,
+      "strictAccuracy": 1,
+      "pipelinePassRate": 1,
+      "expectedViewHitRate": 1,
+      "noDataRate": 0.8571,
+      "averageMs": 17632,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_operating_cost_view",
+      "label": "经营成本",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_purchase_procurement_view",
+      "label": "采购",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_supplier_performance_view",
+      "label": "供应商表现",
+      "plannedCount": 2,
+      "completedCount": 2,
+      "strictPassed": 1,
+      "strictAccuracy": 0.5,
+      "pipelinePassRate": 0.5,
+      "expectedViewHitRate": 0.5,
+      "noDataRate": 0.5,
+      "averageMs": 20142,
+      "failureCounts": {
+        "AiStructuredOutputError": 1
+      }
+    },
+    {
+      "viewName": "ask_data_confirmed_profit_view",
+      "label": "已确认实际利润",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_reconciliation_issue_view",
+      "label": "财务对账异常",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_member_liability_view",
+      "label": "会员履约负债",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_staff_capacity_view",
+      "label": "排班与员工产能",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_transfer_status_view",
+      "label": "库存调拨",
+      "plannedCount": 10,
+      "completedCount": 10,
+      "strictPassed": 9,
+      "strictAccuracy": 0.9,
+      "pipelinePassRate": 0.9,
+      "expectedViewHitRate": 0.9,
+      "noDataRate": 0.8,
+      "averageMs": 17979,
+      "failureCounts": {
+        "AiStructuredOutputError": 1
+      }
+    },
+    {
+      "viewName": "ask_data_bom_consumption_variance_view",
+      "label": "BOM 实际消耗偏差",
+      "plannedCount": 6,
+      "completedCount": 6,
+      "strictPassed": 6,
+      "strictAccuracy": 1,
+      "pipelinePassRate": 1,
+      "expectedViewHitRate": 1,
+      "noDataRate": 0,
+      "averageMs": 15293,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_customer_feedback_view",
+      "label": "客户反馈",
+      "plannedCount": 1,
+      "completedCount": 1,
+      "strictPassed": 1,
+      "strictAccuracy": 1,
+      "pipelinePassRate": 1,
+      "expectedViewHitRate": 1,
+      "noDataRate": 1,
+      "averageMs": 32560,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_customer_lifecycle_view",
+      "label": "客户生命周期",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_marketing_roi_view",
+      "label": "营销 ROI",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    }
+  ],
+  "results": [
+    {
+      "id": "SUP-SETTLE-001",
+      "domain": "finance",
+      "role": "finance",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "本月每日净收最高的是哪一天，金额是多少",
+      "expected_target": "agent_v3_daily_settlement_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_daily_settlement_view",
+      "expectedViewLabel": "agent_v3_daily_settlement_view",
+      "candidateViews": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "daily_net_receipts"
+      ],
+      "semanticRoutingMs": 4,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 5019,
+      "guardMs": 2,
+      "executionMs": 3576,
+      "answerMs": 4366,
+      "totalMs": 12968,
+      "rowCount": 1,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "已查询到 1 条结果，首条为 date=2026-07-31T16:00:00.000Z、net_receipts=0.000000000000000000000000000000、order_count=0。",
+        "keyFindings": [],
+        "caveats": [
+          "模型总结包含结果外数字，已回退为确定性摘要。"
+        ]
+      },
+      "redactedSql": "SELECT settlement_date AS date, SUM(net_amount) AS net_receipts, SUM(order_count) AS order_count FROM agent_v3_daily_settlement_view WHERE agent_v3_daily_settlement_view.store_id = ANY(:allowedStoreIds) AND agent_v3_daily_settlement_view.settlement_date >= :startAt AND agent_v3_daily_settlement_view.settlement_date < :endAt AND (settlement_date >= :startAt::timestamptz::date AND settlement_date < :endAt::timestamptz::date) GROUP BY settlement_date ORDER BY net_receipts DESC LIMIT 1;"
+    },
+    {
+      "id": "SUP-BAL-001",
+      "domain": "manager",
+      "role": "manager",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "当前储值余额最高的前 10 位客户是谁",
+      "expected_target": "agent_v3_customer_balance_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_customer_balance_view",
+      "expectedViewLabel": "agent_v3_customer_balance_view",
+      "candidateViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_customer_balance_view",
+        "ask_data_member_liability_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "customer_balance"
+      ],
+      "semanticRoutingMs": 27,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 3418,
+      "guardMs": 3,
+      "executionMs": 3519,
+      "answerMs": 8828,
+      "totalMs": 15798,
+      "rowCount": 10,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "已查询到 10 条结果，首条为 customer_id=3876、cash_balance=7320.000000000000000000000000000000、gift_balance=927.000000000000000000000000000000。",
+        "keyFindings": [],
+        "caveats": []
+      },
+      "redactedSql": "SELECT customer_id, SUM(cash_balance) AS cash_balance, SUM(gift_balance) AS gift_balance\nFROM agent_v3_customer_balance_view WHERE agent_v3_customer_balance_view.store_id = ANY(:allowedStoreIds) GROUP BY customer_id\nORDER BY cash_balance DESC\nLIMIT 10;"
+    },
+    {
+      "id": "SUP-BAL-002",
+      "domain": "finance",
+      "role": "finance",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "哪些客户的赠送余额高于现金余额",
+      "expected_target": "agent_v3_customer_balance_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_customer_balance_view",
+      "expectedViewLabel": "agent_v3_customer_balance_view",
+      "candidateViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_customer_balance_view",
+        "ask_data_member_liability_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "customer_balance"
+      ],
+      "semanticRoutingMs": 26,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 5748,
+      "guardMs": 2,
+      "executionMs": 2389,
+      "answerMs": 4321,
+      "totalMs": 12487,
+      "rowCount": 26,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "共有26名客户的赠送余额高于现金余额，已按赠送余额从高到低列示。",
+        "keyFindings": [
+          "客户3795：赠送余额1171，现金余额114。",
+          "客户4022：赠送余额1152，现金余额742。",
+          "客户4056：赠送余额1147，现金余额1017。",
+          "客户4017：赠送余额1123，现金余额330。",
+          "客户3759：赠送余额1100，现金余额628。"
+        ],
+        "caveats": [
+          "客户信息按脱敏数据策略展示，仅提供客户ID。",
+          "查询范围为门店6，时间范围为2026-07-03至2026-08-02。"
+        ]
+      },
+      "redactedSql": "SELECT customer_id, SUM(cash_balance) AS cash_balance, SUM(gift_balance) AS gift_balance FROM agent_v3_customer_balance_view WHERE agent_v3_customer_balance_view.store_id = ANY(:allowedStoreIds) GROUP BY customer_id HAVING SUM(gift_balance) > SUM(cash_balance) ORDER BY gift_balance DESC LIMIT 100;"
+    },
+    {
+      "id": "SUP-BAL-003",
+      "domain": "frontdesk",
+      "role": "frontdesk",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "列出客户当前现金余额和赠送余额",
+      "expected_target": "agent_v3_customer_balance_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_customer_balance_view",
+      "expectedViewLabel": "agent_v3_customer_balance_view",
+      "candidateViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_customer_balance_view",
+        "ask_data_member_liability_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "customer_balance"
+      ],
+      "semanticRoutingMs": 1,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 3071,
+      "guardMs": 1,
+      "executionMs": 3671,
+      "answerMs": 6975,
+      "totalMs": 13720,
+      "rowCount": 20,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "已查询到 20 条结果，首条为 customer_id=3749、cash_balance=1303.000000000000000000000000000000、gift_balance=984.000000000000000000000000000000。",
+        "keyFindings": [],
+        "caveats": []
+      },
+      "redactedSql": "SELECT customer_id, SUM(cash_balance) AS cash_balance, SUM(gift_balance) AS gift_balance FROM agent_v3_customer_balance_view WHERE agent_v3_customer_balance_view.store_id = ANY(:allowedStoreIds) GROUP BY customer_id ORDER BY customer_id ASC LIMIT 20;"
+    },
+    {
+      "id": "SUP-BAL-004",
+      "domain": "finance",
+      "role": "finance",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "哪些客户现金余额已经为 0 但仍有赠送余额",
+      "expected_target": "agent_v3_customer_balance_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_customer_balance_view",
+      "expectedViewLabel": "agent_v3_customer_balance_view",
+      "candidateViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_customer_balance_view",
+        "ask_data_member_liability_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "customer_balance"
+      ],
+      "semanticRoutingMs": 1,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 8198,
+      "guardMs": 1,
+      "executionMs": 2541,
+      "answerMs": 0,
+      "totalMs": 10743,
+      "rowCount": 0,
+      "noData": true,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "当前筛选范围内没有匹配数据。",
+        "keyFindings": [],
+        "caveats": []
+      },
+      "redactedSql": "SELECT customer_id, SUM(cash_balance) AS cash_balance, SUM(gift_balance) AS gift_balance FROM agent_v3_customer_balance_view WHERE agent_v3_customer_balance_view.store_id = ANY(:allowedStoreIds) AND (cash_balance = 0 AND gift_balance > 0) GROUP BY customer_id ORDER BY gift_balance DESC LIMIT 100;"
+    },
+    {
+      "id": "SUP-BAL-005",
+      "domain": "manager",
+      "role": "manager",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "当前门店客户现金余额与赠送余额合计各是多少",
+      "expected_target": "agent_v3_customer_balance_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_customer_balance_view",
+      "expectedViewLabel": "agent_v3_customer_balance_view",
+      "candidateViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_customer_balance_view",
+        "ask_data_member_liability_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "customer_balance"
+      ],
+      "semanticRoutingMs": 1,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 2815,
+      "guardMs": 1,
+      "executionMs": 2006,
+      "answerMs": 4282,
+      "totalMs": 9107,
+      "rowCount": 1,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "当前门店客户现金余额合计为 983056.520000000000000000000000000000，赠送余额合计为 181071.040000000000000000000000000000。",
+        "keyFindings": [
+          "客户现金余额合计：983056.520000000000000000000000000000。",
+          "客户赠送余额合计：181071.040000000000000000000000000000。"
+        ],
+        "caveats": [
+          "“当前”按最新可用数据查询。"
+        ]
+      },
+      "redactedSql": "SELECT SUM(cash_balance) AS cash_balance, SUM(gift_balance) AS gift_balance FROM agent_v3_customer_balance_view WHERE agent_v3_customer_balance_view.store_id = ANY(:allowedStoreIds) LIMIT 20;"
+    },
+    {
+      "id": "SUP-SCRAP-001",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "本月库存报废造成的损耗金额合计是多少",
+      "expected_target": "agent_v3_inventory_scrap_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_inventory_scrap_view",
+      "expectedViewLabel": "agent_v3_inventory_scrap_view",
+      "candidateViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_inventory_scrap_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "inventory_scrap"
+      ],
+      "semanticRoutingMs": 2,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 4258,
+      "guardMs": 0,
+      "executionMs": 3036,
+      "answerMs": 3210,
+      "totalMs": 10507,
+      "rowCount": 1,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "已查询到 1 条结果，首条为 scrap_quantity=-、loss_amount=-。",
+        "keyFindings": [],
+        "caveats": [
+          "模型总结包含结果外数字，已回退为确定性摘要。"
+        ]
+      },
+      "redactedSql": "SELECT SUM(scrap_quantity) AS scrap_quantity, SUM(loss_amount) AS loss_amount FROM agent_v3_inventory_scrap_view WHERE agent_v3_inventory_scrap_view.store_id = ANY(:allowedStoreIds) AND agent_v3_inventory_scrap_view.occurred_at >= :startAt AND agent_v3_inventory_scrap_view.occurred_at < :endAt AND (occurred_at >= :startAt::timestamptz AND occurred_at < :endAt::timestamptz) LIMIT 20;"
+    },
+    {
+      "id": "SUP-SCRAP-002",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "按报废数量列出损耗最多的商品前 10 名",
+      "expected_target": "agent_v3_inventory_scrap_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_inventory_scrap_view",
+      "expectedViewLabel": "agent_v3_inventory_scrap_view",
+      "candidateViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "inventory_scrap"
+      ],
+      "semanticRoutingMs": 2,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 4972,
+      "guardMs": 1,
+      "executionMs": 2418,
+      "answerMs": 3882,
+      "totalMs": 11275,
+      "rowCount": 1,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "已查询到 1 条结果，首条为 product_id=83、scrap_quantity=97.000000000000000000000000000000、loss_amount=8342.00000000000000000000000000000000000。",
+        "keyFindings": [],
+        "caveats": [
+          "模型总结包含结果外数字，已回退为确定性摘要。"
+        ]
+      },
+      "redactedSql": "SELECT product_id, SUM(scrap_quantity) AS scrap_quantity, SUM(loss_amount) AS loss_amount FROM agent_v3_inventory_scrap_view WHERE agent_v3_inventory_scrap_view.store_id = ANY(:allowedStoreIds) AND agent_v3_inventory_scrap_view.occurred_at >= :startAt AND agent_v3_inventory_scrap_view.occurred_at < :endAt AND (store_id = ANY(:allowedStoreIds)) GROUP BY product_id ORDER BY scrap_quantity DESC LIMIT 10;"
+    },
+    {
+      "id": "SUP-SCRAP-003",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "最近 30 天有哪些库存报废记录",
+      "expected_target": "agent_v3_inventory_scrap_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_inventory_scrap_view",
+      "expectedViewLabel": "agent_v3_inventory_scrap_view",
+      "candidateViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_inventory_scrap_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "inventory_scrap"
+      ],
+      "semanticRoutingMs": 1,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 9708,
+      "guardMs": 1,
+      "executionMs": 2867,
+      "answerMs": 4242,
+      "totalMs": 16820,
+      "rowCount": 1,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "已查询到 1 条结果，首条为 movement_id=612、product_name=舒缓修护面膜、sku=AMI-DEMO-FULL-SKU-002。",
+        "keyFindings": [],
+        "caveats": [
+          "模型总结包含结果外数字，已回退为确定性摘要。"
+        ]
+      },
+      "redactedSql": "SELECT v.movement_id AS movement_id, v.product_name AS product_name, v.sku AS sku, SUM(v.scrap_quantity) AS scrap_quantity, SUM(v.loss_amount) AS loss_amount, v.occurred_at AS occurred_at, v.operator_name AS operator_name, v.remark_summary AS remark_summary FROM agent_v3_inventory_scrap_view AS v WHERE v.store_id = ANY(:allowedStoreIds) AND v.occurred_at >= :startAt AND v.occurred_at < :endAt AND (v.occurred_at >= :startAt::timestamptz AND v.occurred_at < :endAt::timestamptz) GROUP BY v.movement_id, v.product_name, v.sku, v.occurred_at, v.operator_name, v.remark_summary ORDER BY v.occurred_at DESC LIMIT 100;"
+    },
+    {
+      "id": "SUP-SCRAP-004",
+      "domain": "manager",
+      "role": "manager",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "各操作人的库存报废金额分别是多少",
+      "expected_target": "agent_v3_inventory_scrap_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_inventory_scrap_view",
+      "expectedViewLabel": "agent_v3_inventory_scrap_view",
+      "candidateViews": [
+        "agent_v3_inventory_scrap_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_inventory_scrap_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.92,
+      "semanticMetricKeys": [
+        "inventory_scrap",
+        "inventory_on_hand"
+      ],
+      "semanticRoutingMs": 1,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_inventory_scrap_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 2,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 22272,
+      "guardMs": 2,
+      "executionMs": 5482,
+      "answerMs": 3309,
+      "totalMs": 31067,
+      "rowCount": 1,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "已查询到 1 条结果，首条为 operator_name=系统管理员、scrap_quantity=97.000000000000000000000000000000、loss_amount=8342.00000000000000000000000000000000000。",
+        "keyFindings": [],
+        "caveats": [
+          "模型总结包含结果外数字，已回退为确定性摘要。"
+        ]
+      },
+      "redactedSql": "SELECT s.operator_name, SUM(s.scrap_quantity) AS scrap_quantity, SUM(s.loss_amount) AS loss_amount, SUM(i.current_stock) AS current_stock, SUM(i.stock_value) AS stock_value FROM agent_v3_inventory_scrap_view AS s LEFT JOIN agent_v3_product_inventory_view AS i ON i.store_id = s.store_id AND i.product_id = s.product_id WHERE s.store_id = ANY(:allowedStoreIds) AND s.occurred_at >= :startAt AND s.occurred_at < :endAt AND i.store_id = ANY(:allowedStoreIds) GROUP BY s.operator_name ORDER BY loss_amount DESC LIMIT 100;"
+    },
+    {
+      "id": "SUP-SCRAP-005",
+      "domain": "finance",
+      "role": "finance",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "每笔库存报废的平均损耗金额是多少",
+      "expected_target": "agent_v3_inventory_scrap_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_inventory_scrap_view",
+      "expectedViewLabel": "agent_v3_inventory_scrap_view",
+      "candidateViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_inventory_scrap_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.96,
+      "semanticMetricKeys": [
+        "inventory_scrap"
+      ],
+      "semanticRoutingMs": 1,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 6565,
+      "guardMs": 1,
+      "executionMs": 4741,
+      "answerMs": 3276,
+      "totalMs": 14585,
+      "rowCount": 1,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "已查询到 1 条结果，首条为 scrap_quantity=97.000000000000000000000000000000、loss_amount=8342.00000000000000000000000000000000000、average_loss_amount_per_scrap=8342.00000000000000000000000000000000000。",
+        "keyFindings": [],
+        "caveats": [
+          "模型总结包含结果外数字，已回退为确定性摘要。"
+        ]
+      },
+      "redactedSql": "SELECT SUM(scrap_quantity) AS scrap_quantity, SUM(loss_amount) AS loss_amount, SUM(loss_amount) / NULLIF(COUNT(movement_id), 0) AS average_loss_amount_per_scrap FROM agent_v3_inventory_scrap_view WHERE agent_v3_inventory_scrap_view.store_id = ANY(:allowedStoreIds) AND agent_v3_inventory_scrap_view.occurred_at >= :startAt AND agent_v3_inventory_scrap_view.occurred_at < :endAt LIMIT 20;"
+    },
+    {
+      "id": "SUP-SCRAP-006",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "哪些报废记录的损耗金额为 0",
+      "expected_target": "agent_v3_inventory_scrap_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_inventory_scrap_view",
+      "expectedViewLabel": "agent_v3_inventory_scrap_view",
+      "candidateViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.96,
+      "semanticMetricKeys": [
+        "inventory_scrap"
+      ],
+      "semanticRoutingMs": 1,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 7582,
+      "guardMs": 0,
+      "executionMs": 2441,
+      "answerMs": 5097,
+      "totalMs": 15123,
+      "rowCount": 1,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "已查询到 1 条结果，首条为 scrap_quantity=-、loss_amount=-。",
+        "keyFindings": [],
+        "caveats": [
+          "模型总结包含结果外数字，已回退为确定性摘要。"
+        ]
+      },
+      "redactedSql": "SELECT SUM(scrap_quantity) AS scrap_quantity, SUM(loss_amount) AS loss_amount FROM agent_v3_inventory_scrap_view WHERE agent_v3_inventory_scrap_view.store_id = ANY(:allowedStoreIds) AND agent_v3_inventory_scrap_view.occurred_at >= :startAt AND agent_v3_inventory_scrap_view.occurred_at < :endAt AND (loss_amount = 0) LIMIT 100;"
+    },
+    {
+      "id": "SUP-SCRAP-007",
+      "domain": "manager",
+      "role": "manager",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "最近三个月库存报废金额的按日趋势",
+      "expected_target": "agent_v3_inventory_scrap_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_inventory_scrap_view",
+      "expectedViewLabel": "agent_v3_inventory_scrap_view",
+      "candidateViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_inventory_scrap_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "inventory_scrap"
+      ],
+      "semanticRoutingMs": 1,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 5208,
+      "guardMs": 1,
+      "executionMs": 3279,
+      "answerMs": 7110,
+      "totalMs": 15601,
+      "rowCount": 7,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "已查询到 7 条结果，首条为 date=2026-06-28T17:12:20.618Z、scrap_quantity=46.000000000000000000000000000000、loss_amount=11960.0000000000000000000000000000000000。",
+        "keyFindings": [],
+        "caveats": [
+          "模型总结包含结果外数字，已回退为确定性摘要。"
+        ]
+      },
+      "redactedSql": "SELECT occurred_at AS date, SUM(scrap_quantity) AS scrap_quantity, SUM(loss_amount) AS loss_amount FROM agent_v3_inventory_scrap_view WHERE agent_v3_inventory_scrap_view.store_id = ANY(:allowedStoreIds) AND agent_v3_inventory_scrap_view.occurred_at >= :startAt AND agent_v3_inventory_scrap_view.occurred_at < :endAt AND (occurred_at >= :startAt::date AND occurred_at < :endAt::date) GROUP BY occurred_at ORDER BY date ASC LIMIT 100;"
+    },
+    {
+      "id": "SUP-SCRAP-008",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "列出库存报废记录的受控备注摘要和商品名称",
+      "expected_target": "agent_v3_inventory_scrap_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_inventory_scrap_view",
+      "expectedViewLabel": "agent_v3_inventory_scrap_view",
+      "candidateViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_inventory_scrap_view",
+        "agent_v3_stock_movement_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "inventory_scrap"
+      ],
+      "semanticRoutingMs": 2,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 5180,
+      "guardMs": 1,
+      "executionMs": 3339,
+      "answerMs": 4178,
+      "totalMs": 12701,
+      "rowCount": 1,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "已查询到 1 条结果，首条为 product_id=83、product_name=舒缓修护面膜、remark_summary=舒缓修护面膜 MVP-6-AMI-SKU-002 临期处理。",
+        "keyFindings": [],
+        "caveats": [
+          "模型总结包含结果外数字，已回退为确定性摘要。"
+        ]
+      },
+      "redactedSql": "SELECT product_id, product_name, remark_summary, SUM(scrap_quantity) AS scrap_quantity, SUM(loss_amount) AS loss_amount FROM agent_v3_inventory_scrap_view WHERE agent_v3_inventory_scrap_view.store_id = ANY(:allowedStoreIds) AND agent_v3_inventory_scrap_view.occurred_at >= :startAt AND agent_v3_inventory_scrap_view.occurred_at < :endAt GROUP BY product_id, product_name, remark_summary LIMIT 100;"
+    },
+    {
+      "id": "SUP-PROMO-001",
+      "domain": "marketing",
+      "role": "marketing",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "当前有哪些仍在生效的全局优惠",
+      "expected_target": "agent_v3_promotion_offer_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_promotion_offer_view",
+      "expectedViewLabel": "agent_v3_promotion_offer_view",
+      "candidateViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_promotion_offer_view",
+        "agent_v3_marketing_activity_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.94,
+      "semanticMetricKeys": [
+        "promotion_offer"
+      ],
+      "semanticRoutingMs": 1,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 2,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 27359,
+      "guardMs": 12280,
+      "executionMs": 2059,
+      "answerMs": 0,
+      "totalMs": 29421,
+      "rowCount": 0,
+      "noData": true,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "当前筛选范围内没有匹配数据。",
+        "keyFindings": [],
+        "caveats": []
+      },
+      "redactedSql": "SELECT promotion_id, promotion_name, type, scenario, discount_text, status, start_at, end_at, SUM(issued_count) AS issued_count, SUM(used_count) AS used_count FROM agent_v3_promotion_offer_view WHERE agent_v3_promotion_offer_view.store_id = ANY(:allowedStoreIds) AND agent_v3_promotion_offer_view.start_at >= :startAt AND agent_v3_promotion_offer_view.start_at < :endAt AND (scope_type = '***' AND start_at <= :endAt::date AND COALESCE(end_at, :endAt::date) >= :startAt::date) GROUP BY promotion_id, promotion_name, type, scenario, discount_text, status, start_at, end_at ORDER BY start_at DESC LIMIT 100;"
+    },
+    {
+      "id": "SUP-PROMO-002",
+      "domain": "marketing",
+      "role": "marketing",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "各优惠活动的发放数量和使用数量分别是多少",
+      "expected_target": "agent_v3_promotion_offer_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_promotion_offer_view",
+      "expectedViewLabel": "agent_v3_promotion_offer_view",
+      "candidateViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_promotion_offer_view",
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "promotion_offer"
+      ],
+      "semanticRoutingMs": 1,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 2,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 26550,
+      "guardMs": 0,
+      "executionMs": 2012,
+      "answerMs": 0,
+      "totalMs": 28565,
+      "rowCount": 0,
+      "noData": true,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "当前筛选范围内没有匹配数据。",
+        "keyFindings": [],
+        "caveats": []
+      },
+      "redactedSql": "SELECT promotion_id, promotion_name, SUM(issued_count) FILTER (WHERE start_at >= :startAt::date AND start_at < :endAt::date) AS issued_count, SUM(issued_count) FILTER (WHERE start_at >= :startAt::date - (:endAt::date - :startAt::date) AND start_at < :startAt::date) AS issued_count_previous, SUM(issued_count) FILTER (WHERE start_at >= :startAt::date AND start_at < :endAt::date) - SUM(issued_count) FILTER (WHERE start_at >= :startAt::date - (:endAt::date - :startAt::date) AND start_at < :startAt::date) AS issued_count_difference, SUM(used_count) FILTER (WHERE start_at >= :startAt::date AND start_at < :endAt::date) AS used_count, SUM(used_count) FILTER (WHERE start_at >= :startAt::date - (:endAt::date - :startAt::date) AND start_at < :startAt::date) AS used_count_previous, SUM(used_count) FILTER (WHERE start_at >= :startAt::date AND start_at < :endAt::date) - SUM(used_count) FILTER (WHERE start_at >= :startAt::date - (:endAt::date - :startAt::date) AND start_at < :startAt::date) AS used_count_difference FROM agent_v3_promotion_offer_view WHERE agent_v3_promotion_offer_view.store_id = ANY(:allowedStoreIds) AND agent_v3_promotion_offer_view.start_at >= :startAt AND agent_v3_promotion_offer_view.start_at < :endAt GROUP BY promotion_id, promotion_name ORDER BY SUM(issued_count) FILTER (WHERE start_at >= :startAt::date AND start_at < :endAt::date) DESC LIMIT 20;"
+    },
+    {
+      "id": "SUP-PROMO-003",
+      "domain": "frontdesk",
+      "role": "frontdesk",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "未来 30 天内即将结束的优惠活动有哪些",
+      "expected_target": "agent_v3_promotion_offer_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_promotion_offer_view",
+      "expectedViewLabel": "agent_v3_promotion_offer_view",
+      "candidateViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_promotion_offer_view",
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "promotion_offer"
+      ],
+      "semanticRoutingMs": 2,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 11392,
+      "guardMs": 2,
+      "executionMs": 3119,
+      "answerMs": 1,
+      "totalMs": 14517,
+      "rowCount": 0,
+      "noData": true,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "当前筛选范围内没有匹配数据。",
+        "keyFindings": [],
+        "caveats": []
+      },
+      "redactedSql": "SELECT promotion_id, promotion_name, type, scenario, discount_text, status, scope_type, start_at, end_at, SUM(issued_count) AS issued_count, SUM(used_count) AS used_count\nFROM agent_v3_promotion_offer_view\nWHERE agent_v3_promotion_offer_view.store_id = ANY(:allowedStoreIds) AND agent_v3_promotion_offer_view.start_at >= :startAt AND agent_v3_promotion_offer_view.start_at < :endAt AND (end_at >= :startAt::date\n  AND end_at < :endAt::date) GROUP BY promotion_id, promotion_name, type, scenario, discount_text, status, scope_type, start_at, end_at\nORDER BY end_at ASC\nLIMIT 100;"
+    },
+    {
+      "id": "SUP-PROMO-004",
+      "domain": "manager",
+      "role": "manager",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "全局优惠和门店优惠各有多少个",
+      "expected_target": "agent_v3_promotion_offer_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_promotion_offer_view",
+      "expectedViewLabel": "agent_v3_promotion_offer_view",
+      "candidateViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_promotion_offer_view",
+        "agent_v3_marketing_activity_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.92,
+      "semanticMetricKeys": [
+        "promotion_offer"
+      ],
+      "semanticRoutingMs": 1,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 2,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 21294,
+      "guardMs": 0,
+      "executionMs": 2064,
+      "answerMs": 0,
+      "totalMs": 23360,
+      "rowCount": 0,
+      "noData": true,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "当前筛选范围内没有匹配数据。",
+        "keyFindings": [],
+        "caveats": []
+      },
+      "redactedSql": "SELECT scope_type, COUNT(*) AS promotion_offer_count, SUM(issued_count) AS issued_count, SUM(used_count) AS used_count\nFROM agent_v3_promotion_offer_view\nWHERE agent_v3_promotion_offer_view.store_id = ANY(:allowedStoreIds) AND agent_v3_promotion_offer_view.start_at >= :startAt AND agent_v3_promotion_offer_view.start_at < :endAt AND (scope_type IN ('***', '***')) GROUP BY scope_type\nORDER BY scope_type ASC\nLIMIT 20;"
+    },
+    {
+      "id": "SUP-PROMO-005",
+      "domain": "marketing",
+      "role": "marketing",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "按优惠类型统计当前活动数量",
+      "expected_target": "agent_v3_promotion_offer_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_promotion_offer_view",
+      "expectedViewLabel": "agent_v3_promotion_offer_view",
+      "candidateViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_promotion_offer_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.94,
+      "semanticMetricKeys": [
+        "promotion_offer"
+      ],
+      "semanticRoutingMs": 0,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 5413,
+      "guardMs": 0,
+      "executionMs": 2230,
+      "answerMs": 2657,
+      "totalMs": 10301,
+      "rowCount": 1,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "已查询到 1 条结果，首条为 issued_count=-、used_count=-。",
+        "keyFindings": [],
+        "caveats": [
+          "模型总结未覆盖查询要求的全部事实，已回退为确定性摘要。"
+        ]
+      },
+      "redactedSql": "SELECT SUM(issued_count) AS issued_count, SUM(used_count) AS used_count FROM agent_v3_promotion_offer_view WHERE agent_v3_promotion_offer_view.store_id = ANY(:allowedStoreIds) AND agent_v3_promotion_offer_view.start_at >= :startAt AND agent_v3_promotion_offer_view.start_at < :endAt LIMIT 20;"
+    },
+    {
+      "id": "SUP-PROMO-006",
+      "domain": "marketing",
+      "role": "marketing",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "哪些优惠活动已经发放但还没有被使用",
+      "expected_target": "agent_v3_promotion_offer_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_promotion_offer_view",
+      "expectedViewLabel": "agent_v3_promotion_offer_view",
+      "candidateViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_promotion_offer_view",
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "promotion_offer"
+      ],
+      "semanticRoutingMs": 0,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 7627,
+      "guardMs": 1,
+      "executionMs": 2057,
+      "answerMs": 0,
+      "totalMs": 9685,
+      "rowCount": 0,
+      "noData": true,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "当前筛选范围内没有匹配数据。",
+        "keyFindings": [],
+        "caveats": []
+      },
+      "redactedSql": "SELECT p.promotion_id, p.promotion_name, p.type, p.scenario, p.discount_text, p.scope_type, SUM(p.issued_count) AS issued_count, SUM(p.used_count) AS used_count FROM agent_v3_promotion_offer_view AS p WHERE p.store_id = ANY(:allowedStoreIds) AND p.start_at >= :startAt AND p.start_at < :endAt GROUP BY p.promotion_id, p.promotion_name, p.type, p.scenario, p.discount_text, p.scope_type HAVING SUM(p.issued_count) > 0 AND SUM(p.used_count) = 0 ORDER BY issued_count DESC LIMIT 100;"
+    },
+    {
+      "id": "SUP-PROMO-007",
+      "domain": "manager",
+      "role": "manager",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "使用次数最多的优惠活动前 10 名",
+      "expected_target": "agent_v3_promotion_offer_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_promotion_offer_view",
+      "expectedViewLabel": "agent_v3_promotion_offer_view",
+      "candidateViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_promotion_offer_view",
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "promotion_offer"
+      ],
+      "semanticRoutingMs": 2,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 5026,
+      "guardMs": 0,
+      "executionMs": 2544,
+      "answerMs": 0,
+      "totalMs": 7574,
+      "rowCount": 0,
+      "noData": true,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "当前筛选范围内没有匹配数据。",
+        "keyFindings": [],
+        "caveats": []
+      },
+      "redactedSql": "SELECT promotion_id, promotion_name, SUM(issued_count) AS issued_count, SUM(used_count) AS used_count FROM agent_v3_promotion_offer_view WHERE agent_v3_promotion_offer_view.store_id = ANY(:allowedStoreIds) AND agent_v3_promotion_offer_view.start_at >= :startAt AND agent_v3_promotion_offer_view.start_at < :endAt GROUP BY promotion_id, promotion_name ORDER BY issued_count DESC LIMIT 10;"
+    },
+    {
+      "id": "SUP-STAFF-001",
+      "domain": "manager",
+      "role": "manager",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "当前在职员工一共有多少人",
+      "expected_target": "agent_v3_staff_profile_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_staff_profile_view",
+      "expectedViewLabel": "agent_v3_staff_profile_view",
+      "candidateViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_staff_profile_view",
+        "agent_v3_service_quality_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.95,
+      "semanticMetricKeys": [
+        "staff_profile"
+      ],
+      "semanticRoutingMs": 0,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 2,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 12103,
+      "guardMs": 7439,
+      "executionMs": 2704,
+      "answerMs": 2580,
+      "totalMs": 17388,
+      "rowCount": 1,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "当前在职员工共 6 人。",
+        "keyFindings": [
+          "门店 6 的员工档案中，状态为 active（在职）的员工人数为 6 人。"
+        ],
+        "caveats": [
+          "“当前”按最新可用数据查询。",
+          "统计按员工档案记录口径，不使用未登记的 DISTINCT 标记。"
+        ]
+      },
+      "redactedSql": "SELECT COUNT(staff_id) AS staff_count\nFROM agent_v3_staff_profile_view\nWHERE agent_v3_staff_profile_view.store_id = ANY(:allowedStoreIds) AND (status = '***') LIMIT 20;"
+    },
+    {
+      "id": "SUP-STAFF-002",
+      "domain": "manager",
+      "role": "manager",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "各员工级别分别有多少人",
+      "expected_target": "agent_v3_staff_profile_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_staff_profile_view",
+      "expectedViewLabel": "agent_v3_staff_profile_view",
+      "candidateViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_staff_profile_view",
+        "agent_v3_service_quality_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "staff_profile"
+      ],
+      "semanticRoutingMs": 0,
+      "selectedViews": [],
+      "expectedViewHit": false,
+      "totalMs": 13822,
+      "status": "guard_blocked",
+      "pipelineStatus": "guard_blocked",
+      "failureCategory": "guard_field_not_allowed",
+      "failureReason": "字段 DISTINCT 未进入问数目录。",
+      "generationStatus": "ready",
+      "generationAttempts": 2,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 13821,
+      "guardMs": 6990,
+      "executionMs": 0,
+      "answerMs": 0,
+      "redactedSql": "SELECT level_name, COUNT(DISTINCT staff_id) AS staff_count FROM agent_v3_staff_profile_view WHERE store_id = ANY(:allowedStoreIds) GROUP BY level_name ORDER BY staff_count DESC LIMIT 100"
+    },
+    {
+      "id": "SUP-STAFF-003",
+      "domain": "frontdesk",
+      "role": "frontdesk",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "列出当前在职美容师及其级别",
+      "expected_target": "agent_v3_staff_profile_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_staff_profile_view",
+      "expectedViewLabel": "agent_v3_staff_profile_view",
+      "candidateViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "staff_profile"
+      ],
+      "semanticRoutingMs": 1,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 2,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 8862,
+      "guardMs": 3438,
+      "executionMs": 2000,
+      "answerMs": 3633,
+      "totalMs": 14498,
+      "rowCount": 6,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "已查询到 6 条结果，首条为 staff_id=40、staff_name=沈晴、level_name=初级美容师。",
+        "keyFindings": [],
+        "caveats": []
+      },
+      "redactedSql": "SELECT staff_id, staff_name, level_name FROM agent_v3_staff_profile_view WHERE agent_v3_staff_profile_view.store_id = ANY(:allowedStoreIds) AND (status = '***') ORDER BY staff_id ASC LIMIT 20;"
+    },
+    {
+      "id": "SUP-STAFF-004",
+      "domain": "manager",
+      "role": "manager",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "最近入职的员工前 10 名是谁",
+      "expected_target": "agent_v3_staff_profile_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_staff_profile_view",
+      "expectedViewLabel": "agent_v3_staff_profile_view",
+      "candidateViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_staff_profile_view",
+        "agent_v3_service_quality_view"
+      ],
+      "semanticRouteMode": "model_fallback",
+      "semanticConfidence": 0.96,
+      "semanticMetricKeys": [
+        "staff_profile"
+      ],
+      "semanticRoutingMs": 2459,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 2,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 17507,
+      "guardMs": 10412,
+      "executionMs": 3158,
+      "answerMs": 4693,
+      "totalMs": 27821,
+      "rowCount": 2,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "已查询到 2 条结果，首条为 staff_id=55、staff_count=1。",
+        "keyFindings": [],
+        "caveats": [
+          "模型总结包含结果外数字，已回退为确定性摘要。"
+        ]
+      },
+      "redactedSql": "SELECT staff_id, COUNT(staff_id) AS staff_count FROM agent_v3_staff_profile_view WHERE agent_v3_staff_profile_view.store_id = ANY(:allowedStoreIds) AND (created_at >= :startAt::timestamptz AND created_at < :endAt::timestamptz) GROUP BY staff_id ORDER BY staff_count DESC LIMIT 10;"
+    },
+    {
+      "id": "SUP-STAFF-005",
+      "domain": "manager",
+      "role": "manager",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "当前员工档案中有哪些不同的职级",
+      "expected_target": "agent_v3_staff_profile_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_staff_profile_view",
+      "expectedViewLabel": "agent_v3_staff_profile_view",
+      "candidateViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_staff_profile_view",
+        "agent_v3_service_quality_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "staff_profile"
+      ],
+      "semanticRoutingMs": 1,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 2,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 19715,
+      "guardMs": 9638,
+      "executionMs": 2457,
+      "answerMs": 3145,
+      "totalMs": 25320,
+      "rowCount": 4,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "当前员工档案共有4种职级：中级美容师、高级美容师、明星顾问、初级美容师。",
+        "keyFindings": [
+          "中级美容师：4人",
+          "高级美容师：4人",
+          "明星顾问：3人",
+          "初级美容师：3人"
+        ],
+        "caveats": [
+          "“当前”按最新可用数据查询。"
+        ]
+      },
+      "redactedSql": "SELECT level_name, COUNT(staff_id) AS staff_count\nFROM agent_v3_staff_profile_view WHERE agent_v3_staff_profile_view.store_id = ANY(:allowedStoreIds) GROUP BY level_name\nORDER BY staff_count DESC\nLIMIT 100;"
+    },
+    {
+      "id": "SUP-SUPPLIER-001",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "平均交付天数最短的供应商前 10 名",
+      "expected_target": "agent_v3_supplier_performance_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_supplier_performance_view",
+      "expectedViewLabel": "agent_v3_supplier_performance_view",
+      "candidateViews": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_supplier_performance_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "supplier_performance"
+      ],
+      "semanticRoutingMs": 1,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 6998,
+      "guardMs": 0,
+      "executionMs": 2453,
+      "answerMs": 0,
+      "totalMs": 9453,
+      "rowCount": 0,
+      "noData": true,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "当前筛选范围内没有匹配数据。",
+        "keyFindings": [],
+        "caveats": []
+      },
+      "redactedSql": "SELECT supplier_id, SUM(procurement_amount) AS procurement_amount, SUM(procurement_count) AS procurement_count, AVG(avg_delivery_days) AS avg_delivery_days FROM agent_v3_supplier_performance_view WHERE agent_v3_supplier_performance_view.store_id = ANY(:allowedStoreIds) AND agent_v3_supplier_performance_view.last_procurement_at >= :startAt AND agent_v3_supplier_performance_view.last_procurement_at < :endAt AND (avg_delivery_days IS NOT NULL) GROUP BY supplier_id ORDER BY avg_delivery_days ASC LIMIT 10;"
+    },
+    {
+      "id": "SUP-SUPPLIER-002",
+      "domain": "manager",
+      "role": "manager",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "比较各供应商的采购次数、采购金额和平均交付天数",
+      "expected_target": "agent_v3_supplier_performance_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "agent_v3_supplier_performance_view",
+      "expectedViewLabel": "agent_v3_supplier_performance_view",
+      "candidateViews": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_supplier_performance_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "supplier_performance"
+      ],
+      "semanticRoutingMs": 1,
+      "selectedViews": [],
+      "expectedViewHit": false,
+      "totalMs": 30830,
+      "status": "evaluation_failed",
+      "pipelineStatus": "evaluation_failed",
+      "failureCategory": "AiStructuredOutputError",
+      "failureReason": "Structured output provider is unavailable.",
+      "generationMs": 0,
+      "guardMs": 0,
+      "executionMs": 0,
+      "answerMs": 0
+    },
+    {
+      "id": "SUP-BOM-001",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "最近 30 天有哪些 BOM 消耗偏差超过 20% 的记录",
+      "expected_target": "ask_data_bom_consumption_variance_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "ask_data_bom_consumption_variance_view",
+      "expectedViewLabel": "ask_data_bom_consumption_variance_view",
+      "candidateViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_bom_consumption_variance_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "bom_variance"
+      ],
+      "semanticRoutingMs": 2,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 5034,
+      "guardMs": 0,
+      "executionMs": 2005,
+      "answerMs": 4188,
+      "totalMs": 11230,
+      "rowCount": 1,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "已查询到 1 条结果，首条为 standard_qty=4.00000000000000000000000000000000000000、actual_qty=3.000000000000000000000000000000、deviation_qty=-1.0000000000000000000000000000000000000。",
+        "keyFindings": [],
+        "caveats": [
+          "模型总结包含结果外数字，已回退为确定性摘要。"
+        ]
+      },
+      "redactedSql": "SELECT standard_qty, actual_qty, deviation_qty, deviation_rate FROM ask_data_bom_consumption_variance_view WHERE ask_data_bom_consumption_variance_view.store_id = ANY(:allowedStoreIds) AND ask_data_bom_consumption_variance_view.occurred_at >= :startAt AND ask_data_bom_consumption_variance_view.occurred_at < :endAt AND (is_abnormal = TRUE AND standard_status = '***' AND occurred_at >= :startAt::timestamptz AND occurred_at < :endAt::timestamptz) ORDER BY deviation_rate DESC LIMIT 100;"
+    },
+    {
+      "id": "SUP-BOM-002",
+      "domain": "manager",
+      "role": "manager",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "按项目列出实际耗材偏差率最高的前 10 名",
+      "expected_target": "ask_data_bom_consumption_variance_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "ask_data_bom_consumption_variance_view",
+      "expectedViewLabel": "ask_data_bom_consumption_variance_view",
+      "candidateViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_bom_consumption_variance_view",
+        "agent_v3_stock_movement_view",
+        "agent_v3_reservation_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "bom_variance"
+      ],
+      "semanticRoutingMs": 1,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 6076,
+      "guardMs": 1,
+      "executionMs": 2890,
+      "answerMs": 9049,
+      "totalMs": 18018,
+      "rowCount": 8,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "已查询到 8 条结果，首条为 project_id=75、standard_qty=170.250000000000000000000000000000000000、actual_qty=170.250000000000000000000000000000。",
+        "keyFindings": [],
+        "caveats": [
+          "模型总结包含结果外数字，已回退为确定性摘要。"
+        ]
+      },
+      "redactedSql": "SELECT project_id, SUM(standard_qty) AS standard_qty, SUM(actual_qty) AS actual_qty, SUM(deviation_qty) AS deviation_qty, AVG(deviation_rate) AS deviation_rate FROM ask_data_bom_consumption_variance_view WHERE ask_data_bom_consumption_variance_view.store_id = ANY(:allowedStoreIds) AND ask_data_bom_consumption_variance_view.occurred_at >= :startAt AND ask_data_bom_consumption_variance_view.occurred_at < :endAt AND (standard_status = '***') GROUP BY project_id ORDER BY standard_qty DESC LIMIT 10;"
+    },
+    {
+      "id": "SUP-BOM-003",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "哪些耗材消耗记录缺少标准 BOM",
+      "expected_target": "ask_data_bom_consumption_variance_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "ask_data_bom_consumption_variance_view",
+      "expectedViewLabel": "ask_data_bom_consumption_variance_view",
+      "candidateViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_bom_consumption_variance_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.95,
+      "semanticMetricKeys": [
+        "bom_variance"
+      ],
+      "semanticRoutingMs": 1,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 5985,
+      "guardMs": 1,
+      "executionMs": 2002,
+      "answerMs": 4149,
+      "totalMs": 12140,
+      "rowCount": 1,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "已查询到 1 条结果，首条为 standard_qty=-、actual_qty=-、deviation_qty=-。",
+        "keyFindings": [],
+        "caveats": [
+          "模型总结未覆盖查询要求的全部事实，已回退为确定性摘要。"
+        ]
+      },
+      "redactedSql": "SELECT SUM(standard_qty) AS standard_qty, SUM(actual_qty) AS actual_qty, SUM(deviation_qty) AS deviation_qty, AVG(deviation_rate) AS deviation_rate FROM ask_data_bom_consumption_variance_view WHERE ask_data_bom_consumption_variance_view.store_id = ANY(:allowedStoreIds) AND ask_data_bom_consumption_variance_view.occurred_at >= :startAt AND ask_data_bom_consumption_variance_view.occurred_at < :endAt AND (standard_status IN ('***', '***')) LIMIT 100;"
+    },
+    {
+      "id": "SUP-BOM-004",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "各商品的标准用量、实际用量和偏差数量分别是多少",
+      "expected_target": "ask_data_bom_consumption_variance_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "ask_data_bom_consumption_variance_view",
+      "expectedViewLabel": "ask_data_bom_consumption_variance_view",
+      "candidateViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_bom_consumption_variance_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.97,
+      "semanticMetricKeys": [
+        "bom_variance"
+      ],
+      "semanticRoutingMs": 2,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 9254,
+      "guardMs": 1,
+      "executionMs": 2244,
+      "answerMs": 8306,
+      "totalMs": 19807,
+      "rowCount": 15,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "已查询到 15 条结果，首条为 product_id=134、standard_qty=3.00000000000000000000000000000000000000、actual_qty=3.000000000000000000000000000000。",
+        "keyFindings": [],
+        "caveats": [
+          "模型总结未覆盖查询要求的全部事实，已回退为确定性摘要。"
+        ]
+      },
+      "redactedSql": "SELECT product_id, SUM(standard_qty) AS standard_qty, SUM(actual_qty) AS actual_qty, SUM(deviation_qty) AS deviation_qty, AVG(deviation_rate) AS deviation_rate FROM ask_data_bom_consumption_variance_view WHERE ask_data_bom_consumption_variance_view.store_id = ANY(:allowedStoreIds) AND ask_data_bom_consumption_variance_view.occurred_at >= :startAt AND ask_data_bom_consumption_variance_view.occurred_at < :endAt GROUP BY product_id ORDER BY deviation_qty DESC LIMIT 20;"
+    },
+    {
+      "id": "SUP-BOM-005",
+      "domain": "manager",
+      "role": "manager",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "最近三个月实际耗材偏差率的变化趋势",
+      "expected_target": "ask_data_bom_consumption_variance_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "ask_data_bom_consumption_variance_view",
+      "expectedViewLabel": "ask_data_bom_consumption_variance_view",
+      "candidateViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_bom_consumption_variance_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "bom_variance"
+      ],
+      "semanticRoutingMs": 2,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 7033,
+      "guardMs": 1,
+      "executionMs": 2053,
+      "answerMs": 10254,
+      "totalMs": 19344,
+      "rowCount": 2,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "已查询到 2 条结果，首条为 trend_month=2026-05-31T16:00:00.000Z、standard_qty=944.700000000000000000000000000000000000、actual_qty=944.700000000000000000000000000000。",
+        "keyFindings": [],
+        "caveats": []
+      },
+      "redactedSql": "SELECT DATE_TRUNC('***', occurred_at)::date AS trend_month, SUM(standard_qty) AS standard_qty, SUM(actual_qty) AS actual_qty, SUM(deviation_qty) AS deviation_qty, AVG(deviation_rate) AS deviation_rate FROM ask_data_bom_consumption_variance_view WHERE ask_data_bom_consumption_variance_view.store_id = ANY(:allowedStoreIds) AND ask_data_bom_consumption_variance_view.occurred_at >= :startAt AND ask_data_bom_consumption_variance_view.occurred_at < :endAt AND (standard_status = '***' AND occurred_at >= :startAt::date AND occurred_at < :endAt::date) GROUP BY DATE_TRUNC('***', occurred_at)::date ORDER BY trend_month ASC LIMIT 100;"
+    },
+    {
+      "id": "SUP-BOM-006",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "BOM 消耗异常记录一共有多少条",
+      "expected_target": "ask_data_bom_consumption_variance_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "ask_data_bom_consumption_variance_view",
+      "expectedViewLabel": "ask_data_bom_consumption_variance_view",
+      "candidateViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_bom_consumption_variance_view",
+        "ask_data_reconciliation_issue_view",
+        "agent_v3_daily_settlement_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.96,
+      "semanticMetricKeys": [
+        "bom_variance"
+      ],
+      "semanticRoutingMs": 2,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 6034,
+      "guardMs": 1,
+      "executionMs": 2383,
+      "answerMs": 2797,
+      "totalMs": 11218,
+      "rowCount": 1,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "已查询到 1 条结果，首条为 abnormal_record_count=1、standard_qty=4.00000000000000000000000000000000000000、actual_qty=3.000000000000000000000000000000。",
+        "keyFindings": [],
+        "caveats": [
+          "模型总结包含结果外数字，已回退为确定性摘要。"
+        ]
+      },
+      "redactedSql": "SELECT COUNT(movement_id) AS abnormal_record_count, SUM(standard_qty) AS standard_qty, SUM(actual_qty) AS actual_qty, SUM(deviation_qty) AS deviation_qty, AVG(deviation_rate) AS deviation_rate FROM ask_data_bom_consumption_variance_view WHERE ask_data_bom_consumption_variance_view.store_id = ANY(:allowedStoreIds) AND ask_data_bom_consumption_variance_view.occurred_at >= :startAt AND ask_data_bom_consumption_variance_view.occurred_at < :endAt AND (is_abnormal = TRUE AND standard_status = '***') LIMIT 100;"
+    },
+    {
+      "id": "SUP-FEEDBACK-001",
+      "domain": "manager",
+      "role": "manager",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "按反馈类型统计客户反馈数量和平均评分",
+      "expected_target": "ask_data_customer_feedback_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "ask_data_customer_feedback_view",
+      "expectedViewLabel": "ask_data_customer_feedback_view",
+      "candidateViews": [
+        "ask_data_customer_feedback_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_customer_feedback_view",
+        "agent_v3_service_quality_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "customer_feedback"
+      ],
+      "semanticRoutingMs": 1,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_customer_feedback_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 3,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 29496,
+      "guardMs": 6167,
+      "executionMs": 3061,
+      "answerMs": 0,
+      "totalMs": 32560,
+      "rowCount": 0,
+      "noData": true,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "当前筛选范围内没有匹配数据。",
+        "keyFindings": [],
+        "caveats": []
+      },
+      "redactedSql": "SELECT feedback_type, customer_id, COUNT(feedback_id) AS feedback_count, AVG(rating) AS average_rating FROM ask_data_customer_feedback_view WHERE ask_data_customer_feedback_view.store_id = ANY(:allowedStoreIds) AND ask_data_customer_feedback_view.occurred_at >= :startAt AND ask_data_customer_feedback_view.occurred_at < :endAt GROUP BY feedback_type, customer_id ORDER BY feedback_count DESC LIMIT 20;"
+    },
+    {
+      "id": "SUP-TRANSFER-001",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "当前有哪些未完成的调出单",
+      "expected_target": "ask_data_transfer_status_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "ask_data_transfer_status_view",
+      "expectedViewLabel": "ask_data_transfer_status_view",
+      "candidateViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_transfer_status_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.96,
+      "semanticMetricKeys": [
+        "transfer_status"
+      ],
+      "semanticRoutingMs": 2,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 2,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 12476,
+      "guardMs": 6797,
+      "executionMs": 2505,
+      "answerMs": 0,
+      "totalMs": 14984,
+      "rowCount": 0,
+      "noData": true,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "当前筛选范围内没有匹配数据。",
+        "keyFindings": [],
+        "caveats": []
+      },
+      "redactedSql": "SELECT transfer_id, status, SUM(product_count) AS product_count FROM ask_data_transfer_status_view WHERE ask_data_transfer_status_view.store_id = ANY(:allowedStoreIds) AND ask_data_transfer_status_view.created_at >= :startAt AND ask_data_transfer_status_view.created_at < :endAt AND (direction = '***' AND status NOT IN ('***', '***', '***')) GROUP BY transfer_id, status ORDER BY transfer_id DESC LIMIT 100;"
+    },
+    {
+      "id": "SUP-TRANSFER-002",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "当前有哪些待接收的调入单",
+      "expected_target": "ask_data_transfer_status_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "ask_data_transfer_status_view",
+      "expectedViewLabel": "ask_data_transfer_status_view",
+      "candidateViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_transfer_status_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.96,
+      "semanticMetricKeys": [
+        "transfer_status"
+      ],
+      "semanticRoutingMs": 2,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 2,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 12660,
+      "guardMs": 3349,
+      "executionMs": 2407,
+      "answerMs": 0,
+      "totalMs": 15070,
+      "rowCount": 0,
+      "noData": true,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "当前筛选范围内没有匹配数据。",
+        "keyFindings": [],
+        "caveats": []
+      },
+      "redactedSql": "SELECT transfer_id, SUM(product_count) AS product_count FROM ask_data_transfer_status_view WHERE ask_data_transfer_status_view.store_id = ANY(:allowedStoreIds) AND ask_data_transfer_status_view.created_at >= :startAt AND ask_data_transfer_status_view.created_at < :endAt AND (direction = '***' AND status NOT IN ('***', '***', '***')) GROUP BY transfer_id LIMIT 100;"
+    },
+    {
+      "id": "SUP-TRANSFER-003",
+      "domain": "manager",
+      "role": "manager",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "按状态统计库存调拨单数量",
+      "expected_target": "ask_data_transfer_status_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "ask_data_transfer_status_view",
+      "expectedViewLabel": "ask_data_transfer_status_view",
+      "candidateViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_transfer_status_view",
+        "agent_v3_stock_movement_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "transfer_status"
+      ],
+      "semanticRoutingMs": 2,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 2,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 13225,
+      "guardMs": 9603,
+      "executionMs": 2731,
+      "answerMs": 0,
+      "totalMs": 15960,
+      "rowCount": 0,
+      "noData": true,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "当前筛选范围内没有匹配数据。",
+        "keyFindings": [],
+        "caveats": []
+      },
+      "redactedSql": "SELECT status, COUNT(transfer_id) AS transfer_count, SUM(product_count) AS product_count\nFROM ask_data_transfer_status_view WHERE ask_data_transfer_status_view.store_id = ANY(:allowedStoreIds) AND ask_data_transfer_status_view.created_at >= :startAt AND ask_data_transfer_status_view.created_at < :endAt GROUP BY status\nORDER BY transfer_count DESC\nLIMIT 20;"
+    },
+    {
+      "id": "SUP-TRANSFER-004",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "各对方门店的调入商品数量分别是多少",
+      "expected_target": "ask_data_transfer_status_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "ask_data_transfer_status_view",
+      "expectedViewLabel": "ask_data_transfer_status_view",
+      "candidateViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_transfer_status_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "transfer_status"
+      ],
+      "semanticRoutingMs": 0,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 2,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 9530,
+      "guardMs": 3842,
+      "executionMs": 2283,
+      "answerMs": 0,
+      "totalMs": 11815,
+      "rowCount": 0,
+      "noData": true,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "当前筛选范围内没有匹配数据。",
+        "keyFindings": [],
+        "caveats": []
+      },
+      "redactedSql": "SELECT counterpart_store_id, counterpart_store_name, SUM(product_count) AS product_count FROM ask_data_transfer_status_view WHERE ask_data_transfer_status_view.store_id = ANY(:allowedStoreIds) AND ask_data_transfer_status_view.created_at >= :startAt AND ask_data_transfer_status_view.created_at < :endAt AND (direction = '***') GROUP BY counterpart_store_id, counterpart_store_name ORDER BY product_count DESC LIMIT 100;"
+    },
+    {
+      "id": "SUP-TRANSFER-005",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "最近 30 天创建了多少张库存调拨单",
+      "expected_target": "ask_data_transfer_status_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "ask_data_transfer_status_view",
+      "expectedViewLabel": "ask_data_transfer_status_view",
+      "candidateViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_transfer_status_view",
+        "agent_v3_stock_movement_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "transfer_status"
+      ],
+      "semanticRoutingMs": 1,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 2,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 15195,
+      "guardMs": 10816,
+      "executionMs": 1986,
+      "answerMs": 3455,
+      "totalMs": 20637,
+      "rowCount": 1,
+      "noData": false,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "已查询到 1 条结果，首条为 transfer_count=0、product_count=-。",
+        "keyFindings": [],
+        "caveats": [
+          "模型总结包含结果外数字，已回退为确定性摘要。"
+        ]
+      },
+      "redactedSql": "SELECT COUNT(transfer_id) AS transfer_count, SUM(product_count) AS product_count FROM ask_data_transfer_status_view WHERE ask_data_transfer_status_view.store_id = ANY(:allowedStoreIds) AND ask_data_transfer_status_view.created_at >= :startAt AND ask_data_transfer_status_view.created_at < :endAt AND (created_at >= :startAt::date AND created_at < :endAt::date) LIMIT 20;"
+    },
+    {
+      "id": "SUP-TRANSFER-006",
+      "domain": "manager",
+      "role": "manager",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "调入和调出方向的调拨单数量对比",
+      "expected_target": "ask_data_transfer_status_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "ask_data_transfer_status_view",
+      "expectedViewLabel": "ask_data_transfer_status_view",
+      "candidateViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_transfer_status_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "transfer_status"
+      ],
+      "semanticRoutingMs": 0,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 3,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 33478,
+      "guardMs": 9423,
+      "executionMs": 2239,
+      "answerMs": 0,
+      "totalMs": 35719,
+      "rowCount": 0,
+      "noData": true,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "当前筛选范围内没有匹配数据。",
+        "keyFindings": [],
+        "caveats": []
+      },
+      "redactedSql": "SELECT direction, COUNT(transfer_id) FILTER (WHERE created_at >= :startAt::date AND created_at < :endAt::date) AS transfer_count, COUNT(transfer_id) FILTER (WHERE created_at >= (:startAt::date - (:endAt::date - :startAt::date)) AND created_at < :startAt::date) AS previous_transfer_count, COUNT(transfer_id) FILTER (WHERE created_at >= :startAt::date AND created_at < :endAt::date) - COUNT(transfer_id) FILTER (WHERE created_at >= (:startAt::date - (:endAt::date - :startAt::date)) AND created_at < :startAt::date) AS transfer_count_difference, SUM(product_count) FILTER (WHERE created_at >= :startAt::date AND created_at < :endAt::date) AS product_count FROM ask_data_transfer_status_view WHERE ask_data_transfer_status_view.store_id = ANY(:allowedStoreIds) AND ask_data_transfer_status_view.created_at >= :startAt AND ask_data_transfer_status_view.created_at < :endAt AND (direction IN ('***', '***')) GROUP BY direction ORDER BY transfer_count DESC LIMIT 20;"
+    },
+    {
+      "id": "SUP-TRANSFER-007",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "商品种类最多的库存调拨单前 10 张",
+      "expected_target": "ask_data_transfer_status_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "ask_data_transfer_status_view",
+      "expectedViewLabel": "ask_data_transfer_status_view",
+      "candidateViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_transfer_status_view",
+        "agent_v3_stock_movement_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "transfer_status"
+      ],
+      "semanticRoutingMs": 1,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 2,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 11021,
+      "guardMs": 4692,
+      "executionMs": 3735,
+      "answerMs": 0,
+      "totalMs": 14759,
+      "rowCount": 0,
+      "noData": true,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "当前筛选范围内没有匹配数据。",
+        "keyFindings": [],
+        "caveats": []
+      },
+      "redactedSql": "SELECT transfer_id, SUM(product_count) AS product_count FROM ask_data_transfer_status_view WHERE ask_data_transfer_status_view.store_id = ANY(:allowedStoreIds) AND ask_data_transfer_status_view.created_at >= :startAt AND ask_data_transfer_status_view.created_at < :endAt AND (store_id = ANY(:allowedStoreIds)) GROUP BY transfer_id ORDER BY product_count DESC LIMIT 10;"
+    },
+    {
+      "id": "SUP-TRANSFER-008",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "列出最近更新的 20 张库存调拨单",
+      "expected_target": "ask_data_transfer_status_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "ask_data_transfer_status_view",
+      "expectedViewLabel": "ask_data_transfer_status_view",
+      "candidateViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_transfer_status_view",
+        "agent_v3_stock_movement_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "transfer_status"
+      ],
+      "semanticRoutingMs": 0,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 2,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 16906,
+      "guardMs": 9108,
+      "executionMs": 2927,
+      "answerMs": 0,
+      "totalMs": 19835,
+      "rowCount": 0,
+      "noData": true,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "当前筛选范围内没有匹配数据。",
+        "keyFindings": [],
+        "caveats": []
+      },
+      "redactedSql": "SELECT COUNT(transfer_id) AS transfer_count, SUM(product_count) AS product_count FROM ask_data_transfer_status_view WHERE ask_data_transfer_status_view.store_id = ANY(:allowedStoreIds) AND ask_data_transfer_status_view.created_at >= :startAt AND ask_data_transfer_status_view.created_at < :endAt AND (created_at >= :startAt::timestamptz AND created_at < :endAt::timestamptz) GROUP BY transfer_id ORDER BY MAX(updated_at) DESC LIMIT 20;"
+    },
+    {
+      "id": "SUP-TRANSFER-009",
+      "domain": "manager",
+      "role": "manager",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "已经完成的库存调拨单一共有多少张",
+      "expected_target": "ask_data_transfer_status_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "ask_data_transfer_status_view",
+      "expectedViewLabel": "ask_data_transfer_status_view",
+      "candidateViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_transfer_status_view",
+        "agent_v3_stock_movement_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.97,
+      "semanticMetricKeys": [
+        "transfer_status"
+      ],
+      "semanticRoutingMs": 1,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 2,
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 7717,
+      "guardMs": 3180,
+      "executionMs": 3293,
+      "answerMs": 0,
+      "totalMs": 11012,
+      "rowCount": 0,
+      "noData": true,
+      "answerGrounded": true,
+      "answer": {
+        "summary": "当前筛选范围内没有匹配数据。",
+        "keyFindings": [],
+        "caveats": []
+      },
+      "redactedSql": "SELECT transfer_id, SUM(product_count) AS product_count FROM ask_data_transfer_status_view WHERE ask_data_transfer_status_view.store_id = ANY(:allowedStoreIds) AND ask_data_transfer_status_view.created_at >= :startAt AND ask_data_transfer_status_view.created_at < :endAt AND (status IN ('***', '***', '***')) GROUP BY transfer_id LIMIT 20;"
+    },
+    {
+      "id": "SUP-TRANSFER-010",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "medium",
+      "question": "最早创建但仍未完成的库存调拨单是哪一张",
+      "expected_target": "ask_data_transfer_status_view",
+      "notes": "Ami Ask 两轮实测覆盖缺口补充；问题按不同业务决策和答案形态人工设计，非时间改写复制。",
+      "expectedView": "ask_data_transfer_status_view",
+      "expectedViewLabel": "ask_data_transfer_status_view",
+      "candidateViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_transfer_status_view",
+        "agent_v3_stock_movement_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.97,
+      "semanticMetricKeys": [
+        "transfer_status"
+      ],
+      "semanticRoutingMs": 0,
+      "selectedViews": [],
+      "expectedViewHit": false,
+      "totalMs": 20003,
+      "status": "evaluation_failed",
+      "pipelineStatus": "evaluation_failed",
+      "failureCategory": "AiStructuredOutputError",
+      "failureReason": "Structured output provider is unavailable.",
+      "generationMs": 0,
+      "guardMs": 0,
+      "executionMs": 0,
+      "answerMs": 0
+    }
+  ]
+}

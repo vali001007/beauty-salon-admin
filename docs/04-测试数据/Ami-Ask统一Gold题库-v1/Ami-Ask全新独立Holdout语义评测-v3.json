@@ -1,0 +1,2634 @@
+{
+  "version": 1,
+  "generatedAt": "2026-08-02T21:16:23.564Z",
+  "goldPath": "/Users/ju/Documents/ami/beauty-salon-admin-ask/docs/04-测试数据/Ami-Ask统一Gold题库-v1/Ami-Ask全新独立Holdout合同-v3.json",
+  "summary": {
+    "caseCount": 34,
+    "metricTop1Hit": 1,
+    "acceptableTop1Hit": 1,
+    "acceptableRecallAt4": 1,
+    "requiredRecallAt4": 1,
+    "routeAcceptableHit": 1,
+    "controlledPlanValidRate": 1,
+    "controlledPlanGoldOutputRate": 0.7353,
+    "fallbackEligibleRate": 0.4118,
+    "clarificationAccuracy": 1,
+    "unjustifiedClarificationRate": 0,
+    "trueAmbiguityRetention": 1,
+    "averageMs": 1.4361470588235297,
+    "p95Ms": 1.576
+  },
+  "ambiguitySummary": {
+    "caseCount": 60,
+    "retentionRate": 0.85,
+    "slotAccuracy": 0.8
+  },
+  "bySplit": {
+    "development": {
+      "caseCount": 0,
+      "metricTop1Hit": 0,
+      "acceptableTop1Hit": 0,
+      "acceptableRecallAt4": 0,
+      "requiredRecallAt4": 0,
+      "routeAcceptableHit": 0,
+      "controlledPlanValidRate": 0,
+      "controlledPlanGoldOutputRate": 0,
+      "fallbackEligibleRate": 0,
+      "clarificationAccuracy": 0,
+      "unjustifiedClarificationRate": 0,
+      "trueAmbiguityRetention": 1,
+      "averageMs": 0,
+      "p95Ms": 0
+    },
+    "holdout": {
+      "caseCount": 34,
+      "metricTop1Hit": 1,
+      "acceptableTop1Hit": 1,
+      "acceptableRecallAt4": 1,
+      "requiredRecallAt4": 1,
+      "routeAcceptableHit": 1,
+      "controlledPlanValidRate": 1,
+      "controlledPlanGoldOutputRate": 0.7353,
+      "fallbackEligibleRate": 0.4118,
+      "clarificationAccuracy": 1,
+      "unjustifiedClarificationRate": 0,
+      "trueAmbiguityRetention": 1,
+      "averageMs": 1.4361470588235297,
+      "p95Ms": 1.576
+    }
+  },
+  "results": [
+    {
+      "id": "ami_brain_2000:BQ0698",
+      "split": "holdout",
+      "question": "周雅婷的全部消费记录",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "order_id",
+        "net_revenue"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "order_revenue"
+      ],
+      "indexViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "routeViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.96,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "planOutputFields": [
+        "order_id",
+        "customer_id",
+        "customer_name_masked",
+        "net_revenue",
+        "order_count"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 26.093
+    },
+    {
+      "id": "ami_brain_2000:BQ0700",
+      "split": "holdout",
+      "question": "最近14天的客单价是多少",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "net_revenue"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "order_revenue",
+        "staff_performance"
+      ],
+      "indexViews": [
+        "agent_v3_order_summary_view",
+        "ask_data_staff_performance_view"
+      ],
+      "routeViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "planOutputFields": [
+        "net_revenue",
+        "order_count",
+        "average_order_value"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 1.397
+    },
+    {
+      "id": "ami_brain_2000:BQ0703",
+      "split": "holdout",
+      "question": "马心怡最近14天的消费明细",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "order_id",
+        "net_revenue"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "order_revenue"
+      ],
+      "indexViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "routeViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "planOutputFields": [
+        "order_id",
+        "customer_id",
+        "customer_name_masked",
+        "net_revenue",
+        "order_count"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.763
+    },
+    {
+      "id": "ami_brain_2000:BQ0706",
+      "split": "holdout",
+      "question": "最近三个月营业额和最近7天比怎么样",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "net_revenue"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "order_revenue"
+      ],
+      "indexViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "routeViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "planOutputFields": [
+        "net_revenue",
+        "order_count"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.738
+    },
+    {
+      "id": "ami_brain_2000:BQ0708",
+      "split": "holdout",
+      "question": "最近三个月客单价的变化",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "trend_month",
+        "net_revenue"
+      ],
+      "requiredResultMode": "trend",
+      "mustClarify": false,
+      "indexMetrics": [
+        "order_revenue",
+        "staff_performance"
+      ],
+      "indexViews": [
+        "agent_v3_order_summary_view",
+        "ask_data_staff_performance_view"
+      ],
+      "routeViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "planOutputFields": [
+        "trend_month",
+        "net_revenue",
+        "order_count",
+        "average_order_value"
+      ],
+      "planResultMode": "trend",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.828
+    },
+    {
+      "id": "ami_brain_2000:BQ1179",
+      "split": "holdout",
+      "question": "最近30天哪些产品动销好哪些差",
+      "expectedMetricKeys": [
+        "product_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "sales_quantity"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "product_sales"
+      ],
+      "indexViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "routeViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "planOutputFields": [
+        "product_id",
+        "product_name",
+        "sku",
+        "sales_quantity",
+        "net_sales_amount"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.891
+    },
+    {
+      "id": "ami_brain_2000:BQ1187",
+      "split": "holdout",
+      "question": "去年同期哪些产品动销好哪些差",
+      "expectedMetricKeys": [
+        "product_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "sales_quantity"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "product_sales"
+      ],
+      "indexViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "routeViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "planOutputFields": [
+        "product_id",
+        "product_name",
+        "sku",
+        "sales_quantity",
+        "net_sales_amount"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.708
+    },
+    {
+      "id": "ami_brain_2000:BQ1203",
+      "split": "holdout",
+      "question": "开业至今哪些产品动销好哪些差",
+      "expectedMetricKeys": [
+        "product_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "sales_quantity"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "product_sales"
+      ],
+      "indexViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "routeViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "planOutputFields": [
+        "product_id",
+        "product_name",
+        "sku",
+        "sales_quantity",
+        "net_sales_amount"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 1.576
+    },
+    {
+      "id": "ami_brain_2000:BQ1108",
+      "split": "holdout",
+      "question": "今天低于安全库存的产品有哪些",
+      "expectedMetricKeys": [
+        "inventory_on_hand"
+      ],
+      "acceptableViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "current_stock"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "inventory_on_hand"
+      ],
+      "indexViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "routeViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "planOutputFields": [
+        "product_id",
+        "product_name",
+        "sku",
+        "current_stock",
+        "safety_stock",
+        "stock_value",
+        "unit",
+        "status",
+        "nearest_expiry_date"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.731
+    },
+    {
+      "id": "ami_brain_2000:BQ1142",
+      "split": "holdout",
+      "question": "本周末临期库存的损失风险有多大",
+      "expectedMetricKeys": [
+        "inventory_on_hand"
+      ],
+      "acceptableViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "nearest_expiry_date",
+        "current_stock",
+        "stock_value"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "inventory_on_hand"
+      ],
+      "indexViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "routeViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.72,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "planOutputFields": [
+        "current_stock",
+        "stock_value"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": false,
+      "durationMs": 0.72
+    },
+    {
+      "id": "ami_brain_2000:BQ0038",
+      "split": "holdout",
+      "question": "王思琪上次到店是开业至今吗，具体哪天",
+      "expectedMetricKeys": [
+        "customer_profile"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredOutputFields": [
+        "customer_count"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "customer_profile",
+        "reservation_metrics"
+      ],
+      "indexViews": [
+        "ask_data_customer_profile_summary_view",
+        "agent_v3_reservation_view"
+      ],
+      "routeViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.94,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "planOutputFields": [
+        "customer_count",
+        "total_paid_amount"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.634
+    },
+    {
+      "id": "ami_brain_2000:BQ0898",
+      "split": "holdout",
+      "question": "今年的预约到店转化率是多少",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "reservation_count",
+        "completed_reservation_count",
+        "arrival_conversion_rate"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "reservation_metrics",
+        "marketing_conversion"
+      ],
+      "indexViews": [
+        "agent_v3_reservation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "routeViews": [
+        "agent_v3_reservation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.97,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "planOutputFields": [
+        "reservation_count"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.653
+    },
+    {
+      "id": "ami_brain_2000:BQ0907",
+      "split": "holdout",
+      "question": "本周末的预约到店转化率是多少",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "reservation_count",
+        "completed_reservation_count",
+        "arrival_conversion_rate"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "reservation_metrics",
+        "marketing_conversion"
+      ],
+      "indexViews": [
+        "agent_v3_reservation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "routeViews": [
+        "agent_v3_reservation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.97,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "planOutputFields": [
+        "reservation_count"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.597
+    },
+    {
+      "id": "ami_brain_2000:BQ0899",
+      "split": "holdout",
+      "question": "今年哪些时段的预约最满",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "start_time",
+        "reservation_count"
+      ],
+      "requiredResultMode": "ranking",
+      "mustClarify": false,
+      "indexMetrics": [
+        "reservation_metrics"
+      ],
+      "indexViews": [
+        "agent_v3_reservation_view"
+      ],
+      "routeViews": [
+        "agent_v3_reservation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.72,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "planOutputFields": [
+        "reservation_id",
+        "customer_id",
+        "customer_name_masked",
+        "project_id",
+        "project_name",
+        "beautician_id",
+        "beautician_name",
+        "date",
+        "start_time",
+        "status"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": false,
+      "durationMs": 0.551
+    },
+    {
+      "id": "ami_brain_2000:BQ0908",
+      "split": "holdout",
+      "question": "本周末哪些时段的预约最满",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "start_time",
+        "reservation_count"
+      ],
+      "requiredResultMode": "ranking",
+      "mustClarify": false,
+      "indexMetrics": [
+        "reservation_metrics"
+      ],
+      "indexViews": [
+        "agent_v3_reservation_view"
+      ],
+      "routeViews": [
+        "agent_v3_reservation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.72,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "planOutputFields": [
+        "reservation_id",
+        "customer_id",
+        "customer_name_masked",
+        "project_id",
+        "project_name",
+        "beautician_id",
+        "beautician_name",
+        "date",
+        "start_time",
+        "status"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": false,
+      "durationMs": 0.567
+    },
+    {
+      "id": "ami_brain_2000:BQ0901",
+      "split": "holdout",
+      "question": "今年哪个项目预约最多",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "reservation_count"
+      ],
+      "requiredResultMode": "ranking",
+      "mustClarify": false,
+      "indexMetrics": [
+        "reservation_metrics"
+      ],
+      "indexViews": [
+        "agent_v3_reservation_view"
+      ],
+      "routeViews": [
+        "agent_v3_reservation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "planOutputFields": [
+        "project_id",
+        "project_name",
+        "reservation_count"
+      ],
+      "planResultMode": "ranking",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.598
+    },
+    {
+      "id": "ami_brain_2000:BQ0910",
+      "split": "holdout",
+      "question": "本周末哪个项目预约最多",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "reservation_count"
+      ],
+      "requiredResultMode": "ranking",
+      "mustClarify": false,
+      "indexMetrics": [
+        "reservation_metrics"
+      ],
+      "indexViews": [
+        "agent_v3_reservation_view"
+      ],
+      "routeViews": [
+        "agent_v3_reservation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "planOutputFields": [
+        "project_id",
+        "project_name",
+        "reservation_count"
+      ],
+      "planResultMode": "ranking",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.666
+    },
+    {
+      "id": "ami_brain_2000:BQ0904",
+      "split": "holdout",
+      "question": "今年各美容师的预约量",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "beautician_id",
+        "beautician_name",
+        "reservation_count"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "reservation_metrics",
+        "staff_profile"
+      ],
+      "indexViews": [
+        "agent_v3_reservation_view",
+        "agent_v3_staff_profile_view"
+      ],
+      "routeViews": [
+        "agent_v3_reservation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.62,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "planOutputFields": [
+        "beautician_id",
+        "beautician_name",
+        "reservation_count"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.872
+    },
+    {
+      "id": "ami_brain_2000:BQ0913",
+      "split": "holdout",
+      "question": "本周末各美容师的预约量",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "beautician_id",
+        "beautician_name",
+        "reservation_count"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "reservation_metrics",
+        "staff_profile"
+      ],
+      "indexViews": [
+        "agent_v3_reservation_view",
+        "agent_v3_staff_profile_view"
+      ],
+      "routeViews": [
+        "agent_v3_reservation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.62,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "planOutputFields": [
+        "beautician_id",
+        "beautician_name",
+        "reservation_count"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.553
+    },
+    {
+      "id": "ami_brain_2000:BQ0903",
+      "split": "holdout",
+      "question": "罗若兰今年预约的是什么项目",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "reservation_count"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "reservation_metrics"
+      ],
+      "indexViews": [
+        "agent_v3_reservation_view"
+      ],
+      "routeViews": [
+        "agent_v3_reservation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.72,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "planOutputFields": [
+        "reservation_count"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.582
+    },
+    {
+      "id": "ami_brain_2000:BQ0905",
+      "split": "holdout",
+      "question": "本周末预约背部净透护理的客户有哪些",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "reservation_id",
+        "customer_id",
+        "customer_name_masked",
+        "date",
+        "start_time",
+        "project_name"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "reservation_metrics",
+        "customer_profile"
+      ],
+      "indexViews": [
+        "agent_v3_reservation_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "routeViews": [
+        "agent_v3_reservation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "planOutputFields": [
+        "reservation_id",
+        "customer_id",
+        "customer_name_masked",
+        "project_id",
+        "project_name",
+        "beautician_id",
+        "beautician_name",
+        "date",
+        "start_time",
+        "status"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.578
+    },
+    {
+      "id": "ami_brain_2000:BQ0906",
+      "split": "holdout",
+      "question": "宋乔本周末接了哪些预约",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "reservation_id",
+        "date",
+        "start_time",
+        "project_name"
+      ],
+      "requiredResultMode": "detail",
+      "mustClarify": false,
+      "indexMetrics": [
+        "reservation_metrics"
+      ],
+      "indexViews": [
+        "agent_v3_reservation_view"
+      ],
+      "routeViews": [
+        "agent_v3_reservation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.72,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "planOutputFields": [
+        "reservation_id",
+        "customer_id",
+        "customer_name_masked",
+        "project_id",
+        "project_name",
+        "beautician_id",
+        "beautician_name",
+        "date",
+        "start_time",
+        "status"
+      ],
+      "planResultMode": "detail",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.585
+    },
+    {
+      "id": "ami_brain_2000:BQ0912",
+      "split": "holdout",
+      "question": "黄婉清本周末预约的是什么项目",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "reservation_count"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "reservation_metrics"
+      ],
+      "indexViews": [
+        "agent_v3_reservation_view"
+      ],
+      "routeViews": [
+        "agent_v3_reservation_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.72,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "planOutputFields": [
+        "reservation_count"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.528
+    },
+    {
+      "id": "ami_brain_2000:BQ1562",
+      "split": "holdout",
+      "question": "最近7天自动化策略的转化漏斗",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "strategy_id",
+        "strategy_name",
+        "exposure_count",
+        "click_count",
+        "conversion_count",
+        "conversion_rate"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_roi",
+        "marketing_automation"
+      ],
+      "indexViews": [
+        "ask_data_marketing_roi_view",
+        "agent_v3_marketing_automation_view"
+      ],
+      "routeViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "planOutputFields": [
+        "strategy_id",
+        "strategy_name",
+        "exposure_count",
+        "click_count",
+        "conversion_count",
+        "attributed_net_revenue",
+        "marketing_cost",
+        "roi"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.612
+    },
+    {
+      "id": "ami_brain_2000:BQ1572",
+      "split": "holdout",
+      "question": "今年自动化策略的转化漏斗",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "strategy_id",
+        "strategy_name",
+        "exposure_count",
+        "click_count",
+        "conversion_count",
+        "conversion_rate"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_roi",
+        "marketing_automation"
+      ],
+      "indexViews": [
+        "ask_data_marketing_roi_view",
+        "agent_v3_marketing_automation_view"
+      ],
+      "routeViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "planOutputFields": [
+        "strategy_id",
+        "strategy_name",
+        "exposure_count",
+        "click_count",
+        "conversion_count",
+        "attributed_net_revenue",
+        "marketing_cost",
+        "roi"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.579
+    },
+    {
+      "id": "ami_brain_2000:BQ1582",
+      "split": "holdout",
+      "question": "本周末自动化策略的转化漏斗",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "strategy_id",
+        "strategy_name",
+        "exposure_count",
+        "click_count",
+        "conversion_count",
+        "conversion_rate"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_roi",
+        "marketing_automation"
+      ],
+      "indexViews": [
+        "ask_data_marketing_roi_view",
+        "agent_v3_marketing_automation_view"
+      ],
+      "routeViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "planOutputFields": [
+        "strategy_id",
+        "strategy_name",
+        "exposure_count",
+        "click_count",
+        "conversion_count",
+        "attributed_net_revenue",
+        "marketing_cost",
+        "roi"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.539
+    },
+    {
+      "id": "ami_brain_2000:BQ1180",
+      "split": "holdout",
+      "question": "最近30天采购成本的变化",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "trend_day",
+        "procurement_amount"
+      ],
+      "requiredResultMode": "trend",
+      "mustClarify": false,
+      "indexMetrics": [
+        "procurement_detail"
+      ],
+      "indexViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "routeViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.72,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "planOutputFields": [
+        "trend_day",
+        "procurement_amount",
+        "procurement_count"
+      ],
+      "planResultMode": "trend",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.611
+    },
+    {
+      "id": "ami_brain_2000:BQ1188",
+      "split": "holdout",
+      "question": "去年同期采购成本的变化",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "trend_month",
+        "procurement_amount"
+      ],
+      "requiredResultMode": "trend",
+      "mustClarify": false,
+      "indexMetrics": [
+        "procurement_detail"
+      ],
+      "indexViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "routeViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.72,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "planOutputFields": [
+        "trend_month",
+        "procurement_amount",
+        "procurement_count"
+      ],
+      "planResultMode": "trend",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.544
+    },
+    {
+      "id": "ami_brain_2000:BQ1204",
+      "split": "holdout",
+      "question": "开业至今采购成本的变化",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "trend_day",
+        "procurement_amount"
+      ],
+      "requiredResultMode": "trend",
+      "mustClarify": false,
+      "indexMetrics": [
+        "procurement_detail"
+      ],
+      "indexViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "routeViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.72,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "planOutputFields": [
+        "trend_day",
+        "procurement_amount",
+        "procurement_count"
+      ],
+      "planResultMode": "trend",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.555
+    },
+    {
+      "id": "ami_brain_2000:BQ1782",
+      "split": "holdout",
+      "question": "本周采购成本的趋势",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "trend_day",
+        "procurement_amount"
+      ],
+      "requiredResultMode": "trend",
+      "mustClarify": false,
+      "indexMetrics": [
+        "procurement_detail"
+      ],
+      "indexViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "routeViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.72,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "planOutputFields": [
+        "trend_day",
+        "procurement_amount",
+        "procurement_count"
+      ],
+      "planResultMode": "trend",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.524
+    },
+    {
+      "id": "ami_brain_2000:BQ1787",
+      "split": "holdout",
+      "question": "上个月采购成本的趋势",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "trend_day",
+        "procurement_amount"
+      ],
+      "requiredResultMode": "trend",
+      "mustClarify": false,
+      "indexMetrics": [
+        "procurement_detail"
+      ],
+      "indexViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "routeViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.72,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "planOutputFields": [
+        "trend_month",
+        "procurement_amount",
+        "procurement_count"
+      ],
+      "planResultMode": "trend",
+      "planRequiredOutputHit": false,
+      "planResultModeHit": true,
+      "durationMs": 0.652
+    },
+    {
+      "id": "ami_brain_2000:BQ1790",
+      "split": "holdout",
+      "question": "最近三个月采购成本的趋势",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "trend_month",
+        "procurement_amount"
+      ],
+      "requiredResultMode": "trend",
+      "mustClarify": false,
+      "indexMetrics": [
+        "procurement_detail"
+      ],
+      "indexViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "routeViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": true,
+      "confidence": 0.72,
+      "planValid": true,
+      "planRequiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "planOutputFields": [
+        "trend_month",
+        "procurement_amount",
+        "procurement_count"
+      ],
+      "planResultMode": "trend",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.559
+    },
+    {
+      "id": "ami_brain_2000:BQ1336",
+      "split": "holdout",
+      "question": "帮我拆解去年同期的经营利润",
+      "expectedMetricKeys": [
+        "confirmed_profit"
+      ],
+      "acceptableViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "requiredViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "requiredOutputFields": [
+        "operating_profit"
+      ],
+      "requiredResultMode": "scalar",
+      "mustClarify": false,
+      "indexMetrics": [
+        "confirmed_profit"
+      ],
+      "indexViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "routeViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "planOutputFields": [
+        "operating_revenue",
+        "gross_profit",
+        "operating_profit",
+        "gross_margin_rate",
+        "operating_margin_rate"
+      ],
+      "planResultMode": "scalar",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.744
+    },
+    {
+      "id": "ami_brain_2000:BQ1626",
+      "split": "holdout",
+      "question": "这半年哪些活动在亏钱",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "activity_id",
+        "activity_title",
+        "attributed_net_revenue",
+        "marketing_cost",
+        "marketing_profit",
+        "roi"
+      ],
+      "requiredResultMode": "grouped",
+      "mustClarify": false,
+      "indexMetrics": [
+        "marketing_roi"
+      ],
+      "indexViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "routeViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "metricTop1Hit": true,
+      "acceptableTop1Hit": true,
+      "acceptableRecallAt4": true,
+      "requiredRecallAt4": true,
+      "routeAcceptableHit": true,
+      "clarificationCorrect": true,
+      "fallbackEligible": false,
+      "confidence": 0.98,
+      "planValid": true,
+      "planRequiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "planOutputFields": [
+        "activity_id",
+        "activity_title",
+        "attributed_net_revenue",
+        "marketing_cost",
+        "marketing_profit",
+        "roi"
+      ],
+      "planResultMode": "grouped",
+      "planRequiredOutputHit": true,
+      "planResultModeHit": true,
+      "durationMs": 0.501
+    }
+  ],
+  "ambiguityResults": [
+    {
+      "id": "ami_brain_2000:BQ0689",
+      "question": "双十一期间的客单价是多少",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0692",
+      "question": "周静怡双十一期间的消费明细",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0716",
+      "question": "这个季度营业额和五一假期比怎么样",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0715",
+      "question": "最近三个月大额订单占比",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充金额阈值或次数阈值，例如“退款金额超过 1000 元”或“剩余次数超过 5 次”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0686",
+      "question": "双十一期间用了优惠的订单有多少",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0690",
+      "question": "双十一期间开卡订单里赠送次数最多的",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1195",
+      "question": "五一假期哪些产品动销好哪些差",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0843",
+      "question": "双十一期间产品订单的成本和毛利",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0754",
+      "question": "这个季度有异常大额退款吗",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [
+        "threshold",
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请同时补充：金额阈值或次数阈值，例如“退款金额超过 1000 元”或“剩余次数超过 5 次”；连续退款次数、金额或观察窗口，例如“24 小时内连续退款 3 次”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0756",
+      "question": "这个季度退款率是不是偏高",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充退款率判断阈值或比较基线，例如“退款率高于 10%”或“高于上月”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0760",
+      "question": "这个季度有没有可疑的连续退款",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充连续退款次数、金额或观察窗口，例如“24 小时内连续退款 3 次”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0770",
+      "question": "最近14天有异常大额退款吗",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [
+        "threshold",
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请同时补充：金额阈值或次数阈值，例如“退款金额超过 1000 元”或“剩余次数超过 5 次”；连续退款次数、金额或观察窗口，例如“24 小时内连续退款 3 次”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0772",
+      "question": "最近14天退款率是不是偏高",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充退款率判断阈值或比较基线，例如“退款率高于 10%”或“高于上月”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0762",
+      "question": "双十一期间有异常大额退款吗",
+      "expectedSlots": [
+        "year",
+        "threshold"
+      ],
+      "actualSlots": [
+        "year",
+        "threshold",
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请同时补充：要查询的具体年份，例如“2025 年双十一”；金额阈值或次数阈值，例如“退款金额超过 1000 元”或“剩余次数超过 5 次”；连续退款次数、金额或观察窗口，例如“24 小时内连续退款 3 次”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0764",
+      "question": "双十一期间退款率是不是偏高",
+      "expectedSlots": [
+        "year",
+        "threshold"
+      ],
+      "actualSlots": [
+        "year",
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请同时补充：要查询的具体年份，例如“2025 年双十一”；退款率判断阈值或比较基线，例如“退款率高于 10%”或“高于上月”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0768",
+      "question": "双十一期间有没有可疑的连续退款",
+      "expectedSlots": [
+        "year",
+        "threshold"
+      ],
+      "actualSlots": [
+        "year",
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请同时补充：要查询的具体年份，例如“2025 年双十一”；连续退款次数、金额或观察窗口，例如“24 小时内连续退款 3 次”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1106",
+      "question": "哪些产品今天即将过期且库存金额高",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充金额阈值或次数阈值，例如“退款金额超过 1000 元”或“剩余次数超过 5 次”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1181",
+      "question": "最近30天库存结构合理吗",
+      "expectedSlots": [
+        "comparison_baseline"
+      ],
+      "actualSlots": [],
+      "retained": false,
+      "slotMatched": false
+    },
+    {
+      "id": "ami_brain_2000:BQ1205",
+      "question": "开业至今库存结构合理吗",
+      "expectedSlots": [
+        "comparison_baseline"
+      ],
+      "actualSlots": [],
+      "retained": false,
+      "slotMatched": false
+    },
+    {
+      "id": "ami_brain_2000:BQ1115",
+      "question": "哪些产品上周即将过期且库存金额高",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充金额阈值或次数阈值，例如“退款金额超过 1000 元”或“剩余次数超过 5 次”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1124",
+      "question": "哪些产品最近7天即将过期且库存金额高",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充金额阈值或次数阈值，例如“退款金额超过 1000 元”或“剩余次数超过 5 次”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1133",
+      "question": "哪些产品今年即将过期且库存金额高",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [
+        "threshold"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充金额阈值或次数阈值，例如“退款金额超过 1000 元”或“剩余次数超过 5 次”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1197",
+      "question": "五一假期库存结构合理吗",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1202",
+      "question": "开业至今耗占比的趋势",
+      "expectedSlots": [
+        "comparison_relation"
+      ],
+      "actualSlots": [
+        "comparison_relation"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请明确要比较的指标，例如营业额、实收或日结净收。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0042",
+      "question": "消费额Top10的客户五一假期买过哪些项目",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0063",
+      "question": "消费额Top10的客户春节期间买过哪些项目",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0067",
+      "question": "金卡会员里双十一期间没到店的有多少人",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0914",
+      "question": "国庆期间预约敏感肌舒缓修护的客户有哪些",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1549",
+      "question": "国庆期间活动带来了多少营收",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1551",
+      "question": "国庆期间触达的客户有多少转化了",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1552",
+      "question": "国庆期间营销页的线索转化率",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1555",
+      "question": "国庆期间活动归因的收益分别多少",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1558",
+      "question": "国庆期间各活动的参与转化对比",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1556",
+      "question": "国庆期间跟进任务的完成率",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1592",
+      "question": "国庆期间自动化策略的转化漏斗",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1602",
+      "question": "最近7天自动化触达失败率高吗",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [],
+      "retained": false,
+      "slotMatched": false
+    },
+    {
+      "id": "ami_brain_2000:BQ1610",
+      "question": "今年自动化触达失败率高吗",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [],
+      "retained": false,
+      "slotMatched": false
+    },
+    {
+      "id": "ami_brain_2000:BQ1617",
+      "question": "本周末自动化触达失败率高吗",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [],
+      "retained": false,
+      "slotMatched": false
+    },
+    {
+      "id": "ami_brain_2000:BQ1624",
+      "question": "国庆期间自动化触达失败率高吗",
+      "expectedSlots": [
+        "year",
+        "threshold"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": false,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1381",
+      "question": "五一假期哪些成本超预算了",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1395",
+      "question": "春节期间哪些成本超预算了",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1383",
+      "question": "五一假期有异常成本支出吗",
+      "expectedSlots": [
+        "year",
+        "threshold"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": false,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1390",
+      "question": "开业至今有异常成本支出吗",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [],
+      "retained": false,
+      "slotMatched": false
+    },
+    {
+      "id": "ami_brain_2000:BQ1397",
+      "question": "春节期间有异常成本支出吗",
+      "expectedSlots": [
+        "year",
+        "threshold"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": false,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1404",
+      "question": "本周有异常成本支出吗",
+      "expectedSlots": [
+        "threshold"
+      ],
+      "actualSlots": [],
+      "retained": false,
+      "slotMatched": false
+    },
+    {
+      "id": "ami_brain_2000:BQ1777",
+      "question": "五一假期哪些采购单还没收货",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1196",
+      "question": "五一假期采购成本的变化",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1786",
+      "question": "最近三个月采购结构分析",
+      "expectedSlots": [
+        "comparison_relation"
+      ],
+      "actualSlots": [],
+      "retained": false,
+      "slotMatched": false
+    },
+    {
+      "id": "ami_brain_2000:BQ1789",
+      "question": "这个季度采购结构分析",
+      "expectedSlots": [
+        "comparison_relation"
+      ],
+      "actualSlots": [],
+      "retained": false,
+      "slotMatched": false
+    },
+    {
+      "id": "ami_brain_2000:BQ1779",
+      "question": "五一假期的采购返点有多少",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0837",
+      "question": "双十一期间每张订单的毛利分别多少",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0838",
+      "question": "全身精油 SPA订单双十一期间的利润情况",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0841",
+      "question": "双十一期间哪些订单毛利为负",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0373",
+      "question": "双十一期间请假会不会导致产能缺口",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1593",
+      "question": "国庆期间拓客成本的趋势",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1596",
+      "question": "国庆期间活动ROI对比钱花哪最值",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1598",
+      "question": "国庆期间营销投入产出分析",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1619",
+      "question": "国庆期间哪些活动在亏钱",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1623",
+      "question": "国庆期间有哪些活动ROI低于预期该停了",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1620",
+      "question": "国庆期间营销预算超支了吗",
+      "expectedSlots": [
+        "year"
+      ],
+      "actualSlots": [
+        "year"
+      ],
+      "retained": true,
+      "slotMatched": true,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。"
+    }
+  ]
+}

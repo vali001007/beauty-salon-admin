@@ -1,0 +1,1352 @@
+{
+  "generatedAt": "2026-08-03T20:50:04.124Z",
+  "complete": true,
+  "strict": true,
+  "connectionMode": "development_admin",
+  "databaseHost": "aws-1-ap-northeast-1.pooler.supabase.com",
+  "storeId": 6,
+  "concurrency": 3,
+  "manifest": {
+    "path": "/Users/ju/Documents/ami/beauty-salon-admin-ask/docs/04-测试数据/Ami-Ask统一Gold题库-v3-Coverage-R2-供应商报价/Ami-Ask统一Gold发布级360题清单-Coverage-R2-供应商报价.json",
+    "sourcePath": "/Users/ju/Documents/ami/beauty-salon-admin-ask/docs/04-测试数据/Ami-Ask统一Gold题库-v3-Coverage-R2-供应商报价/Ami-Ask统一Gold题库-v3-Coverage-R2-供应商报价.json",
+    "sourceQuestionCount": 449,
+    "targetPerView": 10,
+    "viewCount": 36,
+    "coveredViews": 36,
+    "insufficientViews": [],
+    "sourceGoldChecksum": "768a03d14a170a1f3747333133aed115c053ec9400148023ced2a341a6b98562",
+    "sourceContractChecksum": "03e6bf5886e1f5286d5a49173233d3a6a619b10adcb08feffe5c1e3648407430",
+    "selectedQuestionsChecksum": "f63beaba6237db1dae9145be79787d3fcad82910dde0f1946cbc92822db6b459",
+    "checksum": "58db0542c02f32ce15c1d0a635c8f1994e70960ada45a042d1de2c7a51da565d"
+  },
+  "summary": {
+    "plannedCases": 10,
+    "completedCases": 10,
+    "strictPassed": 10,
+    "strictFailed": 0,
+    "strictAccuracy": 1,
+    "pipelinePassRate": 1,
+    "expectedViewHitRate": 1,
+    "providerAvailabilityRate": 1,
+    "sqlGenerationReadyRate": 1,
+    "guardPassRate": 1,
+    "databaseExecutionRate": 1,
+    "finalAnswerGroundedRate": 1,
+    "finalAnswerCompleteRate": 1,
+    "goldPlanMatchRate": 1,
+    "finalAnswerCorrectRate": 1,
+    "noDataRate": 0,
+    "averageMs": 9109,
+    "p50Ms": 7367,
+    "p95Ms": 20442,
+    "durationMs": 33279,
+    "failureCounts": {},
+    "failureClassCounts": {}
+  },
+  "byView": [
+    {
+      "viewName": "agent_v3_order_summary_view",
+      "label": "订单摘要",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_order_item_sales_view",
+      "label": "商品销售",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_project_service_sales_view",
+      "label": "项目服务销售",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_payment_refund_view",
+      "label": "支付与退款",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_daily_settlement_view",
+      "label": "日结",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_product_inventory_view",
+      "label": "商品库存",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_stock_movement_view",
+      "label": "库存流水",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_inventory_scrap_view",
+      "label": "库存报废",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_inventory_turnover_view",
+      "label": "库存周转与采购覆盖",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_customer_profile_summary_view",
+      "label": "客户档案摘要",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_staff_profile_view",
+      "label": "员工档案",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_staff_performance_view",
+      "label": "员工绩效",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_reservation_view",
+      "label": "预约",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_marketing_conversion_view",
+      "label": "营销转化",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_card_asset_view",
+      "label": "次卡资产",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_card_usage_view",
+      "label": "次卡核销",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_customer_balance_view",
+      "label": "客户余额",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_service_quality_view",
+      "label": "服务质量",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_appointment_gap_view",
+      "label": "预约空档",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_project_catalog_view",
+      "label": "项目目录",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_marketing_activity_view",
+      "label": "营销活动",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_marketing_automation_view",
+      "label": "自动触达",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_promotion_offer_view",
+      "label": "优惠活动",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_operating_cost_view",
+      "label": "经营成本",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_purchase_procurement_view",
+      "label": "采购",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_supplier_performance_view",
+      "label": "供应商表现",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_supplier_quote_terms_view",
+      "label": "供应商报价与商业条款",
+      "plannedCount": 10,
+      "completedCount": 10,
+      "strictPassed": 10,
+      "strictAccuracy": 1,
+      "pipelinePassRate": 1,
+      "expectedViewHitRate": 1,
+      "noDataRate": 0,
+      "averageMs": 9109,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_confirmed_profit_view",
+      "label": "已确认实际利润",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_reconciliation_issue_view",
+      "label": "财务对账异常",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_member_liability_view",
+      "label": "会员履约负债",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_staff_capacity_view",
+      "label": "排班与员工产能",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_transfer_status_view",
+      "label": "库存调拨",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_bom_consumption_variance_view",
+      "label": "BOM 实际消耗偏差",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_customer_feedback_view",
+      "label": "客户反馈",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_customer_lifecycle_view",
+      "label": "客户生命周期",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_marketing_roi_view",
+      "label": "营销 ROI",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    }
+  ],
+  "results": [
+    {
+      "id": "ask_supplemental:R2-SUP-001",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "列出各供应商当前已审批的商品报价",
+      "expected_target": "supplier_latest_quote",
+      "notes": "requiredViews=ask_data_supplier_quote_terms_view; requiredAnswerFacts=metric_value,data_policy,list_items",
+      "expectedView": "ask_data_supplier_quote_terms_view",
+      "expectedViewLabel": "ask_data_supplier_quote_terms_view",
+      "expectedMetricKeys": [
+        "supplier_latest_quote"
+      ],
+      "acceptableViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "requiredViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "supplier_id",
+        "supplier_name",
+        "quote_price"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "development",
+      "questionChecksum": "b662f8da7c751b5fd23b10e1b576eeb9946336230600edfd6ef3bfd2e045d70f",
+      "candidateViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_supplier_quote_terms_view",
+        "agent_v3_purchase_procurement_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "supplier_latest_quote"
+      ],
+      "semanticRoutingMs": 35,
+      "goldPlanMatched": true,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "generationRepairReasons": [],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 6046,
+      "guardMs": 1,
+      "executionMs": 1045,
+      "answerMs": 1,
+      "totalMs": 7131,
+      "rowCount": 25,
+      "noData": false,
+      "answerGrounded": true,
+      "answerComplete": true,
+      "answer": {
+        "summary": "已查询到 25 条结果，首条为 报价 ID=1、商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=1、供应商名称=Ami MVP 供应商。",
+        "keyFindings": [
+          "报价 ID=1、商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=1、供应商名称=Ami MVP 供应商",
+          "报价 ID=2、商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=2、供应商名称=Ami 官方演示供应链",
+          "报价 ID=22、商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=3、供应商名称=Ami 全量演示门店 核心耗材供应商",
+          "报价 ID=23、商品 ID=83、商品名称=舒缓修护面膜、供应商 ID=3、供应商名称=Ami 全量演示门店 核心耗材供应商",
+          "报价 ID=17、商品 ID=83、商品名称=舒缓修护面膜、供应商 ID=2、供应商名称=Ami 官方演示供应链"
+        ],
+        "caveats": []
+      },
+      "redactedSql": "SELECT quote_id, product_id, product_name, supplier_id, supplier_name, quote_price, minimum_order_quantity, lead_days, product_sku, tax_included, stock_status, settlement_mode, payment_terms, is_preferred_supplier, alternative_supplier_count, lowest_current_quote_price, price_difference_from_lowest, current_price_rank, data_as_of FROM ask_data_supplier_quote_terms_view WHERE ask_data_supplier_quote_terms_view.store_id = ANY(:allowedStoreIds) AND (is_current_valid = TRUE) LIMIT 100;"
+    },
+    {
+      "id": "ask_supplemental:R2-SUP-002",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "每个商品当前对应的供应商报价是多少",
+      "expected_target": "supplier_latest_quote",
+      "notes": "requiredViews=ask_data_supplier_quote_terms_view; requiredAnswerFacts=metric_value,data_policy,list_items",
+      "expectedView": "ask_data_supplier_quote_terms_view",
+      "expectedViewLabel": "ask_data_supplier_quote_terms_view",
+      "expectedMetricKeys": [
+        "supplier_latest_quote"
+      ],
+      "acceptableViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "requiredViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "supplier_id",
+        "supplier_name",
+        "quote_price"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "development",
+      "questionChecksum": "ddd7af4e69de340b9d47ea4c49158ef02ef612c615803b6ffa2402641a006a66",
+      "candidateViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_supplier_quote_terms_view",
+        "agent_v3_purchase_procurement_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "supplier_latest_quote"
+      ],
+      "semanticRoutingMs": 42,
+      "goldPlanMatched": true,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "generationRepairReasons": [],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 3895,
+      "guardMs": 5,
+      "executionMs": 858,
+      "answerMs": 2,
+      "totalMs": 4805,
+      "rowCount": 25,
+      "noData": false,
+      "answerGrounded": true,
+      "answerComplete": true,
+      "answer": {
+        "summary": "已查询到 25 条结果，首条为 商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=1、供应商名称=Ami MVP 供应商、已审批报价；不等于最终采购成交价=12 元。",
+        "keyFindings": [
+          "商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=1、供应商名称=Ami MVP 供应商、已审批报价；不等于最终采购成交价=12 元",
+          "商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=2、供应商名称=Ami 官方演示供应链、已审批报价；不等于最终采购成交价=168 元",
+          "商品 ID=84、商品名称=氨基酸洁面乳、供应商 ID=2、供应商名称=Ami 官方演示供应链、已审批报价；不等于最终采购成交价=58 元",
+          "商品 ID=85、商品名称=烟酰胺亮肤精华、供应商 ID=2、供应商名称=Ami 官方演示供应链、已审批报价；不等于最终采购成交价=188 元",
+          "商品 ID=86、商品名称=抗衰紧致眼霜、供应商 ID=2、供应商名称=Ami 官方演示供应链、已审批报价；不等于最终采购成交价=220 元"
+        ],
+        "caveats": []
+      },
+      "redactedSql": "SELECT product_id, product_name, supplier_id, supplier_name, quote_price, minimum_order_quantity, lead_days FROM ask_data_supplier_quote_terms_view WHERE ask_data_supplier_quote_terms_view.store_id = ANY(:allowedStoreIds) AND (is_current_valid = TRUE) LIMIT 100;"
+    },
+    {
+      "id": "ask_supplemental:R2-SUP-003",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "列出各供应商当前报价的含税状态和库存状态",
+      "expected_target": "supplier_latest_quote",
+      "notes": "requiredViews=ask_data_supplier_quote_terms_view; requiredAnswerFacts=metric_value,data_policy,list_items",
+      "expectedView": "ask_data_supplier_quote_terms_view",
+      "expectedViewLabel": "ask_data_supplier_quote_terms_view",
+      "expectedMetricKeys": [
+        "supplier_latest_quote"
+      ],
+      "acceptableViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "requiredViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "requiredOutputFields": [
+        "supplier_id",
+        "supplier_name",
+        "quote_price",
+        "tax_included",
+        "stock_status"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "development",
+      "questionChecksum": "09cd6325ad094884be1281b90581b3062205c916baedc0e8e54b1ec64de9f2e5",
+      "candidateViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_supplier_quote_terms_view",
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "supplier_latest_quote"
+      ],
+      "semanticRoutingMs": 30,
+      "goldPlanMatched": true,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "generationRepairReasons": [],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 6004,
+      "guardMs": 4,
+      "executionMs": 760,
+      "answerMs": 0,
+      "totalMs": 6801,
+      "rowCount": 25,
+      "noData": false,
+      "answerGrounded": true,
+      "answerComplete": true,
+      "answer": {
+        "summary": "已查询到 25 条结果，首条为 报价 ID=1、商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=1、供应商名称=Ami MVP 供应商。",
+        "keyFindings": [
+          "报价 ID=1、商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=1、供应商名称=Ami MVP 供应商",
+          "报价 ID=2、商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=2、供应商名称=Ami 官方演示供应链",
+          "报价 ID=22、商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=3、供应商名称=Ami 全量演示门店 核心耗材供应商",
+          "报价 ID=23、商品 ID=83、商品名称=舒缓修护面膜、供应商 ID=3、供应商名称=Ami 全量演示门店 核心耗材供应商",
+          "报价 ID=17、商品 ID=83、商品名称=舒缓修护面膜、供应商 ID=2、供应商名称=Ami 官方演示供应链"
+        ],
+        "caveats": []
+      },
+      "redactedSql": "SELECT quote_id, product_id, product_name, supplier_id, supplier_name, quote_price, minimum_order_quantity, lead_days, product_sku, tax_included, stock_status, settlement_mode, payment_terms, is_preferred_supplier, alternative_supplier_count, lowest_current_quote_price, price_difference_from_lowest, current_price_rank, data_as_of FROM ask_data_supplier_quote_terms_view WHERE ask_data_supplier_quote_terms_view.store_id = ANY(:allowedStoreIds) AND (is_current_valid = TRUE) LIMIT 100;"
+    },
+    {
+      "id": "ask_supplemental:R2-SUP-004",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "哪些商品存在更低的供应商报价，差额是多少",
+      "expected_target": "supplier_price_comparison",
+      "notes": "requiredViews=ask_data_supplier_quote_terms_view; requiredAnswerFacts=metric_value,data_policy,list_items",
+      "expectedView": "ask_data_supplier_quote_terms_view",
+      "expectedViewLabel": "ask_data_supplier_quote_terms_view",
+      "expectedMetricKeys": [
+        "supplier_price_comparison"
+      ],
+      "acceptableViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "requiredViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "supplier_id",
+        "supplier_name",
+        "quote_price",
+        "lowest_current_quote_price",
+        "price_difference_from_lowest"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "development",
+      "questionChecksum": "55ce9d916732ce4d245ca9dfc1b47a0ad587a28285d692bfa79fc92285fa4b2a",
+      "candidateViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_supplier_quote_terms_view",
+        "agent_v3_purchase_procurement_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "supplier_price_comparison"
+      ],
+      "semanticRoutingMs": 2,
+      "goldPlanMatched": true,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "generationRepairReasons": [],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 8089,
+      "guardMs": 3,
+      "executionMs": 982,
+      "answerMs": 0,
+      "totalMs": 9079,
+      "rowCount": 2,
+      "noData": false,
+      "answerGrounded": true,
+      "answerComplete": true,
+      "answer": {
+        "summary": "已查询到 2 条结果，首条为 报价 ID=2、商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=2、供应商名称=Ami 官方演示供应链。",
+        "keyFindings": [
+          "报价 ID=2、商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=2、供应商名称=Ami 官方演示供应链",
+          "报价 ID=22、商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=3、供应商名称=Ami 全量演示门店 核心耗材供应商"
+        ],
+        "caveats": []
+      },
+      "redactedSql": "SELECT quote_id, product_id, product_name, supplier_id, supplier_name, quote_price, lowest_current_quote_price, price_difference_from_lowest, price_premium_rate, product_sku, tax_included, minimum_order_quantity, lead_days, stock_status, settlement_mode, payment_terms, is_preferred_supplier, alternative_supplier_count, current_price_rank, data_as_of FROM ask_data_supplier_quote_terms_view WHERE ask_data_supplier_quote_terms_view.store_id = ANY(:allowedStoreIds) AND (is_current_valid = true AND alternative_supplier_count > 0 AND price_difference_from_lowest > 0) LIMIT 100;"
+    },
+    {
+      "id": "ask_supplemental:R2-SUP-005",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "同一商品哪个供应商报价最低",
+      "expected_target": "supplier_price_comparison",
+      "notes": "requiredViews=ask_data_supplier_quote_terms_view; requiredAnswerFacts=metric_value,data_policy,ranking_order,ranking_limit",
+      "expectedView": "ask_data_supplier_quote_terms_view",
+      "expectedViewLabel": "ask_data_supplier_quote_terms_view",
+      "expectedMetricKeys": [
+        "supplier_price_comparison"
+      ],
+      "acceptableViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "requiredViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "supplier_id",
+        "supplier_name",
+        "quote_price"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit"
+      ],
+      "split": "development",
+      "questionChecksum": "8880bb195e537d2051fb3b0e02ad912c5ba3ac77242e5096c4af0044f9641243",
+      "candidateViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_supplier_quote_terms_view",
+        "agent_v3_purchase_procurement_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "supplier_price_comparison"
+      ],
+      "semanticRoutingMs": 2,
+      "goldPlanMatched": true,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "generationRepairReasons": [],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 7708,
+      "guardMs": 1,
+      "executionMs": 726,
+      "answerMs": 12004,
+      "totalMs": 20442,
+      "rowCount": 9,
+      "noData": false,
+      "answerGrounded": true,
+      "answerComplete": true,
+      "answer": {
+        "summary": "已查询到 9 条结果，首条为 商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=1、供应商名称=Ami MVP 供应商、已审批报价；不等于最终采购成交价=12 元。",
+        "keyFindings": [
+          "商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=1、供应商名称=Ami MVP 供应商、已审批报价；不等于最终采购成交价=12 元",
+          "商品 ID=84、商品名称=氨基酸洁面乳、供应商 ID=3、供应商名称=Ami 全量演示门店 核心耗材供应商、已审批报价；不等于最终采购成交价=58 元",
+          "商品 ID=84、商品名称=氨基酸洁面乳、供应商 ID=2、供应商名称=Ami 官方演示供应链、已审批报价；不等于最终采购成交价=58 元",
+          "商品 ID=83、商品名称=舒缓修护面膜、供应商 ID=2、供应商名称=Ami 官方演示供应链、已审批报价；不等于最终采购成交价=86 元",
+          "商品 ID=83、商品名称=舒缓修护面膜、供应商 ID=3、供应商名称=Ami 全量演示门店 核心耗材供应商、已审批报价；不等于最终采购成交价=86 元"
+        ],
+        "caveats": []
+      },
+      "redactedSql": "SELECT product_id, product_name, supplier_id, supplier_name, quote_price, lowest_current_quote_price, price_difference_from_lowest, price_premium_rate FROM ask_data_supplier_quote_terms_view WHERE ask_data_supplier_quote_terms_view.store_id = ANY(:allowedStoreIds) AND (is_current_valid = TRUE AND alternative_supplier_count > 0) ORDER BY quote_price ASC LIMIT 10;"
+    },
+    {
+      "id": "ask_supplemental:R2-SUP-006",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "各品类的最低采购量要求是什么",
+      "expected_target": "supplier_minimum_order_quantity",
+      "notes": "requiredViews=ask_data_supplier_quote_terms_view; requiredAnswerFacts=metric_value,data_policy,list_items",
+      "expectedView": "ask_data_supplier_quote_terms_view",
+      "expectedViewLabel": "ask_data_supplier_quote_terms_view",
+      "expectedMetricKeys": [
+        "supplier_minimum_order_quantity"
+      ],
+      "acceptableViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "requiredViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "requiredOutputFields": [
+        "category_name",
+        "minimum_order_quantity"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "development",
+      "questionChecksum": "4d9546f130ee2c9e62db206daafcdb4c7cdddfba3eb52081f3f3a742f5f56b70",
+      "candidateViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_supplier_performance_view",
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "supplier_minimum_order_quantity"
+      ],
+      "semanticRoutingMs": 3,
+      "goldPlanMatched": true,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "generationRepairReasons": [],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 6613,
+      "guardMs": 3,
+      "executionMs": 746,
+      "answerMs": 0,
+      "totalMs": 7367,
+      "rowCount": 25,
+      "noData": false,
+      "answerGrounded": true,
+      "answerComplete": true,
+      "answer": {
+        "summary": "已查询到 25 条结果，首条为 报价 ID=1、商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=1、供应商名称=Ami MVP 供应商。",
+        "keyFindings": [
+          "报价 ID=1、商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=1、供应商名称=Ami MVP 供应商",
+          "报价 ID=7、商品 ID=88、商品名称=水氧护理耗材包、供应商 ID=2、供应商名称=Ami 官方演示供应链",
+          "报价 ID=14、商品 ID=95、商品名称=屏障安瓶精华、供应商 ID=2、供应商名称=Ami 官方演示供应链",
+          "报价 ID=5、商品 ID=86、商品名称=抗衰紧致眼霜、供应商 ID=2、供应商名称=Ami 官方演示供应链",
+          "报价 ID=22、商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=3、供应商名称=Ami 全量演示门店 核心耗材供应商"
+        ],
+        "caveats": []
+      },
+      "redactedSql": "SELECT quote_id, product_id, product_name, supplier_id, supplier_name, category_name, minimum_order_quantity, product_sku, quote_price, tax_included, lead_days, stock_status, settlement_mode, payment_terms, is_preferred_supplier, alternative_supplier_count, lowest_current_quote_price, price_difference_from_lowest, current_price_rank, data_as_of FROM ask_data_supplier_quote_terms_view WHERE ask_data_supplier_quote_terms_view.store_id = ANY(:allowedStoreIds) AND (is_current_valid = true) ORDER BY minimum_order_quantity ASC LIMIT 100;"
+    },
+    {
+      "id": "ask_supplemental:R2-SUP-007",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "列出各商品的供应商起订量",
+      "expected_target": "supplier_minimum_order_quantity",
+      "notes": "requiredViews=ask_data_supplier_quote_terms_view; requiredAnswerFacts=metric_value,data_policy,list_items",
+      "expectedView": "ask_data_supplier_quote_terms_view",
+      "expectedViewLabel": "ask_data_supplier_quote_terms_view",
+      "expectedMetricKeys": [
+        "supplier_minimum_order_quantity"
+      ],
+      "acceptableViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "requiredViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "supplier_id",
+        "supplier_name",
+        "minimum_order_quantity"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "development",
+      "questionChecksum": "90550fba6bd389bf1310e16ecd1e8d669a694faebe7d1dd7cd3b2affd252a96b",
+      "candidateViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_supplier_quote_terms_view",
+        "agent_v3_purchase_procurement_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "supplier_minimum_order_quantity"
+      ],
+      "semanticRoutingMs": 2,
+      "goldPlanMatched": true,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "generationRepairReasons": [],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 5519,
+      "guardMs": 4,
+      "executionMs": 770,
+      "answerMs": 0,
+      "totalMs": 6300,
+      "rowCount": 25,
+      "noData": false,
+      "answerGrounded": true,
+      "answerComplete": true,
+      "answer": {
+        "summary": "已查询到 25 条结果，首条为 报价 ID=8、商品 ID=89、商品名称=一次性护理巾、供应商 ID=2、供应商名称=Ami 官方演示供应链。",
+        "keyFindings": [
+          "报价 ID=8、商品 ID=89、商品名称=一次性护理巾、供应商 ID=2、供应商名称=Ami 官方演示供应链",
+          "报价 ID=15、商品 ID=96、商品名称=清洁棉片、供应商 ID=2、供应商名称=Ami 官方演示供应链",
+          "报价 ID=25、商品 ID=85、商品名称=烟酰胺亮肤精华、供应商 ID=3、供应商名称=Ami 全量演示门店 核心耗材供应商",
+          "报价 ID=21、商品 ID=98、商品名称=仪器导入凝胶、供应商 ID=2、供应商名称=Ami 官方演示供应链",
+          "报价 ID=24、商品 ID=84、商品名称=氨基酸洁面乳、供应商 ID=3、供应商名称=Ami 全量演示门店 核心耗材供应商"
+        ],
+        "caveats": []
+      },
+      "redactedSql": "SELECT quote_id, product_id, product_name, supplier_id, supplier_name, minimum_order_quantity, product_sku, quote_price, tax_included, lead_days, stock_status, settlement_mode, payment_terms, is_preferred_supplier, alternative_supplier_count, lowest_current_quote_price, price_difference_from_lowest, current_price_rank, data_as_of FROM ask_data_supplier_quote_terms_view WHERE ask_data_supplier_quote_terms_view.store_id = ANY(:allowedStoreIds) AND (is_current_valid = TRUE) ORDER BY minimum_order_quantity DESC LIMIT 100;"
+    },
+    {
+      "id": "ask_supplemental:R2-SUP-008",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "我们和各供应商的账期及结算方式是怎么约定的",
+      "expected_target": "supplier_payment_terms",
+      "notes": "requiredViews=ask_data_supplier_quote_terms_view; requiredAnswerFacts=metric_value,data_policy,list_items",
+      "expectedView": "ask_data_supplier_quote_terms_view",
+      "expectedViewLabel": "ask_data_supplier_quote_terms_view",
+      "expectedMetricKeys": [
+        "supplier_payment_terms"
+      ],
+      "acceptableViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "requiredViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "requiredOutputFields": [
+        "supplier_id",
+        "supplier_name",
+        "payment_terms",
+        "settlement_mode"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "development",
+      "questionChecksum": "f0ae783bbbb52ad22c143b0fad66d780f600bbaf8658e359a6f3638b4cae9300",
+      "candidateViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_supplier_quote_terms_view",
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view",
+        "agent_v3_purchase_procurement_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "supplier_payment_terms"
+      ],
+      "semanticRoutingMs": 2,
+      "goldPlanMatched": true,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "generationRepairReasons": [],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 8695,
+      "guardMs": 1,
+      "executionMs": 767,
+      "answerMs": 0,
+      "totalMs": 9470,
+      "rowCount": 25,
+      "noData": false,
+      "answerGrounded": true,
+      "answerComplete": true,
+      "answer": {
+        "summary": "已查询到 25 条结果，首条为 报价 ID=1、商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=1、供应商名称=Ami MVP 供应商。",
+        "keyFindings": [
+          "报价 ID=1、商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=1、供应商名称=Ami MVP 供应商",
+          "报价 ID=2、商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=2、供应商名称=Ami 官方演示供应链",
+          "报价 ID=22、商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=3、供应商名称=Ami 全量演示门店 核心耗材供应商",
+          "报价 ID=23、商品 ID=83、商品名称=舒缓修护面膜、供应商 ID=3、供应商名称=Ami 全量演示门店 核心耗材供应商",
+          "报价 ID=17、商品 ID=83、商品名称=舒缓修护面膜、供应商 ID=2、供应商名称=Ami 官方演示供应链"
+        ],
+        "caveats": []
+      },
+      "redactedSql": "SELECT quote_id, product_id, product_name, supplier_id, supplier_name, payment_terms, settlement_mode, product_sku, quote_price, tax_included, minimum_order_quantity, lead_days, stock_status, is_preferred_supplier, alternative_supplier_count, lowest_current_quote_price, price_difference_from_lowest, current_price_rank, data_as_of FROM ask_data_supplier_quote_terms_view WHERE ask_data_supplier_quote_terms_view.store_id = ANY(:allowedStoreIds) AND (is_current_valid = TRUE) LIMIT 100;"
+    },
+    {
+      "id": "ask_supplemental:R2-SUP-009",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "哪些供应商报价交期最短",
+      "expected_target": "supplier_lead_time",
+      "notes": "requiredViews=ask_data_supplier_quote_terms_view; requiredAnswerFacts=metric_value,data_policy,ranking_order,ranking_limit",
+      "expectedView": "ask_data_supplier_quote_terms_view",
+      "expectedViewLabel": "ask_data_supplier_quote_terms_view",
+      "expectedMetricKeys": [
+        "supplier_lead_time"
+      ],
+      "acceptableViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "requiredViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "requiredOutputFields": [
+        "supplier_id",
+        "supplier_name",
+        "lead_days"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit"
+      ],
+      "split": "development",
+      "questionChecksum": "5c74bc4baa7966feb9ab96ff06b1ddc606539d26773e6fe2dc48ef17f2145162",
+      "candidateViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_supplier_quote_terms_view",
+        "agent_v3_purchase_procurement_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "supplier_lead_time"
+      ],
+      "semanticRoutingMs": 26,
+      "goldPlanMatched": true,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "generationRepairReasons": [],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 3185,
+      "guardMs": 1,
+      "executionMs": 987,
+      "answerMs": 6188,
+      "totalMs": 10391,
+      "rowCount": 10,
+      "noData": false,
+      "answerGrounded": true,
+      "answerComplete": true,
+      "answer": {
+        "summary": "已查询到 10 条结果，首条为 供应商 ID=1、供应商名称=Ami MVP 供应商、预计交付天数；空值表示后台未维护=3。",
+        "keyFindings": [
+          "供应商 ID=1、供应商名称=Ami MVP 供应商、预计交付天数；空值表示后台未维护=3",
+          "供应商 ID=3、供应商名称=Ami 全量演示门店 核心耗材供应商、预计交付天数；空值表示后台未维护=4",
+          "供应商 ID=3、供应商名称=Ami 全量演示门店 核心耗材供应商、预计交付天数；空值表示后台未维护=4",
+          "供应商 ID=3、供应商名称=Ami 全量演示门店 核心耗材供应商、预计交付天数；空值表示后台未维护=9",
+          "供应商 ID=3、供应商名称=Ami 全量演示门店 核心耗材供应商、预计交付天数；空值表示后台未维护=9"
+        ],
+        "caveats": [
+          "模型总结包含结果外数字，已回退为确定性摘要。"
+        ]
+      },
+      "redactedSql": "SELECT supplier_id, supplier_name, lead_days FROM ask_data_supplier_quote_terms_view WHERE ask_data_supplier_quote_terms_view.store_id = ANY(:allowedStoreIds) AND (is_current_valid = TRUE) ORDER BY lead_days ASC LIMIT 10;"
+    },
+    {
+      "id": "ask_supplemental:R2-SUP-010",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "当前首选供应商报价与同商品最低报价差多少",
+      "expected_target": "supplier_price_comparison",
+      "notes": "requiredViews=ask_data_supplier_quote_terms_view; requiredAnswerFacts=metric_value,data_policy,list_items",
+      "expectedView": "ask_data_supplier_quote_terms_view",
+      "expectedViewLabel": "ask_data_supplier_quote_terms_view",
+      "expectedMetricKeys": [
+        "supplier_price_comparison"
+      ],
+      "acceptableViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "requiredViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "supplier_id",
+        "supplier_name",
+        "quote_price",
+        "lowest_current_quote_price",
+        "price_difference_from_lowest"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "development",
+      "questionChecksum": "40321a927a8a57c0fc87c37b5b57636ba270447abd6b511b8c7ef17c8071e626",
+      "candidateViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_supplier_quote_terms_view",
+        "agent_v3_purchase_procurement_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "supplier_price_comparison"
+      ],
+      "semanticRoutingMs": 25,
+      "goldPlanMatched": true,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_supplier_quote_terms_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "generationRepairReasons": [],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 8410,
+      "guardMs": 4,
+      "executionMs": 862,
+      "answerMs": 0,
+      "totalMs": 9305,
+      "rowCount": 6,
+      "noData": false,
+      "answerGrounded": true,
+      "answerComplete": true,
+      "answer": {
+        "summary": "已查询到 6 条结果，首条为 报价 ID=1、商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=1、供应商名称=Ami MVP 供应商。",
+        "keyFindings": [
+          "报价 ID=1、商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=1、供应商名称=Ami MVP 供应商",
+          "报价 ID=3、商品 ID=84、商品名称=氨基酸洁面乳、供应商 ID=2、供应商名称=Ami 官方演示供应链",
+          "报价 ID=17、商品 ID=83、商品名称=舒缓修护面膜、供应商 ID=2、供应商名称=Ami 官方演示供应链",
+          "报价 ID=2、商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=2、供应商名称=Ami 官方演示供应链",
+          "报价 ID=22、商品 ID=82、商品名称=玻尿酸保湿精华、供应商 ID=3、供应商名称=Ami 全量演示门店 核心耗材供应商"
+        ],
+        "caveats": []
+      },
+      "redactedSql": "SELECT quote_id, product_id, product_name, supplier_id, supplier_name, quote_price, lowest_current_quote_price, price_difference_from_lowest, price_premium_rate, product_sku, tax_included, minimum_order_quantity, lead_days, stock_status, settlement_mode, payment_terms, is_preferred_supplier, alternative_supplier_count, current_price_rank, data_as_of FROM ask_data_supplier_quote_terms_view WHERE ask_data_supplier_quote_terms_view.store_id = ANY(:allowedStoreIds) AND (is_current_valid = TRUE AND alternative_supplier_count > 0 AND is_preferred_supplier = TRUE) ORDER BY quote_price ASC LIMIT 100;"
+    }
+  ]
+}

@@ -1,0 +1,743 @@
+{
+  "generatedAt": "2026-08-03T02:57:56.445Z",
+  "complete": true,
+  "strict": true,
+  "connectionMode": "development_admin",
+  "databaseHost": "aws-1-ap-northeast-1.pooler.supabase.com",
+  "storeId": 6,
+  "concurrency": 1,
+  "manifest": {
+    "path": "/Users/ju/Documents/ami/beauty-salon-admin-ask/docs/04-测试数据/Ami-Ask统一Gold题库-v1/Ami-Ask统一Gold发布级真实E2E清单-v1.json",
+    "sourcePath": "/Users/ju/Documents/ami/beauty-salon-admin-ask/docs/04-测试数据/Ami-Ask统一Gold题库-v1/Ami-Ask统一Gold题库-v1.json",
+    "sourceQuestionCount": 429,
+    "targetPerView": 10,
+    "viewCount": 34,
+    "coveredViews": 34,
+    "insufficientViews": [],
+    "sourceGoldChecksum": "fd96ea15ec1f55a6597986f7732d98e4838382a32e3dbcc2e543b1e6a4ba21b7",
+    "sourceContractChecksum": "14becc31f5d6596f6e42aa8cbca80900a8445a087c56006a26bf4040ce37e2ac",
+    "selectedQuestionsChecksum": "a82f7932cb7fd23f058799c7244feabe43bb4123cbfd34edbaf08c105d1048a0",
+    "checksum": "3c0f3a2ea19199a3b186a9a33f12c3aa024e1a9b70650d9490f679d111c14512"
+  },
+  "summary": {
+    "plannedCases": 3,
+    "completedCases": 3,
+    "strictPassed": 3,
+    "strictFailed": 0,
+    "strictAccuracy": 1,
+    "pipelinePassRate": 1,
+    "expectedViewHitRate": 1,
+    "providerAvailabilityRate": 1,
+    "sqlGenerationReadyRate": 1,
+    "guardPassRate": 1,
+    "databaseExecutionRate": 1,
+    "finalAnswerGroundedRate": 1,
+    "finalAnswerCompleteRate": 1,
+    "goldPlanMatchRate": 1,
+    "finalAnswerCorrectRate": 1,
+    "noDataRate": 0.3333,
+    "averageMs": 20466,
+    "p50Ms": 17975,
+    "p95Ms": 27468,
+    "durationMs": 61404,
+    "failureCounts": {},
+    "failureClassCounts": {}
+  },
+  "byView": [
+    {
+      "viewName": "agent_v3_order_summary_view",
+      "label": "订单摘要",
+      "plannedCount": 1,
+      "completedCount": 1,
+      "strictPassed": 1,
+      "strictAccuracy": 1,
+      "pipelinePassRate": 1,
+      "expectedViewHitRate": 1,
+      "noDataRate": 0,
+      "averageMs": 15956,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_order_item_sales_view",
+      "label": "商品销售",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_project_service_sales_view",
+      "label": "项目服务销售",
+      "plannedCount": 1,
+      "completedCount": 1,
+      "strictPassed": 1,
+      "strictAccuracy": 1,
+      "pipelinePassRate": 1,
+      "expectedViewHitRate": 1,
+      "noDataRate": 0,
+      "averageMs": 27468,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_payment_refund_view",
+      "label": "支付与退款",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_daily_settlement_view",
+      "label": "日结",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_product_inventory_view",
+      "label": "商品库存",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_stock_movement_view",
+      "label": "库存流水",
+      "plannedCount": 1,
+      "completedCount": 1,
+      "strictPassed": 1,
+      "strictAccuracy": 1,
+      "pipelinePassRate": 1,
+      "expectedViewHitRate": 1,
+      "noDataRate": 1,
+      "averageMs": 17975,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_inventory_scrap_view",
+      "label": "库存报废",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_customer_profile_summary_view",
+      "label": "客户档案摘要",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_staff_profile_view",
+      "label": "员工档案",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_staff_performance_view",
+      "label": "员工绩效",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_reservation_view",
+      "label": "预约",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_marketing_conversion_view",
+      "label": "营销转化",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_card_asset_view",
+      "label": "次卡资产",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_card_usage_view",
+      "label": "次卡核销",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_customer_balance_view",
+      "label": "客户余额",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_service_quality_view",
+      "label": "服务质量",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_appointment_gap_view",
+      "label": "预约空档",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_project_catalog_view",
+      "label": "项目目录",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_marketing_activity_view",
+      "label": "营销活动",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_marketing_automation_view",
+      "label": "自动触达",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_promotion_offer_view",
+      "label": "优惠活动",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_operating_cost_view",
+      "label": "经营成本",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_purchase_procurement_view",
+      "label": "采购",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_supplier_performance_view",
+      "label": "供应商表现",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_confirmed_profit_view",
+      "label": "已确认实际利润",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_reconciliation_issue_view",
+      "label": "财务对账异常",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_member_liability_view",
+      "label": "会员履约负债",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_staff_capacity_view",
+      "label": "排班与员工产能",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_transfer_status_view",
+      "label": "库存调拨",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_bom_consumption_variance_view",
+      "label": "BOM 实际消耗偏差",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_customer_feedback_view",
+      "label": "客户反馈",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_customer_lifecycle_view",
+      "label": "客户生命周期",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_marketing_roi_view",
+      "label": "营销 ROI",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    }
+  ],
+  "results": [
+    {
+      "id": "agent_650:manager-011",
+      "domain": "一、店长经营 Agent",
+      "role": "一、店长经营 Agent",
+      "type": "ask_query_low_confidence",
+      "difficulty": "development",
+      "question": "这个月跟上个月比收入差多少",
+      "expected_target": "order_revenue",
+      "notes": "requiredViews=agent_v3_order_summary_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit,comparison_current,comparison_previous,comparison_difference",
+      "expectedView": "agent_v3_order_summary_view",
+      "expectedViewLabel": "agent_v3_order_summary_view",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "current_period_net_revenue",
+        "previous_period_net_revenue",
+        "revenue_difference"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit",
+        "comparison_current",
+        "comparison_previous",
+        "comparison_difference"
+      ],
+      "split": "development",
+      "questionChecksum": "d39642881764a47cac551bc446d3580364ff74be025cc32f746587f91df89427",
+      "candidateViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "order_revenue"
+      ],
+      "semanticRoutingMs": 36,
+      "goldPlanMatched": true,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "generationRepairReasons": [],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 9092,
+      "guardMs": 5,
+      "executionMs": 1400,
+      "answerMs": 5419,
+      "totalMs": 15956,
+      "rowCount": 1,
+      "noData": false,
+      "answerGrounded": true,
+      "answerComplete": true,
+      "answer": {
+        "summary": "本月订单净收收入为29791.300000000000200000000000000000，上月为0，本月较上月增加29791.300000000000200000000000000000。",
+        "keyFindings": [
+          "统计口径：订单净收金额（实收扣除退款）。",
+          "本月收入：29791.300000000000200000000000000000。",
+          "上月收入：0。",
+          "收入差额（本月减上月）：29791.300000000000200000000000000000。"
+        ],
+        "caveats": []
+      },
+      "redactedSql": "SELECT COALESCE(SUM(net_amount) FILTER (WHERE order_created_at >= DATE_TRUNC('***', :endAt::date) - INTERVAL '***' AND order_created_at < DATE_TRUNC('***', :endAt::date)), 0) AS current_period_net_revenue, COALESCE(SUM(net_amount) FILTER (WHERE order_created_at >= DATE_TRUNC('***', :endAt::date) - INTERVAL '***' AND order_created_at < DATE_TRUNC('***', :endAt::date) - INTERVAL '***'), 0) AS previous_period_net_revenue, COALESCE(SUM(net_amount) FILTER (WHERE order_created_at >= DATE_TRUNC('***', :endAt::date) - INTERVAL '***' AND order_created_at < DATE_TRUNC('***', :endAt::date)), 0) - COALESCE(SUM(net_amount) FILTER (WHERE order_created_at >= DATE_TRUNC('***', :endAt::date) - INTERVAL '***' AND order_created_at < DATE_TRUNC('***', :endAt::date) - INTERVAL '***'), 0) AS revenue_difference FROM agent_v3_order_summary_view WHERE agent_v3_order_summary_view.store_id = ANY(:allowedStoreIds) AND agent_v3_order_summary_view.order_created_at >= :startAt AND agent_v3_order_summary_view.order_created_at < :endAt LIMIT 1;"
+    },
+    {
+      "id": "ami_brain_2000:BQ1069",
+      "domain": "库存",
+      "role": "库存",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "舒压按摩膏最近14天的库存变化",
+      "expected_target": "inventory_movement",
+      "notes": "requiredViews=agent_v3_stock_movement_view; requiredAnswerFacts=metric_value,time_range,data_policy,trend_granularity,trend_points",
+      "expectedView": "agent_v3_stock_movement_view",
+      "expectedViewLabel": "agent_v3_stock_movement_view",
+      "expectedMetricKeys": [
+        "inventory_movement"
+      ],
+      "acceptableViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredOutputFields": [
+        "trend_day",
+        "movement_quantity"
+      ],
+      "requiredResultMode": "trend",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "trend_granularity",
+        "trend_points"
+      ],
+      "split": "development",
+      "questionChecksum": "131f109c78888ae67142e58c49c847251fcb4bd759be97be07f24ad0d4706467",
+      "candidateViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_product_inventory_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "inventory_movement"
+      ],
+      "semanticRoutingMs": 25,
+      "goldPlanMatched": true,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "generationRepairReasons": [],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 16746,
+      "guardMs": 4,
+      "executionMs": 1196,
+      "answerMs": 1,
+      "totalMs": 17975,
+      "rowCount": 0,
+      "noData": true,
+      "answerGrounded": true,
+      "answerComplete": true,
+      "answer": {
+        "summary": "当前筛选范围内没有匹配数据。",
+        "keyFindings": [],
+        "caveats": []
+      },
+      "redactedSql": "SELECT DATE_TRUNC('***', occurred_at)::date AS trend_day, SUM(quantity) AS movement_quantity, COUNT(movement_id) AS movement_count FROM agent_v3_stock_movement_view WHERE agent_v3_stock_movement_view.store_id = ANY(:allowedStoreIds) AND agent_v3_stock_movement_view.occurred_at >= :startAt AND agent_v3_stock_movement_view.occurred_at < :endAt AND (product_name = '***' AND occurred_at >= :startAt::date AND occurred_at < :endAt::date) GROUP BY DATE_TRUNC('***', occurred_at)::date ORDER BY trend_day ASC LIMIT 100;"
+    },
+    {
+      "id": "ami_brain_2000:BQ0663",
+      "domain": "财务",
+      "role": "财务",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "最近三个月项目订单和产品订单各占多少",
+      "expected_target": "product_sales,project_sales",
+      "notes": "requiredViews=agent_v3_project_service_sales_view,agent_v3_order_item_sales_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_project_service_sales_view",
+      "expectedViewLabel": "agent_v3_project_service_sales_view",
+      "expectedMetricKeys": [
+        "product_sales",
+        "project_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_item_sales_view",
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_service_sales_view",
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredOutputFields": [
+        "sales_quantity",
+        "service_count"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "73be3cc1d8d79cefe765290d0eaf99bdd5e82652d8a65e9caa9a87cf523ca369",
+      "candidateViews": [
+        "agent_v3_project_service_sales_view",
+        "agent_v3_order_item_sales_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_order_summary_view",
+        "agent_v3_reservation_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.96,
+      "semanticMetricKeys": [
+        "project_sales",
+        "product_sales"
+      ],
+      "semanticRoutingMs": 26,
+      "goldPlanMatched": true,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_project_service_sales_view",
+        "agent_v3_order_item_sales_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "generationRepairReasons": [],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 13484,
+      "guardMs": 4,
+      "executionMs": 1513,
+      "answerMs": 12439,
+      "totalMs": 27468,
+      "rowCount": 1,
+      "noData": false,
+      "answerGrounded": true,
+      "answerComplete": true,
+      "answer": {
+        "summary": "已查询到 1 条结果，首条为 service_count=125、project_revenue=55840.5100000000001、sales_quantity=127、net_sales_amount=35333.8。",
+        "keyFindings": [
+          "service_count=125、project_revenue=55840.5100000000001、sales_quantity=127、net_sales_amount=35333.8"
+        ],
+        "caveats": [
+          "模型总结错误声明无法完成查询，已回退为确定性摘要。"
+        ]
+      },
+      "redactedSql": "WITH project_sales AS (\n  SELECT\n    SUM(ps.service_quantity) AS service_count,\n    SUM(ps.net_amount) AS project_revenue\n  FROM agent_v3_project_service_sales_view AS ps\n  WHERE ps.store_id = ANY(:allowedStoreIds)\n    AND ps.order_created_at >= :startAt::timestamptz\n    AND ps.order_created_at < :endAt::timestamptz\n)\nSELECT\n  MAX(project_sales.service_count) AS service_count,\n  MAX(project_sales.project_revenue) AS project_revenue,\n  SUM(oi.quantity) AS sales_quantity,\n  SUM(oi.net_amount) AS net_sales_amount\nFROM agent_v3_order_item_sales_view AS oi\nCROSS JOIN project_sales\nWHERE oi.store_id = ANY(:allowedStoreIds)\n  AND oi.order_created_at >= :startAt::timestamptz\n  AND oi.order_created_at < :endAt::timestamptz\nLIMIT 1;"
+    }
+  ]
+}

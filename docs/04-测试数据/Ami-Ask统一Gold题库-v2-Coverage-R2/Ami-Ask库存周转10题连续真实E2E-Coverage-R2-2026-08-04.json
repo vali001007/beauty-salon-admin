@@ -1,0 +1,1324 @@
+{
+  "generatedAt": "2026-08-03T17:54:08.790Z",
+  "complete": true,
+  "strict": true,
+  "connectionMode": "development_admin",
+  "databaseHost": "aws-1-ap-northeast-1.pooler.supabase.com",
+  "storeId": 6,
+  "concurrency": 3,
+  "manifest": {
+    "path": "/Users/ju/Documents/ami/beauty-salon-admin-ask/docs/04-测试数据/Ami-Ask统一Gold题库-v2-Coverage-R2/Ami-Ask统一Gold发布级350题清单-Coverage-R2.json",
+    "sourcePath": "/Users/ju/Documents/ami/beauty-salon-admin-ask/docs/04-测试数据/Ami-Ask统一Gold题库-v2-Coverage-R2/Ami-Ask统一Gold题库-v2-Coverage-R2.json",
+    "sourceQuestionCount": 439,
+    "targetPerView": 10,
+    "viewCount": 35,
+    "coveredViews": 35,
+    "insufficientViews": [],
+    "sourceGoldChecksum": "ca04d88919500dedacf4304d2159c7bfd5ecba31d8ac4b3c354f0d8e36ae16c3",
+    "sourceContractChecksum": "b6ab90ce9e01bc1f4f13d9672a3a533668c3c8359e76bc58ba3c95573076e109",
+    "selectedQuestionsChecksum": "fc181a445317af174a56af15eee3c471cc3ebb051caa58bfb5e91230a3a53334",
+    "checksum": "6b5e9db697ca9e14ff640ad6f437032e7b8388b17515d26ce381dbf7b1bef63a"
+  },
+  "summary": {
+    "plannedCases": 10,
+    "completedCases": 10,
+    "strictPassed": 10,
+    "strictFailed": 0,
+    "strictAccuracy": 1,
+    "pipelinePassRate": 1,
+    "expectedViewHitRate": 1,
+    "providerAvailabilityRate": 1,
+    "sqlGenerationReadyRate": 1,
+    "guardPassRate": 1,
+    "databaseExecutionRate": 1,
+    "finalAnswerGroundedRate": 1,
+    "finalAnswerCompleteRate": 1,
+    "goldPlanMatchRate": 1,
+    "finalAnswerCorrectRate": 1,
+    "noDataRate": 0,
+    "averageMs": 11942,
+    "p50Ms": 10555,
+    "p95Ms": 20014,
+    "durationMs": 40860,
+    "failureCounts": {},
+    "failureClassCounts": {}
+  },
+  "byView": [
+    {
+      "viewName": "agent_v3_order_summary_view",
+      "label": "订单摘要",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_order_item_sales_view",
+      "label": "商品销售",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_project_service_sales_view",
+      "label": "项目服务销售",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_payment_refund_view",
+      "label": "支付与退款",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_daily_settlement_view",
+      "label": "日结",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_product_inventory_view",
+      "label": "商品库存",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_stock_movement_view",
+      "label": "库存流水",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_inventory_scrap_view",
+      "label": "库存报废",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_inventory_turnover_view",
+      "label": "库存周转与采购覆盖",
+      "plannedCount": 10,
+      "completedCount": 10,
+      "strictPassed": 10,
+      "strictAccuracy": 1,
+      "pipelinePassRate": 1,
+      "expectedViewHitRate": 1,
+      "noDataRate": 0,
+      "averageMs": 11942,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_customer_profile_summary_view",
+      "label": "客户档案摘要",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_staff_profile_view",
+      "label": "员工档案",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_staff_performance_view",
+      "label": "员工绩效",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_reservation_view",
+      "label": "预约",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_marketing_conversion_view",
+      "label": "营销转化",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_card_asset_view",
+      "label": "次卡资产",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_card_usage_view",
+      "label": "次卡核销",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_customer_balance_view",
+      "label": "客户余额",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_service_quality_view",
+      "label": "服务质量",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_appointment_gap_view",
+      "label": "预约空档",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_project_catalog_view",
+      "label": "项目目录",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_marketing_activity_view",
+      "label": "营销活动",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_marketing_automation_view",
+      "label": "自动触达",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_promotion_offer_view",
+      "label": "优惠活动",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_operating_cost_view",
+      "label": "经营成本",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_purchase_procurement_view",
+      "label": "采购",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_supplier_performance_view",
+      "label": "供应商表现",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_confirmed_profit_view",
+      "label": "已确认实际利润",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_reconciliation_issue_view",
+      "label": "财务对账异常",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_member_liability_view",
+      "label": "会员履约负债",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_staff_capacity_view",
+      "label": "排班与员工产能",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_transfer_status_view",
+      "label": "库存调拨",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_bom_consumption_variance_view",
+      "label": "BOM 实际消耗偏差",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_customer_feedback_view",
+      "label": "客户反馈",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_customer_lifecycle_view",
+      "label": "客户生命周期",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_marketing_roi_view",
+      "label": "营销 ROI",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    }
+  ],
+  "results": [
+    {
+      "id": "ask_supplemental:R2-INV-001",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "库存运营周转率最低的前 10 个产品是哪些",
+      "expected_target": "inventory_operational_turnover",
+      "notes": "requiredViews=ask_data_inventory_turnover_view; requiredAnswerFacts=metric_value,data_policy,ranking_order,ranking_limit",
+      "expectedView": "ask_data_inventory_turnover_view",
+      "expectedViewLabel": "ask_data_inventory_turnover_view",
+      "expectedMetricKeys": [
+        "inventory_operational_turnover"
+      ],
+      "acceptableViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "requiredViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "operational_turnover_ratio_30d",
+        "outbound_quantity_30d",
+        "event_weighted_avg_stock_30d"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit"
+      ],
+      "split": "development",
+      "questionChecksum": "48c1924aef2baa13845dfe1c9810599129883e0514b693f8dee94319afc20541",
+      "candidateViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_product_inventory_view",
+        "ask_data_inventory_turnover_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "inventory_operational_turnover"
+      ],
+      "semanticRoutingMs": 70,
+      "goldPlanMatched": true,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "generationRepairReasons": [],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 4829,
+      "guardMs": 3,
+      "executionMs": 2209,
+      "answerMs": 12005,
+      "totalMs": 19122,
+      "rowCount": 10,
+      "noData": false,
+      "answerGrounded": true,
+      "answerComplete": true,
+      "answer": {
+        "summary": "已查询到 10 条结果，首条为 商品 ID=133、商品名称=日间防晒乳、SKU=IND-6-STD-RETAIL-SUNSCREEN-001、近 30 天运营周转率=0、最近 30 天出库量=0.25。",
+        "keyFindings": [
+          "商品 ID=133、商品名称=日间防晒乳、SKU=IND-6-STD-RETAIL-SUNSCREEN-001、近 30 天运营周转率=0、最近 30 天出库量=0.25",
+          "商品 ID=87、商品名称=屏障修护乳、SKU=AMI-DEMO-FULL-SKU-006、近 30 天运营周转率=0.01、最近 30 天出库量=1",
+          "商品 ID=88、商品名称=水氧护理耗材包、SKU=AMI-DEMO-FULL-SKU-007、近 30 天运营周转率=0.01、最近 30 天出库量=1",
+          "商品 ID=82、商品名称=玻尿酸保湿精华、SKU=AMI-DEMO-FULL-SKU-001、近 30 天运营周转率=0.04、最近 30 天出库量=5",
+          "商品 ID=86、商品名称=抗衰紧致眼霜、SKU=AMI-DEMO-FULL-SKU-005、近 30 天运营周转率=0.05、最近 30 天出库量=5"
+        ],
+        "caveats": []
+      },
+      "redactedSql": "SELECT product_id, product_name, sku, operational_turnover_ratio_30d, outbound_quantity_30d, event_weighted_avg_stock_30d FROM ask_data_inventory_turnover_view WHERE ask_data_inventory_turnover_view.store_id = ANY(:allowedStoreIds) ORDER BY operational_turnover_ratio_30d ASC NULLS LAST LIMIT 10;"
+    },
+    {
+      "id": "ask_supplemental:R2-INV-002",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "当前门店整体的运营库存周转率是多少",
+      "expected_target": "inventory_operational_turnover",
+      "notes": "requiredViews=ask_data_inventory_turnover_view; requiredAnswerFacts=metric_value,data_policy",
+      "expectedView": "ask_data_inventory_turnover_view",
+      "expectedViewLabel": "ask_data_inventory_turnover_view",
+      "expectedMetricKeys": [
+        "inventory_operational_turnover"
+      ],
+      "acceptableViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "requiredViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "requiredOutputFields": [
+        "outbound_quantity_30d",
+        "event_weighted_avg_stock_30d",
+        "operational_turnover_ratio_30d"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "ba0dff26a2f363ba00cb923989c53c2b611d3a3285aa8cf347d83ea1f5a0ac11",
+      "candidateViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_inventory_turnover_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.97,
+      "semanticMetricKeys": [
+        "inventory_operational_turnover"
+      ],
+      "semanticRoutingMs": 82,
+      "goldPlanMatched": true,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "generationRepairReasons": [],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 12785,
+      "guardMs": 1,
+      "executionMs": 2098,
+      "answerMs": 1,
+      "totalMs": 14972,
+      "rowCount": 1,
+      "noData": false,
+      "answerGrounded": true,
+      "answerComplete": true,
+      "answer": {
+        "summary": "查询结果为：最近 30 天出库量=633.25、最近 30 天库存事件加权平均库存=1661.05、近 30 天运营周转率=0.38。",
+        "keyFindings": [
+          "最近 30 天出库量=633.25、最近 30 天库存事件加权平均库存=1661.05、近 30 天运营周转率=0.38"
+        ],
+        "caveats": []
+      },
+      "redactedSql": "SELECT SUM(outbound_quantity_30d) AS outbound_quantity_30d, SUM(event_weighted_avg_stock_30d) AS event_weighted_avg_stock_30d, SUM(outbound_quantity_30d) / NULLIF(SUM(event_weighted_avg_stock_30d), 0) AS operational_turnover_ratio_30d FROM ask_data_inventory_turnover_view WHERE ask_data_inventory_turnover_view.store_id = ANY(:allowedStoreIds) LIMIT 1;"
+    },
+    {
+      "id": "ask_supplemental:R2-INV-003",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "按库存可用天数从短到长列出前 10 个耗材产品",
+      "expected_target": "inventory_days_of_stock",
+      "notes": "requiredViews=ask_data_inventory_turnover_view; requiredAnswerFacts=metric_value,data_policy,ranking_order,ranking_limit",
+      "expectedView": "ask_data_inventory_turnover_view",
+      "expectedViewLabel": "ask_data_inventory_turnover_view",
+      "expectedMetricKeys": [
+        "inventory_days_of_stock"
+      ],
+      "acceptableViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "requiredViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "current_stock",
+        "avg_daily_outbound_30d",
+        "days_of_stock_30d"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit"
+      ],
+      "split": "development",
+      "questionChecksum": "2e0ab8e547a8c7192d08ddedad9c3ad0afdf3028e9ebac3d8f5477e9848f55dd",
+      "candidateViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_inventory_turnover_view",
+        "agent_v3_product_inventory_view",
+        "agent_v3_stock_movement_view",
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "inventory_days_of_stock"
+      ],
+      "semanticRoutingMs": 59,
+      "goldPlanMatched": true,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "generationRepairReasons": [],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 4606,
+      "guardMs": 5,
+      "executionMs": 3341,
+      "answerMs": 12001,
+      "totalMs": 20014,
+      "rowCount": 10,
+      "noData": false,
+      "answerGrounded": true,
+      "answerComplete": true,
+      "answer": {
+        "summary": "已查询到 10 条结果，首条为 商品 ID=133、商品名称=日间防晒乳、SKU=IND-6-STD-RETAIL-SUNSCREEN-001、按最近 30 天日均出库计算的库存可用天数；无消耗时为空=12090、当前库存=100.75。",
+        "keyFindings": [
+          "商品 ID=133、商品名称=日间防晒乳、SKU=IND-6-STD-RETAIL-SUNSCREEN-001、按最近 30 天日均出库计算的库存可用天数；无消耗时为空=12090、当前库存=100.75",
+          "商品 ID=87、商品名称=屏障修护乳、SKU=AMI-DEMO-FULL-SKU-006、按最近 30 天日均出库计算的库存可用天数；无消耗时为空=4050、当前库存=135",
+          "商品 ID=88、商品名称=水氧护理耗材包、SKU=AMI-DEMO-FULL-SKU-007、按最近 30 天日均出库计算的库存可用天数；无消耗时为空=2430、当前库存=81",
+          "商品 ID=82、商品名称=玻尿酸保湿精华、SKU=AMI-DEMO-FULL-SKU-001、按最近 30 天日均出库计算的库存可用天数；无消耗时为空=774、当前库存=129",
+          "商品 ID=86、商品名称=抗衰紧致眼霜、SKU=AMI-DEMO-FULL-SKU-005、按最近 30 天日均出库计算的库存可用天数；无消耗时为空=636、当前库存=106"
+        ],
+        "caveats": []
+      },
+      "redactedSql": "SELECT product_id, product_name, sku, days_of_stock_30d, current_stock, avg_daily_outbound_30d FROM ask_data_inventory_turnover_view WHERE ask_data_inventory_turnover_view.store_id = ANY(:allowedStoreIds) AND (days_of_stock_30d IS NOT NULL) ORDER BY days_of_stock_30d DESC NULLS LAST LIMIT 10;"
+    },
+    {
+      "id": "ask_supplemental:R2-INV-004",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "哪些产品当前有库存但最近 90 天没有出库",
+      "expected_target": "inventory_slow_moving",
+      "notes": "requiredViews=ask_data_inventory_turnover_view; requiredAnswerFacts=metric_value,data_policy,list_items",
+      "expectedView": "ask_data_inventory_turnover_view",
+      "expectedViewLabel": "ask_data_inventory_turnover_view",
+      "expectedMetricKeys": [
+        "inventory_slow_moving"
+      ],
+      "acceptableViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "requiredViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "current_stock",
+        "outbound_quantity_90d",
+        "slow_moving_status"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "development",
+      "questionChecksum": "11e3d02528830645b91261bd76ac13a123461c4d24989f955e5e63b166cae410",
+      "candidateViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_stock_movement_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.95,
+      "semanticMetricKeys": [
+        "inventory_slow_moving"
+      ],
+      "semanticRoutingMs": 2,
+      "goldPlanMatched": true,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "generationRepairReasons": [],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 7339,
+      "guardMs": 3,
+      "executionMs": 2731,
+      "answerMs": 1,
+      "totalMs": 10080,
+      "rowCount": 12,
+      "noData": false,
+      "answerGrounded": true,
+      "answerComplete": true,
+      "answer": {
+        "summary": "已查询到 12 条结果，首条为 商品 ID=82、商品名称=玻尿酸保湿精华、SKU=AMI-DEMO-FULL-SKU-001、慢动销状态=低周转、当前库存=129。",
+        "keyFindings": [
+          "商品 ID=82、商品名称=玻尿酸保湿精华、SKU=AMI-DEMO-FULL-SKU-001、慢动销状态=低周转、当前库存=129",
+          "商品 ID=133、商品名称=日间防晒乳、SKU=IND-6-STD-RETAIL-SUNSCREEN-001、慢动销状态=低周转、当前库存=100.75",
+          "商品 ID=91、商品名称=清透防晒乳、SKU=AMI-DEMO-FULL-SKU-010、慢动销状态=近 90 天无出库、当前库存=122",
+          "商品 ID=131、商品名称=淡斑亮肤精华、SKU=IND-6-STD-SPOT-BRIGHTENING-ESSENCE-001、慢动销状态=低周转、当前库存=36",
+          "商品 ID=88、商品名称=水氧护理耗材包、SKU=AMI-DEMO-FULL-SKU-007、慢动销状态=低周转、当前库存=81"
+        ],
+        "caveats": []
+      },
+      "redactedSql": "SELECT product_id, product_name, sku, slow_moving_status, current_stock, outbound_quantity_90d, operational_turnover_ratio_30d, days_of_stock_30d, category_name, unit, safety_stock, replenishment_fact_status, open_procurement_quantity, cost_policy, turnover_policy, data_as_of FROM ask_data_inventory_turnover_view WHERE ask_data_inventory_turnover_view.store_id = ANY(:allowedStoreIds) AND (slow_moving_status IN ('***', '***') AND current_stock > 0) LIMIT 100;"
+    },
+    {
+      "id": "ask_supplemental:R2-INV-005",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "列出近 30 天运营周转率低于 0.5 的慢动销产品",
+      "expected_target": "inventory_slow_moving",
+      "notes": "requiredViews=ask_data_inventory_turnover_view; requiredAnswerFacts=metric_value,data_policy,list_items",
+      "expectedView": "ask_data_inventory_turnover_view",
+      "expectedViewLabel": "ask_data_inventory_turnover_view",
+      "expectedMetricKeys": [
+        "inventory_slow_moving"
+      ],
+      "acceptableViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "requiredViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "current_stock",
+        "operational_turnover_ratio_30d",
+        "slow_moving_status"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "development",
+      "questionChecksum": "9ee3108976ed35be88c1ff08c5899bcf165e313e0ae91f44ab8ad149ebd17fac",
+      "candidateViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_inventory_turnover_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "inventory_slow_moving"
+      ],
+      "semanticRoutingMs": 26,
+      "goldPlanMatched": true,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "generationRepairReasons": [],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 7175,
+      "guardMs": 2,
+      "executionMs": 3346,
+      "answerMs": 1,
+      "totalMs": 10555,
+      "rowCount": 12,
+      "noData": false,
+      "answerGrounded": true,
+      "answerComplete": true,
+      "answer": {
+        "summary": "已查询到 12 条结果，首条为 商品 ID=82、商品名称=玻尿酸保湿精华、SKU=AMI-DEMO-FULL-SKU-001、慢动销状态=低周转、当前库存=129。",
+        "keyFindings": [
+          "商品 ID=82、商品名称=玻尿酸保湿精华、SKU=AMI-DEMO-FULL-SKU-001、慢动销状态=低周转、当前库存=129",
+          "商品 ID=133、商品名称=日间防晒乳、SKU=IND-6-STD-RETAIL-SUNSCREEN-001、慢动销状态=低周转、当前库存=100.75",
+          "商品 ID=91、商品名称=清透防晒乳、SKU=AMI-DEMO-FULL-SKU-010、慢动销状态=近 90 天无出库、当前库存=122",
+          "商品 ID=131、商品名称=淡斑亮肤精华、SKU=IND-6-STD-SPOT-BRIGHTENING-ESSENCE-001、慢动销状态=低周转、当前库存=36",
+          "商品 ID=88、商品名称=水氧护理耗材包、SKU=AMI-DEMO-FULL-SKU-007、慢动销状态=低周转、当前库存=81"
+        ],
+        "caveats": []
+      },
+      "redactedSql": "SELECT product_id, product_name, sku, slow_moving_status, current_stock, outbound_quantity_90d, operational_turnover_ratio_30d, days_of_stock_30d, category_name, unit, safety_stock, replenishment_fact_status, open_procurement_quantity, cost_policy, turnover_policy, data_as_of FROM ask_data_inventory_turnover_view WHERE ask_data_inventory_turnover_view.store_id = ANY(:allowedStoreIds) AND (slow_moving_status IN ('***', '***') AND current_stock > 0) LIMIT 100;"
+    },
+    {
+      "id": "ask_supplemental:R2-INV-006",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "最近 30 天需求比前 30 天增长超过 50% 的产品有哪些",
+      "expected_target": "inventory_demand_change",
+      "notes": "requiredViews=ask_data_inventory_turnover_view; requiredAnswerFacts=metric_value,data_policy,list_items",
+      "expectedView": "ask_data_inventory_turnover_view",
+      "expectedViewLabel": "ask_data_inventory_turnover_view",
+      "expectedMetricKeys": [
+        "inventory_demand_change"
+      ],
+      "acceptableViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "requiredViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "outbound_quantity_30d",
+        "outbound_quantity_previous_30d",
+        "demand_change_rate_30d"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "development",
+      "questionChecksum": "9e290460fcea63862537c8febdaa1f47bcd4c7789a38b2c1d66833befddd9f04",
+      "candidateViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "inventory_demand_change"
+      ],
+      "semanticRoutingMs": 25,
+      "goldPlanMatched": true,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "generationRepairReasons": [],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 8839,
+      "guardMs": 1,
+      "executionMs": 2761,
+      "answerMs": 0,
+      "totalMs": 11630,
+      "rowCount": 1,
+      "noData": false,
+      "answerGrounded": true,
+      "answerComplete": true,
+      "answer": {
+        "summary": "查询结果为：商品 ID=83、商品名称=舒缓修护面膜、SKU=AMI-DEMO-FULL-SKU-002、近 30 天需求变化率=13、最近 30 天出库量=98、前一个 30 天窗口出库量=7、商品分类=面膜软膜、单位=盒。",
+        "keyFindings": [
+          "商品 ID=83、商品名称=舒缓修护面膜、SKU=AMI-DEMO-FULL-SKU-002、近 30 天需求变化率=13、最近 30 天出库量=98、前一个 30 天窗口出库量=7、商品分类=面膜软膜、单位=盒"
+        ],
+        "caveats": []
+      },
+      "redactedSql": "SELECT product_id, product_name, sku, demand_change_rate_30d, outbound_quantity_30d, outbound_quantity_previous_30d, category_name, unit, current_stock, safety_stock, days_of_stock_30d, operational_turnover_ratio_30d, slow_moving_status, replenishment_fact_status, open_procurement_quantity, cost_policy, turnover_policy, data_as_of FROM ask_data_inventory_turnover_view WHERE ask_data_inventory_turnover_view.store_id = ANY(:allowedStoreIds) AND (demand_change_rate_30d > 0.5) LIMIT 30;"
+    },
+    {
+      "id": "ask_supplemental:R2-INV-007",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "哪些产品低于安全库存且没有未完成采购",
+      "expected_target": "inventory_procurement_coverage",
+      "notes": "requiredViews=ask_data_inventory_turnover_view; requiredAnswerFacts=metric_value,data_policy,list_items",
+      "expectedView": "ask_data_inventory_turnover_view",
+      "expectedViewLabel": "ask_data_inventory_turnover_view",
+      "expectedMetricKeys": [
+        "inventory_procurement_coverage"
+      ],
+      "acceptableViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "requiredViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "current_stock",
+        "safety_stock",
+        "open_procurement_quantity",
+        "replenishment_fact_status"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "development",
+      "questionChecksum": "d91aad5dd4b0f66654d17274ae48022fdf97ba6604ee080302657560acf1e038",
+      "candidateViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_supplier_performance_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_inventory_turnover_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "inventory_procurement_coverage"
+      ],
+      "semanticRoutingMs": 2,
+      "goldPlanMatched": true,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "generationRepairReasons": [],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 6480,
+      "guardMs": 3,
+      "executionMs": 2009,
+      "answerMs": 0,
+      "totalMs": 8496,
+      "rowCount": 1,
+      "noData": false,
+      "answerGrounded": true,
+      "answerComplete": true,
+      "answer": {
+        "summary": "查询结果为：商品 ID=82、商品名称=玻尿酸保湿精华、SKU=AMI-DEMO-FULL-SKU-001、采购覆盖状态=达到安全库存预警且无未完成采购、当前库存=129、安全库存=143、最近 90 天出库量=99、未完成采购待到货数量=0。",
+        "keyFindings": [
+          "商品 ID=82、商品名称=玻尿酸保湿精华、SKU=AMI-DEMO-FULL-SKU-001、采购覆盖状态=达到安全库存预警且无未完成采购、当前库存=129、安全库存=143、最近 90 天出库量=99、未完成采购待到货数量=0"
+        ],
+        "caveats": []
+      },
+      "redactedSql": "SELECT product_id, product_name, sku, replenishment_fact_status, current_stock, safety_stock, outbound_quantity_90d, open_procurement_quantity, open_procurement_order_count, procurement_order_count_90d, last_procurement_at, category_name, unit, days_of_stock_30d, operational_turnover_ratio_30d, slow_moving_status, cost_policy, turnover_policy, data_as_of FROM ask_data_inventory_turnover_view WHERE ask_data_inventory_turnover_view.store_id = ANY(:allowedStoreIds) AND (replenishment_fact_status = '***' AND current_stock < safety_stock) LIMIT 100;"
+    },
+    {
+      "id": "ask_supplemental:R2-INV-008",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "哪些产品最近 90 天有消耗但没有采购记录",
+      "expected_target": "inventory_procurement_coverage",
+      "notes": "requiredViews=ask_data_inventory_turnover_view; requiredAnswerFacts=metric_value,data_policy,list_items",
+      "expectedView": "ask_data_inventory_turnover_view",
+      "expectedViewLabel": "ask_data_inventory_turnover_view",
+      "expectedMetricKeys": [
+        "inventory_procurement_coverage"
+      ],
+      "acceptableViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "requiredViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "outbound_quantity_90d",
+        "procurement_order_count_90d",
+        "last_procurement_at"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "development",
+      "questionChecksum": "a4ad58422d22fca4c798615c62b5cefb3abe2113d9e189d722a5182cfc00f4bd",
+      "candidateViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_supplier_performance_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "inventory_procurement_coverage"
+      ],
+      "semanticRoutingMs": 2,
+      "goldPlanMatched": true,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "generationRepairReasons": [],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 7746,
+      "guardMs": 2,
+      "executionMs": 2812,
+      "answerMs": 0,
+      "totalMs": 10566,
+      "rowCount": 32,
+      "noData": false,
+      "answerGrounded": true,
+      "answerComplete": true,
+      "answer": {
+        "summary": "已查询到 32 条结果，首条为 商品 ID=128、商品名称=屏障养护乳霜、SKU=IND-6-STD-BARRIER-CREAM-001、采购覆盖状态=达到安全库存预警且无未完成采购、当前库存=0。",
+        "keyFindings": [
+          "商品 ID=128、商品名称=屏障养护乳霜、SKU=IND-6-STD-BARRIER-CREAM-001、采购覆盖状态=达到安全库存预警且无未完成采购、当前库存=0",
+          "商品 ID=85、商品名称=烟酰胺亮肤精华、SKU=AMI-DEMO-FULL-SKU-004、采购覆盖状态=库存与采购覆盖正常、当前库存=163",
+          "商品 ID=133、商品名称=日间防晒乳、SKU=IND-6-STD-RETAIL-SUNSCREEN-001、采购覆盖状态=库存与采购覆盖正常、当前库存=100.75",
+          "商品 ID=100、商品名称=头皮养护精华、SKU=AMI-DEMO-FULL-SKU-019、采购覆盖状态=达到安全库存预警且无未完成采购、当前库存=36",
+          "商品 ID=113、商品名称=一次性面巾、SKU=IND-6-STD-TOWEL-DISPOSABLE-001、采购覆盖状态=库存与采购覆盖正常、当前库存=3"
+        ],
+        "caveats": []
+      },
+      "redactedSql": "SELECT product_id, product_name, sku, replenishment_fact_status, current_stock, safety_stock, outbound_quantity_90d, open_procurement_quantity, open_procurement_order_count, procurement_order_count_90d, last_procurement_at, category_name, unit, days_of_stock_30d, operational_turnover_ratio_30d, slow_moving_status, cost_policy, turnover_policy, data_as_of FROM ask_data_inventory_turnover_view WHERE ask_data_inventory_turnover_view.store_id = ANY(:allowedStoreIds) AND (outbound_quantity_90d > 0 AND procurement_order_count_90d = 0) LIMIT 100;"
+    },
+    {
+      "id": "ask_supplemental:R2-INV-009",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "本季度每个产品累计出库用量是多少",
+      "expected_target": "inventory_outbound_usage",
+      "notes": "requiredViews=ask_data_inventory_turnover_view; requiredAnswerFacts=metric_value,time_range,data_policy,all_requested_dimensions",
+      "expectedView": "ask_data_inventory_turnover_view",
+      "expectedViewLabel": "ask_data_inventory_turnover_view",
+      "expectedMetricKeys": [
+        "inventory_outbound_usage"
+      ],
+      "acceptableViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "requiredViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "outbound_quantity_current_quarter"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "all_requested_dimensions"
+      ],
+      "split": "development",
+      "questionChecksum": "7292bafdaa765ea90cce40e3d32dfb5ec9f355c55134518e6e87f7781042a423",
+      "candidateViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "inventory_outbound_usage"
+      ],
+      "semanticRoutingMs": 2,
+      "goldPlanMatched": true,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "generationRepairReasons": [],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 4508,
+      "guardMs": 1,
+      "executionMs": 2214,
+      "answerMs": 0,
+      "totalMs": 6727,
+      "rowCount": 46,
+      "noData": false,
+      "answerGrounded": true,
+      "answerComplete": true,
+      "answer": {
+        "summary": "已查询到 46 条结果，首条为 商品 ID=116、商品名称=屏障修护精华、SKU=IND-6-STD-ESSENCE-REPAIR-001、当前自然季度累计出库量=14。",
+        "keyFindings": [
+          "商品 ID=116、商品名称=屏障修护精华、SKU=IND-6-STD-ESSENCE-REPAIR-001、当前自然季度累计出库量=14",
+          "商品 ID=124、商品名称=晒后舒缓凝胶、SKU=IND-6-STD-POSTSUN-GEL-001、当前自然季度累计出库量=0",
+          "商品 ID=125、商品名称=舒缓修护膜、SKU=IND-6-STD-MASK-SOOTHING-001、当前自然季度累计出库量=0",
+          "商品 ID=112、商品名称=补水软膜粉、SKU=IND-6-STD-MASK-POWDER-001、当前自然季度累计出库量=100",
+          "商品 ID=97、商品名称=舒压按摩膏、SKU=AMI-DEMO-FULL-SKU-016、当前自然季度累计出库量=0"
+        ],
+        "caveats": []
+      },
+      "redactedSql": "SELECT product_id, product_name, sku, outbound_quantity_current_quarter FROM ask_data_inventory_turnover_view WHERE ask_data_inventory_turnover_view.store_id = ANY(:allowedStoreIds) LIMIT 100;"
+    },
+    {
+      "id": "ask_supplemental:R2-INV-010",
+      "domain": "inventory",
+      "role": "inventory",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "本月每日平均耗材出库成本估算是多少",
+      "expected_target": "inventory_outbound_cost_estimate",
+      "notes": "requiredViews=ask_data_inventory_turnover_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "ask_data_inventory_turnover_view",
+      "expectedViewLabel": "ask_data_inventory_turnover_view",
+      "expectedMetricKeys": [
+        "inventory_outbound_cost_estimate"
+      ],
+      "acceptableViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "requiredViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "requiredOutputFields": [
+        "estimated_avg_daily_outbound_cost_current_month"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "development",
+      "questionChecksum": "fda34bc839a4edef46a100501e8963e513ab2e8949113e6c78266a285a83c652",
+      "candidateViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_stock_movement_view",
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "inventory_outbound_cost_estimate"
+      ],
+      "semanticRoutingMs": 2,
+      "goldPlanMatched": true,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "ask_data_inventory_turnover_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "generationRepairReasons": [],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 5017,
+      "guardMs": 0,
+      "executionMs": 2239,
+      "answerMs": 0,
+      "totalMs": 7260,
+      "rowCount": 1,
+      "noData": false,
+      "answerGrounded": true,
+      "answerComplete": true,
+      "answer": {
+        "summary": "查询结果为：当前自然月按已过自然日估算的日均出库成本=61.77。",
+        "keyFindings": [
+          "当前自然月按已过自然日估算的日均出库成本=61.77"
+        ],
+        "caveats": []
+      },
+      "redactedSql": "SELECT SUM(estimated_avg_daily_outbound_cost_current_month) AS estimated_avg_daily_outbound_cost_current_month FROM ask_data_inventory_turnover_view WHERE ask_data_inventory_turnover_view.store_id = ANY(:allowedStoreIds) LIMIT 1;"
+    }
+  ]
+}

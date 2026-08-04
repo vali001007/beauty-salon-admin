@@ -1,0 +1,874 @@
+{
+  "version": 1,
+  "frozenChecksum": "9e978450a214ae62b8b715be3e71f1835b0b14279bc0847be0fba310450b4b5f",
+  "semanticBaselineChecksum": "e5085e349f1667f424aabf393d5f26737bba9997c885131b41400957775b22c4",
+  "firstUnseenChecksum": "ae38af897383893e3cdf95f9bb6784cf4e21da482e2e9861de52f5b6485eee4c",
+  "entries": [
+    {
+      "sequence": "V4-ADJ-V4-B008",
+      "contractId": "ask_holdout_v4:V4-B008",
+      "type": "boundary_not_clarification",
+      "patch": {
+        "mustClarify": false,
+        "allowedClarificationSlots": []
+      },
+      "reason": "该问题是内容生成边界，应分流 Ami Brain，不应被 Ask 误认为指标比较澄清。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-B014",
+      "contractId": "ask_holdout_v4:V4-B014",
+      "type": "readonly_operation_boundary",
+      "patch": {
+        "mustClarify": false,
+        "allowedClarificationSlots": []
+      },
+      "reason": "该问题是资金审批写操作，Ask 应直接拒绝或分流受控业务流程，不应先追问对象。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-C006",
+      "contractId": "ask_holdout_v4:V4-C006",
+      "type": "relative_year_is_resolved",
+      "patch": {
+        "mustClarify": false,
+        "allowedClarificationSlots": []
+      },
+      "reason": "“今年中秋”已明确相对年份，不应再追问四位年份。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-C046",
+      "contractId": "ask_holdout_v4:V4-C046",
+      "type": "governed_bom_threshold",
+      "patch": {
+        "allowedClarificationSlots": [
+          "entity_identity"
+        ]
+      },
+      "reason": "BOM 偏差异常已有绝对偏差超过 20% 的治理阈值，只需补充项目身份。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q001",
+      "contractId": "ask_holdout_v4:V4-Q001",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "current_period_net_revenue",
+          "previous_period_net_revenue",
+          "revenue_difference"
+        ],
+        "requiredResultMode": "scalar"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q002",
+      "contractId": "ask_holdout_v4:V4-Q002",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "trend_week",
+          "net_revenue",
+          "order_count"
+        ],
+        "requiredResultMode": "trend"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q003",
+      "contractId": "ask_holdout_v4:V4-Q003",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "product_id",
+          "product_name",
+          "sku",
+          "sales_quantity",
+          "net_sales_amount"
+        ],
+        "requiredResultMode": "ranking"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q004",
+      "contractId": "ask_holdout_v4:V4-Q004",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "product_id",
+          "product_name",
+          "sku",
+          "sales_quantity",
+          "gross_net_sales_amount",
+          "refund_amount",
+          "net_sales_after_refund"
+        ],
+        "requiredResultMode": "grouped"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q005",
+      "contractId": "ask_holdout_v4:V4-Q005",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "project_id",
+          "project_name",
+          "trend_week",
+          "service_count",
+          "project_revenue"
+        ],
+        "requiredResultMode": "trend"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q006",
+      "contractId": "ask_holdout_v4:V4-Q006",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "project_id",
+          "project_name",
+          "service_count",
+          "project_revenue"
+        ],
+        "requiredResultMode": "ranking"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q009",
+      "contractId": "ask_holdout_v4:V4-Q009",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "trend_day",
+          "net_receipts",
+          "order_count"
+        ],
+        "requiredResultMode": "trend"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q010",
+      "contractId": "ask_holdout_v4:V4-Q010",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "net_receipts",
+          "order_count"
+        ],
+        "requiredResultMode": "scalar"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q013",
+      "contractId": "ask_holdout_v4:V4-Q013",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "product_id",
+          "product_name",
+          "sku",
+          "movement_quantity",
+          "movement_count"
+        ],
+        "requiredResultMode": "grouped"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q014",
+      "contractId": "ask_holdout_v4:V4-Q014",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "movement_id",
+          "product_id",
+          "product_name",
+          "movement_quantity",
+          "movement_type",
+          "occurred_at",
+          "before_stock",
+          "after_stock"
+        ],
+        "requiredResultMode": "detail"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q016",
+      "contractId": "ask_holdout_v4:V4-Q016",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "trend_day",
+          "scrap_quantity",
+          "loss_amount"
+        ],
+        "requiredResultMode": "trend"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q019",
+      "contractId": "ask_holdout_v4:V4-Q019",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "level_name",
+          "staff_count"
+        ],
+        "requiredResultMode": "grouped"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q022",
+      "contractId": "ask_holdout_v4:V4-Q022",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "trend_month",
+          "staff_id",
+          "staff_name",
+          "paid_amount",
+          "service_count",
+          "commission_amount"
+        ],
+        "requiredResultMode": "trend"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q024",
+      "contractId": "ask_holdout_v4:V4-Q024",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "project_id",
+          "project_name",
+          "reservation_count"
+        ],
+        "requiredResultMode": "ranking"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q026",
+      "contractId": "ask_holdout_v4:V4-Q026",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "activity_id",
+          "activity_title",
+          "trend_week",
+          "event_count",
+          "lead_count",
+          "conversion_count",
+          "attributed_revenue"
+        ],
+        "requiredResultMode": "trend"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q029",
+      "contractId": "ask_holdout_v4:V4-Q029",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "project_name",
+          "card_name",
+          "usage_times",
+          "recognized_amount"
+        ],
+        "requiredResultMode": "grouped"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q030",
+      "contractId": "ask_holdout_v4:V4-Q030",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "customer_id",
+          "customer_name_masked",
+          "card_name",
+          "project_name",
+          "usage_times",
+          "recognized_amount",
+          "remaining_times",
+          "verified_at"
+        ],
+        "requiredResultMode": "detail"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q034",
+      "contractId": "ask_holdout_v4:V4-Q034",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "beautician_id",
+          "beautician_name",
+          "trend_day",
+          "completed_at",
+          "service_task_count"
+        ],
+        "requiredResultMode": "trend"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q035",
+      "contractId": "ask_holdout_v4:V4-Q035",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "date",
+          "start_time",
+          "available_capacity",
+          "estimated_revenue",
+          "candidate_count"
+        ],
+        "requiredResultMode": "detail"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q036",
+      "contractId": "ask_holdout_v4:V4-Q036",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "trend_day",
+          "available_capacity",
+          "estimated_revenue",
+          "candidate_count"
+        ],
+        "requiredResultMode": "trend"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q038",
+      "contractId": "ask_holdout_v4:V4-Q038",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "project_type",
+          "project_count",
+          "average_price"
+        ],
+        "requiredResultMode": "grouped"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q040",
+      "contractId": "ask_holdout_v4:V4-Q040",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "activity_id",
+          "activity_title",
+          "participants",
+          "conversion_count",
+          "event_count",
+          "lead_count",
+          "attributed_revenue"
+        ],
+        "requiredResultMode": "grouped"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q045",
+      "contractId": "ask_holdout_v4:V4-Q045",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "category",
+          "operating_cost",
+          "cost_share"
+        ],
+        "requiredResultMode": "grouped"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q046",
+      "contractId": "ask_holdout_v4:V4-Q046",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "trend_month",
+          "operating_cost"
+        ],
+        "requiredResultMode": "trend"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q048",
+      "contractId": "ask_holdout_v4:V4-Q048",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "trend_month",
+          "procurement_amount",
+          "procurement_count"
+        ],
+        "requiredResultMode": "trend"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q051",
+      "contractId": "ask_holdout_v4:V4-Q051",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "trend_month",
+          "operating_revenue",
+          "gross_profit",
+          "operating_profit",
+          "gross_margin_rate",
+          "operating_margin_rate",
+          "confirmed_at"
+        ],
+        "requiredResultMode": "trend"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q054",
+      "contractId": "ask_holdout_v4:V4-Q054",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "trend_day",
+          "issue_count",
+          "issue_amount"
+        ],
+        "requiredResultMode": "trend"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q055",
+      "contractId": "ask_holdout_v4:V4-Q055",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "trend_day",
+          "total_liability",
+          "confirmed_at"
+        ],
+        "requiredResultMode": "trend"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q057",
+      "contractId": "ask_holdout_v4:V4-Q057",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "staff_id",
+          "staff_name",
+          "scheduled_minutes",
+          "booked_minutes",
+          "idle_minutes",
+          "overbooked_minutes",
+          "utilization_rate"
+        ],
+        "requiredResultMode": "ranking"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q060",
+      "contractId": "ask_holdout_v4:V4-Q060",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "direction",
+          "transfer_count",
+          "product_count"
+        ],
+        "requiredResultMode": "grouped"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q062",
+      "contractId": "ask_holdout_v4:V4-Q062",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "project_id",
+          "project_name",
+          "product_id",
+          "product_name",
+          "sku",
+          "standard_qty",
+          "actual_qty",
+          "deviation_qty",
+          "deviation_rate"
+        ],
+        "requiredResultMode": "ranking"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q064",
+      "contractId": "ask_holdout_v4:V4-Q064",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "project_id",
+          "project_name",
+          "feedback_count",
+          "average_rating"
+        ],
+        "requiredResultMode": "ranking"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q065",
+      "contractId": "ask_holdout_v4:V4-Q065",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "customer_id",
+          "customer_name_masked",
+          "churn_risk_level",
+          "open_opportunity_count",
+          "top_opportunity_type",
+          "top_priority",
+          "top_score",
+          "computed_at"
+        ],
+        "requiredResultMode": "detail"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q066",
+      "contractId": "ask_holdout_v4:V4-Q066",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "lifecycle_stage",
+          "ltv_tier",
+          "customer_count",
+          "average_opportunity_score"
+        ],
+        "requiredResultMode": "grouped"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q068",
+      "contractId": "ask_holdout_v4:V4-Q068",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "trend_week",
+          "latest_event_at",
+          "exposure_count",
+          "click_count",
+          "conversion_count",
+          "attributed_net_revenue",
+          "marketing_cost",
+          "roi",
+          "cost_source"
+        ],
+        "requiredResultMode": "trend"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q069",
+      "contractId": "ask_holdout_v4:V4-Q069",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "net_receipts",
+          "order_count",
+          "net_revenue",
+          "order_settlement_difference"
+        ],
+        "requiredResultMode": "scalar"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q070",
+      "contractId": "ask_holdout_v4:V4-Q070",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "order_paid_amount",
+          "payment_amount",
+          "refund_amount",
+          "flow_count",
+          "order_payment_difference"
+        ],
+        "requiredResultMode": "scalar"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q071",
+      "contractId": "ask_holdout_v4:V4-Q071",
+      "type": "semantic_output_contract+governed_composite_metric",
+      "patch": {
+        "requiredOutputFields": [
+          "product_id",
+          "product_name",
+          "sku",
+          "consumed_quantity",
+          "current_stock"
+        ],
+        "requiredResultMode": "grouped",
+        "expectedMetricKeys": [
+          "inventory_usage_balance"
+        ],
+        "acceptableViews": [
+          "agent_v3_stock_movement_view",
+          "agent_v3_product_inventory_view"
+        ],
+        "requiredViews": [
+          "agent_v3_stock_movement_view",
+          "agent_v3_product_inventory_view"
+        ]
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。；“用了多少，还剩多少”是已治理的库存用量与结存复合指标，不应裂成两个基础指标。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q073",
+      "contractId": "ask_holdout_v4:V4-Q073",
+      "type": "single_view_fact_completeness",
+      "patch": {
+        "expectedMetricKeys": [
+          "customer_profile"
+        ],
+        "acceptableViews": [
+          "ask_data_customer_profile_summary_view"
+        ],
+        "requiredViews": [
+          "ask_data_customer_profile_summary_view"
+        ],
+        "requiredOutputFields": [
+          "customer_id",
+          "customer_name_masked",
+          "days_since_last_visit",
+          "ltv_tier",
+          "churn_risk_level"
+        ],
+        "requiredResultMode": "detail"
+      },
+      "reason": "客户档案摘要视图已同时提供未到店天数、价值档位和流失风险，强制关联生命周期视图会增加不必要的复杂度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q074",
+      "contractId": "ask_holdout_v4:V4-Q074",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "staff_id",
+          "staff_name",
+          "scheduled_minutes",
+          "booked_minutes",
+          "idle_minutes",
+          "overbooked_minutes",
+          "utilization_rate",
+          "reservation_count"
+        ],
+        "requiredResultMode": "ranking"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q076",
+      "contractId": "ask_holdout_v4:V4-Q076",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "supplier_id",
+          "supplier_name",
+          "procurement_amount",
+          "procurement_count",
+          "avg_delivery_days",
+          "pending_procurement_count"
+        ],
+        "requiredResultMode": "grouped"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q078",
+      "contractId": "ask_holdout_v4:V4-Q078",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "activity_count",
+          "promotion_count"
+        ],
+        "requiredResultMode": "scalar"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q079",
+      "contractId": "ask_holdout_v4:V4-Q079",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "project_id",
+          "project_name",
+          "feedback_count",
+          "average_rating",
+          "service_task_count"
+        ],
+        "requiredResultMode": "grouped"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    },
+    {
+      "sequence": "V4-ADJ-V4-Q080",
+      "contractId": "ask_holdout_v4:V4-Q080",
+      "type": "semantic_output_contract",
+      "patch": {
+        "requiredOutputFields": [
+          "movement_quantity",
+          "movement_count",
+          "transfer_count",
+          "product_count"
+        ],
+        "requiredResultMode": "scalar"
+      },
+      "reason": "冻结合同将数据库物理字段当成回答语义别名；裁定为已逐题复核的 Query Plan 语义输出与结果粒度。",
+      "productDecision": "codex_reviewed",
+      "technicalDecision": "codex_reviewed"
+    }
+  ],
+  "adjudicationChecksum": "62da14891c3dce719e8216a78cb381f3f1df7480c4fcb1c1089f9d2fceb3d98b",
+  "policy": {
+    "appendOnly": true,
+    "frozenContractImmutable": true,
+    "firstUnseenResultImmutable": true,
+    "independentHumanSignoff": "pending"
+  },
+  "summary": {
+    "entryCount": 48,
+    "queryOutputCorrections": 43,
+    "metricOrViewCorrections": 2,
+    "clarificationCorrections": 2,
+    "boundaryCorrections": 2
+  }
+}

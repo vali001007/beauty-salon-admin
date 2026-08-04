@@ -1,0 +1,667 @@
+{
+  "generatedAt": "2026-08-03T19:41:35.489Z",
+  "complete": true,
+  "strict": true,
+  "connectionMode": "development_admin",
+  "databaseHost": "aws-1-ap-northeast-1.pooler.supabase.com",
+  "storeId": 6,
+  "concurrency": 1,
+  "manifest": {
+    "path": "/Users/ju/Documents/ami/beauty-salon-admin-ask/docs/04-测试数据/Ami-Ask统一Gold题库-v2-Coverage-R2/Ami-Ask统一Gold发布级350题清单-Coverage-R2.json",
+    "sourcePath": "/Users/ju/Documents/ami/beauty-salon-admin-ask/docs/04-测试数据/Ami-Ask统一Gold题库-v2-Coverage-R2/Ami-Ask统一Gold题库-v2-Coverage-R2.json",
+    "sourceQuestionCount": 439,
+    "targetPerView": 10,
+    "viewCount": 35,
+    "coveredViews": 35,
+    "insufficientViews": [],
+    "sourceGoldChecksum": "ca04d88919500dedacf4304d2159c7bfd5ecba31d8ac4b3c354f0d8e36ae16c3",
+    "sourceContractChecksum": "72af5571e07ea7e3d005cd1f0e88464137d0bf3a9f26df64d934bc98cab9ff30",
+    "selectedQuestionsChecksum": "12f3b186199be2ae04431e83f7f0e0b3750a4d841c2bcd2b16bf8206cd5571e2",
+    "checksum": "485f72a1df3b0f1be797153259f807a5c0b86f7bec7f5ee83ffb6aa33cdc4869"
+  },
+  "summary": {
+    "plannedCases": 2,
+    "completedCases": 2,
+    "strictPassed": 1,
+    "strictFailed": 1,
+    "strictAccuracy": 0.5,
+    "pipelinePassRate": 0.5,
+    "expectedViewHitRate": 0.5,
+    "providerAvailabilityRate": 0.5,
+    "sqlGenerationReadyRate": 0.5,
+    "guardPassRate": 0.5,
+    "databaseExecutionRate": 0.5,
+    "finalAnswerGroundedRate": 0.5,
+    "finalAnswerCompleteRate": 0.5,
+    "goldPlanMatchRate": 1,
+    "finalAnswerCorrectRate": 0.5,
+    "noDataRate": 0,
+    "averageMs": 25672,
+    "p50Ms": 11307,
+    "p95Ms": 40036,
+    "durationMs": 51346,
+    "failureCounts": {
+      "AiStructuredOutputError": 1
+    },
+    "failureClassCounts": {
+      "provider_failure": 1
+    }
+  },
+  "byView": [
+    {
+      "viewName": "agent_v3_order_summary_view",
+      "label": "订单摘要",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_order_item_sales_view",
+      "label": "商品销售",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_project_service_sales_view",
+      "label": "项目服务销售",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_payment_refund_view",
+      "label": "支付与退款",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_daily_settlement_view",
+      "label": "日结",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_product_inventory_view",
+      "label": "商品库存",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_stock_movement_view",
+      "label": "库存流水",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_inventory_scrap_view",
+      "label": "库存报废",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_inventory_turnover_view",
+      "label": "库存周转与采购覆盖",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_customer_profile_summary_view",
+      "label": "客户档案摘要",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_staff_profile_view",
+      "label": "员工档案",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_staff_performance_view",
+      "label": "员工绩效",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_reservation_view",
+      "label": "预约",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_marketing_conversion_view",
+      "label": "营销转化",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_card_asset_view",
+      "label": "次卡资产",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_card_usage_view",
+      "label": "次卡核销",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_customer_balance_view",
+      "label": "客户余额",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_service_quality_view",
+      "label": "服务质量",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_appointment_gap_view",
+      "label": "预约空档",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_project_catalog_view",
+      "label": "项目目录",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_marketing_activity_view",
+      "label": "营销活动",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_marketing_automation_view",
+      "label": "自动触达",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_promotion_offer_view",
+      "label": "优惠活动",
+      "plannedCount": 1,
+      "completedCount": 1,
+      "strictPassed": 1,
+      "strictAccuracy": 1,
+      "pipelinePassRate": 1,
+      "expectedViewHitRate": 1,
+      "noDataRate": 0,
+      "averageMs": 11307,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_operating_cost_view",
+      "label": "经营成本",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_purchase_procurement_view",
+      "label": "采购",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "agent_v3_supplier_performance_view",
+      "label": "供应商表现",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_confirmed_profit_view",
+      "label": "已确认实际利润",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_reconciliation_issue_view",
+      "label": "财务对账异常",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_member_liability_view",
+      "label": "会员履约负债",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_staff_capacity_view",
+      "label": "排班与员工产能",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_transfer_status_view",
+      "label": "库存调拨",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_bom_consumption_variance_view",
+      "label": "BOM 实际消耗偏差",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_customer_feedback_view",
+      "label": "客户反馈",
+      "plannedCount": 1,
+      "completedCount": 1,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 40036,
+      "failureCounts": {
+        "AiStructuredOutputError": 1
+      }
+    },
+    {
+      "viewName": "ask_data_customer_lifecycle_view",
+      "label": "客户生命周期",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    },
+    {
+      "viewName": "ask_data_marketing_roi_view",
+      "label": "营销 ROI",
+      "plannedCount": 0,
+      "completedCount": 0,
+      "strictPassed": 0,
+      "strictAccuracy": 0,
+      "pipelinePassRate": 0,
+      "expectedViewHitRate": 0,
+      "noDataRate": 0,
+      "averageMs": 0,
+      "failureCounts": {}
+    }
+  ],
+  "results": [
+    {
+      "id": "ask_supplemental:SUP-PROMO-002",
+      "domain": "marketing",
+      "role": "marketing",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "各优惠活动的发放数量和使用数量分别是多少",
+      "expected_target": "promotion_offer",
+      "notes": "requiredViews=agent_v3_promotion_offer_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_promotion_offer_view",
+      "expectedViewLabel": "agent_v3_promotion_offer_view",
+      "expectedMetricKeys": [
+        "promotion_offer"
+      ],
+      "acceptableViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "requiredViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "requiredOutputFields": [
+        "issued_count",
+        "used_count"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "development",
+      "questionChecksum": "36b0458789852cffa3a761ae6ed59707d2d32d6a5f6df9004c184456e20a9764",
+      "candidateViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "agent_v3_promotion_offer_view",
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.94,
+      "semanticMetricKeys": [
+        "promotion_offer"
+      ],
+      "semanticRoutingMs": 20,
+      "goldPlanMatched": true,
+      "status": "pass",
+      "pipelineStatus": "pass",
+      "selectedViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "expectedViewHit": true,
+      "generationStatus": "ready",
+      "generationAttempts": 1,
+      "generationRepairReasons": [],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 3790,
+      "guardMs": 5,
+      "executionMs": 829,
+      "answerMs": 6658,
+      "totalMs": 11307,
+      "rowCount": 30,
+      "noData": false,
+      "answerGrounded": true,
+      "answerComplete": true,
+      "answer": {
+        "summary": "已查询到 30 条结果，首条为 优惠 ID=10、优惠名称=AMI-DEMO-FULL 新客补水体验、发放数=0、使用数=0。",
+        "keyFindings": [
+          "优惠 ID=10、优惠名称=AMI-DEMO-FULL 新客补水体验、发放数=0、使用数=0",
+          "优惠 ID=11、优惠名称=AMI-DEMO-FULL 敏感修护月卡权益、发放数=0、使用数=0",
+          "优惠 ID=12、优惠名称=AMI-DEMO-FULL 老客回访护理、发放数=0、使用数=0",
+          "优惠 ID=13、优惠名称=AMI-DEMO-FULL 抗衰管理升级、发放数=0、使用数=0",
+          "优惠 ID=14、优惠名称=AMI-DEMO-FULL 生日专属护理、发放数=0、使用数=0"
+        ],
+        "caveats": [
+          "模型总结错误声明无法完成查询，已回退为确定性摘要。"
+        ]
+      },
+      "redactedSql": "SELECT promotion_id, promotion_name, SUM(issued_count) AS issued_count, SUM(used_count) AS used_count FROM agent_v3_promotion_offer_view WHERE agent_v3_promotion_offer_view.store_id = ANY(:allowedStoreIds) GROUP BY promotion_id, promotion_name LIMIT 100;"
+    },
+    {
+      "id": "ami_brain_2000:BQ0128",
+      "domain": "客服",
+      "role": "客服",
+      "type": "ask_query_supported",
+      "difficulty": "development",
+      "question": "哪些客户投诉或体验不佳需要跟进",
+      "expected_target": "customer_feedback",
+      "notes": "requiredViews=ask_data_customer_feedback_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "ask_data_customer_feedback_view",
+      "expectedViewLabel": "ask_data_customer_feedback_view",
+      "expectedMetricKeys": [
+        "customer_feedback"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_feedback_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_feedback_view"
+      ],
+      "requiredOutputFields": [
+        "feedback_id",
+        "customer_id",
+        "customer_name_masked",
+        "feedback_count",
+        "feedback_type",
+        "rating"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "development",
+      "questionChecksum": "bcb7d11d0d78d7de49406fb527465e8c75c4073a811bb6dae1ef53f0ad81dbc1",
+      "candidateViews": [
+        "ask_data_customer_feedback_view"
+      ],
+      "candidateExpectedHit": true,
+      "legacyCandidateViews": [
+        "ask_data_customer_feedback_view",
+        "agent_v3_service_quality_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticRouteMode": "deterministic",
+      "semanticConfidence": 0.98,
+      "semanticMetricKeys": [
+        "customer_feedback"
+      ],
+      "semanticRoutingMs": 23,
+      "goldPlanMatched": true,
+      "selectedViews": [],
+      "expectedViewHit": false,
+      "totalMs": 40036,
+      "status": "evaluation_failed",
+      "pipelineStatus": "evaluation_failed",
+      "failureCategory": "AiStructuredOutputError",
+      "failureReason": "Structured output provider is unavailable.",
+      "generationAttempts": 2,
+      "generationRepairReasons": [
+        "structured:PROVIDER_UNAVAILABLE"
+      ],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-terra",
+      "generationMs": 0,
+      "guardMs": 0,
+      "executionMs": 0,
+      "answerMs": 0,
+      "failureClass": "provider_failure"
+    }
+  ]
+}
