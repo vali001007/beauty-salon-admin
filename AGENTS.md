@@ -21,14 +21,14 @@
 
 - 本仓库是“统一后端 + 多个独立客户端”的松散多应用仓库：管理端位于 `src/`，统一后端位于 `packages/server-v2`，其他客户端位于 `packages/`；根项目统一使用 npm，子应用保留独立依赖、构建和部署边界。
 - 根管理端使用 Node `>=24 <25`、npm `>=11 <12`；先执行 `nvm use`，不得用其他主版本重写根 `package-lock.json`。常用启动入口为 `npm run dev:web`，实际命令仍以当前 `package.json` 为准。
-- 日常主链为真实客户端 -> 本地 `server-v2` -> 远程共享 Supabase 开发库。`packages/server-v2/.env` 是本地后端运行声明，`.env.example` 只是字段模板；修改配置后必须通过当前进程、健康接口、日志或真实 trace 验证已生效。
+- 日常主链为真实客户端 -> 本地 `server-v2` -> 按环境模式选择本地 PostgreSQL 17 开发库或远程共享 Supabase 开发库。本地库用于日常开发、自动化测试和可重建 fixture；Supabase 用于共享数据、真实权限/门店、Pooler、Release 和跨端 E2E 验收。`packages/server-v2/.env` 是本地后端运行声明，`.env.example` 只是字段模板；修改配置后必须通过当前进程、健康接口、日志或真实 trace 验证数据库模式、Host 和配置已生效。
 - 真实业务不得用 mock、静态回答或回放代替真实接口、权限、门店范围和数据口径；mock 仅用于明确的单测、离线 fixture 或隔离验收。管理端启动必须加载根 `vite.config.ts`。
-- 日常运行不连接或初始化本机 `ami_core`；只允许为 migration/integration gate 使用明确的临时隔离 PostgreSQL 容器，验收后清理。Redis 继续使用本机实例。
+- 允许日常开发使用明确隔离的本地 PostgreSQL 17 容器数据库，每个开发槽位/worktree 使用独立数据库（如 `ami_dev_<slotId>`）和合成/脱敏、可重建 fixture。不连接或初始化已存在的本机 `ami_core`，不默认复制 Supabase 真实业务明细。Redis 继续使用本机实例，多槽位运行时必须使用隔离的 key prefix/命名空间。
 
 ## 数据库与业务副作用
 
-- 数据库操作前必须确认 `DATABASE_URL` 指向已批准的 Supabase 开发库；若指向 `localhost`、`127.0.0.1`、生产环境或未知地址，立即停止并报告。
-- 为完成用户明确要求的功能，可直接执行共享开发库的常规读写、Prisma `migrate deploy`、幂等 seed 和必要测试数据写入，无需逐次请示。
+- 数据库操作前必须确认 `DATABASE_URL` 与当前环境模式一致：本地模式只允许明确的 `localhost`/`127.0.0.1` PostgreSQL 17 槽位数据库，共享验收模式只允许已批准的 Supabase 开发库。若目标为已存在的本机 `ami_core`、生产环境、未知地址，或 Host/数据库名与声明模式不一致，立即停止并报告。
+- 为完成用户明确要求的功能，可直接执行已批准本地槽位库或共享 Supabase 开发库的常规读写、Prisma `migrate deploy`、幂等 seed 和必要测试数据写入，无需逐次请示。
 - `migrate reset`、`DROP`、`TRUNCATE`、`db push --force-reset`、无明确条件的批量 `DELETE`、批量 backfill、不可逆覆盖、删除或重建数据库等操作必须先获得明确授权。
 - migration、seed 或数据修复后必须验证并报告；不得输出或提交凭据，不得把共享开发库操作描述为生产发布。
 

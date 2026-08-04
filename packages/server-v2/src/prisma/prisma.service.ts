@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { inspectDatabaseTarget } from './database-target-guard.js';
 
 export interface DatabasePoolConfig {
   max: number;
@@ -36,6 +37,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   private static readonly queryCounter = new AsyncLocalStorage<{ count: number }>();
 
   constructor() {
+    inspectDatabaseTarget(process.env.DATABASE_URL, process.env);
     const adapter = new PrismaPg({
       connectionString: process.env.DATABASE_URL!,
       ...resolveDatabasePoolConfig(),
