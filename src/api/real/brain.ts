@@ -79,7 +79,7 @@ function governanceGet<T>(url: string, config: AxiosRequestConfig = {}): Promise
     signal: controller.signal,
     skipRetry: true,
   };
-  return apiClient.get<unknown, T>(url, requestConfig).finally(() => {
+  return (apiClient.get(url, requestConfig) as unknown as Promise<T>).finally(() => {
     activeGovernanceReads.delete(controller);
   });
 }
