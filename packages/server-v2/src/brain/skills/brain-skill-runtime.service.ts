@@ -47,6 +47,14 @@ export class BrainSkillRuntimeService {
     return this.managerSkills.buildStaffAnalysis(input);
   }
 
+  buildManagerStaffCrossSellAnalysis(input: Parameters<BrainManagerSkillsService['buildStaffCrossSellAnalysis']>[0]) {
+    return this.managerSkills.buildStaffCrossSellAnalysis(input);
+  }
+
+  buildManagerStaffSkillCoverage(input: Parameters<BrainManagerSkillsService['buildStaffSkillCoverage']>[0]) {
+    return this.managerSkills.buildStaffSkillCoverage(input);
+  }
+
   buildManagerStaffDirectoryFacts(input: Parameters<BrainManagerSkillsService['buildStaffDirectoryFacts']>[0]) {
     return this.managerSkills.buildStaffDirectoryFacts(input);
   }

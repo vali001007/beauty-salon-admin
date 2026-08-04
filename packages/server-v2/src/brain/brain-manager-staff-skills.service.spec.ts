@@ -148,4 +148,100 @@ describe('BrainManagerSkillsService staff analysis', () => {
       expect.objectContaining({ where: expect.objectContaining({ status: 'approved' }) }),
     );
   });
+
+  it('calculates cross-sell from all non-gift kinds in staff-attributed orders', async () => {
+    const prisma = {
+      beautician: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 1, name: '唐伊' },
+          { id: 2, name: '顾然' },
+        ]),
+      },
+      orderItem: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 1, orderId: 100, beauticianId: 1, itemType: 'project', itemId: 10, name: '护理A' },
+          { id: 2, orderId: 100, beauticianId: null, itemType: 'product', itemId: 20, name: '产品B' },
+          { id: 3, orderId: 101, beauticianId: 1, itemType: 'project', itemId: 10, name: '护理A' },
+          { id: 4, orderId: 102, beauticianId: 2, itemType: 'project', itemId: 11, name: '护理C' },
+          { id: 5, orderId: 102, beauticianId: 2, itemType: 'product', itemId: 21, name: '产品D' },
+        ]),
+      },
+    };
+    const service = new BrainManagerSkillsService(prisma as never);
+
+    const result = await service.buildStaffCrossSellAnalysis({
+      storeId: 6,
+      startDate: new Date('2026-07-01T00:00:00.000Z'),
+      endDate: new Date('2026-07-31T23:59:59.999Z'),
+    });
+
+    expect(result.staff).toEqual([
+      expect.objectContaining({
+        beauticianId: 2,
+        attributedOrderCount: 1,
+        multiItemOrderCount: 1,
+        crossSellRate: 1,
+        averageItemKindCount: 2,
+      }),
+      expect.objectContaining({
+        beauticianId: 1,
+        attributedOrderCount: 2,
+        multiItemOrderCount: 1,
+        crossSellRate: 0.5,
+        averageItemKindCount: 1.5,
+      }),
+    ]);
+    expect(prisma.orderItem.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          isGift: false,
+          order: expect.objectContaining({ orderItems: { some: { beauticianId: { not: null }, isGift: false } } }),
+        }),
+      }),
+    );
+  });
+
+  it('loads every active project and counts active configured and certified staff coverage', async () => {
+    const prisma = {
+      project: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 10,
+            name: '肩颈舒压养护',
+            beauticianSkills: [
+              { certified: true, beautician: { id: 1, name: '唐伊' } },
+              { certified: false, beautician: { id: 2, name: '顾然' } },
+            ],
+          },
+          { id: 11, name: '胶原焕活提拉', beauticianSkills: [] },
+        ]),
+      },
+    };
+    const service = new BrainManagerSkillsService(prisma as never);
+
+    const result = await service.buildStaffSkillCoverage({ storeId: 6 });
+
+    expect(result.projects).toEqual([
+      {
+        projectId: 10,
+        projectName: '肩颈舒压养护',
+        staffCount: 2,
+        certifiedStaffCount: 1,
+        staffNames: ['顾然', '唐伊'],
+      },
+      {
+        projectId: 11,
+        projectName: '胶原焕活提拉',
+        staffCount: 0,
+        certifiedStaffCount: 0,
+        staffNames: [],
+      },
+    ]);
+    expect(prisma.project.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { storeId: 6, status: 'active', deletedAt: null },
+        select: expect.objectContaining({ beauticianSkills: expect.any(Object) }),
+      }),
+    );
+  });
 });

@@ -44,6 +44,27 @@ export interface BrainStaffAnalysis {
   }>;
 }
 
+export interface BrainStaffCrossSellAnalysis {
+  staff: Array<{
+    beauticianId: number;
+    name: string;
+    attributedOrderCount: number;
+    multiItemOrderCount: number;
+    crossSellRate: number;
+    averageItemKindCount: number;
+  }>;
+}
+
+export interface BrainStaffSkillCoverage {
+  projects: Array<{
+    projectId: number;
+    projectName: string;
+    staffCount: number;
+    certifiedStaffCount: number;
+    staffNames: string[];
+  }>;
+}
+
 export interface BrainStaffDirectoryFacts {
   staff: Array<{
     beauticianId: number;
@@ -357,6 +378,105 @@ export class BrainManagerSkillsService {
           };
         })
         .sort((left, right) => right.serviceCount - left.serviceCount || right.revenueAmount - left.revenueAmount),
+    };
+  }
+
+  async buildStaffCrossSellAnalysis(input: {
+    storeId: number;
+    startDate: Date;
+    endDate: Date;
+  }): Promise<BrainStaffCrossSellAnalysis> {
+    const [beauticians, orderItems] = await Promise.all([
+      this.prisma.beautician.findMany({
+        where: { storeId: input.storeId, status: 'active' },
+        select: { id: true, name: true },
+      }),
+      this.readStaffFactPages((page) =>
+        this.prisma.orderItem.findMany({
+          where: {
+            isGift: false,
+            order: {
+              storeId: input.storeId,
+              createdAt: { gte: input.startDate, lte: input.endDate },
+              status: { notIn: ['cancelled', 'canceled', 'refunded'] },
+              orderItems: { some: { beauticianId: { not: null }, isGift: false } },
+            },
+          },
+          select: {
+            id: true,
+            orderId: true,
+            beauticianId: true,
+            itemType: true,
+            itemId: true,
+            name: true,
+          },
+          ...page,
+        }),
+      ),
+    ]);
+    const orders = new Map<number, { kinds: Set<string>; beauticianIds: Set<number> }>();
+    for (const item of orderItems) {
+      const order = orders.get(item.orderId) ?? { kinds: new Set<string>(), beauticianIds: new Set<number>() };
+      order.kinds.add(`${item.itemType}:${item.itemId ?? item.name}`);
+      if (item.beauticianId !== null) order.beauticianIds.add(item.beauticianId);
+      orders.set(item.orderId, order);
+    }
+    return {
+      staff: beauticians
+        .map((beautician) => {
+          const kindCounts = [...orders.values()]
+            .filter((order) => order.beauticianIds.has(beautician.id))
+            .map((order) => order.kinds.size);
+          const attributedOrderCount = kindCounts.length;
+          const multiItemOrderCount = kindCounts.filter((count) => count >= 2).length;
+          return {
+            beauticianId: beautician.id,
+            name: beautician.name,
+            attributedOrderCount,
+            multiItemOrderCount,
+            crossSellRate: attributedOrderCount > 0 ? multiItemOrderCount / attributedOrderCount : 0,
+            averageItemKindCount:
+              attributedOrderCount > 0 ? kindCounts.reduce((sum, count) => sum + count, 0) / attributedOrderCount : 0,
+          };
+        })
+        .sort(
+          (left, right) =>
+            right.crossSellRate - left.crossSellRate ||
+            right.multiItemOrderCount - left.multiItemOrderCount ||
+            right.attributedOrderCount - left.attributedOrderCount ||
+            left.name.localeCompare(right.name, 'zh-CN'),
+        ),
+    };
+  }
+
+  async buildStaffSkillCoverage(input: { storeId: number }): Promise<BrainStaffSkillCoverage> {
+    const projects = await this.prisma.project.findMany({
+      where: { storeId: input.storeId, status: 'active', deletedAt: null },
+      select: {
+        id: true,
+        name: true,
+        beauticianSkills: {
+          where: { beautician: { storeId: input.storeId, status: 'active' } },
+          select: {
+            certified: true,
+            beautician: { select: { id: true, name: true } },
+          },
+        },
+      },
+      orderBy: [{ sort: 'asc' }, { id: 'asc' }],
+    });
+    return {
+      projects: projects.map((project) => ({
+        projectId: project.id,
+        projectName: project.name,
+        staffCount: new Set(project.beauticianSkills.map((skill) => skill.beautician.id)).size,
+        certifiedStaffCount: new Set(
+          project.beauticianSkills.filter((skill) => skill.certified).map((skill) => skill.beautician.id),
+        ).size,
+        staffNames: [...new Set(project.beauticianSkills.map((skill) => skill.beautician.name))].sort((left, right) =>
+          left.localeCompare(right, 'zh-CN'),
+        ),
+      })),
     };
   }
 

@@ -2540,6 +2540,242 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     expect(skillRuntime.buildReceptionOperationsSnapshot).not.toHaveBeenCalled();
   });
 
+  it('returns a named staff 30-day trend from real performance facts when no period is supplied', async () => {
+    const skillRuntime = {
+      buildManagerStaffAnalysis: jest
+        .fn()
+        .mockResolvedValueOnce({ staff: [staffFacts({ beauticianId: 1, name: '顾然', revenueAmount: 1200 })] })
+        .mockResolvedValueOnce({ staff: [staffFacts({ beauticianId: 1, name: '顾然', revenueAmount: 1000 })] }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    // ami-brain-unit-only: paraphrase of the employee trend release regression
+    const result = await executor.execute(managerStaffInput('请看顾然的业绩走势', 730));
+
+    expect(result.answer).toContain('顾然业绩实收 1200.00 元');
+    expect(result.answer).toContain('上升 200.00 元（20.0%）');
+    expect(result.grounding).toBe('db_skill');
+    expect(result.metadata).toMatchObject({
+      answerScope: 'named_staff_performance_trend',
+      beauticianId: 1,
+      rangeLabel: '最近30天',
+      defaultRangeApplied: true,
+    });
+  });
+
+  it('returns staff cross-sell ranking with the governed attributed-order definition', async () => {
+    const skillRuntime = {
+      buildManagerStaffCrossSellAnalysis: jest.fn().mockResolvedValue({
+        staff: [
+          {
+            beauticianId: 1,
+            name: '唐伊',
+            attributedOrderCount: 10,
+            multiItemOrderCount: 7,
+            crossSellRate: 0.7,
+            averageItemKindCount: 2.1,
+          },
+          {
+            beauticianId: 2,
+            name: '顾然',
+            attributedOrderCount: 8,
+            multiItemOrderCount: 4,
+            crossSellRate: 0.5,
+            averageItemKindCount: 1.6,
+          },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    // ami-brain-unit-only: paraphrase of the cross-sell comparison release regression
+    const result = await executor.execute(
+      managerStaffInput('对比去年同期各美容师的连带率', 731, {
+        time: { label: '去年同期', timezone: 'Asia/Shanghai', startDate: '2025-01-01', endDate: '2025-07-31' },
+      }),
+    );
+
+    expect(result.answer).toContain('唐伊，连带率 70.0%');
+    expect(result.answer).toContain('至少 2 种不同非赠品项目或商品');
+    expect(result.blocks?.[0]).toMatchObject({
+      kind: 'ranking',
+      rows: expect.arrayContaining([expect.objectContaining({ staff: '唐伊', crossSellRateLabel: '70.0%' })]),
+    });
+    expect(result.metadata).toMatchObject({ answerScope: 'staff_cross_sell_comparison' });
+  });
+
+  it('aggregates performance source amount by current staff level', async () => {
+    const skillRuntime = {
+      buildManagerStaffAnalysis: jest.fn().mockResolvedValue({
+        staff: [
+          staffFacts({ beauticianId: 1, name: '唐伊', revenueAmount: 1200 }),
+          staffFacts({ beauticianId: 2, name: '顾然', revenueAmount: 800 }),
+          staffFacts({ beauticianId: 3, name: '宋乔', revenueAmount: 900 }),
+        ],
+      }),
+      buildManagerStaffDirectoryFacts: jest.fn().mockResolvedValue({
+        staff: [
+          directoryStaff({ beauticianId: 1, name: '唐伊', level: { levelId: 3, name: '高级美容师' } }),
+          directoryStaff({ beauticianId: 2, name: '顾然', level: { levelId: 3, name: '高级美容师' } }),
+          directoryStaff({ beauticianId: 3, name: '宋乔', level: { levelId: 2, name: '中级美容师' } }),
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    // ami-brain-unit-only: paraphrase of the staff-level output release regression
+    const result = await executor.execute(
+      managerStaffInput('去年同期按职级看，哪个层级的业绩产出最高', 732, {
+        time: { label: '去年同期', timezone: 'Asia/Shanghai', startDate: '2025-01-01', endDate: '2025-07-31' },
+      }),
+    );
+
+    expect(result.answer).toContain('高级美容师，关联业绩实收 2000.00 元');
+    expect(result.blocks?.[0]).toMatchObject({
+      kind: 'ranking',
+      rows: expect.arrayContaining([
+        expect.objectContaining({ level: '高级美容师', revenueAmount: 2000, staffCount: 2 }),
+      ]),
+    });
+    expect(result.metadata).toMatchObject({ answerScope: 'staff_level_revenue_ranking' });
+  });
+
+  it('defines primary staff from the previous-period top quartile before checking decline', async () => {
+    const skillRuntime = {
+      buildManagerStaffAnalysis: jest
+        .fn()
+        .mockResolvedValueOnce({
+          staff: [
+            staffFacts({ beauticianId: 1, name: '唐伊', revenueAmount: 700 }),
+            staffFacts({ beauticianId: 2, name: '顾然', revenueAmount: 600 }),
+            staffFacts({ beauticianId: 3, name: '宋乔', revenueAmount: 500 }),
+            staffFacts({ beauticianId: 4, name: '沈晴', revenueAmount: 400 }),
+          ],
+        })
+        .mockResolvedValueOnce({
+          staff: [
+            staffFacts({ beauticianId: 1, name: '唐伊', revenueAmount: 1000 }),
+            staffFacts({ beauticianId: 2, name: '顾然', revenueAmount: 800 }),
+            staffFacts({ beauticianId: 3, name: '宋乔', revenueAmount: 600 }),
+            staffFacts({ beauticianId: 4, name: '沈晴', revenueAmount: 500 }),
+          ],
+        }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    // ami-brain-unit-only: paraphrase of the primary-staff decline release regression
+    const result = await executor.execute(
+      managerStaffInput('本周主力员工中有没有人实收下降', 733, {
+        time: { label: '本周', timezone: 'Asia/Shanghai', startDate: '2026-07-13', endDate: '2026-07-19' },
+      }),
+    );
+
+    expect(result.answer).toContain('唐伊 下降 30.0%');
+    expect(result.answer).not.toContain('顾然 下降');
+    expect(result.answer).toContain('排名前 25%');
+    expect(result.metadata).toMatchObject({
+      answerScope: 'primary_staff_revenue_decline',
+      primaryStaffCount: 1,
+      decliningPrimaryStaffCount: 1,
+    });
+  });
+
+  it('reports projects with zero or one active staff skill assignment as coverage gaps', async () => {
+    const skillRuntime = {
+      buildManagerStaffSkillCoverage: jest.fn().mockResolvedValue({
+        projects: [
+          { projectId: 1, projectName: '项目A', staffCount: 0, certifiedStaffCount: 0, staffNames: [] },
+          { projectId: 2, projectName: '项目B', staffCount: 1, certifiedStaffCount: 1, staffNames: ['唐伊'] },
+          { projectId: 3, projectName: '项目C', staffCount: 2, certifiedStaffCount: 1, staffNames: ['顾然', '宋乔'] },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    // ami-brain-unit-only: paraphrase of the project skill coverage release regression
+    const result = await executor.execute(managerStaffInput('项目技能配置有没有缺口，哪些护理只有一人或没人能做', 734));
+
+    expect(result.answer).toContain('2 个技能覆盖短板');
+    expect(result.answer).toContain('1 个无人覆盖、1 个仅 1 人覆盖');
+    expect(result.blocks?.[1]).toMatchObject({
+      kind: 'table',
+      rows: [
+        expect.objectContaining({ projectName: '项目A', coverageStatus: '无人覆盖' }),
+        expect.objectContaining({ projectName: '项目B', coverageStatus: '单人覆盖' }),
+      ],
+    });
+    expect(result.metadata).toMatchObject({ answerScope: 'staff_project_skill_coverage_gap', coverageThreshold: 1 });
+  });
+
+  it('generates grounded read-only help suggestions for a named declining employee without creating actions', async () => {
+    const skillRuntime = {
+      buildManagerStaffAnalysis: jest
+        .fn()
+        .mockResolvedValueOnce({
+          staff: [
+            staffFacts({
+              beauticianId: 1,
+              name: '唐伊',
+              revenueAmount: 500,
+              serviceCount: 3,
+              uniqueCustomerCount: 2,
+              repeatCustomerCount: 0,
+            }),
+          ],
+        })
+        .mockResolvedValueOnce({
+          staff: [
+            staffFacts({
+              beauticianId: 1,
+              name: '唐伊',
+              revenueAmount: 1000,
+              serviceCount: 6,
+              uniqueCustomerCount: 5,
+              repeatCustomerCount: 2,
+            }),
+          ],
+        }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    // ami-brain-unit-only: paraphrase of the named employee decline-advice release regression
+    const result = await executor.execute(managerStaffInput('唐伊业绩下降了，如何帮她改善', 735));
+
+    expect(result.answer).toContain('1000.00 -> 500.00 元');
+    expect(result.answer).toContain('复核排班、预约分配和空档');
+    expect(result.answer).toContain('以上为只读诊断建议');
+    expect(result.suggestedActions).toBeUndefined();
+    expect(result.metadata).toMatchObject({
+      answerScope: 'named_staff_decline_diagnosis_advice',
+      beauticianId: 1,
+      actionWriteCount: 0,
+    });
+  });
+
   it('returns only low-stock rows for a governed stock-risk ranking', async () => {
     const skillRuntime = {
       buildInventoryRiskSummary: jest.fn().mockResolvedValue({
@@ -7222,5 +7458,64 @@ function storeCard(): BrainCapabilityCard {
     synonyms: [],
     negativeExamples: [],
     successSchema: {},
+  };
+}
+
+function managerStaffInput(
+  question: string,
+  runId: number,
+  argsOverride: Record<string, unknown> = {},
+): BrainCapabilityExecutionInput {
+  return {
+    card: { ...storeCard(), key: 'manager_staff_overview', intents: ['query', 'ranking', 'comparison', 'diagnosis'] },
+    context: {
+      userId: 9,
+      storeId: 6,
+      visibleStoreIds: [6],
+      roles: ['store_manager'],
+      permissions: ['*'],
+      deniedPermissions: [],
+      requestId: `manager-staff-release-${runId}`,
+      timezone: 'Asia/Shanghai',
+    },
+    runId,
+    question,
+    answerShape: 'diagnosis',
+    args: {
+      objective: question,
+      entities: [],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      ...argsOverride,
+    },
+  };
+}
+
+function staffFacts(override: Record<string, unknown> = {}) {
+  return {
+    beauticianId: 1,
+    name: '唐伊',
+    serviceCount: 0,
+    completedCount: 0,
+    uniqueCustomerCount: 0,
+    repeatCustomerCount: 0,
+    revenueAmount: 0,
+    commissionAmount: 0,
+    timeOffHours: 0,
+    ...override,
+  };
+}
+
+function directoryStaff(override: Record<string, unknown> = {}) {
+  return {
+    beauticianId: 1,
+    name: '唐伊',
+    level: null,
+    projectSkills: [],
+    schedules: [],
+    timeOffs: [],
+    ...override,
   };
 }

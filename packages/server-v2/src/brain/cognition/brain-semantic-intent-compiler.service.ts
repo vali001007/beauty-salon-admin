@@ -628,29 +628,119 @@ export class BrainSemanticIntentCompilerService {
       /(?:哪个|哪位|谁).*(?:美容师|员工|技师)?.*(?:业绩|服务收入|关联实收).*(?:最高|最好)|(?:美容师|员工|技师).*(?:业绩|服务收入|关联实收).*(?:最高|最好)/.test(
         input.question,
       );
-    if (!namedCustomerCount && !staffRevenueRanking) return undefined;
-    const metricKey = namedCustomerCount
-      ? 'metric.staff_unique_customer_count'
-      : 'metric.staff_service_revenue';
-    const metricRef = findCapabilityDefinitionRef(capability, 'metric', metricKey);
-    if (!metricRef) return undefined;
-    const beauticianEntityRef = findCapabilityDefinitionRef(capability, 'entity', 'entity.beautician');
-    const beauticianDimensionRef = findCapabilityDefinitionRef(
-      capability,
-      'dimension',
-      'dimension.beauticianName',
+    const staffPerformanceTrend = /(?:业绩|实收).*(?:趋势|走势)|(?:趋势|走势).*(?:业绩|实收)/.test(input.question);
+    const staffCrossSell = /(?:连带销售|连带率|搭售能力|交叉销售)/.test(input.question);
+    const staffLevelRevenue = /(?:职级).*(?:产出|业绩|实收)|(?:产出|业绩|实收).*(?:职级)/.test(input.question);
+    const primaryStaffDecline =
+      /(?:主力).*(?:美容师|员工|技师)?.*(?:业绩|实收)?.*(?:下滑|下降)|(?:业绩|实收).*(?:主力).*(?:下滑|下降)/.test(
+        input.question,
+      );
+    const staffSkillCoverage = /(?:技能覆盖|技能配置).*(?:短板|不足|缺口)|(?:项目).*(?:缺人做|没人做|只有一人做)/.test(
+      input.question,
     );
-    const staffName = namedCustomerCount
-      ? input.question.match(
-          /(?:^|[，,。\s])([\u3400-\u9fff·]{2,5})(?=(?:这半年|半年|去年同期|昨天|今天|本周|上周|本月|上月|最近).*(?:服务了多少个客户|服务了多少客户))/u,
-        )?.[1]
-      : undefined;
+    const staffDeclineAdvice =
+      /(?:业绩|实收).*(?:下滑|下降).*(?:建议|怎么帮|怎么办|如何帮)|(?:建议|怎么帮|怎么办|如何帮).*(?:业绩|实收).*(?:下滑|下降)/.test(
+        input.question,
+      );
+    if (
+      !namedCustomerCount &&
+      !staffRevenueRanking &&
+      !staffPerformanceTrend &&
+      !staffCrossSell &&
+      !staffLevelRevenue &&
+      !primaryStaffDecline &&
+      !staffSkillCoverage &&
+      !staffDeclineAdvice
+    ) {
+      return undefined;
+    }
+    const uniqueCustomerMetricRef = findCapabilityDefinitionRef(
+      capability,
+      'metric',
+      'metric.staff_unique_customer_count',
+    );
+    const revenueMetricRef = findCapabilityDefinitionRef(capability, 'metric', 'metric.staff_service_revenue');
+    const serviceMetricRef = findCapabilityDefinitionRef(capability, 'metric', 'metric.staff_service_count');
+    const repurchaseMetricRef = findCapabilityDefinitionRef(
+      capability,
+      'metric',
+      'metric.staff_customer_repurchase_rate',
+    );
+    if (namedCustomerCount && !uniqueCustomerMetricRef) return undefined;
+    if (
+      (staffRevenueRanking ||
+        staffPerformanceTrend ||
+        staffLevelRevenue ||
+        primaryStaffDecline ||
+        staffDeclineAdvice) &&
+      !revenueMetricRef
+    ) {
+      return undefined;
+    }
+    const beauticianEntityRef = findCapabilityDefinitionRef(capability, 'entity', 'entity.beautician');
+    const beauticianDimensionRef = findCapabilityDefinitionRef(capability, 'dimension', 'dimension.beauticianName');
+    const staffName =
+      namedCustomerCount || staffPerformanceTrend || staffDeclineAdvice
+        ? input.question.match(
+            /(?:^|[，,。\s])([\u3400-\u9fff·]{2,5}?)(?=(?:的)?(?:(?:这半年|半年|去年同期|昨天|今天|本周|上周|本月|上月|最近\d*天|最近))?(?:业绩|实收|服务了多少个客户|服务了多少客户|服务客户))/u,
+          )?.[1]
+        : undefined;
     const timeRange = this.resolveQuestionTimeRange(input.question, input.timezone);
+    const intent: BrainSemanticIntent['intent'] =
+      namedCustomerCount || staffPerformanceTrend
+        ? 'query'
+        : staffRevenueRanking || staffCrossSell || staffLevelRevenue
+          ? 'ranking'
+          : 'diagnosis';
+    const answerShape: BrainSemanticIntent['answerShape'] = namedCustomerCount
+      ? 'scalar'
+      : staffPerformanceTrend || staffCrossSell
+        ? 'comparison'
+        : staffRevenueRanking || staffLevelRevenue
+          ? 'ranking'
+          : 'diagnosis';
+    const metrics = [
+      ...(namedCustomerCount && uniqueCustomerMetricRef ? [uniqueCustomerMetricRef] : []),
+      ...(!namedCustomerCount && revenueMetricRef && !staffCrossSell && !staffSkillCoverage ? [revenueMetricRef] : []),
+      ...(staffDeclineAdvice && serviceMetricRef ? [serviceMetricRef] : []),
+      ...(staffDeclineAdvice && uniqueCustomerMetricRef ? [uniqueCustomerMetricRef] : []),
+      ...(staffDeclineAdvice && repurchaseMetricRef ? [repurchaseMetricRef] : []),
+    ];
+    const successCriteria = namedCustomerCount
+      ? ['按当前门店和时间范围返回指定员工服务的独立客户数']
+      : staffRevenueRanking
+        ? ['按员工关联业绩实收口径降序返回美容师排行并披露口径']
+        : staffPerformanceTrend
+          ? ['按指定员工当前期与上一等长周期的 CommissionRecord.sourceAmount 返回结构化趋势对比']
+          : staffCrossSell
+            ? ['按员工归属订单中至少两个不同非赠品项目或商品的订单占比返回连带销售对比']
+            : staffLevelRevenue
+              ? ['按当前职级聚合员工关联业绩实收并返回职级产出排行']
+              : primaryStaffDecline
+                ? ['以上一周期业绩实收高位员工定义主力并检查当前期下滑']
+                : staffSkillCoverage
+                  ? ['对照全部在售项目与在职美容师技能配置，返回无人或单人覆盖短板']
+                  : ['按指定员工当前期与上一等长周期的服务、客户、复购和业绩变化生成只读建议'];
+    const assumption = namedCustomerCount
+      ? '服务客户数使用 manager_staff_overview 的 uniqueCustomerCount，不使用客户总数替代。'
+      : staffRevenueRanking
+        ? '治理排行问法中的“业绩”使用能力已定义的员工关联业绩实收口径。'
+        : staffPerformanceTrend
+          ? '未指定周期时使用最近30天，并与上一等长周期比较真实提成来源金额。'
+          : staffCrossSell
+            ? '连带率按员工归属订单中包含至少两个不同非赠品项目或商品的订单比例计算。'
+            : staffLevelRevenue
+              ? '职级产出按当前 BeauticianLevel 聚合 CommissionRecord.sourceAmount。'
+              : primaryStaffDecline
+                ? '主力美容师按上一等长周期业绩实收排名前25%且至少1人定义。'
+                : staffSkillCoverage
+                  ? '技能覆盖短板指在售项目只有0或1位在职美容师配置对应技能，认证人数另行披露。'
+                  : '建议只基于真实服务、独立客户、复购客户和业绩变化生成，不创建任何业务动作。';
     return {
       schemaVersion: '1.0',
       objective: input.question.trim(),
       domains: ['staff', 'beautician'],
-      intent: namedCustomerCount ? 'query' : 'ranking',
+      intent,
       entities:
         staffName && beauticianEntityRef
           ? [
@@ -663,24 +753,21 @@ export class BrainSemanticIntentCompilerService {
               },
             ]
           : [],
-      metrics: [metricRef],
-      dimensions: !namedCustomerCount && beauticianDimensionRef ? [beauticianDimensionRef] : [],
+      metrics,
+      dimensions: (staffRevenueRanking || staffCrossSell) && beauticianDimensionRef ? [beauticianDimensionRef] : [],
       filters: [],
       ...(timeRange ? { timeRange } : {}),
-      orderBy: namedCustomerCount ? [] : [{ definitionRef: metricRef, direction: 'desc' }],
-      answerShape: namedCustomerCount ? 'scalar' : 'ranking',
-      successCriteria: namedCustomerCount
-        ? ['按当前门店和时间范围返回指定员工服务的独立客户数']
-        : ['按员工关联业绩实收口径降序返回美容师排行并披露口径'],
+      orderBy:
+        (staffRevenueRanking || staffLevelRevenue) && revenueMetricRef
+          ? [{ definitionRef: revenueMetricRef, direction: 'desc' }]
+          : [],
+      answerShape,
+      successCriteria,
       ambiguities: [],
       missingSlots: [],
-      assumptions: [
-        namedCustomerCount
-          ? '服务客户数使用 manager_staff_overview 的 uniqueCustomerCount，不使用客户总数替代。'
-          : '治理排行问法中的“业绩”使用能力已定义的员工关联业绩实收口径；不适用于个人模糊表现诊断。',
-      ],
+      assumptions: [assumption],
       confidence: 1,
-      decisionSummary: '员工跨表指标问法命中已发布店长员工运营能力，使用受控指标合同直接编译。',
+      decisionSummary: '员工经营问法命中已发布店长员工运营能力，使用真实只读事实合同直接编译。',
     };
   }
 

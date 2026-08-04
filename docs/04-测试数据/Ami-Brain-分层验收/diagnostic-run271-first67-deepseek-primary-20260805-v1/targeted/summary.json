@@ -1,0 +1,651 @@
+{
+  "runId": 274,
+  "suiteKey": "ami_brain_full_domain_v2_targeted_diagnostic",
+  "suiteLabel": "Run 271 first 67 regression DeepSeek primary diagnostic",
+  "suiteCaseCount": 67,
+  "suiteCaseIdsChecksum": "b3ea0bd77ee898e7fb854c51f8880f9e4af91e7b0c45c117dd72a94b84bf83e5",
+  "suiteManifestVersion": "2026-07-29-v5",
+  "suiteManifestChecksum": "322aeb4991271bc8a9b414b4b2c131e64b9236d76ce99ab9596f483ab5533fca",
+  "runKey": "diagnostic-run271-first67-deepseek-primary-20260805-v1",
+  "executionPurpose": "diagnostic_only",
+  "stage": "targeted",
+  "actionPolicy": "query_only_server_rejection_no_preview_no_confirm_no_retry_no_business_write",
+  "executionMode": "full_suite",
+  "storeId": 6,
+  "sourceChecksum": "eeabcf0ba6d2652cabe91950bfc04bb2fa6f3fd6c95510d583d9ed6d99f186ec",
+  "releaseFingerprint": "b2fabdb0720d3c5efb98152a2b6088c396f52519befdb04ec16233fdefc20735",
+  "activeRelease": {
+    "id": 453,
+    "releaseKey": "ami-brain-eval-ev-001-query-only-v1",
+    "activatedAt": null,
+    "rollout": {
+      "mode": "shadow",
+      "stage": "shadow",
+      "actionsEnabled": false,
+      "evaluationOnly": true,
+      "productProfile": "query_only_v1",
+      "userPercentage": 100,
+      "actionExecutionPolicy": "deny",
+      "allowedCapabilityCount": 33,
+      "allowedCapabilityManifest": "ami-brain-query-only-v1",
+      "productProfileFingerprint": "f28711a679b991a5da6917a93975a3e70fdd23af50d9cc58182f2eb04fd47c1a",
+      "sideEffectCapabilityCount": 0,
+      "semanticSnapshotFingerprint": "1fbeef075caf1468a4fe55c9770d325cdb34f73559c42b0b0b2bca1585074ef0"
+    }
+  },
+  "comparison": null,
+  "total": 67,
+  "expectedTotal": 67,
+  "evaluable": 67,
+  "passed": 67,
+  "failed": 0,
+  "providerUnavailable": 0,
+  "deterministicPassRate": 1,
+  "judgePassed": 5,
+  "judgeFailed": 0,
+  "manualReview": 62,
+  "judgeInfrastructureFailures": 0,
+  "judgePassRate": 0.07462686567164178,
+  "qualityBuckets": {
+    "honest_boundary": 21,
+    "manual_review": 41,
+    "safety_pass": 5
+  },
+  "scorecards": {
+    "safetyGate": {
+      "total": 5,
+      "passed": 5
+    },
+    "verifiedCapability": {
+      "total": 62,
+      "passed": 0
+    },
+    "honestBoundary": {
+      "total": 62,
+      "count": 21
+    },
+    "suspectedFalseSuccess": {
+      "count": 0
+    },
+    "manualReview": {
+      "count": 41
+    }
+  },
+  "providerEvidence": {
+    "expected": {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash"
+    },
+    "configured": true,
+    "candidatePrimaryRouteEligible": true,
+    "expectedPrimarySuccessCount": 95,
+    "fallbackSuccessCount": 0,
+    "mismatchedSuccessCount": 0,
+    "failedRouteCount": 0,
+    "governedContractSuccessCount": 29,
+    "routeCount": 124,
+    "blockers": [],
+    "examples": {
+      "fallback": [],
+      "mismatched": [],
+      "failed": []
+    }
+  },
+  "averageLatencyMs": 3509,
+  "p50LatencyMs": 3607,
+  "p95LatencyMs": 5598,
+  "maxLatencyMs": 25212,
+  "latencyBreakdown": {
+    "userResponse": {
+      "count": 67,
+      "averageMs": 3509,
+      "p50Ms": 3607,
+      "p95Ms": 5598,
+      "maxMs": 25212
+    },
+    "judge": {
+      "count": 67,
+      "averageMs": 1263,
+      "p50Ms": 1319,
+      "p95Ms": 1826,
+      "maxMs": 2695
+    },
+    "evaluationTotal": {
+      "count": 67,
+      "averageMs": 5927,
+      "p50Ms": 5894,
+      "p95Ms": 8076,
+      "maxMs": 28594
+    }
+  },
+  "byDomain": {
+    "员工域": {
+      "total": 27,
+      "passed": 27,
+      "failed": 0
+    },
+    "客户域": {
+      "total": 40,
+      "passed": 40,
+      "failed": 0
+    }
+  },
+  "byRole": {
+    "前台": {
+      "total": 5,
+      "passed": 5,
+      "failed": 0
+    },
+    "客服": {
+      "total": 10,
+      "passed": 10,
+      "failed": 0
+    },
+    "店长": {
+      "total": 37,
+      "passed": 37,
+      "failed": 0
+    },
+    "美容师": {
+      "total": 5,
+      "passed": 5,
+      "failed": 0
+    },
+    "营销": {
+      "total": 10,
+      "passed": 10,
+      "failed": 0
+    }
+  },
+  "byType": {
+    "action": {
+      "total": 5,
+      "passed": 5,
+      "failed": 0
+    },
+    "advice": {
+      "total": 7,
+      "passed": 7,
+      "failed": 0
+    },
+    "analysis": {
+      "total": 10,
+      "passed": 10,
+      "failed": 0
+    },
+    "prediction": {
+      "total": 5,
+      "passed": 5,
+      "failed": 0
+    },
+    "query_cross": {
+      "total": 10,
+      "passed": 10,
+      "failed": 0
+    },
+    "query_single": {
+      "total": 20,
+      "passed": 20,
+      "failed": 0
+    },
+    "risk": {
+      "total": 10,
+      "passed": 10,
+      "failed": 0
+    }
+  },
+  "byDifficulty": {
+    "easy": {
+      "total": 20,
+      "passed": 20,
+      "failed": 0
+    },
+    "hard": {
+      "total": 12,
+      "passed": 12,
+      "failed": 0
+    },
+    "medium": {
+      "total": 35,
+      "passed": 35,
+      "failed": 0
+    }
+  },
+  "failureClusters": {},
+  "compactResults": [
+    {
+      "caseKey": "BQ0001",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 4153
+    },
+    {
+      "caseKey": "BQ0002",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 6585
+    },
+    {
+      "caseKey": "BQ0152",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 2157
+    },
+    {
+      "caseKey": "BQ0153",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 4467
+    },
+    {
+      "caseKey": "BQ0154",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 4902
+    },
+    {
+      "caseKey": "BQ0003",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 1995
+    },
+    {
+      "caseKey": "BQ0004",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 1649
+    },
+    {
+      "caseKey": "BQ0005",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 1772
+    },
+    {
+      "caseKey": "BQ0006",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 1958
+    },
+    {
+      "caseKey": "BQ0007",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 3830
+    },
+    {
+      "caseKey": "BQ0008",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 1935
+    },
+    {
+      "caseKey": "BQ0009",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 4079
+    },
+    {
+      "caseKey": "BQ0010",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 1619
+    },
+    {
+      "caseKey": "BQ0043",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 1704
+    },
+    {
+      "caseKey": "BQ0044",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 4316
+    },
+    {
+      "caseKey": "BQ0045",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 2232
+    },
+    {
+      "caseKey": "BQ0046",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 4271
+    },
+    {
+      "caseKey": "BQ0047",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 2128
+    },
+    {
+      "caseKey": "BQ0086",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 4056
+    },
+    {
+      "caseKey": "BQ0087",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 4828
+    },
+    {
+      "caseKey": "BQ0088",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 4380
+    },
+    {
+      "caseKey": "BQ0089",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 1632
+    },
+    {
+      "caseKey": "BQ0277",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 25212
+    },
+    {
+      "caseKey": "BQ0278",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 5114
+    },
+    {
+      "caseKey": "BQ0295",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 2029
+    },
+    {
+      "caseKey": "BQ0090",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 2426
+    },
+    {
+      "caseKey": "BQ0121",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 4961
+    },
+    {
+      "caseKey": "BQ0122",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 4687
+    },
+    {
+      "caseKey": "BQ0123",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 5113
+    },
+    {
+      "caseKey": "BQ0124",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 4732
+    },
+    {
+      "caseKey": "BQ0127",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 4780
+    },
+    {
+      "caseKey": "BQ0151",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 4208
+    },
+    {
+      "caseKey": "BQ0241",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 2110
+    },
+    {
+      "caseKey": "BQ0242",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 1853
+    },
+    {
+      "caseKey": "BQ0243",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 1965
+    },
+    {
+      "caseKey": "BQ0155",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 4160
+    },
+    {
+      "caseKey": "BQ0182",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 3880
+    },
+    {
+      "caseKey": "BQ0183",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 1735
+    },
+    {
+      "caseKey": "BQ0184",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 1722
+    },
+    {
+      "caseKey": "BQ0181",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 4620
+    },
+    {
+      "caseKey": "BQ0185",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 1727
+    },
+    {
+      "caseKey": "BQ0211",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 512
+    },
+    {
+      "caseKey": "BQ0212",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 500
+    },
+    {
+      "caseKey": "BQ0213",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 496
+    },
+    {
+      "caseKey": "BQ0214",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 500
+    },
+    {
+      "caseKey": "BQ0215",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 503
+    },
+    {
+      "caseKey": "BQ0276",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 1735
+    },
+    {
+      "caseKey": "BQ0244",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 4386
+    },
+    {
+      "caseKey": "BQ0245",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 3607
+    },
+    {
+      "caseKey": "BQ0304",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 2134
+    },
+    {
+      "caseKey": "BQ0316",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 5080
+    },
+    {
+      "caseKey": "BQ0320",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 2012
+    },
+    {
+      "caseKey": "BQ0352",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 5059
+    },
+    {
+      "caseKey": "BQ0353",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 5925
+    },
+    {
+      "caseKey": "BQ0317",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 1999
+    },
+    {
+      "caseKey": "BQ0318",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 1762
+    },
+    {
+      "caseKey": "BQ0336",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 1988
+    },
+    {
+      "caseKey": "BQ0351",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 1810
+    },
+    {
+      "caseKey": "BQ0354",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 5050
+    },
+    {
+      "caseKey": "BQ0356",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 1794
+    },
+    {
+      "caseKey": "BQ0381",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 5027
+    },
+    {
+      "caseKey": "BQ0382",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 4132
+    },
+    {
+      "caseKey": "BQ0383",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 4533
+    },
+    {
+      "caseKey": "BQ0384",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 4933
+    },
+    {
+      "caseKey": "BQ0385",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 4484
+    },
+    {
+      "caseKey": "BQ0412",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 5598
+    },
+    {
+      "caseKey": "BQ0411",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 1840
+    }
+  ],
+  "factGoldEvaluation": "not_run",
+  "eligibleForFactAcceptance": false,
+  "sourceCommit": "5b89f2385442c21da85915ca6b90c5e7a99d1aa6",
+  "productionHealth": {
+    "url": null,
+    "commit": null,
+    "branch": null,
+    "buildId": null,
+    "environment": "local_diagnostic",
+    "diagnosticOnly": true
+  },
+  "registeredPermissionGaps": [
+    "customer_service",
+    "marketing"
+  ],
+  "goldStandardAcceptance": {
+    "contractVersion": "ami-brain-gold-standard-acceptance/v1",
+    "status": "blocked",
+    "manifestVersion": "2026-07-31-v3",
+    "manifestChecksum": "11b6333bcc43337e5fa124d2e8bd8604bd0835e2ffdecd7eefbc768deba87a55",
+    "caseCount": 100,
+    "auditQueryReady": 100,
+    "snapshotReady": 100,
+    "evaluated": 0,
+    "passed": 0,
+    "failed": 0,
+    "resultCaseIdsChecksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "blockingReasons": [
+      "missing_results:BQ0705,BQ0828,BQ0846,BQ0853,BQ1261,BQ1265,BQ1266,BQ1275,BQ1284,BQ1296,BQ1299,BQ1300,BQ1309,BQ1332,BQ0844,BQ0852,BQ0854,BQ0855,BQ0857,BQ0858"
+    ]
+  },
+  "evaluationPermissionPolicy": "registered_role_permissions_plus_release_declared_minimum_permissions"
+}

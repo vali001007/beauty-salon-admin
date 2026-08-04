@@ -1,0 +1,6 @@
+case_id,domain,role,type,quality_bucket,failure_cluster,reason
+"BQ0317","员工域","店长","analysis","suspected_false_success","suspected_false_success","回答未提供人效分析数据，仅要求澄清指标口径，且无引用依据，无法验证事实或评估完整性。"
+"BQ0318","员工域","店长","analysis","deterministic_failure","answer_not_grounded","确定性门禁失败：answer_not_grounded"
+"BQ0320","员工域","店长","analysis","deterministic_failure","answer_not_grounded","确定性门禁失败：answer_not_grounded"
+"BQ0351","员工域","店长","risk","suspected_false_success","suspected_false_success","回答未提供任何具体数据或风险巡检结果，仅要求澄清指标口径，无法验证是否满足目标。缺少标准数值，无法判断正确性。"
+"BQ0411","员工域","店长","advice","suspected_false_success","suspected_false_success","回答未提供具体人力经营建议，仅要求澄清指标口径，未对齐目标，且无引用依据。"

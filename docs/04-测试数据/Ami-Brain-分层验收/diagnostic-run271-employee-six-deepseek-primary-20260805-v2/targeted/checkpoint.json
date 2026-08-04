@@ -1,0 +1,38 @@
+{
+  "runId": 272,
+  "stage": "targeted",
+  "sourceChecksum": "eeabcf0ba6d2652cabe91950bfc04bb2fa6f3fd6c95510d583d9ed6d99f186ec",
+  "completed": 6,
+  "items": [
+    {
+      "caseKey": "BQ0317",
+      "deterministicPassed": false,
+      "failureCluster": "suspected_false_success"
+    },
+    {
+      "caseKey": "BQ0318",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ0320",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ0351",
+      "deterministicPassed": false,
+      "failureCluster": "suspected_false_success"
+    },
+    {
+      "caseKey": "BQ0411",
+      "deterministicPassed": false,
+      "failureCluster": "suspected_false_success"
+    },
+    {
+      "caseKey": "BQ0356",
+      "deterministicPassed": true,
+      "failureCluster": null
+    }
+  ]
+}
