@@ -14,6 +14,7 @@ import {
   PERMISSION_ROLE_KEYS,
 } from './ami-brain-manual-evidence-contracts.mjs';
 import {
+  buildOfficialCandidatePointerUpsert,
   calculateCommitDiffChecksum,
   parseOptions,
   resolveEvidenceExpiresAt,
@@ -106,6 +107,28 @@ test('rejects an empty runtime commit diff instead of issuing an empty-content i
     () => calculateCommitDiffChecksum('a'.repeat(40), () => ''),
     /candidate_runtime_commit_diff_empty/,
   );
+});
+
+test('refreshes every official candidate pointer identity field when the candidate changes', () => {
+  const lock = candidateLock();
+  const pointer = buildOfficialCandidatePointerUpsert(lock);
+
+  assert.equal(pointer.create.receiptKey, lock.officialCandidateKey);
+  assert.equal('receiptKey' in pointer.update, false);
+  assert.equal(pointer.update.headCommit, lock.identity.runtimeCommit);
+  assert.equal(pointer.update.baseCommit, lock.identity.runtimeCommit);
+  assert.equal(pointer.update.mergeBaseCommit, lock.identity.runtimeCommit);
+  assert.equal(pointer.update.diffChecksum, lock.identity.diffChecksum);
+  assert.equal(pointer.update.releaseFingerprint, lock.identity.releaseFingerprint);
+  assert.equal(pointer.update.suiteChecksum, lock.identity.suiteManifestChecksum);
+  assert.equal(pointer.update.dataSnapshot, lock.identity.dataSnapshot);
+  assert.equal(pointer.update.provider, lock.identity.provider);
+  assert.equal(pointer.update.model, lock.identity.model);
+  assert.equal(pointer.update.evaluationReleaseId, lock.identity.evaluationIdentity.internalReleaseId);
+  assert.deepEqual(pointer.update.result, {
+    candidateId: lock.candidateId,
+    candidateLockReceiptKey: lock.receiptKey,
+  });
 });
 
 test('parses close evidence inputs and rejects invalid numeric identity', () => {
