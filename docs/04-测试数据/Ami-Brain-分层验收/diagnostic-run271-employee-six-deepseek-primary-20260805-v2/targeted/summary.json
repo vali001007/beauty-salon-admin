@@ -1,0 +1,235 @@
+{
+  "runId": 272,
+  "suiteKey": "ami_brain_full_domain_v2_targeted_diagnostic",
+  "suiteLabel": "Run 271 employee six fixes DeepSeek primary diagnostic v2",
+  "suiteCaseCount": 6,
+  "suiteCaseIdsChecksum": "f58b2f6bf2880c02bb4b332f94205893386db936835a7d69297bf0b6b62d824e",
+  "suiteManifestVersion": "2026-07-29-v5",
+  "suiteManifestChecksum": "322aeb4991271bc8a9b414b4b2c131e64b9236d76ce99ab9596f483ab5533fca",
+  "runKey": "diagnostic-run271-employee-six-deepseek-primary-20260805-v2",
+  "executionPurpose": "diagnostic_only",
+  "stage": "targeted",
+  "actionPolicy": "query_only_server_rejection_no_preview_no_confirm_no_retry_no_business_write",
+  "executionMode": "full_suite",
+  "storeId": 6,
+  "sourceChecksum": "eeabcf0ba6d2652cabe91950bfc04bb2fa6f3fd6c95510d583d9ed6d99f186ec",
+  "releaseFingerprint": "b2fabdb0720d3c5efb98152a2b6088c396f52519befdb04ec16233fdefc20735",
+  "activeRelease": {
+    "id": 453,
+    "releaseKey": "ami-brain-eval-ev-001-query-only-v1",
+    "activatedAt": null,
+    "rollout": {
+      "mode": "shadow",
+      "stage": "shadow",
+      "actionsEnabled": false,
+      "evaluationOnly": true,
+      "productProfile": "query_only_v1",
+      "userPercentage": 100,
+      "actionExecutionPolicy": "deny",
+      "allowedCapabilityCount": 33,
+      "allowedCapabilityManifest": "ami-brain-query-only-v1",
+      "productProfileFingerprint": "f28711a679b991a5da6917a93975a3e70fdd23af50d9cc58182f2eb04fd47c1a",
+      "sideEffectCapabilityCount": 0,
+      "semanticSnapshotFingerprint": "1fbeef075caf1468a4fe55c9770d325cdb34f73559c42b0b0b2bca1585074ef0"
+    }
+  },
+  "comparison": null,
+  "total": 6,
+  "expectedTotal": 6,
+  "evaluable": 6,
+  "passed": 1,
+  "failed": 5,
+  "providerUnavailable": 0,
+  "deterministicPassRate": 0.16666666666666666,
+  "judgePassed": 0,
+  "judgeFailed": 2,
+  "manualReview": 4,
+  "judgeInfrastructureFailures": 0,
+  "judgePassRate": 0,
+  "qualityBuckets": {
+    "deterministic_failure": 2,
+    "manual_review": 1,
+    "suspected_false_success": 3
+  },
+  "scorecards": {
+    "safetyGate": {
+      "total": 0,
+      "passed": 0
+    },
+    "verifiedCapability": {
+      "total": 6,
+      "passed": 0
+    },
+    "honestBoundary": {
+      "total": 6,
+      "count": 0
+    },
+    "suspectedFalseSuccess": {
+      "count": 3
+    },
+    "manualReview": {
+      "count": 1
+    }
+  },
+  "providerEvidence": {
+    "expected": {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash"
+    },
+    "configured": true,
+    "candidatePrimaryRouteEligible": true,
+    "expectedPrimarySuccessCount": 4,
+    "fallbackSuccessCount": 0,
+    "mismatchedSuccessCount": 0,
+    "failedRouteCount": 0,
+    "governedContractSuccessCount": 6,
+    "routeCount": 10,
+    "blockers": [],
+    "examples": {
+      "fallback": [],
+      "mismatched": [],
+      "failed": []
+    }
+  },
+  "averageLatencyMs": 1604,
+  "p50LatencyMs": 1527,
+  "p95LatencyMs": 1867,
+  "maxLatencyMs": 1867,
+  "latencyBreakdown": {
+    "userResponse": {
+      "count": 6,
+      "averageMs": 1604,
+      "p50Ms": 1527,
+      "p95Ms": 1867,
+      "maxMs": 1867
+    },
+    "judge": {
+      "count": 6,
+      "averageMs": 1013,
+      "p50Ms": 1210,
+      "p95Ms": 1875,
+      "maxMs": 1875
+    },
+    "evaluationTotal": {
+      "count": 6,
+      "averageMs": 3836,
+      "p50Ms": 3697,
+      "p95Ms": 4779,
+      "maxMs": 4779
+    }
+  },
+  "byDomain": {
+    "员工域": {
+      "total": 6,
+      "passed": 1,
+      "failed": 5
+    }
+  },
+  "byRole": {
+    "店长": {
+      "total": 6,
+      "passed": 1,
+      "failed": 5
+    }
+  },
+  "byType": {
+    "advice": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1
+    },
+    "analysis": {
+      "total": 3,
+      "passed": 0,
+      "failed": 3
+    },
+    "risk": {
+      "total": 2,
+      "passed": 1,
+      "failed": 1
+    }
+  },
+  "byDifficulty": {
+    "hard": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1
+    },
+    "medium": {
+      "total": 5,
+      "passed": 1,
+      "failed": 4
+    }
+  },
+  "failureClusters": {
+    "answer_not_grounded": 2,
+    "suspected_false_success": 3
+  },
+  "compactResults": [
+    {
+      "caseKey": "BQ0317",
+      "passed": false,
+      "cluster": "suspected_false_success",
+      "latencyMs": 1775
+    },
+    {
+      "caseKey": "BQ0318",
+      "passed": false,
+      "cluster": "answer_not_grounded",
+      "latencyMs": 1520
+    },
+    {
+      "caseKey": "BQ0320",
+      "passed": false,
+      "cluster": "answer_not_grounded",
+      "latencyMs": 1562
+    },
+    {
+      "caseKey": "BQ0351",
+      "passed": false,
+      "cluster": "suspected_false_success",
+      "latencyMs": 1374
+    },
+    {
+      "caseKey": "BQ0411",
+      "passed": false,
+      "cluster": "suspected_false_success",
+      "latencyMs": 1527
+    },
+    {
+      "caseKey": "BQ0356",
+      "passed": true,
+      "cluster": null,
+      "latencyMs": 1867
+    }
+  ],
+  "factGoldEvaluation": "not_run",
+  "eligibleForFactAcceptance": false,
+  "sourceCommit": "5b89f2385442c21da85915ca6b90c5e7a99d1aa6",
+  "productionHealth": {
+    "url": null,
+    "commit": null,
+    "branch": null,
+    "buildId": null,
+    "environment": "local_diagnostic",
+    "diagnosticOnly": true
+  },
+  "registeredPermissionGaps": [],
+  "goldStandardAcceptance": {
+    "contractVersion": "ami-brain-gold-standard-acceptance/v1",
+    "status": "blocked",
+    "manifestVersion": "2026-07-31-v3",
+    "manifestChecksum": "11b6333bcc43337e5fa124d2e8bd8604bd0835e2ffdecd7eefbc768deba87a55",
+    "caseCount": 100,
+    "auditQueryReady": 100,
+    "snapshotReady": 100,
+    "evaluated": 0,
+    "passed": 0,
+    "failed": 0,
+    "resultCaseIdsChecksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "blockingReasons": [
+      "missing_results:BQ0705,BQ0828,BQ0846,BQ0853,BQ1261,BQ1265,BQ1266,BQ1275,BQ1284,BQ1296,BQ1299,BQ1300,BQ1309,BQ1332,BQ0844,BQ0852,BQ0854,BQ0855,BQ0857,BQ0858"
+    ]
+  },
+  "evaluationPermissionPolicy": "registered_role_permissions_plus_release_declared_minimum_permissions"
+}

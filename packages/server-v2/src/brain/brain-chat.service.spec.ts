@@ -7688,13 +7688,27 @@ describe('BrainChatService', () => {
   });
 
   it('routes staff directory, level, skill and schedule facts to manager_staff_overview', () => {
-    const { service } = createService({ modelPipeline: {} });
+    const { service, timeRangeParser } = createService({ modelPipeline: {} });
     const managerStaffCard = {
       key: 'manager_staff_overview',
       readOnly: true,
       sideEffect: false,
-      intents: ['query', 'ranking'],
+      intents: ['query', 'ranking', 'comparison', 'diagnosis'],
       domains: ['staff', 'beautician'],
+      definitionRefs: [
+        {
+          definitionKey: 'metric.staff_service_revenue',
+          version: 1,
+          definitionFingerprint: 'a'.repeat(64),
+          sourceFingerprint: 'b'.repeat(64),
+        },
+        {
+          definitionKey: 'dimension.beauticianName',
+          version: 1,
+          definitionFingerprint: 'c'.repeat(64),
+          sourceFingerprint: 'd'.repeat(64),
+        },
+      ],
     };
     const reservationCard = {
       key: 'reservation_list',
@@ -7734,6 +7748,13 @@ describe('BrainChatService', () => {
       '唐伊2026年5月的排班是怎样的',
       '唐伊会做哪些项目',
       '能做洗面护理的美容师2026年1月1日至6月30日有谁在岗',
+      // ami-brain-unit-only: release-core staff routing paraphrases
+      '顾然的业绩走势如何',
+      '对比去年同期各美容师的连带率',
+      '去年同期按职级看，哪个层级的业绩产出最高',
+      '本周主力员工中有没有人实收下降',
+      '项目技能配置有没有缺口，哪些护理只有一人或没人能做',
+      '唐伊业绩下降了，如何帮她改善',
     ]) {
       expect(
         (service as any).findManagerStaffDirectoryCapabilityCard(question, baseIntent, [
@@ -7764,6 +7785,36 @@ describe('BrainChatService', () => {
     expect(normalized.filters).toEqual([]);
     expect(normalized.orderBy).toEqual([]);
     expect(normalized.dimensions).toEqual([expect.objectContaining({ definitionKey: 'dimension.beauticianName' })]);
+
+    timeRangeParser.parse.mockReturnValue(new BrainTimeRangeParserService().parse('去年同期'));
+    const releaseNormalized = (service as any).normalizeManagerStaffReleaseCoreAfterCompleteness({
+      intent: {
+        ...baseIntent,
+        domains: ['customer', 'reservation', 'beautician'],
+        entities: [
+          { entityType: 'customer', mention: '职级', confidence: 0.6, source: 'model' },
+          { entityType: 'beautician', mention: '美容师', confidence: 0.8, source: 'model' },
+        ],
+        ambiguities: [{ slot: 'metric', reason: '内部业绩口径冲突', candidates: [] }],
+        missingSlots: ['metric', 'timeRange'],
+      },
+      // ami-brain-unit-only: staff-level revenue paraphrase
+      question: '去年同期按职级看，哪个层级的业绩产出最高',
+      cards: [managerStaffCard],
+      timezone: 'Asia/Shanghai',
+    });
+    expect(releaseNormalized).toMatchObject({
+      domains: ['staff', 'beautician'],
+      intent: 'ranking',
+      answerShape: 'ranking',
+      timeRange: { label: '去年同期', timezone: 'Asia/Shanghai' },
+      missingSlots: [],
+      ambiguities: [],
+      metrics: [expect.objectContaining({ definitionKey: 'metric.staff_service_revenue' })],
+    });
+    expect(releaseNormalized.entities).toEqual([
+      expect.objectContaining({ entityType: 'beautician', mention: '美容师' }),
+    ]);
   });
 
   it('binds a numeric marketing strategy target and discards a model-only customer domain', () => {

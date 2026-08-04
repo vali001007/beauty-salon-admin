@@ -1944,6 +1944,12 @@ export class BrainChatService {
       intent: enrichedIntent,
       question: input.dto.message,
     });
+    enrichedIntent = this.normalizeManagerStaffReleaseCoreAfterCompleteness({
+      intent: enrichedIntent,
+      question: input.dto.message,
+      cards,
+      timezone: this.normalizeShadowTimezone(input.dto.timezone ?? input.context.timezone),
+    });
     enrichedIntent = this.normalizeExactGovernedCapabilityAfterCompleteness({
       intent: enrichedIntent,
       question: input.dto.message,
@@ -4291,6 +4297,7 @@ export class BrainChatService {
     question: string,
   ): BrainCapabilityCard | undefined {
     const staffMetricQuestion =
+      this.isManagerStaffDirectoryQuestion(question) ||
       /(?:服务了多少个客户|服务了多少客户|服务客户(?:数)?(?:有)?多少)/.test(question) ||
       /(?:哪个|哪位|谁).*(?:美容师|员工|技师)?.*(?:业绩|服务收入|关联实收).*(?:最高|最好)|(?:美容师|员工|技师).*(?:业绩|服务收入|关联实收).*(?:最高|最好)/.test(
         question,
@@ -5361,7 +5368,23 @@ export class BrainChatService {
         question,
       ) ||
       /(?:能做|会做).*(?:美容师|员工|技师).*(?:在岗|上班)/.test(question) ||
-      /(?:美容师|员工|技师).*(?:能做|会做).*(?:在岗|上班)/.test(question)
+      /(?:美容师|员工|技师).*(?:能做|会做).*(?:在岗|上班)/.test(question) ||
+      this.isManagerStaffReleaseCoreQuestion(question)
+    );
+  }
+
+  private isManagerStaffReleaseCoreQuestion(question: string) {
+    return (
+      /(?:业绩|实收).*(?:趋势|走势)|(?:趋势|走势).*(?:业绩|实收)/.test(question) ||
+      /(?:连带销售|连带率|搭售能力|交叉销售)/.test(question) ||
+      /(?:职级).*(?:产出|业绩|实收)|(?:产出|业绩|实收).*(?:职级)/.test(question) ||
+      /(?:主力).*(?:美容师|员工|技师)?.*(?:业绩|实收)?.*(?:下滑|下降)|(?:业绩|实收).*(?:主力).*(?:下滑|下降)/.test(
+        question,
+      ) ||
+      /(?:技能覆盖|技能配置).*(?:短板|不足|缺口)|(?:项目).*(?:缺人做|没人做|只有一人做)/.test(question) ||
+      /(?:业绩|实收).*(?:下滑|下降).*(?:建议|怎么帮|怎么办|如何帮)|(?:建议|怎么帮|怎么办|如何帮).*(?:业绩|实收).*(?:下滑|下降)/.test(
+        question,
+      )
     );
   }
 
@@ -5559,6 +5582,75 @@ export class BrainChatService {
       dimensions,
       filters: [],
       orderBy: [],
+    };
+  }
+
+  private normalizeManagerStaffReleaseCoreAfterCompleteness(input: {
+    intent: BrainSemanticIntent;
+    question: string;
+    cards: readonly BrainCapabilityCard[];
+    timezone: 'Asia/Shanghai' | 'UTC';
+  }): BrainSemanticIntent {
+    if (!this.isManagerStaffReleaseCoreQuestion(input.question)) return input.intent;
+    const card = input.cards.find(
+      (candidate) => candidate.key === 'manager_staff_overview' && candidate.readOnly && !candidate.sideEffect,
+    );
+    if (!card) return input.intent;
+    const staffPerformanceTrend = /(?:业绩|实收).*(?:趋势|走势)|(?:趋势|走势).*(?:业绩|实收)/.test(input.question);
+    const staffCrossSell = /(?:连带销售|连带率|搭售能力|交叉销售)/.test(input.question);
+    const staffLevelRevenue = /(?:职级).*(?:产出|业绩|实收)|(?:产出|业绩|实收).*(?:职级)/.test(input.question);
+    const staffSkillCoverage = /(?:技能覆盖|技能配置).*(?:短板|不足|缺口)|(?:项目).*(?:缺人做|没人做|只有一人做)/.test(
+      input.question,
+    );
+    const revenueRef = card.definitionRefs
+      .filter((ref) => ref.definitionKey === 'metric.staff_service_revenue')
+      .map((ref) => definitionRefFromCard(ref, 'metric'))[0];
+    const beauticianDimensionRef = card.definitionRefs
+      .filter((ref) => ref.definitionKey === 'dimension.beauticianName')
+      .map((ref) => definitionRefFromCard(ref, 'dimension'))[0];
+    const parsedTime = this.timeRangeParser.parse(input.question);
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: input.timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const timeRange = parsedTime.range
+      ? {
+          label: parsedTime.range.label,
+          startDate: formatter.format(parsedTime.range.startDate),
+          endDate: formatter.format(parsedTime.range.endDate),
+          timezone: input.timezone,
+        }
+      : input.intent.timeRange;
+    const intent: BrainSemanticIntent['intent'] = staffPerformanceTrend
+      ? 'query'
+      : staffCrossSell || staffLevelRevenue
+        ? 'ranking'
+        : 'diagnosis';
+    const answerShape: BrainSemanticIntent['answerShape'] =
+      staffPerformanceTrend || staffCrossSell ? 'comparison' : staffLevelRevenue ? 'ranking' : 'diagnosis';
+    return {
+      ...input.intent,
+      domains: ['staff', 'beautician'],
+      intent,
+      entities: input.intent.entities.filter((entity) => entity.entityType === 'beautician'),
+      metrics: revenueRef && !staffCrossSell && !staffSkillCoverage ? [revenueRef] : [],
+      dimensions: staffCrossSell && beauticianDimensionRef ? [beauticianDimensionRef] : [],
+      filters: [],
+      orderBy: staffLevelRevenue && revenueRef ? [{ definitionRef: revenueRef, direction: 'desc' }] : [],
+      answerShape,
+      ...(timeRange ? { timeRange } : {}),
+      ambiguities: input.intent.ambiguities.filter(
+        (ambiguity) => !['metric', 'timeRange', 'comparisonTarget'].includes(ambiguity.slot),
+      ),
+      missingSlots: input.intent.missingSlots.filter(
+        (slot) => !['metric', 'timeRange', 'comparisonTarget'].includes(slot),
+      ),
+      assumptions: [
+        ...input.intent.assumptions,
+        '本问法使用 manager_staff_overview 已发布的员工真实只读事实合同，不要求用户在已明确语义下重复选择内部指标。',
+      ],
     };
   }
 

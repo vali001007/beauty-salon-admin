@@ -3012,6 +3012,99 @@ describe('BrainSemanticIntentCompilerService', () => {
     expect(aiService.generateStructured).not.toHaveBeenCalled();
   });
 
+  it.each([
+    {
+      // ami-brain-unit-only: employee trend paraphrase
+      question: '顾然的业绩走势如何',
+      expectedIntent: 'query',
+      expectedShape: 'comparison',
+      expectedEntity: '顾然',
+    },
+    {
+      // ami-brain-unit-only: cross-sell paraphrase
+      question: '对比去年同期各美容师的连带率',
+      expectedIntent: 'ranking',
+      expectedShape: 'comparison',
+    },
+    {
+      // ami-brain-unit-only: staff-level revenue paraphrase
+      question: '去年同期按职级看，哪个层级的业绩产出最高',
+      expectedIntent: 'ranking',
+      expectedShape: 'ranking',
+    },
+    {
+      // ami-brain-unit-only: primary-staff decline paraphrase
+      question: '本周主力员工中有没有人实收下降',
+      expectedIntent: 'diagnosis',
+      expectedShape: 'diagnosis',
+    },
+    {
+      // ami-brain-unit-only: skill coverage paraphrase
+      question: '项目技能配置有没有缺口，哪些护理只有一人或没人能做',
+      expectedIntent: 'diagnosis',
+      expectedShape: 'diagnosis',
+    },
+    {
+      // ami-brain-unit-only: named decline advice paraphrase
+      question: '唐伊业绩下降了，如何帮她改善',
+      expectedIntent: 'diagnosis',
+      expectedShape: 'diagnosis',
+      expectedEntity: '唐伊',
+    },
+  ])(
+    'routes release-core staff analysis to the governed manager capability: $question',
+    async ({ question, expectedIntent, expectedShape, expectedEntity }) => {
+      const aiService = fakeAiService(async () => {
+        throw new Error('model_should_not_be_called');
+      });
+      const compiler = createCompiler(aiService);
+      const input = compilerInput(question);
+      input.capabilitySummaries = [
+        {
+          key: 'customer_facts',
+          name: '客户事实',
+          description: '客户事实查询',
+          domains: ['customer'],
+          intents: ['query'],
+          readOnly: true,
+          definitionRefs: [customerEntityRef],
+        },
+        {
+          key: 'manager_staff_overview',
+          name: '店长员工运营分析',
+          description: '员工趋势、连带销售、职级产出、技能覆盖与下滑诊断',
+          domains: ['staff', 'beautician'],
+          intents: ['query', 'ranking', 'comparison', 'diagnosis'],
+          readOnly: true,
+          definitionRefs: [
+            beauticianEntityRef,
+            beauticianNameDimensionRef,
+            staffServiceCountMetricRef,
+            staffUniqueCustomerCountMetricRef,
+            staffServiceRevenueMetricRef,
+          ],
+        },
+      ];
+      input.rankedCapabilityKeys = ['customer_facts', 'manager_staff_overview'];
+
+      const result = await compiler.compile(input);
+
+      expect(result).toMatchObject({
+        status: 'completed',
+        selectedCapabilityKey: 'manager_staff_overview',
+        provider: 'governed_contract',
+        model: 'manager_staff_metric_fast_path',
+        intent: { intent: expectedIntent, answerShape: expectedShape, missingSlots: [] },
+      });
+      if (expectedEntity) {
+        expect(result.status === 'completed' ? result.intent.entities : []).toEqual([
+          expect.objectContaining({ entityType: 'beautician', mention: expectedEntity }),
+        ]);
+      }
+      expect(aiService.generateStructured).not.toHaveBeenCalled();
+    },
+  );
+
   it('routes governed order profit even when finance risk is missing from the retrieved Top-K summaries', async () => {
     const aiService = fakeAiService(async () => {
       throw new Error('model_should_not_be_called');

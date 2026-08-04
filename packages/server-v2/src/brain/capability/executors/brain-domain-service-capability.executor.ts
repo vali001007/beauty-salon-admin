@@ -202,6 +202,12 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '唐伊上个月的排班是怎样的',
       '能做肩颈舒压养护的美容师昨天有谁在岗',
       '有没有员工这周业绩明显下滑',
+      '顾然的业绩趋势怎么样',
+      '去年同期美容师的连带销售能力对比',
+      '去年同期哪个职级产出最高',
+      '有没有主力美容师本周业绩下滑',
+      '技能覆盖有短板吗，某些项目缺人做',
+      '唐伊业绩下滑，建议怎么帮她',
       '新员工试用期表现怎么样',
       '有没有员工到期转正需要我处理',
       '有没有员工的客户被别的美容师挖走的迹象',
@@ -221,6 +227,12 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '美容师在岗名单',
       '员工工作饱和度',
       '员工业绩下滑',
+      '员工业绩趋势',
+      '美容师连带销售',
+      '员工职级产出',
+      '主力美容师下滑',
+      '项目技能覆盖短板',
+      '员工业绩下滑建议',
       '员工转正待办',
       '客户归属流转',
     ],
@@ -2082,6 +2094,506 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                 projectName: projectName ?? null,
                 beauticianIds: rows.map((row) => row.beauticianId),
                 completionCriteria: ['staff_schedule_rows_loaded', 'approved_staff_time_off_loaded'],
+              },
+            },
+            dataQuality,
+          );
+        }
+        if (/(?:技能覆盖|技能配置).*(?:短板|不足|缺口)|(?:项目).*(?:缺人做|没人做|只有一人做)/.test(input.question)) {
+          const coverage = await this.skillRuntime.buildManagerStaffSkillCoverage({
+            storeId: input.context.storeId,
+          });
+          const citation = {
+            sourceType: 'db_skill',
+            sourceId: 'manager_staff_skill_coverage',
+            label: '在职美容师项目技能覆盖事实',
+          };
+          const rows = coverage.projects
+            .filter((project) => project.staffCount <= 1)
+            .map((project) => ({
+              projectId: project.projectId,
+              projectName: project.projectName,
+              staffCount: project.staffCount,
+              certifiedStaffCount: project.certifiedStaffCount,
+              staffNames: project.staffNames.join('、'),
+              coverageStatus: project.staffCount === 0 ? '无人覆盖' : '单人覆盖',
+            }));
+          const uncoveredCount = rows.filter((row) => row.staffCount === 0).length;
+          const singleCoveredCount = rows.filter((row) => row.staffCount === 1).length;
+          const answer = rows.length
+            ? `当前 ${coverage.projects.length} 个在售项目中有 ${rows.length} 个技能覆盖短板：${uncoveredCount} 个无人覆盖、${singleCoveredCount} 个仅 1 人覆盖。短板口径为在职美容师技能配置人数不超过 1 人，认证人数单独披露。`
+            : `当前 ${coverage.projects.length} 个在售项目均至少有 2 位在职美容师配置技能，按当前口径未发现技能覆盖短板。`;
+          return this.applyDataQualityGuard(
+            {
+              status: 'completed',
+              answer,
+              citations: [citation],
+              grounding: 'db_skill',
+              blocks: [
+                {
+                  kind: 'kpi',
+                  items: [
+                    { label: '项目总数', value: `${coverage.projects.length} 个` },
+                    { label: '覆盖短板', value: `${rows.length} 个` },
+                    { label: '无人覆盖', value: `${uncoveredCount} 个` },
+                    { label: '单人覆盖', value: `${singleCoveredCount} 个` },
+                  ],
+                  citationIds: [citation.sourceId],
+                },
+                {
+                  kind: 'table',
+                  rows,
+                  columns: [
+                    'projectId',
+                    'projectName',
+                    'coverageStatus',
+                    'staffCount',
+                    'certifiedStaffCount',
+                    'staffNames',
+                  ],
+                  citationIds: [citation.sourceId],
+                },
+              ],
+              metadata: {
+                capabilityKey: 'manager_staff_overview',
+                answerScope: 'staff_project_skill_coverage_gap',
+                projectCount: coverage.projects.length,
+                coverageGapCount: rows.length,
+                coverageThreshold: 1,
+                completionCriteria: ['active_projects_loaded', 'active_staff_skill_assignments_loaded'],
+              },
+            },
+            dataQuality,
+          );
+        }
+        if (/(?:连带销售|连带率|搭售能力|交叉销售)/.test(input.question)) {
+          const analysis = await this.skillRuntime.buildManagerStaffCrossSellAnalysis({
+            storeId: input.context.storeId,
+            startDate: range.startDate,
+            endDate: range.endDate,
+          });
+          const citation = {
+            sourceType: 'db_skill',
+            sourceId: 'manager_staff_cross_sell_analysis',
+            label: '员工归属订单非赠品品类连带销售事实',
+          };
+          const rows = analysis.staff
+            .filter((staff) => staff.attributedOrderCount > 0)
+            .map((staff) => ({
+              beauticianId: staff.beauticianId,
+              staff: staff.name,
+              attributedOrderCount: staff.attributedOrderCount,
+              multiItemOrderCount: staff.multiItemOrderCount,
+              crossSellRate: staff.crossSellRate,
+              crossSellRateLabel: `${(staff.crossSellRate * 100).toFixed(1)}%`,
+              averageItemKindCount: Number(staff.averageItemKindCount.toFixed(2)),
+            }));
+          const answer = rows.length
+            ? `${range.label}美容师连带销售能力最高的是 ${rows[0]!.staff}，连带率 ${(rows[0]!.crossSellRate * 100).toFixed(1)}%。口径为该员工归属订单中，包含至少 2 种不同非赠品项目或商品的订单占比。`
+            : `${range.label}没有可归属到美容师的有效非赠品订单，暂时无法形成连带销售对比。`;
+          return this.applyDataQualityGuard(
+            {
+              status: 'completed',
+              answer,
+              citations: [citation],
+              grounding: 'db_skill',
+              blocks: [
+                {
+                  kind: 'ranking',
+                  rows,
+                  columns: [
+                    'staff',
+                    'crossSellRateLabel',
+                    'multiItemOrderCount',
+                    'attributedOrderCount',
+                    'averageItemKindCount',
+                  ],
+                  citationIds: [citation.sourceId],
+                },
+                ...(!rows.length
+                  ? [
+                      {
+                        kind: 'limitations' as const,
+                        items: ['no_data: 当前周期没有可归属到美容师的有效非赠品订单。'],
+                      },
+                    ]
+                  : []),
+              ],
+              metadata: {
+                capabilityKey: 'manager_staff_overview',
+                answerScope: 'staff_cross_sell_comparison',
+                rangeLabel: range.label,
+                staffCount: rows.length,
+                crossSellDefinition: 'attributed_orders_with_at_least_two_distinct_non_gift_item_kinds_ratio',
+                mappingOutputs: {
+                  staffRanking: rows.map((item) => ({
+                    entityType: 'beautician',
+                    entityKey: String(item.beauticianId),
+                    mention: item.staff,
+                    source: 'system',
+                    confidence: 1,
+                  })),
+                },
+                completionCriteria: ['staff_attributed_order_items_loaded'],
+              },
+            },
+            dataQuality,
+          );
+        }
+        if (/(?:职级).*(?:产出|业绩|实收)|(?:产出|业绩|实收).*(?:职级)/.test(input.question)) {
+          const [staffAnalysis, directory] = await Promise.all([
+            this.skillRuntime.buildManagerStaffAnalysis({
+              storeId: input.context.storeId,
+              startDate: range.startDate,
+              endDate: range.endDate,
+            }),
+            this.skillRuntime.buildManagerStaffDirectoryFacts({
+              storeId: input.context.storeId,
+              startDate: range.startDate,
+              endDate: range.endDate,
+            }),
+          ]);
+          const levelByStaff = new Map(
+            directory.staff.map((staff) => [staff.beauticianId, staff.level?.name ?? '未配置职级']),
+          );
+          const aggregate = new Map<string, { staffCount: number; revenueAmount: number }>();
+          for (const staff of staffAnalysis.staff) {
+            const level = levelByStaff.get(staff.beauticianId) ?? '未配置职级';
+            const current = aggregate.get(level) ?? { staffCount: 0, revenueAmount: 0 };
+            current.staffCount += 1;
+            current.revenueAmount += staff.revenueAmount;
+            aggregate.set(level, current);
+          }
+          const rows = [...aggregate.entries()]
+            .map(([level, facts]) => ({ level, ...facts }))
+            .sort(
+              (left, right) =>
+                right.revenueAmount - left.revenueAmount ||
+                right.staffCount - left.staffCount ||
+                left.level.localeCompare(right.level, 'zh-CN'),
+            );
+          const citation = {
+            sourceType: 'db_skill',
+            sourceId: 'manager_staff_level_revenue_analysis',
+            label: '员工职级与提成来源业绩实收聚合事实',
+          };
+          const answer = rows.length
+            ? `${range.label}产出最高的职级是 ${rows[0]!.level}，关联业绩实收 ${rows[0]!.revenueAmount.toFixed(2)} 元，覆盖 ${rows[0]!.staffCount} 位在职美容师。`
+            : `${range.label}没有可用于职级产出分析的在职美容师记录。`;
+          return this.applyDataQualityGuard(
+            {
+              status: 'completed',
+              answer,
+              citations: [citation],
+              grounding: 'db_skill',
+              blocks: [
+                {
+                  kind: 'ranking',
+                  rows,
+                  columns: ['level', 'revenueAmount', 'staffCount'],
+                  citationIds: [citation.sourceId],
+                },
+              ],
+              metadata: {
+                capabilityKey: 'manager_staff_overview',
+                answerScope: 'staff_level_revenue_ranking',
+                rangeLabel: range.label,
+                levelCount: rows.length,
+                revenueDefinition: 'CommissionRecord.sourceAmount grouped by current BeauticianLevel',
+                completionCriteria: ['staff_revenue_loaded', 'current_staff_level_loaded'],
+              },
+            },
+            dataQuality,
+          );
+        }
+        const staffTrendQuestion = /(?:业绩|实收).*(?:趋势|走势)|(?:趋势|走势).*(?:业绩|实收)/.test(input.question);
+        const staffDeclineAdviceQuestion =
+          /(?:业绩|实收).*(?:下滑|下降).*(?:建议|怎么帮|怎么办|如何帮)|(?:建议|怎么帮|怎么办|如何帮).*(?:业绩|实收).*(?:下滑|下降)/.test(
+            input.question,
+          );
+        if (staffTrendQuestion || staffDeclineAdviceQuestion) {
+          const effectiveRange = this.resolveStaffPerformanceRange(input, range);
+          const previousRange = this.previousComparableRange(effectiveRange);
+          const [current, previous] = await Promise.all([
+            this.skillRuntime.buildManagerStaffAnalysis({
+              storeId: input.context.storeId,
+              startDate: effectiveRange.startDate,
+              endDate: effectiveRange.endDate,
+            }),
+            this.skillRuntime.buildManagerStaffAnalysis({
+              storeId: input.context.storeId,
+              startDate: previousRange.startDate,
+              endDate: previousRange.endDate,
+            }),
+          ]);
+          const matches = this.resolveMentionedManagerStaff(current.staff, input.question);
+          const citation = {
+            sourceType: 'db_skill',
+            sourceId: 'manager_staff_performance_period_comparison',
+            label: '指定员工当前期与上一等长周期服务、客户和业绩事实',
+          };
+          if (matches.length !== 1) {
+            const question = matches.length
+              ? `当前门店识别到 ${matches.length} 位同名美容师，请补充员工编号后继续。`
+              : '没有在当前门店的在职美容师中识别到姓名，请补充完整姓名后继续。';
+            return {
+              status: 'completed',
+              answer: question,
+              citations: [citation],
+              grounding: 'db_skill',
+              blocks: [
+                {
+                  kind: 'clarification',
+                  question,
+                  options: matches.map((staff) => ({
+                    id: String(staff.beauticianId),
+                    label: `${staff.name}（员工编号 ${staff.beauticianId}）`,
+                    value: { beauticianId: staff.beauticianId },
+                  })),
+                },
+              ],
+              metadata: {
+                capabilityKey: 'manager_staff_overview',
+                answerScope: 'staff_performance_identity_clarification',
+                completion: { status: 'partial', missingCriteria: ['unique_staff_identity'], recoverable: true },
+              },
+            };
+          }
+          const staff = matches[0]!;
+          const previousStaff = previous.staff.find((item) => item.beauticianId === staff.beauticianId);
+          const previousRevenue = previousStaff?.revenueAmount ?? 0;
+          const revenueChange = staff.revenueAmount - previousRevenue;
+          const revenueChangeRate = previousRevenue > 0 ? revenueChange / previousRevenue : null;
+          const comparisonRows = [
+            {
+              metric: '业绩实收',
+              current: staff.revenueAmount,
+              previous: previousRevenue,
+              change: revenueChange,
+              changeRate: revenueChangeRate,
+            },
+            {
+              metric: '服务次数',
+              current: staff.serviceCount,
+              previous: previousStaff?.serviceCount ?? 0,
+              change: staff.serviceCount - (previousStaff?.serviceCount ?? 0),
+              changeRate: null,
+            },
+            {
+              metric: '独立客户',
+              current: staff.uniqueCustomerCount,
+              previous: previousStaff?.uniqueCustomerCount ?? 0,
+              change: staff.uniqueCustomerCount - (previousStaff?.uniqueCustomerCount ?? 0),
+              changeRate: null,
+            },
+            {
+              metric: '复购客户',
+              current: staff.repeatCustomerCount,
+              previous: previousStaff?.repeatCustomerCount ?? 0,
+              change: staff.repeatCustomerCount - (previousStaff?.repeatCustomerCount ?? 0),
+              changeRate: null,
+            },
+          ];
+          if (!staffDeclineAdviceQuestion) {
+            const trend = revenueChange > 0 ? '上升' : revenueChange < 0 ? '下降' : '持平';
+            const rateText =
+              revenueChangeRate === null
+                ? '上一周期为 0，无法计算比例'
+                : `${Math.abs(revenueChangeRate * 100).toFixed(1)}%`;
+            const answer = `${effectiveRange.label}${staff.name}业绩实收 ${staff.revenueAmount.toFixed(2)} 元，上一等长周期 ${previousRevenue.toFixed(2)} 元，${trend} ${Math.abs(revenueChange).toFixed(2)} 元（${rateText}）。`;
+            return this.applyDataQualityGuard(
+              {
+                status: 'completed',
+                answer,
+                citations: [citation],
+                grounding: 'db_skill',
+                blocks: [
+                  {
+                    kind: 'comparison',
+                    items: [
+                      {
+                        label: staff.name,
+                        current: `${staff.revenueAmount.toFixed(2)} 元`,
+                        previous: `${previousRevenue.toFixed(2)} 元`,
+                        delta:
+                          revenueChangeRate === null
+                            ? `${revenueChange.toFixed(2)} 元`
+                            : `${(revenueChangeRate * 100).toFixed(1)}%`,
+                      },
+                    ],
+                    citationIds: [citation.sourceId],
+                  },
+                  {
+                    kind: 'table',
+                    rows: comparisonRows,
+                    columns: ['metric', 'current', 'previous', 'change', 'changeRate'],
+                    citationIds: [citation.sourceId],
+                  },
+                ],
+                metadata: {
+                  capabilityKey: 'manager_staff_overview',
+                  answerScope: 'named_staff_performance_trend',
+                  beauticianId: staff.beauticianId,
+                  rangeLabel: effectiveRange.label,
+                  previousRangeLabel: previousRange.label,
+                  defaultRangeApplied: effectiveRange.label === '最近30天',
+                  completionCriteria: ['staff_current_period_loaded', 'staff_previous_equal_period_loaded'],
+                },
+              },
+              dataQuality,
+            );
+          }
+          const suggestions: string[] = [];
+          if (staff.serviceCount < (previousStaff?.serviceCount ?? 0))
+            suggestions.push('复核排班、预约分配和空档，确认服务机会是否减少');
+          if (staff.uniqueCustomerCount < (previousStaff?.uniqueCustomerCount ?? 0))
+            suggestions.push('查看新客及老客分配变化，优先补足可服务客户来源');
+          if (staff.repeatCustomerCount < (previousStaff?.repeatCustomerCount ?? 0))
+            suggestions.push('优先人工复盘上一周期服务客户的复购与回访情况');
+          if (
+            revenueChange < 0 &&
+            staff.serviceCount >= (previousStaff?.serviceCount ?? 0) &&
+            staff.uniqueCustomerCount >= (previousStaff?.uniqueCustomerCount ?? 0)
+          ) {
+            suggestions.push('服务量未同步下降，建议核对项目结构、客单和连带销售变化');
+          }
+          if (revenueChange >= 0) suggestions.push('当前数据不支持“业绩下滑”前提，暂不建议按下滑问题干预');
+          const answer = `${effectiveRange.label}${staff.name}业绩实收 ${revenueChange < 0 ? '下降' : revenueChange > 0 ? '上升' : '持平'}：${previousRevenue.toFixed(2)} -> ${staff.revenueAmount.toFixed(2)} 元。${suggestions.join('；')}。以上为只读诊断建议，不创建跟进、排班或营销动作。`;
+          return this.applyDataQualityGuard(
+            {
+              status: 'completed',
+              answer,
+              citations: [citation],
+              grounding: 'db_skill',
+              blocks: [
+                {
+                  kind: 'diagnosis',
+                  findings: [
+                    {
+                      title: `${staff.name}业绩变化`,
+                      detail: `${previousRevenue.toFixed(2)} -> ${staff.revenueAmount.toFixed(2)} 元`,
+                      severity: revenueChange < 0 ? 'warning' : 'info',
+                    },
+                    ...suggestions.map((suggestion) => ({
+                      title: '只读建议',
+                      detail: suggestion,
+                      severity: 'info' as const,
+                    })),
+                  ],
+                  citationIds: [citation.sourceId],
+                },
+                {
+                  kind: 'table',
+                  rows: comparisonRows,
+                  columns: ['metric', 'current', 'previous', 'change', 'changeRate'],
+                  citationIds: [citation.sourceId],
+                },
+                { kind: 'limitations', items: ['只读建议：未创建跟进任务、排班调整、营销触达或其他业务写入。'] },
+              ],
+              metadata: {
+                capabilityKey: 'manager_staff_overview',
+                answerScope: 'named_staff_decline_diagnosis_advice',
+                beauticianId: staff.beauticianId,
+                rangeLabel: effectiveRange.label,
+                previousRangeLabel: previousRange.label,
+                actionWriteCount: 0,
+                completionCriteria: [
+                  'staff_current_period_loaded',
+                  'staff_previous_equal_period_loaded',
+                  'read_only_suggestions_generated',
+                ],
+              },
+            },
+            dataQuality,
+          );
+        }
+        if (
+          /(?:主力).*(?:美容师|员工|技师)?.*(?:业绩|实收)?.*(?:下滑|下降)|(?:业绩|实收).*(?:主力).*(?:下滑|下降)/.test(
+            input.question,
+          )
+        ) {
+          const previousRange = this.previousComparableRange(range);
+          const [current, previous] = await Promise.all([
+            this.skillRuntime.buildManagerStaffAnalysis({
+              storeId: input.context.storeId,
+              startDate: range.startDate,
+              endDate: range.endDate,
+            }),
+            this.skillRuntime.buildManagerStaffAnalysis({
+              storeId: input.context.storeId,
+              startDate: previousRange.startDate,
+              endDate: previousRange.endDate,
+            }),
+          ]);
+          const previousRanked = previous.staff
+            .filter((staff) => staff.revenueAmount > 0)
+            .sort(
+              (left, right) => right.revenueAmount - left.revenueAmount || left.name.localeCompare(right.name, 'zh-CN'),
+            );
+          const primaryCount = previousRanked.length ? Math.max(1, Math.ceil(previousRanked.length * 0.25)) : 0;
+          const primaryStaff = previousRanked.slice(0, primaryCount);
+          const currentById = new Map(current.staff.map((staff) => [staff.beauticianId, staff]));
+          const rows = primaryStaff
+            .map((previousStaff) => {
+              const currentStaff = currentById.get(previousStaff.beauticianId);
+              const currentRevenue = currentStaff?.revenueAmount ?? 0;
+              return {
+                beauticianId: previousStaff.beauticianId,
+                staff: previousStaff.name,
+                previousRankRevenue: previousStaff.revenueAmount,
+                currentRevenue,
+                changeAmount: currentRevenue - previousStaff.revenueAmount,
+                declineRate: (previousStaff.revenueAmount - currentRevenue) / previousStaff.revenueAmount,
+              };
+            })
+            .filter((staff) => staff.currentRevenue < staff.previousRankRevenue)
+            .sort((left, right) => right.declineRate - left.declineRate);
+          const citation = {
+            sourceType: 'db_skill',
+            sourceId: 'manager_primary_staff_revenue_decline',
+            label: '上一周期高位员工与当前期业绩对比事实',
+          };
+          const answer = !primaryStaff.length
+            ? `${previousRange.label}没有业绩实收大于 0 的美容师，无法定义主力员工。`
+            : rows.length
+              ? `${range.label}发现 ${rows.length} 位主力美容师业绩下滑：${rows.map((staff) => `${staff.staff} 下降 ${(staff.declineRate * 100).toFixed(1)}%`).join('、')}。主力口径为上一等长周期业绩实收排名前 25%（至少 1 人）。`
+              : `${range.label}未发现主力美容师业绩下滑。主力口径为上一等长周期业绩实收排名前 25%（至少 1 人）。`;
+          return this.applyDataQualityGuard(
+            {
+              status: 'completed',
+              answer,
+              citations: [citation],
+              grounding: 'db_skill',
+              blocks: [
+                {
+                  kind: 'comparison',
+                  items: rows.map((staff) => ({
+                    label: staff.staff,
+                    current: `${staff.currentRevenue.toFixed(2)} 元`,
+                    previous: `${staff.previousRankRevenue.toFixed(2)} 元`,
+                    delta: `${(staff.declineRate * 100).toFixed(1)}%`,
+                  })),
+                  citationIds: [citation.sourceId],
+                },
+                {
+                  kind: 'table',
+                  rows: rows.map((staff) => ({
+                    ...staff,
+                    declineRateLabel: `${(staff.declineRate * 100).toFixed(1)}%`,
+                  })),
+                  columns: ['staff', 'currentRevenue', 'previousRankRevenue', 'changeAmount', 'declineRateLabel'],
+                  citationIds: [citation.sourceId],
+                },
+              ],
+              metadata: {
+                capabilityKey: 'manager_staff_overview',
+                answerScope: 'primary_staff_revenue_decline',
+                rangeLabel: range.label,
+                previousRangeLabel: previousRange.label,
+                primaryStaffDefinition: 'previous_equal_period_revenue_top_25_percent_minimum_one',
+                primaryStaffCount: primaryStaff.length,
+                decliningPrimaryStaffCount: rows.length,
+                completionCriteria: ['previous_period_primary_staff_ranked', 'current_period_revenue_compared'],
               },
             },
             dataQuality,
@@ -7443,6 +7955,19 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     }
     const parsedTime = this.timeRangeParser.parse(structuredTime?.label ?? structuredTime?.preset ?? input.question);
     return parsedTime.range ?? defaultBrainDateRange();
+  }
+
+  private resolveStaffPerformanceRange(input: BrainCapabilityExecutionInput, fallback: BrainDateRange): BrainDateRange {
+    const structuredTime = readCapabilityStructuredTime(input.args, input.context.timezone);
+    const parsedTime = this.timeRangeParser.parse(input.question);
+    if (structuredTime || parsedTime.range) return fallback;
+    const today = defaultBrainDateRange();
+    return {
+      label: '最近30天',
+      startDate: new Date(today.startDate.getTime() - 29 * 24 * 60 * 60 * 1000),
+      endDate: today.endDate,
+      granularity: 'day',
+    };
   }
 
   private executionTimeRange(range: BrainDateRange, timezone: string) {
