@@ -324,8 +324,12 @@ export class AiService {
       'LLM_FALLBACK_STRUCTURED_MAX_TOTAL_TOKENS',
       config.get('LLM_FALLBACK_STRUCTURED_MAX_TOTAL_TOKENS', String(this.structuredMaxTotalTokens)),
     );
+    const defaultBrainLlmPrimaryRoute =
+      String(config.get('NODE_ENV', 'development')).trim().toLowerCase() === 'production'
+        ? 'fallback'
+        : 'primary';
     this.brainLlmPrimaryRoute = this.parseBrainLlmPrimaryRoute(
-      config.get('BRAIN_LLM_PRIMARY_ROUTE', 'primary'),
+      config.get('BRAIN_LLM_PRIMARY_ROUTE', defaultBrainLlmPrimaryRoute),
     );
     this.faceppApiKey = String(config.get('FACEPP_API_KEY', '')).trim();
     this.faceppApiSecret = String(config.get('FACEPP_API_SECRET', '')).trim();

@@ -144,7 +144,8 @@ function deploymentIdentity() {
 }
 
 function brainModelIdentity() {
-  const routeMode = process.env.BRAIN_LLM_PRIMARY_ROUTE?.trim().toLowerCase() === 'fallback'
+  const defaultRoute = process.env.NODE_ENV?.trim().toLowerCase() === 'production' ? 'fallback' : 'primary';
+  const routeMode = (process.env.BRAIN_LLM_PRIMARY_ROUTE?.trim().toLowerCase() || defaultRoute) === 'fallback'
     ? 'fallback_promoted'
     : 'primary';
   return {

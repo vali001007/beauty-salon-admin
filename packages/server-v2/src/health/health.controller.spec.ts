@@ -77,9 +77,10 @@ describe('HealthController', () => {
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
   });
 
-  it('reports the promoted DeepSeek route as the effective Ami Brain primary', async () => {
+  it('reports DeepSeek as the default production Ami Brain primary', async () => {
     prisma.$queryRaw.mockResolvedValueOnce([{ database_ready: 1 }]);
-    process.env.BRAIN_LLM_PRIMARY_ROUTE = 'fallback';
+    process.env.NODE_ENV = 'production';
+    delete process.env.BRAIN_LLM_PRIMARY_ROUTE;
     process.env.LLM_PROVIDER = 'openai_compatible';
     process.env.LLM_MODEL = 'gpt-5.6-luna';
     process.env.LLM_TIMEOUT_MS = '30000';
@@ -168,6 +169,7 @@ describe('HealthController', () => {
     process.env.LLM_MODEL = 'gpt-5.6-terra';
     process.env.LLM_TIMEOUT_MS = '20000';
     process.env.BRAIN_FALLBACK_POLICY = 'deterministic';
+    process.env.BRAIN_LLM_PRIMARY_ROUTE = 'primary';
     process.env.ZEABUR_GIT_COMMIT_SHA = 'a'.repeat(40);
     process.env.ZEABUR_GIT_BRANCH = 'ami-brain-query-only-candidate';
     process.env.ZEABUR_DEPLOYMENT_ID = 'deploy-query-only-1';
