@@ -26,13 +26,7 @@ export class HealthController {
   async ready() {
     await this.prisma.$queryRaw`SELECT 1`;
     const brainActiveReleaseWarmup = this.brainActiveReleaseWarmup?.getStatus() ?? null;
-    const brainActiveReleaseWarmupRequired =
-      this.brainActiveReleaseWarmup?.isApplicationReadinessRequired() ?? false;
-    if (
-      brainActiveReleaseWarmupRequired &&
-      brainActiveReleaseWarmup &&
-      brainActiveReleaseWarmup.state !== 'ready'
-    ) {
+    if (brainActiveReleaseWarmup && brainActiveReleaseWarmup.state !== 'ready') {
       throw new ServiceUnavailableException(
         `brain_active_release_ontology_warmup_not_ready:${brainActiveReleaseWarmup.state}`,
       );
@@ -55,28 +49,6 @@ export class HealthController {
         stage: releaseGate.stage,
       },
       brainRuntimeRelease,
-      brainActiveReleaseWarmup,
-      brainActiveReleaseWarmupRequired,
-      degradedComponents:
-        brainActiveReleaseWarmup && brainActiveReleaseWarmup.state !== 'ready'
-          ? ['brain_active_release_ontology_warmup']
-          : [],
-      timestamp: new Date().toISOString(),
-    };
-  }
-
-  @Get('brain-ready')
-  async brainReady() {
-    await this.prisma.$queryRaw`SELECT 1`;
-    const brainActiveReleaseWarmup = this.brainActiveReleaseWarmup?.getStatus() ?? null;
-    if (!brainActiveReleaseWarmup || brainActiveReleaseWarmup.state !== 'ready') {
-      throw new ServiceUnavailableException(
-        `brain_active_release_ontology_warmup_not_ready:${brainActiveReleaseWarmup?.state ?? 'unavailable'}`,
-      );
-    }
-    return {
-      status: 'ready',
-      database: 'connected',
       brainActiveReleaseWarmup,
       timestamp: new Date().toISOString(),
     };

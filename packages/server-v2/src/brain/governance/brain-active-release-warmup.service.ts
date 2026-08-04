@@ -10,7 +10,6 @@ import { createReleaseFingerprint } from './brain-capability-regeneration-finger
 import { BrainWarmupArtifactService, type BrainWarmupArtifactRuntimeResult } from './brain-warmup-artifact.service.js';
 
 type WarmableReleaseStatus = 'active' | 'draft' | 'rolled_back' | 'archived';
-export type BrainActiveReleaseWarmupStartupMode = 'blocking' | 'background';
 const RUNTIME_RELEASE_SCOPES = ['global', 'store', 'user', 'role', 'percentage'] as const;
 
 export interface BrainReleaseOntologyWarmupResult {
@@ -28,8 +27,6 @@ export interface BrainReleaseOntologyWarmupResult {
 }
 
 export interface BrainActiveReleaseWarmupStatus {
-  readonly startupMode: BrainActiveReleaseWarmupStartupMode;
-  readonly applicationReadinessRequired: boolean;
   readonly state: 'pending' | 'warming' | 'ready' | 'failed';
   readonly currentPhase:
     | 'release_discovery'
@@ -86,11 +83,8 @@ interface ReleaseWarmupItem extends ReleaseWarmupItemIdentity {
 @Injectable()
 export class BrainActiveReleaseWarmupService implements OnApplicationBootstrap {
   private readonly logger = new Logger(BrainActiveReleaseWarmupService.name);
-  private readonly startupMode = resolveStartupMode();
   private warmActiveLoading?: Promise<BrainActiveReleaseWarmupStatus>;
   private status: BrainActiveReleaseWarmupStatus = freezeStatus({
-    startupMode: this.startupMode,
-    applicationReadinessRequired: this.startupMode === 'blocking',
     state: 'pending',
     currentPhase: null,
     startedAt: null,
@@ -115,8 +109,6 @@ export class BrainActiveReleaseWarmupService implements OnApplicationBootstrap {
     if (process.env.BRAIN_RELEASE_PILOT_MODE === 'true') {
       const completedAt = new Date().toISOString();
       this.status = freezeStatus({
-        startupMode: this.startupMode,
-        applicationReadinessRequired: this.startupMode === 'blocking',
         state: 'ready',
         currentPhase: null,
         startedAt: completedAt,
@@ -131,19 +123,7 @@ export class BrainActiveReleaseWarmupService implements OnApplicationBootstrap {
       this.logger.log('active_release_ontology_warmup_skipped reason=release_pilot');
       return;
     }
-    if (this.startupMode === 'background') {
-      void this.warmActiveReleasesForStartup().catch((error) => {
-        this.logger.warn(
-          `active_release_ontology_warmup_background_failed reason=${errorMessage(error)}`,
-        );
-      });
-      this.logger.log('active_release_ontology_warmup_started mode=background');
-      return;
-    }
-    await this.warmActiveReleasesForStartup();
-  }
 
-  private async warmActiveReleasesForStartup(): Promise<void> {
     const retry = resolveWarmupRetryConfig();
     let lastError: unknown;
     for (let attempt = 1; attempt <= retry.maxAttempts; attempt += 1) {
@@ -171,10 +151,6 @@ export class BrainActiveReleaseWarmupService implements OnApplicationBootstrap {
 
   getStatus(): BrainActiveReleaseWarmupStatus {
     return this.status;
-  }
-
-  isApplicationReadinessRequired(): boolean {
-    return this.startupMode === 'blocking';
   }
 
   async warmActiveReleases(): Promise<BrainActiveReleaseWarmupStatus> {
@@ -209,8 +185,6 @@ export class BrainActiveReleaseWarmupService implements OnApplicationBootstrap {
     const startedAtMs = Date.now();
     const startedAt = new Date(startedAtMs).toISOString();
     this.status = freezeStatus({
-      startupMode: this.startupMode,
-      applicationReadinessRequired: this.startupMode === 'blocking',
       state: 'warming',
       currentPhase: 'release_discovery',
       startedAt,
@@ -292,8 +266,6 @@ export class BrainActiveReleaseWarmupService implements OnApplicationBootstrap {
         .sort((left, right) => right.releaseId - left.releaseId);
       const completedAtMs = Date.now();
       this.status = freezeStatus({
-        startupMode: this.startupMode,
-        applicationReadinessRequired: this.startupMode === 'blocking',
         state: 'ready',
         currentPhase: null,
         startedAt,
@@ -319,8 +291,6 @@ export class BrainActiveReleaseWarmupService implements OnApplicationBootstrap {
       const completedAtMs = Date.now();
       const failureReason = errorMessage(error);
       this.status = freezeStatus({
-        startupMode: this.startupMode,
-        applicationReadinessRequired: this.startupMode === 'blocking',
         state: 'failed',
         currentPhase: this.status.currentPhase,
         startedAt,
@@ -492,15 +462,6 @@ function record(value: unknown): Record<string, unknown> {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function resolveStartupMode(): BrainActiveReleaseWarmupStartupMode {
-  const raw = process.env.BRAIN_ACTIVE_RELEASE_WARMUP_STARTUP_MODE?.trim().toLowerCase();
-  if (!raw || raw === 'blocking') return 'blocking';
-  if (raw === 'background') return 'background';
-  throw new Error(
-    `invalid_brain_active_release_warmup_startup_mode:${process.env.BRAIN_ACTIVE_RELEASE_WARMUP_STARTUP_MODE}`,
-  );
 }
 
 function resolveWarmupRetryConfig(env: NodeJS.ProcessEnv = process.env) {
