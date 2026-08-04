@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional } from '@nestjs/common';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { BrainGovernanceControlPlaneService } from './brain-governance-control-plane.service.js';
@@ -14,6 +14,7 @@ import {
 } from './brain-release-product-profile.js';
 
 const OPEN_TRANSITION_STATUSES = ['draft', 'validated', 'approved', 'switching', 'observing', 'rolling_back'] as const;
+const TRANSITION_MUTATION_LEASE_MS = 5 * 60 * 1000;
 
 @Injectable()
 export class BrainGovernanceTransitionService {
@@ -191,6 +192,7 @@ export class BrainGovernanceTransitionService {
       if (!raced) throw error;
       transition = raced;
     }
+    const detailedTransition = this.withProductIdentities(transition);
     if (created) await this.events?.record({
       candidateId: candidate.id,
       eventType: 'transition_prepared',
@@ -198,15 +200,9 @@ export class BrainGovernanceTransitionService {
       entityId: transition.id,
       actorType: 'user',
       actorId: input.actorId,
-      payload: {
-        transitionKey,
-        oldPolicyReleaseId: transition.oldPolicyReleaseId,
-        newPolicyReleaseId: transition.newPolicyReleaseId,
-        oldRuntimeReleaseId: transition.oldRuntimeReleaseId,
-        runtimeSequenceId: transition.runtimeSequenceId,
-      },
+      payload: transitionAuditPayload(detailedTransition),
     });
-    return transition;
+    return detailedTransition;
   }
 
   async validate(id: number) {
@@ -255,7 +251,7 @@ export class BrainGovernanceTransitionService {
 
   async approvePolicy(id: number, actorId: number) {
     const existing = await this.prisma.brainGovernanceTransition.findUniqueOrThrow({ where: { id } });
-    if (existing.policyApprovedAt) return existing;
+    if (existing.policyApprovedAt) return this.get(id);
     const validation = await this.validate(id);
     if (!validation.valid) throw new BadRequestException(`governance_transition_not_valid:${validation.blockers.join(',')}`);
     const claim = await this.prisma.brainGovernanceTransition.updateMany({
@@ -270,15 +266,24 @@ export class BrainGovernanceTransitionService {
     if (updated.policyApprovedAt && updated.runtimeApprovedAt && updated.status !== 'approved') {
       updated = await this.prisma.brainGovernanceTransition.update({ where: { id }, data: { status: 'approved' } });
     }
+    const detailedTransition = await this.get(id);
     if (claim.count === 1) {
-      await this.events?.record({ eventType: 'policy_approved', entityType: 'governance_transition', entityId: id, actorType: 'user', actorId, payload: {} });
+      await this.events?.record({
+        candidateId: detailedTransition.candidateId,
+        eventType: 'policy_approved',
+        entityType: 'governance_transition',
+        entityId: id,
+        actorType: 'user',
+        actorId,
+        payload: transitionAuditPayload(detailedTransition),
+      });
     }
-    return updated;
+    return detailedTransition;
   }
 
   async approveRuntime(id: number, actorId: number) {
     const existing = await this.prisma.brainGovernanceTransition.findUniqueOrThrow({ where: { id } });
-    if (existing.runtimeApprovedAt) return existing;
+    if (existing.runtimeApprovedAt) return this.get(id);
     const validation = await this.validate(id);
     if (!validation.valid) throw new BadRequestException(`governance_transition_not_valid:${validation.blockers.join(',')}`);
     const claim = await this.prisma.brainGovernanceTransition.updateMany({
@@ -293,14 +298,23 @@ export class BrainGovernanceTransitionService {
     if (updated.policyApprovedAt && updated.runtimeApprovedAt && updated.status !== 'approved') {
       updated = await this.prisma.brainGovernanceTransition.update({ where: { id }, data: { status: 'approved' } });
     }
+    const detailedTransition = await this.get(id);
     if (claim.count === 1) {
-      await this.events?.record({ eventType: 'runtime_approved', entityType: 'governance_transition', entityId: id, actorType: 'user', actorId, payload: {} });
+      await this.events?.record({
+        candidateId: detailedTransition.candidateId,
+        eventType: 'runtime_approved',
+        entityType: 'governance_transition',
+        entityId: id,
+        actorType: 'user',
+        actorId,
+        payload: transitionAuditPayload(detailedTransition),
+      });
     }
-    return updated;
+    return detailedTransition;
   }
 
   async switch(input: { id: number; actorId: number; storeId: number; userId: number; roleKey: string }) {
-    return this.withTransitionMutationLock(() => this.switchLocked(input));
+    return this.withTransitionMutationLease(input.id, 'switch', () => this.switchLocked(input));
   }
 
   private async switchLocked(input: { id: number; actorId: number; storeId: number; userId: number; roleKey: string }) {
@@ -381,6 +395,19 @@ export class BrainGovernanceTransitionService {
           data: { status: 'observing', currentStep: 'runtime_shadow_active', failureCode: null, failureMessage: null },
         }),
       ]);
+      const auditPayload = transitionAuditPayload(transition, {
+        effectiveReleaseId: effective.release.id,
+        policyReleaseId: transition.newPolicyReleaseId,
+      });
+      await this.events?.record({
+        candidateId: transition.candidateId,
+        eventType: 'runtime_shadow_activated',
+        entityType: 'governance_transition',
+        entityId: transition.id,
+        actorType: 'user',
+        actorId: input.actorId,
+        payload: auditPayload,
+      });
       await this.events?.record({
         candidateId: transition.candidateId,
         eventType: 'policy_switched',
@@ -388,11 +415,32 @@ export class BrainGovernanceTransitionService {
         entityId: transition.id,
         actorType: 'user',
         actorId: input.actorId,
-        payload: { effectiveReleaseId: effective.release.id, policyReleaseId: transition.newPolicyReleaseId },
+        payload: auditPayload,
+      });
+      await this.events?.record({
+        candidateId: transition.candidateId,
+        eventType: 'legacy_policy_retired',
+        entityType: 'governance_transition',
+        entityId: transition.id,
+        actorType: 'user',
+        actorId: input.actorId,
+        payload: auditPayload,
       });
       return this.get(transition.id);
     } catch (error) {
       const compensationErrors: string[] = [];
+      try {
+        await this.events?.record({
+          candidateId: transition.candidateId,
+          eventType: 'transition_compensation_started',
+          entityType: 'governance_transition',
+          entityId: transition.id,
+          actorType: 'system',
+          payload: transitionAuditPayload(transition),
+        });
+      } catch (eventError) {
+        compensationErrors.push(eventError instanceof Error ? eventError.message : String(eventError));
+      }
       if (runtimeActivated) {
         try {
           await this.rolloutSequence.rollback(transition.runtimeSequenceId, 'governance_transition_compensation', input.actorId);
@@ -411,6 +459,20 @@ export class BrainGovernanceTransitionService {
         }
       }
       const reason = error instanceof Error ? error.message : String(error);
+      if (!compensationErrors.length) {
+        try {
+          await this.events?.record({
+            candidateId: transition.candidateId,
+            eventType: 'transition_compensation_completed',
+            entityType: 'governance_transition',
+            entityId: transition.id,
+            actorType: 'system',
+            payload: transitionAuditPayload(transition, { failureCode: reason }),
+          });
+        } catch (eventError) {
+          compensationErrors.push(eventError instanceof Error ? eventError.message : String(eventError));
+        }
+      }
       await this.prisma.brainGovernanceTransition.update({
         where: { id: transition.id },
         data: {
@@ -426,7 +488,7 @@ export class BrainGovernanceTransitionService {
   }
 
   async rollback(id: number, reason: string, actorId: number) {
-    return this.withTransitionMutationLock(() => this.rollbackLocked(id, reason, actorId));
+    return this.withTransitionMutationLease(id, 'rollback', () => this.rollbackLocked(id, reason, actorId));
   }
 
   private async rollbackLocked(id: number, reason: string, actorId: number) {
@@ -462,7 +524,7 @@ export class BrainGovernanceTransitionService {
   }
 
   async finalize(id: number, actorId: number) {
-    return this.withTransitionMutationLock(() => this.finalizeLocked(id, actorId));
+    return this.withTransitionMutationLease(id, 'finalize', () => this.finalizeLocked(id, actorId));
   }
 
   private async finalizeLocked(id: number, actorId: number) {
@@ -485,6 +547,19 @@ export class BrainGovernanceTransitionService {
         data: { status: 'completed', currentStep: 'completed', completedAt: now },
       }),
     ]);
+    const auditPayload = transitionAuditPayload(transition, {
+      supersededRuntimeReleaseId: transition.oldRuntimeReleaseId,
+      activeRuntimeReleaseId: full.id,
+    });
+    await this.events?.record({
+      candidateId: transition.candidateId,
+      eventType: 'legacy_runtime_superseded',
+      entityType: 'governance_transition',
+      entityId: transition.id,
+      actorType: 'user',
+      actorId,
+      payload: auditPayload,
+    });
     await this.events?.record({
       candidateId: transition.candidateId,
       eventType: 'transition_completed',
@@ -492,7 +567,7 @@ export class BrainGovernanceTransitionService {
       entityId: transition.id,
       actorType: 'user',
       actorId,
-      payload: { supersededRuntimeReleaseId: transition.oldRuntimeReleaseId, activeRuntimeReleaseId: full.id },
+      payload: auditPayload,
     });
     return this.get(id);
   }
@@ -506,11 +581,41 @@ export class BrainGovernanceTransitionService {
     return policy;
   }
 
-  private async withTransitionMutationLock<T>(work: () => Promise<T>): Promise<T> {
-    return this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(20260804, 7301)`);
-      return work();
-    }, { maxWait: 10_000, timeout: 180_000 });
+  private async withTransitionMutationLease<T>(
+    id: number,
+    operation: 'switch' | 'rollback' | 'finalize',
+    work: () => Promise<T>,
+  ): Promise<T> {
+    const now = new Date();
+    const leaseToken = randomUUID();
+    const leaseExpiresAt = new Date(now.getTime() + TRANSITION_MUTATION_LEASE_MS);
+    const claim = await this.prisma.brainGovernanceTransition.updateMany({
+      where: {
+        id: positiveId(id, 'governance_transition_id_invalid'),
+        OR: [
+          { mutationLeaseToken: null },
+          { mutationLeaseExpiresAt: { lte: now } },
+        ],
+      },
+      data: {
+        mutationLeaseToken: leaseToken,
+        mutationLeaseOperation: operation,
+        mutationLeaseExpiresAt: leaseExpiresAt,
+      },
+    });
+    if (claim.count !== 1) throw new ConflictException('governance_transition_mutation_in_progress');
+    try {
+      return await work();
+    } finally {
+      await this.prisma.brainGovernanceTransition.updateMany({
+        where: { id, mutationLeaseToken: leaseToken },
+        data: {
+          mutationLeaseToken: null,
+          mutationLeaseOperation: null,
+          mutationLeaseExpiresAt: null,
+        },
+      });
+    }
   }
 
   private async currentRuntime(includeItems = false) {
@@ -531,6 +636,9 @@ export class BrainGovernanceTransitionService {
   }
 
   private withProductIdentities<T extends {
+    mutationLeaseToken?: string | null;
+    mutationLeaseOperation?: string | null;
+    mutationLeaseExpiresAt?: Date | null;
     oldPolicy: { id: number; releaseKey: string; scope: string };
     newPolicy: { id: number; releaseKey: string; scope: string };
     oldRuntime: { id: number; releaseKey: string; scope: string };
@@ -544,6 +652,12 @@ export class BrainGovernanceTransitionService {
       releases?: Array<{ id: number; releaseKey: string; scope: string; rolloutStage?: string | null }>;
     };
   }>(transition: T) {
+    const {
+      mutationLeaseToken: _mutationLeaseToken,
+      mutationLeaseOperation,
+      mutationLeaseExpiresAt,
+      ...publicTransition
+    } = transition;
     const sequence = transition.runtimeSequence;
     const legacyReleaseId = sequence.releases?.find((release) => release.rolloutStage === sequence.currentStage)?.id
       ?? sequence.releases?.[0]?.id;
@@ -556,7 +670,10 @@ export class BrainGovernanceTransitionService {
       internalReleaseId: legacyReleaseId ?? null,
     };
     return {
-      ...transition,
+      ...publicTransition,
+      mutationLease: mutationLeaseOperation && mutationLeaseExpiresAt
+        ? { operation: mutationLeaseOperation, expiresAt: mutationLeaseExpiresAt }
+        : null,
       oldPolicy: this.withReleaseIdentity(transition.oldPolicy),
       newPolicy: this.withReleaseIdentity(transition.newPolicy),
       oldRuntime: this.withReleaseIdentity(transition.oldRuntime),
@@ -617,6 +734,40 @@ function sha256(value: unknown) {
 
 function isPrismaCode(error: unknown, code: string) {
   return Boolean(error && typeof error === 'object' && 'code' in error && (error as { code?: unknown }).code === code);
+}
+
+function transitionAuditPayload(
+  transition: {
+    transitionKey?: string | null;
+    candidateId?: number | null;
+    candidate?: { candidateKey?: string | null; headCommit?: string | null } | null;
+    oldPolicyReleaseId?: number | null;
+    newPolicyReleaseId?: number | null;
+    oldRuntimeReleaseId?: number | null;
+    runtimeSequenceId?: number | null;
+    newPolicy?: { displayCode?: string | null; productIdentity?: { code?: string | null } | null } | null;
+    runtimeSequence?: {
+      runtimeVersionCode?: string | null;
+      currentStage?: string | null;
+      productIdentity?: { code?: string | null; stageCode?: string | null } | null;
+    } | null;
+  },
+  extra: Record<string, unknown> = {},
+) {
+  return {
+    transitionKey: transition.transitionKey ?? null,
+    candidateId: transition.candidateId ?? null,
+    candidateKey: transition.candidate?.candidateKey ?? null,
+    headCommit: transition.candidate?.headCommit ?? null,
+    policyCode: transition.newPolicy?.productIdentity?.code ?? transition.newPolicy?.displayCode ?? null,
+    policyInternalReleaseId: transition.newPolicyReleaseId ?? null,
+    runtimeCode: transition.runtimeSequence?.productIdentity?.code ?? transition.runtimeSequence?.runtimeVersionCode ?? null,
+    runtimeStageCode: transition.runtimeSequence?.productIdentity?.stageCode ?? transition.runtimeSequence?.currentStage ?? null,
+    runtimeSequenceId: transition.runtimeSequenceId ?? null,
+    oldPolicyInternalReleaseId: transition.oldPolicyReleaseId ?? null,
+    oldRuntimeInternalReleaseId: transition.oldRuntimeReleaseId ?? null,
+    ...extra,
+  };
 }
 
 function fallbackProductIdentity(release: { id: number; releaseKey: string; scope: string }) {

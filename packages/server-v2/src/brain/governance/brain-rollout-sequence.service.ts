@@ -343,6 +343,22 @@ export class BrainRolloutSequenceService {
       actorId: input.actorId,
       payload: { fromStage: sequence.currentStage, toStage: nextStage.key, releaseId: release.id, observedHealth },
     });
+    await this.events?.record({
+      candidateId: sequence.candidateId,
+      eventType: 'runtime_promoted',
+      entityType: 'rollout_sequence',
+      entityId: id,
+      actorType: 'user',
+      actorId: input.actorId,
+      payload: {
+        runtimeCode: sequence.runtimeVersionCode ?? null,
+        fromStage: sequence.currentStage,
+        toStage: nextStage.key,
+        releaseId: release.id,
+        completed,
+        observedHealth,
+      },
+    });
     return { sequence: await this.get(id), release: activated };
   }
 

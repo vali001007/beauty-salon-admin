@@ -5853,15 +5853,16 @@ model BrainGovernanceCandidate {
 }
 
 model BrainGovernanceEvent {
-  id          Int      @id @default(autoincrement())
-  candidateId Int?
-  eventType   String
-  entityType  String
-  entityId    String
-  actorType   String
-  actorId     String?
-  payload     Json     @default("{}")
-  createdAt   DateTime @default(now())
+  id             Int      @id @default(autoincrement())
+  candidateId    Int?
+  eventType      String
+  entityType     String
+  entityId       String
+  actorType      String
+  actorId        String?
+  payload        Json     @default("{}")
+  resultChecksum String?  @db.VarChar(64)
+  createdAt      DateTime @default(now())
 
   candidate BrainGovernanceCandidate? @relation(fields: [candidateId], references: [id], onDelete: SetNull)
 
@@ -5907,26 +5908,29 @@ model BrainRolloutSequence {
 }
 
 model BrainGovernanceTransition {
-  id                  Int       @id @default(autoincrement())
-  transitionKey       String    @unique
-  status              String    @default("draft")
-  candidateId         Int
-  oldPolicyReleaseId  Int
-  newPolicyReleaseId  Int
-  oldRuntimeReleaseId Int
-  runtimeSequenceId   Int
-  policyApprovedBy    Int?
-  policyApprovedAt    DateTime?
-  runtimeApprovedBy   Int?
-  runtimeApprovedAt   DateTime?
-  currentStep         String    @default("prepared")
-  failureCode         String?
-  failureMessage      String?
-  startedAt           DateTime?
-  completedAt         DateTime?
-  createdBy           Int
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                     Int       @id @default(autoincrement())
+  transitionKey          String    @unique
+  status                 String    @default("draft")
+  candidateId            Int
+  oldPolicyReleaseId     Int
+  newPolicyReleaseId     Int
+  oldRuntimeReleaseId    Int
+  runtimeSequenceId      Int
+  policyApprovedBy       Int?
+  policyApprovedAt       DateTime?
+  runtimeApprovedBy      Int?
+  runtimeApprovedAt      DateTime?
+  currentStep            String    @default("prepared")
+  failureCode            String?
+  failureMessage         String?
+  mutationLeaseToken     String?
+  mutationLeaseOperation String?
+  mutationLeaseExpiresAt DateTime?
+  startedAt              DateTime?
+  completedAt            DateTime?
+  createdBy              Int
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   candidate       BrainGovernanceCandidate @relation(fields: [candidateId], references: [id], onDelete: Restrict)
   oldPolicy       BrainRelease             @relation("BrainGovernanceTransitionOldPolicy", fields: [oldPolicyReleaseId], references: [id], onDelete: Restrict)
@@ -5938,6 +5942,7 @@ model BrainGovernanceTransition {
   @@index([candidateId, status])
   @@index([newPolicyReleaseId])
   @@index([runtimeSequenceId])
+  @@index([mutationLeaseExpiresAt])
   @@map("brain_governance_transition")
 }
 

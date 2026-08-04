@@ -1,12 +1,12 @@
 {
   "schemaVersion": "ami-brain-product-loop-data-facts/v1",
-  "generatedAt": "2026-08-03T20:51:26.425Z",
+  "generatedAt": "2026-08-04T05:15:02.557Z",
   "environment": "approved_supabase_development_read_only",
   "databaseHost": "aws-1-ap-northeast-1.pooler.supabase.com",
   "storeId": 6,
   "schemaPath": "packages/server-v2/prisma/schema.prisma",
-  "schemaChecksum": "645afb4f5d382e68eb9b92b96e8183e5f9baf801e1da76e009a3042220a6bbbd",
-  "snapshotChecksum": "35ab01f08072e6f3552ba3c67a8a03ff2de7b787b48795ea7a79bd8e2be34bf2",
+  "schemaChecksum": "0b288251bff2017699f9e016b96294ec77bcce8451fdb3144737a1d4a3c8c4e2",
+  "snapshotChecksum": "9359ff7749edc95b94678fe8eea351500647eb948ebbc43c3011cad2693e5c7d",
   "summary": {
     "featureCount": 32,
     "present": 32,
@@ -270,7 +270,7 @@
         {
           "model": "CommissionRecord",
           "status": "queried",
-          "count": 148,
+          "count": 147,
           "scope": "storeId=6"
         },
         {
@@ -317,7 +317,7 @@
         {
           "model": "CommissionRecord",
           "status": "queried",
-          "count": 148,
+          "count": 147,
           "scope": "storeId=6"
         }
       ]
@@ -669,7 +669,7 @@
         {
           "model": "CardUsageRecord",
           "status": "queried",
-          "count": 258,
+          "count": 257,
           "scope": "storeId=6"
         }
       ]
@@ -779,7 +779,7 @@
         {
           "model": "StockMovement",
           "status": "queried",
-          "count": 570,
+          "count": 565,
           "scope": "storeId=6"
         },
         {
@@ -861,7 +861,7 @@
         {
           "model": "CommissionRecord",
           "status": "queried",
-          "count": 148,
+          "count": 147,
           "scope": "storeId=6"
         },
         {
@@ -905,7 +905,7 @@
         {
           "model": "CommissionRecord",
           "status": "queried",
-          "count": 148,
+          "count": 147,
           "scope": "storeId=6"
         },
         {
@@ -946,7 +946,7 @@
         {
           "model": "CommissionRecord",
           "status": "queried",
-          "count": 148,
+          "count": 147,
           "scope": "storeId=6"
         },
         {
@@ -977,19 +977,19 @@
         {
           "model": "MarketingAutomationStrategy",
           "status": "queried",
-          "count": 14,
+          "count": 16,
           "scope": "storeId=6"
         },
         {
           "model": "MarketingAutomationExecution",
           "status": "queried",
-          "count": 177,
+          "count": 186,
           "scope": "storeId=6"
         },
         {
           "model": "MarketingAutomationTouch",
           "status": "queried",
-          "count": 12241,
+          "count": 15463,
           "scope": "global"
         }
       ]
@@ -1020,7 +1020,7 @@
         {
           "model": "MarketingAutomationTouch",
           "status": "queried",
-          "count": 12241,
+          "count": 15463,
           "scope": "global"
         },
         {
@@ -1167,7 +1167,7 @@
         {
           "model": "BrainConversation",
           "status": "queried",
-          "count": 40694,
+          "count": 40695,
           "scope": "storeId=6"
         },
         {
@@ -1179,7 +1179,7 @@
         {
           "model": "BrainRelease",
           "status": "queried",
-          "count": 452,
+          "count": 453,
           "scope": "global"
         }
       ]
@@ -1196,7 +1196,7 @@
         {
           "model": "BrainConversation",
           "status": "queried",
-          "count": 40694,
+          "count": 40695,
           "scope": "storeId=6"
         },
         {
@@ -1208,7 +1208,7 @@
         {
           "model": "BrainRelease",
           "status": "queried",
-          "count": 452,
+          "count": 453,
           "scope": "global"
         }
       ]
@@ -1225,7 +1225,7 @@
         {
           "model": "BrainConversation",
           "status": "queried",
-          "count": 40694,
+          "count": 40695,
           "scope": "storeId=6"
         },
         {
@@ -1237,7 +1237,7 @@
         {
           "model": "BrainRelease",
           "status": "queried",
-          "count": 452,
+          "count": 453,
           "scope": "global"
         }
       ]

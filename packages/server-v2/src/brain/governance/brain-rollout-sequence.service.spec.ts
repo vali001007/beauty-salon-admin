@@ -224,10 +224,12 @@ describe('BrainRolloutSequenceService', () => {
       brainRolloutSequence: { update: jest.fn().mockResolvedValue({}) },
       brainGovernanceCandidate: { update: jest.fn() },
     };
+    const events = { record: jest.fn().mockResolvedValue({}) };
     const service = new BrainRolloutSequenceService(
       prisma as never,
       releaseService as never,
       { observe: jest.fn().mockResolvedValue({ status: 'ready', blockers: [] }) } as never,
+      events as never,
     );
     jest.spyOn(service, 'get')
       .mockResolvedValueOnce({
@@ -255,6 +257,18 @@ describe('BrainRolloutSequenceService', () => {
       rolloutTransition: { sequenceId: 51, fromStage: 'canary_5', toStage: 'canary_20' },
     });
     expect(releaseService.activateRelease).not.toHaveBeenCalledWith(expect.objectContaining({ releaseId: 104 }));
+    expect(events.record).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'runtime_promoted',
+      candidateId: 17,
+      entityType: 'rollout_sequence',
+      entityId: 51,
+      payload: expect.objectContaining({
+        fromStage: 'canary_5',
+        toStage: 'canary_20',
+        releaseId: 103,
+        completed: false,
+      }),
+    }));
   });
 
   it('rolls back through the guarded sequence transition instead of the legacy release path', async () => {
