@@ -84,6 +84,7 @@ export function buildEvalArgs(options, stage, resumeRunId, standardDelta = false
     `--concurrency=${options.concurrency}`,
     `--checkpoint-every=${options.checkpointEvery}`,
     `--max-cases-per-invocation=${options.maxCasesPerInvocation}`,
+    ...(options.evaluationReleaseId ? [`--evaluation-release-id=${options.evaluationReleaseId}`] : []),
     ...(standardDelta ? ['--standard-delta'] : []),
     ...(standardDelta ? [`--release-core-run-id=${releaseCoreRunId}`] : []),
     ...(resumeRunId ? [`--resume-run-id=${resumeRunId}`] : []),

@@ -103,6 +103,7 @@ const GOLD_STANDARD_MANIFEST_PATH = resolve(
   ROOT,
   'docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-manifest-v1.json',
 );
+const RUNTIME_RELEASE_SCOPES = ['global', 'store', 'user', 'role', 'percentage'] as const;
 const OUTPUT_ROOT = resolve(ROOT, 'docs/04-测试数据/Ami-Brain-分层验收');
 const REPORT_ROOT = resolve(ROOT, 'docs/03-开发计划/01-AI智能体与问数能力/07-Ami-Brain-当前主线');
 async function main() {
@@ -174,12 +175,21 @@ async function main() {
     const traceService = app.get(BrainTraceService);
     const ai = app.get(AiService);
     const activeReleases = await prisma.brainRelease.findMany({
-      where: options.evaluationReleaseId ? { id: options.evaluationReleaseId } : { status: 'active' },
-      orderBy: { activatedAt: 'desc' },
-      select: { id: true, releaseKey: true, status: true, activatedAt: true, rollout: true, createdAt: true },
+      where: { id: options.evaluationReleaseId ?? options.expectedReleaseId },
+      select: {
+        id: true,
+        releaseKey: true,
+        scope: true,
+        status: true,
+        releaseFamily: true,
+        displayCode: true,
+        activatedAt: true,
+        rollout: true,
+        createdAt: true,
+      },
     });
     if (activeReleases.length !== 1) {
-      throw new Error('ami_brain_full_domain_eval_active_release_count_invalid:' + activeReleases.length);
+      throw new Error('ami_brain_full_domain_eval_release_missing:' + (options.evaluationReleaseId ?? options.expectedReleaseId));
     }
     const activeRelease = activeReleases[0]!;
     if (activeRelease.id !== options.expectedReleaseId) {
@@ -189,11 +199,20 @@ async function main() {
       const rollout = asRecord(activeRelease.rollout);
       if (
         activeRelease.status !== 'draft' ||
+        activeRelease.releaseFamily !== 'evaluation' ||
+        !/^EV-\d{3,}$/u.test(activeRelease.displayCode ?? '') ||
         rollout.evaluationOnly !== true ||
         rollout.mode !== 'shadow'
       ) {
         throw new Error('ami_brain_full_domain_eval_evaluation_release_not_draft_shadow_only');
       }
+    } else if (
+      activeRelease.status !== 'active' ||
+      !(RUNTIME_RELEASE_SCOPES as readonly string[]).includes(activeRelease.scope) ||
+      activeRelease.releaseFamily === 'policy' ||
+      activeRelease.releaseFamily === 'evaluation'
+    ) {
+      throw new Error('ami_brain_full_domain_eval_release_not_active_runtime');
     }
     const candidateWorktree = options.requireCleanCandidate
       ? assertCandidateWorktreeClean()
@@ -270,7 +289,9 @@ async function main() {
               suiteKey: suite.key,
               suiteLabel: options.runLabel || suite.label,
               runKey: options.runKey,
-              executionPurpose: options.goldStandardOnly ? 'task9_gold_standard_diagnostic_only' : executionPurposeForStage(options.stage),
+              executionPurpose: options.goldStandardOnly
+                ? 'task9_gold_standard_diagnostic_only'
+                : executionPurposeForRun(options),
               comparisonRunId: options.comparisonRunId ?? null,
               stage: options.goldStandardOnly ? 'gold-standard-diagnostic' : options.stage,
               sourceFile: relative(CSV_PATH),
@@ -1630,7 +1651,7 @@ async function summarize(
     suiteManifestVersion: manifest.manifestVersion,
     suiteManifestChecksum,
     runKey: options.runKey,
-    executionPurpose: executionPurposeForStage(options.stage),
+    executionPurpose: executionPurposeForRun(options),
     stage: options.stage,
     executionMode: options.standardDelta ? 'delta_after_release_core' : 'full_suite',
     storeId: options.storeId,
@@ -1965,9 +1986,6 @@ function parseOptions(args: string[]): Options {
   const productStage =
     stage === 'release-core' || stage === 'standard-regression' || stage === 'full' || stage === 'extended-rotation';
   const evaluationReleaseId = numberOrUndefined(get('--evaluation-release-id'));
-  if (evaluationReleaseId && productStage) {
-    throw new Error('evaluation-release-id is only valid for diagnostic stages');
-  }
   const expectedReleaseIdRaw = get('--expected-release-id');
   if (productStage && !expectedReleaseIdRaw) throw new Error('expected-release-id is required for product stages');
   const expectedReleaseId = Number(expectedReleaseIdRaw ?? evaluationReleaseId ?? '416');
@@ -2033,8 +2051,11 @@ function isProductEvidenceStage(stage: Options['stage']) {
   );
 }
 
-function executionPurposeForStage(stage: Options['stage']) {
-  return isProductEvidenceStage(stage) ? 'latest_active_release_rerun' : 'diagnostic_only';
+function executionPurposeForRun(options: Pick<Options, 'stage' | 'evaluationReleaseId'>) {
+  if (!isProductEvidenceStage(options.stage)) return 'diagnostic_only';
+  return options.evaluationReleaseId
+    ? 'candidate_evaluation_release_rerun'
+    : 'latest_active_release_rerun';
 }
 
 function selectCases(

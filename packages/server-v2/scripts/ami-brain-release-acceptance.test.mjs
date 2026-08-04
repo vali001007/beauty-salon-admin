@@ -6,6 +6,7 @@ import test from 'node:test';
 import {
   buildAcceptanceEvidence,
   buildCoreBlockedEvidence,
+  buildEvalArgs,
   buildReleaseAcceptancePreflight,
   resolveResumePlan,
   sha256,
@@ -18,6 +19,24 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, '..', '..', '..');
 const CROSS_CLIENT_IDENTITY_CHECKSUM = 'f'.repeat(64);
 const ACTION_RELEASE_CONTRACT_IDENTITY_CHECKSUM = 'c'.repeat(64);
+
+test('passes an EV candidate identity into both product evidence stages', () => {
+  const args = buildEvalArgs({
+    suiteManifest: '/repo/suite.json',
+    releaseId: 453,
+    evaluationReleaseId: 453,
+    runtimeCommit: 'a'.repeat(40),
+    productionHealthUrl: 'https://example.test/api/health/ready',
+    storeId: 6,
+    runKey: 'candidate-ev-001',
+    concurrency: 2,
+    checkpointEvery: 25,
+    maxCasesPerInvocation: 100,
+  }, 'release-core');
+
+  assert.ok(args.includes('--expected-release-id=453'));
+  assert.ok(args.includes('--evaluation-release-id=453'));
+});
 
 function passingCrossClientContract(commit, overrides = {}) {
   return {
