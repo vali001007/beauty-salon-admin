@@ -4120,7 +4120,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
   async consumeCard(dto: ConsumeCardDto, deviceId: number) {
     const terminalDeviceId = this.toTerminalDeviceId(deviceId);
     const cardsService = this.cardsService ?? new CardsService(this.prisma, this.commissionService);
-    const record = await cardsService.verifyCardUsage({
+    const outcome = await cardsService.verifyCardUsageWithOutcome({
       customerCardId: dto.customerCardId,
       customerId: dto.customerId,
       projectId: dto.projectId,
@@ -4128,7 +4128,9 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       operatorId: dto.operatorId,
       beauticianId: dto.beauticianId && dto.beauticianId > 0 ? dto.beauticianId : undefined,
       deviceId: terminalDeviceId,
+      idempotencyKey: dto.idempotencyKey,
     });
+    const record = outcome.record;
 
     this.invalidateCardDashboardCache(record.storeId);
     this.invalidateInventoryDashboardCache(record.storeId);
@@ -4144,6 +4146,7 @@ export class TerminalService implements OnModuleInit, OnModuleDestroy {
       deviceId: terminalDeviceId,
       verifiedAt: record.verifiedAt,
       recognizedAmount: this.toNumber(record.recognizedAmount),
+      idempotencyStatus: outcome.replayed ? 'replayed' : 'committed',
     };
   }
 

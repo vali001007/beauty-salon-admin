@@ -1,6 +1,18 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { useStoreStore } from '../stores/storeStore';
 
+export type ApiRetryPolicy = 'safe' | 'idempotent' | 'never';
+
+declare module 'axios' {
+  interface AxiosRequestConfig {
+    retryPolicy?: ApiRetryPolicy;
+  }
+
+  interface InternalAxiosRequestConfig {
+    retryPolicy?: ApiRetryPolicy;
+  }
+}
+
 export interface ApiErrorPayload {
   message: string;
   code?: string;
@@ -31,7 +43,7 @@ function getCsrfToken(): string {
   return match ? decodeURIComponent(match[1]) : csrfTokenCache;
 }
 
-function isRetryable(error: AxiosError): boolean {
+function isRetryableFailure(error: AxiosError): boolean {
   const responseData = error.response?.data as Record<string, unknown> | undefined;
   if (error.response?.status === 503 && responseData?.code === 'DATABASE_UNAVAILABLE') {
     return false;
@@ -49,6 +61,27 @@ function isRetryable(error: AxiosError): boolean {
     return true;
   }
   return false;
+}
+
+function readHeader(config: InternalAxiosRequestConfig, name: string): string {
+  const headers = config.headers as InternalAxiosRequestConfig['headers'] & { get?: (key: string) => unknown };
+  const value = typeof headers.get === 'function' ? headers.get(name) : headers[name];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function retryPolicy(config: RetryConfig): ApiRetryPolicy {
+  if (config.retryPolicy) return config.retryPolicy;
+  const method = String(config.method ?? 'get').toLowerCase();
+  return ['get', 'head', 'options'].includes(method) ? 'safe' : 'never';
+}
+
+function canRetryRequest(config: RetryConfig): boolean {
+  const policy = retryPolicy(config);
+  if (policy === 'never') return false;
+  if (policy === 'safe') {
+    return ['get', 'head', 'options'].includes(String(config.method ?? 'get').toLowerCase());
+  }
+  return Boolean(readHeader(config, 'Idempotency-Key'));
 }
 
 function delay(ms: number): Promise<void> {
@@ -93,8 +126,10 @@ apiClient.interceptors.request.use((config) => {
     config.headers['X-Store-Id'] = String(currentStoreId);
   }
 
-  // Add request ID for tracing
-  config.headers['X-Request-Id'] = generateRequestId();
+  // Preserve the logical request identity across retries.
+  if (!readHeader(config, 'X-Request-Id')) {
+    config.headers['X-Request-Id'] = generateRequestId();
+  }
   config.headers['X-Ami-Client-Channel'] = 'admin_web';
 
   // Attach CSRF token on mutating requests
@@ -112,7 +147,7 @@ apiClient.interceptors.response.use(
     const config = error.config as RetryConfig | undefined;
 
     // Retry logic for retryable errors
-    if (config && !config.skipRetry && isRetryable(error)) {
+    if (config && !config.skipRetry && canRetryRequest(config) && isRetryableFailure(error)) {
       config._retryCount = config._retryCount ?? 0;
 
       if (config._retryCount < MAX_RETRIES) {

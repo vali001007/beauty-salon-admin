@@ -424,7 +424,8 @@ function invalidateCashierCaches() {
 
 function invalidateCardVerificationCaches() {
   invalidateBusinessFlowCache(['operation.verify']);
-  invalidateTerminalBusinessCache(['manager-dashboard', 'customer-growth', 'card-verification-context']);
+  clearRoleDashboardCache();
+  invalidateTerminalQueryPrefixes(['manager-dashboard', 'inventory-alerts', 'card-verification-context']);
 }
 
 function invalidateCustomerCaches() {
@@ -788,6 +789,7 @@ function normalizeAuraBootstrap(value: unknown): AuraBootstrap {
       ? raw.roleDefinition
       : roleDefinition) as AuraBootstrap['roleDefinition'],
     currentBeautician,
+    projects: asList<Project>(raw.projects),
   };
 }
 
@@ -2899,6 +2901,9 @@ function findProjectForCardProject(projects: Project[], projectName: string, ind
 }
 
 async function loadCardVerificationProjectsOnly() {
+  const bootstrapProjects = asList<Project>((await loadAuraBootstrap()).projects);
+  if (bootstrapProjects.length) return bootstrapProjects;
+
   const [catalogResult, projectsResult] = await Promise.all([
     optionalCoreCall<unknown>('终端目录', () => getTerminalCatalogSync(), null),
     optionalCoreCall('项目数据', () => getProjects(), []),
@@ -3219,6 +3224,7 @@ async function buildCardVerificationFlow(): Promise<CardVerificationFlowData> {
   try {
     context = await getTerminalCardVerificationContext();
   } catch (err) {
+    if (isAuraAuthError(err)) throw err;
     console.warn('Ami Aura Lite 轻量核销上下文加载失败，降级到本地快照', err);
   }
   const contextBeauticians = filterByStoreName(asList<Beautician>(context?.beauticians), context?.storeName).filter(
@@ -3240,6 +3246,7 @@ async function buildCardVerificationFlow(): Promise<CardVerificationFlowData> {
       };
     }
   } catch (err) {
+    if (isAuraAuthError(err)) throw err;
     console.warn('Ami Aura Lite 统一核销客户选择加载失败，继续使用核销上下文', err);
   }
 
@@ -3338,7 +3345,7 @@ export async function getCardVerificationFlow(): Promise<CardVerificationFlowDat
   return loadCachedBusinessFlow('operation.verify', buildCardVerificationFlow);
 }
 
-export async function getCardVerificationCards(customerId: number) {
+async function loadCardVerificationCards(customerId: number) {
   try {
     const [context, summary, customerCards, projects] = await Promise.all([
       getTerminalCardVerificationContext().catch(() => null),
@@ -3364,6 +3371,7 @@ export async function getCardVerificationCards(customerId: number) {
       cards: toCardVerificationCardOptions(asList<TerminalCustomerCard>(customerCards), projects),
     };
   } catch (err) {
+    if (isAuraAuthError(err)) throw err;
     console.warn('Ami Aura Lite 轻量核销卡项加载失败，降级到本地快照', err);
   }
 
@@ -3409,22 +3417,25 @@ export async function getCardVerificationCards(customerId: number) {
   };
 }
 
+export async function getCardVerificationCards(customerId: number) {
+  return runWithAuraAuthRepair(() => loadCardVerificationCards(customerId));
+}
+
 function buildCardUsageReceipt(
   record: TerminalCardUsageRecord,
-  snapshot: CoreSnapshot,
+  context: { storeName?: string; customerPhone?: string; cashierName?: string },
   fallbackProjectName?: string,
 ): OperationReceiptData {
-  const customer = snapshot.customers.find((item) => item.id === record.customerId);
   return {
     sourceType: 'card_usage',
     sourceId: record.id,
     receiptNo: `CU${String(record.id).padStart(6, '0')}`,
     businessTitle: '核销凭证',
     detailLabel: '核销明细',
-    storeName: snapshot.store?.name ?? '当前门店',
+    storeName: context.storeName ?? '当前门店',
     customerName: record.customerName,
-    customerPhone: customer?.phone,
-    cashierName: snapshot.user?.name ?? snapshot.user?.username,
+    customerPhone: context.customerPhone,
+    cashierName: context.cashierName,
     paymentMethod: '次卡核销',
     items: [
       {
@@ -3461,9 +3472,11 @@ function resolveCardVerificationBeauticianId(
 }
 
 export async function confirmCardVerification(input: CardVerificationConfirmInput): Promise<OperationResultData> {
-  const [{ bootstrap }, snapshot] = await Promise.all([getAuraBootstrapSession(), loadCoreSnapshot()]);
-  const beauticianId = input.beauticianId ?? resolveCardVerificationBeauticianId(snapshot, { customerId: input.customerId }, bootstrap);
+  const { bootstrap } = await getAuraBootstrapSession();
+  const beauticianId = input.beauticianId ?? readNumericValue(bootstrap.currentBeautician?.id) ?? undefined;
   const record = await verifyTerminalCardUsage({
+    idempotencyKey: input.idempotencyKey,
+    customerId: input.customerId,
     customerCardId: input.customerCardId,
     projectId: input.projectId,
     times: input.times,
@@ -3474,11 +3487,22 @@ export async function confirmCardVerification(input: CardVerificationConfirmInpu
 
   return {
     title: '核销成功',
-    subtitle: snapshot.store?.name ?? '当前门店',
+    subtitle: bootstrap.currentStore?.name ?? '当前门店',
     status: 'success',
-    description: `${record.customerName} 的次卡核销已完成。`,
+    description:
+      record.idempotencyStatus === 'replayed'
+        ? `${record.customerName} 的次卡核销已完成，系统已恢复此前成功的核销回执。`
+        : `${record.customerName} 的次卡核销已完成。`,
     nextSteps: ['提交服务记录', '打印核销凭证', '预约下次护理'],
-    receipt: buildCardUsageReceipt(record, snapshot, input.projectName),
+    receipt: buildCardUsageReceipt(
+      record,
+      {
+        storeName: bootstrap.currentStore?.name,
+        customerPhone: input.customerPhone,
+        cashierName: bootstrap.currentUser?.name ?? bootstrap.currentUser?.username,
+      },
+      input.projectName,
+    ),
   };
 }
 
@@ -3527,6 +3551,7 @@ async function buildCashierFlow(): Promise<CashierFlowData> {
       };
     }
   } catch (err) {
+    if (isAuraAuthError(err)) throw err;
     console.warn('Ami Aura Lite 轻量收银上下文加载失败，降级到本地快照', err);
   }
 
@@ -4737,6 +4762,9 @@ export async function getOperationResult(action: string): Promise<OperationResul
         customerName: customer.name,
       });
       const record = await verifyTerminalCardUsage({
+        idempotencyKey:
+          globalThis.crypto?.randomUUID?.() ||
+          `card-usage-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
         customerCardId: customerCard.id,
         projectId: 101,
         times: 1,
@@ -4750,7 +4778,15 @@ export async function getOperationResult(action: string): Promise<OperationResul
         status: 'success',
         description: `${record.customerName} 的次卡核销已完成。`,
         nextSteps: ['提交服务记录', '打印核销凭证', '预约下次护理'],
-        receipt: buildCardUsageReceipt(record, snapshot, record.projectName),
+        receipt: buildCardUsageReceipt(
+          record,
+          {
+            storeName: snapshot.store?.name,
+            customerPhone: snapshot.customers.find((item) => item.id === record.customerId)?.phone,
+            cashierName: snapshot.user?.name ?? snapshot.user?.username,
+          },
+          record.projectName,
+        ),
       };
     }
     case 'operation.cashier': {

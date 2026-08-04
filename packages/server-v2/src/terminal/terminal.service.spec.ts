@@ -2149,20 +2149,23 @@ describe('TerminalService automation', () => {
   });
 
   it('delegates terminal card verification to CardsService', async () => {
-    const verifyCardUsage = jest.fn().mockResolvedValue({
-      id: 66,
-      storeId: 1,
-      customerId: 10,
-      customerName: '林若溪',
-      cardName: '补水护理 10 次卡',
-      projectName: '深层补水护理',
-      times: 1,
-      remainingTimes: 5,
-      beauticianId: 999,
-      verifiedAt: new Date('2026-06-08T10:00:00.000Z'),
-      recognizedAmount: 68,
+    const verifyCardUsageWithOutcome = jest.fn().mockResolvedValue({
+      replayed: false,
+      record: {
+        id: 66,
+        storeId: 1,
+        customerId: 10,
+        customerName: '林若溪',
+        cardName: '补水护理 10 次卡',
+        projectName: '深层补水护理',
+        times: 1,
+        remainingTimes: 5,
+        beauticianId: 999,
+        verifiedAt: new Date('2026-06-08T10:00:00.000Z'),
+        recognizedAmount: 68,
+      },
     });
-    (service as any).cardsService = { verifyCardUsage };
+    (service as any).cardsService = { verifyCardUsageWithOutcome };
     prisma.customerCard.update = jest.fn();
     prisma.cardUsageRecord = {
       create: jest.fn(),
@@ -2176,11 +2179,12 @@ describe('TerminalService automation', () => {
         beauticianId: 999,
         operatorId: 21,
         times: 1,
+        idempotencyKey: 'terminal-card-usage-66',
       },
       99,
     );
 
-    expect(verifyCardUsage).toHaveBeenCalledWith({
+    expect(verifyCardUsageWithOutcome).toHaveBeenCalledWith({
       customerCardId: 66,
       customerId: 10,
       projectId: 101,
@@ -2188,6 +2192,7 @@ describe('TerminalService automation', () => {
       operatorId: 21,
       beauticianId: 999,
       deviceId: 99,
+      idempotencyKey: 'terminal-card-usage-66',
     });
     expect(result).toEqual(
       expect.objectContaining({
@@ -2197,6 +2202,7 @@ describe('TerminalService automation', () => {
         beauticianId: 999,
         deviceId: 99,
         recognizedAmount: 68,
+        idempotencyStatus: 'committed',
       }),
     );
     expect(prisma.customerCard.update).not.toHaveBeenCalled();

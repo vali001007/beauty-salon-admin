@@ -7,6 +7,7 @@ import type {
 } from "@/types/terminal";
 import { terminalPrefetch, terminalQuery, TERMINAL_QUERY_TTL } from "./terminalQueryClient";
 import { getActiveTerminalOperatorParams } from "./terminalOperatorContext";
+import { runWithAuraAuthRepair } from "./auraCoreService";
 
 export type CustomerSelectScene = TerminalCustomerSelectScene;
 export type CustomerSelectItem = TerminalCustomerSelectItem;
@@ -43,7 +44,7 @@ export async function searchTerminalCustomers(query: TerminalCustomerSelectQuery
   const result = await terminalQuery({
     key: buildQueryKey(normalized),
     ttlMs: normalized.keyword ? TERMINAL_QUERY_TTL.customerSearch : 2 * 60_000,
-    loader: () => getTerminalCustomerSelectContext(normalized),
+    loader: () => runWithAuraAuthRepair(() => getTerminalCustomerSelectContext(normalized)),
   });
   if (result.status === "error") {
     throw new Error(result.error ?? "客户查询失败");
@@ -56,7 +57,7 @@ export async function prefetchTerminalCustomers(scene: CustomerSelectScene) {
   await terminalPrefetch({
     key: buildQueryKey(query),
     ttlMs: 2 * 60_000,
-    loader: () => getTerminalCustomerSelectContext(query),
+    loader: () => runWithAuraAuthRepair(() => getTerminalCustomerSelectContext(query)),
   });
 }
 

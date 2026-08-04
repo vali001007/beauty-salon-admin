@@ -653,6 +653,8 @@ export interface TerminalCardUsagePreview {
 }
 
 export interface TerminalCardUsageVerifyRequest extends TerminalCardUsagePreviewRequest {
+  idempotencyKey: string;
+  customerId?: number;
   taskId?: number;
   beauticianId?: number;
   operatorId?: number;
@@ -672,6 +674,7 @@ export interface TerminalCardUsageRecord {
   beauticianId?: number;
   deviceId?: number;
   verifiedAt: string;
+  idempotencyStatus: 'committed' | 'replayed';
 }
 
 export interface TerminalReservationCreateRequest {

@@ -1,4 +1,4 @@
-import { IsInt, IsOptional } from 'class-validator';
+import { IsInt, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class VerifyCardDto {
@@ -18,6 +18,13 @@ export class VerifyCardDto {
 }
 
 export class ConsumeCardDto {
+  @ApiPropertyOptional({ description: '核销幂等键；也可通过 Idempotency-Key 请求头传递' })
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  @MaxLength(200)
+  idempotencyKey?: string;
+
   @ApiPropertyOptional({ description: '客户ID' })
   @IsOptional()
   @IsInt()

@@ -1,6 +1,6 @@
 import { Controller, Post, Get, Body, UseGuards, HttpCode, Res } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { Response } from 'express';
+import type { Response } from 'express';
 import { randomUUID } from 'crypto';
 import { AuthService } from './auth.service.js';
 import { LoginDto } from './dto/login.dto.js';

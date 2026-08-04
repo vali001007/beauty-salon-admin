@@ -70,6 +70,7 @@ interface TerminalState {
   serviceTasks: TerminalServiceTask[];
   customerCards: TerminalCustomerCard[];
   cardUsageRecords: TerminalCardUsageRecord[];
+  cardUsageIdempotency: Map<string, TerminalCardUsageRecord>;
   reservations: TerminalReservation[];
   cashierOrders: TerminalCashierOrder[];
   cardOrders: TerminalCardOrder[];
@@ -306,6 +307,7 @@ async function ensureState(): Promise<TerminalState> {
       beauticianId: beauticians[index % beauticians.length].id,
       deviceId: devices[index % devices.length].id,
       verifiedAt: nowString(),
+      idempotencyStatus: 'committed',
     }));
 
     const coreReservations = await mockGetReservationsPaginated({ page: 1, pageSize: 80 });
@@ -350,6 +352,7 @@ async function ensureState(): Promise<TerminalState> {
       serviceTasks,
       customerCards,
       cardUsageRecords,
+      cardUsageIdempotency: new Map(),
       reservations,
       cashierOrders: [],
       cardOrders: [],
@@ -803,6 +806,8 @@ export async function mockVerifyTerminalCardUsage(
   data: TerminalCardUsageVerifyRequest,
 ): Promise<TerminalCardUsageRecord> {
   const current = await ensureState();
+  const existing = current.cardUsageIdempotency.get(data.idempotencyKey);
+  if (existing) return { ...existing, idempotencyStatus: 'replayed' };
   const preview = await mockPreviewTerminalCardUsage(data);
   if (!preview.valid || !preview.customerCard || !preview.project) {
     throw new Error(preview.message);
@@ -823,8 +828,10 @@ export async function mockVerifyTerminalCardUsage(
     beauticianId: data.beauticianId,
     deviceId: data.deviceId || getCurrentDevice(current).id,
     verifiedAt: nowString(),
+    idempotencyStatus: 'committed',
   };
   current.cardUsageRecords.unshift(record);
+  current.cardUsageIdempotency.set(data.idempotencyKey, record);
   return record;
 }
 
