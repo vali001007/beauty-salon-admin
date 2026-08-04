@@ -14,6 +14,7 @@ import {
   PERMISSION_ROLE_KEYS,
 } from './ami-brain-manual-evidence-contracts.mjs';
 import {
+  calculateCommitDiffChecksum,
   parseOptions,
   resolveEvidenceExpiresAt,
   validatePassedEvidenceArtifacts,
@@ -75,6 +76,36 @@ test('parses lock identity inputs without allowing caller-supplied fingerprints'
   assert.equal(options.storeId, 6);
   assert.equal(options.noPersist, true);
   assert.throws(() => parseOptions(['lock', '--release-fingerprint=x']), /unknown_argument/);
+});
+
+test('calculates merge commit identity from its complete first-parent binary diff', () => {
+  const runtimeCommit = 'a'.repeat(40);
+  const patch = 'diff --git a/file.bin b/file.bin\nGIT binary patch\nliteral 1\n';
+  const calls = [];
+  const checksum = calculateCommitDiffChecksum(runtimeCommit, (args) => {
+    calls.push(args);
+    return patch;
+  });
+
+  assert.deepEqual(calls, [[
+    'diff-tree',
+    '--root',
+    '-m',
+    '--first-parent',
+    '-p',
+    '--binary',
+    '--no-commit-id',
+    runtimeCommit,
+  ]]);
+  assert.equal(checksum, createHash('sha256').update(patch).digest('hex'));
+  assert.notEqual(checksum, createHash('sha256').update('').digest('hex'));
+});
+
+test('rejects an empty runtime commit diff instead of issuing an empty-content identity', () => {
+  assert.throws(
+    () => calculateCommitDiffChecksum('a'.repeat(40), () => ''),
+    /candidate_runtime_commit_diff_empty/,
+  );
 });
 
 test('parses close evidence inputs and rejects invalid numeric identity', () => {

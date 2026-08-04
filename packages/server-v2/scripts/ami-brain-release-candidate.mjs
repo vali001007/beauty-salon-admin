@@ -32,6 +32,7 @@ const DEFAULT_DATA_SNAPSHOT = resolve(
   'docs/04-测试数据/Ami-Brain-全领域题集治理/ami-brain-product-loop-data-facts-v1.json',
 );
 const OUTPUT_ROOT = resolve(REPO_ROOT, 'outputs/ami-brain-release-candidates');
+const GIT_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 
 if (resolve(process.argv[1] ?? '') === fileURLToPath(import.meta.url)) {
   main().catch((error) => fail(error instanceof Error ? error.message : String(error)));
@@ -82,7 +83,7 @@ async function lockCandidate(options) {
   const dataSnapshotArtifact = JSON.parse(readFileSync(dataSnapshotPath, 'utf8'));
   const dataSnapshot = String(dataSnapshotArtifact.snapshotChecksum ?? '').trim();
   if (!/^[a-f0-9]{64}$/u.test(dataSnapshot)) throw new Error('candidate_data_snapshot_checksum_invalid');
-  const diffChecksum = sha256(git(['show', '--format=', '--binary', options.runtimeCommit]));
+  const diffChecksum = calculateCommitDiffChecksum(options.runtimeCommit);
   const lock = createCandidateLock({
     identity: {
       productProfile: options.productProfile,
@@ -397,6 +398,21 @@ export function resolveEvidenceExpiresAt(options, now = new Date()) {
   return expiresAt.toISOString();
 }
 
+export function calculateCommitDiffChecksum(runtimeCommit, gitRunner = git) {
+  const diff = gitRunner([
+    'diff-tree',
+    '--root',
+    '-m',
+    '--first-parent',
+    '-p',
+    '--binary',
+    '--no-commit-id',
+    runtimeCommit,
+  ]);
+  if (!String(diff).trim()) throw new Error('candidate_runtime_commit_diff_empty');
+  return sha256(diff);
+}
+
 export function verifyEvidenceArtifactFiles(receipt, {
   repoRoot = REPO_ROOT,
   readFile = readFileSync,
@@ -620,7 +636,12 @@ function workingTreeStatus() {
 }
 
 function git(args) {
-  return execFileSync('git', args, { cwd: REPO_ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  return execFileSync('git', args, {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+    maxBuffer: GIT_MAX_BUFFER_BYTES,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
 }
 
 function resolveInput(path) {
