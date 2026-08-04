@@ -144,11 +144,23 @@ function deploymentIdentity() {
 }
 
 function brainModelIdentity() {
+  const routeMode = process.env.BRAIN_LLM_PRIMARY_ROUTE?.trim().toLowerCase() === 'fallback'
+    ? 'fallback_promoted'
+    : 'primary';
   return {
-    provider: firstPresentEnv(['LLM_PROVIDER']),
-    model: firstPresentEnv(['LLM_MODEL']),
-    timeoutMs: positiveIntegerEnv('LLM_TIMEOUT_MS'),
-    fallbackPolicy: firstPresentEnv(['BRAIN_FALLBACK_POLICY']),
+    provider: routeMode === 'fallback_promoted'
+      ? firstPresentEnv(['LLM_FALLBACK_PROVIDER'])
+      : firstPresentEnv(['LLM_PROVIDER']),
+    model: routeMode === 'fallback_promoted'
+      ? firstPresentEnv(['LLM_FALLBACK_MODEL'])
+      : firstPresentEnv(['LLM_MODEL']),
+    timeoutMs: routeMode === 'fallback_promoted'
+      ? positiveIntegerEnv('LLM_FALLBACK_TIMEOUT_MS') ?? positiveIntegerEnv('LLM_TIMEOUT_MS')
+      : positiveIntegerEnv('LLM_TIMEOUT_MS'),
+    fallbackPolicy: routeMode === 'fallback_promoted'
+      ? 'disabled'
+      : firstPresentEnv(['BRAIN_FALLBACK_POLICY']),
+    routeMode,
   };
 }
 

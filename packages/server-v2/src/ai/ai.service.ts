@@ -57,6 +57,7 @@ export type AiStructuredOutputErrorCode =
   | 'AUDIT_FAILED';
 
 type StructuredOutputMode = 'auto' | 'json_schema' | 'json_object';
+type BrainLlmPrimaryRoute = 'primary' | 'fallback';
 
 export class AiStructuredOutputError extends Error {
   readonly name = 'AiStructuredOutputError';
@@ -273,6 +274,7 @@ export class AiService {
   private fallbackStructuredOutputMode: StructuredOutputMode;
   private structuredMaxTotalTokens: number;
   private fallbackStructuredMaxTotalTokens: number;
+  private brainLlmPrimaryRoute: BrainLlmPrimaryRoute;
   private faceppApiKey: string;
   private faceppApiSecret: string;
   private faceppSkinAnalyzeUrl: string;
@@ -321,6 +323,9 @@ export class AiService {
     this.fallbackStructuredMaxTotalTokens = this.parsePositiveIntegerConfig(
       'LLM_FALLBACK_STRUCTURED_MAX_TOTAL_TOKENS',
       config.get('LLM_FALLBACK_STRUCTURED_MAX_TOTAL_TOKENS', String(this.structuredMaxTotalTokens)),
+    );
+    this.brainLlmPrimaryRoute = this.parseBrainLlmPrimaryRoute(
+      config.get('BRAIN_LLM_PRIMARY_ROUTE', 'primary'),
     );
     this.faceppApiKey = String(config.get('FACEPP_API_KEY', '')).trim();
     this.faceppApiSecret = String(config.get('FACEPP_API_SECRET', '')).trim();
@@ -1525,6 +1530,14 @@ export class AiService {
     return parsed;
   }
 
+  private parseBrainLlmPrimaryRoute(value: unknown): BrainLlmPrimaryRoute {
+    const route = String(value ?? 'primary').trim().toLowerCase();
+    if (route !== 'primary' && route !== 'fallback') {
+      throw new Error('BRAIN_LLM_PRIMARY_ROUTE must be one of primary, fallback');
+    }
+    return route;
+  }
+
   private isOpenAiCompatibleProvider(provider: string) {
     return ['deepseek', 'openai_compatible', 'kimi'].includes(this.normalizeProviderName(provider));
   }
@@ -1545,6 +1558,12 @@ export class AiService {
     if (!this.isMockProvider() && (!this.apiKey || !this.baseUrl || !this.model)) {
       throw new Error(
         'LLM_API_KEY, LLM_BASE_URL and LLM_MODEL must be configured for non-mock AI provider in production.',
+      );
+    }
+
+    if (this.brainLlmPrimaryRoute === 'fallback' && !this.hasFallbackProvider()) {
+      throw new Error(
+        'BRAIN_LLM_PRIMARY_ROUTE=fallback requires a complete LLM_FALLBACK_PROVIDER, credential, base URL and model.',
       );
     }
 
@@ -2742,20 +2761,35 @@ export class AiService {
     validate: ValidateFunction<T>,
     budget: StructuredRequestBudget,
   ): Promise<AiStructuredOutputResult<T>> {
-    const primaryTimeoutMs = this.resolveStructuredPrimaryTimeout(input, budget);
-    const primaryConfig: StructuredProviderConfig = {
-      provider: this.provider,
-      model: this.model,
-      apiKey: this.apiKey,
-      baseUrl: this.baseUrl,
-      chatPath: this.chatPath,
-      timeoutMs: primaryTimeoutMs,
-      fallback: false,
-      structuredOutputMode: this.structuredOutputMode,
-      maxTotalTokens: this.structuredMaxTotalTokens,
-    };
+    const promoteFallbackToPrimary = this.shouldPromoteFallbackToBrainPrimary(input);
+    const promotedFallbackConfig = promoteFallbackToPrimary ? this.currentStructuredFallbackConfig() : undefined;
+    const primaryTimeoutMs = promoteFallbackToPrimary
+      ? this.resolveStructuredTimeout(input.timeoutMs, promotedFallbackConfig!.timeoutMs)
+      : this.resolveStructuredPrimaryTimeout(input, budget);
+    const primaryConfig: StructuredProviderConfig = promotedFallbackConfig
+      ? {
+          ...promotedFallbackConfig,
+          timeoutMs: primaryTimeoutMs,
+          fallback: false,
+        }
+      : {
+          provider: this.provider,
+          model: this.model,
+          apiKey: this.apiKey,
+          baseUrl: this.baseUrl,
+          chatPath: this.chatPath,
+          timeoutMs: primaryTimeoutMs,
+          fallback: false,
+          structuredOutputMode: this.structuredOutputMode,
+          maxTotalTokens: this.structuredMaxTotalTokens,
+        };
+    if (promotedFallbackConfig) {
+      budget.lastProvider = this.getStructuredProviderLabel(primaryConfig);
+      budget.lastModel = primaryConfig.model;
+      this.tightenStructuredTokenBudget(budget, primaryConfig.maxTotalTokens);
+    }
     const primaryKey = this.structuredProviderCircuitKey(primaryConfig);
-    const fallbackConfig: StructuredProviderConfig | undefined = this.canUseStructuredFallback(input)
+    const fallbackConfig: StructuredProviderConfig | undefined = !promoteFallbackToPrimary && this.canUseStructuredFallback(input)
       ? {
           provider: this.normalizeProviderName(this.fallbackProvider),
           model: this.fallbackModel,
@@ -2768,6 +2802,10 @@ export class AiService {
           maxTotalTokens: this.fallbackStructuredMaxTotalTokens,
         }
       : undefined;
+    const primaryMessages =
+      promoteFallbackToPrimary && this.hasStructuredMessages(input.fallbackMessages)
+        ? input.fallbackMessages
+        : input.messages;
     const fallbackKey = fallbackConfig ? this.structuredProviderCircuitKey(fallbackConfig) : undefined;
     const redundancyMode = this.providerHealth.redundancyMode(primaryKey, fallbackKey);
     const primaryDecision = this.providerHealth.beginRequest(primaryKey, this.now());
@@ -2784,7 +2822,7 @@ export class AiService {
       if (!fallbackConfig) throw primaryError;
     } else {
       try {
-        const result = await this.generateStructuredWithProvider(input, input.messages, validate, primaryConfig, budget);
+        const result = await this.generateStructuredWithProvider(input, primaryMessages, validate, primaryConfig, budget);
         this.providerHealth.recordSuccess(primaryKey, this.now());
         return {
           ...result,
@@ -2983,6 +3021,14 @@ export class AiService {
       this.hasStructuredMessages(input.fallbackMessages) &&
       this.hasFallbackProvider() &&
       (this.isOpenAiCompatibleProvider(this.fallbackProvider) || this.isOpenAiResponsesProvider(this.fallbackProvider)),
+    );
+  }
+
+  private shouldPromoteFallbackToBrainPrimary(input: AiStructuredOutputInput) {
+    return (
+      this.brainLlmPrimaryRoute === 'fallback' &&
+      (input.scenario.startsWith('brain.') || input.scenario.startsWith('brain_')) &&
+      this.hasFallbackProvider()
     );
   }
 
