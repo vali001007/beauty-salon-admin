@@ -923,7 +923,7 @@ describe('AiService', () => {
     expect(JSON.stringify(prisma.aiAuditLog.create.mock.calls)).not.toContain(result.rawText);
   });
 
-  it('promotes the configured fallback route to the Ami Brain primary without labeling it as fallback', async () => {
+  it('defaults production Ami Brain to the DeepSeek route without labeling it as fallback', async () => {
     const fetchMock = jest.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -934,6 +934,7 @@ describe('AiService', () => {
     });
     global.fetch = fetchMock as any;
     const { service: structuredService } = await createConfiguredService({
+      NODE_ENV: 'production',
       LLM_PROVIDER: 'openai_compatible',
       LLM_API_KEY: 'luna-key',
       LLM_BASE_URL: 'https://luna.example/v1',
@@ -944,7 +945,6 @@ describe('AiService', () => {
       LLM_FALLBACK_CHAT_PATH: '/chat/completions',
       LLM_FALLBACK_MODEL: 'deepseek-v4-flash',
       LLM_FALLBACK_STRUCTURED_OUTPUT_MODE: 'auto',
-      BRAIN_LLM_PRIMARY_ROUTE: 'fallback',
     });
 
     const result = await structuredService.generateStructured<{ answer: string; count: number }>({
