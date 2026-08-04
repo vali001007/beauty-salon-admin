@@ -1,38 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const apiClientMock = vi.hoisted(() => ({
-  get: vi.fn(),
-  post: vi.fn(),
-}));
+const apiClientMock = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
 
-vi.mock('../client', () => ({
-  default: apiClientMock,
-}));
+vi.mock('../client', () => ({ default: apiClientMock }));
 
 describe('ask data real API contract', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    apiClientMock.post.mockResolvedValue({ status: 'success', rows: [] });
-    apiClientMock.get.mockResolvedValue({ tables: [] });
+  beforeEach(() => vi.clearAllMocks());
+
+  it('uses a long single-attempt request for the model and SQL workflow', async () => {
+    const api = await import('./askData');
+    const request = { question: '最近30天营销ROI最高的渠道是什么？', history: [] }; // ami-brain-unit-only: independent Ami Ask API fixture.
+
+    await api.queryAskData(request);
+
+    expect(apiClientMock.post).toHaveBeenCalledWith('/ask-data/free-sql', request, {
+      timeout: 70_000,
+      skipRetry: true,
+    });
   });
 
-  it('routes query requests to the clean-room ask-data endpoint', async () => {
-    const { queryAskData } = await import('./askData');
-    const payload = {
-      question: '上个月收入按项目看',
-      history: [{ role: 'assistant' as const, content: '上次查的是项目收入' }],
-    };
+  it('keeps the catalog request on the normal lightweight client policy', async () => {
+    const api = await import('./askData');
 
-    await queryAskData(payload);
+    await api.getAskDataCatalog();
 
-    expect(apiClientMock.post).toHaveBeenCalledWith('/ask-data/query', payload);
-  });
-
-  it('loads the query catalog from ask-data endpoint', async () => {
-    const { getAskDataCatalog } = await import('./askData');
-
-    await getAskDataCatalog();
-
-    expect(apiClientMock.get).toHaveBeenCalledWith('/ask-data/catalog');
+    expect(apiClientMock.get).toHaveBeenCalledWith('/ask-data/free-sql/catalog');
   });
 });

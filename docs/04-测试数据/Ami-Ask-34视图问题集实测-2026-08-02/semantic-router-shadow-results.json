@@ -1,0 +1,6337 @@
+{
+  "generatedAt": "2026-08-02T06:47:51.141Z",
+  "mode": "deterministic_shadow_without_model_or_database",
+  "baselinePath": "/Users/ju/Documents/ami/beauty-salon-admin-ask/docs/04-测试数据/Ami-Ask-34视图问题集实测-2026-08-02/final-results.json",
+  "summary": {
+    "caseCount": 286,
+    "baselineStrictAccuracy": 0.5629,
+    "baselineCandidateRecall": 0.7343,
+    "semanticCandidateRecall": 1,
+    "candidateRecallLift": 0.26570000000000005,
+    "materialClarificationRate": 0.1084,
+    "unjustifiedClarificationRate": 0,
+    "modelFallbackEligibleRate": 0.0245,
+    "averageCandidateCount": 1.0874125874125875,
+    "deterministicAverageMs": 0.559786713286713,
+    "deterministicP95Ms": 0.707,
+    "targetCandidateRecall": 0.95,
+    "targetModelFallbackEligibleRate": 0.2,
+    "targetUnjustifiedClarificationRate": 0.08,
+    "targetP95Ms": 50
+  },
+  "byView": [
+    {
+      "viewName": "agent_v3_order_summary_view",
+      "label": "订单摘要",
+      "caseCount": 10,
+      "legacyRecall": 1,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "agent_v3_order_item_sales_view",
+      "label": "商品销售",
+      "caseCount": 10,
+      "legacyRecall": 0.2,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "agent_v3_project_service_sales_view",
+      "label": "项目服务销售",
+      "caseCount": 10,
+      "legacyRecall": 0,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "agent_v3_payment_refund_view",
+      "label": "支付与退款",
+      "caseCount": 10,
+      "legacyRecall": 0.9,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "agent_v3_daily_settlement_view",
+      "label": "日结",
+      "caseCount": 10,
+      "legacyRecall": 0.6,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "agent_v3_product_inventory_view",
+      "label": "商品库存",
+      "caseCount": 10,
+      "legacyRecall": 1,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "agent_v3_stock_movement_view",
+      "label": "库存流水",
+      "caseCount": 10,
+      "legacyRecall": 0.8,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "agent_v3_inventory_scrap_view",
+      "label": "库存报废",
+      "caseCount": 0,
+      "legacyRecall": 0,
+      "semanticRecall": 0
+    },
+    {
+      "viewName": "ask_data_customer_profile_summary_view",
+      "label": "客户档案摘要",
+      "caseCount": 10,
+      "legacyRecall": 0.5,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "agent_v3_staff_profile_view",
+      "label": "员工档案",
+      "caseCount": 5,
+      "legacyRecall": 0.2,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "ask_data_staff_performance_view",
+      "label": "员工绩效",
+      "caseCount": 10,
+      "legacyRecall": 0.3,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "agent_v3_reservation_view",
+      "label": "预约",
+      "caseCount": 10,
+      "legacyRecall": 1,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "agent_v3_marketing_conversion_view",
+      "label": "营销转化",
+      "caseCount": 10,
+      "legacyRecall": 1,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "agent_v3_card_asset_view",
+      "label": "次卡资产",
+      "caseCount": 10,
+      "legacyRecall": 1,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "agent_v3_card_usage_view",
+      "label": "次卡核销",
+      "caseCount": 10,
+      "legacyRecall": 1,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "agent_v3_customer_balance_view",
+      "label": "客户余额",
+      "caseCount": 5,
+      "legacyRecall": 1,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "agent_v3_service_quality_view",
+      "label": "服务质量",
+      "caseCount": 10,
+      "legacyRecall": 1,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "agent_v3_appointment_gap_view",
+      "label": "预约空档",
+      "caseCount": 9,
+      "legacyRecall": 0.5556,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "agent_v3_project_catalog_view",
+      "label": "项目目录",
+      "caseCount": 10,
+      "legacyRecall": 0,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "agent_v3_marketing_activity_view",
+      "label": "营销活动",
+      "caseCount": 10,
+      "legacyRecall": 1,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "agent_v3_marketing_automation_view",
+      "label": "自动触达",
+      "caseCount": 10,
+      "legacyRecall": 1,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "agent_v3_promotion_offer_view",
+      "label": "优惠活动",
+      "caseCount": 1,
+      "legacyRecall": 1,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "ask_data_operating_cost_view",
+      "label": "经营成本",
+      "caseCount": 10,
+      "legacyRecall": 0.4,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "agent_v3_purchase_procurement_view",
+      "label": "采购",
+      "caseCount": 10,
+      "legacyRecall": 0.9,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "agent_v3_supplier_performance_view",
+      "label": "供应商表现",
+      "caseCount": 7,
+      "legacyRecall": 1,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "ask_data_confirmed_profit_view",
+      "label": "已确认实际利润",
+      "caseCount": 10,
+      "legacyRecall": 1,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "ask_data_reconciliation_issue_view",
+      "label": "财务对账异常",
+      "caseCount": 10,
+      "legacyRecall": 0.1,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "ask_data_member_liability_view",
+      "label": "会员履约负债",
+      "caseCount": 10,
+      "legacyRecall": 1,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "ask_data_staff_capacity_view",
+      "label": "排班与员工产能",
+      "caseCount": 10,
+      "legacyRecall": 1,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "ask_data_transfer_status_view",
+      "label": "库存调拨",
+      "caseCount": 0,
+      "legacyRecall": 0,
+      "semanticRecall": 0
+    },
+    {
+      "viewName": "ask_data_bom_consumption_variance_view",
+      "label": "BOM 实际消耗偏差",
+      "caseCount": 4,
+      "legacyRecall": 1,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "ask_data_customer_feedback_view",
+      "label": "客户反馈",
+      "caseCount": 5,
+      "legacyRecall": 1,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "ask_data_customer_lifecycle_view",
+      "label": "客户生命周期",
+      "caseCount": 10,
+      "legacyRecall": 0.5,
+      "semanticRecall": 1
+    },
+    {
+      "viewName": "ask_data_marketing_roi_view",
+      "label": "营销 ROI",
+      "caseCount": 10,
+      "legacyRecall": 1,
+      "semanticRecall": 1
+    }
+  ],
+  "results": [
+    {
+      "id": "BQ0621",
+      "question": "最近三个月一共有多少笔订单",
+      "expectedView": "agent_v3_order_summary_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "order_revenue"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 3.511
+    },
+    {
+      "id": "BQ0622",
+      "question": "最近三个月的营业额是多少",
+      "expectedView": "agent_v3_order_summary_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "order_revenue"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 2.539
+    },
+    {
+      "id": "BQ0627",
+      "question": "最近三个月的实收流水",
+      "expectedView": "agent_v3_order_summary_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "payment_flow"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.668
+    },
+    {
+      "id": "BQ0631",
+      "question": "这个季度一共有多少笔订单",
+      "expectedView": "agent_v3_order_summary_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "order_revenue"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.812
+    },
+    {
+      "id": "BQ0632",
+      "question": "这个季度的营业额是多少",
+      "expectedView": "agent_v3_order_summary_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "order_revenue"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.83
+    },
+    {
+      "id": "BQ0637",
+      "question": "这个季度的实收流水",
+      "expectedView": "agent_v3_order_summary_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "payment_flow"
+      ],
+      "answerShape": "list",
+      "confidence": 0.9,
+      "durationMs": 0.59
+    },
+    {
+      "id": "BQ0641",
+      "question": "双十一期间一共有多少笔订单",
+      "expectedView": "agent_v3_order_summary_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "order_revenue"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.586
+    },
+    {
+      "id": "BQ0642",
+      "question": "双十一期间的营业额是多少",
+      "expectedView": "agent_v3_order_summary_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "order_revenue"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.621
+    },
+    {
+      "id": "BQ0647",
+      "question": "双十一期间的实收流水",
+      "expectedView": "agent_v3_order_summary_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "payment_flow"
+      ],
+      "answerShape": "list",
+      "confidence": 0.9,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.59
+    },
+    {
+      "id": "BQ0651",
+      "question": "最近14天一共有多少笔订单",
+      "expectedView": "agent_v3_order_summary_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "order_revenue"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.592
+    },
+    {
+      "id": "BQ0629",
+      "question": "最近三个月产品订单有多少",
+      "expectedView": "agent_v3_order_item_sales_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "product_sales"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.94,
+      "durationMs": 0.563
+    },
+    {
+      "id": "BQ0639",
+      "question": "这个季度产品订单有多少",
+      "expectedView": "agent_v3_order_item_sales_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "product_sales"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.52
+    },
+    {
+      "id": "BQ0649",
+      "question": "双十一期间产品订单有多少",
+      "expectedView": "agent_v3_order_item_sales_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "product_sales"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.542
+    },
+    {
+      "id": "BQ0659",
+      "question": "最近14天产品订单有多少",
+      "expectedView": "agent_v3_order_item_sales_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "product_sales"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.94,
+      "durationMs": 0.543
+    },
+    {
+      "id": "BQ0663",
+      "question": "最近三个月项目订单和产品订单各占多少",
+      "expectedView": "agent_v3_order_item_sales_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_reservation_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "product_sales"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.94,
+      "durationMs": 0.565
+    },
+    {
+      "id": "BQ0669",
+      "question": "最近三个月连带销售的订单比例",
+      "expectedView": "agent_v3_order_item_sales_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "product_sales"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 2.061
+    },
+    {
+      "id": "BQ0671",
+      "question": "最近三个月各品类销售额",
+      "expectedView": "agent_v3_order_item_sales_view",
+      "legacyCandidates": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "product_sales"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.598
+    },
+    {
+      "id": "BQ0674",
+      "question": "这个季度项目订单和产品订单各占多少",
+      "expectedView": "agent_v3_order_item_sales_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_reservation_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "product_sales"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.55
+    },
+    {
+      "id": "BQ0680",
+      "question": "这个季度连带销售的订单比例",
+      "expectedView": "agent_v3_order_item_sales_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "product_sales"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.519
+    },
+    {
+      "id": "BQ0682",
+      "question": "这个季度各品类销售额",
+      "expectedView": "agent_v3_order_item_sales_view",
+      "legacyCandidates": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "product_sales"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.514
+    },
+    {
+      "id": "BQ0630",
+      "question": "最近三个月项目订单金额",
+      "expectedView": "agent_v3_project_service_sales_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_reservation_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "project_sales"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.94,
+      "durationMs": 0.558
+    },
+    {
+      "id": "BQ0640",
+      "question": "这个季度项目订单金额",
+      "expectedView": "agent_v3_project_service_sales_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_reservation_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "project_sales"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.516
+    },
+    {
+      "id": "BQ0650",
+      "question": "双十一期间项目订单金额",
+      "expectedView": "agent_v3_project_service_sales_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_reservation_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "project_sales"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.526
+    },
+    {
+      "id": "BQ0660",
+      "question": "最近14天项目订单金额",
+      "expectedView": "agent_v3_project_service_sales_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_reservation_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "project_sales"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.94,
+      "durationMs": 0.53
+    },
+    {
+      "id": "BQ0497",
+      "question": "最近30天哪个项目最受欢迎",
+      "expectedView": "agent_v3_project_service_sales_view",
+      "legacyCandidates": [
+        "agent_v3_reservation_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "project_sales"
+      ],
+      "answerShape": "ranking",
+      "confidence": 0.96,
+      "durationMs": 0.612
+    },
+    {
+      "id": "BQ0500",
+      "question": "本月各项目的销量排行",
+      "expectedView": "agent_v3_project_service_sales_view",
+      "legacyCandidates": [
+        "agent_v3_order_item_sales_view",
+        "agent_v3_reservation_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "project_sales"
+      ],
+      "answerShape": "ranking",
+      "confidence": 0.96,
+      "durationMs": 0.573
+    },
+    {
+      "id": "BQ0508",
+      "question": "去年同期哪个项目最受欢迎",
+      "expectedView": "agent_v3_project_service_sales_view",
+      "legacyCandidates": [
+        "agent_v3_reservation_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "project_sales"
+      ],
+      "answerShape": "ranking",
+      "confidence": 0.93,
+      "durationMs": 0.511
+    },
+    {
+      "id": "BQ0511",
+      "question": "最近30天各项目的销量排行",
+      "expectedView": "agent_v3_project_service_sales_view",
+      "legacyCandidates": [
+        "agent_v3_order_item_sales_view",
+        "agent_v3_reservation_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "project_sales"
+      ],
+      "answerShape": "ranking",
+      "confidence": 0.96,
+      "durationMs": 0.512
+    },
+    {
+      "id": "BQ0519",
+      "question": "五一假期哪个项目最受欢迎",
+      "expectedView": "agent_v3_project_service_sales_view",
+      "legacyCandidates": [
+        "agent_v3_reservation_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "project_sales"
+      ],
+      "answerShape": "ranking",
+      "confidence": 0.93,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.51
+    },
+    {
+      "id": "BQ0522",
+      "question": "去年同期各项目的销量排行",
+      "expectedView": "agent_v3_project_service_sales_view",
+      "legacyCandidates": [
+        "agent_v3_order_item_sales_view",
+        "agent_v3_reservation_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "project_sales"
+      ],
+      "answerShape": "ranking",
+      "confidence": 0.93,
+      "durationMs": 0.725
+    },
+    {
+      "id": "BQ0625",
+      "question": "最近三个月退款有几笔",
+      "expectedView": "agent_v3_payment_refund_view",
+      "legacyCandidates": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "payment_flow"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.619
+    },
+    {
+      "id": "BQ0635",
+      "question": "这个季度退款有几笔",
+      "expectedView": "agent_v3_payment_refund_view",
+      "legacyCandidates": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "payment_flow"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.536
+    },
+    {
+      "id": "BQ0645",
+      "question": "双十一期间退款有几笔",
+      "expectedView": "agent_v3_payment_refund_view",
+      "legacyCandidates": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "payment_flow"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.539
+    },
+    {
+      "id": "BQ0655",
+      "question": "最近14天退款有几笔",
+      "expectedView": "agent_v3_payment_refund_view",
+      "legacyCandidates": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "payment_flow"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.521
+    },
+    {
+      "id": "BQ0657",
+      "question": "最近14天的实收流水",
+      "expectedView": "agent_v3_payment_refund_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "payment_flow"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.514
+    },
+    {
+      "id": "BQ0661",
+      "question": "最近三个月各支付方式的金额分别多少",
+      "expectedView": "agent_v3_payment_refund_view",
+      "legacyCandidates": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "payment_flow"
+      ],
+      "answerShape": "comparison",
+      "confidence": 0.96,
+      "durationMs": 0.527
+    },
+    {
+      "id": "BQ0666",
+      "question": "最近三个月哪些订单有大额退款",
+      "expectedView": "agent_v3_payment_refund_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_payment_refund_view",
+        "agent_v3_daily_settlement_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "payment_flow"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "clarificationQuestion": "请补充金额阈值，例如“退款金额超过 1000 元”。",
+      "clarificationReason": "“大额/高价值”没有统一金额阈值。",
+      "durationMs": 0.626
+    },
+    {
+      "id": "BQ0672",
+      "question": "这个季度各支付方式的金额分别多少",
+      "expectedView": "agent_v3_payment_refund_view",
+      "legacyCandidates": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "payment_flow"
+      ],
+      "answerShape": "comparison",
+      "confidence": 0.93,
+      "durationMs": 0.517
+    },
+    {
+      "id": "BQ0677",
+      "question": "这个季度哪些订单有大额退款",
+      "expectedView": "agent_v3_payment_refund_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_payment_refund_view",
+        "agent_v3_daily_settlement_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "payment_flow"
+      ],
+      "answerShape": "list",
+      "confidence": 0.9,
+      "clarificationQuestion": "请补充金额阈值，例如“退款金额超过 1000 元”。",
+      "clarificationReason": "“大额/高价值”没有统一金额阈值。",
+      "durationMs": 0.66
+    },
+    {
+      "id": "BQ0683",
+      "question": "双十一期间各支付方式的金额分别多少",
+      "expectedView": "agent_v3_payment_refund_view",
+      "legacyCandidates": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "payment_flow"
+      ],
+      "answerShape": "comparison",
+      "confidence": 0.93,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.536
+    },
+    {
+      "id": "BQ1263",
+      "question": "这半年的日结做了吗",
+      "expectedView": "agent_v3_daily_settlement_view",
+      "legacyCandidates": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "daily_net_receipts"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.528
+    },
+    {
+      "id": "BQ1273",
+      "question": "昨天的日结做了吗",
+      "expectedView": "agent_v3_daily_settlement_view",
+      "legacyCandidates": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "daily_net_receipts"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.597
+    },
+    {
+      "id": "BQ1282",
+      "question": "本月的日结做了吗",
+      "expectedView": "agent_v3_daily_settlement_view",
+      "legacyCandidates": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "daily_net_receipts"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.533
+    },
+    {
+      "id": "BQ1291",
+      "question": "最近30天的日结做了吗",
+      "expectedView": "agent_v3_daily_settlement_view",
+      "legacyCandidates": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "daily_net_receipts"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.529
+    },
+    {
+      "id": "BQ0707",
+      "question": "最近三个月订单量的趋势",
+      "expectedView": "agent_v3_daily_settlement_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "daily_net_receipts"
+      ],
+      "answerShape": "trend",
+      "confidence": 0.93,
+      "durationMs": 0.851
+    },
+    {
+      "id": "BQ0717",
+      "question": "这个季度订单量的趋势",
+      "expectedView": "agent_v3_daily_settlement_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "daily_net_receipts"
+      ],
+      "answerShape": "trend",
+      "confidence": 0.9,
+      "durationMs": 0.707
+    },
+    {
+      "id": "BQ0727",
+      "question": "双十一期间订单量的趋势",
+      "expectedView": "agent_v3_daily_settlement_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "daily_net_receipts"
+      ],
+      "answerShape": "trend",
+      "confidence": 0.9,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.564
+    },
+    {
+      "id": "BQ0737",
+      "question": "最近14天订单量的趋势",
+      "expectedView": "agent_v3_daily_settlement_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "daily_net_receipts"
+      ],
+      "answerShape": "trend",
+      "confidence": 0.93,
+      "durationMs": 0.593
+    },
+    {
+      "id": "BQ1384",
+      "question": "五一假期的日结平不平",
+      "expectedView": "agent_v3_daily_settlement_view",
+      "legacyCandidates": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_daily_settlement_view",
+        "ask_data_reconciliation_issue_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "daily_net_receipts",
+        "reconciliation_issue"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.64,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.548
+    },
+    {
+      "id": "BQ1391",
+      "question": "开业至今的日结平不平",
+      "expectedView": "agent_v3_daily_settlement_view",
+      "legacyCandidates": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_daily_settlement_view",
+        "ask_data_reconciliation_issue_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "daily_net_receipts",
+        "reconciliation_issue"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.64,
+      "fallbackReason": "metric_conflict",
+      "durationMs": 0.551
+    },
+    {
+      "id": "BQ1061",
+      "question": "滋养手膜现在还有多少库存",
+      "expectedView": "agent_v3_product_inventory_view",
+      "legacyCandidates": [
+        "agent_v3_product_inventory_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_product_inventory_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "inventory_on_hand"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.546
+    },
+    {
+      "id": "BQ1062",
+      "question": "本月有哪些产品缺货了",
+      "expectedView": "agent_v3_product_inventory_view",
+      "legacyCandidates": [
+        "agent_v3_product_inventory_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_product_inventory_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "inventory_on_hand"
+      ],
+      "answerShape": "list",
+      "confidence": 0.96,
+      "durationMs": 0.538
+    },
+    {
+      "id": "BQ1063",
+      "question": "本月有多少临期产品",
+      "expectedView": "agent_v3_product_inventory_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_product_inventory_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "inventory_on_hand"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.94,
+      "durationMs": 0.601
+    },
+    {
+      "id": "BQ1064",
+      "question": "本月库存总价值是多少",
+      "expectedView": "agent_v3_product_inventory_view",
+      "legacyCandidates": [
+        "agent_v3_product_inventory_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_product_inventory_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "inventory_on_hand"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.541
+    },
+    {
+      "id": "BQ1065",
+      "question": "水氧护理精华液的安全库存是多少",
+      "expectedView": "agent_v3_product_inventory_view",
+      "legacyCandidates": [
+        "agent_v3_product_inventory_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_product_inventory_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "inventory_on_hand"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.534
+    },
+    {
+      "id": "BQ1068",
+      "question": "最近14天低于安全库存的有几个",
+      "expectedView": "agent_v3_product_inventory_view",
+      "legacyCandidates": [
+        "agent_v3_product_inventory_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_product_inventory_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "inventory_on_hand"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.543
+    },
+    {
+      "id": "BQ1071",
+      "question": "院装温和洁面乳现在还有多少库存",
+      "expectedView": "agent_v3_product_inventory_view",
+      "legacyCandidates": [
+        "agent_v3_product_inventory_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_product_inventory_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "inventory_on_hand"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.532
+    },
+    {
+      "id": "BQ1072",
+      "question": "最近30天有哪些产品缺货了",
+      "expectedView": "agent_v3_product_inventory_view",
+      "legacyCandidates": [
+        "agent_v3_product_inventory_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_product_inventory_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "inventory_on_hand"
+      ],
+      "answerShape": "list",
+      "confidence": 0.96,
+      "durationMs": 0.533
+    },
+    {
+      "id": "BQ1073",
+      "question": "最近30天有多少临期产品",
+      "expectedView": "agent_v3_product_inventory_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_product_inventory_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "inventory_on_hand"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.94,
+      "durationMs": 0.634
+    },
+    {
+      "id": "BQ1074",
+      "question": "最近30天库存总价值是多少",
+      "expectedView": "agent_v3_product_inventory_view",
+      "legacyCandidates": [
+        "agent_v3_product_inventory_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_product_inventory_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "inventory_on_hand"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.671
+    },
+    {
+      "id": "BQ1069",
+      "question": "舒压按摩膏最近14天的库存变化",
+      "expectedView": "agent_v3_stock_movement_view",
+      "legacyCandidates": [
+        "agent_v3_product_inventory_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_stock_movement_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "inventory_movement"
+      ],
+      "answerShape": "trend",
+      "confidence": 0.93,
+      "durationMs": 1.231
+    },
+    {
+      "id": "BQ1070",
+      "question": "最近14天入库了多少货",
+      "expectedView": "agent_v3_stock_movement_view",
+      "legacyCandidates": [
+        "agent_v3_stock_movement_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_stock_movement_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "inventory_movement"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.54
+    },
+    {
+      "id": "BQ1078",
+      "question": "眼周护理膜今天的库存变化",
+      "expectedView": "agent_v3_stock_movement_view",
+      "legacyCandidates": [
+        "agent_v3_product_inventory_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_stock_movement_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "inventory_movement"
+      ],
+      "answerShape": "trend",
+      "confidence": 0.96,
+      "durationMs": 0.939
+    },
+    {
+      "id": "BQ1079",
+      "question": "今天入库了多少货",
+      "expectedView": "agent_v3_stock_movement_view",
+      "legacyCandidates": [
+        "agent_v3_stock_movement_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_stock_movement_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "inventory_movement"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.503
+    },
+    {
+      "id": "BQ1087",
+      "question": "美容棉片上周的库存变化",
+      "expectedView": "agent_v3_stock_movement_view",
+      "legacyCandidates": [
+        "agent_v3_product_inventory_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_stock_movement_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "inventory_movement"
+      ],
+      "answerShape": "trend",
+      "confidence": 0.93,
+      "durationMs": 0.505
+    },
+    {
+      "id": "BQ1088",
+      "question": "上周入库了多少货",
+      "expectedView": "agent_v3_stock_movement_view",
+      "legacyCandidates": [
+        "agent_v3_stock_movement_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_stock_movement_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "inventory_movement"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.492
+    },
+    {
+      "id": "BQ1096",
+      "question": "最近14天院装温和洁面乳消耗了多少",
+      "expectedView": "agent_v3_stock_movement_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_stock_movement_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "inventory_movement"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.508
+    },
+    {
+      "id": "BQ1100",
+      "question": "最近14天的出入库流水",
+      "expectedView": "agent_v3_stock_movement_view",
+      "legacyCandidates": [
+        "agent_v3_stock_movement_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_stock_movement_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "inventory_movement"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.584
+    },
+    {
+      "id": "BQ1104",
+      "question": "最近14天耗材消耗排行",
+      "expectedView": "agent_v3_stock_movement_view",
+      "legacyCandidates": [
+        "agent_v3_stock_movement_view",
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_stock_movement_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "inventory_movement"
+      ],
+      "answerShape": "ranking",
+      "confidence": 0.93,
+      "durationMs": 0.535
+    },
+    {
+      "id": "BQ1105",
+      "question": "今天屏障修护精华消耗了多少",
+      "expectedView": "agent_v3_stock_movement_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_stock_movement_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "inventory_movement"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.533
+    },
+    {
+      "id": "BQ0003",
+      "question": "吴晓雯的会员等级是什么",
+      "expectedView": "ask_data_customer_profile_summary_view",
+      "legacyCandidates": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_profile"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.564
+    },
+    {
+      "id": "BQ0004",
+      "question": "一共有多少个钻石会员",
+      "expectedView": "ask_data_customer_profile_summary_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_profile"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.738
+    },
+    {
+      "id": "BQ0005",
+      "question": "何思琪上次到店是最近30天吗，具体哪天",
+      "expectedView": "ask_data_customer_profile_summary_view",
+      "legacyCandidates": [
+        "agent_v3_reservation_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_profile"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.568
+    },
+    {
+      "id": "BQ0006",
+      "question": "何思琪累计消费了多少钱",
+      "expectedView": "ask_data_customer_profile_summary_view",
+      "legacyCandidates": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_profile"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.505
+    },
+    {
+      "id": "BQ0010",
+      "question": "最近30天到店的客户有多少",
+      "expectedView": "ask_data_customer_profile_summary_view",
+      "legacyCandidates": [
+        "agent_v3_reservation_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_profile"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.94,
+      "durationMs": 0.507
+    },
+    {
+      "id": "BQ0011",
+      "question": "钻石会员一共有多少人",
+      "expectedView": "ask_data_customer_profile_summary_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_profile"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.508
+    },
+    {
+      "id": "BQ0015",
+      "question": "吴梦瑶的会员等级是什么",
+      "expectedView": "ask_data_customer_profile_summary_view",
+      "legacyCandidates": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_profile"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.498
+    },
+    {
+      "id": "BQ0016",
+      "question": "一共有多少个金卡会员",
+      "expectedView": "ask_data_customer_profile_summary_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_profile"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.503
+    },
+    {
+      "id": "BQ0017",
+      "question": "郭若兰上次到店是去年同期吗，具体哪天",
+      "expectedView": "ask_data_customer_profile_summary_view",
+      "legacyCandidates": [
+        "agent_v3_reservation_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_profile"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.5
+    },
+    {
+      "id": "BQ0018",
+      "question": "郭若兰累计消费了多少钱",
+      "expectedView": "ask_data_customer_profile_summary_view",
+      "legacyCandidates": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_profile"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.496
+    },
+    {
+      "id": "BQ0241",
+      "question": "店里现在有多少个在职美容师",
+      "expectedView": "agent_v3_staff_profile_view",
+      "legacyCandidates": [
+        "agent_v3_staff_profile_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_staff_profile_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_profile"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.492
+    },
+    {
+      "id": "BQ0242",
+      "question": "唐伊是什么职级",
+      "expectedView": "agent_v3_staff_profile_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_staff_profile_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_profile"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.496
+    },
+    {
+      "id": "BQ0251",
+      "question": "宋乔是什么职级",
+      "expectedView": "agent_v3_staff_profile_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_staff_profile_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_profile"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.489
+    },
+    {
+      "id": "BQ0260",
+      "question": "沈晴是什么职级",
+      "expectedView": "agent_v3_staff_profile_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_staff_profile_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_profile"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.504
+    },
+    {
+      "id": "BQ0269",
+      "question": "顾然是什么职级",
+      "expectedView": "agent_v3_staff_profile_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_staff_profile_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_profile"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.489
+    },
+    {
+      "id": "BQ0277",
+      "question": "这半年哪个美容师业绩最高",
+      "expectedView": "ask_data_staff_performance_view",
+      "legacyCandidates": [
+        "agent_v3_staff_profile_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_staff_performance_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_performance"
+      ],
+      "answerShape": "ranking",
+      "confidence": 0.93,
+      "durationMs": 0.492
+    },
+    {
+      "id": "BQ0278",
+      "question": "顾然这半年的提成是多少",
+      "expectedView": "ask_data_staff_performance_view",
+      "legacyCandidates": [
+        "ask_data_staff_performance_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_staff_performance_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_performance"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.506
+    },
+    {
+      "id": "BQ0283",
+      "question": "按这半年业绩给我美容师榜单",
+      "expectedView": "ask_data_staff_performance_view",
+      "legacyCandidates": [
+        "agent_v3_staff_profile_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_staff_performance_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_performance"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.721
+    },
+    {
+      "id": "BQ0286",
+      "question": "昨天哪个美容师业绩最高",
+      "expectedView": "ask_data_staff_performance_view",
+      "legacyCandidates": [
+        "agent_v3_staff_profile_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_staff_performance_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_performance"
+      ],
+      "answerShape": "ranking",
+      "confidence": 0.96,
+      "durationMs": 0.75
+    },
+    {
+      "id": "BQ0287",
+      "question": "唐伊昨天的提成是多少",
+      "expectedView": "ask_data_staff_performance_view",
+      "legacyCandidates": [
+        "ask_data_staff_performance_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_staff_performance_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_performance"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.538
+    },
+    {
+      "id": "BQ0292",
+      "question": "按昨天业绩给我美容师榜单",
+      "expectedView": "ask_data_staff_performance_view",
+      "legacyCandidates": [
+        "agent_v3_staff_profile_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_staff_performance_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_performance"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.94,
+      "durationMs": 0.528
+    },
+    {
+      "id": "BQ0295",
+      "question": "本月哪个美容师业绩最高",
+      "expectedView": "ask_data_staff_performance_view",
+      "legacyCandidates": [
+        "agent_v3_staff_profile_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_staff_performance_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_performance"
+      ],
+      "answerShape": "ranking",
+      "confidence": 0.96,
+      "durationMs": 0.514
+    },
+    {
+      "id": "BQ0296",
+      "question": "宋乔本月的提成是多少",
+      "expectedView": "ask_data_staff_performance_view",
+      "legacyCandidates": [
+        "ask_data_staff_performance_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_staff_performance_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_performance"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.524
+    },
+    {
+      "id": "BQ0301",
+      "question": "按本月业绩给我美容师榜单",
+      "expectedView": "ask_data_staff_performance_view",
+      "legacyCandidates": [
+        "agent_v3_staff_profile_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_staff_performance_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_performance"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.94,
+      "durationMs": 0.536
+    },
+    {
+      "id": "BQ0304",
+      "question": "最近30天哪个美容师业绩最高",
+      "expectedView": "ask_data_staff_performance_view",
+      "legacyCandidates": [
+        "agent_v3_staff_profile_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_staff_performance_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_performance"
+      ],
+      "answerShape": "ranking",
+      "confidence": 0.96,
+      "durationMs": 0.572
+    },
+    {
+      "id": "BQ0861",
+      "question": "上周有多少个预约",
+      "expectedView": "agent_v3_reservation_view",
+      "legacyCandidates": [
+        "agent_v3_reservation_view",
+        "ask_data_staff_capacity_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_reservation_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "reservation_metrics"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.521
+    },
+    {
+      "id": "BQ0862",
+      "question": "上周的预约都有谁",
+      "expectedView": "agent_v3_reservation_view",
+      "legacyCandidates": [
+        "agent_v3_reservation_view",
+        "ask_data_staff_capacity_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_reservation_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "reservation_metrics"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.522
+    },
+    {
+      "id": "BQ0863",
+      "question": "现在有哪些未确认的预约",
+      "expectedView": "agent_v3_reservation_view",
+      "legacyCandidates": [
+        "agent_v3_reservation_view",
+        "ask_data_staff_capacity_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_reservation_view",
+        "ask_data_staff_capacity_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [],
+      "answerShape": "list",
+      "confidence": 0.35,
+      "fallbackReason": "metric_not_deterministically_matched",
+      "durationMs": 0.915
+    },
+    {
+      "id": "BQ0864",
+      "question": "吴若兰最近7天有预约吗",
+      "expectedView": "agent_v3_reservation_view",
+      "legacyCandidates": [
+        "agent_v3_reservation_view",
+        "ask_data_staff_capacity_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_reservation_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "reservation_metrics"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.52
+    },
+    {
+      "id": "BQ0866",
+      "question": "哪些客户预约了还没到店",
+      "expectedView": "agent_v3_reservation_view",
+      "legacyCandidates": [
+        "agent_v3_reservation_view",
+        "ask_data_customer_profile_summary_view",
+        "ask_data_staff_capacity_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_reservation_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "reservation_metrics"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.526
+    },
+    {
+      "id": "BQ0868",
+      "question": "今年的到店人数",
+      "expectedView": "agent_v3_reservation_view",
+      "legacyCandidates": [
+        "agent_v3_reservation_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_reservation_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "reservation_metrics"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.513
+    },
+    {
+      "id": "BQ0869",
+      "question": "唐伊今年有几个预约",
+      "expectedView": "agent_v3_reservation_view",
+      "legacyCandidates": [
+        "agent_v3_reservation_view",
+        "ask_data_staff_capacity_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_reservation_view",
+        "ask_data_staff_capacity_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [],
+      "answerShape": "scalar",
+      "confidence": 0.35,
+      "fallbackReason": "metric_not_deterministically_matched",
+      "durationMs": 1.193
+    },
+    {
+      "id": "BQ0871",
+      "question": "最近7天有多少个预约",
+      "expectedView": "agent_v3_reservation_view",
+      "legacyCandidates": [
+        "agent_v3_reservation_view",
+        "ask_data_staff_capacity_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_reservation_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "reservation_metrics"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.565
+    },
+    {
+      "id": "BQ0872",
+      "question": "最近7天的预约都有谁",
+      "expectedView": "agent_v3_reservation_view",
+      "legacyCandidates": [
+        "agent_v3_reservation_view",
+        "ask_data_staff_capacity_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_reservation_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "reservation_metrics"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.541
+    },
+    {
+      "id": "BQ0873",
+      "question": "罗若兰今年有预约吗",
+      "expectedView": "agent_v3_reservation_view",
+      "legacyCandidates": [
+        "agent_v3_reservation_view",
+        "ask_data_staff_capacity_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_reservation_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "reservation_metrics"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.529
+    },
+    {
+      "id": "BQ1488",
+      "question": "最近7天新增了多少线索",
+      "expectedView": "agent_v3_marketing_conversion_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_conversion"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.525
+    },
+    {
+      "id": "BQ1495",
+      "question": "今年新增了多少线索",
+      "expectedView": "agent_v3_marketing_conversion_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_conversion"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.517
+    },
+    {
+      "id": "BQ1502",
+      "question": "本周末新增了多少线索",
+      "expectedView": "agent_v3_marketing_conversion_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_conversion"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.532
+    },
+    {
+      "id": "BQ1509",
+      "question": "国庆期间新增了多少线索",
+      "expectedView": "agent_v3_marketing_conversion_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_conversion"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.529
+    },
+    {
+      "id": "BQ1516",
+      "question": "最近7天活动带来了多少营收",
+      "expectedView": "agent_v3_marketing_conversion_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_conversion"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.556
+    },
+    {
+      "id": "BQ1518",
+      "question": "最近7天触达的客户有多少转化了",
+      "expectedView": "agent_v3_marketing_conversion_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view",
+        "ask_data_customer_profile_summary_view",
+        "ask_data_marketing_roi_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_conversion"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.94,
+      "durationMs": 0.661
+    },
+    {
+      "id": "BQ1519",
+      "question": "最近7天营销页的线索转化率",
+      "expectedView": "agent_v3_marketing_conversion_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_conversion_view",
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "ask_data_marketing_roi_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_conversion"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.524
+    },
+    {
+      "id": "BQ1522",
+      "question": "最近7天活动归因的收益分别多少",
+      "expectedView": "agent_v3_marketing_conversion_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_conversion"
+      ],
+      "answerShape": "comparison",
+      "confidence": 0.93,
+      "durationMs": 0.501
+    },
+    {
+      "id": "BQ1525",
+      "question": "最近7天各活动的参与转化对比",
+      "expectedView": "agent_v3_marketing_conversion_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view",
+        "ask_data_marketing_roi_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_conversion"
+      ],
+      "answerShape": "comparison",
+      "confidence": 0.93,
+      "durationMs": 0.499
+    },
+    {
+      "id": "BQ1527",
+      "question": "今年活动带来了多少营收",
+      "expectedView": "agent_v3_marketing_conversion_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_conversion"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.506
+    },
+    {
+      "id": "BQ0125",
+      "question": "哪些客户的补水护理 10 次卡快到期但剩余次数还很多",
+      "expectedView": "agent_v3_card_asset_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_card_asset_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "card_assets"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.584
+    },
+    {
+      "id": "BQ0132",
+      "question": "哪些客户的综合养护 20 次卡快到期但剩余次数还很多",
+      "expectedView": "agent_v3_card_asset_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_card_asset_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "card_assets"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.645
+    },
+    {
+      "id": "BQ0136",
+      "question": "哪些客户的敏感修护 8 次卡快到期但剩余次数还很多",
+      "expectedView": "agent_v3_card_asset_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_card_asset_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "card_assets"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.533
+    },
+    {
+      "id": "BQ0140",
+      "question": "哪些客户的焕肤清洁 12 次卡快到期但剩余次数还很多",
+      "expectedView": "agent_v3_card_asset_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_card_asset_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "card_assets"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.531
+    },
+    {
+      "id": "BQ0144",
+      "question": "哪些客户的抗衰管理 6 次卡快到期但剩余次数还很多",
+      "expectedView": "agent_v3_card_asset_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_card_asset_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "card_assets"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.537
+    },
+    {
+      "id": "BQ0154",
+      "question": "抗衰管理 6 次卡快到期的客户该怎么促约",
+      "expectedView": "agent_v3_card_asset_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_card_asset_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "card_assets"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.525
+    },
+    {
+      "id": "BQ0162",
+      "question": "补水护理 10 次卡快到期的客户该怎么促约",
+      "expectedView": "agent_v3_card_asset_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_card_asset_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "card_assets"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.525
+    },
+    {
+      "id": "BQ0167",
+      "question": "综合养护 20 次卡快到期的客户该怎么促约",
+      "expectedView": "agent_v3_card_asset_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_card_asset_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "card_assets"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.525
+    },
+    {
+      "id": "BQ0171",
+      "question": "敏感修护 8 次卡快到期的客户该怎么促约",
+      "expectedView": "agent_v3_card_asset_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_card_asset_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "card_assets"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.498
+    },
+    {
+      "id": "BQ0175",
+      "question": "焕肤清洁 12 次卡快到期的客户该怎么促约",
+      "expectedView": "agent_v3_card_asset_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_card_asset_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "card_assets"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.502
+    },
+    {
+      "id": "BQ0867",
+      "question": "今年核销了多少次卡",
+      "expectedView": "agent_v3_card_usage_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view",
+        "agent_v3_promotion_offer_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_card_usage_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "card_usage"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.491
+    },
+    {
+      "id": "BQ0875",
+      "question": "本周末核销了多少次卡",
+      "expectedView": "agent_v3_card_usage_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view",
+        "agent_v3_promotion_offer_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_card_usage_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "card_usage"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.502
+    },
+    {
+      "id": "BQ0883",
+      "question": "国庆期间核销了多少次卡",
+      "expectedView": "agent_v3_card_usage_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view",
+        "agent_v3_promotion_offer_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_card_usage_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "card_usage"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.503
+    },
+    {
+      "id": "BQ0891",
+      "question": "这半年核销了多少次卡",
+      "expectedView": "agent_v3_card_usage_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view",
+        "agent_v3_promotion_offer_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_card_usage_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "card_usage"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.513
+    },
+    {
+      "id": "BQ0503",
+      "question": "敏感修护 8 次卡的核销率是多少",
+      "expectedView": "agent_v3_card_usage_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view",
+        "agent_v3_promotion_offer_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_card_usage_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "card_usage"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.515
+    },
+    {
+      "id": "BQ0504",
+      "question": "哪些敏感修护 8 次卡快过期还没核销完",
+      "expectedView": "agent_v3_card_usage_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view",
+        "agent_v3_promotion_offer_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "card_assets",
+        "card_usage"
+      ],
+      "answerShape": "list",
+      "confidence": 0.66,
+      "fallbackReason": "metric_conflict",
+      "durationMs": 0.507
+    },
+    {
+      "id": "BQ0514",
+      "question": "焕肤清洁 12 次卡的核销率是多少",
+      "expectedView": "agent_v3_card_usage_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view",
+        "agent_v3_promotion_offer_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_card_usage_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "card_usage"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.668
+    },
+    {
+      "id": "BQ0515",
+      "question": "哪些焕肤清洁 12 次卡快过期还没核销完",
+      "expectedView": "agent_v3_card_usage_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view",
+        "agent_v3_promotion_offer_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "card_assets",
+        "card_usage"
+      ],
+      "answerShape": "list",
+      "confidence": 0.66,
+      "fallbackReason": "metric_conflict",
+      "durationMs": 0.628
+    },
+    {
+      "id": "BQ0525",
+      "question": "抗衰管理 6 次卡的核销率是多少",
+      "expectedView": "agent_v3_card_usage_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view",
+        "agent_v3_promotion_offer_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_card_usage_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "card_usage"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.526
+    },
+    {
+      "id": "BQ0526",
+      "question": "哪些抗衰管理 6 次卡快过期还没核销完",
+      "expectedView": "agent_v3_card_usage_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view",
+        "agent_v3_promotion_offer_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_card_usage_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "card_assets",
+        "card_usage"
+      ],
+      "answerShape": "list",
+      "confidence": 0.66,
+      "fallbackReason": "metric_conflict",
+      "durationMs": 0.517
+    },
+    {
+      "id": "BQ0048",
+      "question": "哪些客户同时有储值余额和未用完的综合养护 20 次卡",
+      "expectedView": "agent_v3_customer_balance_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_customer_balance_view",
+        "agent_v3_card_usage_view",
+        "ask_data_member_liability_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_customer_balance_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_balance"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.634
+    },
+    {
+      "id": "BQ0058",
+      "question": "哪些客户同时有储值余额和未用完的敏感修护 8 次卡",
+      "expectedView": "agent_v3_customer_balance_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_customer_balance_view",
+        "agent_v3_card_usage_view",
+        "ask_data_member_liability_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_customer_balance_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_balance"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.578
+    },
+    {
+      "id": "BQ0068",
+      "question": "哪些客户同时有储值余额和未用完的焕肤清洁 12 次卡",
+      "expectedView": "agent_v3_customer_balance_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_customer_balance_view",
+        "agent_v3_card_usage_view",
+        "ask_data_member_liability_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_customer_balance_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_balance"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.588
+    },
+    {
+      "id": "BQ0078",
+      "question": "哪些客户同时有储值余额和未用完的抗衰管理 6 次卡",
+      "expectedView": "agent_v3_customer_balance_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "agent_v3_customer_balance_view",
+        "agent_v3_card_usage_view",
+        "ask_data_member_liability_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_customer_balance_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_balance"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.568
+    },
+    {
+      "id": "BQ0122",
+      "question": "哪些客户的储值余额异常偏高",
+      "expectedView": "agent_v3_customer_balance_view",
+      "legacyCandidates": [
+        "agent_v3_customer_balance_view",
+        "ask_data_reconciliation_issue_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_member_liability_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_customer_balance_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_balance"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.511
+    },
+    {
+      "id": "BQ0381",
+      "question": "我今天有几个服务任务",
+      "expectedView": "agent_v3_service_quality_view",
+      "legacyCandidates": [
+        "agent_v3_service_quality_view",
+        "ask_data_customer_feedback_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_service_quality_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "service_quality"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.512
+    },
+    {
+      "id": "BQ0389",
+      "question": "我上周有几个服务任务",
+      "expectedView": "agent_v3_service_quality_view",
+      "legacyCandidates": [
+        "agent_v3_service_quality_view",
+        "ask_data_customer_feedback_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_service_quality_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "service_quality"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.504
+    },
+    {
+      "id": "BQ0394",
+      "question": "我最近7天有几个服务任务",
+      "expectedView": "agent_v3_service_quality_view",
+      "legacyCandidates": [
+        "agent_v3_service_quality_view",
+        "ask_data_customer_feedback_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_service_quality_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "service_quality"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.511
+    },
+    {
+      "id": "BQ0399",
+      "question": "我今年有几个服务任务",
+      "expectedView": "agent_v3_service_quality_view",
+      "legacyCandidates": [
+        "agent_v3_service_quality_view",
+        "ask_data_customer_feedback_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_service_quality_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "service_quality"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.498
+    },
+    {
+      "id": "BQ0404",
+      "question": "我本周末有几个服务任务",
+      "expectedView": "agent_v3_service_quality_view",
+      "legacyCandidates": [
+        "agent_v3_service_quality_view",
+        "ask_data_customer_feedback_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_service_quality_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "service_quality"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.512
+    },
+    {
+      "id": "BQ0409",
+      "question": "我国庆期间有几个服务任务",
+      "expectedView": "agent_v3_service_quality_view",
+      "legacyCandidates": [
+        "agent_v3_service_quality_view",
+        "ask_data_customer_feedback_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_service_quality_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "service_quality"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.52
+    },
+    {
+      "id": "BQ0865",
+      "question": "最近7天有几个服务任务",
+      "expectedView": "agent_v3_service_quality_view",
+      "legacyCandidates": [
+        "agent_v3_service_quality_view",
+        "ask_data_customer_feedback_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_service_quality_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "service_quality"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.528
+    },
+    {
+      "id": "BQ0874",
+      "question": "今年有几个服务任务",
+      "expectedView": "agent_v3_service_quality_view",
+      "legacyCandidates": [
+        "agent_v3_service_quality_view",
+        "ask_data_customer_feedback_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_service_quality_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "service_quality"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.636
+    },
+    {
+      "id": "BQ0882",
+      "question": "本周末有几个服务任务",
+      "expectedView": "agent_v3_service_quality_view",
+      "legacyCandidates": [
+        "agent_v3_service_quality_view",
+        "ask_data_customer_feedback_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_service_quality_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "service_quality"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.519
+    },
+    {
+      "id": "BQ0890",
+      "question": "国庆期间有几个服务任务",
+      "expectedView": "agent_v3_service_quality_view",
+      "legacyCandidates": [
+        "agent_v3_service_quality_view",
+        "ask_data_customer_feedback_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_service_quality_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "service_quality"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.533
+    },
+    {
+      "id": "BQ0870",
+      "question": "今年哪些时段还有空",
+      "expectedView": "agent_v3_appointment_gap_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "appointment_gap"
+      ],
+      "answerShape": "list",
+      "confidence": 0.9,
+      "durationMs": 0.514
+    },
+    {
+      "id": "BQ0878",
+      "question": "本周末哪些时段还有空",
+      "expectedView": "agent_v3_appointment_gap_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "appointment_gap"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.511
+    },
+    {
+      "id": "BQ0886",
+      "question": "国庆期间哪些时段还有空",
+      "expectedView": "agent_v3_appointment_gap_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "appointment_gap"
+      ],
+      "answerShape": "list",
+      "confidence": 0.9,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.515
+    },
+    {
+      "id": "BQ0894",
+      "question": "这半年哪些时段还有空",
+      "expectedView": "agent_v3_appointment_gap_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "appointment_gap"
+      ],
+      "answerShape": "list",
+      "confidence": 0.9,
+      "durationMs": 0.507
+    },
+    {
+      "id": "BQ0936",
+      "question": "今年有大量空档时段吗",
+      "expectedView": "agent_v3_appointment_gap_view",
+      "legacyCandidates": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "appointment_gap"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.506
+    },
+    {
+      "id": "BQ0944",
+      "question": "本周末有大量空档时段吗",
+      "expectedView": "agent_v3_appointment_gap_view",
+      "legacyCandidates": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "appointment_gap"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.506
+    },
+    {
+      "id": "BQ0952",
+      "question": "国庆期间有大量空档时段吗",
+      "expectedView": "agent_v3_appointment_gap_view",
+      "legacyCandidates": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "appointment_gap"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.524
+    },
+    {
+      "id": "BQ0960",
+      "question": "这半年有大量空档时段吗",
+      "expectedView": "agent_v3_appointment_gap_view",
+      "legacyCandidates": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "appointment_gap"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.497
+    },
+    {
+      "id": "BQ0968",
+      "question": "昨天有大量空档时段吗",
+      "expectedView": "agent_v3_appointment_gap_view",
+      "legacyCandidates": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "appointment_gap"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.496
+    },
+    {
+      "id": "BQ0461",
+      "question": "店里一共有多少个项目",
+      "expectedView": "agent_v3_project_catalog_view",
+      "legacyCandidates": [
+        "agent_v3_reservation_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_project_catalog_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "project_catalog"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.652
+    },
+    {
+      "id": "BQ0462",
+      "question": "水氧清洁焕肤的价格是多少",
+      "expectedView": "agent_v3_project_catalog_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_project_catalog_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "project_catalog"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.513
+    },
+    {
+      "id": "BQ0463",
+      "question": "全身精油 SPA做一次要多久",
+      "expectedView": "agent_v3_project_catalog_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_project_catalog_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "project_catalog"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.497
+    },
+    {
+      "id": "BQ0467",
+      "question": "哪些项目是推荐项目",
+      "expectedView": "agent_v3_project_catalog_view",
+      "legacyCandidates": [
+        "agent_v3_reservation_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_project_catalog_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "project_catalog"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.557
+    },
+    {
+      "id": "BQ0469",
+      "question": "眼周紧致护理属于哪个项目类型",
+      "expectedView": "agent_v3_project_catalog_view",
+      "legacyCandidates": [
+        "agent_v3_reservation_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_project_catalog_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "project_catalog"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.499
+    },
+    {
+      "id": "BQ0471",
+      "question": "背部净透护理的价格是多少",
+      "expectedView": "agent_v3_project_catalog_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_project_catalog_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "project_catalog"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.504
+    },
+    {
+      "id": "BQ0472",
+      "question": "晒后舒缓修护做一次要多久",
+      "expectedView": "agent_v3_project_catalog_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_project_catalog_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "project_catalog"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.495
+    },
+    {
+      "id": "BQ0476",
+      "question": "小气泡清洁护理属于哪个项目类型",
+      "expectedView": "agent_v3_project_catalog_view",
+      "legacyCandidates": [
+        "agent_v3_reservation_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_project_catalog_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "project_catalog"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.496
+    },
+    {
+      "id": "BQ0478",
+      "question": "敏感肌舒缓修护的价格是多少",
+      "expectedView": "agent_v3_project_catalog_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_project_catalog_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "project_catalog"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.497
+    },
+    {
+      "id": "BQ0479",
+      "question": "亮肤淡斑管理做一次要多久",
+      "expectedView": "agent_v3_project_catalog_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_project_catalog_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "project_catalog"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.496
+    },
+    {
+      "id": "BQ1481",
+      "question": "最近14天有哪些营销活动在跑",
+      "expectedView": "agent_v3_marketing_activity_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view",
+        "ask_data_marketing_roi_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_activity"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.548
+    },
+    {
+      "id": "BQ1486",
+      "question": "上周活动的参与人数",
+      "expectedView": "agent_v3_marketing_activity_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_activity"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.515
+    },
+    {
+      "id": "BQ1491",
+      "question": "今天有哪些营销活动在跑",
+      "expectedView": "agent_v3_marketing_activity_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view",
+        "ask_data_marketing_roi_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_activity"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.507
+    },
+    {
+      "id": "BQ1494",
+      "question": "最近7天活动的参与人数",
+      "expectedView": "agent_v3_marketing_activity_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_activity"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.498
+    },
+    {
+      "id": "BQ1498",
+      "question": "上周有哪些营销活动在跑",
+      "expectedView": "agent_v3_marketing_activity_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view",
+        "ask_data_marketing_roi_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_activity"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.497
+    },
+    {
+      "id": "BQ1501",
+      "question": "今年活动的参与人数",
+      "expectedView": "agent_v3_marketing_activity_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_activity"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.49
+    },
+    {
+      "id": "BQ1505",
+      "question": "最近7天有哪些营销活动在跑",
+      "expectedView": "agent_v3_marketing_activity_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view",
+        "ask_data_marketing_roi_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_activity"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.5
+    },
+    {
+      "id": "BQ1508",
+      "question": "本周末活动的参与人数",
+      "expectedView": "agent_v3_marketing_activity_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_activity"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.499
+    },
+    {
+      "id": "BQ1512",
+      "question": "今年有哪些营销活动在跑",
+      "expectedView": "agent_v3_marketing_activity_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view",
+        "ask_data_marketing_roi_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_activity"
+      ],
+      "answerShape": "list",
+      "confidence": 0.9,
+      "durationMs": 0.496
+    },
+    {
+      "id": "BQ1515",
+      "question": "国庆期间活动的参与人数",
+      "expectedView": "agent_v3_marketing_activity_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_activity"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.562
+    },
+    {
+      "id": "BQ1482",
+      "question": "最近14天发出去多少条触达",
+      "expectedView": "agent_v3_marketing_automation_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_automation"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.646
+    },
+    {
+      "id": "BQ1483",
+      "question": "有哪些自动化策略是开启的",
+      "expectedView": "agent_v3_marketing_automation_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_automation"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.523
+    },
+    {
+      "id": "BQ1485",
+      "question": "当前有多少条待跟进任务",
+      "expectedView": "agent_v3_marketing_automation_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_automation"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.512
+    },
+    {
+      "id": "BQ1490",
+      "question": "最近7天触达的成功率",
+      "expectedView": "agent_v3_marketing_automation_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_automation"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.513
+    },
+    {
+      "id": "BQ1492",
+      "question": "今天发出去多少条触达",
+      "expectedView": "agent_v3_marketing_automation_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_automation"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.504
+    },
+    {
+      "id": "BQ1497",
+      "question": "今年触达的成功率",
+      "expectedView": "agent_v3_marketing_automation_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_automation"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.498
+    },
+    {
+      "id": "BQ1499",
+      "question": "上周发出去多少条触达",
+      "expectedView": "agent_v3_marketing_automation_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_automation"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.495
+    },
+    {
+      "id": "BQ1504",
+      "question": "本周末触达的成功率",
+      "expectedView": "agent_v3_marketing_automation_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_automation"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.502
+    },
+    {
+      "id": "BQ1506",
+      "question": "最近7天发出去多少条触达",
+      "expectedView": "agent_v3_marketing_automation_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_automation"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.5
+    },
+    {
+      "id": "BQ1511",
+      "question": "国庆期间触达的成功率",
+      "expectedView": "agent_v3_marketing_automation_view",
+      "legacyCandidates": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_automation"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.498
+    },
+    {
+      "id": "BQ1487",
+      "question": "有哪些优惠券在用",
+      "expectedView": "agent_v3_promotion_offer_view",
+      "legacyCandidates": [
+        "agent_v3_promotion_offer_view",
+        "agent_v3_marketing_activity_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "promotion_offer"
+      ],
+      "answerShape": "list",
+      "confidence": 0.9,
+      "durationMs": 0.498
+    },
+    {
+      "id": "BQ1262",
+      "question": "这半年的经营成本有多少",
+      "expectedView": "ask_data_operating_cost_view",
+      "legacyCandidates": [
+        "ask_data_operating_cost_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_operating_cost_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "operating_cost"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.495
+    },
+    {
+      "id": "BQ1267",
+      "question": "昨天各项成本明细",
+      "expectedView": "ask_data_operating_cost_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_operating_cost_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "operating_cost"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.523
+    },
+    {
+      "id": "BQ1272",
+      "question": "昨天的经营成本有多少",
+      "expectedView": "ask_data_operating_cost_view",
+      "legacyCandidates": [
+        "ask_data_operating_cost_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_operating_cost_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "operating_cost"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.495
+    },
+    {
+      "id": "BQ1276",
+      "question": "本月各项成本明细",
+      "expectedView": "ask_data_operating_cost_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_operating_cost_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "operating_cost"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.496
+    },
+    {
+      "id": "BQ1281",
+      "question": "本月的经营成本有多少",
+      "expectedView": "ask_data_operating_cost_view",
+      "legacyCandidates": [
+        "ask_data_operating_cost_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_operating_cost_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "operating_cost"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.576
+    },
+    {
+      "id": "BQ1285",
+      "question": "最近30天各项成本明细",
+      "expectedView": "ask_data_operating_cost_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_operating_cost_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "operating_cost"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.699
+    },
+    {
+      "id": "BQ1290",
+      "question": "最近30天的经营成本有多少",
+      "expectedView": "ask_data_operating_cost_view",
+      "legacyCandidates": [
+        "ask_data_operating_cost_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_operating_cost_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "operating_cost"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.64
+    },
+    {
+      "id": "BQ1294",
+      "question": "去年同期各项成本明细",
+      "expectedView": "ask_data_operating_cost_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_operating_cost_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "operating_cost"
+      ],
+      "answerShape": "list",
+      "confidence": 0.9,
+      "durationMs": 0.512
+    },
+    {
+      "id": "BQ1305",
+      "question": "去年同期各成本科目占比",
+      "expectedView": "ask_data_operating_cost_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_operating_cost_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "operating_cost"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.501
+    },
+    {
+      "id": "BQ1312",
+      "question": "五一假期各成本科目占比",
+      "expectedView": "ask_data_operating_cost_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_operating_cost_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "operating_cost"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.499
+    },
+    {
+      "id": "BQ1724",
+      "question": "待确认的采购单有几个",
+      "expectedView": "agent_v3_purchase_procurement_view",
+      "legacyCandidates": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_supplier_performance_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "procurement_detail"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.523
+    },
+    {
+      "id": "BQ1725",
+      "question": "今天的采购总额",
+      "expectedView": "agent_v3_purchase_procurement_view",
+      "legacyCandidates": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_supplier_performance_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "procurement_detail"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.496
+    },
+    {
+      "id": "BQ1726",
+      "question": "有哪些发货在途",
+      "expectedView": "agent_v3_purchase_procurement_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "procurement_detail"
+      ],
+      "answerShape": "list",
+      "confidence": 0.9,
+      "durationMs": 0.49
+    },
+    {
+      "id": "BQ1727",
+      "question": "上周采购结算待付款多少",
+      "expectedView": "agent_v3_purchase_procurement_view",
+      "legacyCandidates": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view",
+        "agent_v3_supplier_performance_view",
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "procurement_detail"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.508
+    },
+    {
+      "id": "BQ1730",
+      "question": "上周的采购总额",
+      "expectedView": "agent_v3_purchase_procurement_view",
+      "legacyCandidates": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_supplier_performance_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "procurement_detail"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.528
+    },
+    {
+      "id": "BQ1731",
+      "question": "最近7天采购结算待付款多少",
+      "expectedView": "agent_v3_purchase_procurement_view",
+      "legacyCandidates": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view",
+        "agent_v3_supplier_performance_view",
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "procurement_detail"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.498
+    },
+    {
+      "id": "BQ1733",
+      "question": "最近7天的采购总额",
+      "expectedView": "agent_v3_purchase_procurement_view",
+      "legacyCandidates": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_supplier_performance_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "procurement_detail"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.47
+    },
+    {
+      "id": "BQ1734",
+      "question": "今年采购结算待付款多少",
+      "expectedView": "agent_v3_purchase_procurement_view",
+      "legacyCandidates": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view",
+        "agent_v3_supplier_performance_view",
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "procurement_detail"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.469
+    },
+    {
+      "id": "BQ1736",
+      "question": "今年的采购总额",
+      "expectedView": "agent_v3_purchase_procurement_view",
+      "legacyCandidates": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_supplier_performance_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "procurement_detail"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.471
+    },
+    {
+      "id": "BQ1737",
+      "question": "本周末采购结算待付款多少",
+      "expectedView": "agent_v3_purchase_procurement_view",
+      "legacyCandidates": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view",
+        "agent_v3_supplier_performance_view",
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "procurement_detail"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.472
+    },
+    {
+      "id": "BQ1728",
+      "question": "哪些供应商合作最多",
+      "expectedView": "agent_v3_supplier_performance_view",
+      "legacyCandidates": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_supplier_performance_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "supplier_performance"
+      ],
+      "answerShape": "ranking",
+      "confidence": 0.93,
+      "durationMs": 0.631
+    },
+    {
+      "id": "BQ1747",
+      "question": "昨天各供应商的采购金额",
+      "expectedView": "agent_v3_supplier_performance_view",
+      "legacyCandidates": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_supplier_performance_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "supplier_performance"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.94,
+      "durationMs": 0.574
+    },
+    {
+      "id": "BQ1755",
+      "question": "本月各供应商的采购金额",
+      "expectedView": "agent_v3_supplier_performance_view",
+      "legacyCandidates": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_supplier_performance_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "supplier_performance"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.94,
+      "durationMs": 0.494
+    },
+    {
+      "id": "BQ1762",
+      "question": "最近30天各供应商的采购金额",
+      "expectedView": "agent_v3_supplier_performance_view",
+      "legacyCandidates": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_supplier_performance_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "supplier_performance"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.94,
+      "durationMs": 0.487
+    },
+    {
+      "id": "BQ1769",
+      "question": "去年同期各供应商的采购金额",
+      "expectedView": "agent_v3_supplier_performance_view",
+      "legacyCandidates": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_supplier_performance_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "supplier_performance"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.479
+    },
+    {
+      "id": "BQ1776",
+      "question": "五一假期各供应商的采购金额",
+      "expectedView": "agent_v3_supplier_performance_view",
+      "legacyCandidates": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_supplier_performance_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "supplier_performance"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.48
+    },
+    {
+      "id": "BQ1783",
+      "question": "供应商集中度会不会太高",
+      "expectedView": "agent_v3_supplier_performance_view",
+      "legacyCandidates": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_supplier_performance_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "supplier_performance"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.472
+    },
+    {
+      "id": "BQ1261",
+      "question": "这半年的毛利是多少",
+      "expectedView": "ask_data_confirmed_profit_view",
+      "legacyCandidates": [
+        "ask_data_confirmed_profit_view",
+        "ask_data_operating_cost_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "confirmed_profit"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.474
+    },
+    {
+      "id": "BQ1268",
+      "question": "昨天的毛利率",
+      "expectedView": "ask_data_confirmed_profit_view",
+      "legacyCandidates": [
+        "ask_data_confirmed_profit_view",
+        "ask_data_operating_cost_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "confirmed_profit"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.475
+    },
+    {
+      "id": "BQ1271",
+      "question": "昨天的毛利是多少",
+      "expectedView": "ask_data_confirmed_profit_view",
+      "legacyCandidates": [
+        "ask_data_confirmed_profit_view",
+        "ask_data_operating_cost_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "confirmed_profit"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.474
+    },
+    {
+      "id": "BQ1277",
+      "question": "本月的毛利率",
+      "expectedView": "ask_data_confirmed_profit_view",
+      "legacyCandidates": [
+        "ask_data_confirmed_profit_view",
+        "ask_data_operating_cost_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "confirmed_profit"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.469
+    },
+    {
+      "id": "BQ1280",
+      "question": "本月的毛利是多少",
+      "expectedView": "ask_data_confirmed_profit_view",
+      "legacyCandidates": [
+        "ask_data_confirmed_profit_view",
+        "ask_data_operating_cost_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "confirmed_profit"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.481
+    },
+    {
+      "id": "BQ1286",
+      "question": "最近30天的毛利率",
+      "expectedView": "ask_data_confirmed_profit_view",
+      "legacyCandidates": [
+        "ask_data_confirmed_profit_view",
+        "ask_data_operating_cost_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "confirmed_profit"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.474
+    },
+    {
+      "id": "BQ1289",
+      "question": "最近30天的毛利是多少",
+      "expectedView": "ask_data_confirmed_profit_view",
+      "legacyCandidates": [
+        "ask_data_confirmed_profit_view",
+        "ask_data_operating_cost_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "confirmed_profit"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.477
+    },
+    {
+      "id": "BQ1295",
+      "question": "去年同期的毛利率",
+      "expectedView": "ask_data_confirmed_profit_view",
+      "legacyCandidates": [
+        "ask_data_confirmed_profit_view",
+        "ask_data_operating_cost_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "confirmed_profit"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.469
+    },
+    {
+      "id": "BQ1296",
+      "question": "昨天的经营利润是多少",
+      "expectedView": "ask_data_confirmed_profit_view",
+      "legacyCandidates": [
+        "ask_data_confirmed_profit_view",
+        "ask_data_operating_cost_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "confirmed_profit"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.472
+    },
+    {
+      "id": "BQ1298",
+      "question": "昨天毛利率是多少",
+      "expectedView": "ask_data_confirmed_profit_view",
+      "legacyCandidates": [
+        "ask_data_confirmed_profit_view",
+        "ask_data_operating_cost_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "confirmed_profit"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.471
+    },
+    {
+      "id": "BQ1266",
+      "question": "昨天的收银班次对平了吗",
+      "expectedView": "ask_data_reconciliation_issue_view",
+      "legacyCandidates": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "reconciliation_issue"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.481
+    },
+    {
+      "id": "BQ1275",
+      "question": "本月的收银班次对平了吗",
+      "expectedView": "ask_data_reconciliation_issue_view",
+      "legacyCandidates": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "reconciliation_issue"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.629
+    },
+    {
+      "id": "BQ1284",
+      "question": "最近30天的收银班次对平了吗",
+      "expectedView": "ask_data_reconciliation_issue_view",
+      "legacyCandidates": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "reconciliation_issue"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.491
+    },
+    {
+      "id": "BQ1293",
+      "question": "去年同期的收银班次对平了吗",
+      "expectedView": "ask_data_reconciliation_issue_view",
+      "legacyCandidates": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "reconciliation_issue"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.478
+    },
+    {
+      "id": "BQ0747",
+      "question": "最近三个月有订单支付和金额对不上吗",
+      "expectedView": "ask_data_reconciliation_issue_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_order_summary_view",
+        "ask_data_reconciliation_issue_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "order_revenue",
+        "reconciliation_issue"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.85,
+      "durationMs": 0.52
+    },
+    {
+      "id": "BQ0755",
+      "question": "这个季度有订单支付和金额对不上吗",
+      "expectedView": "ask_data_reconciliation_issue_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_order_summary_view",
+        "ask_data_reconciliation_issue_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "order_revenue",
+        "reconciliation_issue"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.82,
+      "durationMs": 0.483
+    },
+    {
+      "id": "BQ0763",
+      "question": "双十一期间有订单支付和金额对不上吗",
+      "expectedView": "ask_data_reconciliation_issue_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_order_summary_view",
+        "ask_data_reconciliation_issue_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "order_revenue",
+        "reconciliation_issue"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.82,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.483
+    },
+    {
+      "id": "BQ0771",
+      "question": "最近14天有订单支付和金额对不上吗",
+      "expectedView": "ask_data_reconciliation_issue_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_order_summary_view",
+        "ask_data_reconciliation_issue_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "order_revenue",
+        "reconciliation_issue"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.85,
+      "durationMs": 0.481
+    },
+    {
+      "id": "BQ1376",
+      "question": "去年同期的日结平不平",
+      "expectedView": "ask_data_reconciliation_issue_view",
+      "legacyCandidates": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view",
+        "agent_v3_order_summary_view"
+      ],
+      "semanticCandidates": [
+        "agent_v3_daily_settlement_view",
+        "ask_data_reconciliation_issue_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "daily_net_receipts",
+        "reconciliation_issue"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.64,
+      "fallbackReason": "metric_conflict",
+      "durationMs": 0.476
+    },
+    {
+      "id": "BQ1379",
+      "question": "五一假期对账有异常吗",
+      "expectedView": "ask_data_reconciliation_issue_view",
+      "legacyCandidates": [
+        "ask_data_reconciliation_issue_view",
+        "agent_v3_daily_settlement_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "reconciliation_issue"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.48
+    },
+    {
+      "id": "BQ1265",
+      "question": "现在的储值负债总额",
+      "expectedView": "ask_data_member_liability_view",
+      "legacyCandidates": [
+        "ask_data_member_liability_view",
+        "agent_v3_customer_balance_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_member_liability_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "member_liability"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.475
+    },
+    {
+      "id": "BQ1299",
+      "question": "次卡未履约负债有多少",
+      "expectedView": "ask_data_member_liability_view",
+      "legacyCandidates": [
+        "agent_v3_card_asset_view",
+        "ask_data_member_liability_view",
+        "agent_v3_customer_balance_view",
+        "agent_v3_card_usage_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_member_liability_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "member_liability"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.475
+    },
+    {
+      "id": "BQ1303",
+      "question": "储值负债和次卡负债分别多少",
+      "expectedView": "ask_data_member_liability_view",
+      "legacyCandidates": [
+        "ask_data_member_liability_view",
+        "agent_v3_card_asset_view",
+        "agent_v3_customer_balance_view",
+        "agent_v3_card_usage_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_member_liability_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "member_liability"
+      ],
+      "answerShape": "comparison",
+      "confidence": 0.9,
+      "durationMs": 0.478
+    },
+    {
+      "id": "BQ1339",
+      "question": "去年同期储值负债的变化趋势",
+      "expectedView": "ask_data_member_liability_view",
+      "legacyCandidates": [
+        "ask_data_member_liability_view",
+        "agent_v3_customer_balance_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_member_liability_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "member_liability"
+      ],
+      "answerShape": "trend",
+      "confidence": 0.9,
+      "durationMs": 0.473
+    },
+    {
+      "id": "BQ1349",
+      "question": "五一假期储值负债的变化趋势",
+      "expectedView": "ask_data_member_liability_view",
+      "legacyCandidates": [
+        "ask_data_member_liability_view",
+        "agent_v3_customer_balance_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_member_liability_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "member_liability"
+      ],
+      "answerShape": "trend",
+      "confidence": 0.9,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.479
+    },
+    {
+      "id": "BQ1359",
+      "question": "开业至今储值负债的变化趋势",
+      "expectedView": "ask_data_member_liability_view",
+      "legacyCandidates": [
+        "ask_data_member_liability_view",
+        "agent_v3_customer_balance_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_member_liability_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "member_liability"
+      ],
+      "answerShape": "trend",
+      "confidence": 0.9,
+      "durationMs": 0.469
+    },
+    {
+      "id": "BQ1369",
+      "question": "春节期间储值负债的变化趋势",
+      "expectedView": "ask_data_member_liability_view",
+      "legacyCandidates": [
+        "ask_data_member_liability_view",
+        "agent_v3_customer_balance_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_member_liability_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "member_liability"
+      ],
+      "answerShape": "trend",
+      "confidence": 0.9,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.472
+    },
+    {
+      "id": "BQ1377",
+      "question": "去年同期储值负债是不是异常增长",
+      "expectedView": "ask_data_member_liability_view",
+      "legacyCandidates": [
+        "ask_data_member_liability_view",
+        "agent_v3_customer_balance_view",
+        "ask_data_reconciliation_issue_view",
+        "agent_v3_daily_settlement_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_member_liability_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "member_liability"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.52
+    },
+    {
+      "id": "BQ1385",
+      "question": "五一假期储值负债是不是异常增长",
+      "expectedView": "ask_data_member_liability_view",
+      "legacyCandidates": [
+        "ask_data_member_liability_view",
+        "agent_v3_customer_balance_view",
+        "ask_data_reconciliation_issue_view",
+        "agent_v3_daily_settlement_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_member_liability_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "member_liability"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.604
+    },
+    {
+      "id": "BQ1392",
+      "question": "开业至今储值负债是不是异常增长",
+      "expectedView": "ask_data_member_liability_view",
+      "legacyCandidates": [
+        "ask_data_member_liability_view",
+        "agent_v3_customer_balance_view",
+        "ask_data_reconciliation_issue_view",
+        "agent_v3_daily_settlement_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_member_liability_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "member_liability"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.497
+    },
+    {
+      "id": "BQ0243",
+      "question": "唐伊上个月的排班是怎样的",
+      "expectedView": "ask_data_staff_capacity_view",
+      "legacyCandidates": [
+        "ask_data_staff_capacity_view",
+        "agent_v3_appointment_gap_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_staff_capacity_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_capacity"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.492
+    },
+    {
+      "id": "BQ0252",
+      "question": "宋乔最近三个月的排班是怎样的",
+      "expectedView": "ask_data_staff_capacity_view",
+      "legacyCandidates": [
+        "ask_data_staff_capacity_view",
+        "agent_v3_appointment_gap_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_staff_capacity_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_capacity"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.488
+    },
+    {
+      "id": "BQ0261",
+      "question": "沈晴这个季度的排班是怎样的",
+      "expectedView": "ask_data_staff_capacity_view",
+      "legacyCandidates": [
+        "ask_data_staff_capacity_view",
+        "agent_v3_appointment_gap_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_staff_capacity_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_capacity"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.472
+    },
+    {
+      "id": "BQ0270",
+      "question": "顾然双十一期间的排班是怎样的",
+      "expectedView": "ask_data_staff_capacity_view",
+      "legacyCandidates": [
+        "ask_data_staff_capacity_view",
+        "agent_v3_appointment_gap_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_staff_capacity_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_capacity"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.473
+    },
+    {
+      "id": "BQ0282",
+      "question": "哪些美容师这半年排班工时超了",
+      "expectedView": "ask_data_staff_capacity_view",
+      "legacyCandidates": [
+        "ask_data_staff_capacity_view",
+        "agent_v3_appointment_gap_view",
+        "agent_v3_staff_profile_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_staff_capacity_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_capacity"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.468
+    },
+    {
+      "id": "BQ0291",
+      "question": "哪些美容师昨天排班工时超了",
+      "expectedView": "ask_data_staff_capacity_view",
+      "legacyCandidates": [
+        "ask_data_staff_capacity_view",
+        "agent_v3_appointment_gap_view",
+        "agent_v3_staff_profile_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_staff_capacity_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_capacity"
+      ],
+      "answerShape": "list",
+      "confidence": 0.96,
+      "durationMs": 0.474
+    },
+    {
+      "id": "BQ0300",
+      "question": "哪些美容师本月排班工时超了",
+      "expectedView": "ask_data_staff_capacity_view",
+      "legacyCandidates": [
+        "ask_data_staff_capacity_view",
+        "agent_v3_appointment_gap_view",
+        "agent_v3_staff_profile_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_staff_capacity_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_capacity"
+      ],
+      "answerShape": "list",
+      "confidence": 0.96,
+      "durationMs": 0.471
+    },
+    {
+      "id": "BQ0309",
+      "question": "哪些美容师最近30天排班工时超了",
+      "expectedView": "ask_data_staff_capacity_view",
+      "legacyCandidates": [
+        "ask_data_staff_capacity_view",
+        "agent_v3_appointment_gap_view",
+        "agent_v3_staff_profile_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_staff_capacity_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_capacity"
+      ],
+      "answerShape": "list",
+      "confidence": 0.96,
+      "durationMs": 0.473
+    },
+    {
+      "id": "BQ0319",
+      "question": "去年同期团队整体产能利用率",
+      "expectedView": "ask_data_staff_capacity_view",
+      "legacyCandidates": [
+        "ask_data_staff_capacity_view",
+        "agent_v3_appointment_gap_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_staff_capacity_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_capacity"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.467
+    },
+    {
+      "id": "BQ0327",
+      "question": "五一假期团队整体产能利用率",
+      "expectedView": "ask_data_staff_capacity_view",
+      "legacyCandidates": [
+        "ask_data_staff_capacity_view",
+        "agent_v3_appointment_gap_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_staff_capacity_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "staff_capacity"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.466
+    },
+    {
+      "id": "BQ1140",
+      "question": "BOM理论消耗和屏障安瓶精华实际出库差得多吗",
+      "expectedView": "ask_data_bom_consumption_variance_view",
+      "legacyCandidates": [
+        "ask_data_bom_consumption_variance_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "bom_variance"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.481
+    },
+    {
+      "id": "BQ1149",
+      "question": "BOM理论消耗和亮肤软膜粉实际出库差得多吗",
+      "expectedView": "ask_data_bom_consumption_variance_view",
+      "legacyCandidates": [
+        "ask_data_bom_consumption_variance_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "bom_variance"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.495
+    },
+    {
+      "id": "BQ1158",
+      "question": "BOM理论消耗和舒缓修护膜实际出库差得多吗",
+      "expectedView": "ask_data_bom_consumption_variance_view",
+      "legacyCandidates": [
+        "ask_data_bom_consumption_variance_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "bom_variance"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.468
+    },
+    {
+      "id": "BQ1167",
+      "question": "BOM理论消耗和眼周紧致啫喱实际出库差得多吗",
+      "expectedView": "ask_data_bom_consumption_variance_view",
+      "legacyCandidates": [
+        "ask_data_bom_consumption_variance_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "bom_variance"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.469
+    },
+    {
+      "id": "BQ0281",
+      "question": "顾然服务过的客户这半年满意度如何",
+      "expectedView": "ask_data_customer_feedback_view",
+      "legacyCandidates": [
+        "ask_data_customer_feedback_view",
+        "agent_v3_service_quality_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_feedback_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_feedback"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.481
+    },
+    {
+      "id": "BQ0290",
+      "question": "唐伊服务过的客户昨天满意度如何",
+      "expectedView": "ask_data_customer_feedback_view",
+      "legacyCandidates": [
+        "ask_data_customer_feedback_view",
+        "agent_v3_service_quality_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_feedback_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_feedback"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.94,
+      "durationMs": 0.679
+    },
+    {
+      "id": "BQ0299",
+      "question": "宋乔服务过的客户本月满意度如何",
+      "expectedView": "ask_data_customer_feedback_view",
+      "legacyCandidates": [
+        "ask_data_customer_feedback_view",
+        "agent_v3_service_quality_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_feedback_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_feedback"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.94,
+      "durationMs": 0.523
+    },
+    {
+      "id": "BQ0308",
+      "question": "沈晴服务过的客户最近30天满意度如何",
+      "expectedView": "ask_data_customer_feedback_view",
+      "legacyCandidates": [
+        "ask_data_customer_feedback_view",
+        "agent_v3_service_quality_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_feedback_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_feedback"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.94,
+      "durationMs": 0.531
+    },
+    {
+      "id": "BQ0128",
+      "question": "哪些客户投诉或体验不佳需要跟进",
+      "expectedView": "ask_data_customer_feedback_view",
+      "legacyCandidates": [
+        "ask_data_customer_feedback_view",
+        "agent_v3_service_quality_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_feedback_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_feedback"
+      ],
+      "answerShape": "list",
+      "confidence": 0.93,
+      "durationMs": 0.506
+    },
+    {
+      "id": "BQ0181",
+      "question": "预测马欣怡的流失风险有多高",
+      "expectedView": "ask_data_customer_lifecycle_view",
+      "legacyCandidates": [
+        "ask_data_customer_lifecycle_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_lifecycle"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.483
+    },
+    {
+      "id": "BQ0186",
+      "question": "杨紫萱的客户价值分层预测",
+      "expectedView": "ask_data_customer_lifecycle_view",
+      "legacyCandidates": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_lifecycle"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.48
+    },
+    {
+      "id": "BQ0189",
+      "question": "预测孙婉清的流失风险有多高",
+      "expectedView": "ask_data_customer_lifecycle_view",
+      "legacyCandidates": [
+        "ask_data_customer_lifecycle_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_lifecycle"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.473
+    },
+    {
+      "id": "BQ0192",
+      "question": "黄思琪的客户价值分层预测",
+      "expectedView": "ask_data_customer_lifecycle_view",
+      "legacyCandidates": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_lifecycle"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.604
+    },
+    {
+      "id": "BQ0194",
+      "question": "预测朱梦瑶的流失风险有多高",
+      "expectedView": "ask_data_customer_lifecycle_view",
+      "legacyCandidates": [
+        "ask_data_customer_lifecycle_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_lifecycle"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.471
+    },
+    {
+      "id": "BQ0197",
+      "question": "周若兰的客户价值分层预测",
+      "expectedView": "ask_data_customer_lifecycle_view",
+      "legacyCandidates": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_lifecycle"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.467
+    },
+    {
+      "id": "BQ0198",
+      "question": "预测林雨薇的流失风险有多高",
+      "expectedView": "ask_data_customer_lifecycle_view",
+      "legacyCandidates": [
+        "ask_data_customer_lifecycle_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_lifecycle"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.469
+    },
+    {
+      "id": "BQ0201",
+      "question": "王静怡的客户价值分层预测",
+      "expectedView": "ask_data_customer_lifecycle_view",
+      "legacyCandidates": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_lifecycle"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.481
+    },
+    {
+      "id": "BQ0202",
+      "question": "预测徐佳慧的流失风险有多高",
+      "expectedView": "ask_data_customer_lifecycle_view",
+      "legacyCandidates": [
+        "ask_data_customer_lifecycle_view",
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_lifecycle"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.88,
+      "durationMs": 0.482
+    },
+    {
+      "id": "BQ0205",
+      "question": "朱静怡的客户价值分层预测",
+      "expectedView": "ask_data_customer_lifecycle_view",
+      "legacyCandidates": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "legacyHit": false,
+      "semanticHit": true,
+      "metricKeys": [
+        "customer_lifecycle"
+      ],
+      "answerShape": "scalar",
+      "confidence": 0.91,
+      "durationMs": 0.461
+    },
+    {
+      "id": "BQ1520",
+      "question": "最近7天哪些活动ROI最高",
+      "expectedView": "ask_data_marketing_roi_view",
+      "legacyCandidates": [
+        "ask_data_marketing_roi_view",
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_marketing_roi_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_roi"
+      ],
+      "answerShape": "ranking",
+      "confidence": 0.93,
+      "durationMs": 0.484
+    },
+    {
+      "id": "BQ1524",
+      "question": "最近7天哪个渠道获客成本最低",
+      "expectedView": "ask_data_marketing_roi_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_marketing_roi_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_roi"
+      ],
+      "answerShape": "ranking",
+      "confidence": 0.96,
+      "durationMs": 0.472
+    },
+    {
+      "id": "BQ1531",
+      "question": "今年哪些活动ROI最高",
+      "expectedView": "ask_data_marketing_roi_view",
+      "legacyCandidates": [
+        "ask_data_marketing_roi_view",
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_marketing_roi_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_roi"
+      ],
+      "answerShape": "ranking",
+      "confidence": 0.9,
+      "durationMs": 0.579
+    },
+    {
+      "id": "BQ1535",
+      "question": "今年哪个渠道获客成本最低",
+      "expectedView": "ask_data_marketing_roi_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_marketing_roi_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_roi"
+      ],
+      "answerShape": "ranking",
+      "confidence": 0.93,
+      "durationMs": 0.489
+    },
+    {
+      "id": "BQ1542",
+      "question": "本周末哪些活动ROI最高",
+      "expectedView": "ask_data_marketing_roi_view",
+      "legacyCandidates": [
+        "ask_data_marketing_roi_view",
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_marketing_roi_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_roi"
+      ],
+      "answerShape": "ranking",
+      "confidence": 0.93,
+      "durationMs": 0.481
+    },
+    {
+      "id": "BQ1546",
+      "question": "本周末哪个渠道获客成本最低",
+      "expectedView": "ask_data_marketing_roi_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_marketing_roi_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_roi"
+      ],
+      "answerShape": "ranking",
+      "confidence": 0.96,
+      "durationMs": 0.48
+    },
+    {
+      "id": "BQ1553",
+      "question": "国庆期间哪些活动ROI最高",
+      "expectedView": "ask_data_marketing_roi_view",
+      "legacyCandidates": [
+        "ask_data_marketing_roi_view",
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_marketing_roi_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_roi"
+      ],
+      "answerShape": "ranking",
+      "confidence": 0.9,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.471
+    },
+    {
+      "id": "BQ1557",
+      "question": "国庆期间哪个渠道获客成本最低",
+      "expectedView": "ask_data_marketing_roi_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_marketing_roi_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_roi"
+      ],
+      "answerShape": "ranking",
+      "confidence": 0.93,
+      "clarificationQuestion": "请补充要查询的具体年份，例如“2025 年双十一”。",
+      "clarificationReason": "活动或节日跨年份，年份会改变查询结果。",
+      "durationMs": 0.467
+    },
+    {
+      "id": "BQ1563",
+      "question": "最近7天拓客成本的趋势",
+      "expectedView": "ask_data_marketing_roi_view",
+      "legacyCandidates": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view",
+        "ask_data_confirmed_profit_view",
+        "agent_v3_reservation_view",
+        "agent_v3_product_inventory_view",
+        "ask_data_staff_performance_view",
+        "ask_data_marketing_roi_view",
+        "ask_data_customer_lifecycle_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_marketing_roi_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_roi"
+      ],
+      "answerShape": "trend",
+      "confidence": 0.93,
+      "durationMs": 0.49
+    },
+    {
+      "id": "BQ1566",
+      "question": "最近7天活动ROI对比钱花哪最值",
+      "expectedView": "ask_data_marketing_roi_view",
+      "legacyCandidates": [
+        "ask_data_marketing_roi_view",
+        "agent_v3_marketing_activity_view",
+        "agent_v3_marketing_automation_view",
+        "agent_v3_marketing_conversion_view"
+      ],
+      "semanticCandidates": [
+        "ask_data_marketing_roi_view"
+      ],
+      "legacyHit": true,
+      "semanticHit": true,
+      "metricKeys": [
+        "marketing_roi"
+      ],
+      "answerShape": "comparison",
+      "confidence": 0.93,
+      "durationMs": 0.511
+    }
+  ]
+}

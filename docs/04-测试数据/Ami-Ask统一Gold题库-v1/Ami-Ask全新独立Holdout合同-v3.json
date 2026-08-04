@@ -1,0 +1,6447 @@
+{
+  "version": 3,
+  "frozenAt": "2026-08-02T21:16:15.375Z",
+  "candidatePath": "/Users/ju/Documents/ami/beauty-salon-admin-ask/docs/04-测试数据/Ami-Ask统一Gold题库-v1/Ami-Ask全新独立Holdout候选-v3.json",
+  "candidateChecksum": "aab3a0f39b990e177188ba0dfd392fc96fae47fdc555f8ed46b3c6d9c720af71",
+  "exclusionPath": "/Users/ju/Documents/ami/beauty-salon-admin-ask/docs/04-测试数据/Ami-Ask统一Gold题库-v1/Ami-Ask全新独立Holdout排除集-v3.json",
+  "exclusionChecksum": "9ad638f71a85f9a73b1b255f92047c588fae177846e9adc7d8f7097e7c762f16",
+  "checksum": "912aa24648a5a38d89283c82ab3a58992ba72b19a70b8614a443287d771acb98",
+  "contractChecksum": "f369079cccc3caab28a0401b04a84877bbf555f68ff060d8a165c67e4db7589e",
+  "summary": {
+    "total": 151,
+    "querySupported": 34,
+    "clarificationRequired": 60,
+    "adminSupportedAskNotOpen": 42,
+    "adminBackendUnsupported": 23,
+    "brainContentOrAdvice": 11,
+    "priorSetLeakCount": 0
+  },
+  "queryContracts": [
+    {
+      "id": "ami_brain_2000:BQ0698",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0698",
+      "sourceRole": "财务",
+      "question": "周雅婷的全部消费记录",
+      "checksum": "67db409d0a708f6fecdae9221c008c3e587ae4d2277b30ab20a301bf886ca694",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "order_id",
+        "net_revenue"
+      ],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_order_summary_view",
+      "auditNote": "当前管理端与 Ask 已有可靠只读事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0700",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0700",
+      "sourceRole": "财务",
+      "question": "最近14天的客单价是多少",
+      "checksum": "92c87669c0fa78bb93d30cf5ba219591ad70accd8d4c0b610fa420050d85012e",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "net_revenue"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_order_summary_view",
+      "auditNote": "当前管理端与 Ask 已有可靠只读事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0703",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0703",
+      "sourceRole": "财务",
+      "question": "马心怡最近14天的消费明细",
+      "checksum": "9f1f8061e78a6ba996cb0ad57969a0a5703ab6e1387b08efd1f73cfd9b1ab6da",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "order_id",
+        "net_revenue"
+      ],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_order_summary_view",
+      "auditNote": "当前管理端与 Ask 已有可靠只读事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0706",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0706",
+      "sourceRole": "财务",
+      "question": "最近三个月营业额和最近7天比怎么样",
+      "checksum": "fc4bfc63a235777ce378358b46a1effc92c61e5f995f1c5eb67694a06678e4eb",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "net_revenue"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_order_summary_view",
+      "auditNote": "当前管理端与 Ask 已有可靠只读事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0708",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0708",
+      "sourceRole": "财务",
+      "question": "最近三个月客单价的变化",
+      "checksum": "e169a909494b47814c9e474bb5eb987078535950ffabef1a5904ede9f39d12ab",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "trend_month",
+        "net_revenue"
+      ],
+      "requiredResultMode": "trend",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "trend_granularity",
+        "trend_points"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_order_summary_view",
+      "auditNote": "当前管理端与 Ask 已有可靠只读事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1179",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1179",
+      "sourceRole": "库存",
+      "question": "最近30天哪些产品动销好哪些差",
+      "checksum": "b3b28b0f1dd4f5408bb19a9febd89fd0cc3949cbd69f06e409d2fcd8a93f7120",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "product_sales"
+      ],
+      "requiredDimensionKeys": [
+        "product"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "sales_quantity"
+      ],
+      "requiredResultMode": "grouped",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_order_item_sales_view",
+      "auditNote": "当前管理端与 Ask 已有可靠只读事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1187",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1187",
+      "sourceRole": "库存",
+      "question": "去年同期哪些产品动销好哪些差",
+      "checksum": "9467564bfdd0b4b919e202498d1ca60aa5736cddf53e9842969d85c5875d3cda",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "product_sales"
+      ],
+      "requiredDimensionKeys": [
+        "product"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "sales_quantity"
+      ],
+      "requiredResultMode": "grouped",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_order_item_sales_view",
+      "auditNote": "当前管理端与 Ask 已有可靠只读事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1203",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1203",
+      "sourceRole": "库存",
+      "question": "开业至今哪些产品动销好哪些差",
+      "checksum": "7c730b59346c2a05fbfb972c6710f1b33fb3d7f5fcbefd1f980464f02aa91e37",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "product_sales"
+      ],
+      "requiredDimensionKeys": [
+        "product"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "sales_quantity"
+      ],
+      "requiredResultMode": "grouped",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_order_item_sales_view",
+      "auditNote": "当前管理端与 Ask 已有可靠只读事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1108",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1108",
+      "sourceRole": "库存",
+      "question": "今天低于安全库存的产品有哪些",
+      "checksum": "841faecdb81580a49a068980135d2d89fb01620d5d1236791d10ac61d290a99f",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "inventory_on_hand"
+      ],
+      "requiredDimensionKeys": [
+        "product"
+      ],
+      "acceptableViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "current_stock"
+      ],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_product_inventory_view",
+      "auditNote": "当前管理端与 Ask 已有可靠只读事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1142",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1142",
+      "sourceRole": "库存",
+      "question": "本周末临期库存的损失风险有多大",
+      "checksum": "a91129e3e9471f112344afe64f592ed04613da6c54d40a6ae57cc71c3bec7ac1",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "inventory_on_hand"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "nearest_expiry_date",
+        "current_stock",
+        "stock_value"
+      ],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_product_inventory_view",
+      "auditNote": "按当前批次快照筛选本周末临期商品，并展示库存数量和风险货值。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0038",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0038",
+      "sourceRole": "店长",
+      "question": "王思琪上次到店是开业至今吗，具体哪天",
+      "checksum": "cef9360f6c328719e1f7b782e7975ca69b53bd169866dcf9bc5cee993bf33000",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "customer_profile"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredOutputFields": [
+        "customer_count"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_customer_profile_summary_view",
+      "auditNote": "当前管理端与 Ask 已有可靠只读事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0898",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0898",
+      "sourceRole": "前台",
+      "question": "今年的预约到店转化率是多少",
+      "checksum": "166b870f3626c02e3527fe123bf98b5d07a3c8101aa9f4c9d3f93a425e5ce617",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "reservation_count",
+        "completed_reservation_count",
+        "arrival_conversion_rate"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": true,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_reservation_view",
+      "auditNote": "到店转化率按到店或完成预约数除以非取消预约数。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0907",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0907",
+      "sourceRole": "前台",
+      "question": "本周末的预约到店转化率是多少",
+      "checksum": "35d0d706cccffae3a6802edddfb4188aac32601bf1b0038c0b191cdc2836c0bf",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "reservation_count",
+        "completed_reservation_count",
+        "arrival_conversion_rate"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": true,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_reservation_view",
+      "auditNote": "到店转化率按到店或完成预约数除以非取消预约数。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0899",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0899",
+      "sourceRole": "前台",
+      "question": "今年哪些时段的预约最满",
+      "checksum": "e49c5f30405ed1fc670a7eaee11e9a381b0d980e9e49947f30c6d5982ae12661",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "start_time",
+        "reservation_count"
+      ],
+      "requiredResultMode": "ranking",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_reservation_view",
+      "auditNote": "按开始时段汇总非取消预约并按预约数倒序。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0908",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0908",
+      "sourceRole": "前台",
+      "question": "本周末哪些时段的预约最满",
+      "checksum": "844f1b228078ef3fe870289f56d11686bfc34bcaad503963f7e350e11250c519",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "start_time",
+        "reservation_count"
+      ],
+      "requiredResultMode": "ranking",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_reservation_view",
+      "auditNote": "按开始时段汇总非取消预约并按预约数倒序。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0901",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0901",
+      "sourceRole": "前台",
+      "question": "今年哪个项目预约最多",
+      "checksum": "5bb48feb215ffd85bb03828ef0689fded3c39abc886133eeb47131fe61fda73d",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "requiredDimensionKeys": [
+        "project"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "reservation_count"
+      ],
+      "requiredResultMode": "ranking",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_reservation_view",
+      "auditNote": "按项目汇总非取消预约并按预约数倒序。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0910",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0910",
+      "sourceRole": "前台",
+      "question": "本周末哪个项目预约最多",
+      "checksum": "f7636fb89726333d1bb0963864b93962e2c249ca7eeba32c8f7e4eb97d029c19",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "requiredDimensionKeys": [
+        "project"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "reservation_count"
+      ],
+      "requiredResultMode": "ranking",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_reservation_view",
+      "auditNote": "按项目汇总非取消预约并按预约数倒序。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0904",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0904",
+      "sourceRole": "前台",
+      "question": "今年各美容师的预约量",
+      "checksum": "8c68228759f4f38e803d8481306c6f31a86f53454febf1ef92abaaf57ece1ce9",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "requiredDimensionKeys": [
+        "staff"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "beautician_id",
+        "beautician_name",
+        "reservation_count"
+      ],
+      "requiredResultMode": "grouped",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_reservation_view",
+      "auditNote": "按美容师汇总非取消预约量。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0913",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0913",
+      "sourceRole": "前台",
+      "question": "本周末各美容师的预约量",
+      "checksum": "4243c6a9a01cdfa911dde59c73fcd488113739bed4f60c879c1fb813111a5dc0",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "requiredDimensionKeys": [
+        "staff"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "beautician_id",
+        "beautician_name",
+        "reservation_count"
+      ],
+      "requiredResultMode": "grouped",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_reservation_view",
+      "auditNote": "按美容师汇总非取消预约量。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0903",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0903",
+      "sourceRole": "前台",
+      "question": "罗若兰今年预约的是什么项目",
+      "checksum": "e537fa1b623fee32e725a6c70301056d2e81f9743a2839a73d2b8a862e239f12",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "requiredDimensionKeys": [
+        "project"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "reservation_count"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_reservation_view",
+      "auditNote": "当前管理端与 Ask 已有可靠只读事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0905",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0905",
+      "sourceRole": "前台",
+      "question": "本周末预约背部净透护理的客户有哪些",
+      "checksum": "74afe520bc138697b2e3d0a42436c5454e0eac0e83f26d68151a4b90a48b0e33",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "requiredDimensionKeys": [
+        "customer",
+        "project"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "reservation_id",
+        "customer_id",
+        "customer_name_masked",
+        "date",
+        "start_time",
+        "project_name"
+      ],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_reservation_view",
+      "auditNote": "当前管理端与 Ask 已有可靠只读事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0906",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0906",
+      "sourceRole": "前台",
+      "question": "宋乔本周末接了哪些预约",
+      "checksum": "78fac0a74ae51a49c447e4ef05affd7fd48ec0aac36432a6798ed9292d0d6b9b",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "reservation_id",
+        "date",
+        "start_time",
+        "project_name"
+      ],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_reservation_view",
+      "auditNote": "当前管理端与 Ask 已有可靠只读事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0912",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0912",
+      "sourceRole": "前台",
+      "question": "黄婉清本周末预约的是什么项目",
+      "checksum": "168cc0064087cab4e4b4ff472fe5be19efa784cda7c1c97abbef3ab2b4563594",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "requiredDimensionKeys": [
+        "project"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "reservation_count"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_reservation_view",
+      "auditNote": "当前管理端与 Ask 已有可靠只读事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1562",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1562",
+      "sourceRole": "营销",
+      "question": "最近7天自动化策略的转化漏斗",
+      "checksum": "074a8f80b7aa852aad3bc5d469f7171d542d25e51daff3ac13da8f03805bd762",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "strategy_id",
+        "strategy_name",
+        "exposure_count",
+        "click_count",
+        "conversion_count",
+        "conversion_rate"
+      ],
+      "requiredResultMode": "grouped",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_marketing_automation_view",
+      "auditNote": "自动化策略漏斗使用策略级触达、点击和转化事实，不使用任务完成量冒充转化。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1572",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1572",
+      "sourceRole": "营销",
+      "question": "今年自动化策略的转化漏斗",
+      "checksum": "973f33a4ab2aeefadd662d33d33eb89a1f981bae82b11285e85c8d110e1d3415",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "strategy_id",
+        "strategy_name",
+        "exposure_count",
+        "click_count",
+        "conversion_count",
+        "conversion_rate"
+      ],
+      "requiredResultMode": "grouped",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_marketing_automation_view",
+      "auditNote": "自动化策略漏斗使用策略级触达、点击和转化事实，不使用任务完成量冒充转化。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1582",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1582",
+      "sourceRole": "营销",
+      "question": "本周末自动化策略的转化漏斗",
+      "checksum": "4dd6a36a10169173e6ac194d3074a8a807afedbc7042284f18b8df7722777597",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "strategy_id",
+        "strategy_name",
+        "exposure_count",
+        "click_count",
+        "conversion_count",
+        "conversion_rate"
+      ],
+      "requiredResultMode": "grouped",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_marketing_automation_view",
+      "auditNote": "自动化策略漏斗使用策略级触达、点击和转化事实，不使用任务完成量冒充转化。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1180",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1180",
+      "sourceRole": "库存",
+      "question": "最近30天采购成本的变化",
+      "checksum": "1bdc7dbd72ffe68dea380abbdad540c912c40a2bea6dc4eb696f3157831076f7",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "trend_day",
+        "procurement_amount"
+      ],
+      "requiredResultMode": "trend",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "trend_granularity",
+        "trend_points",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_purchase_procurement_view",
+      "auditNote": "当前管理端与 Ask 已有可靠只读事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1188",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1188",
+      "sourceRole": "库存",
+      "question": "去年同期采购成本的变化",
+      "checksum": "568a4b12ffcc1b6f575a9157254994acbdf403e056b770a0d6285869a58a7ffc",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "trend_month",
+        "procurement_amount"
+      ],
+      "requiredResultMode": "trend",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "trend_granularity",
+        "trend_points",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_purchase_procurement_view",
+      "auditNote": "当前管理端与 Ask 已有可靠只读事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1204",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1204",
+      "sourceRole": "库存",
+      "question": "开业至今采购成本的变化",
+      "checksum": "18a3760cd514f7c118381447016ae00563ae51c1442294287ecaed23a9c6a0cf",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "trend_day",
+        "procurement_amount"
+      ],
+      "requiredResultMode": "trend",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "trend_granularity",
+        "trend_points",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_purchase_procurement_view",
+      "auditNote": "当前管理端与 Ask 已有可靠只读事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1782",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1782",
+      "sourceRole": "库存",
+      "question": "本周采购成本的趋势",
+      "checksum": "b2225b088e6b158109f8891c287f1fb8e7493cd03a8d28808f4ed026f6c5ba5e",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "requiredDimensionKeys": [
+        "date"
+      ],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "trend_day",
+        "procurement_amount"
+      ],
+      "requiredResultMode": "trend",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "trend_granularity",
+        "trend_points",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_purchase_procurement_view",
+      "auditNote": "当前管理端与 Ask 已有可靠只读事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1787",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1787",
+      "sourceRole": "库存",
+      "question": "上个月采购成本的趋势",
+      "checksum": "1602ff59fab1cd9ae1b372b797bc830fd16905720eb2b55f5d85c4a3d690029d",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "requiredDimensionKeys": [
+        "date"
+      ],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "trend_day",
+        "procurement_amount"
+      ],
+      "requiredResultMode": "trend",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "trend_granularity",
+        "trend_points",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_purchase_procurement_view",
+      "auditNote": "当前管理端与 Ask 已有可靠只读事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1790",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1790",
+      "sourceRole": "库存",
+      "question": "最近三个月采购成本的趋势",
+      "checksum": "4b65fe2440fc67ae6a9641cbf17584358b2aecf0343b190fb0d00691251139ae",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "requiredDimensionKeys": [
+        "date"
+      ],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "trend_month",
+        "procurement_amount"
+      ],
+      "requiredResultMode": "trend",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "trend_granularity",
+        "trend_points",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_purchase_procurement_view",
+      "auditNote": "当前管理端与 Ask 已有可靠只读事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1336",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1336",
+      "sourceRole": "财务",
+      "question": "帮我拆解去年同期的经营利润",
+      "checksum": "9c54d163f87577d1744345d81cdc18de23a731510b8103b0e21a039e296ce933",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "confirmed_profit"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "requiredViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "requiredOutputFields": [
+        "operating_profit"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_confirmed_profit_view",
+      "auditNote": "当前管理端与 Ask 已有可靠只读事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1626",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1626",
+      "sourceRole": "营销",
+      "question": "这半年哪些活动在亏钱",
+      "checksum": "694497de1145692180de70f3bcd14c8e7fa96f5405cb849c678e308417bd5781",
+      "split": "holdout",
+      "supportClass": "ask_query_supported",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "activity_id",
+        "activity_title",
+        "attributed_net_revenue",
+        "marketing_cost",
+        "marketing_profit",
+        "roi"
+      ],
+      "requiredResultMode": "grouped",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_marketing_roi_view",
+      "auditNote": "按归因净收入减 estimated 营销成本判断亏损，必须披露成本来源。"
+    }
+  ],
+  "boundaryContracts": [
+    {
+      "id": "ami_brain_2000:BQ0689",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0689",
+      "sourceRole": "财务",
+      "question": "双十一期间的客单价是多少",
+      "checksum": "22bb1da82b7b558050f9ce5b105752bf2bc7780fc243249626b588a494147d6b",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "net_revenue"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_order_summary_view",
+      "auditNote": "节日跨年份，年份会改变查询窗口。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0692",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0692",
+      "sourceRole": "财务",
+      "question": "周静怡双十一期间的消费明细",
+      "checksum": "e6a261e8b4126fb7a2892e1c1fddf8a00344e7839c8f7154ef929b079e76aad6",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "order_id",
+        "net_revenue"
+      ],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_order_summary_view",
+      "auditNote": "节日跨年份，年份会改变查询窗口。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0716",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0716",
+      "sourceRole": "财务",
+      "question": "这个季度营业额和五一假期比怎么样",
+      "checksum": "f23a5cd44ab7c1b4067943a9498cd3a5fa67c2b261ce445fa3099b0af43030a5",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "net_revenue"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_order_summary_view",
+      "auditNote": "节日跨年份，年份会改变查询窗口。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0715",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0715",
+      "sourceRole": "财务",
+      "question": "最近三个月大额订单占比",
+      "checksum": "a6bc52896daa02cb473d787360cbe329154c95adbf61b5e75d02a45d7449ce40",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "net_revenue"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "agent_v3_daily_settlement_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "threshold"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_order_summary_view",
+      "auditNote": "“大额订单”没有治理金额阈值。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0675",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0675",
+      "sourceRole": "财务",
+      "question": "这个季度用了优惠的订单有多少",
+      "checksum": "03a1c712d8fd01f96bccbd426e7cc20c8fd992c022b239897f0738c8375fb36a",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_order_summary_view",
+      "auditNote": "订单摘要未开放优惠使用标识，不能按是否使用优惠筛选。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0697",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0697",
+      "sourceRole": "财务",
+      "question": "最近14天用了优惠的订单有多少",
+      "checksum": "a3aebf23cf4e9eeab84404f92c41744f1c367ae2d56add580123c51562f41d5a",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_order_summary_view",
+      "auditNote": "订单摘要未开放优惠使用标识，不能按是否使用优惠筛选。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0679",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0679",
+      "sourceRole": "财务",
+      "question": "这个季度开卡订单里赠送次数最多的",
+      "checksum": "0014debe4168782f982b2a71bd15aa5bb9c4da04856b620e79c359ee3278dbf7",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "ranking",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_order_summary_view",
+      "auditNote": "当前 Ask 没有开卡订单与赠送次数联合事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0686",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0686",
+      "sourceRole": "财务",
+      "question": "双十一期间用了优惠的订单有多少",
+      "checksum": "eab1fda6d4ff9bd8b2202eac22c1befef54b145717fa4e90ae57b7e21847db9c",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_order_summary_view",
+      "auditNote": "当前 Ask 没有开卡订单与赠送次数联合事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0690",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0690",
+      "sourceRole": "财务",
+      "question": "双十一期间开卡订单里赠送次数最多的",
+      "checksum": "9bbef5ca243eb151a8a1294d654bcafd69a3f09d9eb4929222b0803aef34f67b",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "ranking",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_order_summary_view",
+      "auditNote": "当前 Ask 没有开卡订单与赠送次数联合事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0701",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0701",
+      "sourceRole": "财务",
+      "question": "最近14天开卡订单里赠送次数最多的",
+      "checksum": "e4adcd4c5c189784ba1c1d26dc6ebf8b102de838afbc4b59b41736a8fbcc7896",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "ranking",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_order_summary_view",
+      "auditNote": "当前 Ask 没有开卡订单与赠送次数联合事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1195",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1195",
+      "sourceRole": "库存",
+      "question": "五一假期哪些产品动销好哪些差",
+      "checksum": "69e55effb25f04133f21907854c946dd66643ff21e3eb6a8f54a839aee557005",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "product_sales"
+      ],
+      "requiredDimensionKeys": [
+        "product"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "sales_quantity"
+      ],
+      "requiredResultMode": "grouped",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_order_item_sales_view",
+      "auditNote": "五一假期跨年份。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0827",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0827",
+      "sourceRole": "财务",
+      "question": "最近三个月产品订单的成本和毛利",
+      "checksum": "4d37cf0fc1c29a6730517e9af3c330b287041c5fd93e873aadeddc2204b5b4c2",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "product"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_order_item_sales_view",
+      "auditNote": "商品销售视图只有销售、优惠和退款，没有订单级商品成本与毛利。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0835",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0835",
+      "sourceRole": "财务",
+      "question": "这个季度产品订单的成本和毛利",
+      "checksum": "1fe20372c6b88a5480d0845e0bd87832b26a37685d7aa0c3b3373bc913028468",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "product"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_order_item_sales_view",
+      "auditNote": "商品销售视图只有销售、优惠和退款，没有订单级商品成本与毛利。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0843",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0843",
+      "sourceRole": "财务",
+      "question": "双十一期间产品订单的成本和毛利",
+      "checksum": "e84bd507c9f47385e80a5d25e0e38c0289603583ec5f566273be2d2cf7794e7c",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "product"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_order_item_sales_view",
+      "auditNote": "商品销售视图只有销售、优惠和退款，没有订单级商品成本与毛利。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0851",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0851",
+      "sourceRole": "财务",
+      "question": "最近14天产品订单的成本和毛利",
+      "checksum": "5b87fb0b9727e6266f759b2852c4522b255d222224803efd8e8d663fd2dcfb92",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "product"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_order_item_sales_view",
+      "auditNote": "商品销售视图只有销售、优惠和退款，没有订单级商品成本与毛利。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0859",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0859",
+      "sourceRole": "财务",
+      "question": "今天产品订单的成本和毛利",
+      "checksum": "a1cd82864160fdefa3aa96182fffc229b93ad6dfa7224f5e6025a9ec7e7fd5cf",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "product"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_order_item_sales_view",
+      "auditNote": "商品销售视图只有销售、优惠和退款，没有订单级商品成本与毛利。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0754",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0754",
+      "sourceRole": "财务",
+      "question": "这个季度有异常大额退款吗",
+      "checksum": "b75a44d9655f7b7ce77efa3c4ae23549f565b8ef975a649d29023f687bc15af4",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "payment_flow"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredOutputFields": [
+        "refund_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "threshold"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_payment_refund_view",
+      "auditNote": "“大额、偏高、可疑连续”缺少治理阈值。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0756",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0756",
+      "sourceRole": "财务",
+      "question": "这个季度退款率是不是偏高",
+      "checksum": "9c169577c86d9d1b7b2a17d700a1acf138204361e2b844f8104e7ac7817780a0",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "payment_flow"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredOutputFields": [
+        "refund_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "threshold"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_payment_refund_view",
+      "auditNote": "“大额、偏高、可疑连续”缺少治理阈值。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0760",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0760",
+      "sourceRole": "财务",
+      "question": "这个季度有没有可疑的连续退款",
+      "checksum": "6417399cf945b05d4983d56dc4444171e50ed9911624828c8452061b49a5f5e0",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "payment_flow"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredOutputFields": [
+        "refund_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "threshold"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_payment_refund_view",
+      "auditNote": "“大额、偏高、可疑连续”缺少治理阈值。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0770",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0770",
+      "sourceRole": "财务",
+      "question": "最近14天有异常大额退款吗",
+      "checksum": "eabdc5b60b118c6fc1992212872d6c07599205303ecf1fe0e0295d4396fd82f2",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "payment_flow"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredOutputFields": [
+        "refund_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "threshold"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_payment_refund_view",
+      "auditNote": "“大额、偏高、可疑连续”缺少治理阈值。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0772",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0772",
+      "sourceRole": "财务",
+      "question": "最近14天退款率是不是偏高",
+      "checksum": "29785ee748d16509dbc67d9f74b21b76d153e3a057c2278d6f440b7e5127b1f7",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "payment_flow"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredOutputFields": [
+        "refund_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "threshold"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_payment_refund_view",
+      "auditNote": "“大额、偏高、可疑连续”缺少治理阈值。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0762",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0762",
+      "sourceRole": "财务",
+      "question": "双十一期间有异常大额退款吗",
+      "checksum": "0e86585427c7d1080cd57485090f7982ff02ec1f04a0ed301e348d6f431b7b7c",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "payment_flow"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredOutputFields": [
+        "refund_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year",
+        "threshold"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_payment_refund_view",
+      "auditNote": "同时缺少双十一年份和风险判定阈值。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0764",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0764",
+      "sourceRole": "财务",
+      "question": "双十一期间退款率是不是偏高",
+      "checksum": "3d8029f9b322689e02dd3f38568648ab9347a4e4eb81dcffc0c03188eb49001d",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "payment_flow"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredOutputFields": [
+        "refund_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year",
+        "threshold"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_payment_refund_view",
+      "auditNote": "同时缺少双十一年份和风险判定阈值。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0768",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0768",
+      "sourceRole": "财务",
+      "question": "双十一期间有没有可疑的连续退款",
+      "checksum": "f7d5cf2ba8e79ebca51203a44ae5bc175b9e04bfcdb1e21eee4429f0e1e623c9",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "payment_flow"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredOutputFields": [
+        "refund_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year",
+        "threshold"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_payment_refund_view",
+      "auditNote": "同时缺少双十一年份和风险判定阈值。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1106",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1106",
+      "sourceRole": "库存",
+      "question": "哪些产品今天即将过期且库存金额高",
+      "checksum": "6f15eb6c594c41e973c90e637a39d687a56845101394f1560fdb1dbaa4be278b",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "inventory_on_hand"
+      ],
+      "requiredDimensionKeys": [
+        "product"
+      ],
+      "acceptableViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "current_stock"
+      ],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "threshold"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_product_inventory_view",
+      "auditNote": "“库存金额高”没有金额阈值。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1181",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1181",
+      "sourceRole": "库存",
+      "question": "最近30天库存结构合理吗",
+      "checksum": "f60d6cbf29e4dc1383a526584f5629c0ca7639ff331e09b8cc81d2066bec025a",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "inventory_on_hand"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredOutputFields": [
+        "current_stock"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "comparison_baseline"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_product_inventory_view",
+      "auditNote": "“库存结构合理”缺少结构目标或比较基线。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1205",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1205",
+      "sourceRole": "库存",
+      "question": "开业至今库存结构合理吗",
+      "checksum": "03c89e7e3fdea14fc2cde7dd97e0f9e32c8a8b13d91a9450773f7d9aee0c7900",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "inventory_on_hand"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredOutputFields": [
+        "current_stock"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "comparison_baseline"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_product_inventory_view",
+      "auditNote": "“库存结构合理”缺少结构目标或比较基线。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1099",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1099",
+      "sourceRole": "库存",
+      "question": "最近14天低于安全库存的产品有哪些",
+      "checksum": "7ede00f0d710354ea287367df8f56e5f870ad983ffb6ad594db98449b93f95af",
+      "split": "holdout",
+      "supportClass": "admin_backend_unsupported",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "product"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "agent_v3_product_inventory_view",
+      "auditNote": "当前库存视图是现状快照，不能还原历史期间的低库存、临期或库存结构。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1115",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1115",
+      "sourceRole": "库存",
+      "question": "哪些产品上周即将过期且库存金额高",
+      "checksum": "ead580ef7224d32e755209b7598667fa0ab646de665e985f68fb967dfe8b2e36",
+      "split": "holdout",
+      "supportClass": "admin_backend_unsupported",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "product"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name"
+      ],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "threshold"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "agent_v3_product_inventory_view",
+      "auditNote": "当前库存视图是现状快照，不能还原历史期间的低库存、临期或库存结构。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1117",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1117",
+      "sourceRole": "库存",
+      "question": "上周低于安全库存的产品有哪些",
+      "checksum": "5b675fda2e4252c5a97b6b21b6b7c788d3d74c5ab1c0594b5d1a22596c394eaf",
+      "split": "holdout",
+      "supportClass": "admin_backend_unsupported",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "product"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "agent_v3_product_inventory_view",
+      "auditNote": "当前库存视图是现状快照，不能还原历史期间的低库存、临期或库存结构。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1124",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1124",
+      "sourceRole": "库存",
+      "question": "哪些产品最近7天即将过期且库存金额高",
+      "checksum": "d69a24e562ff5711618a5a24ed2823c0d17990d23f28b5b29383ca2a64bb8fd5",
+      "split": "holdout",
+      "supportClass": "admin_backend_unsupported",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "product"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name"
+      ],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "threshold"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "agent_v3_product_inventory_view",
+      "auditNote": "当前库存视图是现状快照，不能还原历史期间的低库存、临期或库存结构。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1126",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1126",
+      "sourceRole": "库存",
+      "question": "最近7天低于安全库存的产品有哪些",
+      "checksum": "db3964804f32657100ed3f4d0c3c1ffddf15e1f2d7155b3d7d5afb5c869437b0",
+      "split": "holdout",
+      "supportClass": "admin_backend_unsupported",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "product"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "agent_v3_product_inventory_view",
+      "auditNote": "当前库存视图是现状快照，不能还原历史期间的低库存、临期或库存结构。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1133",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1133",
+      "sourceRole": "库存",
+      "question": "哪些产品今年即将过期且库存金额高",
+      "checksum": "ba0820907b85b70cb414a27341f3665c712732f44b935e5751a5fefe7b89d311",
+      "split": "holdout",
+      "supportClass": "admin_backend_unsupported",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "product"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name"
+      ],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "threshold"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "agent_v3_product_inventory_view",
+      "auditNote": "当前库存视图是现状快照，不能还原历史期间的低库存、临期或库存结构。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1135",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1135",
+      "sourceRole": "库存",
+      "question": "今年低于安全库存的产品有哪些",
+      "checksum": "967ded89b119a77f2eb85364e9452656d28eee6970f96991497fbcd0c446d61d",
+      "split": "holdout",
+      "supportClass": "admin_backend_unsupported",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "product"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "agent_v3_product_inventory_view",
+      "auditNote": "当前库存视图是现状快照，不能还原历史期间的低库存、临期或库存结构。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1137",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1137",
+      "sourceRole": "库存",
+      "question": "最近14天哪些耗材马上要缺货",
+      "checksum": "2db0c992778b1d7f30548b19a81d9b0a782ee87a5725c1a4b0aa4ed844380758",
+      "split": "holdout",
+      "supportClass": "admin_backend_unsupported",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "product"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "agent_v3_product_inventory_view",
+      "auditNote": "当前库存视图是现状快照，不能还原历史期间的低库存、临期或库存结构。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1189",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1189",
+      "sourceRole": "库存",
+      "question": "去年同期库存结构合理吗",
+      "checksum": "ee61e7745d8d849f439494a9b57260acb9e2f324336dc6f826c9d8825292fe26",
+      "split": "holdout",
+      "supportClass": "admin_backend_unsupported",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "agent_v3_product_inventory_view",
+      "auditNote": "当前库存视图是现状快照，不能还原历史期间的低库存、临期或库存结构。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1197",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1197",
+      "sourceRole": "库存",
+      "question": "五一假期库存结构合理吗",
+      "checksum": "f1790ce721be38ed51c099797000c706aa2a805d93aceab3248163ed029b43c5",
+      "split": "holdout",
+      "supportClass": "admin_backend_unsupported",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "agent_v3_product_inventory_view",
+      "auditNote": "当前库存视图是现状快照，不能还原历史期间的低库存、临期或库存结构。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1202",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1202",
+      "sourceRole": "库存",
+      "question": "开业至今耗占比的趋势",
+      "checksum": "5746afda671c3b415f1d6fc420ba3ab22eab71e03d89ceb4eeaafa1d97003ca0",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "inventory_movement"
+      ],
+      "requiredDimensionKeys": [
+        "date"
+      ],
+      "acceptableViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredOutputFields": [
+        "trend_day",
+        "movement_quantity"
+      ],
+      "requiredResultMode": "trend",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "comparison_relation"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "trend_granularity",
+        "trend_points"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_stock_movement_view",
+      "auditNote": "“耗占比”没有明确分子和分母。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0042",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0042",
+      "sourceRole": "店长",
+      "question": "消费额Top10的客户五一假期买过哪些项目",
+      "checksum": "4b0b6a84f2294a05bdb1ff508adbc2ea64558cf52899fd25ef1d47915f949bb2",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "customer",
+        "project"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked"
+      ],
+      "requiredResultMode": "ranking",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_customer_profile_summary_view",
+      "auditNote": "当前 Ask 缺少客户 Top/会员等级与项目购买、期间到店或消费贡献的受控联合视图。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0053",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0053",
+      "sourceRole": "店长",
+      "question": "消费额Top10的客户开业至今买过哪些项目",
+      "checksum": "88ddc4bf996a5d63d6450049fe676e4529ac97d079d4e269269effbb7fe9ba57",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "customer",
+        "project"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked"
+      ],
+      "requiredResultMode": "ranking",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_customer_profile_summary_view",
+      "auditNote": "当前 Ask 缺少客户 Top/会员等级与项目购买、期间到店或消费贡献的受控联合视图。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0063",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0063",
+      "sourceRole": "店长",
+      "question": "消费额Top10的客户春节期间买过哪些项目",
+      "checksum": "84e42475c857ceed7c625268e2aacc4a4565b544243cc5d014dfc082c799f37d",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "customer",
+        "project"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked"
+      ],
+      "requiredResultMode": "ranking",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_customer_profile_summary_view",
+      "auditNote": "当前 Ask 缺少客户 Top/会员等级与项目购买、期间到店或消费贡献的受控联合视图。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0067",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0067",
+      "sourceRole": "店长",
+      "question": "金卡会员里双十一期间没到店的有多少人",
+      "checksum": "4913add7ae1c949a80019575b6ed165698ac2cebbe7263e67c138e4a560756ef",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "customer"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_customer_profile_summary_view",
+      "auditNote": "当前 Ask 缺少客户 Top/会员等级与项目购买、期间到店或消费贡献的受控联合视图。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0073",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0073",
+      "sourceRole": "店长",
+      "question": "消费额Top10的客户本周买过哪些项目",
+      "checksum": "624d3cd668e2c85755f61ec5026d57718869c24de23a54eacdca62519e7efd37",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "customer",
+        "project"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked"
+      ],
+      "requiredResultMode": "ranking",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_customer_profile_summary_view",
+      "auditNote": "当前 Ask 缺少客户 Top/会员等级与项目购买、期间到店或消费贡献的受控联合视图。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0083",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0083",
+      "sourceRole": "店长",
+      "question": "消费额Top10的客户上个月买过哪些项目",
+      "checksum": "7e2d2af6a42294fb86c583bdcaef0015040f342a8740dcdffca54bee8f810d1d",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "customer",
+        "project"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked"
+      ],
+      "requiredResultMode": "ranking",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_customer_profile_summary_view",
+      "auditNote": "当前 Ask 缺少客户 Top/会员等级与项目购买、期间到店或消费贡献的受控联合视图。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0093",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0093",
+      "sourceRole": "客服",
+      "question": "金卡会员的消费贡献占比(最近7天)",
+      "checksum": "cdbd9a7b7be915e945ea281b53239d2dfe350e9c6a07ad56bca6a2021f62bc4c",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "customer"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_customer_profile_summary_view",
+      "auditNote": "当前 Ask 缺少客户 Top/会员等级与项目购买、期间到店或消费贡献的受控联合视图。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0101",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0101",
+      "sourceRole": "客服",
+      "question": "钻石会员的消费贡献占比(今年)",
+      "checksum": "9f4e97c126588c14ad20af6f399610fb8206f16f286a86466eb8b295c5be947c",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "customer"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_customer_profile_summary_view",
+      "auditNote": "当前 Ask 缺少客户 Top/会员等级与项目购买、期间到店或消费贡献的受控联合视图。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0109",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0109",
+      "sourceRole": "客服",
+      "question": "金卡会员的消费贡献占比(本周末)",
+      "checksum": "134745824d4774b3454409fcba890465fb82c250d234a0385eceb5ad02824971",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "customer"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_customer_profile_summary_view",
+      "auditNote": "当前 Ask 缺少客户 Top/会员等级与项目购买、期间到店或消费贡献的受控联合视图。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0086",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0086",
+      "sourceRole": "客服",
+      "question": "分析下上周的客户结构，各等级占比",
+      "checksum": "4e2683b3723d036904bc2cf97f02e9e6676494d7d07b1962a3a59ccd248e94b3",
+      "split": "holdout",
+      "supportClass": "admin_backend_unsupported",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "customer"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "ask_data_customer_profile_summary_view",
+      "auditNote": "客户档案是当前快照，无法还原历史时间窗口中的会员等级结构。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0095",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0095",
+      "sourceRole": "客服",
+      "question": "分析下最近7天的客户结构，各等级占比",
+      "checksum": "606511c3861097f15dffe992a434dc9fccb8f788fafaeea71d34d477b63221b4",
+      "split": "holdout",
+      "supportClass": "admin_backend_unsupported",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "customer"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "ask_data_customer_profile_summary_view",
+      "auditNote": "客户档案是当前快照，无法还原历史时间窗口中的会员等级结构。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0103",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0103",
+      "sourceRole": "客服",
+      "question": "分析下今年的客户结构，各等级占比",
+      "checksum": "d41b0a817dc448622b484117934a2df7d1cd27013b17d5f642d1c54cb7ce13bc",
+      "split": "holdout",
+      "supportClass": "admin_backend_unsupported",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "customer"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "ask_data_customer_profile_summary_view",
+      "auditNote": "客户档案是当前快照，无法还原历史时间窗口中的会员等级结构。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0111",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0111",
+      "sourceRole": "客服",
+      "question": "分析下本周末的客户结构，各等级占比",
+      "checksum": "db685fddcb5634f4bb0337ded345f5f64828536d89ec66b83cc28ce2026c7d0d",
+      "split": "holdout",
+      "supportClass": "admin_backend_unsupported",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "customer"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "ask_data_customer_profile_summary_view",
+      "auditNote": "客户档案是当前快照，无法还原历史时间窗口中的会员等级结构。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0092",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0092",
+      "sourceRole": "客服",
+      "question": "分析下高价值客户的共同特征",
+      "checksum": "097df8e1e296ebb4611598a7027a964a40998f8bf78490b949beef4ddad66a82",
+      "split": "holdout",
+      "supportClass": "brain_content_or_advice",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "customer"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "ask_data_customer_profile_summary_view",
+      "auditNote": "“共同特征”需要分析和解释，Ask 可提供事实但不直接生成经营画像结论。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0902",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0902",
+      "sourceRole": "前台",
+      "question": "今年预约但资源冲突的有哪些",
+      "checksum": "442491c26c0f3225ee700b2a90b7a4d5bd34cfbfc37127acc5fcb5881b11003f",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_reservation_view",
+      "auditNote": "预约视图没有资源冲突检测结果。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0911",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0911",
+      "sourceRole": "前台",
+      "question": "本周末预约但资源冲突的有哪些",
+      "checksum": "23bf159079f213b43fe2c725fcbed7837f1b3234ab6ee7682288c0daf35290b1",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_reservation_view",
+      "auditNote": "预约视图没有资源冲突检测结果。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0914",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0914",
+      "sourceRole": "前台",
+      "question": "国庆期间预约敏感肌舒缓修护的客户有哪些",
+      "checksum": "4dfe5f086a836cef3a1580c0a733e7ec4bacbdbf9393fa4e086a65e5b5c7601e",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "requiredDimensionKeys": [
+        "customer"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "reservation_id",
+        "customer_id",
+        "customer_name_masked",
+        "date",
+        "start_time",
+        "project_name"
+      ],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_reservation_view",
+      "auditNote": "国庆跨年份。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1549",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1549",
+      "sourceRole": "营销",
+      "question": "国庆期间活动带来了多少营收",
+      "checksum": "4d71891f79aa444d7920d7594f84f2a9725e5ea7b3e82f9fd0f1075ef5dc0370",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "marketing_conversion"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredOutputFields": [
+        "conversion_count"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_marketing_conversion_view",
+      "auditNote": "国庆跨年份。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1551",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1551",
+      "sourceRole": "营销",
+      "question": "国庆期间触达的客户有多少转化了",
+      "checksum": "b002e59fd191e4ecd0199c0ab1a1ed674d7adc7d17560748ed2b804a04d00261",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "marketing_conversion"
+      ],
+      "requiredDimensionKeys": [
+        "customer"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredOutputFields": [
+        "conversion_count"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_marketing_conversion_view",
+      "auditNote": "国庆跨年份。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1552",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1552",
+      "sourceRole": "营销",
+      "question": "国庆期间营销页的线索转化率",
+      "checksum": "2640e83870bd75a1f169094db6543000f0fef46aff5a5a7bfe20dafed8b3b179",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "marketing_conversion"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredOutputFields": [
+        "conversion_count"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_marketing_conversion_view",
+      "auditNote": "国庆跨年份。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1555",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1555",
+      "sourceRole": "营销",
+      "question": "国庆期间活动归因的收益分别多少",
+      "checksum": "a4ac3e0e737c255162cfcc1580bf410a8036c8a45aacc2097ad88b7a9262de76",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "marketing_conversion"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredOutputFields": [
+        "attributed_revenue"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_marketing_conversion_view",
+      "auditNote": "国庆跨年份。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1558",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1558",
+      "sourceRole": "营销",
+      "question": "国庆期间各活动的参与转化对比",
+      "checksum": "e0a76b1995ba2d276c58dd331ce16d02637e432b35f3fd84c37a20c5a91b3615",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "marketing_conversion"
+      ],
+      "requiredDimensionKeys": [
+        "date"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredOutputFields": [
+        "conversion_count"
+      ],
+      "requiredResultMode": "grouped",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "comparison_current",
+        "comparison_previous",
+        "comparison_difference"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_marketing_conversion_view",
+      "auditNote": "国庆跨年份。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1556",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1556",
+      "sourceRole": "营销",
+      "question": "国庆期间跟进任务的完成率",
+      "checksum": "abf62d5b4b072a93078e280198e650b86d3953e8eec4c2c6981c26fd1948c17a",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "marketing_automation"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredOutputFields": [
+        "task_count",
+        "completed_count"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_marketing_automation_view",
+      "auditNote": "国庆跨年份。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1592",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1592",
+      "sourceRole": "营销",
+      "question": "国庆期间自动化策略的转化漏斗",
+      "checksum": "b5627c135c52d08d54764bd51636a5a6b88276551a95a14d1d0067ece1988acb",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "strategy_id",
+        "strategy_name",
+        "exposure_count",
+        "click_count",
+        "conversion_count",
+        "conversion_rate"
+      ],
+      "requiredResultMode": "grouped",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_marketing_automation_view",
+      "auditNote": "国庆缺年份；明确后使用策略级营销漏斗事实。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1602",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1602",
+      "sourceRole": "营销",
+      "question": "最近7天自动化触达失败率高吗",
+      "checksum": "dc7a15eb4a9c350aa6fb77c4368fe6c87427ededc3d4a385184e90196730aff6",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "marketing_automation"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredOutputFields": [
+        "task_count",
+        "completed_count"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "threshold"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_marketing_automation_view",
+      "auditNote": "触达失败率“高”缺少阈值。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1610",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1610",
+      "sourceRole": "营销",
+      "question": "今年自动化触达失败率高吗",
+      "checksum": "56eda788bf5a443e62b79eaf3ab0a81f421b21bec6ec4efc4537a5e73f62b898",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "marketing_automation"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredOutputFields": [
+        "task_count",
+        "completed_count"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "threshold"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_marketing_automation_view",
+      "auditNote": "触达失败率“高”缺少阈值。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1617",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1617",
+      "sourceRole": "营销",
+      "question": "本周末自动化触达失败率高吗",
+      "checksum": "5119cbde4544e1ed80adf68009431714013b83ecd6c0d933c600c67b0485ff3d",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "marketing_automation"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredOutputFields": [
+        "task_count",
+        "completed_count"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "threshold"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_marketing_automation_view",
+      "auditNote": "触达失败率“高”缺少阈值。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1624",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1624",
+      "sourceRole": "营销",
+      "question": "国庆期间自动化触达失败率高吗",
+      "checksum": "742541a8bdc818c278d9a2daba71b0a82e6c57e649d757f76d51c1ad47a87819",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "marketing_automation"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredOutputFields": [
+        "task_count",
+        "completed_count"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year",
+        "threshold"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_marketing_automation_view",
+      "auditNote": "同时缺少国庆年份和失败率阈值。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1604",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1604",
+      "sourceRole": "营销",
+      "question": "有哪些跟进任务超时没做",
+      "checksum": "16ba01970d332c21346afb21779bca3b2aed70a78140a6932514306a2b1adf31",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_marketing_automation_view",
+      "auditNote": "自动触达聚合视图没有任务截止时间，不能判断超时。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1381",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1381",
+      "sourceRole": "财务",
+      "question": "五一假期哪些成本超预算了",
+      "checksum": "1da7b9daadab6e4d35bbd50e7fdda07c6182e793d41d1f9fcad8e2e02f35697b",
+      "split": "holdout",
+      "supportClass": "admin_backend_unsupported",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "ask_data_operating_cost_view",
+      "auditNote": "当前后台没有可核验的经营成本预算基线。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1388",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1388",
+      "sourceRole": "财务",
+      "question": "开业至今哪些成本超预算了",
+      "checksum": "6a3e2b27ff230779f1a4fad44e7cc3a4a048e7ff1759c25061e1edeb753930af",
+      "split": "holdout",
+      "supportClass": "admin_backend_unsupported",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "ask_data_operating_cost_view",
+      "auditNote": "当前后台没有可核验的经营成本预算基线。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1395",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1395",
+      "sourceRole": "财务",
+      "question": "春节期间哪些成本超预算了",
+      "checksum": "6d02d61f5470c28f32328050651a0fab984bde585eac238bcfad16b60814e3ee",
+      "split": "holdout",
+      "supportClass": "admin_backend_unsupported",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "ask_data_operating_cost_view",
+      "auditNote": "当前后台没有可核验的经营成本预算基线。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1402",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1402",
+      "sourceRole": "财务",
+      "question": "本周哪些成本超预算了",
+      "checksum": "440c5d327fde9e8c9db005d4f12f2551935571fccb97856e2889badcf4f6b014",
+      "split": "holdout",
+      "supportClass": "admin_backend_unsupported",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "ask_data_operating_cost_view",
+      "auditNote": "当前后台没有可核验的经营成本预算基线。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1409",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1409",
+      "sourceRole": "财务",
+      "question": "上个月哪些成本超预算了",
+      "checksum": "2287c8ecd27645419e5bfa3c8864249a6305edce00c02026ad9d74c9ca3933ad",
+      "split": "holdout",
+      "supportClass": "admin_backend_unsupported",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "ask_data_operating_cost_view",
+      "auditNote": "当前后台没有可核验的经营成本预算基线。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1383",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1383",
+      "sourceRole": "财务",
+      "question": "五一假期有异常成本支出吗",
+      "checksum": "2634a35c9d328f2e20c1834561d9f21d2184e2cec046400a926dbb873d314fa1",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "operating_cost"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredOutputFields": [
+        "operating_cost"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "ask_data_confirmed_profit_view",
+        "ask_data_marketing_roi_view"
+      ],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year",
+        "threshold"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_operating_cost_view",
+      "auditNote": "五一缺年份，异常支出也缺金额或变化阈值。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1390",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1390",
+      "sourceRole": "财务",
+      "question": "开业至今有异常成本支出吗",
+      "checksum": "064aeffe2b836cfe4ab80a8c0590706d27db3fd879f65c9085935e6daab64e22",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "operating_cost"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredOutputFields": [
+        "operating_cost"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "ask_data_confirmed_profit_view",
+        "ask_data_marketing_roi_view"
+      ],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "threshold"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_operating_cost_view",
+      "auditNote": "异常成本支出缺少金额或变化阈值。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1397",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1397",
+      "sourceRole": "财务",
+      "question": "春节期间有异常成本支出吗",
+      "checksum": "c1b180b4a1670a700bc4be0bdd9a4d198cece988f305e7a2dbf875bb2123ccd2",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "operating_cost"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredOutputFields": [
+        "operating_cost"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "ask_data_confirmed_profit_view",
+        "ask_data_marketing_roi_view"
+      ],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year",
+        "threshold"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_operating_cost_view",
+      "auditNote": "春节缺年份，异常支出也缺阈值。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1404",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1404",
+      "sourceRole": "财务",
+      "question": "本周有异常成本支出吗",
+      "checksum": "0395053b1988ea866493da8cb95d67fdf5c49cbd4a498fe166495bb511c8a970",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "operating_cost"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredOutputFields": [
+        "operating_cost"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [
+        "ask_data_confirmed_profit_view",
+        "ask_data_marketing_roi_view"
+      ],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "threshold"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_operating_cost_view",
+      "auditNote": "异常成本支出缺少金额或变化阈值。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1777",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1777",
+      "sourceRole": "库存",
+      "question": "五一假期哪些采购单还没收货",
+      "checksum": "b3efd05c5b982989485836316612edd9a993dcd31e8a090122cb0812331ae3fd",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "procurement_id",
+        "procurement_no",
+        "procurement_amount"
+      ],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_purchase_procurement_view",
+      "auditNote": "五一假期跨年份。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1196",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1196",
+      "sourceRole": "库存",
+      "question": "五一假期采购成本的变化",
+      "checksum": "a0a1b04257bbf1cd6590144c8c4e9f5a1e07a591a1e7dba9d0eb7b8601f59bae",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "trend_day",
+        "procurement_amount"
+      ],
+      "requiredResultMode": "trend",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "trend_granularity",
+        "trend_points",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_purchase_procurement_view",
+      "auditNote": "五一假期跨年份。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1786",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1786",
+      "sourceRole": "库存",
+      "question": "最近三个月采购结构分析",
+      "checksum": "bbf88a24d427d247819256fd98c050e2eee14c1f25687c8eeb4ac035eebd5052",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "procurement_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "comparison_relation"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_purchase_procurement_view",
+      "auditNote": "“采购结构”未说明按供应商、状态还是其他维度。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1789",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1789",
+      "sourceRole": "库存",
+      "question": "这个季度采购结构分析",
+      "checksum": "88e62a57ca380f2c2432ae1d1bd5aa2f1a6d842c7b9b84ad14a7ad0deb2ff35b",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "procurement_amount"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "comparison_relation"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_purchase_procurement_view",
+      "auditNote": "“采购结构”未说明按供应商、状态还是其他维度。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1772",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1772",
+      "sourceRole": "库存",
+      "question": "去年同期的采购返点有多少",
+      "checksum": "3dd88627bbb0e934025cc49004cd61eb1024936a409a5e219b5b9642cf424c2f",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_purchase_procurement_view",
+      "auditNote": "采购视图未开放返点字段。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1779",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1779",
+      "sourceRole": "库存",
+      "question": "五一假期的采购返点有多少",
+      "checksum": "bdc8ca8b0cb69dbe38ea81b7b773eb6aedf64da7c4491131abf42e4f4b7a7d0d",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_purchase_procurement_view",
+      "auditNote": "采购视图未开放返点字段。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1785",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1785",
+      "sourceRole": "库存",
+      "question": "最近三个月采购返点贡献分析",
+      "checksum": "c1c763deda90c31be651a9b41a5b9f2b5931d34a8b62f2c0e1debde297188df1",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_purchase_procurement_view",
+      "auditNote": "采购视图未开放返点字段。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1788",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1788",
+      "sourceRole": "库存",
+      "question": "这个季度采购返点贡献分析",
+      "checksum": "525fdf1e1c095d1c3bae01775716bf8b9ea0f06505b89779ce506eb2e643e958",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_purchase_procurement_view",
+      "auditNote": "采购视图未开放返点字段。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1774",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1774",
+      "sourceRole": "库存",
+      "question": "最近三个月采购成本最高的品类",
+      "checksum": "fd0017b53566556487e4a801eb517213f71246afeb7185eef22b9e75585bec64",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "ranking",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "agent_v3_purchase_procurement_view",
+      "auditNote": "采购视图未开放采购品类字段。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0822",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0822",
+      "sourceRole": "财务",
+      "question": "精华导入护理订单最近三个月的利润情况",
+      "checksum": "64fb243fb4e4114d9dcebabdd9fbf5c8499d195ea2aed6020c64c289422804c1",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "project"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_confirmed_profit_view",
+      "auditNote": "已确认利润视图是门店月结快照，不能回答项目或订单级利润明细。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0825",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0825",
+      "sourceRole": "财务",
+      "question": "最近三个月哪些订单毛利为负",
+      "checksum": "bf288c9a013ceb6c7a33d907ba91d39ee4e681e1cca2f91e105aceeffc2d7107",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_confirmed_profit_view",
+      "auditNote": "已确认利润视图是门店月结快照，不能回答项目或订单级利润明细。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0829",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0829",
+      "sourceRole": "财务",
+      "question": "这个季度每张订单的毛利分别多少",
+      "checksum": "2656e1760bf2fe4e6ab28440d3439c2b7c05297f982cb131151b4a99659ae2a7",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "grouped",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_confirmed_profit_view",
+      "auditNote": "已确认利润视图是门店月结快照，不能回答项目或订单级利润明细。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0830",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0830",
+      "sourceRole": "财务",
+      "question": "痘肌净颜舒缓护理订单这个季度的利润情况",
+      "checksum": "3de8bdb3746b28ec8a7d8f0928c8f16d5637c112612b6e625d0a439965d7d8f8",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [
+        "project"
+      ],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_confirmed_profit_view",
+      "auditNote": "已确认利润视图是门店月结快照，不能回答项目或订单级利润明细。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0833",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0833",
+      "sourceRole": "财务",
+      "question": "这个季度哪些订单毛利为负",
+      "checksum": "be569b14e4c21da512146732bad72b0dbae7fc73ea0ca49ba5ad7b455154ef4e",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_confirmed_profit_view",
+      "auditNote": "已确认利润视图是门店月结快照，不能回答项目或订单级利润明细。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0837",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0837",
+      "sourceRole": "财务",
+      "question": "双十一期间每张订单的毛利分别多少",
+      "checksum": "f44db35645c437f5b0f3b25b30940aefdd939fa782b676fa660961c284bd65e2",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "grouped",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_confirmed_profit_view",
+      "auditNote": "已确认利润视图是门店月结快照，不能回答项目或订单级利润明细。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0838",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0838",
+      "sourceRole": "财务",
+      "question": "全身精油 SPA订单双十一期间的利润情况",
+      "checksum": "ed9ca1b6ddbb8f232f8e1e2b04d5b62d2cdca860960b3f02e97dbef3b5c37d39",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_confirmed_profit_view",
+      "auditNote": "已确认利润视图是门店月结快照，不能回答项目或订单级利润明细。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0841",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0841",
+      "sourceRole": "财务",
+      "question": "双十一期间哪些订单毛利为负",
+      "checksum": "10efa61007d68594a5b58cd1827474d4d61c1a68837b89c660492351396f68d8",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_confirmed_profit_view",
+      "auditNote": "已确认利润视图是门店月结快照，不能回答项目或订单级利润明细。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0845",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0845",
+      "sourceRole": "财务",
+      "question": "最近14天每张订单的毛利分别多少",
+      "checksum": "5bcd929d316336429abbdb57897e0797d828812761cb19b9d8fd513ef077fd49",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "grouped",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_confirmed_profit_view",
+      "auditNote": "已确认利润视图是门店月结快照，不能回答项目或订单级利润明细。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0846",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0846",
+      "sourceRole": "财务",
+      "question": "晒后舒缓修护订单最近14天的利润情况",
+      "checksum": "1c969cd68fec6f2bedee81399170d643d05cb888e2d6221450b25ede8d383cc1",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_confirmed_profit_view",
+      "auditNote": "已确认利润视图是门店月结快照，不能回答项目或订单级利润明细。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0849",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0849",
+      "sourceRole": "财务",
+      "question": "最近14天哪些订单毛利为负",
+      "checksum": "8d213425b0365aa72fa7c768210d62c7601642e45fddbf73270b07cc448a39e6",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_confirmed_profit_view",
+      "auditNote": "已确认利润视图是门店月结快照，不能回答项目或订单级利润明细。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0853",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0853",
+      "sourceRole": "财务",
+      "question": "今天每张订单的毛利分别多少",
+      "checksum": "fa02a0298ba8499760298c90a56266367ffa34043be7d93525e3bb7ccb20d814",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "grouped",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_confirmed_profit_view",
+      "auditNote": "已确认利润视图是门店月结快照，不能回答项目或订单级利润明细。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0854",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0854",
+      "sourceRole": "财务",
+      "question": "亮肤淡斑管理订单今天的利润情况",
+      "checksum": "06797f591053ccbe244d5cc20841d3b6d7dcae4198de32e3057bc65cd438405b",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_confirmed_profit_view",
+      "auditNote": "已确认利润视图是门店月结快照，不能回答项目或订单级利润明细。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0857",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0857",
+      "sourceRole": "财务",
+      "question": "今天哪些订单毛利为负",
+      "checksum": "3e3eb84a5529d3769ea64ff3e9678cdc1c576b6162e7c1bca6d49f54798d805b",
+      "split": "holdout",
+      "supportClass": "admin_supported_ask_not_open",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_confirmed_profit_view",
+      "auditNote": "已确认利润视图是门店月结快照，不能回答项目或订单级利润明细。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0354",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0354",
+      "sourceRole": "店长",
+      "question": "上个月请假会不会导致产能缺口",
+      "checksum": "0dba9a667ff059e1e4600c59a13c444b47396cb51b6fc28c4f65e97363712155",
+      "split": "holdout",
+      "supportClass": "brain_content_or_advice",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "ask_data_staff_capacity_view",
+      "auditNote": "Ask 可展示请假和产能事实，但“会不会导致”属于预测与经营判断。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0361",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0361",
+      "sourceRole": "店长",
+      "question": "最近三个月请假会不会导致产能缺口",
+      "checksum": "96a4443d2e95a3fe839ed973451de6b0b999fc183b470741ab52244ce5396702",
+      "split": "holdout",
+      "supportClass": "brain_content_or_advice",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "ask_data_staff_capacity_view",
+      "auditNote": "Ask 可展示请假和产能事实，但“会不会导致”属于预测与经营判断。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0367",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0367",
+      "sourceRole": "店长",
+      "question": "这个季度请假会不会导致产能缺口",
+      "checksum": "33b59c675cf1f668bcfa0eef938e472b59ff515249ac0eaddf21400117f8b852",
+      "split": "holdout",
+      "supportClass": "brain_content_or_advice",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "ask_data_staff_capacity_view",
+      "auditNote": "Ask 可展示请假和产能事实，但“会不会导致”属于预测与经营判断。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0373",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0373",
+      "sourceRole": "店长",
+      "question": "双十一期间请假会不会导致产能缺口",
+      "checksum": "1008a1466451a8a98751dfd35ea7dce6ffe0a4cdfd760f1435878bbdda652b12",
+      "split": "holdout",
+      "supportClass": "brain_content_or_advice",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "ask_data_staff_capacity_view",
+      "auditNote": "Ask 可展示请假和产能事实，但“会不会导致”属于预测与经营判断。"
+    },
+    {
+      "id": "ami_brain_2000:BQ0379",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ0379",
+      "sourceRole": "店长",
+      "question": "最近14天请假会不会导致产能缺口",
+      "checksum": "23dc0e22e662c2eced4e7b791ea4816c456a3f828c0071c8bc517ae4363a67e5",
+      "split": "holdout",
+      "supportClass": "brain_content_or_advice",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "ask_data_staff_capacity_view",
+      "auditNote": "Ask 可展示请假和产能事实，但“会不会导致”属于预测与经营判断。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1593",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1593",
+      "sourceRole": "营销",
+      "question": "国庆期间拓客成本的趋势",
+      "checksum": "2485189952fffe1e46543c3c5e68c8af7257ccd503fd4e4581b960d4fc84036b",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "requiredDimensionKeys": [
+        "date"
+      ],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "trend_day",
+        "acquisition_cost"
+      ],
+      "requiredResultMode": "trend",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "trend_granularity",
+        "trend_points",
+        "amount_unit"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_marketing_roi_view",
+      "auditNote": "国庆跨年份。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1596",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1596",
+      "sourceRole": "营销",
+      "question": "国庆期间活动ROI对比钱花哪最值",
+      "checksum": "138e00e8cf1af067b35e7e327546f29fd40ba8f99b4c1da3380d9f9c032d9df6",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "requiredDimensionKeys": [
+        "date"
+      ],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "roi"
+      ],
+      "requiredResultMode": "grouped",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "comparison_current",
+        "comparison_previous",
+        "comparison_difference"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_marketing_roi_view",
+      "auditNote": "国庆跨年份。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1598",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1598",
+      "sourceRole": "营销",
+      "question": "国庆期间营销投入产出分析",
+      "checksum": "e60f36bffd5a0b98fff8e84b7cf2112001721fca2506604617e0c02358cbc0fb",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "roi"
+      ],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_marketing_roi_view",
+      "auditNote": "国庆跨年份。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1619",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1619",
+      "sourceRole": "营销",
+      "question": "国庆期间哪些活动在亏钱",
+      "checksum": "efd759fd5dc32ce29b0863d881d01c0d94736ae6c45a60f1eedef2d371f15062",
+      "split": "holdout",
+      "supportClass": "clarification_required",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "activity_id",
+        "activity_title",
+        "attributed_net_revenue",
+        "marketing_cost",
+        "marketing_profit",
+        "roi"
+      ],
+      "requiredResultMode": "grouped",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "candidateExpectedView": "ask_data_marketing_roi_view",
+      "auditNote": "国庆跨年份；明确后按 estimated 成本判断活动亏损。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1601",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1601",
+      "sourceRole": "营销",
+      "question": "最近7天有哪些活动ROI低于预期该停了",
+      "checksum": "d71e74ebc5004ee9a6f8e301567f827fbaeae94ae0e88915483bf6ff7cc20553",
+      "split": "holdout",
+      "supportClass": "brain_content_or_advice",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "ask_data_marketing_roi_view",
+      "auditNote": "“低于预期且该停”同时包含未治理阈值和停投建议，应由 Brain 承接决策。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1609",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1609",
+      "sourceRole": "营销",
+      "question": "今年有哪些活动ROI低于预期该停了",
+      "checksum": "c7ba6b1ba030c1aad3040c5f61bd31802f9362c4425adfbd0dece2d9ba1b050d",
+      "split": "holdout",
+      "supportClass": "brain_content_or_advice",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "ask_data_marketing_roi_view",
+      "auditNote": "“低于预期且该停”同时包含未治理阈值和停投建议，应由 Brain 承接决策。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1616",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1616",
+      "sourceRole": "营销",
+      "question": "本周末有哪些活动ROI低于预期该停了",
+      "checksum": "63a99518bc6b95c8ffcf60fa923c8bb28ec3cd706e15aae5516dffe6f5be10dc",
+      "split": "holdout",
+      "supportClass": "brain_content_or_advice",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "ask_data_marketing_roi_view",
+      "auditNote": "“低于预期且该停”同时包含未治理阈值和停投建议，应由 Brain 承接决策。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1623",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1623",
+      "sourceRole": "营销",
+      "question": "国庆期间有哪些活动ROI低于预期该停了",
+      "checksum": "509d7f1b46cd010e80cc62cbb5e3efe9a8ec062bfa1229a1278086f5e26667a3",
+      "split": "holdout",
+      "supportClass": "brain_content_or_advice",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "ask_data_marketing_roi_view",
+      "auditNote": "“低于预期且该停”同时包含未治理阈值和停投建议，应由 Brain 承接决策。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1630",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1630",
+      "sourceRole": "营销",
+      "question": "这半年有哪些活动ROI低于预期该停了",
+      "checksum": "8da6492d78e42c0d9416a5e9e6f3b4c65b8cb17d009d183ecfc374df08191ab5",
+      "split": "holdout",
+      "supportClass": "brain_content_or_advice",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "detail",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "ask_data_marketing_roi_view",
+      "auditNote": "“低于预期且该停”同时包含未治理阈值和停投建议，应由 Brain 承接决策。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1606",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1606",
+      "sourceRole": "营销",
+      "question": "今年营销预算超支了吗",
+      "checksum": "f7db7806be11ab98f54747ece00fe19e6939ee26ac5137a0ce64d1544077ee71",
+      "split": "holdout",
+      "supportClass": "admin_backend_unsupported",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "ask_data_marketing_roi_view",
+      "auditNote": "当前后台没有可核验的营销预算基线。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1613",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1613",
+      "sourceRole": "营销",
+      "question": "本周末营销预算超支了吗",
+      "checksum": "a98a7e3fdb565f8e87915801e167e6b7a40cbedb5ae9da84647653301f13a69f",
+      "split": "holdout",
+      "supportClass": "admin_backend_unsupported",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "ask_data_marketing_roi_view",
+      "auditNote": "当前后台没有可核验的营销预算基线。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1620",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1620",
+      "sourceRole": "营销",
+      "question": "国庆期间营销预算超支了吗",
+      "checksum": "b231e25f1088f2c5763ebca0fd7654452a7108a93974f644fb1ddd72353d5704",
+      "split": "holdout",
+      "supportClass": "admin_backend_unsupported",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": true,
+      "allowedClarificationSlots": [
+        "year"
+      ],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "ask_data_marketing_roi_view",
+      "auditNote": "当前后台没有可核验的营销预算基线。"
+    },
+    {
+      "id": "ami_brain_2000:BQ1627",
+      "sourceSuite": "ami_brain_2000",
+      "sourceId": "BQ1627",
+      "sourceRole": "营销",
+      "question": "这半年营销预算超支了吗",
+      "checksum": "07d439b6be796f06c8b385ea1e23e3a126233b6d8181a9e1a92901274691075e",
+      "split": "holdout",
+      "supportClass": "admin_backend_unsupported",
+      "expectedMetricKeys": [],
+      "requiredDimensionKeys": [],
+      "acceptableViews": [],
+      "requiredViews": [],
+      "requiredOutputFields": [],
+      "requiredResultMode": "scalar",
+      "runtimeResolutionRequired": false,
+      "forbiddenViews": [],
+      "mustClarify": false,
+      "allowedClarificationSlots": [],
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "forbiddenClaims": [
+        "不得声称跨门店结论。",
+        "不得输出手机号、地址、健康信息、备注原文或其他敏感字段。",
+        "不得把估算值表述为实际确认值。",
+        "不得用无数据推断业务从未发生。"
+      ],
+      "managementSupport": "partial",
+      "backendSupport": "partial",
+      "candidateExpectedView": "ask_data_marketing_roi_view",
+      "auditNote": "当前后台没有可核验的营销预算基线。"
+    }
+  ]
+}

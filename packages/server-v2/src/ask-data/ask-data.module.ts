@@ -7,5 +7,6 @@ import { AskDataService } from './ask-data.service.js';
   imports: [AiModule],
   controllers: [AskDataController],
   providers: [AskDataService],
+  exports: [AskDataService],
 })
 export class AskDataModule {}

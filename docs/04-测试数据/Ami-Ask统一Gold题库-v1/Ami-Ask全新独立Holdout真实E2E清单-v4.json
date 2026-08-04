@@ -1,0 +1,3036 @@
+{
+  "generatedAt": "2026-08-03T12:08:03.748Z",
+  "sourcePath": "/Users/ju/Documents/ami/beauty-salon-admin-ask/docs/04-测试数据/Ami-Ask统一Gold题库-v1/Ami-Ask全新独立Holdout裁定后合同-v4.json",
+  "sourceQuestionCount": 80,
+  "selectionMode": "release",
+  "targetPerView": 1,
+  "minimumCaseCount": 80,
+  "viewCount": 34,
+  "coveredViews": 34,
+  "viewCoverage": {
+    "agent_v3_appointment_gap_view": 2,
+    "agent_v3_card_asset_view": 3,
+    "agent_v3_card_usage_view": 2,
+    "agent_v3_customer_balance_view": 3,
+    "agent_v3_daily_settlement_view": 3,
+    "agent_v3_inventory_scrap_view": 2,
+    "agent_v3_marketing_activity_view": 3,
+    "agent_v3_marketing_automation_view": 2,
+    "agent_v3_marketing_conversion_view": 3,
+    "agent_v3_order_item_sales_view": 2,
+    "agent_v3_order_summary_view": 4,
+    "agent_v3_payment_refund_view": 3,
+    "agent_v3_product_inventory_view": 3,
+    "agent_v3_project_catalog_view": 2,
+    "agent_v3_project_service_sales_view": 3,
+    "agent_v3_promotion_offer_view": 3,
+    "agent_v3_purchase_procurement_view": 3,
+    "agent_v3_reservation_view": 3,
+    "agent_v3_service_quality_view": 3,
+    "agent_v3_staff_profile_view": 2,
+    "agent_v3_stock_movement_view": 4,
+    "agent_v3_supplier_performance_view": 3,
+    "ask_data_bom_consumption_variance_view": 3,
+    "ask_data_confirmed_profit_view": 2,
+    "ask_data_customer_feedback_view": 3,
+    "ask_data_customer_lifecycle_view": 2,
+    "ask_data_customer_profile_summary_view": 3,
+    "ask_data_marketing_roi_view": 3,
+    "ask_data_member_liability_view": 2,
+    "ask_data_operating_cost_view": 2,
+    "ask_data_reconciliation_issue_view": 2,
+    "ask_data_staff_capacity_view": 3,
+    "ask_data_staff_performance_view": 2,
+    "ask_data_transfer_status_view": 3
+  },
+  "minimumViewCoverage": 2,
+  "selectedCaseCount": 80,
+  "multiViewCaseCount": 11,
+  "holdoutCaseCount": 80,
+  "sourceGoldChecksum": "19d96ed4bdb00a0d58a9edc6826f7114fc470582c90e6d4e29366c8504ddff35",
+  "sourceContractChecksum": "e157f6a4c18827def0319ed229e182bc565c5f7d6cd47e0e2b5c786703dbb1de",
+  "selectedQuestionsChecksum": "3060e2f19c1cc72fbe7b09e3251a013ff4c0b63edfd58fc50d6f91adf729e63c",
+  "checksum": "1e4d27fcee7238f44580523120f4edad5d7c3f4187007c9ac683deb12f104352",
+  "insufficientViews": [],
+  "selectedQuestions": [
+    {
+      "id": "ask_holdout_v4:V4-Q035",
+      "domain": "前台",
+      "role": "前台",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "后天哪些时段还能加两位客人",
+      "expected_target": "appointment_gap",
+      "notes": "requiredViews=agent_v3_appointment_gap_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "agent_v3_appointment_gap_view",
+      "expectedViewLabel": "agent_v3_appointment_gap_view",
+      "expectedMetricKeys": [
+        "appointment_gap"
+      ],
+      "acceptableViews": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "requiredViews": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "requiredOutputFields": [
+        "date",
+        "start_time",
+        "available_capacity",
+        "estimated_revenue",
+        "candidate_count"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "holdout",
+      "questionChecksum": "a089ba5d48b56a9cf73185daaa41111b1402e89685bd38f728384419912bb640"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q027",
+      "domain": "客服",
+      "role": "客服",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "六十天内到期并且还剩五次以上的卡项客户有哪些",
+      "expected_target": "card_assets",
+      "notes": "requiredViews=agent_v3_card_asset_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "agent_v3_card_asset_view",
+      "expectedViewLabel": "agent_v3_card_asset_view",
+      "expectedMetricKeys": [
+        "card_assets"
+      ],
+      "acceptableViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "requiredViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "requiredOutputFields": [
+        "customer_card_id",
+        "customer_id",
+        "customer_name_masked",
+        "card_name",
+        "remaining_times",
+        "expiry_date"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "holdout",
+      "questionChecksum": "baff5069a4a8b1c773a968994ad410442ae66f59ec3fe770435095b47697f08a"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q029",
+      "domain": "财务",
+      "role": "财务",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "本月每个项目通过次卡核销确认了多少收入",
+      "expected_target": "card_usage",
+      "notes": "requiredViews=agent_v3_card_usage_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "agent_v3_card_usage_view",
+      "expectedViewLabel": "agent_v3_card_usage_view",
+      "expectedMetricKeys": [
+        "card_usage"
+      ],
+      "acceptableViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "requiredViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "requiredOutputFields": [
+        "project_name",
+        "card_name",
+        "usage_times",
+        "recognized_amount"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "9645222a6a972082f83bb8a5b2b6e4b2eae943b463756e83ba4b92b1ea98a5e1"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q031",
+      "domain": "财务",
+      "role": "财务",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "当前现金余额超过一千的客户名单和赠送余额",
+      "expected_target": "customer_balance",
+      "notes": "requiredViews=agent_v3_customer_balance_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "agent_v3_customer_balance_view",
+      "expectedViewLabel": "agent_v3_customer_balance_view",
+      "expectedMetricKeys": [
+        "customer_balance"
+      ],
+      "acceptableViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "requiredViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "cash_balance",
+        "gift_balance"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "82b64fd62b7277d132a30b5ec630656be41895e8270c5aee52f5d25e51e61b4f"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q009",
+      "domain": "财务",
+      "role": "财务",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近十个营业日每天的净收排成时间线",
+      "expected_target": "daily_net_receipts",
+      "notes": "requiredViews=agent_v3_daily_settlement_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_daily_settlement_view",
+      "expectedViewLabel": "agent_v3_daily_settlement_view",
+      "expectedMetricKeys": [
+        "daily_net_receipts"
+      ],
+      "acceptableViews": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "requiredOutputFields": [
+        "trend_day",
+        "net_receipts",
+        "order_count"
+      ],
+      "requiredResultMode": "trend",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "2fdc37d7d7874ce31983670f25e5a8432a2233e7d7435a9270b3393cfb67b6ba"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q015",
+      "domain": "库存",
+      "role": "库存",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "本月报损货值最高的五个商品是什么",
+      "expected_target": "inventory_scrap",
+      "notes": "requiredViews=agent_v3_inventory_scrap_view; requiredAnswerFacts=metric_value,time_range,data_policy,ranking_order,ranking_limit",
+      "expectedView": "agent_v3_inventory_scrap_view",
+      "expectedViewLabel": "agent_v3_inventory_scrap_view",
+      "expectedMetricKeys": [
+        "inventory_scrap"
+      ],
+      "acceptableViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "requiredViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "loss_amount"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "931eddd1e90ed90687619f90fe11839d13a1a4c792c9589909f8b8c921293377"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q039",
+      "domain": "营销",
+      "role": "营销",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "现在正在发布并且还没结束的活动清单",
+      "expected_target": "marketing_activity",
+      "notes": "requiredViews=agent_v3_marketing_activity_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_marketing_activity_view",
+      "expectedViewLabel": "agent_v3_marketing_activity_view",
+      "expectedMetricKeys": [
+        "marketing_activity"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "requiredOutputFields": [
+        "activity_id",
+        "activity_title",
+        "status",
+        "publish_status",
+        "start_at",
+        "end_at",
+        "participants"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "d7a22a85cb8b5d62a312a4467960c40231638866a66fa500c6e92c229f169c3f"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q041",
+      "domain": "营销",
+      "role": "营销",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近三十天各触发类型任务量和完成量对比",
+      "expected_target": "marketing_automation",
+      "notes": "requiredViews=agent_v3_marketing_automation_view; requiredAnswerFacts=metric_value,time_range,data_policy,comparison_current,comparison_previous,comparison_difference",
+      "expectedView": "agent_v3_marketing_automation_view",
+      "expectedViewLabel": "agent_v3_marketing_automation_view",
+      "expectedMetricKeys": [
+        "marketing_automation"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredOutputFields": [
+        "trigger_type",
+        "task_count",
+        "completed_count"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "comparison_current",
+        "comparison_previous",
+        "comparison_difference"
+      ],
+      "split": "holdout",
+      "questionChecksum": "15dfbf3e23bffe6678182ca18aeaf11f6aa85a8891e67fb634439dd42325882b"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q025",
+      "domain": "营销",
+      "role": "营销",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "近三十天每场活动带来的线索和转化分别多少",
+      "expected_target": "marketing_conversion",
+      "notes": "requiredViews=agent_v3_marketing_conversion_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_marketing_conversion_view",
+      "expectedViewLabel": "agent_v3_marketing_conversion_view",
+      "expectedMetricKeys": [
+        "marketing_conversion"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredOutputFields": [
+        "activity_id",
+        "activity_title",
+        "lead_count",
+        "conversion_count"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "08e76ecb488ddd1f0fd7beabaddb2b97e2094cc18cc9de36824819ecbb82d0b8"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q003",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "近四十五天卖出去的商品按件数列前十名",
+      "expected_target": "product_sales",
+      "notes": "requiredViews=agent_v3_order_item_sales_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_order_item_sales_view",
+      "expectedViewLabel": "agent_v3_order_item_sales_view",
+      "expectedMetricKeys": [
+        "product_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "sku",
+        "sales_quantity",
+        "net_sales_amount"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "78ab38575550f9a5b27073a047ad2d882f48d8df702e49432363086fc422cc7c"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q001",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "把这礼拜和上礼拜的开单净收入放一起，差额也给我",
+      "expected_target": "order_revenue",
+      "notes": "requiredViews=agent_v3_order_summary_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "agent_v3_order_summary_view",
+      "expectedViewLabel": "agent_v3_order_summary_view",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "current_period_net_revenue",
+        "previous_period_net_revenue",
+        "revenue_difference"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "fc6bcc25715f64aaf7264a82a1f40762715e90f789cf5c5383ec05e76b11bf9b"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q007",
+      "domain": "财务",
+      "role": "财务",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "昨天各种支付方式实际收款各是多少",
+      "expected_target": "payment_flow",
+      "notes": "requiredViews=agent_v3_payment_refund_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_payment_refund_view",
+      "expectedViewLabel": "agent_v3_payment_refund_view",
+      "expectedMetricKeys": [
+        "payment_flow"
+      ],
+      "acceptableViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredOutputFields": [
+        "payment_method",
+        "payment_amount"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "c007204cafd9a52ff37797d65f20adac6354a3befe43c6de139a3ee0c91c88ea"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q011",
+      "domain": "库存",
+      "role": "库存",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "现在哪些商品库存不超过三件，名称和余量都列出",
+      "expected_target": "inventory_on_hand",
+      "notes": "requiredViews=agent_v3_product_inventory_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "agent_v3_product_inventory_view",
+      "expectedViewLabel": "agent_v3_product_inventory_view",
+      "expectedMetricKeys": [
+        "inventory_on_hand"
+      ],
+      "acceptableViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "current_stock"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "holdout",
+      "questionChecksum": "36abcc44bd8b3388c47b1129a87d6c6275828a0fe14b471a41a6b5e8c03ec225"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q037",
+      "domain": "前台",
+      "role": "前台",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "把身体护理类项目的价格、时长和疗程次数列出来",
+      "expected_target": "project_catalog",
+      "notes": "requiredViews=agent_v3_project_catalog_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_project_catalog_view",
+      "expectedViewLabel": "agent_v3_project_catalog_view",
+      "expectedMetricKeys": [
+        "project_catalog"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "project_type",
+        "price",
+        "duration",
+        "treatment_course_times"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "7031a3cc61bb892601e50c1efec3077dafc9c5737d5cef6f670d45eb4acfa51f"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q005",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "近六周项目服务次数每周怎么走",
+      "expected_target": "project_sales",
+      "notes": "requiredViews=agent_v3_project_service_sales_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_project_service_sales_view",
+      "expectedViewLabel": "agent_v3_project_service_sales_view",
+      "expectedMetricKeys": [
+        "project_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "trend_week",
+        "service_count",
+        "project_revenue"
+      ],
+      "requiredResultMode": "trend",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "6a3fe89c5dac265a64d961239ee2ebe3bd081c3eb760b480a973422e3fa164fc"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q043",
+      "domain": "营销",
+      "role": "营销",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "未来十五天仍有效的优惠，区分全局和门店范围",
+      "expected_target": "promotion_offer",
+      "notes": "requiredViews=agent_v3_promotion_offer_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_promotion_offer_view",
+      "expectedViewLabel": "agent_v3_promotion_offer_view",
+      "expectedMetricKeys": [
+        "promotion_offer"
+      ],
+      "acceptableViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "requiredViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "requiredOutputFields": [
+        "promotion_id",
+        "promotion_name",
+        "discount_text",
+        "scope_type",
+        "start_at",
+        "end_at",
+        "status"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "0ff3e9a11c41555072c8de63eaa0184cc00144724a42a1dde46e7afecbf43b98"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q047",
+      "domain": "库存",
+      "role": "库存",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "还没到货的采购单、供应商和预计到货日列出来",
+      "expected_target": "procurement_detail",
+      "notes": "requiredViews=agent_v3_purchase_procurement_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_purchase_procurement_view",
+      "expectedViewLabel": "agent_v3_purchase_procurement_view",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "procurement_id",
+        "procurement_no",
+        "supplier_id",
+        "supplier_name",
+        "status",
+        "total_amount",
+        "expected_arrival_date"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "9667256f699fc0c2b9f8d3e014f2f65eb3f13375b64a243d8653732e9985569e"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q023",
+      "domain": "前台",
+      "role": "前台",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "明天下午预约的客人、项目和美容师排个清单",
+      "expected_target": "reservation_metrics",
+      "notes": "requiredViews=agent_v3_reservation_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_reservation_view",
+      "expectedViewLabel": "agent_v3_reservation_view",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "reservation_id",
+        "customer_id",
+        "customer_name_masked",
+        "project_id",
+        "project_name",
+        "beautician_id",
+        "beautician_name",
+        "date",
+        "start_time"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "29aa716ebe1b3754c71d333e8713ae5c4fa97317db9251287f7f30fef475af9f"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q033",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "昨天没有完成的服务任务由谁负责、做什么项目",
+      "expected_target": "service_quality",
+      "notes": "requiredViews=agent_v3_service_quality_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_service_quality_view",
+      "expectedViewLabel": "agent_v3_service_quality_view",
+      "expectedMetricKeys": [
+        "service_quality"
+      ],
+      "acceptableViews": [
+        "agent_v3_service_quality_view"
+      ],
+      "requiredViews": [
+        "agent_v3_service_quality_view"
+      ],
+      "requiredOutputFields": [
+        "service_task_id",
+        "project_id",
+        "project_name",
+        "beautician_id",
+        "beautician_name",
+        "status",
+        "appointment_time"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "4478838e9b22a940edc5cbad1dbed57044abe210819b7fb9ac1d8d9ce0d83d6b"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q019",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "现在在职员工按职级各有几人",
+      "expected_target": "staff_profile",
+      "notes": "requiredViews=agent_v3_staff_profile_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_staff_profile_view",
+      "expectedViewLabel": "agent_v3_staff_profile_view",
+      "expectedMetricKeys": [
+        "staff_profile"
+      ],
+      "acceptableViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "requiredViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "requiredOutputFields": [
+        "level_name",
+        "staff_count"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "ffb89f945fbe4493726cb1267038e730afa2c2360b9af6ad758eb69da304a81b"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q013",
+      "domain": "库存",
+      "role": "库存",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "这周每种耗材净出库量分别多少",
+      "expected_target": "inventory_movement",
+      "notes": "requiredViews=agent_v3_stock_movement_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_stock_movement_view",
+      "expectedViewLabel": "agent_v3_stock_movement_view",
+      "expectedMetricKeys": [
+        "inventory_movement"
+      ],
+      "acceptableViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "sku",
+        "movement_quantity",
+        "movement_count"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "451f74db73fe39637f38f68c686a6d28db9d82da099f7c77515a46c261c9bfa2"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q049",
+      "domain": "库存",
+      "role": "库存",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "供应商平均交付天数从短到长排一下",
+      "expected_target": "supplier_performance",
+      "notes": "requiredViews=agent_v3_supplier_performance_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_supplier_performance_view",
+      "expectedViewLabel": "agent_v3_supplier_performance_view",
+      "expectedMetricKeys": [
+        "supplier_performance"
+      ],
+      "acceptableViews": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "requiredViews": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "requiredOutputFields": [
+        "supplier_id",
+        "supplier_name",
+        "avg_delivery_days"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "c7f3c47f12732d3e81b127aaf7607ccc22455fc474c5dc113c850cf674519e7b"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q061",
+      "domain": "库存",
+      "role": "库存",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "近三十天实际用量偏离标准超过百分之二十的耗材明细",
+      "expected_target": "bom_variance",
+      "notes": "requiredViews=ask_data_bom_consumption_variance_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "ask_data_bom_consumption_variance_view",
+      "expectedViewLabel": "ask_data_bom_consumption_variance_view",
+      "expectedMetricKeys": [
+        "bom_variance"
+      ],
+      "acceptableViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "requiredViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "requiredOutputFields": [
+        "movement_id",
+        "project_id",
+        "project_name",
+        "product_id",
+        "product_name",
+        "standard_qty",
+        "actual_qty",
+        "deviation_qty",
+        "deviation_rate",
+        "standard_status"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "holdout",
+      "questionChecksum": "d276787a3acc89671f10b55da83bfe5ff6cdc87d9b519d3e94f76850c9eaaee5"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q051",
+      "domain": "财务",
+      "role": "财务",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近六个已确认月结的经营利润和利润率趋势",
+      "expected_target": "confirmed_profit",
+      "notes": "requiredViews=ask_data_confirmed_profit_view; requiredAnswerFacts=metric_value,time_range,data_policy,trend_granularity,trend_points,amount_unit",
+      "expectedView": "ask_data_confirmed_profit_view",
+      "expectedViewLabel": "ask_data_confirmed_profit_view",
+      "expectedMetricKeys": [
+        "confirmed_profit"
+      ],
+      "acceptableViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "requiredViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "requiredOutputFields": [
+        "trend_month",
+        "operating_revenue",
+        "gross_profit",
+        "operating_profit",
+        "gross_margin_rate",
+        "operating_margin_rate",
+        "confirmed_at"
+      ],
+      "requiredResultMode": "trend",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "trend_granularity",
+        "trend_points",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "5c285dc145fd764302dac95875b835edbaf5e078cc449fed8e514394fedce3c7"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q063",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近三十天未解决的低评分反馈，客户只显示脱敏姓名",
+      "expected_target": "customer_feedback",
+      "notes": "requiredViews=ask_data_customer_feedback_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_customer_feedback_view",
+      "expectedViewLabel": "ask_data_customer_feedback_view",
+      "expectedMetricKeys": [
+        "customer_feedback"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_feedback_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_feedback_view"
+      ],
+      "requiredOutputFields": [
+        "feedback_id",
+        "customer_id",
+        "customer_name_masked",
+        "staff_id",
+        "staff_name",
+        "project_id",
+        "project_name",
+        "rating",
+        "severity",
+        "status",
+        "occurred_at"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "81db26dc19aa37355d19b590cbda8cb1209a174bdd076ba3cfc08f36880d5939"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q065",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "当前高流失风险且有未关闭机会的客户名单",
+      "expected_target": "customer_lifecycle",
+      "notes": "requiredViews=ask_data_customer_lifecycle_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_customer_lifecycle_view",
+      "expectedViewLabel": "ask_data_customer_lifecycle_view",
+      "expectedMetricKeys": [
+        "customer_lifecycle"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "churn_risk_level",
+        "open_opportunity_count",
+        "top_opportunity_type",
+        "top_priority",
+        "top_score",
+        "computed_at"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "0a26ef8acc72671ba862bad48c8eab6f54b3d25043fe61666283ee05bc8cd0e1"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q017",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "把九十天没到店但还有未用次卡的客户列出来",
+      "expected_target": "customer_profile",
+      "notes": "requiredViews=ask_data_customer_profile_summary_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_customer_profile_summary_view",
+      "expectedViewLabel": "ask_data_customer_profile_summary_view",
+      "expectedMetricKeys": [
+        "customer_profile"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "days_since_last_visit",
+        "active_card_count",
+        "remaining_card_times"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "06a2308e81cdac836fbde3233d047ba76a7880502ea01771cc9b220fc3036792"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q067",
+      "domain": "营销",
+      "role": "营销",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "近六十天各渠道估算营销投入产出率排行",
+      "expected_target": "marketing_roi",
+      "notes": "requiredViews=ask_data_marketing_roi_view; requiredAnswerFacts=metric_value,time_range,data_policy,ranking_order,ranking_limit",
+      "expectedView": "ask_data_marketing_roi_view",
+      "expectedViewLabel": "ask_data_marketing_roi_view",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "channel",
+        "attributed_net_revenue",
+        "marketing_cost",
+        "roi",
+        "cost_source"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "630f6ab538f0aff23ebc3fc0052eb94efd74e83a3b48c85138913bcf9b77a144"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q055",
+      "domain": "财务",
+      "role": "财务",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近六个确认快照的会员总负债怎么变化",
+      "expected_target": "member_liability",
+      "notes": "requiredViews=ask_data_member_liability_view; requiredAnswerFacts=metric_value,time_range,data_policy,trend_granularity,trend_points",
+      "expectedView": "ask_data_member_liability_view",
+      "expectedViewLabel": "ask_data_member_liability_view",
+      "expectedMetricKeys": [
+        "member_liability"
+      ],
+      "acceptableViews": [
+        "ask_data_member_liability_view"
+      ],
+      "requiredViews": [
+        "ask_data_member_liability_view"
+      ],
+      "requiredOutputFields": [
+        "trend_day",
+        "total_liability",
+        "confirmed_at"
+      ],
+      "requiredResultMode": "trend",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "trend_granularity",
+        "trend_points"
+      ],
+      "split": "holdout",
+      "questionChecksum": "7c63db30e8efd1651f521d7b9f2137ae17902100f845988df52284d970386dd3"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q045",
+      "domain": "财务",
+      "role": "财务",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "本季度各成本科目金额和占比",
+      "expected_target": "operating_cost",
+      "notes": "requiredViews=ask_data_operating_cost_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "ask_data_operating_cost_view",
+      "expectedViewLabel": "ask_data_operating_cost_view",
+      "expectedMetricKeys": [
+        "operating_cost"
+      ],
+      "acceptableViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredOutputFields": [
+        "category",
+        "operating_cost",
+        "cost_share"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "7a50d0b4193d714bfc0f5a26af517563f55bf3b8a1932c40b32af83f5d92752b"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q053",
+      "domain": "财务",
+      "role": "财务",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "近三十天还没处理的高严重度对账异常有哪些",
+      "expected_target": "reconciliation_issue",
+      "notes": "requiredViews=ask_data_reconciliation_issue_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "ask_data_reconciliation_issue_view",
+      "expectedViewLabel": "ask_data_reconciliation_issue_view",
+      "expectedMetricKeys": [
+        "reconciliation_issue"
+      ],
+      "acceptableViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "requiredViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "requiredOutputFields": [
+        "issue_id",
+        "business_date",
+        "category",
+        "severity",
+        "issue_status",
+        "title",
+        "amount",
+        "last_detected_at"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "holdout",
+      "questionChecksum": "93aaf3169874f77a3d499f8fcd3bf145b62fe83d105ff15523579348ef3f8821"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q057",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "未来七天美容师利用率从高到低排，超排分钟也带上",
+      "expected_target": "staff_capacity",
+      "notes": "requiredViews=ask_data_staff_capacity_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_staff_capacity_view",
+      "expectedViewLabel": "ask_data_staff_capacity_view",
+      "expectedMetricKeys": [
+        "staff_capacity"
+      ],
+      "acceptableViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "requiredViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "requiredOutputFields": [
+        "staff_id",
+        "staff_name",
+        "scheduled_minutes",
+        "booked_minutes",
+        "idle_minutes",
+        "overbooked_minutes",
+        "utilization_rate"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "7000bdfac27ea99c45f09026efa6ce100eb7c173ec0f4f717bea56eef271bf29"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q021",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "上个月美容师实收业绩前五名和对应提成",
+      "expected_target": "staff_performance",
+      "notes": "requiredViews=ask_data_staff_performance_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_staff_performance_view",
+      "expectedViewLabel": "ask_data_staff_performance_view",
+      "expectedMetricKeys": [
+        "staff_performance"
+      ],
+      "acceptableViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "requiredViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "requiredOutputFields": [
+        "staff_id",
+        "staff_name",
+        "paid_amount",
+        "commission_amount"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "e69872cc5e3e946a7fc192c70480cfd2588a30039189acb84f841db3147eedbb"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q059",
+      "domain": "库存",
+      "role": "库存",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "本周待接收的调入单和对方门店清单",
+      "expected_target": "transfer_status",
+      "notes": "requiredViews=ask_data_transfer_status_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_transfer_status_view",
+      "expectedViewLabel": "ask_data_transfer_status_view",
+      "expectedMetricKeys": [
+        "transfer_status"
+      ],
+      "acceptableViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "requiredViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "requiredOutputFields": [
+        "transfer_id",
+        "transfer_no",
+        "direction",
+        "counterpart_store_id",
+        "counterpart_store_name",
+        "product_count",
+        "status",
+        "created_at"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "5d244c53fd8430fad286e88b2bb119b81ae21a34bdd144bd38da6e4eddb1fc8f"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q002",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近四个自然周订单净收是往上还是往下，按周列数",
+      "expected_target": "order_revenue",
+      "notes": "requiredViews=agent_v3_order_summary_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_order_summary_view",
+      "expectedViewLabel": "agent_v3_order_summary_view",
+      "expectedMetricKeys": [
+        "order_revenue"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view"
+      ],
+      "requiredOutputFields": [
+        "trend_week",
+        "net_revenue",
+        "order_count"
+      ],
+      "requiredResultMode": "trend",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "a37455d783b09909b797661557ccbeaeba5ed6734078424fd426d97b0faf717d"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q004",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "这个月每种商品扣掉退款后分别卖了多少钱",
+      "expected_target": "product_sales",
+      "notes": "requiredViews=agent_v3_order_item_sales_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_order_item_sales_view",
+      "expectedViewLabel": "agent_v3_order_item_sales_view",
+      "expectedMetricKeys": [
+        "product_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_item_sales_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "sku",
+        "sales_quantity",
+        "gross_net_sales_amount",
+        "refund_amount",
+        "net_sales_after_refund"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "fdc7c417a60be19277e8d1625a75b7417c2ac27aca10908a545b0f1f5dc8b618"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q006",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "这个季度项目净收入榜前十，项目名字要带上",
+      "expected_target": "project_sales",
+      "notes": "requiredViews=agent_v3_project_service_sales_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "agent_v3_project_service_sales_view",
+      "expectedViewLabel": "agent_v3_project_service_sales_view",
+      "expectedMetricKeys": [
+        "project_sales"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_service_sales_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "service_count",
+        "project_revenue"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "0441e516140749d418057e47f0fd21bd9027b93a60711219b4981972faf6fd1c"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q008",
+      "domain": "财务",
+      "role": "财务",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "近二十一天的退款逐笔列出来，带订单和退款分类",
+      "expected_target": "payment_flow",
+      "notes": "requiredViews=agent_v3_payment_refund_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_payment_refund_view",
+      "expectedViewLabel": "agent_v3_payment_refund_view",
+      "expectedMetricKeys": [
+        "payment_flow"
+      ],
+      "acceptableViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredViews": [
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredOutputFields": [
+        "order_id",
+        "refunded_at",
+        "refund_amount",
+        "refund_reason_category"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "97b4adbe6189c0115ec20f8bfec4d12945a7090b1a310b6b7c9d50e8f9c4c1cb"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q010",
+      "domain": "财务",
+      "role": "财务",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "本周日结合计净收和订单数各是多少",
+      "expected_target": "daily_net_receipts",
+      "notes": "requiredViews=agent_v3_daily_settlement_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_daily_settlement_view",
+      "expectedViewLabel": "agent_v3_daily_settlement_view",
+      "expectedMetricKeys": [
+        "daily_net_receipts"
+      ],
+      "acceptableViews": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_daily_settlement_view"
+      ],
+      "requiredOutputFields": [
+        "net_receipts",
+        "order_count"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "7bf212ecc7860b8e74af6a4eb1eaebbc4d655e10f294ae0608bca226fdaa4579"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q012",
+      "domain": "库存",
+      "role": "库存",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "未来四十五天会到期的商品库存和货值给我一张清单",
+      "expected_target": "inventory_on_hand",
+      "notes": "requiredViews=agent_v3_product_inventory_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_product_inventory_view",
+      "expectedViewLabel": "agent_v3_product_inventory_view",
+      "expectedMetricKeys": [
+        "inventory_on_hand"
+      ],
+      "acceptableViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredViews": [
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "current_stock",
+        "stock_value",
+        "nearest_expiry_date"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "051a492438e5d3c2c4591e6858412fc20101c41a90065a3bfe1206948df4d474"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q014",
+      "domain": "库存",
+      "role": "库存",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "昨天库存变动逐条给我，变动前后数量都要",
+      "expected_target": "inventory_movement",
+      "notes": "requiredViews=agent_v3_stock_movement_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_stock_movement_view",
+      "expectedViewLabel": "agent_v3_stock_movement_view",
+      "expectedMetricKeys": [
+        "inventory_movement"
+      ],
+      "acceptableViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredOutputFields": [
+        "movement_id",
+        "product_id",
+        "product_name",
+        "movement_quantity",
+        "movement_type",
+        "occurred_at",
+        "before_stock",
+        "after_stock"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "2ede5cbc504a7a2f3baf8ad7dd0b332ccb166a32a4ee3990b57b0c86c4f0dc84"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q016",
+      "domain": "库存",
+      "role": "库存",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "近三十天每天报废了多少数量和金额",
+      "expected_target": "inventory_scrap",
+      "notes": "requiredViews=agent_v3_inventory_scrap_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "agent_v3_inventory_scrap_view",
+      "expectedViewLabel": "agent_v3_inventory_scrap_view",
+      "expectedMetricKeys": [
+        "inventory_scrap"
+      ],
+      "acceptableViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "requiredViews": [
+        "agent_v3_inventory_scrap_view"
+      ],
+      "requiredOutputFields": [
+        "trend_day",
+        "scrap_quantity",
+        "loss_amount"
+      ],
+      "requiredResultMode": "trend",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "1ab29b6da740696e7da65d659cca00737ce654233c6f56c4cdba763f621492bd"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q018",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "当前各会员等级有多少客户，累计消费也一起汇总",
+      "expected_target": "customer_profile",
+      "notes": "requiredViews=ask_data_customer_profile_summary_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_customer_profile_summary_view",
+      "expectedViewLabel": "ask_data_customer_profile_summary_view",
+      "expectedMetricKeys": [
+        "customer_profile"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredOutputFields": [
+        "member_level",
+        "customer_id",
+        "total_paid_amount"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "e281ce9a5719b035c6dc41c688759d8adf5d1f8ff347581282493bc9b1e573f0"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q020",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "近六十天新入职的员工名单和职级",
+      "expected_target": "staff_profile",
+      "notes": "requiredViews=agent_v3_staff_profile_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_staff_profile_view",
+      "expectedViewLabel": "agent_v3_staff_profile_view",
+      "expectedMetricKeys": [
+        "staff_profile"
+      ],
+      "acceptableViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "requiredViews": [
+        "agent_v3_staff_profile_view"
+      ],
+      "requiredOutputFields": [
+        "staff_id",
+        "staff_name",
+        "level_name",
+        "created_at"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "2f86373943b9774624c0b970aed2f0df8f6e00dd3808c9c6dc258f5b7c28c0a9"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q022",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近三个月每位员工服务次数按月怎么变化",
+      "expected_target": "staff_performance",
+      "notes": "requiredViews=ask_data_staff_performance_view; requiredAnswerFacts=metric_value,time_range,data_policy,trend_granularity,trend_points",
+      "expectedView": "ask_data_staff_performance_view",
+      "expectedViewLabel": "ask_data_staff_performance_view",
+      "expectedMetricKeys": [
+        "staff_performance"
+      ],
+      "acceptableViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "requiredViews": [
+        "ask_data_staff_performance_view"
+      ],
+      "requiredOutputFields": [
+        "trend_month",
+        "staff_id",
+        "staff_name",
+        "paid_amount",
+        "service_count",
+        "commission_amount"
+      ],
+      "requiredResultMode": "trend",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "trend_granularity",
+        "trend_points"
+      ],
+      "split": "holdout",
+      "questionChecksum": "6bae4fe70cbd97e7d313ab7c3e6d37d5fb9c6fe2fdc1c3222e28dc5e48b9c449"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q024",
+      "domain": "前台",
+      "role": "前台",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近四周各项目的非取消预约量排行",
+      "expected_target": "reservation_metrics",
+      "notes": "requiredViews=agent_v3_reservation_view; requiredAnswerFacts=metric_value,time_range,data_policy,ranking_order,ranking_limit",
+      "expectedView": "agent_v3_reservation_view",
+      "expectedViewLabel": "agent_v3_reservation_view",
+      "expectedMetricKeys": [
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "reservation_count"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "556bbd3cfdcb4591af77885c0588e64b17ceef9e856ae08fbc9ed3560aeedf27"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q026",
+      "domain": "营销",
+      "role": "营销",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近八周活动归因收入按周的走势",
+      "expected_target": "marketing_conversion",
+      "notes": "requiredViews=agent_v3_marketing_conversion_view; requiredAnswerFacts=metric_value,time_range,data_policy,trend_granularity,trend_points,amount_unit",
+      "expectedView": "agent_v3_marketing_conversion_view",
+      "expectedViewLabel": "agent_v3_marketing_conversion_view",
+      "expectedMetricKeys": [
+        "marketing_conversion"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_conversion_view"
+      ],
+      "requiredOutputFields": [
+        "activity_id",
+        "activity_title",
+        "trend_week",
+        "event_count",
+        "lead_count",
+        "conversion_count",
+        "attributed_revenue"
+      ],
+      "requiredResultMode": "trend",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "trend_granularity",
+        "trend_points",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "aa31d7b9741372be5e3c3ad5a7163ad39379216d072902ca8cc78124ac12e21b"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q028",
+      "domain": "客服",
+      "role": "客服",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "当前各卡项剩余次数合计和客户数分别多少",
+      "expected_target": "card_assets",
+      "notes": "requiredViews=agent_v3_card_asset_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_card_asset_view",
+      "expectedViewLabel": "agent_v3_card_asset_view",
+      "expectedMetricKeys": [
+        "card_assets"
+      ],
+      "acceptableViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "requiredViews": [
+        "agent_v3_card_asset_view"
+      ],
+      "requiredOutputFields": [
+        "card_name",
+        "remaining_times",
+        "customer_id"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "72f49294512232fb1f98753fb6dfed2a50bf7c1a55398c4880cd07d3f67290d3"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q030",
+      "domain": "财务",
+      "role": "财务",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "近十四天次卡核销明细，客户只显示脱敏姓名",
+      "expected_target": "card_usage",
+      "notes": "requiredViews=agent_v3_card_usage_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "agent_v3_card_usage_view",
+      "expectedViewLabel": "agent_v3_card_usage_view",
+      "expectedMetricKeys": [
+        "card_usage"
+      ],
+      "acceptableViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "requiredViews": [
+        "agent_v3_card_usage_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "card_name",
+        "project_name",
+        "usage_times",
+        "recognized_amount",
+        "remaining_times",
+        "verified_at"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "holdout",
+      "questionChecksum": "53ba5f0fa79f21125d449d67c197fda44dd6aa673b19694afd06e4ec94e5f495"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q032",
+      "domain": "财务",
+      "role": "财务",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "门店现有现金余额和赠送余额分别合计多少",
+      "expected_target": "customer_balance",
+      "notes": "requiredViews=agent_v3_customer_balance_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "agent_v3_customer_balance_view",
+      "expectedViewLabel": "agent_v3_customer_balance_view",
+      "expectedMetricKeys": [
+        "customer_balance"
+      ],
+      "acceptableViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "requiredViews": [
+        "agent_v3_customer_balance_view"
+      ],
+      "requiredOutputFields": [
+        "cash_balance",
+        "gift_balance"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "3f394205da44012deb62cfa35cb4fd7a71fea7c42a84f73778f0ea1ef4eaf035"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q034",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近四周每位美容师完成服务的数量趋势",
+      "expected_target": "service_quality",
+      "notes": "requiredViews=agent_v3_service_quality_view; requiredAnswerFacts=metric_value,time_range,data_policy,trend_granularity,trend_points",
+      "expectedView": "agent_v3_service_quality_view",
+      "expectedViewLabel": "agent_v3_service_quality_view",
+      "expectedMetricKeys": [
+        "service_quality"
+      ],
+      "acceptableViews": [
+        "agent_v3_service_quality_view"
+      ],
+      "requiredViews": [
+        "agent_v3_service_quality_view"
+      ],
+      "requiredOutputFields": [
+        "beautician_id",
+        "beautician_name",
+        "trend_day",
+        "completed_at",
+        "service_task_count"
+      ],
+      "requiredResultMode": "trend",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "trend_granularity",
+        "trend_points"
+      ],
+      "split": "holdout",
+      "questionChecksum": "444d5bcab915f0b48b2c244927cdc9c71bc97a8bd000afd017f888c52de1dd2f"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q036",
+      "domain": "前台",
+      "role": "前台",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "未来七天每天可用容量和预计收入怎么分布",
+      "expected_target": "appointment_gap",
+      "notes": "requiredViews=agent_v3_appointment_gap_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "agent_v3_appointment_gap_view",
+      "expectedViewLabel": "agent_v3_appointment_gap_view",
+      "expectedMetricKeys": [
+        "appointment_gap"
+      ],
+      "acceptableViews": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "requiredViews": [
+        "agent_v3_appointment_gap_view"
+      ],
+      "requiredOutputFields": [
+        "trend_day",
+        "available_capacity",
+        "estimated_revenue",
+        "candidate_count"
+      ],
+      "requiredResultMode": "trend",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "be51c090b75dd9f8393bc916e96fd2a3fd940c0b6a2aac0bf0c622f103075345"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q038",
+      "domain": "前台",
+      "role": "前台",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "当前启用项目按类型各有多少个，平均价格多少",
+      "expected_target": "project_catalog",
+      "notes": "requiredViews=agent_v3_project_catalog_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_project_catalog_view",
+      "expectedViewLabel": "agent_v3_project_catalog_view",
+      "expectedMetricKeys": [
+        "project_catalog"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_catalog_view"
+      ],
+      "requiredOutputFields": [
+        "project_type",
+        "project_count",
+        "average_price"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "83bf2bb8ce7d3061702125039aa73cabc9f8c2e7e5d67406c98472a079cbfe7e"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q040",
+      "domain": "营销",
+      "role": "营销",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "本季度每场活动参与人数和转化数分别多少",
+      "expected_target": "marketing_activity",
+      "notes": "requiredViews=agent_v3_marketing_activity_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_marketing_activity_view",
+      "expectedViewLabel": "agent_v3_marketing_activity_view",
+      "expectedMetricKeys": [
+        "marketing_activity"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_activity_view"
+      ],
+      "requiredOutputFields": [
+        "activity_id",
+        "activity_title",
+        "participants",
+        "conversion_count",
+        "event_count",
+        "lead_count",
+        "attributed_revenue"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "c23528f67f647b5d2c6fac891bb11cf62a2cc3c74b0a8112c8412411cbaf05a3"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q042",
+      "domain": "营销",
+      "role": "营销",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "当前没有完成任务的自动触达来源有哪些",
+      "expected_target": "marketing_automation",
+      "notes": "requiredViews=agent_v3_marketing_automation_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "agent_v3_marketing_automation_view",
+      "expectedViewLabel": "agent_v3_marketing_automation_view",
+      "expectedMetricKeys": [
+        "marketing_automation"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_automation_view"
+      ],
+      "requiredOutputFields": [
+        "automation_source",
+        "trigger_type",
+        "status",
+        "task_count",
+        "completed_count",
+        "latest_task_at"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "holdout",
+      "questionChecksum": "914d52d907881950423ed41e3bb896aa362d02d13fa4ca4d552d204e8efb605c"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q044",
+      "domain": "营销",
+      "role": "营销",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "本月各优惠活动发放量、使用量和使用率排行",
+      "expected_target": "promotion_offer",
+      "notes": "requiredViews=agent_v3_promotion_offer_view; requiredAnswerFacts=metric_value,time_range,data_policy,ranking_order,ranking_limit",
+      "expectedView": "agent_v3_promotion_offer_view",
+      "expectedViewLabel": "agent_v3_promotion_offer_view",
+      "expectedMetricKeys": [
+        "promotion_offer"
+      ],
+      "acceptableViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "requiredViews": [
+        "agent_v3_promotion_offer_view"
+      ],
+      "requiredOutputFields": [
+        "promotion_id",
+        "promotion_name",
+        "issued_count",
+        "used_count"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "2edd33d33497677cf331323946e4eeed7129e4549beeddb53ffdf89f05342fb6"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q046",
+      "domain": "财务",
+      "role": "财务",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近六个月经营成本按月的变化",
+      "expected_target": "operating_cost",
+      "notes": "requiredViews=ask_data_operating_cost_view; requiredAnswerFacts=metric_value,time_range,data_policy,trend_granularity,trend_points,amount_unit",
+      "expectedView": "ask_data_operating_cost_view",
+      "expectedViewLabel": "ask_data_operating_cost_view",
+      "expectedMetricKeys": [
+        "operating_cost"
+      ],
+      "acceptableViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredViews": [
+        "ask_data_operating_cost_view"
+      ],
+      "requiredOutputFields": [
+        "trend_month",
+        "operating_cost"
+      ],
+      "requiredResultMode": "trend",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "trend_granularity",
+        "trend_points",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "8e7ed4c2698da66a4aafc7d95360fa62ce7aedfd87ca71c9be0545940dbdca48"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q048",
+      "domain": "库存",
+      "role": "库存",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近三个月采购金额按月怎么变化",
+      "expected_target": "procurement_detail",
+      "notes": "requiredViews=agent_v3_purchase_procurement_view; requiredAnswerFacts=metric_value,time_range,data_policy,trend_granularity,trend_points,amount_unit",
+      "expectedView": "agent_v3_purchase_procurement_view",
+      "expectedViewLabel": "agent_v3_purchase_procurement_view",
+      "expectedMetricKeys": [
+        "procurement_detail"
+      ],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view"
+      ],
+      "requiredOutputFields": [
+        "trend_month",
+        "procurement_amount",
+        "procurement_count"
+      ],
+      "requiredResultMode": "trend",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "trend_granularity",
+        "trend_points",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "114f7ed62f827f8ec170ab8e0b6968df915483d0fe328680df4a0f3724b8ec61"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q050",
+      "domain": "库存",
+      "role": "库存",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "目前每家供应商累计采购次数和金额",
+      "expected_target": "supplier_performance",
+      "notes": "requiredViews=agent_v3_supplier_performance_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "agent_v3_supplier_performance_view",
+      "expectedViewLabel": "agent_v3_supplier_performance_view",
+      "expectedMetricKeys": [
+        "supplier_performance"
+      ],
+      "acceptableViews": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "requiredViews": [
+        "agent_v3_supplier_performance_view"
+      ],
+      "requiredOutputFields": [
+        "supplier_id",
+        "supplier_name",
+        "procurement_count",
+        "procurement_amount"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "cbf17a056e257daf73cf7b408a0e89c1093108b1df997565b812960366418c52"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q052",
+      "domain": "财务",
+      "role": "财务",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最新已确认月结里各项成本和毛利是多少",
+      "expected_target": "confirmed_profit",
+      "notes": "requiredViews=ask_data_confirmed_profit_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "ask_data_confirmed_profit_view",
+      "expectedViewLabel": "ask_data_confirmed_profit_view",
+      "expectedMetricKeys": [
+        "confirmed_profit"
+      ],
+      "acceptableViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "requiredViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "requiredOutputFields": [
+        "material_cost",
+        "product_cost",
+        "commission_cost",
+        "operating_cost",
+        "gross_profit",
+        "operating_profit",
+        "confirmed_at"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "f2b46354f686fc6f9f532aa9a75b8849fb46e8f2f3b13d20f8e70896143adfe9"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q054",
+      "domain": "财务",
+      "role": "财务",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "本季度每天对账异常金额的走势",
+      "expected_target": "reconciliation_issue",
+      "notes": "requiredViews=ask_data_reconciliation_issue_view; requiredAnswerFacts=metric_value,time_range,data_policy,trend_granularity,trend_points,amount_unit",
+      "expectedView": "ask_data_reconciliation_issue_view",
+      "expectedViewLabel": "ask_data_reconciliation_issue_view",
+      "expectedMetricKeys": [
+        "reconciliation_issue"
+      ],
+      "acceptableViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "requiredViews": [
+        "ask_data_reconciliation_issue_view"
+      ],
+      "requiredOutputFields": [
+        "trend_day",
+        "issue_count",
+        "issue_amount"
+      ],
+      "requiredResultMode": "trend",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "trend_granularity",
+        "trend_points",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "8807bb4284b51878a85bb529f3853b1cc9c96e7703f726270351d12eb15099af"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q056",
+      "domain": "财务",
+      "role": "财务",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最新确认快照里现金合同负债、赠送义务和次卡负债各多少",
+      "expected_target": "member_liability",
+      "notes": "requiredViews=ask_data_member_liability_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_member_liability_view",
+      "expectedViewLabel": "ask_data_member_liability_view",
+      "expectedMetricKeys": [
+        "member_liability"
+      ],
+      "acceptableViews": [
+        "ask_data_member_liability_view"
+      ],
+      "requiredViews": [
+        "ask_data_member_liability_view"
+      ],
+      "requiredOutputFields": [
+        "cash_contract_liability",
+        "gift_obligation",
+        "card_liability",
+        "total_liability",
+        "confirmed_at"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "613f59cd28753c13cc56cb5bfef59eb6d88058bd173f4e102ceb9259d77a6387"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q058",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "明天每位员工排班、预约和空闲分钟分别多少",
+      "expected_target": "staff_capacity",
+      "notes": "requiredViews=ask_data_staff_capacity_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_staff_capacity_view",
+      "expectedViewLabel": "ask_data_staff_capacity_view",
+      "expectedMetricKeys": [
+        "staff_capacity"
+      ],
+      "acceptableViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "requiredViews": [
+        "ask_data_staff_capacity_view"
+      ],
+      "requiredOutputFields": [
+        "staff_id",
+        "staff_name",
+        "scheduled_minutes",
+        "booked_minutes",
+        "idle_minutes"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "4712bbcfb9a97b372746bdd3d403ca5c8949e8993c6b9d8fe3ed8e0288fadf5b"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q060",
+      "domain": "库存",
+      "role": "库存",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "近三个月调入和调出单量分别多少",
+      "expected_target": "transfer_status",
+      "notes": "requiredViews=ask_data_transfer_status_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_transfer_status_view",
+      "expectedViewLabel": "ask_data_transfer_status_view",
+      "expectedMetricKeys": [
+        "transfer_status"
+      ],
+      "acceptableViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "requiredViews": [
+        "ask_data_transfer_status_view"
+      ],
+      "requiredOutputFields": [
+        "direction",
+        "transfer_count",
+        "product_count"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "3fae293ddaac059d9f257801cdd935161e5a5c68dd62b62e1ebe05df915e606f"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q062",
+      "domain": "库存",
+      "role": "库存",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "本月各项目的标准缺失耗材数量排行",
+      "expected_target": "bom_variance",
+      "notes": "requiredViews=ask_data_bom_consumption_variance_view; requiredAnswerFacts=metric_value,time_range,data_policy,ranking_order,ranking_limit",
+      "expectedView": "ask_data_bom_consumption_variance_view",
+      "expectedViewLabel": "ask_data_bom_consumption_variance_view",
+      "expectedMetricKeys": [
+        "bom_variance"
+      ],
+      "acceptableViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "requiredViews": [
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "product_id",
+        "product_name",
+        "sku",
+        "standard_qty",
+        "actual_qty",
+        "deviation_qty",
+        "deviation_rate"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "378e9b1f4953682fbd7f1c79907bad5dc85951ca7a5e86a93cdc20929fa4bf03"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q064",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "本季度各项目收到的反馈数量和平均评分排行",
+      "expected_target": "customer_feedback",
+      "notes": "requiredViews=ask_data_customer_feedback_view; requiredAnswerFacts=metric_value,time_range,data_policy,ranking_order,ranking_limit",
+      "expectedView": "ask_data_customer_feedback_view",
+      "expectedViewLabel": "ask_data_customer_feedback_view",
+      "expectedMetricKeys": [
+        "customer_feedback"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_feedback_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_feedback_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "feedback_count",
+        "average_rating"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "659a21e791f6a6fac4ed6f756e2a1f2bc6a630b0dd12e6bd999fb5eaed2bf282"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q066",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "现有客户按生命周期阶段和价值档位怎么分布",
+      "expected_target": "customer_lifecycle",
+      "notes": "requiredViews=ask_data_customer_lifecycle_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_customer_lifecycle_view",
+      "expectedViewLabel": "ask_data_customer_lifecycle_view",
+      "expectedMetricKeys": [
+        "customer_lifecycle"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_lifecycle_view"
+      ],
+      "requiredOutputFields": [
+        "lifecycle_stage",
+        "ltv_tier",
+        "customer_count",
+        "average_opportunity_score"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "df0253f0da872d48a1142ccb29742ab0c4c537bfa5d1da45f22a39eb3af82549"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q068",
+      "domain": "营销",
+      "role": "营销",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近十二周归因净收入和估算营销成本的周趋势",
+      "expected_target": "marketing_roi",
+      "notes": "requiredViews=ask_data_marketing_roi_view; requiredAnswerFacts=metric_value,time_range,data_policy,trend_granularity,trend_points,amount_unit",
+      "expectedView": "ask_data_marketing_roi_view",
+      "expectedViewLabel": "ask_data_marketing_roi_view",
+      "expectedMetricKeys": [
+        "marketing_roi"
+      ],
+      "acceptableViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "trend_week",
+        "latest_event_at",
+        "exposure_count",
+        "click_count",
+        "conversion_count",
+        "attributed_net_revenue",
+        "marketing_cost",
+        "roi",
+        "cost_source"
+      ],
+      "requiredResultMode": "trend",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "trend_granularity",
+        "trend_points",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "f9ebb44f2e9aef96e105af580a5d0f1d756b65a4ef345a050dc657370dc440cd"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q069",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "这周订单净收和日结净收各多少，差额单独给我",
+      "expected_target": "order_revenue,daily_net_receipts",
+      "notes": "requiredViews=agent_v3_order_summary_view,agent_v3_daily_settlement_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_order_summary_view",
+      "expectedViewLabel": "agent_v3_order_summary_view",
+      "expectedMetricKeys": [
+        "order_revenue",
+        "daily_net_receipts"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view",
+        "agent_v3_daily_settlement_view"
+      ],
+      "requiredOutputFields": [
+        "net_receipts",
+        "order_count",
+        "net_revenue",
+        "order_settlement_difference"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "76d71faf4f440f9d943a7fda268b4a9fda3ef23ae86513afbfce7bf0a84081a4"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q070",
+      "domain": "财务",
+      "role": "财务",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "昨天订单实收和支付流水金额能不能对上，两个数和差额都要",
+      "expected_target": "order_revenue,payment_flow",
+      "notes": "requiredViews=agent_v3_order_summary_view,agent_v3_payment_refund_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "agent_v3_order_summary_view",
+      "expectedViewLabel": "agent_v3_order_summary_view",
+      "expectedMetricKeys": [
+        "order_revenue",
+        "payment_flow"
+      ],
+      "acceptableViews": [
+        "agent_v3_order_summary_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredViews": [
+        "agent_v3_order_summary_view",
+        "agent_v3_payment_refund_view"
+      ],
+      "requiredOutputFields": [
+        "order_paid_amount",
+        "payment_amount",
+        "refund_amount",
+        "flow_count",
+        "order_payment_difference"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "8920b0440a977013402a83d8e7350d67338c6f0d9b79a7741a114ab9998b5bd4"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q071",
+      "domain": "库存",
+      "role": "库存",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "这个月洗面奶用了多少，现在还剩多少",
+      "expected_target": "inventory_usage_balance",
+      "notes": "requiredViews=agent_v3_stock_movement_view,agent_v3_product_inventory_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_stock_movement_view",
+      "expectedViewLabel": "agent_v3_stock_movement_view",
+      "expectedMetricKeys": [
+        "inventory_usage_balance"
+      ],
+      "acceptableViews": [
+        "agent_v3_stock_movement_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredViews": [
+        "agent_v3_stock_movement_view",
+        "agent_v3_product_inventory_view"
+      ],
+      "requiredOutputFields": [
+        "product_id",
+        "product_name",
+        "sku",
+        "consumed_quantity",
+        "current_stock"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "b056952bb5c1fb64fc1be504b4484d4e8ae125776ba94478441c7a846d0a5aec"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q072",
+      "domain": "客服",
+      "role": "客服",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "列出现金余额超过五百且还有未用次卡的客户",
+      "expected_target": "customer_balance,card_assets",
+      "notes": "requiredViews=agent_v3_customer_balance_view,agent_v3_card_asset_view; requiredAnswerFacts=metric_value,time_range,data_policy,amount_unit",
+      "expectedView": "agent_v3_customer_balance_view",
+      "expectedViewLabel": "agent_v3_customer_balance_view",
+      "expectedMetricKeys": [
+        "customer_balance",
+        "card_assets"
+      ],
+      "acceptableViews": [
+        "agent_v3_customer_balance_view",
+        "agent_v3_card_asset_view"
+      ],
+      "requiredViews": [
+        "agent_v3_customer_balance_view",
+        "agent_v3_card_asset_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "cash_balance",
+        "card_name",
+        "remaining_times"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "amount_unit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "f0be42abdcba51eaf737c86e791b9be61050556c8cb531e1465d557a0fdcb637"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q073",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "九十天没到店的高价值客户里，哪些现在是高流失风险",
+      "expected_target": "customer_profile",
+      "notes": "requiredViews=ask_data_customer_profile_summary_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "ask_data_customer_profile_summary_view",
+      "expectedViewLabel": "ask_data_customer_profile_summary_view",
+      "expectedMetricKeys": [
+        "customer_profile"
+      ],
+      "acceptableViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredViews": [
+        "ask_data_customer_profile_summary_view"
+      ],
+      "requiredOutputFields": [
+        "customer_id",
+        "customer_name_masked",
+        "days_since_last_visit",
+        "ltv_tier",
+        "churn_risk_level"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "holdout",
+      "questionChecksum": "d26eaca3bf6385076973e9c1e6abf31401a069108a868f80f7a39202599b73d4"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q074",
+      "domain": "前台",
+      "role": "前台",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "明天有预约的美容师里谁还剩最多空闲分钟",
+      "expected_target": "staff_capacity,reservation_metrics",
+      "notes": "requiredViews=ask_data_staff_capacity_view,agent_v3_reservation_view; requiredAnswerFacts=metric_value,time_range,data_policy,ranking_order,ranking_limit",
+      "expectedView": "ask_data_staff_capacity_view",
+      "expectedViewLabel": "ask_data_staff_capacity_view",
+      "expectedMetricKeys": [
+        "staff_capacity",
+        "reservation_metrics"
+      ],
+      "acceptableViews": [
+        "ask_data_staff_capacity_view",
+        "agent_v3_reservation_view"
+      ],
+      "requiredViews": [
+        "ask_data_staff_capacity_view",
+        "agent_v3_reservation_view"
+      ],
+      "requiredOutputFields": [
+        "staff_id",
+        "staff_name",
+        "scheduled_minutes",
+        "booked_minutes",
+        "idle_minutes",
+        "overbooked_minutes",
+        "utilization_rate",
+        "reservation_count"
+      ],
+      "requiredResultMode": "ranking",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "ranking_order",
+        "ranking_limit"
+      ],
+      "split": "holdout",
+      "questionChecksum": "6967e2a57763f2112e3b278675bb8415343eecf324e94741dcb24ccbab22efdb"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q075",
+      "domain": "营销",
+      "role": "营销",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "本月各活动转化数和估算 ROI 放在一起看",
+      "expected_target": "marketing_conversion,marketing_roi",
+      "notes": "requiredViews=agent_v3_marketing_conversion_view,ask_data_marketing_roi_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_marketing_conversion_view",
+      "expectedViewLabel": "agent_v3_marketing_conversion_view",
+      "expectedMetricKeys": [
+        "marketing_conversion",
+        "marketing_roi"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_conversion_view",
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_conversion_view",
+        "ask_data_marketing_roi_view"
+      ],
+      "requiredOutputFields": [
+        "activity_id",
+        "activity_title",
+        "conversion_count",
+        "attributed_net_revenue",
+        "marketing_cost",
+        "roi",
+        "cost_source"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "e7cd9b49af0d7c98bbb98067a16cf6e0890a9ddd09403df7979c6fc34a4edcc0"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q076",
+      "domain": "库存",
+      "role": "库存",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "每家供应商未到货采购单有多少，平均交付天数也带上",
+      "expected_target": "procurement_detail,supplier_performance",
+      "notes": "requiredViews=agent_v3_purchase_procurement_view,agent_v3_supplier_performance_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_purchase_procurement_view",
+      "expectedViewLabel": "agent_v3_purchase_procurement_view",
+      "expectedMetricKeys": [
+        "procurement_detail",
+        "supplier_performance"
+      ],
+      "acceptableViews": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_supplier_performance_view"
+      ],
+      "requiredViews": [
+        "agent_v3_purchase_procurement_view",
+        "agent_v3_supplier_performance_view"
+      ],
+      "requiredOutputFields": [
+        "supplier_id",
+        "supplier_name",
+        "procurement_amount",
+        "procurement_count",
+        "avg_delivery_days",
+        "pending_procurement_count"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "4fcf6c23db687c58bcc0eeaa553de87e984fca34e6a209e0052bf2d47dcddb3e"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q077",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "本月项目预估毛利高但耗材偏差异常的项目有哪些",
+      "expected_target": "project_sales,bom_variance",
+      "notes": "requiredViews=agent_v3_project_service_sales_view,ask_data_bom_consumption_variance_view; requiredAnswerFacts=metric_value,time_range,data_policy,list_items",
+      "expectedView": "agent_v3_project_service_sales_view",
+      "expectedViewLabel": "agent_v3_project_service_sales_view",
+      "expectedMetricKeys": [
+        "project_sales",
+        "bom_variance"
+      ],
+      "acceptableViews": [
+        "agent_v3_project_service_sales_view",
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "requiredViews": [
+        "agent_v3_project_service_sales_view",
+        "ask_data_bom_consumption_variance_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "estimated_margin",
+        "deviation_rate",
+        "standard_status"
+      ],
+      "requiredResultMode": "detail",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "list_items"
+      ],
+      "split": "holdout",
+      "questionChecksum": "6429ee4b6a39679e757ae6bcb882b161e645e42c83cd06c1c559d45c9958530b"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q078",
+      "domain": "营销",
+      "role": "营销",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "现在进行中的活动数量和仍有效优惠数量分别多少",
+      "expected_target": "marketing_activity,promotion_offer",
+      "notes": "requiredViews=agent_v3_marketing_activity_view,agent_v3_promotion_offer_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "agent_v3_marketing_activity_view",
+      "expectedViewLabel": "agent_v3_marketing_activity_view",
+      "expectedMetricKeys": [
+        "marketing_activity",
+        "promotion_offer"
+      ],
+      "acceptableViews": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_promotion_offer_view"
+      ],
+      "requiredViews": [
+        "agent_v3_marketing_activity_view",
+        "agent_v3_promotion_offer_view"
+      ],
+      "requiredOutputFields": [
+        "activity_count",
+        "promotion_count"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "7a2be4d2ceee4a42a888bd6fe3772095e55b546ac5106c62395b7ea36cc6bbcd"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q079",
+      "domain": "店长",
+      "role": "店长",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "最近一个月按项目对比未完成服务数量、反馈数量和平均评分",
+      "expected_target": "service_quality,customer_feedback",
+      "notes": "requiredViews=agent_v3_service_quality_view,ask_data_customer_feedback_view; requiredAnswerFacts=metric_value,time_range,data_policy,comparison_current,comparison_previous,comparison_difference",
+      "expectedView": "agent_v3_service_quality_view",
+      "expectedViewLabel": "agent_v3_service_quality_view",
+      "expectedMetricKeys": [
+        "service_quality",
+        "customer_feedback"
+      ],
+      "acceptableViews": [
+        "agent_v3_service_quality_view",
+        "ask_data_customer_feedback_view"
+      ],
+      "requiredViews": [
+        "agent_v3_service_quality_view",
+        "ask_data_customer_feedback_view"
+      ],
+      "requiredOutputFields": [
+        "project_id",
+        "project_name",
+        "feedback_count",
+        "average_rating",
+        "service_task_count"
+      ],
+      "requiredResultMode": "grouped",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy",
+        "comparison_current",
+        "comparison_previous",
+        "comparison_difference"
+      ],
+      "split": "holdout",
+      "questionChecksum": "f92ecf1864e6d31538da1e879bd322d43231cf02be7fba4be6dc177b1fb004a1"
+    },
+    {
+      "id": "ask_holdout_v4:V4-Q080",
+      "domain": "库存",
+      "role": "库存",
+      "type": "ask_query_supported",
+      "difficulty": "holdout",
+      "question": "本月调出单数量和调拨出库流水条数分别多少",
+      "expected_target": "transfer_status,inventory_movement",
+      "notes": "requiredViews=ask_data_transfer_status_view,agent_v3_stock_movement_view; requiredAnswerFacts=metric_value,time_range,data_policy",
+      "expectedView": "ask_data_transfer_status_view",
+      "expectedViewLabel": "ask_data_transfer_status_view",
+      "expectedMetricKeys": [
+        "transfer_status",
+        "inventory_movement"
+      ],
+      "acceptableViews": [
+        "ask_data_transfer_status_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredViews": [
+        "ask_data_transfer_status_view",
+        "agent_v3_stock_movement_view"
+      ],
+      "requiredOutputFields": [
+        "movement_quantity",
+        "movement_count",
+        "transfer_count",
+        "product_count"
+      ],
+      "requiredResultMode": "scalar",
+      "requiredAnswerFacts": [
+        "metric_value",
+        "time_range",
+        "data_policy"
+      ],
+      "split": "holdout",
+      "questionChecksum": "7d7190cf11fc16d7d9a9b2b9c1db9645e82bda5fb33ad60090a9069aa608a101"
+    }
+  ]
+}
