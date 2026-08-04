@@ -49,6 +49,8 @@ export const AMI_BRAIN_ACTION_RELATION_MANIFEST_SOURCE =
   'packages/server-v2/scripts/fixtures/ami-brain-action-relation-manifest-v1.json';
 export const AMI_BRAIN_ACTION_RELATION_CATALOG_SOURCE =
   'packages/server-v2/src/semantic-data/brain-action-relation-catalog.ts';
+export const AMI_BRAIN_QUERY_ONLY_PRODUCT_PROFILE_SOURCE =
+  'packages/server-v2/src/brain/governance/brain-release-product-profile.ts';
 
 export const AMI_BRAIN_REQUIRED_ACTION_BINDINGS = Object.freeze([
   Object.freeze({
@@ -100,6 +102,7 @@ export const AMI_BRAIN_ACTION_RELEASE_CONTRACT_IDENTITY_CHECKSUM = sha256(
     institutionalEffectSchemaVersion: AMI_BRAIN_ACTION_INSTITUTIONAL_EFFECT_SCHEMA,
     institutionalEffectContracts: AMI_BRAIN_ACTION_INSTITUTIONAL_EFFECT_CONTRACTS,
     requiredBindings: AMI_BRAIN_REQUIRED_ACTION_BINDINGS,
+    queryOnlyProductProfileSourcePath: AMI_BRAIN_QUERY_ONLY_PRODUCT_PROFILE_SOURCE,
   }),
 );
 
@@ -177,6 +180,7 @@ export async function inspectAmiBrainActionReleaseContract({
     const predicateEffectManifest = readAmiBrainActionPredicateEffectManifest(repoRoot);
     const actionInvariantManifest = readAmiBrainActionInvariantManifest(repoRoot);
     const actionRelationManifest = readAmiBrainActionRelationManifest(repoRoot);
+    const queryOnlyProductProfile = readAmiBrainQueryOnlyProductProfile(repoRoot);
     return buildAmiBrainActionReleaseContract({
       expectedReleaseId: releaseId,
       headCommit,
@@ -190,6 +194,8 @@ export async function inspectAmiBrainActionReleaseContract({
       actionInvariantManifestChecksum: actionInvariantManifest.sourceChecksum,
       actionRelationManifest: actionRelationManifest.manifest,
       actionRelationManifestChecksum: actionRelationManifest.sourceChecksum,
+      queryOnlyProductProfile: queryOnlyProductProfile.profile,
+      queryOnlyProductProfileSourceChecksum: queryOnlyProductProfile.sourceChecksum,
       now,
     });
   } catch (error) {
@@ -215,6 +221,8 @@ export function buildAmiBrainActionReleaseContract({
   actionInvariantManifestChecksum = null,
   actionRelationManifest = {},
   actionRelationManifestChecksum = null,
+  queryOnlyProductProfile = {},
+  queryOnlyProductProfileSourceChecksum = null,
   requiredBindings = AMI_BRAIN_REQUIRED_ACTION_BINDINGS,
   now = new Date(),
 }) {
@@ -237,6 +245,8 @@ export function buildAmiBrainActionReleaseContract({
     : null;
   const rollout = record(release?.rollout);
   const evaluationOnly = rollout.evaluationOnly === true;
+  const normalizedQueryOnlyProductProfile = normalizeQueryOnlyProductProfile(queryOnlyProductProfile);
+  const queryOnlyMode = rollout.productProfile === normalizedQueryOnlyProductProfile.productProfile;
   const declaredSemanticSnapshotFingerprint = normalizedHex(rollout.semanticSnapshotFingerprint);
   const actualSemanticSnapshotFingerprint = items.length ? createSemanticSnapshotFingerprint(items) : null;
   const versionMapMatches = release ? validateReleaseVersionMap(release.versionMap, items) : false;
@@ -260,44 +270,55 @@ export function buildAmiBrainActionReleaseContract({
     blockingReasons.push('action_release_semantic_snapshot_fingerprint_mismatch');
   }
   if (!normalizedHex(releaseFingerprint)) blockingReasons.push('action_release_fingerprint_invalid');
-  if (!normalizedHex(gatewaySourceChecksum)) blockingReasons.push('action_gateway_source_checksum_invalid');
-  if (!validPredicateEffectManifest(normalizedPredicateEffectManifest)) {
-    blockingReasons.push('action_predicate_effect_manifest_invalid');
-  }
-  if (!normalizedHex(predicateEffectManifestChecksum)) {
-    blockingReasons.push('action_predicate_effect_manifest_checksum_invalid');
-  } else if (normalizedHex(predicateEffectManifestChecksum) !== actualPredicateEffectManifestChecksum) {
-    blockingReasons.push('action_predicate_effect_manifest_checksum_mismatch');
-  }
-  if (!validActionInvariantManifest(normalizedActionInvariantManifest)) {
-    blockingReasons.push('action_invariant_manifest_invalid');
-  }
-  if (!normalizedHex(actionInvariantManifestChecksum)) {
-    blockingReasons.push('action_invariant_manifest_checksum_invalid');
-  } else if (normalizedHex(actionInvariantManifestChecksum) !== actualActionInvariantManifestChecksum) {
-    blockingReasons.push('action_invariant_manifest_checksum_mismatch');
-  }
-  if (!validActionRelationManifest(normalizedActionRelationManifest)) {
-    blockingReasons.push('action_relation_manifest_invalid');
-  }
-  if (!normalizedHex(actionRelationManifestChecksum)) {
-    blockingReasons.push('action_relation_manifest_checksum_invalid');
-  } else if (normalizedHex(actionRelationManifestChecksum) !== actualActionRelationManifestChecksum) {
-    blockingReasons.push('action_relation_manifest_checksum_mismatch');
+  if (queryOnlyMode) {
+    blockingReasons.push(...validateQueryOnlyReleaseContract({
+      rollout,
+      items,
+      profile: normalizedQueryOnlyProductProfile,
+      sourceChecksum: queryOnlyProductProfileSourceChecksum,
+    }));
+  } else {
+    if (!normalizedHex(gatewaySourceChecksum)) blockingReasons.push('action_gateway_source_checksum_invalid');
+    if (!validPredicateEffectManifest(normalizedPredicateEffectManifest)) {
+      blockingReasons.push('action_predicate_effect_manifest_invalid');
+    }
+    if (!normalizedHex(predicateEffectManifestChecksum)) {
+      blockingReasons.push('action_predicate_effect_manifest_checksum_invalid');
+    } else if (normalizedHex(predicateEffectManifestChecksum) !== actualPredicateEffectManifestChecksum) {
+      blockingReasons.push('action_predicate_effect_manifest_checksum_mismatch');
+    }
+    if (!validActionInvariantManifest(normalizedActionInvariantManifest)) {
+      blockingReasons.push('action_invariant_manifest_invalid');
+    }
+    if (!normalizedHex(actionInvariantManifestChecksum)) {
+      blockingReasons.push('action_invariant_manifest_checksum_invalid');
+    } else if (normalizedHex(actionInvariantManifestChecksum) !== actualActionInvariantManifestChecksum) {
+      blockingReasons.push('action_invariant_manifest_checksum_mismatch');
+    }
+    if (!validActionRelationManifest(normalizedActionRelationManifest)) {
+      blockingReasons.push('action_relation_manifest_invalid');
+    }
+    if (!normalizedHex(actionRelationManifestChecksum)) {
+      blockingReasons.push('action_relation_manifest_checksum_invalid');
+    } else if (normalizedHex(actionRelationManifestChecksum) !== actualActionRelationManifestChecksum) {
+      blockingReasons.push('action_relation_manifest_checksum_mismatch');
+    }
   }
 
-  const actionResults = requiredBindings.map((requirement) =>
-    validateRequiredAction({
-      requirement,
-      items,
-      definitionsById,
-      gatewayDescriptors,
-      predicateEffectManifest: normalizedPredicateEffectManifest,
-      actionInvariantManifest: normalizedActionInvariantManifest,
-      actionRelationManifest: normalizedActionRelationManifest,
-      evaluationOnly,
-    }),
-  );
+  const actionResults = queryOnlyMode
+    ? normalizedQueryOnlyProductProfile.disabledCapabilityKeys.map((capabilityKey) =>
+        validateExcludedQueryOnlyCapability({ capabilityKey, items }))
+    : requiredBindings.map((requirement) =>
+        validateRequiredAction({
+          requirement,
+          items,
+          definitionsById,
+          gatewayDescriptors,
+          predicateEffectManifest: normalizedPredicateEffectManifest,
+          actionInvariantManifest: normalizedActionInvariantManifest,
+          actionRelationManifest: normalizedActionRelationManifest,
+          evaluationOnly,
+        }));
   for (const action of actionResults) blockingReasons.push(...action.blockingReasons);
 
   const descriptorChecksum = sha256(stableStringify(normalizeGatewayDescriptorMap(gatewayDescriptors)));
@@ -313,6 +334,9 @@ export function buildAmiBrainActionReleaseContract({
       predicateEffectManifestChecksum: normalizedHex(predicateEffectManifestChecksum),
       actionInvariantManifestChecksum: normalizedHex(actionInvariantManifestChecksum),
       actionRelationManifestChecksum: normalizedHex(actionRelationManifestChecksum),
+      actionPolicyMode: queryOnlyMode ? 'query_only_exclusion' : 'required_actions',
+      queryOnlyProductProfileSourceChecksum: normalizedHex(queryOnlyProductProfileSourceChecksum),
+      queryOnlyProductProfile: queryOnlyMode ? normalizedQueryOnlyProductProfile : null,
       actions: actionResults.map((action) => ({
         actionKey: action.actionKey,
         capabilityKey: action.capabilityKey,
@@ -345,6 +369,7 @@ export function buildAmiBrainActionReleaseContract({
     identityChecksum: AMI_BRAIN_ACTION_RELEASE_CONTRACT_IDENTITY_CHECKSUM,
     checked: true,
     passed: uniqueBlockingReasons.length === 0,
+    actionPolicyMode: queryOnlyMode ? 'query_only_exclusion' : 'required_actions',
     candidate: { headCommit: candidateCommit },
     release: {
       expectedId: positiveInteger(expectedReleaseId),
@@ -393,9 +418,18 @@ export function buildAmiBrainActionReleaseContract({
       catalogSource: normalizedActionRelationManifest.catalogSource,
       relationCount: normalizedActionRelationManifest.relations.length,
     },
+    queryOnlyProductProfile: {
+      sourcePath: AMI_BRAIN_QUERY_ONLY_PRODUCT_PROFILE_SOURCE,
+      sourceChecksum: normalizedHex(queryOnlyProductProfileSourceChecksum),
+      productProfile: normalizedQueryOnlyProductProfile.productProfile,
+      allowedCapabilityManifest: normalizedQueryOnlyProductProfile.allowedCapabilityManifest,
+      actionExecutionPolicy: normalizedQueryOnlyProductProfile.actionExecutionPolicy,
+      allowedCapabilityCount: normalizedQueryOnlyProductProfile.allowedCapabilityKeys.length,
+      disabledCapabilityCount: normalizedQueryOnlyProductProfile.disabledCapabilityKeys.length,
+    },
     actions: actionResults,
     summary: {
-      requiredActionCount: requiredBindings.length,
+      requiredActionCount: actionResults.length,
       passedActionCount: actionResults.filter((action) => action.passed).length,
       failedActionCount: actionResults.filter((action) => !action.passed).length,
       failedActionKeys: actionResults.filter((action) => !action.passed).map((action) => action.actionKey),
@@ -474,6 +508,120 @@ export function readAmiBrainActionRelationManifest(repoRoot) {
     throw new Error(`action_relation_source_checksum_mismatch:${normalized.catalogSource.path}`);
   }
   return { manifest, sourceChecksum: sha256(stableStringify(normalized)) };
+}
+
+export function readAmiBrainQueryOnlyProductProfile(repoRoot) {
+  const sourcePath = resolve(repoRoot, AMI_BRAIN_QUERY_ONLY_PRODUCT_PROFILE_SOURCE);
+  const source = readFileSync(sourcePath, 'utf8');
+  const require = createRequire(import.meta.url);
+  const ts = require('typescript');
+  const sourceFile = ts.createSourceFile(sourcePath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const names = new Set([
+    'BRAIN_QUERY_ONLY_PRODUCT_PROFILE',
+    'BRAIN_QUERY_ONLY_CAPABILITY_MANIFEST',
+    'BRAIN_QUERY_ONLY_ACTION_EXECUTION_POLICY',
+    'BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS',
+    'BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS',
+  ]);
+  const values = {};
+  const visit = (node) => {
+    if (ts.isVariableDeclaration(node)) {
+      const name = node.name?.getText(sourceFile);
+      if (names.has(name)) values[name] = literalValue(ts, sourceFile, node.initializer);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  const profile = normalizeQueryOnlyProductProfile({
+    productProfile: values.BRAIN_QUERY_ONLY_PRODUCT_PROFILE,
+    allowedCapabilityManifest: values.BRAIN_QUERY_ONLY_CAPABILITY_MANIFEST,
+    actionExecutionPolicy: values.BRAIN_QUERY_ONLY_ACTION_EXECUTION_POLICY,
+    allowedCapabilityKeys: values.BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS,
+    disabledCapabilityKeys: values.BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS,
+  });
+  if (!validQueryOnlyProductProfile(profile)) throw new Error('query_only_product_profile_source_invalid');
+  return { profile, sourceChecksum: sha256(source) };
+}
+
+function validateQueryOnlyReleaseContract({ rollout, items, profile, sourceChecksum }) {
+  const blockers = [];
+  if (!validQueryOnlyProductProfile(profile)) blockers.push('query_only_product_profile_manifest_invalid');
+  if (!normalizedHex(sourceChecksum)) blockers.push('query_only_product_profile_source_checksum_invalid');
+  const expected = {
+    productProfile: profile.productProfile,
+    actionsEnabled: false,
+    actionExecutionPolicy: profile.actionExecutionPolicy,
+    allowedCapabilityManifest: profile.allowedCapabilityManifest,
+    allowedCapabilityCount: profile.allowedCapabilityKeys.length,
+    sideEffectCapabilityCount: 0,
+  };
+  for (const [field, expectedValue] of Object.entries(expected)) {
+    if (rollout[field] !== expectedValue) blockers.push(`query_only_product_profile_contract_invalid:${field}`);
+  }
+  const expectedFingerprint = sha256(JSON.stringify({
+    productProfile: expected.productProfile,
+    actionsEnabled: expected.actionsEnabled,
+    allowedCapabilityManifest: expected.allowedCapabilityManifest,
+    allowedCapabilityCount: expected.allowedCapabilityCount,
+    sideEffectCapabilityCount: expected.sideEffectCapabilityCount,
+    actionExecutionPolicy: expected.actionExecutionPolicy,
+  }));
+  if (rollout.productProfileFingerprint !== expectedFingerprint) {
+    blockers.push('query_only_product_profile_contract_invalid:productProfileFingerprint');
+  }
+  const skillItems = items.filter((item) => item?.resourceType === 'skill');
+  const actualKeys = skillItems.map((item) => optionalString(item?.resourceKey)).filter(Boolean).sort();
+  const expectedKeys = [...profile.allowedCapabilityKeys].sort();
+  if (actualKeys.length !== new Set(actualKeys).size || stableStringify(actualKeys) !== stableStringify(expectedKeys)) {
+    blockers.push('query_only_capability_manifest_mismatch');
+  }
+  for (const item of skillItems) {
+    const key = optionalString(item?.resourceKey) ?? 'unknown';
+    const snapshot = record(item?.resourceVersion?.snapshot ?? item?.snapshot);
+    if (
+      !validReleaseItem(item)
+      || optionalString(snapshot.key) !== key
+      || snapshot.readOnly !== true
+      || snapshot.sideEffect !== false
+    ) {
+      blockers.push(`query_only_capability_item_invalid:${key}`);
+    }
+  }
+  return blockers;
+}
+
+function validateExcludedQueryOnlyCapability({ capabilityKey, items }) {
+  const present = items.some((item) => item?.resourceType === 'skill' && item?.resourceKey === capabilityKey);
+  const blockingReasons = present ? [`query_only_disabled_capability_present:${capabilityKey}`] : [];
+  return {
+    actionKey: `query_only.exclude.${capabilityKey}`,
+    capabilityKey,
+    excluded: !present,
+    passed: blockingReasons.length === 0,
+    blockingReasons,
+  };
+}
+
+function normalizeQueryOnlyProductProfile(value) {
+  const profile = record(value);
+  return {
+    productProfile: optionalString(profile.productProfile),
+    allowedCapabilityManifest: optionalString(profile.allowedCapabilityManifest),
+    actionExecutionPolicy: optionalString(profile.actionExecutionPolicy),
+    allowedCapabilityKeys: stringArray(profile.allowedCapabilityKeys).sort(),
+    disabledCapabilityKeys: stringArray(profile.disabledCapabilityKeys).sort(),
+  };
+}
+
+function validQueryOnlyProductProfile(profile) {
+  return (
+    profile.productProfile === 'query_only_v1'
+    && profile.allowedCapabilityManifest === 'ami-brain-query-only-v1'
+    && profile.actionExecutionPolicy === 'deny'
+    && profile.allowedCapabilityKeys.length === 33
+    && profile.disabledCapabilityKeys.length === 8
+    && !profile.disabledCapabilityKeys.some((key) => profile.allowedCapabilityKeys.includes(key))
+  );
 }
 
 function validateRequiredAction({
@@ -1612,14 +1760,27 @@ function literalValue(ts, sourceFile, input) {
 
 function unwrapExpression(ts, input) {
   let node = input;
-  while (
-    node &&
-    (ts.isAsExpression(node) ||
-      ts.isTypeAssertionExpression(node) ||
-      ts.isParenthesizedExpression(node) ||
-      (typeof ts.isSatisfiesExpression === 'function' && ts.isSatisfiesExpression(node)))
-  ) {
-    node = node.expression;
+  while (node) {
+    if (
+      ts.isAsExpression(node)
+      || ts.isTypeAssertionExpression(node)
+      || ts.isParenthesizedExpression(node)
+      || (typeof ts.isSatisfiesExpression === 'function' && ts.isSatisfiesExpression(node))
+    ) {
+      node = node.expression;
+      continue;
+    }
+    if (
+      ts.isCallExpression(node)
+      && node.arguments.length === 1
+      && ts.isPropertyAccessExpression(node.expression)
+      && node.expression.expression.getText() === 'Object'
+      && node.expression.name.getText() === 'freeze'
+    ) {
+      node = node.arguments[0];
+      continue;
+    }
+    break;
   }
   return node;
 }

@@ -98,7 +98,7 @@ test('marks release acceptance preflight ready only for a clean matching candida
       requestSucceeded: true,
       statusCode: 200,
       body: {
-        status: 'ok',
+        status: 'ready',
         deployment: { commit, branch: 'main', buildId: 'build-1', environment: 'production' },
       },
     },

@@ -8,10 +8,12 @@ import {
   readAmiBrainActionInvariantManifest,
   readAmiBrainActionPredicateEffectManifest,
   readAmiBrainActionRelationManifest,
+  readAmiBrainQueryOnlyProductProfile,
   validActionInstitutionalEffect,
 } from './ami-brain-action-release-contract.mjs';
 
 const COMMIT = '1'.repeat(40);
+const REPO_ROOT = resolve(process.cwd(), '../..');
 const ACTION_KEY = 'action.create_reservation';
 const CAPABILITY_KEY = 'reservation_action_preview';
 const GATEWAY_ACTION_KEY = 'create_reservation';
@@ -54,6 +56,84 @@ test('accepts a passed validated Action definition only for an evaluation-only R
 
   assert.equal(contract.passed, true);
   assert.deepEqual(contract.blockingReasons, []);
+});
+
+test('accepts query_only_v1 only when all 33 read-only capabilities are present and all 8 Action capabilities are excluded', () => {
+  const queryOnly = readAmiBrainQueryOnlyProductProfile(REPO_ROOT);
+  const items = queryOnly.profile.allowedCapabilityKeys.map((resourceKey, index) => {
+    const snapshot = { key: resourceKey, version: 1, readOnly: true, sideEffect: false, definitionRefs: [] };
+    return {
+      resourceVersionId: index + 1,
+      resourceType: 'skill',
+      resourceKey,
+      version: 1,
+      snapshot,
+      resourceVersion: {
+        id: index + 1,
+        resourceType: 'skill',
+        resourceKey,
+        version: 1,
+        status: 'active',
+        checksum: createHash('sha256').update(resourceKey).digest('hex'),
+        snapshot,
+      },
+    };
+  });
+  const versionMap = Object.fromEntries(items.map((item) => [`skill:${item.resourceKey}`, 1]));
+  const semanticSnapshotFingerprint = createHash('sha256')
+    .update(JSON.stringify(items.map((item) => ({ resourceKey: item.resourceKey, definitionRefs: [] }))))
+    .digest('hex');
+  const productProfileFingerprint = createHash('sha256')
+    .update(JSON.stringify({
+      productProfile: queryOnly.profile.productProfile,
+      actionsEnabled: false,
+      allowedCapabilityManifest: queryOnly.profile.allowedCapabilityManifest,
+      allowedCapabilityCount: queryOnly.profile.allowedCapabilityKeys.length,
+      sideEffectCapabilityCount: 0,
+      actionExecutionPolicy: queryOnly.profile.actionExecutionPolicy,
+    }))
+    .digest('hex');
+  const release = {
+    id: 453,
+    releaseKey: 'ami-brain-eval-ev-001-query-only-v1',
+    status: 'draft',
+    items,
+    versionMap,
+    rollout: {
+      evaluationOnly: true,
+      productProfile: queryOnly.profile.productProfile,
+      actionsEnabled: false,
+      actionExecutionPolicy: queryOnly.profile.actionExecutionPolicy,
+      allowedCapabilityManifest: queryOnly.profile.allowedCapabilityManifest,
+      allowedCapabilityCount: queryOnly.profile.allowedCapabilityKeys.length,
+      sideEffectCapabilityCount: 0,
+      productProfileFingerprint,
+      semanticSnapshotFingerprint,
+    },
+  };
+  const contract = buildAmiBrainActionReleaseContract({
+    expectedReleaseId: 453,
+    headCommit: COMMIT,
+    release,
+    queryOnlyProductProfile: queryOnly.profile,
+    queryOnlyProductProfileSourceChecksum: queryOnly.sourceChecksum,
+  });
+
+  assert.equal(contract.passed, true);
+  assert.equal(contract.actionPolicyMode, 'query_only_exclusion');
+  assert.equal(contract.summary.requiredActionCount, 8);
+  assert.equal(contract.summary.passedActionCount, 8);
+  assert.equal(contract.queryOnlyProductProfile.allowedCapabilityCount, 33);
+  assert.deepEqual(contract.blockingReasons, []);
+
+  const drifted = buildAmiBrainActionReleaseContract({
+    expectedReleaseId: 453,
+    headCommit: COMMIT,
+    release: { ...release, rollout: { ...release.rollout, actionsEnabled: true } },
+    queryOnlyProductProfile: queryOnly.profile,
+    queryOnlyProductProfileSourceChecksum: queryOnly.sourceChecksum,
+  });
+  assert.ok(drifted.blockingReasons.includes('query_only_product_profile_contract_invalid:actionsEnabled'));
 });
 
 test('loads the governed action invariant manifest only when its catalog checksum matches this candidate', () => {
