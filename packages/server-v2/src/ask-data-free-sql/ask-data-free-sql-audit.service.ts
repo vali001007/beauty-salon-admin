@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { AskDataAuditInput } from './ask-data-free-sql.types.js';
@@ -12,40 +11,52 @@ export class AskDataFreeSqlAuditService {
     try {
       const generatedSql = input.generatedSql;
       const safeSql = input.guard?.status === 'pass' ? input.guard.safeSql : undefined;
-      const created = await this.prisma.askDataFreeSqlRun.create({
-        data: {
-          question: input.question,
-          userId: input.context.userId,
-          storeId: input.context.storeId,
-          storeScopeJson: this.json({ storeId: input.context.storeId, visibleStoreIds: input.context.visibleStoreIds }),
-          selectedViewsJson: this.json((input.selectedViews ?? []).map((view) => view.viewName)),
-          generatedSqlHash: generatedSql ? this.sha256(generatedSql) : null,
-          redactedSql: input.guard?.redactedSql ?? null,
-          safeSqlHash: safeSql ? this.sha256(safeSql) : null,
-          status: input.status,
-          blockedReason:
-            input.guard?.status === 'blocked' ? input.guard.reasonCode : (input.execution?.blockedReason ?? null),
-          rowCount: input.execution?.rows.length ?? 0,
-          executionMs: input.execution?.executionMs ?? null,
-          estimatedCost: input.cost?.estimatedCost ?? null,
-          answerJson: input.answer ? this.json(input.answer) : undefined,
-          queryMetaJson: this.json({
-            explanation: input.explanation,
-            sqlFingerprint: input.guard?.sqlFingerprint,
-            semanticRouting: input.semanticRouting,
-            controlledQueryPlan: input.controlledQueryPlan,
-            structuredOutput: input.structuredOutput,
-            execution: input.execution
-              ? {
-                  attempts: input.execution.attempts ?? 1,
-                  retryAttempted: Boolean(input.execution.retryAttempted),
-                  retryLatencyMs: input.execution.retryLatencyMs ?? 0,
-                  blockedReason: input.execution.blockedReason,
-                }
-              : undefined,
-          }),
-        },
+      const storeScopeJson = JSON.stringify({
+        storeId: input.context.storeId,
+        visibleStoreIds: input.context.visibleStoreIds,
       });
+      const selectedViewsJson = JSON.stringify((input.selectedViews ?? []).map((view) => view.viewName));
+      const answerJson = input.answer ? JSON.stringify(input.answer) : null;
+      const queryMetaJson = JSON.stringify({
+        explanation: input.explanation,
+        sqlFingerprint: input.guard?.sqlFingerprint,
+        semanticRouting: input.semanticRouting,
+        controlledQueryPlan: input.controlledQueryPlan,
+        structuredOutput: input.structuredOutput,
+        execution: input.execution
+          ? {
+              attempts: input.execution.attempts ?? 1,
+              retryAttempted: Boolean(input.execution.retryAttempted),
+              retryLatencyMs: input.execution.retryLatencyMs ?? 0,
+              blockedReason: input.execution.blockedReason,
+            }
+          : undefined,
+      });
+      const [created] = await this.prisma.$queryRaw<Array<{ id: number | bigint }>>`
+        INSERT INTO "ask_data_free_sql_runs" (
+          "question", "userId", "storeId", "storeScopeJson", "selectedViewsJson",
+          "generatedSqlHash", "redactedSql", "safeSqlHash", "status", "blockedReason",
+          "rowCount", "executionMs", "estimatedCost", "answerJson", "queryMetaJson"
+        ) VALUES (
+          ${input.question},
+          ${input.context.userId},
+          ${input.context.storeId},
+          CAST(${storeScopeJson} AS jsonb),
+          CAST(${selectedViewsJson} AS jsonb),
+          ${generatedSql ? this.sha256(generatedSql) : null},
+          ${input.guard?.redactedSql ?? null},
+          ${safeSql ? this.sha256(safeSql) : null},
+          ${input.status},
+          ${input.guard?.status === 'blocked' ? input.guard.reasonCode : (input.execution?.blockedReason ?? null)},
+          ${input.execution?.rows.length ?? 0},
+          ${input.execution?.executionMs ?? null},
+          ${input.cost?.estimatedCost ?? null},
+          CAST(${answerJson} AS jsonb),
+          CAST(${queryMetaJson} AS jsonb)
+        )
+        RETURNING "id"
+      `;
+      if (!created) throw new Error('Ask Data audit insert returned no id');
       return String(created.id);
     } catch {
       return `ask-data-free-sql-audit-unavailable-${Date.now()}-${this.sha256(input.question).slice(0, 10)}`;
@@ -54,9 +65,5 @@ export class AskDataFreeSqlAuditService {
 
   private sha256(value: string) {
     return createHash('sha256').update(value).digest('hex');
-  }
-
-  private json(value: unknown): Prisma.InputJsonValue {
-    return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
   }
 }

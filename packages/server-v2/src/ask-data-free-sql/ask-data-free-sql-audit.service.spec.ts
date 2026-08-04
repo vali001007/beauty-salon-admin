@@ -10,8 +10,8 @@ const context = {
 
 describe('AskDataFreeSqlAuditService', () => {
   it('stores hashes and redacted SQL without persisting the raw generated SQL', async () => {
-    const create = jest.fn().mockResolvedValue({ id: BigInt(88) });
-    const service = new AskDataFreeSqlAuditService({ askDataFreeSqlRun: { create } } as any);
+    const queryRaw = jest.fn().mockResolvedValue([{ id: BigInt(88) }]);
+    const service = new AskDataFreeSqlAuditService({ $queryRaw: queryRaw } as any);
     const generatedSql =
       "SELECT project_name FROM agent_v3_project_service_sales_view WHERE customer_name = '张三' LIMIT 10";
 
@@ -55,24 +55,37 @@ describe('AskDataFreeSqlAuditService', () => {
     });
 
     expect(id).toBe('88');
-    const data = create.mock.calls[0][0].data;
-    expect(data.generatedSqlHash).toMatch(/^[a-f0-9]{64}$/);
-    expect(data.safeSqlHash).toMatch(/^[a-f0-9]{64}$/);
-    expect(data.redactedSql).toContain(':allowedStoreIds');
-    expect(data.redactedSql).not.toContain('张三');
-    expect(JSON.stringify(data)).not.toContain(generatedSql);
-    expect(data.storeId).toBe(6);
-    expect(data.userId).toBe(9);
-    expect(data.rowCount).toBe(1);
-    expect(data.executionMs).toBe(14);
-    expect(data.estimatedCost).toBe(22);
-    expect(data.queryMetaJson.structuredOutput).toEqual({
+    const [sqlParts, ...values] = queryRaw.mock.calls[0] as [TemplateStringsArray, ...unknown[]];
+    expect(sqlParts.join('?')).toContain('INSERT INTO "ask_data_free_sql_runs"');
+    expect(values).toContain(6);
+    expect(values).toContain(9);
+    expect(values).toContain(14);
+    expect(values).toContain(22);
+    expect(values).toContain(1);
+    expect(values).toContain(
+      'SELECT project_name FROM agent_v3_project_service_sales_view WHERE store_id = ANY(:allowedStoreIds) LIMIT 10',
+    );
+    expect(values).not.toContain(generatedSql);
+    expect(values.filter((value) => typeof value === 'string')).toEqual(
+      expect.arrayContaining([expect.stringMatching(/^[a-f0-9]{64}$/)]),
+    );
+    const jsonValues = values.flatMap<Record<string, any>>((value) => {
+      if (typeof value !== 'string') return [];
+      try {
+        return [JSON.parse(value)];
+      } catch {
+        return [];
+      }
+    });
+    const queryMetaJson = jsonValues.find((value) => value?.structuredOutput);
+    if (!queryMetaJson) throw new Error('query metadata JSON was not persisted');
+    expect(queryMetaJson.structuredOutput).toEqual({
       attempts: 2,
       retryAttempted: true,
       retryLatencyMs: 31,
       firstErrorCode: 'PROVIDER_UNAVAILABLE',
     });
-    expect(data.queryMetaJson.execution).toEqual({
+    expect(queryMetaJson.execution).toEqual({
       attempts: 2,
       retryAttempted: true,
       retryLatencyMs: 7,
@@ -81,7 +94,7 @@ describe('AskDataFreeSqlAuditService', () => {
 
   it('returns a traceable unavailable id when the audit database write fails', async () => {
     const service = new AskDataFreeSqlAuditService({
-      askDataFreeSqlRun: { create: jest.fn().mockRejectedValue(new Error('database unavailable')) },
+      $queryRaw: jest.fn().mockRejectedValue(new Error('database unavailable')),
     } as any);
 
     const id = await service.record({ question: '本月收入', context, status: 'failed' });
