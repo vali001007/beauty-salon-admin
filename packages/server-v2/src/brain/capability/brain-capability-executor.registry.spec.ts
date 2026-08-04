@@ -2425,7 +2425,10 @@ describe('BrainDomainServiceCapabilityExecutor', () => {
     expect(customerFacts.summarizeCustomerSegments).toHaveBeenCalledWith(
       expect.objectContaining({ storeId: 6, startDate: expect.any(Date), endDate: expect.any(Date) }),
     );
-    expect(facts.metadata).toEqual({ rangeLabel: '今天' });
+    expect(facts.metadata).toEqual({
+      rangeLabel: '今天',
+      answerScope: 'exact_customer_facts',
+    });
     expect(segment.metadata).toEqual({ rangeLabel: '今天' });
   });
 
