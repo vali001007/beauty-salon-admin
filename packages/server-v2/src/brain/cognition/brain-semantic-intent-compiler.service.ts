@@ -178,6 +178,38 @@ export class BrainSemanticIntentCompilerService {
           },
         };
       }
+      const customerPredictionFastPath = this.buildCustomerPredictionCapabilityFastPath(input);
+      if (customerPredictionFastPath) {
+        return {
+          status: 'completed',
+          intent: customerPredictionFastPath,
+          selectedCapabilityKey: 'marketing_customer_segment',
+          provider: 'governed_contract',
+          model: 'customer_prediction_fast_path',
+          usage: {
+            provider: 'governed_contract',
+            model: 'customer_prediction_fast_path',
+            inputTokens: 0,
+            outputTokens: 0,
+          },
+        };
+      }
+      const managerStaffMetricFastPath = this.buildManagerStaffMetricCapabilityFastPath(input);
+      if (managerStaffMetricFastPath) {
+        return {
+          status: 'completed',
+          intent: managerStaffMetricFastPath,
+          selectedCapabilityKey: 'manager_staff_overview',
+          provider: 'governed_contract',
+          model: 'manager_staff_metric_fast_path',
+          usage: {
+            provider: 'governed_contract',
+            model: 'manager_staff_metric_fast_path',
+            inputTokens: 0,
+            outputTokens: 0,
+          },
+        };
+      }
       const governedFastPath = this.buildExactCapabilityFallback(input, 'contract_fast_path');
       if (governedFastPath) {
         return {
@@ -512,6 +544,144 @@ export class BrainSemanticIntentCompilerService {
     const capability = input.capabilitySummaries.find((candidate) => candidate.key === input.preferredCapabilityKey);
     if (!capability?.readOnly) return undefined;
     return this.buildGovernedCapabilityIntent(capability, input, 'catalog_match');
+  }
+
+  private buildCustomerPredictionCapabilityFastPath(
+    input: BrainSemanticIntentCompilerInput,
+  ): BrainSemanticIntent | undefined {
+    const capability = input.capabilitySummaries.find(
+      (candidate) =>
+        candidate.key === 'marketing_customer_segment' &&
+        candidate.readOnly &&
+        !candidate.sideEffect &&
+        candidate.intents.includes('query'),
+    );
+    if (!capability) return undefined;
+    const repurchaseRanking =
+      /(?:最可能复购|复购(?:概率|评分|可能性).*(?:最高|排行)|(?:最高|排行).*(?:复购概率|复购评分|复购可能性))/.test(
+        input.question,
+      );
+    const marketingResponseRanking =
+      /(?:营销触达|营销).*(?:响应度|响应评分).*(?:最高|排行)|(?:响应度|响应评分).*(?:最高|排行)/.test(
+        input.question,
+      );
+    const customerLtv12m =
+      /(?:预测|预估).*(?:12个月|十二个月).*(?:生命周期价值|LTV)|(?:12个月|十二个月).*(?:生命周期价值|LTV).*(?:预测|预估)/i.test(
+        input.question,
+      );
+    if (!repurchaseRanking && !marketingResponseRanking && !customerLtv12m) return undefined;
+    const timeRange = this.resolveQuestionTimeRange(input.question, input.timezone);
+    const customerName = customerLtv12m ? extractSpecificCustomerNameFromQuestion(input.question) : undefined;
+    const customerEntityRef =
+      resolveCanonicalDefinitionRef('entity', 'entity.customer', input) ??
+      findCapabilityDefinitionRef(capability, 'entity', 'entity.customer');
+    return {
+      schemaVersion: '1.0',
+      objective: input.question.trim(),
+      domains: ['customer', 'marketing'],
+      intent: 'query',
+      entities:
+        customerName && customerEntityRef
+          ? [
+              {
+                entityType: 'customer',
+                mention: customerName,
+                source: 'user',
+                definitionRef: customerEntityRef,
+                confidence: 1,
+              },
+            ]
+          : [],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      ...(timeRange ? { timeRange } : {}),
+      orderBy: [],
+      answerShape: customerLtv12m ? 'list' : 'ranking',
+      successCriteria: customerLtv12m
+        ? ['读取当前门店最新完成预测批次中的12个月生命周期价值', '同名客户必须先返回脱敏候选并澄清身份']
+        : ['读取当前门店最新完成预测批次并返回结构化客户排行', '明确预测评分不是确定事实或周末专属概率'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [
+        customerLtv12m
+          ? '生命周期价值只读取最新完成 CustomerPredictionSnapshot；不得临场估算或猜测同名客户。'
+          : repurchaseRanking
+            ? '“本周末最可能复购”按已发布30天复购评分提供人工跟进优先级，并披露不是周末专属概率。'
+            : '营销响应度按最新完成预测批次的 marketingResponseScore 降序展示。',
+      ],
+      confidence: 1,
+      decisionSummary: '问题明确要求已存在的客户预测资产，使用受控预测读取合同直接编译。',
+    };
+  }
+
+  private buildManagerStaffMetricCapabilityFastPath(
+    input: BrainSemanticIntentCompilerInput,
+  ): BrainSemanticIntent | undefined {
+    const capability = input.capabilitySummaries.find(
+      (candidate) =>
+        candidate.key === 'manager_staff_overview' && candidate.readOnly && !candidate.sideEffect,
+    );
+    if (!capability) return undefined;
+    const namedCustomerCount = /(?:服务了多少个客户|服务了多少客户|服务客户(?:数)?(?:有)?多少)/.test(input.question);
+    const staffRevenueRanking =
+      /(?:哪个|哪位|谁).*(?:美容师|员工|技师)?.*(?:业绩|服务收入|关联实收).*(?:最高|最好)|(?:美容师|员工|技师).*(?:业绩|服务收入|关联实收).*(?:最高|最好)/.test(
+        input.question,
+      );
+    if (!namedCustomerCount && !staffRevenueRanking) return undefined;
+    const metricKey = namedCustomerCount
+      ? 'metric.staff_unique_customer_count'
+      : 'metric.staff_service_revenue';
+    const metricRef = findCapabilityDefinitionRef(capability, 'metric', metricKey);
+    if (!metricRef) return undefined;
+    const beauticianEntityRef = findCapabilityDefinitionRef(capability, 'entity', 'entity.beautician');
+    const beauticianDimensionRef = findCapabilityDefinitionRef(
+      capability,
+      'dimension',
+      'dimension.beauticianName',
+    );
+    const staffName = namedCustomerCount
+      ? input.question.match(
+          /(?:^|[，,。\s])([\u3400-\u9fff·]{2,5})(?=(?:这半年|半年|去年同期|昨天|今天|本周|上周|本月|上月|最近).*(?:服务了多少个客户|服务了多少客户))/u,
+        )?.[1]
+      : undefined;
+    const timeRange = this.resolveQuestionTimeRange(input.question, input.timezone);
+    return {
+      schemaVersion: '1.0',
+      objective: input.question.trim(),
+      domains: ['staff', 'beautician'],
+      intent: namedCustomerCount ? 'query' : 'ranking',
+      entities:
+        staffName && beauticianEntityRef
+          ? [
+              {
+                entityType: 'beautician',
+                mention: staffName,
+                source: 'user',
+                definitionRef: beauticianEntityRef,
+                confidence: 1,
+              },
+            ]
+          : [],
+      metrics: [metricRef],
+      dimensions: !namedCustomerCount && beauticianDimensionRef ? [beauticianDimensionRef] : [],
+      filters: [],
+      ...(timeRange ? { timeRange } : {}),
+      orderBy: namedCustomerCount ? [] : [{ definitionRef: metricRef, direction: 'desc' }],
+      answerShape: namedCustomerCount ? 'scalar' : 'ranking',
+      successCriteria: namedCustomerCount
+        ? ['按当前门店和时间范围返回指定员工服务的独立客户数']
+        : ['按员工关联业绩实收口径降序返回美容师排行并披露口径'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [
+        namedCustomerCount
+          ? '服务客户数使用 manager_staff_overview 的 uniqueCustomerCount，不使用客户总数替代。'
+          : '治理排行问法中的“业绩”使用能力已定义的员工关联业绩实收口径；不适用于个人模糊表现诊断。',
+      ],
+      confidence: 1,
+      decisionSummary: '员工跨表指标问法命中已发布店长员工运营能力，使用受控指标合同直接编译。',
+    };
   }
 
   private buildCustomerFactsCapabilityFastPath(

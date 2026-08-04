@@ -121,6 +121,7 @@ export class BrainIntentCompletenessPolicyService {
     snapshot: ProductionReadyBusinessDefinitionSnapshot,
   ): string[] {
     if (intent.metrics.some((metric) => this.isFinanceOrderProfitMetricDefinitionKey(metric.definitionKey))) return [];
+    if (this.isGovernedStaffRevenueRanking(question, intent)) return [];
     const normalizedQuestion = this.normalizeMetricQuestion(question, intent);
     if (normalizedQuestion.length < 2) return [];
     if (/(?:服务收入|服务业绩|销售业绩|销售额|服务次数|服务量|提成)/.test(normalizedQuestion)) return [];
@@ -149,6 +150,14 @@ export class BrainIntentCompletenessPolicyService {
   private isGenericStaffPerformanceQuestion(normalizedQuestion: string): boolean {
     if (!/(?:业绩|绩效)/.test(normalizedQuestion)) return false;
     return !/(?:服务收入|服务业绩|销售业绩|销售额|服务次数|服务量|提成)/.test(normalizedQuestion);
+  }
+
+  private isGovernedStaffRevenueRanking(question: string, intent: BrainSemanticIntent): boolean {
+    if (intent.intent !== 'ranking' || intent.answerShape !== 'ranking') return false;
+    if (!intent.metrics.some((metric) => metric.definitionKey === 'metric.staff_service_revenue')) return false;
+    return /(?:哪个|哪位|谁).*(?:美容师|员工|技师)?.*(?:业绩|服务收入|关联实收).*(?:最高|最好)|(?:美容师|员工|技师).*(?:业绩|服务收入|关联实收).*(?:最高|最好)/.test(
+      question,
+    );
   }
 
   private staffPerformanceMetricCategory(

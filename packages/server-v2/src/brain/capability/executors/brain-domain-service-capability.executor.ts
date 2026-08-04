@@ -7,6 +7,7 @@ import {
 import {
   extractCustomerPhoneTail,
   extractSpecificCustomerNameFromMention,
+  extractSpecificCustomerNameFromQuestion,
   isSpecificCustomerProjectRecommendationQuestion,
 } from '../../domain/brain-customer-identity.js';
 import { defaultBrainDateRange } from '../../domain/brain-domain-formatters.js';
@@ -25,6 +26,7 @@ import {
 } from '../../inspection/brain-data-quality-guard.service.js';
 import type { BrainResponseBlock } from '../../response/brain-response.types.js';
 import { BrainSkillRuntimeService } from '../../skills/brain-skill-runtime.service.js';
+import { BrainPredictionSkillsService } from '../../skills/brain-prediction-skills.service.js';
 import type {
   BrainCapabilityExecutionInput,
   BrainCapabilityExecutor,
@@ -112,6 +114,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     @Optional() private readonly gapOpportunities?: GapOpportunityService,
     @Optional() private readonly sharedBusinessMetrics?: AgentV2BusinessMetricQueryService,
     @Optional() private readonly operationProfit?: OperationProfitService,
+    @Optional() private readonly predictionSkills?: BrainPredictionSkillsService,
   ) {}
 
   @BrainCapability({
@@ -890,7 +893,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     name: '营销客户分群摘要',
     description:
       '基于当前门店客户、订单、项目类型、优惠和客户卡事实，返回营销分群摘要或消费分层、优惠敏感、基础项目未升单、疗程续购等具体客户名单。',
-    intents: ['query', 'diagnosis'],
+    intents: ['query', 'ranking', 'diagnosis'],
     examples: [
       '本月客户可以分成哪些营销人群',
       'VIP 和沉睡客户分别有多少人',
@@ -900,6 +903,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '疗程快结束的客户有多少，适合推续购',
       '新客中哪些人最有潜力转成长期客户',
       '有没有客户对某个项目特别感兴趣但还没办卡',
+      '未来30天哪些客户复购评分最高',
+      '哪些客户的营销响应评分最高',
+      '预测某位客户的12个月生命周期价值',
     ],
     negativeExamples: [
       '直接给沉睡客户群发消息',
@@ -918,6 +924,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '疗程续购客户',
       '新客长期潜力',
       '项目兴趣未办卡',
+      '客户复购预测排行',
+      '营销响应预测排行',
+      '客户12个月生命周期价值',
     ],
     businessDefinitionKeys: ['entity.customer', 'entity.project', 'dimension.customerId', 'dimension.customerName'],
     readOnly: true,
@@ -2078,7 +2087,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             dataQuality,
           );
         }
-        if (/服务了多少个客户/.test(input.question)) {
+        if (/(?:服务了多少个客户|服务了多少客户|服务客户(?:数)?(?:有)?多少)/.test(input.question)) {
           const staffAnalysis = await this.skillRuntime.buildManagerStaffAnalysis({
             storeId: input.context.storeId,
             startDate: range.startDate,
@@ -5839,6 +5848,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
               completion: { status: 'complete', missingCriteria: [], recoverable: false },
             },
           };
+        }
+        if (this.isCustomerPredictionQuestion(input.question)) {
+          return this.buildCustomerPredictionAnswer(input);
         }
         const structuredSegment =
           typeof this.customerFacts.getStructuredMarketingSegment === 'function'
@@ -9786,6 +9798,200 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     if (/上周|最近一周|近一周/.test(question)) return 7;
     const rangeDays = Math.ceil((range.endDate.getTime() - range.startDate.getTime()) / 86_400_000);
     return rangeDays > 1 && rangeDays <= 3_650 ? rangeDays : fallback;
+  }
+
+  private isCustomerPredictionQuestion(question: string) {
+    return (
+      /(?:最可能复购|复购(?:概率|评分|可能性).*(?:最高|排行)|(?:最高|排行).*(?:复购概率|复购评分|复购可能性))/.test(
+        question,
+      ) ||
+      /(?:营销触达|营销).*(?:响应度|响应评分).*(?:最高|排行)|(?:响应度|响应评分).*(?:最高|排行)/.test(
+        question,
+      ) ||
+      /(?:预测|预估).*(?:12个月|十二个月).*(?:生命周期价值|LTV)|(?:12个月|十二个月).*(?:生命周期价值|LTV).*(?:预测|预估)/i.test(
+        question,
+      )
+    );
+  }
+
+  private async buildCustomerPredictionAnswer(input: BrainCapabilityExecutionInput): Promise<BrainDomainAnswer> {
+    if (!this.predictionSkills) {
+      const limitation = '客户预测读取服务未就绪，当前不能返回复购、营销响应或生命周期价值预测。';
+      return {
+        status: 'completed',
+        answer: limitation,
+        citations: [],
+        grounding: 'none',
+        blocks: [{ kind: 'limitations', items: [limitation] }],
+        metadata: {
+          capabilityKey: 'marketing_customer_segment',
+          unsupportedReason: 'customer_prediction_service_unavailable',
+        },
+      };
+    }
+    const citationId = 'customer_prediction_snapshot_latest_completed';
+    if (/(?:12个月|十二个月).*(?:生命周期价值|LTV)|(?:生命周期价值|LTV).*(?:12个月|十二个月)/i.test(input.question)) {
+      const customerName = extractSpecificCustomerNameFromQuestion(input.question);
+      const phoneTail = extractCustomerPhoneTail(input.question);
+      const result = await this.predictionSkills.getLatestCustomerLtv12m({
+        storeId: input.context.storeId,
+        customerName,
+        phoneTail,
+      });
+      if (result.status === 'ambiguous') {
+        const question = `找到 ${result.candidates.length} 位同名客户，请选择客户或补充手机号后四位后继续。`;
+        return this.answer({
+          answer: `${question}\n${result.candidates
+            .map(
+              (candidate, index) =>
+                `${index + 1}. ${candidate.customerName}，手机 ${candidate.maskedPhone}，${candidate.memberLevel}`,
+            )
+            .join('\n')}\n${result.boundary}`,
+          citationId: 'customer_prediction_identity_candidates',
+          citationLabel: `CustomerPredictionSnapshot 客户身份候选（PredictionRun #${result.predictionRun.id}，${result.predictionRun.modelVersion}）`,
+          blocks: [
+            {
+              kind: 'text',
+              text: `最新完成 CustomerPredictionSnapshot 预测批次 #${result.predictionRun.id} 中找到 ${result.candidates.length} 位“${customerName ?? '同名客户'}”。由于身份尚未唯一确认，本次不返回任何一位客户的12个月生命周期价值预测值。`,
+              citationIds: ['customer_prediction_identity_candidates'],
+            },
+            {
+              kind: 'table',
+              rows: result.candidates,
+              columns: ['customerName', 'maskedPhone', 'memberLevel'],
+              citationIds: ['customer_prediction_identity_candidates'],
+            },
+            {
+              kind: 'clarification',
+              question,
+              options: customerIdentityClarificationOptions(result.candidates),
+            },
+            { kind: 'limitations', items: [result.boundary] },
+          ],
+          metadata: {
+            capabilityKey: 'marketing_customer_segment',
+            answerScope: 'customer_ltv12m_identity_clarification',
+            predictionRun: result.predictionRun,
+            clarification: {
+              questions: [question],
+              missingSlots: ['entity'],
+              ambiguities: result.candidates,
+            },
+            completion: { status: 'partial', missingCriteria: ['entity'], recoverable: true },
+          },
+        });
+      }
+      if (result.status === 'available') {
+        return this.answer({
+          answer: `${result.customerName}（手机 ${result.maskedPhone}）的12个月生命周期价值预测为 ${result.ltv12m.toFixed(2)} 元，价值分层 ${result.ltvTier}。模型 ${result.predictionRun.modelVersion}，预测批次 #${result.predictionRun.id}。${result.boundary}`,
+          citationId,
+          citationLabel: `CustomerPredictionSnapshot.ltv12m（PredictionRun #${result.predictionRun.id}，${result.predictionRun.modelVersion}）`,
+          blocks: [
+            {
+              kind: 'kpi',
+              items: [
+                {
+                  label: `${result.customerName} 12个月生命周期价值预测`,
+                  value: `${result.ltv12m.toFixed(2)} 元`,
+                  hint: `价值分层 ${result.ltvTier}`,
+                },
+              ],
+              citationIds: [citationId],
+            },
+            { kind: 'limitations', items: [result.boundary] },
+          ],
+          metadata: {
+            capabilityKey: 'marketing_customer_segment',
+            answerScope: 'customer_ltv12m_prediction',
+            predictionRun: result.predictionRun,
+            predictionSnapshotId: result.snapshotId,
+            customerId: result.customerId,
+          },
+        });
+      }
+      return this.answer({
+        answer: result.boundary,
+        citationId,
+        citationLabel: '最新完成客户预测批次查询',
+        blocks: [{ kind: 'limitations', items: [result.boundary] }],
+        metadata: {
+          capabilityKey: 'marketing_customer_segment',
+          answerScope: 'customer_ltv12m_prediction_unavailable',
+          predictionRun: 'predictionRun' in result ? result.predictionRun : null,
+          unsupportedReason: result.status,
+        },
+      });
+    }
+
+    const metric = /(?:营销触达|营销).*(?:响应度|响应评分)|(?:响应度|响应评分).*(?:营销触达|营销|客户)/.test(
+      input.question,
+    )
+      ? ('marketingResponse' as const)
+      : ('repurchase30d' as const);
+    const result = await this.predictionSkills.rankLatestCustomerPredictions({
+      storeId: input.context.storeId,
+      metric,
+      limit: this.resolveLimit(input.args.limit, 10),
+    });
+    if (result.status === 'missing') {
+      return this.answer({
+        answer: result.boundary,
+        citationId,
+        citationLabel: '当前门店已完成客户预测批次查询',
+        blocks: [{ kind: 'limitations', items: [result.boundary] }],
+        metadata: {
+          capabilityKey: 'marketing_customer_segment',
+          answerScope: 'customer_prediction_ranking_unavailable',
+          unsupportedReason: 'completed_prediction_run_missing',
+        },
+      });
+    }
+    const scoreKey = metric === 'repurchase30d' ? 'repurchase30dScore' : 'marketingResponseScore';
+    const scoreLabel = metric === 'repurchase30d' ? '30天复购评分' : '营销响应评分';
+    const rows = result.rows.map((row) => ({
+      rank: row.rank,
+      customerName: row.customerName,
+      maskedPhone: row.maskedPhone,
+      [scoreKey]: row[scoreKey],
+      ltv12m: row.ltv12m,
+      ltvTier: row.ltvTier,
+    }));
+    const top = result.rows[0];
+    const answer = top
+      ? `${scoreLabel}最高的是 ${top.customerName}（手机 ${top.maskedPhone}），评分 ${top[scoreKey]}；共返回前 ${rows.length} 位客户。模型 ${result.predictionRun.modelVersion}，预测批次 #${result.predictionRun.id}。${result.boundary}`
+      : `最新完成预测批次没有可展示的客户排行。${result.boundary}`;
+    return this.answer({
+      answer,
+      citationId,
+      citationLabel: `CustomerPredictionSnapshot.${scoreKey}（PredictionRun #${result.predictionRun.id}，${result.predictionRun.modelVersion}）`,
+      blocks: [
+        {
+          kind: 'text',
+          text:
+            metric === 'repurchase30d'
+              ? `预测口径：按最新完成 CustomerPredictionSnapshot 批次 #${result.predictionRun.id} 的 repurchase30dScore（未来30天复购评分）降序排列；它不是周末专属概率，本榜单仅作为本周末人工跟进参考。`
+              : `预测口径：按最新完成 CustomerPredictionSnapshot 批次 #${result.predictionRun.id} 的 marketingResponseScore（营销触达响应评分）降序排列。`,
+          citationIds: [citationId],
+        },
+        {
+          kind: 'ranking',
+          rows,
+          columns: ['rank', 'customerName', 'maskedPhone', scoreKey, 'ltv12m', 'ltvTier'],
+          citationIds: [citationId],
+        },
+        { kind: 'limitations', items: [result.boundary] },
+      ],
+      metadata: {
+        capabilityKey: 'marketing_customer_segment',
+        answerScope:
+          metric === 'repurchase30d'
+            ? 'customer_repurchase30d_prediction_ranking'
+            : 'customer_marketing_response_prediction_ranking',
+        predictionMetric: metric,
+        predictionRun: result.predictionRun,
+        completionCriteria: ['latest_completed_prediction_run_loaded', 'prediction_ranking_loaded'],
+      },
+    });
   }
 
   private answer(input: {

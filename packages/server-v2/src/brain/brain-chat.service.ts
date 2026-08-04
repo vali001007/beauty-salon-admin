@@ -4200,7 +4200,9 @@ export class BrainChatService {
     const governedExampleCapability = this.findGovernedCapabilityExampleCard(question, cards);
     const specificCustomerCapability = this.modelSpecificCustomerCapabilityCard(cards, question);
     const customerLevelCapability = this.modelCustomerLevelCapabilityCard(cards, question);
+    const customerPredictionCapability = this.modelCustomerPredictionCapabilityCard(cards, question);
     const managerStaffDirectoryCapability = this.modelManagerStaffDirectoryCapabilityCard(cards, question);
+    const managerStaffMetricCapability = this.modelManagerStaffMetricCapabilityCard(cards, question);
     const projectCatalogCapability = this.modelProjectCatalogCapabilityCard(cards, question);
     const ordered = [
       selected,
@@ -4208,7 +4210,9 @@ export class BrainChatService {
       governedExampleCapability,
       specificCustomerCapability,
       customerLevelCapability,
+      customerPredictionCapability,
       managerStaffDirectoryCapability,
+      managerStaffMetricCapability,
       projectCatalogCapability,
       ...topK.map((candidate) => candidate.card),
     ].filter((card): card is BrainCapabilityCard => Boolean(card));
@@ -4255,6 +4259,49 @@ export class BrainChatService {
     return cards.find(
       (card) =>
         card.key === 'manager_staff_overview' && card.readOnly && !card.sideEffect && card.intents.includes('query'),
+    );
+  }
+
+  private modelCustomerPredictionCapabilityCard(
+    cards: readonly BrainCapabilityCard[],
+    question: string,
+  ): BrainCapabilityCard | undefined {
+    const predictionQuestion =
+      /(?:最可能复购|复购(?:概率|评分|可能性).*(?:最高|排行)|(?:最高|排行).*(?:复购概率|复购评分|复购可能性))/.test(
+        question,
+      ) ||
+      /(?:营销触达|营销).*(?:响应度|响应评分).*(?:最高|排行)|(?:响应度|响应评分).*(?:最高|排行)/.test(
+        question,
+      ) ||
+      /(?:预测|预估).*(?:12个月|十二个月).*(?:生命周期价值|LTV)|(?:12个月|十二个月).*(?:生命周期价值|LTV).*(?:预测|预估)/i.test(
+        question,
+      );
+    if (!predictionQuestion) return undefined;
+    return cards.find(
+      (card) =>
+        card.key === 'marketing_customer_segment' &&
+        card.readOnly &&
+        !card.sideEffect &&
+        card.intents.includes('query'),
+    );
+  }
+
+  private modelManagerStaffMetricCapabilityCard(
+    cards: readonly BrainCapabilityCard[],
+    question: string,
+  ): BrainCapabilityCard | undefined {
+    const staffMetricQuestion =
+      /(?:服务了多少个客户|服务了多少客户|服务客户(?:数)?(?:有)?多少)/.test(question) ||
+      /(?:哪个|哪位|谁).*(?:美容师|员工|技师)?.*(?:业绩|服务收入|关联实收).*(?:最高|最好)|(?:美容师|员工|技师).*(?:业绩|服务收入|关联实收).*(?:最高|最好)/.test(
+        question,
+      );
+    if (!staffMetricQuestion) return undefined;
+    return cards.find(
+      (card) =>
+        card.key === 'manager_staff_overview' &&
+        card.readOnly &&
+        !card.sideEffect &&
+        (card.intents.includes('query') || card.intents.includes('ranking')),
     );
   }
 

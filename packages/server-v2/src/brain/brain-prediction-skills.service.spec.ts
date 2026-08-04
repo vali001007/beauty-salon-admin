@@ -83,4 +83,139 @@ describe('BrainPredictionSkillsService', () => {
       staleAfterDays: 30,
     });
   });
+
+  it.each([
+    ['repurchase30d' as const, 'repurchase30dScore'],
+    ['marketingResponse' as const, 'marketingResponseScore'],
+  ])('ranks the latest completed prediction run by %s', async (metric, orderField) => {
+    const prisma = {
+      predictionRun: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 80,
+          modelVersion: 'rules-v2.1',
+          businessDate: new Date('2026-08-04T00:00:00.000Z'),
+          customerCount: 1253,
+          startedAt: new Date('2026-08-04T01:00:00.000Z'),
+          finishedAt: new Date('2026-08-04T01:10:00.000Z'),
+        }),
+      },
+      customerPredictionSnapshot: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 801,
+            repurchase30dScore: 91,
+            marketingResponseScore: 88,
+            ltv12m: 12800,
+            ltvTier: 'A',
+            customer: { id: 7, name: '张女士', phone: '13800121234' },
+          },
+        ]),
+      },
+    };
+    const service = new BrainPredictionSkillsService(prisma as never);
+
+    const result = await service.rankLatestCustomerPredictions({ storeId: 6, metric });
+
+    expect(prisma.customerPredictionSnapshot.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ storeId: 6, runId: 80 }),
+        orderBy: [{ [orderField]: 'desc' }, { ltv12m: 'desc' }, { id: 'asc' }],
+      }),
+    );
+    expect(result).toMatchObject({
+      status: 'available',
+      predictionRun: { id: 80, modelVersion: 'rules-v2.1', customerCount: 1253 },
+      rows: [
+        {
+          rank: 1,
+          customerName: '张女士',
+          maskedPhone: '***1234',
+          repurchase30dScore: 91,
+          marketingResponseScore: 88,
+          ltv12m: 12800,
+        },
+      ],
+    });
+  });
+
+  it('returns masked identity candidates instead of guessing an LTV for same-name customers', async () => {
+    const prisma = {
+      predictionRun: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 80,
+          modelVersion: 'rules-v2.1',
+          businessDate: new Date('2026-08-04T00:00:00.000Z'),
+          customerCount: 1253,
+          startedAt: new Date('2026-08-04T01:00:00.000Z'),
+          finishedAt: new Date('2026-08-04T01:10:00.000Z'),
+        }),
+      },
+      customerPredictionSnapshot: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 801,
+            ltv12m: 12800,
+            ltvTier: 'A',
+            customer: { id: 7, name: '黄婉清', phone: '13800121234', memberLevel: '金卡' },
+          },
+          {
+            id: 802,
+            ltv12m: 5600,
+            ltvTier: 'B',
+            customer: { id: 8, name: '黄婉清', phone: '13900125678', memberLevel: '银卡' },
+          },
+        ]),
+      },
+    };
+    const service = new BrainPredictionSkillsService(prisma as never);
+
+    const result = await service.getLatestCustomerLtv12m({ storeId: 6, customerName: '黄婉清' });
+
+    expect(result).toMatchObject({
+      status: 'ambiguous',
+      candidates: [
+        { customerName: '黄婉清', maskedPhone: '***1234', memberLevel: '金卡' },
+        { customerName: '黄婉清', maskedPhone: '***5678', memberLevel: '银卡' },
+      ],
+    });
+    expect(result).not.toHaveProperty('ltv12m');
+  });
+
+  it('returns the latest completed-run LTV after identity is unique', async () => {
+    const prisma = {
+      predictionRun: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 80,
+          modelVersion: 'rules-v2.1',
+          businessDate: new Date('2026-08-04T00:00:00.000Z'),
+          customerCount: 1253,
+          startedAt: new Date('2026-08-04T01:00:00.000Z'),
+          finishedAt: new Date('2026-08-04T01:10:00.000Z'),
+        }),
+      },
+      customerPredictionSnapshot: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 801,
+            ltv12m: 12800,
+            ltvTier: 'A',
+            customer: { id: 7, name: '黄婉清', phone: '13800121234', memberLevel: '金卡' },
+          },
+        ]),
+      },
+    };
+    const service = new BrainPredictionSkillsService(prisma as never);
+
+    await expect(
+      service.getLatestCustomerLtv12m({ storeId: 6, customerName: '黄婉清', phoneTail: '1234' }),
+    ).resolves.toMatchObject({
+      status: 'available',
+      snapshotId: 801,
+      customerName: '黄婉清',
+      maskedPhone: '***1234',
+      ltv12m: 12800,
+      ltvTier: 'A',
+      predictionRun: { id: 80, modelVersion: 'rules-v2.1' },
+    });
+  });
 });

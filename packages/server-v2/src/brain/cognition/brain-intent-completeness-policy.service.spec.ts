@@ -156,6 +156,27 @@ describe('BrainIntentCompletenessPolicyService', () => {
     },
   );
 
+  it('uses the governed associated-revenue metric for an explicit staff winner ranking', () => {
+    const result = service.assess({
+      intent: baseIntent({
+        objective: '这半年哪个美容师业绩最高',
+        intent: 'ranking',
+        answerShape: 'ranking',
+        domains: ['staff', 'beautician'],
+        metrics: [metricRef('staff_service_revenue')],
+      }),
+      // BQ0277
+      question: '这半年哪个美容师业绩最高',
+      snapshot: snapshot as never,
+      catalogAmbiguous: false,
+      conversationSlots: {},
+    });
+
+    expect(result.missingSlots).not.toContain('metric');
+    expect(result.ambiguities).toEqual([]);
+    expect(result).toMatchObject({ intent: 'ranking', answerShape: 'ranking' });
+  });
+
   it.each(['昨天实收多少', '最近30天新客有多少'])(
     'does not over-clarify a scoped business question: %s',
     (question) => {
