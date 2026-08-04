@@ -759,6 +759,8 @@ export class BrainChatService {
         releaseKey: releaseRuntime.releaseKey ?? null,
         releaseFingerprint: releaseRuntime.releaseIdentity?.releaseFingerprint ?? null,
         capabilityCandidateCount: releaseRuntime.capabilityCandidates?.length ?? null,
+        productProfile: releaseRuntime.productProfile ?? null,
+        evaluationIdentity: releaseRuntime.evaluationIdentity ?? null,
         governancePolicyReleaseId: releaseRuntime.governancePolicy?.releaseId ?? null,
         governancePolicyMode: releaseRuntime.governancePolicy?.mode ?? null,
         governancePolicyWouldBlockCount: releaseRuntime.governancePolicy?.blockedCapabilityKeys.length ?? null,
@@ -1229,6 +1231,16 @@ export class BrainChatService {
     allowedCapabilityManifest: string | null;
     productProfileFingerprint: string | null;
   }> {
+    const evaluationProfile = context.governanceEvalReleaseSnapshot?.productProfile;
+    if (evaluationProfile) {
+      return {
+        productProfile: evaluationProfile.productProfile,
+        actionsEnabled: evaluationProfile.actionsEnabled,
+        actionExecutionPolicy: evaluationProfile.actionExecutionPolicy,
+        allowedCapabilityManifest: evaluationProfile.allowedCapabilityManifest,
+        productProfileFingerprint: evaluationProfile.productProfileFingerprint,
+      };
+    }
     if (!this.releaseService || typeof this.releaseService.resolveActionExecutionPolicy !== 'function') {
       return {
         productProfile: null,
@@ -1288,16 +1300,35 @@ export class BrainChatService {
     } | null;
     governanceTransitionStatus?: string | null;
     governanceTransitionStep?: string | null;
+    productProfile?: {
+      productProfile: string | null;
+      actionsEnabled: boolean;
+      actionExecutionPolicy: string | null;
+      allowedCapabilityManifest: string | null;
+      allowedCapabilityCount: number | null;
+      sideEffectCapabilityCount: number | null;
+      productProfileFingerprint: string | null;
+    };
+    evaluationIdentity?: {
+      family: string;
+      code: string;
+      stageCode: string | null;
+      name: string;
+      internalReleaseId: number | null;
+    };
     failureCode?: 'PRODUCTION_BASELINE_UNAVAILABLE' | 'PRODUCTION_BASELINE_INVALID';
   }> {
     if (context.governanceEvalReleaseSnapshot) {
       return {
         mode: context.governanceEvalReleaseSnapshot.mode,
+        releaseKey: context.governanceEvalReleaseSnapshot.releaseKey,
         capabilityCandidates: context.governanceEvalReleaseSnapshot.capabilityCandidates,
         releaseIdentity: {
           releaseId: context.governanceEvalReleaseSnapshot.releaseId,
           releaseFingerprint: context.governanceEvalReleaseSnapshot.releaseFingerprint,
         },
+        productProfile: context.governanceEvalReleaseSnapshot.productProfile,
+        evaluationIdentity: context.governanceEvalReleaseSnapshot.evaluationIdentity,
       };
     }
     if (!this.releaseService) {
@@ -1326,6 +1357,7 @@ export class BrainChatService {
         capabilityCandidates: resolved.capabilityCandidates,
         ...(releaseIdentity ? { releaseIdentity } : {}),
         ...(resolved.governancePolicy ? { governancePolicy: resolved.governancePolicy } : {}),
+        productProfile: resolved.productProfile,
         productIdentity: resolved.productIdentity ?? null,
         governancePolicyIdentity: resolved.governancePolicyIdentity ?? null,
         governanceTransitionStatus: resolved.governanceTransitionStatus ?? null,

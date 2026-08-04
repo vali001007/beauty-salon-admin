@@ -4637,7 +4637,7 @@ describe('BrainChatService', () => {
         capabilityCandidates: [candidate],
       }),
     };
-    const { prisma, modelPipeline, service } = createService({ modelPipeline: {}, releaseService });
+    const { prisma, trace, modelPipeline, service } = createService({ modelPipeline: {}, releaseService });
     prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
     prisma.brainMessage.create.mockResolvedValue({ id: 101 });
     prisma.brainRun.create.mockResolvedValue({ id: 77 });
@@ -4806,7 +4806,7 @@ describe('BrainChatService', () => {
   it('reuses a frozen candidate release snapshot without querying release governance per question', async () => {
     const candidate = { key: 'customer_facts', version: 1 };
     const releaseService = { resolveRuntimeMode: jest.fn() };
-    const { prisma, modelPipeline, service } = createService({ modelPipeline: {}, releaseService });
+    const { prisma, trace, modelPipeline, service } = createService({ modelPipeline: {}, releaseService });
     prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
     prisma.brainMessage.create.mockResolvedValue({ id: 101 });
     prisma.brainRun.create.mockResolvedValue({ id: 77 });
@@ -4816,13 +4816,30 @@ describe('BrainChatService', () => {
       ...context,
       governanceEvalReleaseSnapshot: {
         releaseId: 21,
+        releaseKey: 'ami-brain-eval-ev-001-query-only-v1',
         releaseStatus: 'draft',
         releaseFingerprint: 'a'.repeat(64),
+        evaluationIdentity: {
+          family: 'evaluation',
+          code: 'EV-001',
+          stageCode: null,
+          name: 'Query Only V1 候选评测',
+          internalReleaseId: 21,
+        },
         declaredMode: 'shadow',
         mode: 'model',
         resourceVersionIds: [3],
         capabilityKeys: ['customer_facts'],
         capabilityCandidates: [candidate],
+        productProfile: {
+          productProfile: 'query_only_v1',
+          actionsEnabled: false,
+          actionExecutionPolicy: 'deny',
+          allowedCapabilityManifest: 'ami-brain-query-only-v1',
+          allowedCapabilityCount: 33,
+          sideEffectCapabilityCount: 0,
+          productProfileFingerprint: 'f'.repeat(64),
+        },
       },
     } as unknown as BrainRequestContext;
 
@@ -4830,6 +4847,18 @@ describe('BrainChatService', () => {
 
     expect(releaseService.resolveRuntimeMode).not.toHaveBeenCalled();
     expect(modelPipeline!.catalog.listEnabledCapabilities).toHaveBeenCalledWith([candidate]);
+    expect(trace.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        runId: 77,
+        stepKey: 'release_runtime_selection',
+        output: expect.objectContaining({
+          releaseId: 21,
+          releaseKey: 'ami-brain-eval-ev-001-query-only-v1',
+          productProfile: evalContext.governanceEvalReleaseSnapshot?.productProfile,
+          evaluationIdentity: evalContext.governanceEvalReleaseSnapshot?.evaluationIdentity,
+        }),
+      }),
+    );
   });
 
   it('loads the frozen evaluation ontology when the production model snapshot is not initialized', async () => {
@@ -8591,6 +8620,89 @@ describe('BrainChatService', () => {
         runId: 194,
         stepKey: 'action_execution_policy',
         output: expect.objectContaining({ businessStateChanged: false, previewCreated: false }),
+      }),
+    );
+  });
+
+  it('uses the frozen evaluation product profile instead of the active runtime action policy', async () => {
+    const releaseService = {
+      resolveActionExecutionPolicy: jest.fn().mockResolvedValue({
+        allowed: true,
+        currentProfile: {
+          productProfile: null,
+          actionExecutionPolicy: null,
+          allowedCapabilityManifest: null,
+          productProfileFingerprint: null,
+        },
+      }),
+    };
+    const { prisma, trace, modelPipeline, actionConfirmation, semanticEngine, service } = createService({
+      releaseService,
+      modelPipeline: {},
+    });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 120, storeId: 2, userId: 9 });
+    prisma.brainMessage.create
+      .mockResolvedValueOnce({ id: 1810, role: 'user', content: '给深层补水护理调价到310元' }) // BQ0593
+      .mockResolvedValueOnce({ id: 1811, role: 'assistant', content: '动作执行已关闭。' });
+    prisma.brainRun.create.mockResolvedValue({ id: 195 });
+    prisma.brainRun.update.mockResolvedValue({ id: 195, status: 'completed' });
+    const evaluationContext = {
+      ...context,
+      governanceEvalReleaseSnapshot: {
+        releaseId: 453,
+        releaseKey: 'ami-brain-eval-ev-001-query-only-v1',
+        releaseStatus: 'draft',
+        releaseFingerprint: 'a'.repeat(64),
+        evaluationIdentity: {
+          family: 'evaluation',
+          code: 'EV-001',
+          stageCode: null,
+          name: 'Query Only V1 候选评测',
+          internalReleaseId: 453,
+        },
+        declaredMode: 'shadow',
+        mode: 'model',
+        resourceVersionIds: [3],
+        capabilityKeys: ['customer_facts'],
+        capabilityCandidates: [{ key: 'customer_facts', version: 1 }],
+        productProfile: {
+          productProfile: 'query_only_v1',
+          actionsEnabled: false,
+          actionExecutionPolicy: 'deny',
+          allowedCapabilityManifest: 'ami-brain-query-only-v1',
+          allowedCapabilityCount: 33,
+          sideEffectCapabilityCount: 0,
+          productProfileFingerprint: 'f'.repeat(64),
+        },
+      },
+    } as unknown as BrainRequestContext;
+
+    const response = await service.sendMessage(evaluationContext, 120, {
+      message: '给深层补水护理调价到310元', // BQ0593
+      timezone: 'Asia/Shanghai',
+      roleHint: 'store_manager',
+    });
+
+    expect(response).toMatchObject({
+      status: 'completed',
+      productProfile: 'query_only_v1',
+      actionsEnabled: false,
+      actionExecutionPolicy: 'deny',
+      suggestedActions: [],
+    });
+    expect(releaseService.resolveActionExecutionPolicy).not.toHaveBeenCalled();
+    expect(modelPipeline?.compiler.compile).not.toHaveBeenCalled();
+    expect(actionConfirmation.createPreview).not.toHaveBeenCalled();
+    expect(semanticEngine.run).not.toHaveBeenCalled();
+    expect(trace.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        runId: 195,
+        stepKey: 'action_execution_policy',
+        output: expect.objectContaining({
+          productProfile: 'query_only_v1',
+          actionExecutionPolicy: 'deny',
+          businessStateChanged: false,
+        }),
       }),
     );
   });
