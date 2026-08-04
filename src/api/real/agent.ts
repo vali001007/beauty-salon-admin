@@ -43,8 +43,10 @@ type AgentRequestConfig = AxiosRequestConfig & { skipRetry?: boolean };
 
 const agentLongTaskConfig: AgentRequestConfig = { timeout: 60000, skipRetry: true };
 const sharedAgentApi = createAgentApi({
-  get: (url, config) => apiClient.get(url, config as AxiosRequestConfig),
-  post: (url, data, config) => apiClient.post(url, data, config as AgentRequestConfig),
+  get: <T = unknown>(url: string, config?: unknown): Promise<T> =>
+    apiClient.get(url, config as AxiosRequestConfig) as unknown as Promise<T>,
+  post: <T = unknown>(url: string, data?: unknown, config?: unknown): Promise<T> =>
+    apiClient.post(url, data, config as AgentRequestConfig) as unknown as Promise<T>,
 });
 
 export async function createAgentRun(data: AgentCreateRunRequest): Promise<AgentRunResultV2> {
