@@ -19,6 +19,8 @@ async function main() {
     const result =
       options.mode === 'legacy'
         ? await runLegacyAcceptance(options)
+        : options.mode === 'semantic_legacy'
+          ? await runSemanticLegacyAcceptance(options)
         : options.mode === 'development_admin'
           ? await runDevelopmentAdminAcceptance(options)
           : await runExecuteAcceptance(options);
@@ -38,8 +40,8 @@ async function main() {
 function parseOptions() {
   const modeArg = process.argv.find((value) => value.startsWith('--mode='))?.split('=').slice(1).join('=');
   const mode = modeArg ?? process.env.ASK_DATA_FREE_SQL_ACCEPTANCE_MODE ?? 'execute';
-  if (!['execute', 'legacy', 'development_admin'].includes(mode)) {
-    throw new Error('--mode must be execute, legacy or development_admin.');
+  if (!['execute', 'legacy', 'semantic_legacy', 'development_admin'].includes(mode)) {
+    throw new Error('--mode must be execute, legacy, semantic_legacy or development_admin.');
   }
   return {
     mode,
@@ -276,6 +278,45 @@ async function runLegacyAcceptance(options) {
     queryStatus: response.status,
     planner: 'legacy',
     fixedTemplateFallback: true,
+  };
+}
+
+async function runSemanticLegacyAcceptance(options) {
+  const missing = missingAuthActors(['ADMIN']);
+  if (missing.length) {
+    return {
+      status: options.strict ? 'fail' : 'skip',
+      mode: 'semantic_legacy',
+      reason: 'missing_auth:ADMIN',
+      required: 'Provide an ADMIN token, or ADMIN username + password.',
+    };
+  }
+  const admin = await resolveActor(options.baseUrl, 'ADMIN');
+  assertAdminPermissions(admin);
+  const catalog = await apiJson(options.baseUrl, admin, 'GET', '/ask-data/free-sql/catalog');
+  if (catalog?.mode !== 'execute' || catalog?.executeReady !== true) {
+    throw new Error('semantic_legacy_catalog_not_execute_ready');
+  }
+  const csrf = await fetchCsrf(options.baseUrl, admin);
+  const response = await apiJson(
+    options.baseUrl,
+    admin,
+    'POST',
+    '/ask-data/free-sql',
+    { question: options.question },
+    csrf,
+  );
+  assertSuccessfulQuery(response, 'admin');
+  if (!hasDebugSql(response)) throw new Error('semantic_legacy_admin_debug_sql_missing');
+  if (response?.queryPlan?.semanticIntent) throw new Error('semantic_router_still_active_after_disable');
+  return {
+    status: 'pass',
+    mode: 'semantic_legacy',
+    catalogMode: catalog.mode,
+    queryStatus: response.status,
+    planner: response?.queryPlan?.planner ?? 'missing',
+    semanticIntentPresent: false,
+    oldSelectorFallback: true,
   };
 }
 

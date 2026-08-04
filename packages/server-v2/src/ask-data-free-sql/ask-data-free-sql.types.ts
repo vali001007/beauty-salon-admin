@@ -3,6 +3,7 @@ import type {
   ReadOnlySqlExecutionResult,
   ReadOnlySqlView,
 } from '../read-only-sql-kernel/read-only-sql-kernel.types.js';
+import type { AskDataControlledQueryPlan } from './ask-data-query-plan.js';
 
 export type AskDataFreeSqlStatus = 'success' | 'no_data' | 'clarification' | 'blocked' | 'failed' | 'feature_disabled';
 
@@ -77,6 +78,8 @@ export type AskDataAnswer = {
   keyFindings: string[];
   caveats: string[];
   displayMode: 'table' | 'ranking' | 'trend' | 'metric';
+  coveredFacts: string[];
+  compositionMode?: 'model' | 'deterministic' | 'deterministic_fallback';
 };
 
 export type AskDataQueryMeta = {
@@ -90,6 +93,8 @@ export type AskDataQueryMeta = {
   statusReason?: string;
   connectionMode?: 'dedicated_readonly' | 'development_admin';
   dataAsOf?: string;
+  executionAttempts?: number;
+  executionRetryAttempted?: boolean;
 };
 
 export type AskDataFreeSqlResponse = {
@@ -114,6 +119,7 @@ export type AskDataFreeSqlResponse = {
     explanation?: string;
     generatedSql?: string;
     semanticIntent?: AskDataSemanticRouteMeta;
+    controlled?: AskDataControlledQueryPlan;
   };
   auditRunId?: string;
 };
@@ -143,4 +149,22 @@ export type AskDataAuditInput = {
   generatedSql?: string;
   explanation?: string;
   semanticRouting?: AskDataSemanticAuditMeta;
+  controlledQueryPlan?: AskDataControlledQueryPlan;
+  structuredOutput?: {
+    attempts: number;
+    retryAttempted: boolean;
+    retryLatencyMs: number;
+    firstErrorCode?: string;
+    finalErrorCode?: string;
+    repairAttempts?: Array<{
+      kind: 'clarification' | 'guard' | 'query_plan';
+      reasonCode: string;
+      latencyMs: number;
+      succeeded: boolean;
+      attempts: number;
+      retryAttempted: boolean;
+      firstErrorCode?: string;
+      finalErrorCode?: string;
+    }>;
+  };
 };

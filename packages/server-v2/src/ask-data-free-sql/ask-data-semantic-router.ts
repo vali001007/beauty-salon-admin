@@ -5,7 +5,7 @@ import { AskDataClarificationPolicy } from './ask-data-clarification-policy.js';
 import type { AskDataFreeSqlContext, AskDataSemanticIntent, AskDataSemanticRouteMode } from './ask-data-free-sql.types.js';
 import { AskDataIntentParser } from './ask-data-intent-parser.js';
 import { ASK_DATA_SEMANTIC_CONTRACTS } from './ask-data-semantic-contracts.js';
-import { selectAskDataViews } from './ask-data-free-sql-view-selector.js';
+import { hasExplicitMetricCombination, rankAskDataSemanticIndex } from './ask-data-semantic-index.js';
 
 export type AskDataSemanticRouterConfig = {
   enabled: boolean;
@@ -55,20 +55,76 @@ export class AskDataSemanticRouter {
     const config = input.config ?? askDataSemanticRouterConfig();
     const parsed = this.parser.parse(input.question);
     const authorizedByName = new Map(input.authorizedViews.map((view) => [view.viewName, view]));
+    const rankedIndex = rankAskDataSemanticIndex({
+      question: input.question,
+      parsed,
+      authorizedViews: input.authorizedViews,
+      maxCandidates: 8,
+    });
     const matchedViewNames = parsed.matchedContracts.flatMap((item) => [
       item.contract.preferredView,
       ...(item.contract.fallbackViews ?? []),
+      ...(item.contract.supportingViews ?? []),
     ]);
-    const deterministicCandidates = [...new Set(matchedViewNames)]
-      .map((viewName) => authorizedByName.get(viewName))
-      .filter((view): view is ReadOnlySqlView => Boolean(view))
-      .slice(0, parsed.matchedContracts.length > 1 ? 4 : 2);
-    const permissionDenied = matchedViewNames.length > 0 && deterministicCandidates.length === 0;
-    const clarification = this.clarificationPolicy.inspect(parsed.semanticIntent);
+    const explicitCombination = hasExplicitMetricCombination(input.question, parsed.semanticIntent.answerShape);
+    const indexConfidence = semanticIndexConfidence(rankedIndex);
+    const strongIndexMatches = rankedIndex.filter((item) =>
+      item.positiveSignals.some((signal) => signal === 'intent_parser' || signal === 'governed_override'),
+    );
+    const rawGovernedMetricMatches = strongIndexMatches.length ? strongIndexMatches : rankedIndex.slice(0, 1);
+    const balanceCardCombination = /(?:现金|赠送|储值)?余额.*(?:且|并且|同时|还).*(?:未用|没用).*次卡/.test(input.question);
+    const customerRiskProfileSummary = /没到店.*高价值.*高流失风险/.test(input.question);
+    const promotionOfferSubmetrics = /(?:优惠|优惠券|促销|折扣).*?(?:发放|使用|核销)/.test(input.question)
+      && rawGovernedMetricMatches.some((item) => item.contract.metricKey === 'promotion_offer');
+    const governedMetricMatches = balanceCardCombination
+      ? rawGovernedMetricMatches.filter((item) => ['customer_balance', 'card_assets'].includes(item.contract.metricKey))
+      : customerRiskProfileSummary
+        ? rawGovernedMetricMatches.filter((item) => item.contract.metricKey === 'customer_profile')
+      : promotionOfferSubmetrics
+        ? rawGovernedMetricMatches.filter((item) => item.contract.metricKey === 'promotion_offer')
+      : /预约密度.*(?:空位|空档)/.test(input.question)
+      ? rawGovernedMetricMatches.filter((item) => item.contract.metricKey === 'appointment_gap')
+      : /排班.*预约.*空闲分钟|每位员工.*(?:排班|空闲分钟)/.test(input.question)
+      && rawGovernedMetricMatches.some((item) => item.contract.metricKey === 'staff_capacity')
+        ? rawGovernedMetricMatches.filter((item) => item.contract.metricKey !== 'reservation_metrics')
+      : /(?:员工|美容师).*服务次数|服务次数.*(?:员工|美容师)/.test(input.question)
+      && rawGovernedMetricMatches.some((item) => item.contract.metricKey === 'staff_performance')
+      ? rawGovernedMetricMatches.filter((item) => item.contract.metricKey !== 'project_sales')
+      : rawGovernedMetricMatches;
+    const semanticIntent: AskDataSemanticIntent = {
+      ...parsed.semanticIntent,
+      metricKeys: governedMetricMatches.length
+        ? governedMetricMatches.slice(0, explicitCombination ? 4 : 1).map((item) => item.contract.metricKey)
+        : parsed.semanticIntent.metricKeys,
+      assumptions: [
+        ...parsed.semanticIntent.assumptions,
+        ...governedMetricMatches.slice(0, explicitCombination ? 4 : 1).flatMap((item) => item.contract.defaultAssumptions),
+      ].filter((value, index, values) => values.indexOf(value) === index),
+      confidence: Math.max(parsed.semanticIntent.confidence, indexConfidence),
+    };
+    const effectiveCombination = explicitCombination && !customerRiskProfileSummary;
+    const deterministicIndexMatches = effectiveCombination ? governedMetricMatches.slice(0, 4) : governedMetricMatches.slice(0, 1);
+    const deterministicCandidates = deterministicIndexMatches
+      .flatMap((item) => [
+        item.view,
+        ...(item.contract.supportingViews ?? [])
+          .map((viewName) => authorizedByName.get(viewName))
+          .filter((view): view is ReadOnlySqlView => Boolean(view)),
+      ])
+      .filter((view, index, values) => values.findIndex((item) => item.viewName === view.viewName) === index)
+      .slice(0, effectiveCombination ? 4 : 2);
+    const selectedRequiredViewNames = deterministicIndexMatches.flatMap((item) => [
+      item.contract.preferredView,
+      ...(item.contract.supportingViews ?? []),
+    ]);
+    const permissionDenied =
+      (matchedViewNames.length > 0 && deterministicCandidates.length === 0)
+      || selectedRequiredViewNames.some((viewName) => !authorizedByName.has(viewName));
+    const clarification = this.clarificationPolicy.inspect(semanticIntent);
     const deterministicLatencyMs = Date.now() - startedAt;
     if (permissionDenied || clarification.required) {
       return {
-        semanticIntent: parsed.semanticIntent,
+        semanticIntent,
         candidateViews: permissionDenied ? [] : deterministicCandidates,
         deterministicCandidateViews: deterministicCandidates,
         routeMode: 'deterministic',
@@ -79,21 +135,18 @@ export class AskDataSemanticRouter {
       };
     }
 
-    const conflictingMetrics = parsed.matchedContracts.length > 1 && !/对比|比较|相比|分别|以及|和|与|、/.test(input.question);
-    const fallbackReason = !parsed.matchedContracts.length
+    const conflictingMetrics = hasMetricConflict(rankedIndex) && !explicitCombination;
+    const fallbackReason = !rankedIndex.length
       ? 'metric_not_deterministically_matched'
       : conflictingMetrics
         ? 'metric_conflict'
-        : parsed.semanticIntent.confidence < config.minConfidence
+        : semanticIntent.confidence < config.minConfidence && !(explicitCombination && deterministicCandidates.length >= 2)
           ? 'low_confidence'
           : undefined;
     if (!fallbackReason || !config.modelFallback) {
-      const fallbackCandidates = deterministicCandidates.length
-        ? deterministicCandidates
-        : selectAskDataViews(input.question, input.context, 8, input.authorizedViews);
       return {
-        semanticIntent: parsed.semanticIntent,
-        candidateViews: fallbackCandidates,
+        semanticIntent,
+        candidateViews: deterministicCandidates,
         deterministicCandidateViews: deterministicCandidates,
         routeMode: 'deterministic',
         permissionDenied: false,
@@ -102,10 +155,12 @@ export class AskDataSemanticRouter {
       };
     }
 
-    const fallbackPool = this.fallbackPool(input, deterministicCandidates);
+    const fallbackPool = rankedIndex.length
+      ? rankedIndex.map((item) => item.view)
+      : this.defaultFallbackPool(input.authorizedViews);
     if (!fallbackPool.length) {
       return {
-        semanticIntent: parsed.semanticIntent,
+        semanticIntent,
         candidateViews: [],
         deterministicCandidateViews: deterministicCandidates,
         routeMode: 'deterministic',
@@ -119,31 +174,41 @@ export class AskDataSemanticRouter {
 
     const modelStartedAt = Date.now();
     try {
+      const messages = buildSemanticRouteMessages({
+        question: input.question,
+        intent: semanticIntent,
+        candidateViews: fallbackPool,
+        metricKeys: metricKeysForViews(fallbackPool),
+      });
       const decision = await this.aiService.generateStructured<ModelRouteDecision>({
         scenario: 'ask_data_semantic_route',
-        messages: buildSemanticRouteMessages({
-          question: input.question,
-          intent: parsed.semanticIntent,
-          candidateViews: fallbackPool,
-          metricKeys: ASK_DATA_SEMANTIC_CONTRACTS.map((item) => item.metricKey),
-        }),
+        messages,
+        allowFallback: true,
+        fallbackMessages: messages,
         schema: semanticRouteSchema(
-          ASK_DATA_SEMANTIC_CONTRACTS.map((item) => item.metricKey),
+          metricKeysForViews(fallbackPool),
           fallbackPool.map((view) => view.viewName),
+          [],
         ),
         timeoutMs: 5000,
         temperature: 0,
         userId: input.context.userId,
         storeId: input.context.storeId,
       });
-      const normalized = normalizeModelDecision(decision.data, fallbackPool);
-      const chosen = normalized.viewNames
+      const normalized = normalizeModelDecision(decision.data, fallbackPool, metricKeysForViews(fallbackPool), []);
+      const chosen = [
+        ...normalized.viewNames,
+        ...normalized.metricKeys.flatMap((metricKey) =>
+          ASK_DATA_SEMANTIC_CONTRACTS.find((contract) => contract.metricKey === metricKey)?.supportingViews ?? [],
+        ),
+      ]
         .map((viewName) => authorizedByName.get(viewName))
         .filter((view): view is ReadOnlySqlView => Boolean(view))
+        .filter((view, index, values) => values.findIndex((item) => item.viewName === view.viewName) === index)
         .slice(0, 4);
       if (!chosen.length) {
         return {
-          semanticIntent: parsed.semanticIntent,
+          semanticIntent,
           candidateViews: deterministicCandidates,
           deterministicCandidateViews: deterministicCandidates,
           routeMode: 'deterministic',
@@ -159,8 +224,8 @@ export class AskDataSemanticRouter {
           modelFallbackLatencyMs: Date.now() - modelStartedAt,
         };
       }
-      const semanticIntent: AskDataSemanticIntent = {
-        ...parsed.semanticIntent,
+      const modelSemanticIntent: AskDataSemanticIntent = {
+        ...semanticIntent,
         intent: normalized.intent,
         answerShape: normalized.answerShape,
         metricKeys: normalized.metricKeys,
@@ -174,16 +239,14 @@ export class AskDataSemanticRouter {
             }
           : {}),
       };
-      const modelClarificationQuestion = normalized.clarificationQuestion ||
-        (normalized.ambiguitySlot ? `请补充会影响查询口径的${normalized.ambiguitySlot}。` : '');
       return {
-        semanticIntent,
+        semanticIntent: modelSemanticIntent,
         candidateViews: chosen,
         deterministicCandidateViews: deterministicCandidates,
         routeMode: 'model_fallback',
         permissionDenied: false,
         fallbackReason,
-        ...(modelClarificationQuestion ? { clarificationQuestion: modelClarificationQuestion } : {}),
+        ...(normalized.clarificationQuestion ? { clarificationQuestion: normalized.clarificationQuestion } : {}),
         ...(normalized.ambiguitySlot ? { clarificationReason: `model_ambiguity:${normalized.ambiguitySlot}` } : {}),
         deterministicLatencyMs,
         modelFallbackLatencyMs: Date.now() - modelStartedAt,
@@ -191,7 +254,7 @@ export class AskDataSemanticRouter {
     } catch {
       if (deterministicCandidates.length) {
         return {
-          semanticIntent: { ...parsed.semanticIntent, confidence: Math.min(parsed.semanticIntent.confidence, 0.6) },
+          semanticIntent: { ...semanticIntent, confidence: Math.min(semanticIntent.confidence, 0.6) },
           candidateViews: deterministicCandidates,
           deterministicCandidateViews: deterministicCandidates,
           routeMode: 'deterministic',
@@ -202,7 +265,7 @@ export class AskDataSemanticRouter {
         };
       }
       return {
-        semanticIntent: parsed.semanticIntent,
+        semanticIntent,
         candidateViews: [],
         deterministicCandidateViews: [],
         routeMode: 'deterministic',
@@ -216,19 +279,19 @@ export class AskDataSemanticRouter {
     }
   }
 
-  private fallbackPool(
-    input: {
-      question: string;
-      context: Pick<AskDataFreeSqlContext, 'permissions' | 'deniedPermissions'>;
-      authorizedViews: ReadOnlySqlView[];
-    },
-    deterministicCandidates: ReadOnlySqlView[],
-  ) {
-    const combined = [
-      ...deterministicCandidates,
-      ...selectAskDataViews(input.question, input.context, 8, input.authorizedViews),
+  private defaultFallbackPool(authorizedViews: ReadOnlySqlView[]) {
+    const priority = [
+      'agent_v3_order_summary_view',
+      'agent_v3_daily_settlement_view',
+      'ask_data_confirmed_profit_view',
+      'agent_v3_reservation_view',
+      'agent_v3_product_inventory_view',
+      'ask_data_staff_performance_view',
+      'ask_data_marketing_roi_view',
+      'ask_data_customer_lifecycle_view',
     ];
-    return [...new Map(combined.map((view) => [view.viewName, view])).values()].slice(0, 8);
+    const byName = new Map(authorizedViews.map((view) => [view.viewName, view]));
+    return priority.map((viewName) => byName.get(viewName)).filter((view): view is ReadOnlySqlView => Boolean(view));
   }
 }
 
@@ -243,7 +306,7 @@ export function askDataSemanticRouterConfig(env: NodeJS.ProcessEnv = process.env
   };
 }
 
-function semanticRouteSchema(metricKeys: string[], viewNames: string[]) {
+function semanticRouteSchema(metricKeys: string[], viewNames: string[], ambiguitySlots: string[]) {
   return {
     type: 'object',
     additionalProperties: false,
@@ -262,7 +325,7 @@ function semanticRouteSchema(metricKeys: string[], viewNames: string[]) {
       metricKeys: { type: 'array', items: { type: 'string', enum: metricKeys }, maxItems: 4 },
       viewNames: { type: 'array', items: { type: 'string', enum: viewNames }, minItems: 1, maxItems: 4 },
       confidence: { type: 'number', minimum: 0, maximum: 1 },
-      ambiguitySlot: { type: 'string' },
+      ambiguitySlot: { type: 'string', enum: ['', ...ambiguitySlots] },
       clarificationQuestion: { type: 'string' },
     },
   } as const;
@@ -301,9 +364,15 @@ function buildSemanticRouteMessages(input: {
   ];
 }
 
-function normalizeModelDecision(value: ModelRouteDecision, candidateViews: ReadOnlySqlView[]): ModelRouteDecision {
+function normalizeModelDecision(
+  value: ModelRouteDecision,
+  candidateViews: ReadOnlySqlView[],
+  metricKeys: string[],
+  ambiguitySlots: string[],
+): ModelRouteDecision {
   const allowedViews = new Set(candidateViews.map((view) => view.viewName));
-  const allowedMetrics = new Set(ASK_DATA_SEMANTIC_CONTRACTS.map((item) => item.metricKey));
+  const allowedMetrics = new Set(metricKeys);
+  const allowedAmbiguitySlots = new Set(ambiguitySlots);
   return {
     intent: ['query', 'list', 'ranking', 'comparison', 'trend', 'diagnosis'].includes(value?.intent)
       ? value.intent
@@ -320,7 +389,36 @@ function normalizeModelDecision(value: ModelRouteDecision, candidateViews: ReadO
     confidence: Number.isFinite(Number(value?.confidence))
       ? Math.max(0, Math.min(1, Number(value.confidence)))
       : 0.5,
-    ambiguitySlot: String(value?.ambiguitySlot ?? '').trim(),
-    clarificationQuestion: String(value?.clarificationQuestion ?? '').trim(),
+    ambiguitySlot: allowedAmbiguitySlots.has(String(value?.ambiguitySlot ?? '').trim())
+      ? String(value.ambiguitySlot).trim()
+      : '',
+    clarificationQuestion: allowedAmbiguitySlots.has(String(value?.ambiguitySlot ?? '').trim())
+      ? String(value?.clarificationQuestion ?? '').trim()
+      : '',
   };
+}
+
+function metricKeysForViews(views: ReadOnlySqlView[]) {
+  const viewNames = new Set(views.map((view) => view.viewName));
+  return ASK_DATA_SEMANTIC_CONTRACTS
+    .filter((contract) => viewNames.has(contract.preferredView))
+    .map((contract) => contract.metricKey);
+}
+
+function semanticIndexConfidence(matches: ReturnType<typeof rankAskDataSemanticIndex>) {
+  const top = matches[0];
+  if (!top) return 0.35;
+  const margin = top.score - (matches[1]?.score ?? 0);
+  if (top.score >= 150 && margin >= 40) return 0.95;
+  if (top.score >= 100 && margin >= 25) return 0.9;
+  if (top.score >= 60 && margin >= 15) return 0.82;
+  if (margin < 8) return 0.62;
+  return 0.72;
+}
+
+function hasMetricConflict(matches: ReturnType<typeof rankAskDataSemanticIndex>) {
+  const [first, second] = matches;
+  if (!first || !second || first.score - second.score > 20) return false;
+  return first.contract.conflictsWith.includes(second.contract.metricKey) ||
+    second.contract.conflictsWith.includes(first.contract.metricKey);
 }

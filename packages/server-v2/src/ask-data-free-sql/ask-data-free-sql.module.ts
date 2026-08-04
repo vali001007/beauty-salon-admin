@@ -9,6 +9,7 @@ import { AskDataFreeSqlService } from './ask-data-free-sql.service.js';
 import { AskDataClarificationPolicy } from './ask-data-clarification-policy.js';
 import { AskDataIntentParser } from './ask-data-intent-parser.js';
 import { AskDataSemanticRouter } from './ask-data-semantic-router.js';
+import { AskDataNamedEntityResolver } from './ask-data-entity-resolver.js';
 
 @Module({
   imports: [AiModule, AskDataModule, ReadOnlySqlKernelModule],
@@ -17,6 +18,7 @@ import { AskDataSemanticRouter } from './ask-data-semantic-router.js';
     AskDataClarificationPolicy,
     AskDataIntentParser,
     AskDataSemanticRouter,
+    AskDataNamedEntityResolver,
     AskDataFreeSqlAnswerService,
     AskDataFreeSqlAuditService,
     AskDataFreeSqlService,

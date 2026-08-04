@@ -7,6 +7,15 @@ export type ReadOnlySqlParseResult =
   | { status: 'blocked'; reasonCode: string; message: string };
 
 const SQL_KEYWORDS = new Set([
+  'select',
+  'from',
+  'join',
+  'where',
+  'group',
+  'order',
+  'having',
+  'limit',
+  'with',
   'and',
   'or',
   'not',
@@ -233,13 +242,23 @@ export class ReadOnlySqlParser {
   private extractCteNames(tokens: string[], lowered: string[]) {
     if (lowered[0] !== 'with') return [];
     const names: string[] = [];
-    let depth = 0;
-    for (let index = 1; index < tokens.length - 1; index += 1) {
-      if (tokens[index] === '(') depth += 1;
-      if (tokens[index] === ')') depth = Math.max(0, depth - 1);
-      if (depth === 0 && lowered[index + 1] === 'as' && this.isIdentifier(tokens[index])) {
-        names.push(this.normalizeIdentifier(tokens[index]).toLowerCase());
+    let index = 1;
+    while (index < tokens.length) {
+      const name = this.normalizeIdentifier(tokens[index] ?? '').toLowerCase();
+      if (!this.isIdentifier(name) || lowered[index + 1] !== 'as' || tokens[index + 2] !== '(') break;
+      names.push(name);
+      index += 2;
+      let depth = 0;
+      for (; index < tokens.length; index += 1) {
+        if (tokens[index] === '(') depth += 1;
+        if (tokens[index] === ')') depth -= 1;
+        if (depth === 0) {
+          index += 1;
+          break;
+        }
       }
+      if (tokens[index] !== ',') break;
+      index += 1;
     }
     return [...new Set(names)];
   }
@@ -299,7 +318,14 @@ export class ReadOnlySqlParser {
       const args = parts
         .slice(2, closeIndex > 1 ? closeIndex : undefined)
         .map((part) => this.normalizeIdentifier(part))
-        .filter((part) => part && part !== ',' && part !== '*' && !/^'.*'$/.test(part));
+        .filter(
+          (part) =>
+            part &&
+            part !== ',' &&
+            part !== '*' &&
+            !/^'.*'$/.test(part) &&
+            !SQL_KEYWORDS.has(part.toLowerCase()),
+        );
       return args[0] ?? '';
     }
     if (second === 'as') return this.normalizeIdentifier(first);

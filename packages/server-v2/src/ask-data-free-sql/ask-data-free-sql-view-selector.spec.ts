@@ -52,7 +52,7 @@ describe('Ask Data view selector', () => {
       deniedPermissions: [],
       visible: ['ask_data_confirmed_profit_view', 'ask_data_marketing_roi_view'],
       hidden: [],
-      count: 34,
+      count: 36,
     },
     {
       role: '财务',
@@ -86,7 +86,7 @@ describe('Ask Data view selector', () => {
         'core:supply:view',
       ],
       deniedPermissions: [],
-      visible: ['agent_v3_product_inventory_view', 'ask_data_transfer_status_view', 'ask_data_bom_consumption_variance_view'],
+      visible: ['agent_v3_product_inventory_view', 'ask_data_inventory_turnover_view', 'ask_data_transfer_status_view', 'ask_data_bom_consumption_variance_view', 'ask_data_supplier_quote_terms_view'],
       hidden: ['ask_data_customer_feedback_view'],
     },
     {
@@ -137,12 +137,15 @@ describe('Ask Data view selector', () => {
   it.each([
     ['最近三个月员工业绩排行？', 'ask_data_staff_performance_view'],
     ['当前价格最高的项目有哪些？', 'agent_v3_project_catalog_view'],
+    ['哪些产品库存周转率最低？', 'ask_data_inventory_turnover_view'],
+    ['哪些产品一直有但90天没出库？', 'ask_data_inventory_turnover_view'],
+    ['帮我比较两个供应商对同一商品的报价？', 'ask_data_supplier_quote_terms_view'],
   ])('routes management wording to the intended semantic view: %s', (question, expectedView) => {
     const selected = selectAskDataViews(question, { permissions: ['*'], deniedPermissions: [] });
     expect(selected[0]?.viewName).toBe(expectedView);
   });
 
   it('keeps the selector independent from Agent and Brain runtime registries', () => {
-    expect(ASK_DATA_FREE_SQL_VIEWS).toHaveLength(34);
+    expect(ASK_DATA_FREE_SQL_VIEWS).toHaveLength(36);
   });
 });

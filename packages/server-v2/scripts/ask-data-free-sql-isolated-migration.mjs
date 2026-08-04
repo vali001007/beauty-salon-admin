@@ -17,7 +17,7 @@ import { config as loadEnv } from 'dotenv';
 import pg from 'pg';
 
 const { Client } = pg;
-const TARGET_MIGRATION = '20260802121500_ask_data_service_quality_status_contract';
+const TARGET_MIGRATION = '20260804124500_ask_data_supplier_quote_terms_rank_fix';
 const EXCLUDED_BRAIN_MIGRATION = '20260801010000_brain_governance_tasks_and_gate_receipts';
 const packageRoot = resolve(import.meta.dirname, '..');
 const prismaRoot = join(packageRoot, 'prisma');

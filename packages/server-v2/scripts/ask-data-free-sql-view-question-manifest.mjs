@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
@@ -13,14 +14,28 @@ const outputPath = resolve(
     '../../docs/04-测试数据/Ami-Ask-34视图问题集实测-2026-08-02/selection-manifest.json',
 );
 const targetPerView = positiveInt(argumentValue('--target-per-view='), 10);
+const minimumCaseCount = positiveInt(argumentValue('--minimum-cases='), 0);
+const excludeGoldPath = argumentValue('--exclude-gold=')
+  ? resolve(process.cwd(), argumentValue('--exclude-gold='))
+  : undefined;
+const excludedGold = excludeGoldPath ? JSON.parse(readFileSync(excludeGoldPath, 'utf8')) : undefined;
+const excludedQuestionChecksums = new Set(
+  excludedGold
+    ? [...(excludedGold.queryContracts ?? []), ...(excludedGold.boundaryContracts ?? [])].map((item) => item.checksum)
+    : [],
+);
 
-const rows = parseCsv(readFileSync(sourcePath, 'utf8').replace(/^\uFEFF/, ''));
+const sourceText = readFileSync(sourcePath, 'utf8').replace(/^\uFEFF/, '');
+const rows = parseCsv(sourceText);
 const header = rows.shift();
 if (!header) throw new Error('CSV header missing');
-const questions = rows
+const parsedQuestions = rows
   .filter((row) => row.length >= header.length)
   .map((row) => Object.fromEntries(header.map((key, index) => [key, row[index] ?? ''])))
-  .filter((item) => item.id && item.question);
+  .filter((item) => item.id && item.question)
+  .map((item) => ({ ...item, questionChecksum: questionChecksum(item.question) }));
+const questions = parsedQuestions
+  .filter((item) => !excludedQuestionChecksums.has(item.questionChecksum));
 
 const excludedTypes = new Set(['action', 'permission', 'ambiguity', 'multi_turn']);
 const unsafeQuestion = /手机号|联系电话|生日|过敏史|健康档案|标签有哪些|来源渠道|档案原文|备注/;
@@ -108,12 +123,27 @@ const views = definitions.map((definition, viewIndex) => {
 const selectedQuestions = views.flatMap((view) =>
   view.questions.map((question) => ({ ...question, expectedView: view.viewName, expectedViewLabel: view.label })),
 );
+if (selectedQuestions.length < minimumCaseCount) {
+  throw new Error(`insufficient_selected_cases:${selectedQuestions.length}:${minimumCaseCount}`);
+}
 const coveredViews = views.filter((view) => view.coverageStatus === 'covered').length;
+const selectedQuestionsChecksum = createHash('sha256').update(JSON.stringify(selectedQuestions.map((item) => ({
+  id: item.id,
+  questionChecksum: item.questionChecksum,
+  expectedView: item.expectedView,
+})))).digest('hex');
 const manifest = {
   generatedAt: new Date().toISOString(),
   sourcePath,
-  sourceQuestionCount: questions.length,
+  sourceChecksum: createHash('sha256').update(sourceText).digest('hex'),
+  selectionMode: excludeGoldPath ? 'new_holdout_candidate' : 'view_coverage',
+  excludeGoldPath,
+  excludedGoldChecksum: excludedGold?.checksum,
+  excludedQuestionCount: excludedQuestionChecksums.size,
+  sourceQuestionCount: parsedQuestions.length,
+  eligibleQuestionCount: questions.length,
   targetPerView,
+  minimumCaseCount,
   viewCount: views.length,
   coveredViews,
   insufficientViews: views.filter((view) => view.coverageStatus !== 'covered').map((view) => ({
@@ -123,6 +153,12 @@ const manifest = {
     gapReason: view.gapReason,
   })),
   selectedCaseCount: selectedQuestions.length,
+  selectedQuestionsChecksum,
+  checksum: createHash('sha256').update(JSON.stringify({
+    sourceChecksum: createHash('sha256').update(sourceText).digest('hex'),
+    excludedGoldChecksum: excludedGold?.checksum,
+    selectedQuestionsChecksum,
+  })).digest('hex'),
   views,
   selectedQuestions,
 };
@@ -177,6 +213,14 @@ function argumentValue(prefix) {
 function positiveInt(value, fallback) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : fallback;
+}
+
+function questionChecksum(question) {
+  return createHash('sha256').update(normalizeQuestion(question)).digest('hex');
+}
+
+function normalizeQuestion(value) {
+  return value.trim().toLowerCase().replace(/[\s，。！？?、；;：:（）()“”"'`]+/g, '');
 }
 
 function pick(object, keys) {

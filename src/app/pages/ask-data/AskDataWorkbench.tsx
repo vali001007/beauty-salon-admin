@@ -33,9 +33,30 @@ function statusTone(status?: string) {
   return 'border-slate-200 bg-slate-50 text-slate-700';
 }
 
-function cellText(value: unknown) {
+const cellValueLabels: Record<string, Record<string, string>> = {
+  slow_moving_status: {
+    no_outbound_90d: '90 天无出库',
+    low_turnover: '低周转',
+    moving: '正常动销',
+  },
+  replenishment_fact_status: {
+    below_safety_no_open_procurement: '低于安全库存且无在途采购',
+    below_safety_with_open_procurement: '低于安全库存且有在途采购',
+    covered: '库存覆盖正常',
+  },
+  turnover_policy: {
+    operational_event_weighted_not_financial_turnover: '库存事件加权运营口径（非财务会计周转率）',
+  },
+  cost_policy: {
+    catalog_cost_estimated_not_batch_actual: '商品档案成本估算（非批次实际成本）',
+  },
+};
+
+function cellText(columnKey: string, value: unknown) {
   if (value === null || value === undefined || value === '') return '-';
   if (typeof value === 'number') return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(4)));
+  const governedLabel = cellValueLabels[columnKey]?.[String(value)];
+  if (governedLabel) return governedLabel;
   return String(value);
 }
 
@@ -284,7 +305,7 @@ export function AskDataWorkbench() {
                   {result.rows.map((row, index) => (
                     <TableRow key={index}>
                       {result.columns.map((column) => (
-                        <TableCell key={column.key}>{cellText(row[column.key])}</TableCell>
+                        <TableCell key={column.key}>{cellText(column.key, row[column.key])}</TableCell>
                       ))}
                     </TableRow>
                   ))}

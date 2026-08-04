@@ -33,6 +33,16 @@ export class AskDataFreeSqlAuditService {
             explanation: input.explanation,
             sqlFingerprint: input.guard?.sqlFingerprint,
             semanticRouting: input.semanticRouting,
+            controlledQueryPlan: input.controlledQueryPlan,
+            structuredOutput: input.structuredOutput,
+            execution: input.execution
+              ? {
+                  attempts: input.execution.attempts ?? 1,
+                  retryAttempted: Boolean(input.execution.retryAttempted),
+                  retryLatencyMs: input.execution.retryLatencyMs ?? 0,
+                  blockedReason: input.execution.blockedReason,
+                }
+              : undefined,
           }),
         },
       });

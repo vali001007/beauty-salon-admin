@@ -31,4 +31,15 @@ describe('AiProviderHealthService', () => {
     expect(service.redundancyMode('provider|gateway-a|model', 'provider|gateway-b|model')).toBe('independent_route');
     expect(service.redundancyMode('provider|gateway-a|model')).toBe('disabled');
   });
+
+  it('opens immediately for an authentication failure instead of retrying an invalid credential', () => {
+    expect(service.beginRequest('invalid-auth', 0)).toMatchObject({ allowed: true, state: 'closed' });
+    service.recordFailure('invalid-auth', 'PROVIDER_AUTH_FAILED', 10);
+
+    expect(service.beginRequest('invalid-auth', 20)).toMatchObject({
+      allowed: false,
+      state: 'open',
+      reason: 'cooldown',
+    });
+  });
 });

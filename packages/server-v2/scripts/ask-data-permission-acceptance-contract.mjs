@@ -1,0 +1,145 @@
+export const ASK_DATA_PERMISSION_ACCEPTANCE_STORE_NAME = 'Ami 全量演示门店';
+export const ASK_DATA_PERMISSION_ACCEPTANCE_PASSWORD_ENV = 'ASK_DATA_PERMISSION_ACCEPTANCE_PASSWORD';
+
+export const ASK_DATA_PERMISSION_ACCEPTANCE_ROLES = [
+  {
+    key: 'admin',
+    roleKey: 'ask_data_acceptance_admin',
+    username: 'ask_accept_admin',
+    name: 'Ask验收-管理员',
+    permissions: ['*'],
+    expectedViews: '*',
+    question: '最近30天营销ROI最高的渠道是什么？',
+    deniedQuestion: null,
+    debugSqlVisible: true,
+  },
+  {
+    key: 'finance',
+    roleKey: 'ask_data_acceptance_finance',
+    username: 'ask_accept_finance',
+    name: 'Ask验收-财务',
+    permissions: [
+      'core:dashboard:view',
+      'core:finance:view',
+      'core:operation-cost:view',
+      'core:operation-profit:view',
+      'core:prepaid-liability:view',
+    ],
+    expectedViews: [
+      'agent_v3_order_summary_view',
+      'agent_v3_payment_refund_view',
+      'agent_v3_daily_settlement_view',
+      'agent_v3_customer_balance_view',
+      'ask_data_operating_cost_view',
+      'ask_data_confirmed_profit_view',
+      'ask_data_reconciliation_issue_view',
+      'ask_data_member_liability_view',
+    ],
+    question: '本月营业利润是多少？',
+    deniedQuestion: '最近30天营销ROI最高的渠道是什么？',
+    debugSqlVisible: false,
+  },
+  {
+    key: 'marketing',
+    roleKey: 'ask_data_acceptance_marketing',
+    username: 'ask_accept_marketing',
+    name: 'Ask验收-营销',
+    permissions: ['core:dashboard:view', 'core:marketing:view', 'core:marketing:analytics'],
+    expectedViews: [
+      'agent_v3_marketing_conversion_view',
+      'agent_v3_marketing_activity_view',
+      'agent_v3_marketing_automation_view',
+      'agent_v3_promotion_offer_view',
+      'ask_data_marketing_roi_view',
+    ],
+    question: '最近30天营销ROI最高的渠道是什么？',
+    deniedQuestion: '本月营业利润是多少？',
+    debugSqlVisible: false,
+  },
+  {
+    key: 'inventory_supply',
+    roleKey: 'ask_data_acceptance_inventory_supply',
+    username: 'ask_accept_inventory_supply',
+    name: 'Ask验收-库存供应',
+    permissions: [
+      'core:dashboard:view',
+      'core:inventory:products',
+      'core:inventory:stock',
+      'core:inventory:consumption',
+      'core:inventory:purchase',
+      'core:inventory:transfer',
+      'core:supply:view',
+    ],
+    expectedViews: [
+      'agent_v3_product_inventory_view',
+      'ask_data_inventory_turnover_view',
+      'agent_v3_stock_movement_view',
+      'agent_v3_inventory_scrap_view',
+      'agent_v3_purchase_procurement_view',
+      'agent_v3_supplier_performance_view',
+      'ask_data_supplier_quote_terms_view',
+      'ask_data_transfer_status_view',
+      'ask_data_bom_consumption_variance_view',
+    ],
+    question: '帮我比较同一商品的供应商报价？',
+    deniedQuestion: '本月营业利润是多少？',
+    debugSqlVisible: false,
+  },
+  {
+    key: 'store_scheduling',
+    roleKey: 'ask_data_acceptance_store_scheduling',
+    username: 'ask_accept_store_scheduling',
+    name: 'Ask验收-店务排班',
+    permissions: [
+      'core:dashboard:view',
+      'core:store:reservations',
+      'core:store:scheduling',
+      'core:store:scheduling:gap:view',
+      'core:store:projects',
+    ],
+    expectedViews: [
+      'agent_v3_reservation_view',
+      'agent_v3_service_quality_view',
+      'agent_v3_appointment_gap_view',
+      'agent_v3_project_catalog_view',
+      'ask_data_staff_capacity_view',
+    ],
+    question: '未来7天哪些员工空闲时间最多？',
+    deniedQuestion: '最近30天营销ROI最高的渠道是什么？',
+    debugSqlVisible: false,
+  },
+  {
+    key: 'customer_service',
+    roleKey: 'ask_data_acceptance_customer_service',
+    username: 'ask_accept_customer_service',
+    name: 'Ask验收-客户服务',
+    permissions: ['core:dashboard:view', 'core:customer:view'],
+    expectedViews: [
+      'ask_data_customer_profile_summary_view',
+      'ask_data_customer_feedback_view',
+      'ask_data_customer_lifecycle_view',
+    ],
+    question: '当前高价值客户有哪些？',
+    deniedQuestion: '本月营业利润是多少？',
+    debugSqlVisible: false,
+  },
+  {
+    key: 'dashboard_only',
+    roleKey: 'ask_data_acceptance_dashboard_only',
+    username: 'ask_accept_dashboard_only',
+    name: 'Ask验收-仅看板',
+    permissions: ['core:dashboard:view'],
+    expectedViews: [],
+    question: null,
+    deniedQuestion: '本月营业利润是多少？',
+    debugSqlVisible: false,
+  },
+];
+
+export function sortedUnique(values) {
+  return [...new Set(values.map(String))].sort((left, right) => left.localeCompare(right));
+}
+
+export function sameStringSet(left, right) {
+  return JSON.stringify(sortedUnique(left)) === JSON.stringify(sortedUnique(right));
+}

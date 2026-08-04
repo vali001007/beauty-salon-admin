@@ -269,6 +269,40 @@ describe('AskDataWorkbench', () => {
     expect(screen.getAllByText(/数据截至：/)).toHaveLength(2);
   });
 
+  it('renders inventory turnover status and policy codes as product language', async () => {
+    apiMocks.queryAskData.mockResolvedValueOnce({
+      status: 'success',
+      summary: '查询到库存周转事实。',
+      columns: [
+        { key: 'slow_moving_status', label: '慢动销状态' },
+        { key: 'replenishment_fact_status', label: '采购覆盖状态' },
+        { key: 'turnover_policy', label: '运营周转口径标识' },
+        { key: 'cost_policy', label: '成本估算口径标识' },
+      ],
+      rows: [
+        {
+          slow_moving_status: 'no_outbound_90d',
+          replenishment_fact_status: 'below_safety_no_open_procurement',
+          turnover_policy: 'operational_event_weighted_not_financial_turnover',
+          cost_policy: 'catalog_cost_estimated_not_batch_actual',
+        },
+      ],
+      sources: [],
+      queryPlan: { planner: 'llm' },
+    });
+
+    render(<AskDataWorkbench />);
+    fireEvent.change(screen.getByPlaceholderText('例如：上个月收入按项目看'), {
+      target: { value: '哪些商品长期没有动销' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '查询' }));
+
+    expect(await screen.findByText('90 天无出库')).toBeInTheDocument();
+    expect(screen.getByText('低于安全库存且无在途采购')).toBeInTheDocument();
+    expect(screen.getByText('库存事件加权运营口径（非财务会计周转率）')).toBeInTheDocument();
+    expect(screen.getByText('商品档案成本估算（非批次实际成本）')).toBeInTheDocument();
+  });
+
   it('keeps previous result visible when the next request fails', async () => {
     apiMocks.queryAskData
       .mockResolvedValueOnce({

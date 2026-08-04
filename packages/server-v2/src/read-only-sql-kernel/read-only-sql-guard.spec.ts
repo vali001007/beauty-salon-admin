@@ -84,6 +84,22 @@ describe('ReadOnlySqlGuard', () => {
     expect(result.status).toBe('pass');
   });
 
+  it('allows the explicitly sanitized scrap remark summary but not raw remark fields', () => {
+    const sanitized = guard.inspect(
+      'SELECT product_name, remark_summary FROM agent_v3_inventory_scrap_view s LIMIT 20',
+      ASK_DATA_FREE_SQL_VIEWS,
+      { ...context, permissions: ['core:inventory:consumption'] },
+    );
+    expect(sanitized.status).toBe('pass');
+
+    const raw = guard.inspect(
+      'SELECT product_name, remark FROM agent_v3_inventory_scrap_view s LIMIT 20',
+      ASK_DATA_FREE_SQL_VIEWS,
+      { ...context, permissions: ['core:inventory:consumption'] },
+    );
+    expect(raw.status).toBe('blocked');
+  });
+
   it('injects scope into the top-level WHERE instead of a FILTER predicate', () => {
     const result = guard.inspect(
       "SELECT COUNT(reservation_id) FILTER (WHERE status = 'cancelled') AS cancelled_count FROM agent_v3_reservation_view r WHERE date >= :startAt AND date < :endAt LIMIT 1",
@@ -123,6 +139,15 @@ describe('ReadOnlySqlGuard', () => {
     expect(result.status).toBe('pass');
   });
 
+  it.each(['timestamp', 'timestamptz'])('allows a registered date field to use the safe %s cast', (cast) => {
+    const result = guard.inspect(
+      `SELECT DATE_TRUNC('day', settlement_date::${cast})::date AS settlement_day, SUM(net_amount) AS net_amount FROM agent_v3_daily_settlement_view GROUP BY DATE_TRUNC('day', settlement_date::${cast})::date LIMIT 10`,
+      ASK_DATA_FREE_SQL_VIEWS,
+      { ...context, permissions: ['core:finance:view'] },
+    );
+    expect(result.status).toBe('pass');
+  });
+
   it('blocks ambiguous date-parameter interval arithmetic before database execution', () => {
     const result = guard.inspect(
       "SELECT customer_id FROM ask_data_customer_profile_summary_view c WHERE COALESCE(last_visit_at, :startAt - INTERVAL '1 day') < :startAt LIMIT 20",
@@ -145,6 +170,15 @@ describe('ReadOnlySqlGuard', () => {
   it('allows explicitly typed date parameters inside functions', () => {
     const result = guard.inspect(
       "SELECT COUNT(service_task_id) FROM agent_v3_service_quality_view s WHERE DATE_TRUNC('month', completed_at) = DATE_TRUNC('month', :startAt::timestamp) LIMIT 1",
+      ASK_DATA_FREE_SQL_VIEWS,
+      { ...context, permissions: ['*'] },
+    );
+    expect(result.status).toBe('pass');
+  });
+
+  it('allows DISTINCT inside an aggregate without treating it as a catalog field', () => {
+    const result = guard.inspect(
+      'SELECT level_name, COUNT(DISTINCT staff_id) AS staff_count FROM agent_v3_staff_profile_view WHERE store_id = ANY(:allowedStoreIds) GROUP BY level_name ORDER BY staff_count DESC LIMIT 100',
       ASK_DATA_FREE_SQL_VIEWS,
       { ...context, permissions: ['*'] },
     );
@@ -197,6 +231,75 @@ describe('ReadOnlySqlGuard', () => {
     ].join(' ');
     const result = guard.inspect(sql, ASK_DATA_FREE_SQL_VIEWS, { ...context, permissions: ['*'] });
     expect(result.status).toBe('pass');
+  });
+
+  it('allows only the exact two-view combination approved by the controlled plan', () => {
+    const sql = [
+      'WITH promotion_counts AS (',
+      'SELECT COUNT(DISTINCT p.promotion_id) AS promotion_count FROM agent_v3_promotion_offer_view p',
+      'WHERE p.store_id = ANY(:allowedStoreIds) AND p.start_at >= :startAt AND p.start_at < :endAt',
+      ')',
+      'SELECT COUNT(DISTINCT m.activity_id) AS activity_count, MAX(pc.promotion_count) AS promotion_count',
+      'FROM agent_v3_marketing_activity_view m CROSS JOIN promotion_counts pc',
+      'WHERE m.store_id = ANY(:allowedStoreIds) AND m.start_at >= :startAt AND m.start_at < :endAt LIMIT 1',
+    ].join(' ');
+    const withoutPlan = guard.inspect(sql, ASK_DATA_FREE_SQL_VIEWS, { ...context, permissions: ['*'] });
+    expect(withoutPlan.status).toBe('blocked');
+    expect(withoutPlan.status === 'blocked' && withoutPlan.reasonCode).toBe('view_join_not_allowed');
+
+    const approved = guard.inspect(sql, ASK_DATA_FREE_SQL_VIEWS, {
+      ...context,
+      permissions: ['*'],
+      allowedJoinViewSets: [[
+        'agent_v3_marketing_activity_view',
+        'agent_v3_promotion_offer_view',
+      ]],
+    });
+    expect(approved.status).toBe('pass');
+    expect(approved.status === 'pass' && approved.appliedPolicies).toContain('planned_view_join_verified');
+
+    const wrongPair = guard.inspect(sql, ASK_DATA_FREE_SQL_VIEWS, {
+      ...context,
+      permissions: ['*'],
+      allowedJoinViewSets: [['agent_v3_marketing_activity_view', 'ask_data_marketing_roi_view']],
+    });
+    expect(wrongPair.status).toBe('blocked');
+  });
+
+  it('does not count top-level relation aliases after a CTE as extra CTE names', () => {
+    const sql = [
+      'WITH usage_by_product AS (',
+      'SELECT sm.product_id, SUM(ABS(sm.quantity)) AS consumed_quantity',
+      'FROM agent_v3_stock_movement_view AS sm',
+      'WHERE sm.store_id = ANY(:allowedStoreIds) AND sm.occurred_at >= :startAt AND sm.occurred_at < :endAt',
+      'GROUP BY sm.product_id',
+      ')',
+      'SELECT u.product_id, MAX(u.consumed_quantity) AS consumed_quantity, MAX(pi.current_stock) AS current_stock',
+      'FROM usage_by_product AS u',
+      'LEFT JOIN agent_v3_product_inventory_view AS pi ON pi.product_id = u.product_id',
+      'AND pi.store_id = ANY(:allowedStoreIds)',
+      'GROUP BY u.product_id LIMIT 1',
+    ].join(' ');
+    const result = guard.inspect(sql, ASK_DATA_FREE_SQL_VIEWS, { ...context, permissions: ['*'] });
+    expect(result.status).toBe('pass');
+  });
+
+  it('still blocks two independently named CTEs', () => {
+    const result = guard.inspect(
+      [
+        'WITH project_totals AS (',
+        'SELECT SUM(p.net_amount) AS project_revenue FROM agent_v3_project_service_sales_view AS p',
+        'WHERE p.store_id = ANY(:allowedStoreIds) AND p.order_created_at >= :startAt AND p.order_created_at < :endAt',
+        '), product_totals AS (',
+        'SELECT SUM(o.net_amount) AS product_revenue FROM agent_v3_order_item_sales_view AS o',
+        'WHERE o.store_id = ANY(:allowedStoreIds) AND o.order_created_at >= :startAt AND o.order_created_at < :endAt',
+        ') SELECT project_revenue, product_revenue FROM project_totals CROSS JOIN product_totals LIMIT 1',
+      ].join(' '),
+      ASK_DATA_FREE_SQL_VIEWS,
+      { ...context, permissions: ['*'] },
+    );
+    expect(result.status).toBe('blocked');
+    expect(result.status === 'blocked' && result.reasonCode).toBe('too_many_ctes');
   });
 
   it('blocks a CTE without explicit scope', () => {

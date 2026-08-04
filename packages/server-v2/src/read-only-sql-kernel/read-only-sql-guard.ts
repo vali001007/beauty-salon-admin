@@ -39,10 +39,17 @@ const STRUCTURAL_IDENTIFIERS = new Set([
   'limit',
   'having',
   'join',
+  'left',
+  'right',
+  'inner',
+  'outer',
+  'full',
+  'cross',
   'with',
   'by',
   'on',
   'case',
+  'distinct',
   'when',
   'then',
   'else',
@@ -87,7 +94,8 @@ export class ReadOnlySqlGuard {
         fingerprint,
       );
     }
-    if (selectedViews.length > 1 && selectedViews.some((view) => !view.allowJoin)) {
+    const plannedJoinAllowed = this.isPlannedJoinAllowed(parsed.sourceViews, context.allowedJoinViewSets);
+    if (selectedViews.length > 1 && selectedViews.some((view) => !view.allowJoin) && !plannedJoinAllowed) {
       return this.block('view_join_not_allowed', '当前数据域不允许跨视图关联。', sql, parsed, fingerprint);
     }
 
@@ -134,7 +142,10 @@ export class ReadOnlySqlGuard {
 
     const policies = this.fieldPolicies(selectedViews);
     const aliases = new Set(parsed.aliases);
-    const relationAliases = new Set(parsed.relations.map((relation) => relation.alias));
+    const relationAliases = new Set([
+      ...parsed.relations.map((relation) => relation.alias),
+      ...this.cteRelationAliases(parsed),
+    ]);
     const sourceViews = new Set(parsed.sourceViews);
     const cteNames = new Set(parsed.cteNames);
     const functionNames = new Set(parsed.functions);
@@ -160,7 +171,8 @@ export class ReadOnlySqlGuard {
     const sensitiveField = fieldsToCheck.find((column) =>
       /(password|token|secret|phone(?!_last4)|openid|idcard|address|salary|remark)/i.test(column),
     );
-    if (sensitiveField && policies.get(sensitiveField) !== 'mask') {
+    const explicitlySanitizedSummary = sensitiveField === 'remark_summary' && policies.get(sensitiveField) === 'allow';
+    if (sensitiveField && policies.get(sensitiveField) !== 'mask' && !explicitlySanitizedSummary) {
       return this.block('sensitive_field_selected', `字段 ${sensitiveField} 疑似敏感。`, sql, parsed, fingerprint);
     }
 
@@ -189,11 +201,14 @@ export class ReadOnlySqlGuard {
         );
       const timed = parsed.relations.every((relation) => {
         const view = selectedViews.find((item) => item.viewName === relation.viewName);
+        const skipDefaultTimeScope = context.skipDefaultTimeScopeViewNames?.includes(relation.viewName);
+        const timeField = context.timeScopeFieldOverrides?.[relation.viewName] ?? view?.defaultTimeField;
         return (
           !view ||
+          skipDefaultTimeScope ||
           view.requiresTimeScope === false ||
-          !view.defaultTimeField ||
-          this.hasCteTimeScope(safeSql, relation.alias, view.defaultTimeField)
+          !timeField ||
+          this.hasCteTimeScope(safeSql, relation.alias, timeField)
         );
       });
       if (!timed)
@@ -205,7 +220,7 @@ export class ReadOnlySqlGuard {
           fingerprint,
         );
     } else {
-      safeSql = this.injectMandatoryScopes(safeSql, parsed.relations, selectedViews, params);
+      safeSql = this.injectMandatoryScopes(safeSql, parsed.relations, selectedViews, params, context);
     }
     if (!parsed.hasLimit) safeSql = `${safeSql} LIMIT ${maxLimit}`;
     safeSql = `${safeSql};`;
@@ -221,6 +236,7 @@ export class ReadOnlySqlGuard {
         'select_only',
         'single_statement',
         'view_whitelist',
+        ...(plannedJoinAllowed ? ['planned_view_join_verified'] : []),
         'field_policy_checked',
         'permission_checked',
         parsed.cteNames.length ? 'cte_store_scope_verified' : 'store_scope_injected',
@@ -243,6 +259,32 @@ export class ReadOnlySqlGuard {
     return policies;
   }
 
+  private isPlannedJoinAllowed(sourceViews: string[], allowedSets: string[][] | undefined) {
+    if (sourceViews.length !== 2 || !allowedSets?.length) return false;
+    const selectedViews = [...new Set(sourceViews)].sort();
+    if (selectedViews.length !== 2) return false;
+    const selected = selectedViews.join('|');
+    return allowedSets.some((viewNames) => {
+      const allowed = [...new Set(viewNames)].sort();
+      return allowed.length === 2 && allowed.join('|') === selected;
+    });
+  }
+
+  private cteRelationAliases(parsed: ReadOnlySqlParsed) {
+    const cteNames = new Set(parsed.cteNames.map((name) => name.toLowerCase()));
+    const aliases: string[] = [];
+    for (let index = 0; index < parsed.tokens.length - 2; index += 1) {
+      if (!['from', 'join'].includes(parsed.tokens[index].toLowerCase())) continue;
+      if (!cteNames.has(parsed.tokens[index + 1].toLowerCase())) continue;
+      const aliasIndex = parsed.tokens[index + 2].toLowerCase() === 'as' ? index + 3 : index + 2;
+      const alias = parsed.tokens[aliasIndex];
+      if (alias && /^[a-z_][a-z0-9_]*$/i.test(alias) && !STRUCTURAL_IDENTIFIERS.has(alias.toLowerCase())) {
+        aliases.push(alias);
+      }
+    }
+    return aliases;
+  }
+
   private normalizeParams(input: Record<string, unknown>, context: ReadOnlySqlRequestContext) {
     const now = new Date();
     const defaultStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -250,6 +292,7 @@ export class ReadOnlySqlGuard {
       allowedStoreIds: context.storeIds,
       startAt: this.toIso(input.startAt) ?? defaultStart.toISOString(),
       endAt: this.toIso(input.endAt) ?? now.toISOString(),
+      asOfTime: this.toIso(input.asOfTime) ?? now.toISOString(),
       paidStatuses: ['paid', 'completed', '已付款', '已完成'],
     };
   }
@@ -268,6 +311,7 @@ export class ReadOnlySqlGuard {
     relations: ReadOnlySqlRelation[],
     views: ReadOnlySqlView[],
     params: Record<string, unknown>,
+    context: ReadOnlySqlRequestContext,
   ) {
     const byName = new Map(views.map((view) => [view.viewName, view]));
     const fragments: string[] = [];
@@ -275,9 +319,11 @@ export class ReadOnlySqlGuard {
       const view = byName.get(relation.viewName);
       if (!view) continue;
       if (view.storeScopeField) fragments.push(`${relation.alias}.${view.storeScopeField} = ANY(:allowedStoreIds)`);
-      if (view.requiresTimeScope !== false && view.defaultTimeField && params.startAt && params.endAt) {
+      const skipDefaultTimeScope = context.skipDefaultTimeScopeViewNames?.includes(relation.viewName);
+      const timeField = context.timeScopeFieldOverrides?.[relation.viewName] ?? view.defaultTimeField;
+      if (!skipDefaultTimeScope && view.requiresTimeScope !== false && timeField && params.startAt && params.endAt) {
         fragments.push(
-          `${relation.alias}.${view.defaultTimeField} >= :startAt AND ${relation.alias}.${view.defaultTimeField} < :endAt`,
+          `${relation.alias}.${timeField} >= :startAt AND ${relation.alias}.${timeField} < :endAt`,
         );
       }
     }
@@ -383,7 +429,7 @@ export class ReadOnlySqlGuard {
     // by calendar day. Normalize only this explicitly supported cast so the
     // underlying catalog field is still checked; every other cast remains
     // unknown and is blocked by the field policy gate.
-    return unqualified.replace(/::date$/i, '');
+    return unqualified.replace(/::(?:date|timestamp|timestamptz)$/i, '');
   }
 
   private block(

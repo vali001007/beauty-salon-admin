@@ -4,6 +4,7 @@ export type ReadOnlySqlKernelConfig = {
   maxLimit: number;
   maxViews: number;
   timeoutMs: number;
+  connectionTimeoutMs: number;
   maxRangeDays: number;
   maxEstimatedCost: number;
   readonlyDatabaseUrl?: string;
@@ -24,6 +25,7 @@ export function readOnlySqlKernelConfig(env: NodeJS.ProcessEnv = process.env): R
     maxLimit: positiveInt(env.ASK_DATA_FREE_SQL_MAX_LIMIT, 100),
     maxViews: positiveInt(env.ASK_DATA_FREE_SQL_MAX_VIEWS, 2),
     timeoutMs: positiveInt(env.ASK_DATA_FREE_SQL_TIMEOUT_MS, 5000),
+    connectionTimeoutMs: positiveInt(env.ASK_DATA_FREE_SQL_CONNECTION_TIMEOUT_MS, 5000),
     maxRangeDays: positiveInt(env.ASK_DATA_FREE_SQL_MAX_RANGE_DAYS, 730),
     maxEstimatedCost: positiveInt(env.ASK_DATA_FREE_SQL_MAX_ESTIMATED_COST, 100),
     readonlyDatabaseUrl,

@@ -34,6 +34,10 @@ export type ReadOnlySqlRequestContext = {
   maxRangeDays?: number;
   question?: string;
   parameters?: Record<string, unknown>;
+  skipDefaultTimeScopeViewNames?: string[];
+  timeScopeFieldOverrides?: Record<string, string>;
+  /** Exact two-view combinations approved by a validated semantic query plan. */
+  allowedJoinViewSets?: string[][];
 };
 
 export type ReadOnlySqlRelation = {
@@ -88,4 +92,7 @@ export type ReadOnlySqlExecutionResult = {
   blockedReason?: string;
   errorMessage?: string;
   truncated?: boolean;
+  attempts?: number;
+  retryAttempted?: boolean;
+  retryLatencyMs?: number;
 };

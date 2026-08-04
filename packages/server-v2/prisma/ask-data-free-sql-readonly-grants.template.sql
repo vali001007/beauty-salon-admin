@@ -22,7 +22,7 @@ GRANT USAGE ON SCHEMA public TO ask_data_free_sql_readonly;
 REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM ask_data_free_sql_readonly;
 REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM ask_data_free_sql_readonly;
 
--- Ami Ask reads only the 34 registered views. No base-table access is granted.
+-- Ami Ask reads only the 36 registered views. No base-table access is granted.
 GRANT SELECT ON
   agent_v3_order_summary_view,
   agent_v3_order_item_sales_view,
@@ -49,6 +49,7 @@ GRANT SELECT ON
   ask_data_operating_cost_view,
   agent_v3_purchase_procurement_view,
   agent_v3_supplier_performance_view,
+  ask_data_supplier_quote_terms_view,
   ask_data_confirmed_profit_view,
   ask_data_reconciliation_issue_view,
   ask_data_member_liability_view,
@@ -57,7 +58,8 @@ GRANT SELECT ON
   ask_data_bom_consumption_variance_view,
   ask_data_customer_feedback_view,
   ask_data_customer_lifecycle_view,
-  ask_data_marketing_roi_view
+  ask_data_marketing_roi_view,
+  ask_data_inventory_turnover_view
 TO ask_data_free_sql_readonly;
 
 ALTER ROLE ask_data_free_sql_readonly SET default_transaction_read_only = on;

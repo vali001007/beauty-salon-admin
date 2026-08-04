@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AiService, AiStructuredOutputError } from '../ai/ai.service.js';
+import { AiService } from '../ai/ai.service.js';
 import { AskDataService } from '../ask-data/ask-data.service.js';
 import { ReadOnlySqlCostGuard } from '../read-only-sql-kernel/read-only-sql-cost-guard.js';
 import { readOnlySqlKernelConfig } from '../read-only-sql-kernel/read-only-sql-kernel.config.js';
@@ -17,6 +17,16 @@ import {
   type AskDataSemanticRouteResult,
 } from './ask-data-semantic-router.js';
 import {
+  askDataTimeScopeOverrides,
+  askDataGuardParameters,
+  buildAskDataQueryPlan,
+  type AskDataControlledQueryPlan,
+} from './ask-data-query-plan.js';
+import {
+  validateAskDataQueryPlan,
+  validateAskDataQueryPlanExecution,
+} from './ask-data-query-plan-validator.js';
+import {
   ASK_DATA_SQL_GENERATION_SCHEMA,
   buildClarificationRepairMessages,
   buildSqlGenerationMessages,
@@ -32,6 +42,14 @@ import type {
   AskDataSemanticAuditMeta,
   AskDataSqlGeneration,
 } from './ask-data-free-sql.types.js';
+import {
+  askDataStructuredErrorCode,
+  AskDataStructuredOutputCallError,
+  generateAskDataStructuredWithRetry,
+  recordAskDataStructuredRepair,
+  type AskDataStructuredOutputAudit,
+} from './ask-data-structured-output.js';
+import { AskDataNamedEntityResolver } from './ask-data-entity-resolver.js';
 
 @Injectable()
 export class AskDataFreeSqlService {
@@ -44,6 +62,7 @@ export class AskDataFreeSqlService {
     private readonly answerService: AskDataFreeSqlAnswerService,
     private readonly audit: AskDataFreeSqlAuditService,
     private readonly semanticRouter: AskDataSemanticRouter,
+    private readonly entityResolver: AskDataNamedEntityResolver,
   ) {}
 
   getCatalog(context: AskDataFreeSqlContext) {
@@ -97,8 +116,8 @@ export class AskDataFreeSqlService {
       semanticConfig.enabled || semanticConfig.shadow
         ? await this.semanticRouter.route({ question, context, authorizedViews, config: semanticConfig })
         : undefined;
-    const activeSemanticRoute = semanticConfig.enabled ? semanticRoute : undefined;
-    const semanticAudit = semanticRoute ? this.semanticAuditMeta(semanticRoute, semanticConfig.shadow && !semanticConfig.enabled) : undefined;
+    let activeSemanticRoute = semanticConfig.enabled ? semanticRoute : undefined;
+    let semanticAudit = semanticRoute ? this.semanticAuditMeta(semanticRoute, semanticConfig.shadow && !semanticConfig.enabled) : undefined;
     if (semanticConfig.enabled && semanticRoute?.permissionDenied) {
       const response = this.attachSemanticPlan(
         this.simpleResponse('blocked', '当前账号没有查询该类经营数据的权限。', context, 'permission_denied'),
@@ -131,6 +150,30 @@ export class AskDataFreeSqlService {
       });
       return response;
     }
+    if (activeSemanticRoute?.semanticIntent.entities.length) {
+      const resolved = await this.entityResolver.resolve(activeSemanticRoute.semanticIntent, context.storeId);
+      activeSemanticRoute = { ...activeSemanticRoute, semanticIntent: resolved.semanticIntent };
+      semanticAudit = this.semanticAuditMeta(activeSemanticRoute, false);
+      if (resolved.clarificationQuestion) {
+        const response = this.attachSemanticPlan(
+          this.simpleResponse(
+            'clarification',
+            '需要补充可唯一定位的客户信息。',
+            context,
+            resolved.clarificationReason ?? 'entity_identity',
+            resolved.clarificationQuestion,
+          ),
+          activeSemanticRoute,
+        );
+        response.auditRunId = await this.audit.record({
+          question,
+          context,
+          status: response.status,
+          semanticRouting: semanticAudit,
+        });
+        return response;
+      }
+    }
     const candidateViews = semanticConfig.enabled && semanticRoute ? semanticRoute.candidateViews : legacyCandidateViews;
     if (!candidateViews.length) {
       const response = this.attachSemanticPlan(
@@ -146,15 +189,46 @@ export class AskDataFreeSqlService {
       return response;
     }
 
+    const controlledQueryPlan = activeSemanticRoute
+      ? buildAskDataQueryPlan({
+          question,
+          semanticIntent: activeSemanticRoute.semanticIntent,
+          candidateViews,
+        })
+      : undefined;
+    if (controlledQueryPlan) {
+      const planValidation = validateAskDataQueryPlan(controlledQueryPlan, candidateViews);
+      if (!planValidation.valid) {
+        const response = this.attachSemanticPlan(
+          this.simpleResponse('blocked', '当前问题的查询计划不完整，已阻止生成可能答非所问的 SQL。', context, planValidation.reasonCode),
+          activeSemanticRoute,
+        );
+        this.attachControlledPlan(response, controlledQueryPlan, context);
+        response.auditRunId = await this.audit.record({
+          question,
+          context,
+          status: response.status,
+          semanticRouting: semanticAudit,
+          controlledQueryPlan,
+        });
+        return response;
+      }
+    }
+    const generationViews = controlledQueryPlan
+      ? candidateViews.filter((view) => controlledQueryPlan.viewNames.includes(view.viewName))
+      : candidateViews;
+
     let generated: AskDataSqlGeneration;
+    let structuredOutputAudit: AskDataStructuredOutputAudit | undefined;
     try {
-      const result = await this.aiService.generateStructured<AskDataSqlGeneration>({
+      const generatedCall = await generateAskDataStructuredWithRetry<AskDataSqlGeneration>(this.aiService, {
         scenario: 'ask_data_free_sql_generate',
         messages: buildSqlGenerationMessages({
           request,
           context,
-          views: candidateViews,
+          views: generationViews,
           semanticIntent: activeSemanticRoute?.semanticIntent,
+          controlledQueryPlan,
         }),
         schema: ASK_DATA_SQL_GENERATION_SCHEMA,
         timeoutMs: 20000,
@@ -162,10 +236,13 @@ export class AskDataFreeSqlService {
         userId: context.userId,
         storeId: context.storeId,
       });
-      generated = this.normalizeGeneration(result.data);
+      structuredOutputAudit = generatedCall.audit;
+      generated = this.normalizeGeneration(generatedCall.result.data);
     } catch (error) {
+      structuredOutputAudit = error instanceof AskDataStructuredOutputCallError ? error.audit : undefined;
+      const errorCode = askDataStructuredErrorCode(error);
       const message =
-        error instanceof AiStructuredOutputError && error.code === 'PROVIDER_AUTH_FAILED'
+        errorCode === 'PROVIDER_AUTH_FAILED'
           ? '问数模型鉴权失败，请联系管理员。'
           : '问数模型暂时不可用，请稍后重试。';
       const response = this.attachSemanticPlan(
@@ -177,6 +254,8 @@ export class AskDataFreeSqlService {
         context,
         status: response.status,
         semanticRouting: semanticAudit,
+        controlledQueryPlan,
+        structuredOutput: structuredOutputAudit,
       });
       return response;
     }
@@ -186,15 +265,19 @@ export class AskDataFreeSqlService {
       (Boolean(activeSemanticRoute?.semanticIntent.metricKeys.length) ||
         shouldRetryClearQuestionClarification(question, candidateViews))
     ) {
+      const clarificationRepairStartedAt = Date.now();
+      let clarificationRepairSucceeded = false;
+      let clarificationRepairAudit: AskDataStructuredOutputAudit | undefined;
       try {
-        const retryResult = await this.aiService.generateStructured<AskDataSqlGeneration>({
+        const retryCall = await generateAskDataStructuredWithRetry<AskDataSqlGeneration>(this.aiService, {
           scenario: 'ask_data_free_sql_clarification_repair',
           messages: buildClarificationRepairMessages({
             request,
             context,
-            views: candidateViews,
+            views: generationViews,
             previous: generated,
             semanticIntent: activeSemanticRoute?.semanticIntent,
+            controlledQueryPlan,
           }),
           schema: ASK_DATA_SQL_GENERATION_SCHEMA,
           timeoutMs: 20000,
@@ -202,10 +285,22 @@ export class AskDataFreeSqlService {
           userId: context.userId,
           storeId: context.storeId,
         });
-        generated = this.normalizeGeneration(retryResult.data);
-      } catch {
+        clarificationRepairAudit = retryCall.audit;
+        generated = this.normalizeGeneration(retryCall.result.data);
+        clarificationRepairSucceeded = generated.status === 'ready';
+      } catch (error) {
+        clarificationRepairAudit = error instanceof AskDataStructuredOutputCallError ? error.audit : undefined;
         // Keep the original clarification. This retry is bounded and never
         // bypasses the normal parser, permission, cost or execution gates.
+      } finally {
+        if (structuredOutputAudit) {
+          recordAskDataStructuredRepair(structuredOutputAudit, {
+            kind: 'clarification',
+            reasonCode: 'model_clarification',
+            latencyMs: Date.now() - clarificationRepairStartedAt,
+            succeeded: clarificationRepairSucceeded,
+          }, clarificationRepairAudit);
+        }
       }
     }
 
@@ -228,6 +323,8 @@ export class AskDataFreeSqlService {
         generatedSql: generated.sql,
         explanation: generated.explanation,
         semanticRouting: semanticAudit,
+        controlledQueryPlan,
+        structuredOutput: structuredOutputAudit,
       });
       return response;
     }
@@ -249,6 +346,8 @@ export class AskDataFreeSqlService {
         generatedSql: generated.sql,
         explanation: generated.explanation,
         semanticRouting: semanticAudit,
+        controlledQueryPlan,
+        structuredOutput: structuredOutputAudit,
       });
       return response;
     }
@@ -263,24 +362,34 @@ export class AskDataFreeSqlService {
       maxRangeDays: config.maxRangeDays,
       question,
       parameters: {
-        ...generated.parameters,
-        ...(resolvedDateRange ? { startAt: resolvedDateRange.startAt, endAt: resolvedDateRange.endAt } : {}),
+        ...askDataGuardParameters(controlledQueryPlan, generated.parameters, resolvedDateRange),
       },
+      ...(controlledQueryPlan?.requiredViewNames.length === 2
+        ? { allowedJoinViewSets: [controlledQueryPlan.requiredViewNames] }
+        : {}),
+      ...askDataTimeScopeOverrides(controlledQueryPlan),
     };
     let guard = this.guard.inspect(generated.sql, ASK_DATA_FREE_SQL_VIEWS, guardContext);
+    let repairAttempted = false;
     if (guard.status === 'blocked' && isRepairableSqlGuardReason(guard.reasonCode)) {
+      repairAttempted = true;
+      const guardRepairReason = guard.reasonCode;
+      const guardRepairStartedAt = Date.now();
+      let guardRepairSucceeded = false;
+      let guardRepairAudit: AskDataStructuredOutputAudit | undefined;
       try {
-        const repairResult = await this.aiService.generateStructured<AskDataSqlGeneration>({
+        const repairCall = await generateAskDataStructuredWithRetry<AskDataSqlGeneration>(this.aiService, {
           scenario: 'ask_data_free_sql_repair',
           messages: buildSqlRepairMessages({
             request,
             context,
-            views: candidateViews,
+            views: generationViews,
             previous: generated,
             reasonCode: guard.reasonCode,
             reasonMessage: guard.message,
             redactedSql: guard.redactedSql ?? '',
             semanticIntent: activeSemanticRoute?.semanticIntent,
+            controlledQueryPlan,
           }),
           schema: ASK_DATA_SQL_GENERATION_SCHEMA,
           timeoutMs: 20000,
@@ -288,21 +397,113 @@ export class AskDataFreeSqlService {
           userId: context.userId,
           storeId: context.storeId,
         });
-        const repaired = this.normalizeGeneration(repairResult.data);
+        guardRepairAudit = repairCall.audit;
+        const repaired = this.normalizeGeneration(repairCall.result.data);
         if (repaired.status === 'ready') {
           generated = repaired;
           guard = this.guard.inspect(repaired.sql, ASK_DATA_FREE_SQL_VIEWS, {
             ...guardContext,
             parameters: {
-              ...repaired.parameters,
-              ...(resolvedDateRange ? { startAt: resolvedDateRange.startAt, endAt: resolvedDateRange.endAt } : {}),
+              ...askDataGuardParameters(controlledQueryPlan, repaired.parameters, resolvedDateRange),
             },
           });
+          guardRepairSucceeded = guard.status === 'pass';
         }
-      } catch {
+      } catch (error) {
+        guardRepairAudit = error instanceof AskDataStructuredOutputCallError ? error.audit : undefined;
         // Keep the original blocked result. Repair is a single bounded attempt;
         // it never bypasses the parser, guard or cost checks.
+      } finally {
+        if (structuredOutputAudit) {
+          recordAskDataStructuredRepair(structuredOutputAudit, {
+            kind: 'guard',
+            reasonCode: guardRepairReason,
+            latencyMs: Date.now() - guardRepairStartedAt,
+            succeeded: guardRepairSucceeded,
+          }, guardRepairAudit);
+        }
       }
+    }
+    let planExecutionValidation =
+      guard.status === 'pass' && controlledQueryPlan
+        ? validateAskDataQueryPlanExecution(controlledQueryPlan, guard)
+        : { valid: true as const };
+    if (guard.status === 'pass' && !planExecutionValidation.valid && !repairAttempted) {
+      repairAttempted = true;
+      const planRepairReason = planExecutionValidation.reasonCode;
+      const planRepairStartedAt = Date.now();
+      let planRepairSucceeded = false;
+      let planRepairAudit: AskDataStructuredOutputAudit | undefined;
+      try {
+        const repairCall = await generateAskDataStructuredWithRetry<AskDataSqlGeneration>(this.aiService, {
+          scenario: 'ask_data_free_sql_plan_repair',
+          messages: buildSqlRepairMessages({
+            request,
+            context,
+            views: generationViews,
+            previous: generated,
+            reasonCode: planExecutionValidation.reasonCode,
+            reasonMessage: planExecutionValidation.message,
+            redactedSql: guard.redactedSql,
+            semanticIntent: activeSemanticRoute?.semanticIntent,
+            controlledQueryPlan,
+          }),
+          schema: ASK_DATA_SQL_GENERATION_SCHEMA,
+          timeoutMs: 20000,
+          temperature: 0,
+          userId: context.userId,
+          storeId: context.storeId,
+        });
+        planRepairAudit = repairCall.audit;
+        const repaired = this.normalizeGeneration(repairCall.result.data);
+        if (repaired.status === 'ready') {
+          generated = repaired;
+          guard = this.guard.inspect(repaired.sql, ASK_DATA_FREE_SQL_VIEWS, {
+            ...guardContext,
+            parameters: {
+              ...askDataGuardParameters(controlledQueryPlan, repaired.parameters, resolvedDateRange),
+            },
+          });
+          planExecutionValidation =
+            guard.status === 'pass'
+              ? validateAskDataQueryPlanExecution(controlledQueryPlan!, guard)
+              : { valid: true };
+          planRepairSucceeded = guard.status === 'pass' && planExecutionValidation.valid;
+        }
+      } catch (error) {
+        planRepairAudit = error instanceof AskDataStructuredOutputCallError ? error.audit : undefined;
+        // Query plan repair is a single bounded attempt and remains subject to
+        // the same SQL parser, guard, cost and read-only execution gates.
+      } finally {
+        if (structuredOutputAudit) {
+          recordAskDataStructuredRepair(structuredOutputAudit, {
+            kind: 'query_plan',
+            reasonCode: planRepairReason,
+            latencyMs: Date.now() - planRepairStartedAt,
+            succeeded: planRepairSucceeded,
+          }, planRepairAudit);
+        }
+      }
+    }
+    if (guard.status === 'pass' && !planExecutionValidation.valid) {
+      const response = this.attachSemanticPlan(
+        this.simpleResponse('blocked', '生成的查询未完整覆盖问题要求，已阻止执行。', context, planExecutionValidation.reasonCode),
+        activeSemanticRoute,
+      );
+      response.queryPlan.explanation = generated.explanation;
+      this.attachControlledPlan(response, controlledQueryPlan, context);
+      response.auditRunId = await this.audit.record({
+        question,
+        context,
+        status: response.status,
+        guard,
+        generatedSql: generated.sql,
+        explanation: generated.explanation,
+        semanticRouting: semanticAudit,
+        controlledQueryPlan,
+        structuredOutput: structuredOutputAudit,
+      });
+      return response;
     }
     if (guard.status === 'blocked') {
       const response = this.attachSemanticPlan(
@@ -319,6 +520,8 @@ export class AskDataFreeSqlService {
         generatedSql: generated.sql,
         explanation: generated.explanation,
         semanticRouting: semanticAudit,
+        controlledQueryPlan,
+        structuredOutput: structuredOutputAudit,
       });
       return response;
     }
@@ -340,6 +543,8 @@ export class AskDataFreeSqlService {
         generatedSql: generated.sql,
         explanation: generated.explanation,
         semanticRouting: semanticAudit,
+        controlledQueryPlan,
+        structuredOutput: structuredOutputAudit,
       });
       return response;
     }
@@ -348,6 +553,7 @@ export class AskDataFreeSqlService {
       guard,
       connectionString: config.readonlyDatabaseUrl,
       timeoutMs: config.timeoutMs,
+      connectionTimeoutMs: config.connectionTimeoutMs,
       maxRows: config.maxLimit,
       dryRunOnly: config.dryRunOnly,
     });
@@ -362,7 +568,7 @@ export class AskDataFreeSqlService {
     const dataAsOf = this.dataAsOf(rows, guard.selectedViews);
     const meta = {
       viewNames: guard.selectedViews.map((view) => view.viewName),
-      timeRange: this.timeRange(guard.params),
+      timeRange: this.timeRange(guard.params, controlledQueryPlan),
       storeScope: `门店 ${context.storeId}`,
       truncated: Boolean(normalizedExecution.truncated),
       sqlFingerprint: guard.sqlFingerprint,
@@ -371,6 +577,10 @@ export class AskDataFreeSqlService {
       ...(dataAsOf ? { dataAsOf } : {}),
       ...(this.canViewDebugSql(context) ? { generatedSql: guard.redactedSql } : {}),
       ...(normalizedExecution.blockedReason ? { statusReason: normalizedExecution.blockedReason } : {}),
+      ...(normalizedExecution.attempts ? { executionAttempts: normalizedExecution.attempts } : {}),
+      ...(normalizedExecution.retryAttempted !== undefined
+        ? { executionRetryAttempted: normalizedExecution.retryAttempted }
+        : {}),
     };
     if (normalizedExecution.status === 'blocked' || normalizedExecution.status === 'failed') {
       const status =
@@ -398,6 +608,8 @@ export class AskDataFreeSqlService {
         generatedSql: generated.sql,
         explanation: generated.explanation,
         semanticRouting: semanticAudit,
+        controlledQueryPlan,
+        structuredOutput: structuredOutputAudit,
       });
       return response;
     }
@@ -410,7 +622,21 @@ export class AskDataFreeSqlService {
       context,
       timeRange: meta.timeRange,
       truncated: Boolean(normalizedExecution.truncated),
-      assumptions: activeSemanticRoute?.semanticIntent.assumptions,
+      assumptions: controlledQueryPlan?.assumptions ?? activeSemanticRoute?.semanticIntent.assumptions,
+      requiredAnswerFacts: controlledQueryPlan?.requiredAnswerFacts,
+      controlledQueryPlan: controlledQueryPlan
+        ? {
+            answerShape: controlledQueryPlan.answerShape,
+            metricKeys: controlledQueryPlan.metricKeys,
+            dimensions: controlledQueryPlan.dimensions,
+            comparisonMode: controlledQueryPlan.comparisonMode,
+            requiredOutputFields: controlledQueryPlan.requiredOutputFields,
+            sort: controlledQueryPlan.sort,
+            limit: controlledQueryPlan.limit,
+            resultMode: controlledQueryPlan.resultMode,
+            timeGrain: controlledQueryPlan.timeGrain,
+          }
+        : undefined,
     });
     const noDataHints = guard.selectedViews.map((view) => view.noDataHint).filter((hint): hint is string => Boolean(hint));
     const response: AskDataFreeSqlResponse = {
@@ -422,7 +648,7 @@ export class AskDataFreeSqlService {
       sources: this.sources(guard.selectedViews, meta.timeRange, dataAsOf),
       limitations: [...new Set([
         ...answer.caveats,
-        ...(activeSemanticRoute?.semanticIntent.assumptions ?? []),
+        ...(controlledQueryPlan?.assumptions ?? activeSemanticRoute?.semanticIntent.assumptions ?? []),
         ...(rows.length === 0 ? noDataHints.slice(1) : []),
         ...guard.selectedViews
           .filter((view) => view.viewName === 'ask_data_marketing_roi_view')
@@ -438,6 +664,7 @@ export class AskDataFreeSqlService {
         explanation: generated.explanation,
         ...(this.canViewDebugSql(context) ? { generatedSql: guard.redactedSql } : {}),
         ...(activeSemanticRoute ? { semanticIntent: this.semanticPlan(activeSemanticRoute) } : {}),
+        ...(controlledQueryPlan && this.canViewDebugSql(context) ? { controlled: controlledQueryPlan } : {}),
       },
     };
     response.auditRunId = await this.audit.record({
@@ -452,6 +679,8 @@ export class AskDataFreeSqlService {
       generatedSql: generated.sql,
       explanation: generated.explanation,
       semanticRouting: semanticAudit,
+      controlledQueryPlan,
+      structuredOutput: structuredOutputAudit,
     });
     return response;
   }
@@ -519,6 +748,30 @@ export class AskDataFreeSqlService {
     }
     if (/其他门店|别的门店|全部门店|所有门店|跨门店|不限门店|绕过门店/i.test(question)) {
       return { reasonCode: 'cross_store_not_allowed', message: '第一阶段只查询当前已选择门店，不支持跨门店比较。' };
+    }
+    if (/补货建议|补货清单|采购建议|建议补(?:多少|哪些)|该补(?:多少|哪些)|什么时候补货|何时补货/.test(question)) {
+      return {
+        reasonCode: 'inventory_recommendation_not_supported',
+        message: 'Ami Ask 当前只提供库存、消耗和在途采购事实，不生成补货数量、优先级或采购建议。',
+      };
+    }
+    if (/开封(?:后|了)?.*(?:多久|多长时间|没用完)|(?:多久|多长时间).*开封.*没用完/.test(question)) {
+      return {
+        reasonCode: 'inventory_opened_at_fact_missing',
+        message: '后台尚未记录批次开封时间，因此不能判断开封后多久未用完。',
+      };
+    }
+    if (/(?:项目|服务).*(?:因为|因).*(?:缺|没有).*(?:耗材|产品).*(?:不能做|没法做)|(?:缺|没有).*(?:耗材|产品).*(?:项目|服务).*(?:不能做|没法做)/.test(question)) {
+      return {
+        reasonCode: 'project_bom_availability_fact_missing',
+        message: '当前缺少项目完整 BOM 可用性和可服务次数口径，不能仅凭单个耗材库存断言项目无法执行。',
+      };
+    }
+    if (/(?:仪器|理疗).*耗材.*(?:还能|够).*(?:做|服务).*(?:几次|多少次)/.test(question)) {
+      return {
+        reasonCode: 'governed_bom_service_count_missing',
+        message: '当前缺少经过治理的 BOM 单次标准用量与可服务次数口径，不能计算仪器耗材还能服务多少次。',
+      };
     }
     return undefined;
   }
@@ -615,9 +868,12 @@ export class AskDataFreeSqlService {
     return labels[domain] ?? domain;
   }
 
-  private timeRange(params: Record<string, unknown>) {
+  private timeRange(params: Record<string, unknown>, plan?: AskDataControlledQueryPlan) {
     const start = String(params.startAt ?? '').slice(0, 10);
     const end = String(params.endAt ?? '').slice(0, 10);
+    if (plan?.timeScopeMode === 'current_snapshot') return '当前状态（不按创建时间裁剪）';
+    if (plan?.timeScopeMode === 'active_interval') return `截至 ${end || '当前'} 的生效状态`;
+    if (plan?.timeScopeMode === 'none') return '当前汇总视图（不按事件时间裁剪）';
     return start && end ? `${start} 至 ${end}` : '默认近 30 天';
   }
 
@@ -664,6 +920,15 @@ export class AskDataFreeSqlService {
 
   private attachSemanticPlan(response: AskDataFreeSqlResponse, route?: AskDataSemanticRouteResult) {
     if (route) response.queryPlan.semanticIntent = this.semanticPlan(route);
+    return response;
+  }
+
+  private attachControlledPlan(
+    response: AskDataFreeSqlResponse,
+    plan: AskDataControlledQueryPlan | undefined,
+    context: AskDataFreeSqlContext,
+  ) {
+    if (plan && this.canViewDebugSql(context)) response.queryPlan.controlled = plan;
     return response;
   }
 

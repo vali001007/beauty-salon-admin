@@ -12,7 +12,7 @@ describe('Ask Data Free SQL migration and grants', () => {
     expect(sql).toContain('"storeId" INTEGER NOT NULL');
   });
 
-  it('grants the read-only role only the 34 registered views', () => {
+  it('grants the read-only role only the 36 registered views', () => {
     const sql = readFileSync(resolve(process.cwd(), 'prisma/ask-data-free-sql-readonly-grants.template.sql'), 'utf8');
     expect(sql).toContain('ALTER ROLE ask_data_free_sql_readonly SET default_transaction_read_only = on');
     expect(sql).toContain('NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS');
@@ -22,7 +22,51 @@ describe('Ask Data Free SQL migration and grants', () => {
     expect(sql).toContain('REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public');
     expect(sql).not.toContain('GRANT SELECT ON ALL TABLES');
     expect(sql).not.toContain('GRANT INSERT');
-    expect((sql.match(/(?:agent_v3|ask_data)_[a-z_]+_view/g) ?? []).length).toBe(34);
+    expect((sql.match(/(?:agent_v3|ask_data)_[a-z_]+_view/g) ?? []).length).toBe(36);
+  });
+
+  it('creates the Ask-only approved supplier quote and commercial terms view', () => {
+    const sql = readFileSync(
+      resolve(process.cwd(), 'prisma/migrations/20260804123000_ask_data_supplier_quote_terms/migration.sql'),
+      'utf8',
+    );
+    expect(sql).toContain('CREATE VIEW ask_data_supplier_quote_terms_view AS');
+    expect(sql).toContain('quote."auditStatus" = \'approved\'');
+    expect(sql).toContain('mapping."mappingStatus" = \'active\'');
+    expect(sql).toContain('alternative_supplier_count');
+    expect(sql).toContain('lowest_current_quote_price');
+    expect(sql).toContain('price_difference_from_lowest');
+    expect(sql).toContain("GRANT SELECT ON ask_data_supplier_quote_terms_view TO ask_data_free_sql_readonly");
+    expect(sql).not.toContain('supplier."phone"');
+    expect(sql).not.toContain('supplier."email"');
+    expect(sql).not.toContain('quote."rejectReason"');
+  });
+
+  it('keeps equal supplier prices on the same governed price rank', () => {
+    const sql = readFileSync(
+      resolve(process.cwd(), 'prisma/migrations/20260804124500_ask_data_supplier_quote_terms_rank_fix/migration.sql'),
+      'utf8',
+    );
+    expect(sql).toContain('CREATE OR REPLACE VIEW ask_data_supplier_quote_terms_view AS');
+    expect(sql).toContain('DENSE_RANK() OVER');
+    expect(sql).toContain('ORDER BY quote.quote_price ASC');
+    expect(sql).not.toContain('ORDER BY quote.quote_price ASC, quote.supplier_id ASC');
+  });
+
+  it('creates the Ask-only inventory turnover and procurement coverage view', () => {
+    const sql = readFileSync(
+      resolve(process.cwd(), 'prisma/migrations/20260804090000_ask_data_inventory_turnover/migration.sql'),
+      'utf8',
+    );
+    expect(sql).toContain('CREATE VIEW ask_data_inventory_turnover_view AS');
+    expect(sql).toContain('outbound_quantity_current_quarter');
+    expect(sql).toContain('operational_turnover_ratio_30d');
+    expect(sql).toContain("THEN 'low_turnover'");
+    expect(sql).toContain("THEN 'below_safety_no_open_procurement'");
+    expect(sql).toContain("'catalog_cost_estimated_not_batch_actual'::text AS cost_policy");
+    expect(sql).toContain("IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ask_data_free_sql_readonly')");
+    expect(sql).not.toContain('movement."remark"');
+    expect(sql).not.toContain('procurement."items"');
   });
 
   it('creates nine independent Ask views and repairs the two stale marketing views', () => {
@@ -129,6 +173,59 @@ describe('Ask Data Free SQL migration and grants', () => {
     expect(sql).toContain('GRANT SELECT ON agent_v3_service_quality_view TO ask_data_free_sql_readonly');
   });
 
+  it('clamps invalid supplier delivery durations and removes duplicate self-store transfer perspectives', () => {
+    const sql = readFileSync(
+      resolve(
+        process.cwd(),
+        'prisma/migrations/20260802123000_ask_data_supplier_transfer_quality_contract/migration.sql',
+      ),
+      'utf8',
+    );
+    expect(sql).toContain('CREATE OR REPLACE VIEW agent_v3_supplier_performance_view');
+    expect(sql).toContain('GREATEST(');
+    expect(sql).toContain('CREATE OR REPLACE VIEW ask_data_transfer_status_view');
+    expect(sql).toContain('WHERE transfer."fromStoreId" <> transfer."toStoreId"');
+    expect(sql).toContain('GRANT SELECT ON agent_v3_supplier_performance_view, ask_data_transfer_status_view');
+  });
+
+  it('expands the Ask-only customer profile with governed behavior facts', () => {
+    const sql = readFileSync(
+      resolve(
+        process.cwd(),
+        'prisma/migrations/20260802124500_ask_data_customer_behavior_profile/migration.sql',
+      ),
+      'utf8',
+    );
+    expect(sql).toContain('CREATE OR REPLACE VIEW ask_data_customer_profile_summary_view');
+    expect(sql).toContain('days_since_last_visit');
+    expect(sql).toContain('average_return_interval_days');
+    expect(sql).toContain('days_until_birthday');
+    expect(sql).toContain('unused_card_count');
+    expect(sql).toContain('customer_status');
+    expect(sql).not.toContain('phone_last4');
+    expect(sql).not.toContain('tags_summary');
+    expect(sql).not.toContain('skinCondition');
+    expect(sql).not.toContain('evidenceJson');
+  });
+
+  it('applies marketing automation time filters before aggregating task success', () => {
+    const sql = readFileSync(
+      resolve(
+        process.cwd(),
+        'prisma/migrations/20260803143000_ask_data_marketing_automation_event_time/migration.sql',
+      ),
+      'utf8',
+    );
+    expect(sql).toContain('CREATE OR REPLACE VIEW agent_v3_marketing_automation_view');
+    expect(sql).toContain('1::integer AS task_count');
+    expect(sql).toContain('task."createdAt"::timestamp without time zone AS latest_task_at');
+    expect(sql).toContain('CASE WHEN task."completedAt" IS NULL THEN 0 ELSE 1 END::integer AS completed_count');
+    expect(sql).not.toContain('MAX(task."createdAt")');
+    expect(sql).not.toContain('GROUP BY');
+    expect(sql).toContain('"TerminalFollowUpTask_storeId_createdAt_active_idx"');
+    expect(sql).toContain('WHERE "deletedAt" IS NULL');
+  });
+
   it('fails readiness when the independent audit table is missing', () => {
     const source = readFileSync(resolve(process.cwd(), 'prisma/ask-data-free-sql-readiness.ts'), 'utf8');
     expect(source).toContain('!auditTablePresent');
@@ -144,7 +241,7 @@ describe('Ask Data Free SQL migration and grants', () => {
       scripts?: Record<string, string>;
     };
     expect(source).toContain(
-      "const TARGET_MIGRATION = '20260802121500_ask_data_service_quality_status_contract'",
+      "const TARGET_MIGRATION = '20260804124500_ask_data_supplier_quote_terms_rank_fix'",
     );
     expect(source).toContain(
       "const EXCLUDED_BRAIN_MIGRATION = '20260801010000_brain_governance_tasks_and_gate_receipts'",
@@ -208,7 +305,7 @@ describe('Ask Data Free SQL migration and grants', () => {
     expect(source).not.toContain('console.log(token)');
   });
 
-  it('provides a 34-view real SQL smoke gate for dedicated and development-admin connections', () => {
+  it('provides a 36-view real SQL smoke gate for dedicated and development-admin connections', () => {
     const source = readFileSync(resolve(process.cwd(), 'prisma/ask-data-free-sql-view-smoke.ts'), 'utf8');
     const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')) as {
       scripts?: Record<string, string>;

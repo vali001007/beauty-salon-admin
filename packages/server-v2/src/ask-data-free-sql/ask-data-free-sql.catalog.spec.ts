@@ -3,9 +3,9 @@ import { resolve } from 'node:path';
 import { ASK_DATA_FREE_SQL_VIEWS } from './ask-data-free-sql.catalog.js';
 
 describe('Ask Data Free SQL catalog and independence', () => {
-  it('registers 34 governed views with store and permission policies', () => {
-    expect(ASK_DATA_FREE_SQL_VIEWS).toHaveLength(34);
-    expect(new Set(ASK_DATA_FREE_SQL_VIEWS.map((view) => view.viewName)).size).toBe(34);
+  it('registers 36 governed views with store and permission policies', () => {
+    expect(ASK_DATA_FREE_SQL_VIEWS).toHaveLength(36);
+    expect(new Set(ASK_DATA_FREE_SQL_VIEWS.map((view) => view.viewName)).size).toBe(36);
     for (const view of ASK_DATA_FREE_SQL_VIEWS) {
       expect(view.requiredPermissions.length).toBeGreaterThan(0);
       expect(view.storeScopeField).toBe('store_id');
@@ -14,6 +14,39 @@ describe('Ask Data Free SQL catalog and independence', () => {
       expect(view.dataPolicy?.length).toBeGreaterThan(0);
       expect(view.defaultTimeField || view.requiresTimeScope === false).toBeTruthy();
     }
+  });
+
+  it('registers approved supplier quote terms without sensitive supplier fields', () => {
+    const view = ASK_DATA_FREE_SQL_VIEWS.find((item) => item.viewName === 'ask_data_supplier_quote_terms_view');
+    expect(view?.requiredPermissions).toEqual(['core:supply:view']);
+    expect(view?.requiresTimeScope).toBe(false);
+    expect(view?.fields.map((field) => field.name)).toEqual(expect.arrayContaining([
+      'product_id',
+      'supplier_id',
+      'quote_price',
+      'minimum_order_quantity',
+      'payment_terms',
+      'lowest_current_quote_price',
+    ]));
+    expect(view?.fields.map((field) => field.name)).not.toEqual(expect.arrayContaining([
+      'phone',
+      'email',
+      'contact_name',
+      'reviewed_by',
+      'reject_reason',
+    ]));
+  });
+
+  it('registers inventory turnover as operational and estimated facts only', () => {
+    const view = ASK_DATA_FREE_SQL_VIEWS.find((item) => item.viewName === 'ask_data_inventory_turnover_view');
+    expect(view?.requiredPermissions).toEqual(['core:inventory:stock']);
+    expect(view?.requiresTimeScope).toBe(false);
+    expect(view?.dataPolicy).toContain('不等同于财务库存周转率');
+    expect(view?.dataPolicy).toContain('商品档案成本估算');
+    expect(view?.dataPolicy).toContain('不生成补货建议');
+    expect(view?.fields.map((field) => field.name)).not.toEqual(
+      expect.arrayContaining(['remark', 'items', 'supplier_contract', 'opened_at']),
+    );
   });
 
   it('keeps sensitive customer fields outside the queryable field surface', () => {

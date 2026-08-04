@@ -25,6 +25,16 @@ export type AiStructuredOutputInput = {
   repairMessages?: AiMessage[];
   allowFallback?: boolean;
   fallbackMessages?: AiMessage[];
+  /**
+   * Allows one caller-controlled primary probe even when the in-process circuit is open.
+   * Reserved for recovery after an independent fallback route fails authentication.
+   */
+  forcePrimaryProbe?: boolean;
+  /**
+   * Skips the primary provider and gives the configured fallback route the full request budget.
+   * Reserved for one bounded retry after the fallback only received the tail of the first deadline.
+   */
+  forceFallbackRoute?: boolean;
   schema: AiStructuredOutputSchema;
   promptSchema?: AiStructuredOutputSchema;
   timeoutMs?: number;
@@ -2770,10 +2780,62 @@ export class AiService {
       : undefined;
     const fallbackKey = fallbackConfig ? this.structuredProviderCircuitKey(fallbackConfig) : undefined;
     const redundancyMode = this.providerHealth.redundancyMode(primaryKey, fallbackKey);
+
+    if (input.forceFallbackRoute === true) {
+      if (!fallbackConfig || !fallbackKey) {
+        throw new AiStructuredOutputError(
+          'PROVIDER_UNAVAILABLE',
+          'Fallback structured provider is unavailable.',
+          this.getStructuredProviderLabel(primaryConfig),
+          primaryConfig.model,
+          this.getStructuredBudgetUsage(budget),
+        );
+      }
+      this.tightenStructuredTokenBudget(budget, fallbackConfig.maxTotalTokens);
+      const fallbackDecision = this.providerHealth.beginRequest(fallbackKey, this.now());
+      try {
+        // forceFallbackRoute is already a bounded caller-controlled retry. It is allowed to
+        // make one recovery probe even when tail-budget failures opened the fallback circuit.
+        const result = await this.generateStructuredWithProvider(
+          input,
+          input.fallbackMessages!,
+          validate,
+          fallbackConfig,
+          budget,
+        );
+        this.providerHealth.recordSuccess(fallbackKey, this.now());
+        const primaryCircuitState = this.providerHealth.snapshot()
+          .find((circuit) => circuit.key === primaryKey)?.state ?? 'closed';
+        return {
+          ...result,
+          routing: {
+            primarySkipped: true,
+            fallbackUsed: true,
+            primaryCircuitState,
+            fallbackCircuitState: fallbackDecision.state,
+            redundancyMode,
+          },
+        };
+      } catch (error) {
+        const controlled = this.toStructuredOutputError(
+          error,
+          this.getStructuredProviderLabel(fallbackConfig),
+          fallbackConfig.model,
+          this.getStructuredBudgetUsage(budget),
+        );
+        if (this.isProviderHealthFailure(controlled)) {
+          this.providerHealth.recordFailure(fallbackKey, controlled.code, this.now());
+        } else {
+          this.providerHealth.recordSuccess(fallbackKey, this.now());
+        }
+        throw controlled;
+      }
+    }
+
     const primaryDecision = this.providerHealth.beginRequest(primaryKey, this.now());
 
     let primaryError: AiStructuredOutputError;
-    if (!primaryDecision.allowed) {
+    if (!primaryDecision.allowed && input.forcePrimaryProbe !== true) {
       primaryError = new AiStructuredOutputError(
         'PROVIDER_UNAVAILABLE',
         'Primary structured provider circuit is open.',

@@ -37,4 +37,13 @@ describe('readOnlySqlKernelConfig', () => {
       }),
     ).toThrow('forbidden in production');
   });
+
+  it('uses a dedicated connection timeout without changing the statement timeout', () => {
+    const config = readOnlySqlKernelConfig({
+      ASK_DATA_FREE_SQL_TIMEOUT_MS: '7000',
+      ASK_DATA_FREE_SQL_CONNECTION_TIMEOUT_MS: '3200',
+    });
+    expect(config.timeoutMs).toBe(7000);
+    expect(config.connectionTimeoutMs).toBe(3200);
+  });
 });

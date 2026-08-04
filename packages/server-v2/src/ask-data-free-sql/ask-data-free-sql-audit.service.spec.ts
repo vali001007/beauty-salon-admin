@@ -34,13 +34,23 @@ describe('AskDataFreeSqlAuditService', () => {
         sqlFingerprint: 'fingerprint-1',
       },
       cost: { estimatedCost: 22 },
-      execution: { status: 'success', rows: [{ project_name: '补水护理' }], executionMs: 14 },
+      execution: {
+        status: 'success', rows: [{ project_name: '补水护理' }], executionMs: 14,
+        attempts: 2, retryAttempted: true, retryLatencyMs: 7,
+      },
       selectedViews: [{ viewName: 'agent_v3_project_service_sales_view' } as any],
       answer: {
         summary: '张三最近做了补水护理。',
         keyFindings: [],
         caveats: [],
         displayMode: 'table',
+        coveredFacts: [],
+      },
+      structuredOutput: {
+        attempts: 2,
+        retryAttempted: true,
+        retryLatencyMs: 31,
+        firstErrorCode: 'PROVIDER_UNAVAILABLE',
       },
     });
 
@@ -56,6 +66,17 @@ describe('AskDataFreeSqlAuditService', () => {
     expect(data.rowCount).toBe(1);
     expect(data.executionMs).toBe(14);
     expect(data.estimatedCost).toBe(22);
+    expect(data.queryMetaJson.structuredOutput).toEqual({
+      attempts: 2,
+      retryAttempted: true,
+      retryLatencyMs: 31,
+      firstErrorCode: 'PROVIDER_UNAVAILABLE',
+    });
+    expect(data.queryMetaJson.execution).toEqual({
+      attempts: 2,
+      retryAttempted: true,
+      retryLatencyMs: 7,
+    });
   });
 
   it('returns a traceable unavailable id when the audit database write fails', async () => {
