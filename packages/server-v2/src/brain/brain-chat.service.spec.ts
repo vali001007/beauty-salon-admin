@@ -464,7 +464,7 @@ describe('BrainChatService', () => {
 
     const resolved = await (service as any).enrichStoreScopedNamedEntityRefs({
       intent,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '顾然2026年6月22日至28日的提成构成', // BQ1332
       context: { ...context, storeId: 6, visibleStoreIds: [6] },
       snapshot: { entities: [entityDefinition] },
@@ -523,7 +523,7 @@ describe('BrainChatService', () => {
     absent.prisma.beautician.findMany.mockResolvedValue([]);
     const unresolved = await (absent.service as any).enrichStoreScopedNamedEntityRefs({
       intent,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '顾然的提成构成',
       context: { ...context, storeId: 6, visibleStoreIds: [6] },
       snapshot: { entities: [entityDefinition] },
@@ -539,7 +539,7 @@ describe('BrainChatService', () => {
     ]);
     const ambiguous = await (duplicate.service as any).enrichStoreScopedNamedEntityRefs({
       intent,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '顾然的提成构成',
       context: { ...context, storeId: 6, visibleStoreIds: [6] },
       snapshot: { entities: [entityDefinition] },
@@ -821,10 +821,14 @@ describe('BrainChatService', () => {
     };
 
     expect(
-      (service as any).findProjectCatalogCapabilityCard('背部净透护理2026年6月1日至30日卖了多少', { intent: 'query' }, [projectServiceCard]),
+      (service as any).findProjectCatalogCapabilityCard('背部净透护理2026年6月1日至30日卖了多少', { intent: 'query' }, [
+        projectServiceCard,
+      ]),
     ).toBe(projectServiceCard);
     expect(
-      (service as any).findProjectCatalogCapabilityCard('胶原焕活提拉标准配置了哪些耗材', { intent: 'query' }, [projectBomCard]),
+      (service as any).findProjectCatalogCapabilityCard('胶原焕活提拉标准配置了哪些耗材', { intent: 'query' }, [
+        projectBomCard,
+      ]),
     ).toBe(projectBomCard);
   });
 
@@ -874,12 +878,10 @@ describe('BrainChatService', () => {
     const selected = (service as any).resolveModelSelectedDeliveryCapability({
       selectedCapabilityKey: 'finance_risk_overview',
       intent,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '晒后舒缓修护订单2026年6月17日至30日的利润情况',
       cards: [financeCard, projectCard],
-      catalogTopK: [
-        { card: projectCard, score: 0.31, matchedFields: ['description'] },
-      ],
+      catalogTopK: [{ card: projectCard, score: 0.31, matchedFields: ['description'] }],
     });
 
     expect(selected).toBe(financeCard);
@@ -905,11 +907,13 @@ describe('BrainChatService', () => {
     const input = {
       selectedCapabilityKey: 'finance_risk_overview',
       intent: { intent: 'query', metrics: [metric], dimensions: [], entities: [] },
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '本月实收多少',
     };
 
-    expect((service as any).resolveModelSelectedDeliveryCapability({ ...input, cards: [], catalogTopK: [] })).toBeUndefined();
+    expect(
+      (service as any).resolveModelSelectedDeliveryCapability({ ...input, cards: [], catalogTopK: [] }),
+    ).toBeUndefined();
     expect(
       (service as any).resolveModelSelectedDeliveryCapability({
         ...input,
@@ -1598,7 +1602,7 @@ describe('BrainChatService', () => {
       needsClarification: false,
     });
 
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+    // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
     const response = await service.sendMessage(context, 12, { message: '本月商品销售排行', timezone: 'Asia/Shanghai' });
 
     expect(response).toMatchObject({ status: 'completed', answer: '商品销售排行：补水面膜第一。' });
@@ -3290,7 +3294,11 @@ describe('BrainChatService', () => {
       }),
       filterCapabilities: jest.fn((_roleContext, _context, cards) => cards),
     };
-    const { prisma, trace, modelPipeline, service } = createService({ modelPipeline: {}, roleContextBuilder, releaseService });
+    const { prisma, trace, modelPipeline, service } = createService({
+      modelPipeline: {},
+      roleContextBuilder,
+      releaseService,
+    });
     prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
     prisma.brainMessage.create.mockResolvedValue({ id: 101 });
     prisma.brainRun.create.mockResolvedValue({ id: 77 });
@@ -3307,10 +3315,12 @@ describe('BrainChatService', () => {
       roleKey: 'store_manager',
       evaluationReleaseId: undefined,
     });
-    expect(trace.recordStep).toHaveBeenCalledWith(expect.objectContaining({
-      stepKey: 'release_runtime_selection',
-      output: expect.objectContaining({ releaseKey: 'runtime-r21', mode: 'model' }),
-    }));
+    expect(trace.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stepKey: 'release_runtime_selection',
+        output: expect.objectContaining({ releaseKey: 'runtime-r21', mode: 'model' }),
+      }),
+    );
     expect(modelPipeline!.planValidator.validate).toHaveBeenCalledWith(
       expect.objectContaining({
         context: expect.objectContaining({ roles: ['ami_demo_full_manager', 'store_manager'] }),
@@ -4600,9 +4610,7 @@ describe('BrainChatService', () => {
     prisma.brainRun.create.mockResolvedValue({ id: 77 });
     prisma.brainRun.update.mockResolvedValue({ id: 77 });
     prisma.brainConversation.update.mockResolvedValue({ id: 12 });
-    modelPipeline!.executor.execute.mockRejectedValue(
-      new Error('brain_response_answer_contract_mismatch:list:rows'),
-    );
+    modelPipeline!.executor.execute.mockRejectedValue(new Error('brain_response_answer_contract_mismatch:list:rows'));
 
     const response = await service.sendMessage(context, 12, { message: '本月商品销售排行' });
 
@@ -5957,7 +5965,7 @@ describe('BrainChatService', () => {
 
   it('preserves governed finance order-profit metrics when the finance risk card omits metric refs', () => {
     const { service } = createService({ modelPipeline: {} });
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+    // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
     const question = '2026年6月30日产品订单的成本和毛利';
     const productOrderCostMetric = definitionRef('metric.product_order_total_cost_amount');
     const productOrderGrossProfitMetric = definitionRef('metric.product_order_gross_profit_amount');
@@ -6012,7 +6020,7 @@ describe('BrainChatService', () => {
 
   it('prefers finance risk over customer facts for governed staff commission composition metrics', () => {
     const { service } = createService({ modelPipeline: {} });
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+    // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
     const question = '顾然2026年6月22日至28日的提成构成';
     const intent = {
       schemaVersion: '1.0',
@@ -6076,7 +6084,9 @@ describe('BrainChatService', () => {
       ],
     });
 
-    expect(normalized.metrics).toEqual([expect.objectContaining({ definitionKey: 'metric.staff_commission_component_amount' })]);
+    expect(normalized.metrics).toEqual([
+      expect.objectContaining({ definitionKey: 'metric.staff_commission_component_amount' }),
+    ]);
     expect(normalized.dimensions).toEqual([expect.objectContaining({ definitionKey: 'dimension.commissionType' })]);
     expect(normalized.entities).toEqual([]);
   });
@@ -6237,7 +6247,7 @@ describe('BrainChatService', () => {
 
   it('prefers inventory risk ranking for explicit stock-risk questions', () => {
     const { service } = createService({ modelPipeline: {} });
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+    // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
     const question = '2026年6月哪些产品缺货了';
     const riskCard = {
       key: 'inventory_risk_ranking',
@@ -6316,10 +6326,12 @@ describe('BrainChatService', () => {
       definitionRefs: [definitionRef('metric.stock_risk_score')],
     };
 
-    expect((service as any).findInventorySpecificCapabilityCard(procurementQuestion, [overviewCard, procurementCard])?.key).toBe(
-      'inventory_procurement_advice',
-    );
-    expect((service as any).findInventorySpecificCapabilityCard(genericQuestion, [overviewCard, procurementCard])).toBeUndefined();
+    expect(
+      (service as any).findInventorySpecificCapabilityCard(procurementQuestion, [overviewCard, procurementCard])?.key,
+    ).toBe('inventory_procurement_advice');
+    expect(
+      (service as any).findInventorySpecificCapabilityCard(genericQuestion, [overviewCard, procurementCard]),
+    ).toBeUndefined();
   });
 
   it('uses the single-capability path for a governed confirmation-gated action preview', () => {
@@ -6717,7 +6729,7 @@ describe('BrainChatService', () => {
 
   it('preserves governed dimension filters when normalizing an exact customer-facts example', () => {
     const { service } = createService({ modelPipeline: {} });
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+    // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
     const question = '一共有多少个钻石会员';
     const customerLevelFilter = {
       fieldRef: {
@@ -6766,7 +6778,7 @@ describe('BrainChatService', () => {
 
   it('drops governed but executor-unsupported filters when normalizing an exact customer-facts example', () => {
     const { service } = createService({ modelPipeline: {} });
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+    // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
     const question = '哪些客户的综合养护 20 次卡快到期还没预约';
     const projectNameFilter = {
       fieldRef: {
@@ -8501,6 +8513,86 @@ describe('BrainChatService', () => {
       }),
     );
     expect(semanticEngine.run).not.toHaveBeenCalled();
+  });
+
+  it('recognizes every release-core Query Only action case before model planning', () => {
+    const { service } = createService();
+    const questions = [
+      '帮王静怡新建客户档案，电话138xxxx807',
+      '把吴梦瑶的会员等级升到金卡会员',
+      '给吴梦瑶的档案加个"敏感肌"标签',
+      '更新吴梦瑶的健康档案',
+      '给沈晴加上全身精油 SPA的技能',
+      '发布最近30天的排班',
+      '预览一下最近30天的智能排班方案',
+      '给沈晴安排最近30天的休假',
+      '帮我一键智能排下本周的班',
+      '新建一个项目"水氧清洁焕肤升级版"',
+      '把全身精油 SPA设为推荐',
+      '给深层补水护理调价到310元',
+      '下架小气泡清洁护理',
+      '配置敏感肌舒缓修护的耗材BOM',
+    ];
+
+    expect(questions.filter((question) => !(service as any).hasExplicitSideEffectRequest(question))).toEqual([]);
+  });
+
+  it('hard-denies explicit actions under Query Only before compiler, preview, confirmation, or business execution', async () => {
+    const releaseService = {
+      resolveActionExecutionPolicy: jest.fn().mockResolvedValue({
+        allowed: false,
+        currentProfile: {
+          productProfile: 'query_only_v1',
+          actionExecutionPolicy: 'deny',
+          allowedCapabilityManifest: 'ami-brain-query-only-v1',
+          productProfileFingerprint: 'f'.repeat(64),
+        },
+      }),
+    };
+    const { prisma, trace, modelPipeline, skillRuntime, actionConfirmation, semanticEngine, service } = createService({
+      releaseService,
+      modelPipeline: {},
+    });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 119, storeId: 2, userId: 9 });
+    prisma.brainMessage.create
+      .mockResolvedValueOnce({ id: 1800, role: 'user', content: '给深层补水护理调价到310元' }) // BQ0593
+      .mockResolvedValueOnce({ id: 1801, role: 'assistant', content: '动作执行已关闭。' });
+    prisma.brainRun.create.mockResolvedValue({ id: 194 });
+    prisma.brainRun.update.mockResolvedValue({ id: 194, status: 'completed' });
+
+    const response = await service.sendMessage(context, 119, {
+      message: '给深层补水护理调价到310元', // BQ0593
+      timezone: 'Asia/Shanghai',
+      roleHint: 'store_manager',
+    });
+
+    expect(response).toMatchObject({
+      status: 'completed',
+      productProfile: 'query_only_v1',
+      actionsEnabled: false,
+      actionExecutionPolicy: 'deny',
+      suggestedActions: [],
+      adapterMetadata: {
+        decisionCode: 'action_execution_denied_by_product_profile',
+        previewCreated: false,
+        confirmationCreated: false,
+        retryCreated: false,
+        businessStateChanged: false,
+      },
+    });
+    expect(response.answer).toContain('未写入任何业务数据');
+    expect(response.blocks).not.toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'action_preview' })]));
+    expect(modelPipeline?.compiler.compile).not.toHaveBeenCalled();
+    expect(skillRuntime.previewReservationAction).not.toHaveBeenCalled();
+    expect(actionConfirmation.createPreview).not.toHaveBeenCalled();
+    expect(semanticEngine.run).not.toHaveBeenCalled();
+    expect(trace.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        runId: 194,
+        stepKey: 'action_execution_policy',
+        output: expect.objectContaining({ businessStateChanged: false, previewCreated: false }),
+      }),
+    );
   });
 
   it('does not route cashier open requests to reservation action preview', async () => {

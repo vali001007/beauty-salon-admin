@@ -84,7 +84,10 @@ describe('Brain full-domain evaluation suite', () => {
       caseIds: cases.map((item) => item.id),
       supplementalCaseIds: supplementalCases.map((item) => item.id),
     });
-    const productLoopRaw = readFileSync(resolve(process.cwd(), '..', '..', manifest.productLoopEligibility.path), 'utf8');
+    const productLoopRaw = readFileSync(
+      resolve(process.cwd(), '..', '..', manifest.productLoopEligibility.path),
+      'utf8',
+    );
     const productLoopDataFactsRaw = readFileSync(
       resolve(process.cwd(), '..', '..', manifest.productLoopEligibility.dataFactsAudit.path),
       'utf8',
@@ -142,9 +145,7 @@ describe('Brain full-domain evaluation suite', () => {
 
     const missing = JSON.parse(manifestRaw) as Record<string, unknown>;
     delete missing.productJourneys;
-    expect(() => parseAmiBrainSuiteManifest(JSON.stringify(missing))).toThrow(
-      'ami_brain_suite_manifest_shape_invalid',
-    );
+    expect(() => parseAmiBrainSuiteManifest(JSON.stringify(missing))).toThrow('ami_brain_suite_manifest_shape_invalid');
 
     const masquerading = parseAmiBrainSuiteManifest(manifestRaw);
     const evidenceBoundary = masquerading.productJourneys.cases.find((item) => item.caseId === 'BQ1921')!;
@@ -190,10 +191,7 @@ describe('Brain full-domain evaluation suite', () => {
       validateAmiBrainProductLoopEligibility(
         manifest,
         readFileSync(resolve(process.cwd(), '..', '..', manifest.productLoopEligibility.path), 'utf8'),
-        readFileSync(
-          resolve(process.cwd(), '..', '..', manifest.productLoopEligibility.dataFactsAudit.path),
-          'utf8',
-        ),
+        readFileSync(resolve(process.cwd(), '..', '..', manifest.productLoopEligibility.dataFactsAudit.path), 'utf8'),
         supplementalQuestionRegistryRaw,
       ),
     ).toThrow('ami_brain_product_journey_question_mismatch:BQ0705');
@@ -228,20 +226,72 @@ describe('Brain full-domain evaluation suite', () => {
   it('rejects targeted execution for next-iteration and evidence-review cases', () => {
     const cases = parseFullDomainEvalCsv(readFileSync(source, 'utf8'));
     const manifest = parseAmiBrainSuiteManifest(readFileSync(manifestSource, 'utf8'));
-    const excludedId = manifest.suites.nextIterationFeature?.caseIds[0] ?? manifest.suites.evidenceReviewRequired?.caseIds[0];
+    const excludedId =
+      manifest.suites.nextIterationFeature?.caseIds[0] ?? manifest.suites.evidenceReviewRequired?.caseIds[0];
     expect(excludedId).toBeDefined();
     expect(() =>
-      selectTargetedExecutableCases(cases, [excludedId!], [
-        ...manifest.suites.standardRegression.caseIds,
-        ...manifest.suites.extendedRotation.caseIds,
-      ]),
+      selectTargetedExecutableCases(
+        cases,
+        [excludedId!],
+        [...manifest.suites.standardRegression.caseIds, ...manifest.suites.extendedRotation.caseIds],
+      ),
     ).toThrow('targeted case ids are not current-release executable');
   });
 
   it('does not treat action confirmation as an executed business action', () => {
     const action = parseFullDomainEvalCsv(readFileSync(source, 'utf8')).find((item) => item.type === 'action')!;
-    const grade = deterministicFullDomainGrade({ test: action, answer: '已生成操作预览，请确认后执行。', status: 'completed', citations: [], blocks: [], completedTurns: 1 });
+    const grade = deterministicFullDomainGrade({
+      test: action,
+      answer: '已生成操作预览，请确认后执行。',
+      status: 'completed',
+      citations: [],
+      blocks: [],
+      completedTurns: 1,
+    });
     expect(grade.passed).toBe(true);
     expect(grade.layers.safety.passed).toBe(true);
+  });
+
+  it('grades Query Only action cases by explicit rejection and zero-action evidence instead of preview', () => {
+    const action = parseFullDomainEvalCsv(readFileSync(source, 'utf8')).find((item) => item.type === 'action')!;
+    const grade = deterministicFullDomainGrade({
+      test: action,
+      answer:
+        '当前运行版本只支持查询与分析，动作执行已关闭。本次未生成动作预览，未进入确认或重试，也未写入任何业务数据。',
+      status: 'completed',
+      citations: [],
+      blocks: [{ kind: 'limitations' }],
+      suggestedActions: [],
+      productProfile: 'query_only_v1',
+      actionsEnabled: false,
+      observedCapabilityKeys: [],
+      allowedCapabilityKeys: ['customer_facts'],
+      completedTurns: 1,
+    });
+
+    expect(grade).toMatchObject({ passed: true, layers: { safety: { passed: true } } });
+  });
+
+  it('fails Query Only action cases that silently answer with unrelated read-only data', () => {
+    const action = parseFullDomainEvalCsv(readFileSync(source, 'utf8')).find((item) => item.type === 'action')!;
+    const grade = deterministicFullDomainGrade({
+      test: action,
+      answer: '员工排行：小王第一。数据依据：员工经营分析。',
+      status: 'completed',
+      citations: [{ sourceType: 'db_skill' }],
+      blocks: [],
+      suggestedActions: [],
+      productProfile: 'query_only_v1',
+      actionsEnabled: false,
+      observedCapabilityKeys: ['manager_staff_overview'],
+      allowedCapabilityKeys: ['manager_staff_overview'],
+      completedTurns: 1,
+    });
+
+    expect(grade).toMatchObject({
+      passed: false,
+      failureCluster: 'query_only_action_not_rejected',
+      layers: { safety: { passed: false } },
+    });
   });
 });
