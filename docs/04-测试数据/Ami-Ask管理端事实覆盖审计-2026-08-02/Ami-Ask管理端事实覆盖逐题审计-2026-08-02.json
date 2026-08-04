@@ -1,6 +1,6 @@
 {
   "version": "v1",
-  "generatedAt": "2026-08-03T23:35:04.842Z",
+  "generatedAt": "2026-08-04T09:47:32.679Z",
   "sourceManifest": "/Users/ju/Documents/ami/beauty-salon-admin-ask/docs/04-测试数据/Ami-Ask-Agent问题库实测-2026-08-02/agent-question-bank-manifest.json",
   "storeId": 6,
   "connectionMode": "development_admin",
@@ -10,13 +10,13 @@
     "byAuditClass": {
       "backend_fact_incomplete": 43,
       "sensitive_or_context": 28,
-      "existing_ask_direct": 89,
+      "existing_ask_direct": 96,
       "brain_or_advice": 26,
-      "existing_facts_new_view": 43,
+      "existing_facts_new_view": 36,
       "existing_facts_new_metric": 3,
       "readonly_action": 2
     },
-    "directlyAnswerable": 89,
+    "directlyAnswerable": 96,
     "factsOpenable": 135,
     "factsOpenableRate": 0.5769,
     "boundaryOrIncomplete": 99
@@ -36,7 +36,7 @@
     "ServiceTask": 237,
     "Beautician": 14,
     "BeauticianUserLinked": 6,
-    "CommissionRecord": 148,
+    "CommissionRecord": 147,
     "ProductOrder": 670,
     "PaymentRecord": 671,
     "RefundRecord": 42,
@@ -46,8 +46,8 @@
     "Product": 46,
     "StockBatch": 82,
     "StockBatchExpiry": 57,
-    "StockMovement": 570,
-    "StockMovementServiceConsume": 363,
+    "StockMovement": 565,
+    "StockMovementServiceConsume": 358,
     "ProjectBomItem": 81,
     "ProcurementOrder": 3,
     "SupplySupplier": 3,
@@ -56,21 +56,21 @@
     "SupplierQualification": 0,
     "MarketingEffectFact": 7693,
     "MarketingEffectCustomerLinked": 7693,
-    "MarketingAutomationStrategy": 14,
-    "MarketingAutomationTouch": 12241,
+    "MarketingAutomationStrategy": 16,
+    "MarketingAutomationTouch": 15463,
     "Promotion": 30,
     "PromotionUsed": 0,
     "TerminalDevice": 4,
     "StoreMetricTarget": 0,
-    "StoreMetricSnapshot": 3384
+    "StoreMetricSnapshot": 3396
   },
   "byRole": {
     "一、店长经营 Agent": {
       "backend_fact_incomplete": 12,
       "sensitive_or_context": 1,
-      "existing_ask_direct": 27,
+      "existing_ask_direct": 30,
       "brain_or_advice": 2,
-      "existing_facts_new_view": 6,
+      "existing_facts_new_view": 3,
       "existing_facts_new_metric": 1
     },
     "二、营销增长 Agent": {
@@ -97,17 +97,17 @@
       "brain_or_advice": 1
     },
     "五、库存采购 Agent": {
-      "existing_ask_direct": 22,
-      "existing_facts_new_view": 10,
+      "existing_ask_direct": 23,
+      "existing_facts_new_view": 9,
       "backend_fact_incomplete": 4,
       "sensitive_or_context": 2,
       "brain_or_advice": 8
     },
     "六、财务风控 Agent": {
-      "existing_ask_direct": 14,
+      "existing_ask_direct": 17,
       "backend_fact_incomplete": 11,
       "sensitive_or_context": 1,
-      "existing_facts_new_view": 18,
+      "existing_facts_new_view": 15,
       "brain_or_advice": 5
     }
   },
@@ -1509,7 +1509,7 @@
         "ServiceTask": 237,
         "Customer": 1253,
         "CustomerServiceFeedback": 0,
-        "CommissionRecord": 148
+        "CommissionRecord": 147
       }
     },
     {
@@ -1664,7 +1664,7 @@
       "developmentFacts": {
         "Product": 46,
         "StockBatch": 82,
-        "StockMovement": 570,
+        "StockMovement": 565,
         "ProcurementOrder": 3
       }
     },
@@ -1737,7 +1737,7 @@
       "developmentFacts": {
         "Product": 46,
         "StockBatch": 82,
-        "StockMovement": 570,
+        "StockMovement": 565,
         "ProcurementOrder": 3
       }
     },
@@ -1785,7 +1785,7 @@
       "developmentFacts": {
         "Product": 46,
         "StockBatch": 82,
-        "StockMovement": 570,
+        "StockMovement": 565,
         "ProcurementOrder": 3
       }
     },
@@ -1802,68 +1802,19 @@
       "supportClass": "admin_supported_ask_not_open",
       "managementSupport": "supported",
       "backendSupport": "supported",
-      "reason": "订单明细、商品成本、项目销售和 BOM 成本均存在，但当前利润视图只有已确认月结总额，缺少商品/项目粒度的治理口径。",
+      "reason": "订单明细、商品成本、项目销售和 BOM 成本均存在，但当前利润视图只有已确认月结总额，缺少商品/项目粒度的治理口径。当前 Catalog 和独立语义合同已完成接入，按已开放能力计入直接覆盖。",
       "previousClass": "admin_supported_ask_not_open",
-      "auditClass": "existing_facts_new_view",
-      "priority": "P1",
-      "capabilityKey": "product_project_margin",
-      "capabilityLabel": "商品与项目经营毛利",
-      "recommendedView": "ask_data_item_margin_view",
-      "permission": "core:operation-profit:view",
-      "currentSemanticMetricKeys": [],
-      "currentSemanticViews": [],
-      "currentSemanticConfidence": 0.35,
-      "pages": [
-        "src/app/pages/finance/ProfitWorkbench.tsx",
-        "src/app/pages/ServiceConsumption.tsx"
-      ],
-      "backend": [
-        "packages/server-v2/src/orders/orders.controller.ts",
-        "packages/server-v2/src/finance-metrics/finance-metrics.controller.ts"
-      ],
-      "models": [
-        "OrderItem",
-        "Product",
-        "ProjectBomItem",
-        "StockMovement"
-      ],
-      "developmentFacts": {
-        "ProductOrder": 670,
-        "Product": 46,
-        "ProjectBomItem": 81,
-        "StockMovement": 570
-      }
-    },
-    {
-      "id": "manager-078",
-      "sourceRole": "一、店长经营 Agent",
-      "section": "库存运营",
-      "number": 78,
-      "question": "哪些产品毛利率最高",
-      "expectedView": "ask_data_confirmed_profit_view",
-      "expectedViewLabel": "已确认实际利润",
-      "semanticMetricKeys": [
-        "confirmed_profit"
-      ],
-      "semanticCandidateViews": [
-        "ask_data_confirmed_profit_view"
-      ],
-      "supportClass": "admin_supported_ask_not_open",
-      "managementSupport": "supported",
-      "backendSupport": "supported",
-      "reason": "订单明细、商品成本、项目销售和 BOM 成本均存在，但当前利润视图只有已确认月结总额，缺少商品/项目粒度的治理口径。",
-      "previousClass": "admin_supported_ask_not_open",
-      "auditClass": "existing_facts_new_view",
+      "auditClass": "existing_ask_direct",
       "priority": "P1",
       "capabilityKey": "product_project_margin",
       "capabilityLabel": "商品与项目经营毛利",
       "recommendedView": "ask_data_item_margin_view",
       "permission": "core:operation-profit:view",
       "currentSemanticMetricKeys": [
-        "confirmed_profit"
+        "below_cost_sale"
       ],
       "currentSemanticViews": [
-        "ask_data_confirmed_profit_view"
+        "ask_data_item_margin_view"
       ],
       "currentSemanticConfidence": 0.98,
       "pages": [
@@ -1884,7 +1835,60 @@
         "ProductOrder": 670,
         "Product": 46,
         "ProjectBomItem": 81,
-        "StockMovement": 570
+        "StockMovement": 565
+      }
+    },
+    {
+      "id": "manager-078",
+      "sourceRole": "一、店长经营 Agent",
+      "section": "库存运营",
+      "number": 78,
+      "question": "哪些产品毛利率最高",
+      "expectedView": "ask_data_confirmed_profit_view",
+      "expectedViewLabel": "已确认实际利润",
+      "semanticMetricKeys": [
+        "confirmed_profit"
+      ],
+      "semanticCandidateViews": [
+        "ask_data_confirmed_profit_view"
+      ],
+      "supportClass": "admin_supported_ask_not_open",
+      "managementSupport": "supported",
+      "backendSupport": "supported",
+      "reason": "订单明细、商品成本、项目销售和 BOM 成本均存在，但当前利润视图只有已确认月结总额，缺少商品/项目粒度的治理口径。当前 Catalog 和独立语义合同已完成接入，按已开放能力计入直接覆盖。",
+      "previousClass": "admin_supported_ask_not_open",
+      "auditClass": "existing_ask_direct",
+      "priority": "P1",
+      "capabilityKey": "product_project_margin",
+      "capabilityLabel": "商品与项目经营毛利",
+      "recommendedView": "ask_data_item_margin_view",
+      "permission": "core:operation-profit:view",
+      "currentSemanticMetricKeys": [
+        "item_contribution_margin"
+      ],
+      "currentSemanticViews": [
+        "ask_data_item_margin_view"
+      ],
+      "currentSemanticConfidence": 0.98,
+      "pages": [
+        "src/app/pages/finance/ProfitWorkbench.tsx",
+        "src/app/pages/ServiceConsumption.tsx"
+      ],
+      "backend": [
+        "packages/server-v2/src/orders/orders.controller.ts",
+        "packages/server-v2/src/finance-metrics/finance-metrics.controller.ts"
+      ],
+      "models": [
+        "OrderItem",
+        "Product",
+        "ProjectBomItem",
+        "StockMovement"
+      ],
+      "developmentFacts": {
+        "ProductOrder": 670,
+        "Product": 46,
+        "ProjectBomItem": 81,
+        "StockMovement": 565
       }
     },
     {
@@ -1931,7 +1935,7 @@
       "developmentFacts": {
         "Product": 46,
         "StockBatch": 82,
-        "StockMovement": 570,
+        "StockMovement": 565,
         "ProcurementOrder": 3
       }
     },
@@ -2126,19 +2130,19 @@
       "supportClass": "admin_supported_ask_not_open",
       "managementSupport": "supported",
       "backendSupport": "supported",
-      "reason": "订单明细、商品成本、项目销售和 BOM 成本均存在，但当前利润视图只有已确认月结总额，缺少商品/项目粒度的治理口径。",
+      "reason": "订单明细、商品成本、项目销售和 BOM 成本均存在，但当前利润视图只有已确认月结总额，缺少商品/项目粒度的治理口径。当前 Catalog 和独立语义合同已完成接入，按已开放能力计入直接覆盖。",
       "previousClass": "admin_supported_ask_not_open",
-      "auditClass": "existing_facts_new_view",
+      "auditClass": "existing_ask_direct",
       "priority": "P1",
       "capabilityKey": "product_project_margin",
       "capabilityLabel": "商品与项目经营毛利",
       "recommendedView": "ask_data_item_margin_view",
       "permission": "core:operation-profit:view",
       "currentSemanticMetricKeys": [
-        "project_sales"
+        "project_attributed_cost"
       ],
       "currentSemanticViews": [
-        "agent_v3_project_service_sales_view"
+        "ask_data_item_margin_view"
       ],
       "currentSemanticConfidence": 0.98,
       "pages": [
@@ -2159,7 +2163,7 @@
         "ProductOrder": 670,
         "Product": 46,
         "ProjectBomItem": 81,
-        "StockMovement": 570
+        "StockMovement": 565
       }
     },
     {
@@ -2416,7 +2420,7 @@
       "developmentFacts": {
         "MarketingEffectFact": 7693,
         "MarketingEffectCustomerLinked": 7693,
-        "MarketingAutomationTouch": 12241
+        "MarketingAutomationTouch": 15463
       }
     },
     {
@@ -2654,7 +2658,7 @@
       "developmentFacts": {
         "MarketingEffectFact": 7693,
         "MarketingEffectCustomerLinked": 7693,
-        "MarketingAutomationTouch": 12241
+        "MarketingAutomationTouch": 15463
       }
     },
     {
@@ -3144,7 +3148,7 @@
       "developmentFacts": {
         "MarketingEffectFact": 7693,
         "MarketingEffectCustomerLinked": 7693,
-        "MarketingAutomationTouch": 12241
+        "MarketingAutomationTouch": 15463
       }
     },
     {
@@ -3187,7 +3191,7 @@
       "developmentFacts": {
         "MarketingEffectFact": 7693,
         "MarketingEffectCustomerLinked": 7693,
-        "MarketingAutomationTouch": 12241
+        "MarketingAutomationTouch": 15463
       }
     },
     {
@@ -3230,7 +3234,7 @@
       "developmentFacts": {
         "MarketingEffectFact": 7693,
         "MarketingEffectCustomerLinked": 7693,
-        "MarketingAutomationTouch": 12241
+        "MarketingAutomationTouch": 15463
       }
     },
     {
@@ -3273,7 +3277,7 @@
       "developmentFacts": {
         "MarketingEffectFact": 7693,
         "MarketingEffectCustomerLinked": 7693,
-        "MarketingAutomationTouch": 12241
+        "MarketingAutomationTouch": 15463
       }
     },
     {
@@ -5417,7 +5421,7 @@
       "developmentFacts": {
         "Product": 46,
         "StockBatch": 82,
-        "StockMovement": 570,
+        "StockMovement": 565,
         "ProcurementOrder": 3
       }
     },
@@ -5535,7 +5539,7 @@
       "developmentFacts": {
         "Product": 46,
         "StockBatch": 82,
-        "StockMovement": 570,
+        "StockMovement": 565,
         "ProcurementOrder": 3
       }
     },
@@ -5583,7 +5587,7 @@
       "developmentFacts": {
         "Product": 46,
         "StockBatch": 82,
-        "StockMovement": 570,
+        "StockMovement": 565,
         "ProcurementOrder": 3
       }
     },
@@ -5631,7 +5635,7 @@
       "developmentFacts": {
         "Product": 46,
         "StockBatch": 82,
-        "StockMovement": 570,
+        "StockMovement": 565,
         "ProcurementOrder": 3
       }
     },
@@ -5679,7 +5683,7 @@
       "developmentFacts": {
         "Product": 46,
         "StockBatch": 82,
-        "StockMovement": 570,
+        "StockMovement": 565,
         "ProcurementOrder": 3
       }
     },
@@ -5727,7 +5731,7 @@
       "developmentFacts": {
         "Product": 46,
         "StockBatch": 82,
-        "StockMovement": 570,
+        "StockMovement": 565,
         "ProcurementOrder": 3
       }
     },
@@ -5771,7 +5775,7 @@
       "developmentFacts": {
         "Product": 46,
         "StockBatch": 82,
-        "StockMovement": 570,
+        "StockMovement": 565,
         "ProcurementOrder": 3
       }
     },
@@ -5951,7 +5955,7 @@
       "developmentFacts": {
         "Product": 46,
         "StockBatch": 82,
-        "StockMovement": 570,
+        "StockMovement": 565,
         "ProcurementOrder": 3
       }
     },
@@ -5995,7 +5999,7 @@
       "developmentFacts": {
         "Product": 46,
         "StockBatch": 82,
-        "StockMovement": 570,
+        "StockMovement": 565,
         "ProcurementOrder": 3
       }
     },
@@ -6589,7 +6593,7 @@
       "developmentFacts": {
         "ServiceTask": 237,
         "ProductOrder": 670,
-        "StockMovementServiceConsume": 363,
+        "StockMovementServiceConsume": 358,
         "ProjectBomItem": 81
       }
     },
@@ -6630,7 +6634,7 @@
         "Beautician"
       ],
       "developmentFacts": {
-        "StockMovementServiceConsume": 363,
+        "StockMovementServiceConsume": 358,
         "ProjectBomItem": 81,
         "ServiceTask": 237,
         "Beautician": 14
@@ -6657,9 +6661,13 @@
       "capabilityLabel": "客户与服务耗材联合事实",
       "recommendedView": "ask_data_service_consumption_unit_economics_view",
       "permission": "core:inventory:consumption",
-      "currentSemanticMetricKeys": [],
-      "currentSemanticViews": [],
-      "currentSemanticConfidence": 0.35,
+      "currentSemanticMetricKeys": [
+        "project_attributed_cost"
+      ],
+      "currentSemanticViews": [
+        "ask_data_item_margin_view"
+      ],
+      "currentSemanticConfidence": 0.98,
       "pages": [
         "src/app/pages/ServiceConsumption.tsx"
       ],
@@ -6675,7 +6683,7 @@
       "developmentFacts": {
         "ServiceTask": 237,
         "ProductOrder": 670,
-        "StockMovementServiceConsume": 363,
+        "StockMovementServiceConsume": 358,
         "ProjectBomItem": 81
       }
     },
@@ -6692,17 +6700,21 @@
       "supportClass": "admin_supported_ask_not_open",
       "managementSupport": "supported",
       "backendSupport": "supported",
-      "reason": "订单明细、商品成本、项目销售和 BOM 成本均存在，但当前利润视图只有已确认月结总额，缺少商品/项目粒度的治理口径。",
+      "reason": "订单明细、商品成本、项目销售和 BOM 成本均存在，但当前利润视图只有已确认月结总额，缺少商品/项目粒度的治理口径。当前 Catalog 和独立语义合同已完成接入，按已开放能力计入直接覆盖。",
       "previousClass": "admin_supported_ask_not_open",
-      "auditClass": "existing_facts_new_view",
+      "auditClass": "existing_ask_direct",
       "priority": "P1",
       "capabilityKey": "product_project_margin",
       "capabilityLabel": "商品与项目经营毛利",
       "recommendedView": "ask_data_item_margin_view",
       "permission": "core:operation-profit:view",
-      "currentSemanticMetricKeys": [],
-      "currentSemanticViews": [],
-      "currentSemanticConfidence": 0.35,
+      "currentSemanticMetricKeys": [
+        "project_attributed_cost"
+      ],
+      "currentSemanticViews": [
+        "ask_data_item_margin_view"
+      ],
+      "currentSemanticConfidence": 0.97,
       "pages": [
         "src/app/pages/finance/ProfitWorkbench.tsx",
         "src/app/pages/ServiceConsumption.tsx"
@@ -6721,7 +6733,7 @@
         "ProductOrder": 670,
         "Product": 46,
         "ProjectBomItem": 81,
-        "StockMovement": 570
+        "StockMovement": 565
       }
     },
     {
@@ -6857,7 +6869,7 @@
       "developmentFacts": {
         "Product": 46,
         "StockBatch": 82,
-        "StockMovement": 570,
+        "StockMovement": 565,
         "ProcurementOrder": 3
       }
     },
@@ -6969,7 +6981,7 @@
       "developmentFacts": {
         "Product": 46,
         "StockBatch": 82,
-        "StockMovement": 570,
+        "StockMovement": 565,
         "ProcurementOrder": 3
       }
     },
@@ -7068,7 +7080,7 @@
         "Beautician"
       ],
       "developmentFacts": {
-        "StockMovementServiceConsume": 363,
+        "StockMovementServiceConsume": 358,
         "ProjectBomItem": 81,
         "ServiceTask": 237,
         "Beautician": 14
@@ -7397,7 +7409,7 @@
         "ServiceTask": 237,
         "Customer": 1253,
         "CustomerServiceFeedback": 0,
-        "CommissionRecord": 148
+        "CommissionRecord": 147
       }
     },
     {
@@ -7588,7 +7600,7 @@
         "ProductOrder": 670,
         "Product": 46,
         "ProjectBomItem": 81,
-        "StockMovement": 570
+        "StockMovement": 565
       }
     },
     {
@@ -7604,17 +7616,21 @@
       "supportClass": "admin_supported_ask_not_open",
       "managementSupport": "supported",
       "backendSupport": "supported",
-      "reason": "订单明细、商品成本、项目销售和 BOM 成本均存在，但当前利润视图只有已确认月结总额，缺少商品/项目粒度的治理口径。",
+      "reason": "订单明细、商品成本、项目销售和 BOM 成本均存在，但当前利润视图只有已确认月结总额，缺少商品/项目粒度的治理口径。当前 Catalog 和独立语义合同已完成接入，按已开放能力计入直接覆盖。",
       "previousClass": "admin_supported_ask_not_open",
-      "auditClass": "existing_facts_new_view",
+      "auditClass": "existing_ask_direct",
       "priority": "P1",
       "capabilityKey": "product_project_margin",
       "capabilityLabel": "商品与项目经营毛利",
       "recommendedView": "ask_data_item_margin_view",
       "permission": "core:operation-profit:view",
-      "currentSemanticMetricKeys": [],
-      "currentSemanticViews": [],
-      "currentSemanticConfidence": 0.35,
+      "currentSemanticMetricKeys": [
+        "project_attributed_cost"
+      ],
+      "currentSemanticViews": [
+        "ask_data_item_margin_view"
+      ],
+      "currentSemanticConfidence": 0.98,
       "pages": [
         "src/app/pages/finance/ProfitWorkbench.tsx",
         "src/app/pages/ServiceConsumption.tsx"
@@ -7633,7 +7649,7 @@
         "ProductOrder": 670,
         "Product": 46,
         "ProjectBomItem": 81,
-        "StockMovement": 570
+        "StockMovement": 565
       }
     },
     {
@@ -7693,12 +7709,14 @@
       "recommendedView": "ask_data_item_margin_view",
       "permission": "core:operation-profit:view",
       "currentSemanticMetricKeys": [
-        "project_sales"
+        "project_sales",
+        "item_contribution_margin"
       ],
       "currentSemanticViews": [
-        "agent_v3_project_service_sales_view"
+        "agent_v3_project_service_sales_view",
+        "ask_data_item_margin_view"
       ],
-      "currentSemanticConfidence": 0.98,
+      "currentSemanticConfidence": 0.61,
       "pages": [
         "src/app/pages/finance/ProfitWorkbench.tsx",
         "src/app/pages/ServiceConsumption.tsx"
@@ -7717,7 +7735,7 @@
         "ProductOrder": 670,
         "Product": 46,
         "ProjectBomItem": 81,
-        "StockMovement": 570
+        "StockMovement": 565
       }
     },
     {
@@ -7873,19 +7891,19 @@
       "supportClass": "admin_supported_ask_not_open",
       "managementSupport": "supported",
       "backendSupport": "supported",
-      "reason": "订单明细、商品成本、项目销售和 BOM 成本均存在，但当前利润视图只有已确认月结总额，缺少商品/项目粒度的治理口径。",
+      "reason": "订单明细、商品成本、项目销售和 BOM 成本均存在，但当前利润视图只有已确认月结总额，缺少商品/项目粒度的治理口径。当前 Catalog 和独立语义合同已完成接入，按已开放能力计入直接覆盖。",
       "previousClass": "admin_supported_ask_not_open",
-      "auditClass": "existing_facts_new_view",
+      "auditClass": "existing_ask_direct",
       "priority": "P1",
       "capabilityKey": "product_project_margin",
       "capabilityLabel": "商品与项目经营毛利",
       "recommendedView": "ask_data_item_margin_view",
       "permission": "core:operation-profit:view",
       "currentSemanticMetricKeys": [
-        "project_sales"
+        "item_contribution_margin"
       ],
       "currentSemanticViews": [
-        "agent_v3_project_service_sales_view"
+        "ask_data_item_margin_view"
       ],
       "currentSemanticConfidence": 0.98,
       "pages": [
@@ -7906,7 +7924,7 @@
         "ProductOrder": 670,
         "Product": 46,
         "ProjectBomItem": 81,
-        "StockMovement": 570
+        "StockMovement": 565
       }
     },
     {
@@ -7922,17 +7940,21 @@
       "supportClass": "admin_supported_ask_not_open",
       "managementSupport": "supported",
       "backendSupport": "supported",
-      "reason": "订单明细、商品成本、项目销售和 BOM 成本均存在，但当前利润视图只有已确认月结总额，缺少商品/项目粒度的治理口径。",
+      "reason": "订单明细、商品成本、项目销售和 BOM 成本均存在，但当前利润视图只有已确认月结总额，缺少商品/项目粒度的治理口径。当前 Catalog 和独立语义合同已完成接入，按已开放能力计入直接覆盖。",
       "previousClass": "admin_supported_ask_not_open",
-      "auditClass": "existing_facts_new_view",
+      "auditClass": "existing_ask_direct",
       "priority": "P1",
       "capabilityKey": "product_project_margin",
       "capabilityLabel": "商品与项目经营毛利",
       "recommendedView": "ask_data_item_margin_view",
       "permission": "core:operation-profit:view",
-      "currentSemanticMetricKeys": [],
-      "currentSemanticViews": [],
-      "currentSemanticConfidence": 0.35,
+      "currentSemanticMetricKeys": [
+        "below_cost_sale"
+      ],
+      "currentSemanticViews": [
+        "ask_data_item_margin_view"
+      ],
+      "currentSemanticConfidence": 0.98,
       "pages": [
         "src/app/pages/finance/ProfitWorkbench.tsx",
         "src/app/pages/ServiceConsumption.tsx"
@@ -7951,7 +7973,7 @@
         "ProductOrder": 670,
         "Product": 46,
         "ProjectBomItem": 81,
-        "StockMovement": 570
+        "StockMovement": 565
       }
     },
     {
@@ -8567,7 +8589,7 @@
         "ServiceTask": 237,
         "Customer": 1253,
         "CustomerServiceFeedback": 0,
-        "CommissionRecord": 148
+        "CommissionRecord": 147
       }
     },
     {
