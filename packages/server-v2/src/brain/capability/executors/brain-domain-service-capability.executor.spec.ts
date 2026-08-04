@@ -2113,54 +2113,57 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     });
   });
 
-  it('answers a named staff service-customer count instead of returning the generic ranking winner', async () => {
-    const skillRuntime = {
-      buildManagerStaffAnalysis: jest.fn().mockResolvedValue({
-        staff: [
-          {
-            beauticianId: 1,
-            name: '顾然',
-            serviceCount: 8,
-            completedCount: 8,
-            uniqueCustomerCount: 6,
-            repeatCustomerCount: 2,
-            revenueAmount: 5000,
-            commissionAmount: 320,
-            timeOffHours: 0,
-          },
-        ],
-      }),
-    };
-    const executor = new BrainDomainServiceCapabilityExecutor(
-      skillRuntime as never,
-      {} as never,
-      new BrainTimeRangeParserService(),
-    );
-    const result = await executor.execute({
-      card: { ...storeCard(), key: 'manager_staff_overview', intents: ['query'] },
-      context: {
-        userId: 9,
-        storeId: 6,
-        visibleStoreIds: [6],
-        roles: ['store_manager'],
-        permissions: ['*'],
-        deniedPermissions: [],
-        requestId: 'staff-customer-point-test',
-        timezone: 'Asia/Shanghai',
-      },
-      runId: 46,
-      question: '顾然这半年服务了多少个客户', // BQ0276
-      answerShape: 'scalar',
-      args: { objective: '员工服务客户数', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
-    });
+  it.each(['顾然这半年服务了多少个客户', '顾然这半年服务了多少客户', '顾然这半年服务客户数多少'])(
+    'answers a named staff service-customer count instead of returning the generic ranking winner for %s',
+    async (question) => {
+      const skillRuntime = {
+        buildManagerStaffAnalysis: jest.fn().mockResolvedValue({
+          staff: [
+            {
+              beauticianId: 1,
+              name: '顾然',
+              serviceCount: 8,
+              completedCount: 8,
+              uniqueCustomerCount: 6,
+              repeatCustomerCount: 2,
+              revenueAmount: 5000,
+              commissionAmount: 320,
+              timeOffHours: 0,
+            },
+          ],
+        }),
+      };
+      const executor = new BrainDomainServiceCapabilityExecutor(
+        skillRuntime as never,
+        {} as never,
+        new BrainTimeRangeParserService(),
+      );
+      const result = await executor.execute({
+        card: { ...storeCard(), key: 'manager_staff_overview', intents: ['query'] },
+        context: {
+          userId: 9,
+          storeId: 6,
+          visibleStoreIds: [6],
+          roles: ['store_manager'],
+          permissions: ['*'],
+          deniedPermissions: [],
+          requestId: 'staff-customer-point-test',
+          timezone: 'Asia/Shanghai',
+        },
+        runId: 46,
+        question, // BQ0276 and equivalent point-query wording
+        answerShape: 'scalar',
+        args: { objective: '员工服务客户数', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+      });
 
-    expect(result.answer).toContain('顾然服务了 6 位独立客户');
-    expect(result.metadata).toMatchObject({
-      answerScope: 'staff_unique_customer_count_point_lookup',
-      beauticianId: 1,
-      uniqueCustomerCount: 6,
-    });
-  });
+      expect(result.answer).toContain('顾然服务了 6 位独立客户');
+      expect(result.metadata).toMatchObject({
+        answerScope: 'staff_unique_customer_count_point_lookup',
+        beauticianId: 1,
+        uniqueCustomerCount: 6,
+      });
+    },
+  );
 
   it('ranks staff by the requested commission metric instead of the generic service score', async () => {
     const skillRuntime = {
@@ -5234,6 +5237,230 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       ]),
     );
     expect(customerFacts.answerCustomerFactQuestion).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      // BQ0183
+      question: '本周末哪些客户最可能复购',
+      metric: 'repurchase30d' as const,
+      scoreColumn: 'repurchase30dScore',
+      answerScope: 'customer_repurchase30d_prediction_ranking',
+    },
+    {
+      // BQ0185
+      question: '对营销触达响应度最高的是哪些客户',
+      metric: 'marketingResponse' as const,
+      scoreColumn: 'marketingResponseScore',
+      answerScope: 'customer_marketing_response_prediction_ranking',
+    },
+  ])('returns a structured latest-run prediction ranking for $question', async ({ question, metric, scoreColumn, answerScope }) => {
+    const predictionSkills = {
+      rankLatestCustomerPredictions: jest.fn().mockResolvedValue({
+        status: 'available',
+        metric,
+        predictionRun: {
+          id: 80,
+          modelVersion: 'rules-v2.1',
+          businessDate: '2026-08-04',
+          customerCount: 1253,
+          startedAt: '2026-08-04T01:00:00.000Z',
+          finishedAt: '2026-08-04T01:10:00.000Z',
+        },
+        rows: [
+          {
+            rank: 1,
+            customerId: 7,
+            customerName: '张女士',
+            maskedPhone: '***1234',
+            repurchase30dScore: 91,
+            marketingResponseScore: 88,
+            ltv12m: 12800,
+            ltvTier: 'A',
+          },
+        ],
+        boundary:
+          metric === 'repurchase30d'
+            ? '当前资产是未来 30 天复购评分，不是周末专属复购概率；只能作为本周末人工跟进优先级参考。'
+            : '营销响应评分是预测优先级，不代表客户一定响应。',
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      predictionSkills as never,
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'marketing_customer_segment', intents: ['query', 'ranking', 'diagnosis'] },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['marketing'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'customer-prediction-ranking-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 90,
+      question,
+      answerShape: 'ranking',
+      args: { objective: question, entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(predictionSkills.rankLatestCustomerPredictions).toHaveBeenCalledWith({ storeId: 6, metric, limit: 10 });
+    expect(result.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'text', text: expect.stringContaining('CustomerPredictionSnapshot') }),
+        expect.objectContaining({
+          kind: 'ranking',
+          columns: ['rank', 'customerName', 'maskedPhone', scoreColumn, 'ltv12m', 'ltvTier'],
+          rows: [
+            expect.objectContaining({
+              customerName: '张女士',
+              [scoreColumn]: metric === 'repurchase30d' ? 91 : 88,
+            }),
+          ],
+        }),
+      ]),
+    );
+    expect(result.citations).toEqual([
+      expect.objectContaining({
+        sourceId: 'customer_prediction_snapshot_latest_completed',
+        label: expect.stringContaining(`CustomerPredictionSnapshot.${scoreColumn}`),
+      }),
+    ]);
+    expect(result.metadata).toMatchObject({ answerScope, predictionRun: { id: 80, modelVersion: 'rules-v2.1' } });
+    if (metric === 'repurchase30d') expect(result.answer).toContain('不是周末专属复购概率');
+  });
+
+  it('returns a grounded honest boundary when the store has no completed prediction run', async () => {
+    const predictionSkills = {
+      rankLatestCustomerPredictions: jest.fn().mockResolvedValue({
+        status: 'missing',
+        boundary: '当前门店没有已完成的客户预测批次，不能用普通客户分群或历史消费冒充预测排行。',
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      predictionSkills as never,
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'marketing_customer_segment', intents: ['query', 'ranking', 'diagnosis'] },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['marketing'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'customer-prediction-missing-run-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 90,
+      // BQ0183
+      question: '本周末哪些客户最可能复购',
+      answerShape: 'ranking',
+      args: { objective: '查询客户复购预测', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(result).toMatchObject({
+      grounding: 'db_skill',
+      citations: [{ sourceId: 'customer_prediction_snapshot_latest_completed' }],
+      metadata: {
+        answerScope: 'customer_prediction_ranking_unavailable',
+        unsupportedReason: 'completed_prediction_run_missing',
+      },
+    });
+    expect(result.answer).toContain('不能用普通客户分群或历史消费冒充预测排行');
+  });
+
+  it('asks for a phone tail before returning an LTV for same-name customers', async () => {
+    const predictionSkills = {
+      getLatestCustomerLtv12m: jest.fn().mockResolvedValue({
+        status: 'ambiguous',
+        predictionRun: { id: 80, modelVersion: 'rules-v2.1' },
+        candidates: [
+          { customerId: 7, customerName: '黄婉清', maskedPhone: '***1234', memberLevel: '金卡' },
+          { customerId: 8, customerName: '黄婉清', maskedPhone: '***5678', memberLevel: '银卡' },
+        ],
+        boundary: '找到多位同名客户，必须先用手机号后四位确认身份，不能猜测其中一位的生命周期价值。',
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      predictionSkills as never,
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'marketing_customer_segment', intents: ['query', 'ranking', 'diagnosis'] },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['marketing'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'customer-ltv-identity-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 91,
+      // BQ0184
+      question: '预测黄婉清的12个月生命周期价值',
+      answerShape: 'list',
+      args: { objective: '查询客户12个月LTV', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(predictionSkills.getLatestCustomerLtv12m).toHaveBeenCalledWith({
+      storeId: 6,
+      customerName: '黄婉清',
+      phoneTail: undefined,
+    });
+    expect(result.answer).toContain('不能猜测其中一位的生命周期价值');
+    expect(result.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'table', rows: expect.arrayContaining([expect.objectContaining({ maskedPhone: '***1234' })]) }),
+        expect.objectContaining({ kind: 'clarification', options: expect.any(Array) }),
+      ]),
+    );
+    expect(result.metadata).toMatchObject({
+      answerScope: 'customer_ltv12m_identity_clarification',
+      completion: { status: 'partial', missingCriteria: ['entity'], recoverable: true },
+    });
   });
 
   it('answers reception capacity from overruns, pending arrivals and available staff', async () => {

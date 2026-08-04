@@ -242,6 +242,38 @@ const staffServiceCountMetricRef = {
   sourceFingerprint: '4'.repeat(64),
 } as const;
 
+const staffUniqueCustomerCountMetricRef = {
+  definitionType: 'metric',
+  definitionKey: 'metric.staff_unique_customer_count',
+  definitionVersion: 1,
+  definitionFingerprint: '4a'.repeat(32),
+  sourceFingerprint: '4b'.repeat(32),
+} as const;
+
+const staffServiceRevenueMetricRef = {
+  definitionType: 'metric',
+  definitionKey: 'metric.staff_service_revenue',
+  definitionVersion: 1,
+  definitionFingerprint: '4c'.repeat(32),
+  sourceFingerprint: '4d'.repeat(32),
+} as const;
+
+const beauticianEntityRef = {
+  definitionType: 'entity',
+  definitionKey: 'entity.beautician',
+  definitionVersion: 1,
+  definitionFingerprint: '4e'.repeat(32),
+  sourceFingerprint: '4f'.repeat(32),
+} as const;
+
+const beauticianNameDimensionRef = {
+  definitionType: 'dimension',
+  definitionKey: 'dimension.beauticianName',
+  definitionVersion: 1,
+  definitionFingerprint: '5a'.repeat(32),
+  sourceFingerprint: '5b'.repeat(32),
+} as const;
+
 const newCustomerCountMetricRef = {
   definitionType: 'metric',
   definitionKey: 'metric.new_customer_count',
@@ -1735,7 +1767,7 @@ describe('BrainSemanticIntentCompilerService', () => {
         name: '项目毛利与成本排行',
         description: '返回项目级汇总收入、成本、贡献毛利和毛利率',
         domains: ['project'],
-        intents: ['query', 'ranking', 'diagnosis'],
+        intents: ['query', 'diagnosis'],
         readOnly: true,
         definitionRefs: [projectEntityRef],
       },
@@ -2847,6 +2879,136 @@ describe('BrainSemanticIntentCompilerService', () => {
         dimensions: [commissionTypeDimensionRef],
       },
     });
+    expect(aiService.generateStructured).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      // BQ0183
+      question: '本周末哪些客户最可能复购',
+      expectedIntent: 'query',
+      expectedShape: 'ranking',
+    },
+    {
+      // BQ0185
+      question: '对营销触达响应度最高的是哪些客户',
+      expectedIntent: 'query',
+      expectedShape: 'ranking',
+    },
+    {
+      // BQ0184
+      question: '预测黄婉清的12个月生命周期价值',
+      expectedIntent: 'query',
+      expectedShape: 'list',
+    },
+  ])('routes customer prediction assets without spending model budget: $question', async ({ question, expectedIntent, expectedShape }) => {
+    const aiService = fakeAiService(async () => {
+      throw new AiStructuredOutputError('BUDGET_EXCEEDED', 'structured budget exhausted');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput(question);
+    input.capabilitySummaries = [
+      {
+        key: 'marketing_customer_segment',
+        name: '营销客户分群摘要',
+        description: '读取客户分群与最新预测快照',
+        domains: ['customer', 'marketing'],
+        intents: ['query', 'diagnosis'],
+        readOnly: true,
+        definitionRefs: [customerEntityRef],
+      },
+    ];
+    input.rankedCapabilityKeys = ['marketing_customer_segment'];
+
+    const result = await compiler.compile(input);
+
+    expect(result).toMatchObject({
+      status: 'completed',
+      selectedCapabilityKey: 'marketing_customer_segment',
+      provider: 'governed_contract',
+      model: 'customer_prediction_fast_path',
+      intent: { intent: expectedIntent, answerShape: expectedShape, missingSlots: [] },
+    });
+    if (question.includes('黄婉清')) {
+      expect(result.status === 'completed' ? result.intent.entities : []).toEqual([
+        expect.objectContaining({ entityType: 'customer', mention: '黄婉清' }),
+      ]);
+    }
+    expect(aiService.generateStructured).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      // BQ0276
+      question: '顾然这半年服务了多少个客户',
+      metricRef: staffUniqueCustomerCountMetricRef,
+      expectedIntent: 'query',
+      expectedShape: 'scalar',
+    },
+    {
+      // BQ0277
+      question: '这半年哪个美容师业绩最高',
+      metricRef: staffServiceRevenueMetricRef,
+      expectedIntent: 'ranking',
+      expectedShape: 'ranking',
+    },
+  ])('routes governed staff cross-table metrics before customer or model fallback: $question', async ({
+    question,
+    metricRef,
+    expectedIntent,
+    expectedShape,
+  }) => {
+    const aiService = fakeAiService(async () => {
+      throw new Error('model_should_not_be_called');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput(question);
+    input.capabilitySummaries = [
+      {
+        key: 'customer_facts',
+        name: '客户事实',
+        description: '客户事实查询',
+        domains: ['customer'],
+        intents: ['query'],
+        readOnly: true,
+        definitionRefs: [customerEntityRef],
+      },
+      {
+        key: 'manager_staff_overview',
+        name: '店长员工运营分析',
+        description: '员工服务客户数和关联业绩排行',
+        domains: ['staff', 'beautician'],
+        intents: ['query', 'ranking'],
+        readOnly: true,
+        definitionRefs: [
+          beauticianEntityRef,
+          beauticianNameDimensionRef,
+          staffUniqueCustomerCountMetricRef,
+          staffServiceRevenueMetricRef,
+        ],
+      },
+    ];
+    input.rankedCapabilityKeys = ['customer_facts', 'manager_staff_overview'];
+
+    const result = await compiler.compile(input);
+
+    expect(result).toMatchObject({
+      status: 'completed',
+      selectedCapabilityKey: 'manager_staff_overview',
+      provider: 'governed_contract',
+      model: 'manager_staff_metric_fast_path',
+      intent: {
+        intent: expectedIntent,
+        answerShape: expectedShape,
+        metrics: [metricRef],
+        missingSlots: [],
+      },
+    });
+    if (expectedIntent === 'ranking') {
+      expect(result.status === 'completed' ? result.intent.orderBy : []).toEqual([
+        { definitionRef: metricRef, direction: 'desc' },
+      ]);
+    }
     expect(aiService.generateStructured).not.toHaveBeenCalled();
   });
 
