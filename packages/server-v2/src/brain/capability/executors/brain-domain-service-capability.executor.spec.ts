@@ -814,11 +814,15 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
 
   it('returns structured clarification when an exact customer mention matches multiple records', async () => {
     const customerFacts = {
-      answerCustomerQuestion: jest
-        .fn()
-        .mockResolvedValue(
-          '找到 2 位同名或尾号匹配客户：\n1. 胡静怡，手机 ***7636\n2. 胡静怡，手机 ***0522\n请补充完整姓名或手机号后四位后继续。',
-        ),
+      answerCustomerQuestion: jest.fn().mockResolvedValue({
+        kind: 'customer_identity_clarification',
+        answer:
+          '找到 2 位同名或尾号匹配客户：\n1. 胡静怡，手机 ***7636，金卡\n2. 胡静怡，手机 ***0522，银卡\n请补充完整姓名或手机号后四位后继续。',
+        candidates: [
+          { customerName: '胡静怡', maskedPhone: '***7636', memberLevel: '金卡' },
+          { customerName: '胡静怡', maskedPhone: '***0522', memberLevel: '银卡' },
+        ],
+      }),
     };
     const executor = new BrainDomainServiceCapabilityExecutor(
       {} as never,
@@ -851,13 +855,113 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     });
 
     expect(result).toMatchObject({
-      grounding: 'none',
-      blocks: [{ kind: 'clarification' }],
+      grounding: 'db_skill',
+      citations: [{ sourceType: 'db_skill', sourceId: 'customer_identity_candidates' }],
       metadata: {
         clarification: { missingSlots: ['entity'] },
         completion: { status: 'partial', recoverable: true },
       },
     });
+    expect(result.blocks).toEqual([
+      expect.objectContaining({
+        kind: 'clarification',
+        options: [
+          expect.objectContaining({ id: 'customer-candidate-1', label: '胡静怡（***7636，金卡）' }),
+          expect.objectContaining({ id: 'customer-candidate-2', label: '胡静怡（***0522，银卡）' }),
+        ],
+      }),
+      expect.objectContaining({
+        kind: 'table',
+        rows: [
+          { customerName: '胡静怡', maskedPhone: '***7636', memberLevel: '金卡' },
+          { customerName: '胡静怡', maskedPhone: '***0522', memberLevel: '银卡' },
+        ],
+        citationIds: ['customer_identity_candidates'],
+      }),
+    ]);
+  });
+
+  it('grounds an ambiguous last-visit clarification with matched customer facts', async () => {
+    const customerFacts = {
+      getExactCustomerBasicSummary: jest.fn().mockResolvedValue({
+        status: 'ambiguous',
+        rows: [
+          {
+            customerName: '赵敏',
+            maskedPhone: '***7636',
+            memberLevel: '金卡',
+            totalSpent: 6800,
+            visitCount: 12,
+            lastVisitDate: '2026-07-03',
+            lastProjectName: '深层补水护理',
+            lastBeauticianName: '宋乔',
+            lastServiceDate: '2026-07-03',
+          },
+          {
+            customerName: '赵敏',
+            maskedPhone: '***0522',
+            memberLevel: '银卡',
+            totalSpent: 3200,
+            visitCount: 6,
+            lastVisitDate: '2026-06-20',
+            lastProjectName: '肩颈护理',
+            lastBeauticianName: '王珊',
+            lastServiceDate: '2026-06-20',
+          },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      customerFacts as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'customer_facts' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['receptionist'],
+        permissions: ['core:brain:use', 'core:customer:view'],
+        deniedPermissions: [],
+        requestId: 'customer-last-visit-disambiguation-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 32,
+      question: '赵敏最近一次到店是哪天', // ami-brain-unit-only: ambiguity grounding contract, not a release-eval input.
+      answerShape: 'list',
+      args: {
+        objective: '查询客户最近到店',
+        entities: [{ entityType: 'customer', mention: '赵敏' }],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(result).toMatchObject({
+      grounding: 'db_skill',
+      citations: [{ sourceType: 'db_skill', sourceId: 'customer_identity_candidates' }],
+      metadata: {
+        matchStatus: 'ambiguous',
+        completion: { status: 'partial', recoverable: true },
+      },
+    });
+    expect(result.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'clarification' }),
+        expect.objectContaining({
+          kind: 'table',
+          rows: expect.arrayContaining([
+            expect.objectContaining({ customerName: '赵敏', maskedPhone: '***7636' }),
+          ]),
+          citationIds: ['customer_identity_candidates'],
+        }),
+      ]),
+    );
   });
 
   it('returns exact customer visit facts as a structured table', async () => {

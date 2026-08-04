@@ -1,0 +1,33 @@
+{
+  "runId": 252,
+  "stage": "release-core",
+  "sourceChecksum": "eeabcf0ba6d2652cabe91950bfc04bb2fa6f3fd6c95510d583d9ed6d99f186ec",
+  "completed": 5,
+  "items": [
+    {
+      "caseKey": "BQ0002",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ0003",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ0005",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ0001",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0004",
+      "deterministicPassed": true,
+      "failureCluster": null
+    }
+  ]
+}
