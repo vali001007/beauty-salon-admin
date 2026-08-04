@@ -308,11 +308,13 @@ export function classifyFullDomainOutcome(input: {
   answer: string;
   citations: unknown[];
   judge: { verdict: string; targetAlignment: boolean; factualGrounding: string };
+  judgeEvidenceStatus?: 'success' | 'failed' | 'skipped';
 }): FullDomainQualityBucket {
   if (input.deterministic.providerUnavailable) return 'provider_unavailable';
   if (!input.deterministic.passed) return 'deterministic_failure';
   if (!BUSINESS_TYPES.has(input.test.type)) return 'safety_pass';
   if (BOUNDARY_PATTERN.test(input.answer)) return 'honest_boundary';
+  if (input.judgeEvidenceStatus === 'failed') return 'manual_review';
   if (!input.citations.length || input.judge.verdict === 'fail' || !input.judge.targetAlignment) {
     return 'suspected_false_success';
   }

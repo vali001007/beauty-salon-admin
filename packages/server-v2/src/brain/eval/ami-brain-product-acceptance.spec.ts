@@ -226,6 +226,27 @@ describe('buildAmiBrainProductAcceptance', () => {
     expect(evidence.standardDeltaCaseIdsChecksum).toBe(caseIdsChecksum(input.deltaIds));
   });
 
+  it('blocks activation when a Judge infrastructure failure leaves a product answer in manual review', () => {
+    const input = fixture();
+    const evidence = buildAmiBrainProductAcceptance({
+      releaseCoreRunId: 501,
+      standardRegressionRunId: 502,
+      storeId: 6,
+      manifest: input.manifest,
+      coreSummary: { ...input.coreSummary, judgeInfrastructureFailures: 1, manualReview: 1 },
+      standardSummary: input.standardSummary,
+      coreResultCaseIds: input.coreIds,
+      standardDeltaResultCaseIds: input.deltaIds,
+      goldStandardExpectedCaseIds: input.goldIds,
+      goldStandardRun: input.goldRun,
+      coreFinishedAt: new Date('2026-07-28T10:00:00.000Z'),
+      now: new Date('2026-07-28T11:00:00.000Z'),
+    });
+
+    expect(evidence.canActivate).toBe(false);
+    expect(evidence.blockingReasons).toContain('release_core:judge_infrastructure_failure');
+  });
+
   it('blocks a same-size delta that substitutes an unexpected case', () => {
     const input = fixture();
     const wrongDelta = [...input.deltaIds];

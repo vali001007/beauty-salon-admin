@@ -1,4 +1,7 @@
-import { deterministicFullDomainGrade } from '../../../prisma/ami-brain-full-domain-eval-suite.js';
+import {
+  classifyFullDomainOutcome,
+  deterministicFullDomainGrade,
+} from '../../../prisma/ami-brain-full-domain-eval-suite.js';
 
 describe('Ami Brain full-domain multi-turn gate', () => {
   const test = {
@@ -100,5 +103,41 @@ describe('Ami Brain Query Only action gate used by the executable evaluator', ()
         completedTurns: 1,
       }),
     ).toMatchObject({ passed: false, failureCluster: 'query_only_action_not_rejected' });
+  });
+});
+
+describe('Ami Brain Judge infrastructure classification', () => {
+  it('keeps a deterministic cited answer in manual review when the Judge schema remains unavailable', () => {
+    const test = {
+      id: 'BQ-unit-judge-schema',
+      domain: '客户域',
+      role: '店长',
+      roleKey: 'store_manager',
+      type: 'query_single' as const,
+      difficulty: 'easy',
+      question: '查询某位客户最近一次到店日期', // ami-brain-unit-only
+      expectedTarget: 'Customer 表',
+      notes: '',
+      turns: ['查询某位客户最近一次到店日期'], // ami-brain-unit-only
+    };
+    const deterministic = deterministicFullDomainGrade({
+      test,
+      answer: '该客户最近一次到店日期为 2026-08-01。',
+      status: 'completed',
+      citations: [{ sourceType: 'db_skill', sourceId: 'customer_exact_basic_facts' }],
+      completedTurns: 1,
+    });
+
+    expect(deterministic.passed).toBe(true);
+    expect(
+      classifyFullDomainOutcome({
+        test,
+        deterministic,
+        answer: '该客户最近一次到店日期为 2026-08-01。',
+        citations: [{ sourceType: 'db_skill', sourceId: 'customer_exact_basic_facts' }],
+        judge: { verdict: 'insufficient_evidence', targetAlignment: false, factualGrounding: 'insufficient' },
+        judgeEvidenceStatus: 'failed',
+      }),
+    ).toBe('manual_review');
   });
 });

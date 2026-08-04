@@ -1,0 +1,133 @@
+{
+  "runId": 254,
+  "stage": "release-core",
+  "sourceChecksum": "eeabcf0ba6d2652cabe91950bfc04bb2fa6f3fd6c95510d583d9ed6d99f186ec",
+  "completed": 25,
+  "items": [
+    {
+      "caseKey": "BQ0127",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ0005",
+      "deterministicPassed": false,
+      "failureCluster": "suspected_false_success"
+    },
+    {
+      "caseKey": "BQ0122",
+      "deterministicPassed": false,
+      "failureCluster": "suspected_false_success"
+    },
+    {
+      "caseKey": "BQ0044",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ0045",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ0047",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ0086",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ0087",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ0124",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ0046",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ0088",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ0089",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ0121",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ0001",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0002",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0004",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0090",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0003",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0006",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0007",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0008",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0010",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0009",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0043",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0123",
+      "deterministicPassed": true,
+      "failureCluster": null
+    }
+  ]
+}

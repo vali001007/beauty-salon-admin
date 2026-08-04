@@ -76,6 +76,7 @@ type JudgeExecution = {
   judge: JudgeResult;
   evidence: {
     status: 'success' | 'failed' | 'skipped';
+    attempts: number;
     reason: string | null;
     provider: string | null;
     model: string | null;
@@ -427,6 +428,7 @@ async function main() {
           answer: result.answer,
           citations: result.citations,
           judge: result.judge,
+          judgeEvidenceStatus: result.judgeEvidence.status,
         });
         const strictPassed = result.deterministic.passed && qualityBucket !== 'suspected_false_success';
         const failureCluster =
@@ -922,6 +924,7 @@ async function executeCase(input: {
         },
         evidence: {
           status: 'skipped' as const,
+          attempts: 0,
           reason: input.skipJudge ? 'gold_standard_deterministic_grade' : 'deterministic_safety_contract',
           provider: null,
           model: null,
@@ -1350,6 +1353,7 @@ async function judgeCase(
       },
       evidence: {
         status: 'skipped' as const,
+        attempts: 0,
         reason: 'deterministic_gate_failed',
         provider: null,
         model: null,
@@ -1357,49 +1361,62 @@ async function judgeCase(
         error: null,
       },
     };
+  let attempts = 0;
   try {
-    const result = await ai.generateStructured<JudgeResult>({
-      scenario: 'brain.full-domain-eval.judge',
-      storeId,
-      temperature: 0,
-      timeoutMs: 30000,
-      schema: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['verdict', 'targetAlignment', 'completeness', 'factualGrounding', 'reason'],
-        properties: {
-          verdict: { type: 'string', enum: ['pass', 'fail', 'insufficient_evidence'] },
-          targetAlignment: { type: 'boolean' },
-          completeness: { type: 'string', enum: ['complete', 'partial', 'insufficient_evidence'] },
-          factualGrounding: { type: 'string', enum: ['sufficient', 'insufficient', 'contradicted'] },
-          reason: { type: 'string', maxLength: 300 },
-        },
-      },
-      messages: [
-        {
-          role: 'system',
-          content:
-            '你是保守的美业数据问答评测裁判。不能验证事实或缺少逐题标准数值时，必须输出 insufficient_evidence，不得凭流畅性判正确。只评估目标对齐、相关性、完整性和引用依据。',
-        },
-        {
-          role: 'user',
-          content: JSON.stringify({
-            questionId: item.id,
-            domain: item.domain,
-            role: item.role,
-            type: item.type,
-            expectedTarget: item.expectedTarget,
-            notes: item.notes,
-            answer,
-            citationCount: citations.length,
-          }),
-        },
-      ],
-    });
+    let result: Awaited<ReturnType<typeof ai.generateStructured<JudgeResult>>> | undefined;
+    while (!result && attempts < 2) {
+      attempts += 1;
+      try {
+        result = await ai.generateStructured<JudgeResult>({
+          scenario: 'brain.full-domain-eval.judge',
+          storeId,
+          temperature: 0,
+          timeoutMs: 30000,
+          schema: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['verdict', 'targetAlignment', 'completeness', 'factualGrounding', 'reason'],
+            properties: {
+              verdict: { type: 'string', enum: ['pass', 'fail', 'insufficient_evidence'] },
+              targetAlignment: { type: 'boolean' },
+              completeness: { type: 'string', enum: ['complete', 'partial', 'insufficient_evidence'] },
+              factualGrounding: { type: 'string', enum: ['sufficient', 'insufficient', 'contradicted'] },
+              reason: { type: 'string', maxLength: 300 },
+            },
+          },
+          messages: [
+            {
+              role: 'system',
+              content:
+                '你是保守的美业数据问答评测裁判。不能验证事实或缺少逐题标准数值时，必须输出 insufficient_evidence，不得凭流畅性判正确。只评估目标对齐、相关性、完整性和引用依据。',
+            },
+            {
+              role: 'user',
+              content: JSON.stringify({
+                questionId: item.id,
+                domain: item.domain,
+                role: item.role,
+                type: item.type,
+                expectedTarget: item.expectedTarget,
+                notes: item.notes,
+                answer,
+                citationCount: citations.length,
+              }),
+            },
+          ],
+        });
+      } catch (cause) {
+        const controlled = cause instanceof AiStructuredOutputError ? cause : null;
+        if (controlled && ['SCHEMA_INVALID', 'JSON_INVALID'].includes(controlled.code) && attempts < 2) continue;
+        throw cause;
+      }
+    }
+    if (!result) throw new Error('judge_retry_exhausted_without_result');
     return {
       judge: result.data,
       evidence: {
         status: 'success' as const,
+        attempts,
         reason: null,
         provider: result.provider,
         model: result.model,
@@ -1420,7 +1437,8 @@ async function judgeCase(
       },
       evidence: {
         status: 'failed' as const,
-        reason: 'judge_provider_failure',
+        attempts,
+        reason: 'judge_infrastructure_failure',
         provider: controlled?.provider ?? null,
         model: controlled?.model ?? null,
         routing: null,
@@ -1673,6 +1691,9 @@ async function summarize(
   const judge = rows.map((item) => asRecord(item.llmJudge));
   const judgePassed = judge.filter((item) => item.verdict === 'pass').length;
   const manualReview = judge.filter((item) => item.verdict === 'insufficient_evidence').length;
+  const judgeInfrastructureFailures = rows.filter(
+    (item) => asRecord(asRecord(item.metadata).judgeEvidence).status === 'failed',
+  ).length;
   const qualityBuckets = Object.fromEntries(
     [...new Set(rows.map((item) => String(asRecord(item.metadata).qualityBucket ?? 'unclassified')))]
       .sort()
@@ -1809,6 +1830,7 @@ async function summarize(
     judgePassed,
     judgeFailed: judge.filter((item) => item.verdict === 'fail').length,
     manualReview,
+    judgeInfrastructureFailures,
     judgePassRate: judge.length ? judgePassed / judge.length : null,
     qualityBuckets,
     scorecards,

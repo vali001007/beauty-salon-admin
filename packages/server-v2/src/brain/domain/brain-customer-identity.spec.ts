@@ -1,7 +1,4 @@
-import {
-  extractCustomerPhoneTail,
-  extractSpecificCustomerNameFromMention,
-} from './brain-customer-identity.js';
+import { extractCustomerPhoneTail, extractSpecificCustomerNameFromMention } from './brain-customer-identity.js';
 
 describe('brain customer identity helpers', () => {
   it('normalizes natural phone-tail expressions', () => {
@@ -14,5 +11,8 @@ describe('brain customer identity helpers', () => {
     expect(extractSpecificCustomerNameFromMention('马美琳，手机尾号6325')).toBe('马美琳');
     expect(extractSpecificCustomerNameFromMention('手机号后四位7636的客户')).toBeUndefined();
     expect(extractSpecificCustomerNameFromMention('老客')).toBeUndefined();
+    expect(extractSpecificCustomerNameFromMention('金卡会员')).toBeUndefined();
+    expect(extractSpecificCustomerNameFromMention('高价值客户')).toBeUndefined();
+    expect(extractSpecificCustomerNameFromMention('过敏健康档案客户')).toBeUndefined();
   });
 });

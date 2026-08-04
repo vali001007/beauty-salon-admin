@@ -332,11 +332,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     description:
       '查询当前门店前台现场的预约到店、员工忙闲、到店率、爽约率和服务超时等汇总与异常事实。指定钟点、指定客户、指定美容师、预约项目分类、首个/下一个/最后一个预约以及预约名单明细由门店预约清单能力负责，避免两个能力同时声明同一问题。',
     intents: ['query', 'diagnosis'],
-    examples: [
-      '今天前台现场情况怎么样',
-      '前台现场的预约到店和员工忙闲概览',
-      '前台现场有哪些服务超时和接待风险',
-    ],
+    examples: ['今天前台现场情况怎么样', '前台现场的预约到店和员工忙闲概览', '前台现场有哪些服务超时和接待风险'],
     negativeExamples: [
       '今天有几个预约是做面部的，几个是身体的',
       '今天下午还有几个预约没到',
@@ -786,7 +782,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     name: '客户事实与客群查询',
     description:
       '查询当前门店的精确客户事实、VIP、新老客、周期新客转化、到店年龄画像、沉睡客户、沉睡客户触达后的预约/到店/消费唤醒迹象、生日关怀、重要客户到店、营销活动响应、办卡未预约、低余次卡、开卡未核销、高价值低活跃客户、客户复购率、平均回访间隔，以及消费频率或消费金额明显下降的客户名单。定性客群使用已治理默认口径执行并在答案中披露，不要求用户选择内部阈值。',
-    intents: ['query', 'ranking', 'diagnosis'],
+    intents: ['query', 'ranking', 'comparison', 'diagnosis'],
     examples: [
       '最近哪些老客好久没来了，帮我列一下',
       '帮我找一下45天没来的客户，大概有多少人',
@@ -796,6 +792,13 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '哪些客户是高价值但最近不太活跃的',
       '哪些客户最近消费频率明显下降',
       '哪些客户最近消费明显减少',
+      '最近一季新客户中完成复购的人数是多少',
+      '做过指定护理项目的客户平均消费是多少',
+      '有健康档案并记录过敏史的客户名单',
+      '上周新老客户的消费金额对比',
+      '上周客户到店频次分布',
+      '按获客渠道比较客户转化和消费质量',
+      '储值余额偏高的客户风险名单',
       '哪些客户消费了钱但很少用次卡',
       '我们有多少客户开了次卡但从来不来消费',
       '我们的老客回头率大概是多少',
@@ -839,6 +842,14 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '高价值低活跃客户',
       '消费频率下降客户',
       '消费金额下降客户',
+      '新客二次消费',
+      '项目客户平均消费',
+      '过敏健康档案客户',
+      '会员等级占比',
+      '新老客消费对比',
+      '客户到店频次分布',
+      '渠道客户质量',
+      '储值余额异常客户',
       '新客来源渠道',
       '新客转化',
       '到店年龄画像',
@@ -859,6 +870,8 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       'metric.new_customer_conversion_count',
       'metric.new_customer_conversion_rate',
       'metric.dormant_reactivation_customer_count',
+      'metric.average_order_value',
+      'metric.paid_amount',
     ],
     readOnly: true,
     storeScope: 'required',
@@ -4702,6 +4715,8 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             },
           };
         }
+        const customerAnalyticsAnswer = await this.buildCustomerAnalyticsAnswer(input, range);
+        if (customerAnalyticsAnswer) return customerAnalyticsAnswer;
         const memberLevelFilter = this.readCustomerMemberLevelFilter(input);
         if (memberLevelFilter) {
           const result = await this.customerFacts.getCustomerMemberLevelSummary(
@@ -4759,7 +4774,11 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           /(?:多少|几个|一共|共有|总数)/.test(input.question) &&
           !/(?:有哪些|名单|列出|明细|分别)/.test(input.question)
         ) {
-          const result = await this.customerFacts.getCustomerMemberLevelSummary(input.context.storeId, ['钻石会员'], 500);
+          const result = await this.customerFacts.getCustomerMemberLevelSummary(
+            input.context.storeId,
+            ['钻石会员'],
+            500,
+          );
           return this.answer({
             answer: `当前门店共有 ${result.total} 位钻石会员。`,
             citationId: 'customer_member_level_summary',
@@ -5370,9 +5389,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             },
           };
         }
-        if (
-          this.isExpiringCardNoReservationQuestion(input.question)
-        ) {
+        if (this.isExpiringCardNoReservationQuestion(input.question)) {
           const result = await this.customerFacts.getExpiringCardCustomersWithoutUpcomingReservation({
             storeId: input.context.storeId,
             message: input.question,
@@ -5387,7 +5404,10 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             answer: noData
               ? `未来 ${result.windowDays} 天内没有符合“${cardScope}活跃次卡临期且无未来预约”的客户。`
               : `未来 ${result.windowDays} 天内有 ${result.total} 位客户符合“${cardScope}活跃次卡临期且无未来预约”：${result.rows
-                  .map((row, index) => `${index + 1}. ${row.customerName}：${row.cardName}，剩余 ${row.remainingTimes}/${row.totalTimes} 次，${row.daysToExpiry} 天后到期`)
+                  .map(
+                    (row, index) =>
+                      `${index + 1}. ${row.customerName}：${row.cardName}，剩余 ${row.remainingTimes}/${row.totalTimes} 次，${row.daysToExpiry} 天后到期`,
+                  )
                   .join('；')}。`,
             citationId: factCitationId,
             citationLabel: '客户次卡有效期与未来预约事实',
@@ -6100,14 +6120,14 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         const procurementCitationId = 'capability_inventory_procurement_advice';
         const procurementStatusLabel = (status: string) =>
           (
-            {
+            ({
               pending_supplier_confirm: '待供应商确认',
               accepted: '供应商已确认',
               shipped: '已发货待收货',
               partial_received: '部分收货',
               received: '已收货',
               settled: '已结算',
-            } as Record<string, string>
+            }) as Record<string, string>
           )[status] ?? status;
         const orderRows = analysis.recentOrders.map((order) => ({
           createdAt: order.createdAt,
@@ -6174,7 +6194,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           );
         }
         if (/待收货|未收货|待到货/.test(input.question)) {
-          const receivableRows = orderRows.filter((order) => ['已发货待收货', '部分收货', '供应商已确认'].includes(String(order.status)));
+          const receivableRows = orderRows.filter((order) =>
+            ['已发货待收货', '部分收货', '供应商已确认'].includes(String(order.status)),
+          );
           const pendingConfirmationCount = orderRows.filter((order) => order.status === '待供应商确认').length;
           return this.applyDataQualityGuard(
             this.answer({
@@ -6188,7 +6210,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                   kind: 'kpi',
                   items: [
                     { label: '待收货采购单', value: `${receivableRows.length} 张` },
-                    ...(pendingConfirmationCount ? [{ label: '待供应商确认', value: `${pendingConfirmationCount} 张` }] : []),
+                    ...(pendingConfirmationCount
+                      ? [{ label: '待供应商确认', value: `${pendingConfirmationCount} 张` }]
+                      : []),
                   ],
                   citationIds: [procurementCitationId],
                 },
@@ -6215,9 +6239,10 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           );
         }
         if (/待付款|待结算|结算待付款/.test(input.question)) {
-          const timeScoped = /今天|昨日|昨天|本周|这周|上周|本月|这个月|上月|最近\d+天|最近[一二三四五六七八九十]+天|截至|\d{4}[/-]\d{1,2}[/-]\d{1,2}/.test(
-            input.question,
-          );
+          const timeScoped =
+            /今天|昨日|昨天|本周|这周|上周|本月|这个月|上月|最近\d+天|最近[一二三四五六七八九十]+天|截至|\d{4}[/-]\d{1,2}[/-]\d{1,2}/.test(
+              input.question,
+            );
           const unpaidRows = orderRows.filter(
             (order) =>
               ['已收货', '部分收货'].includes(String(order.status)) &&
@@ -6235,7 +6260,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
               blocks: [
                 {
                   kind: 'kpi',
-                  items: [{ label: '采购待付款', value: `${totalAmount.toFixed(2)} 元`, hint: `${unpaidRows.length} 张` }],
+                  items: [
+                    { label: '采购待付款', value: `${totalAmount.toFixed(2)} 元`, hint: `${unpaidRows.length} 张` },
+                  ],
                   citationIds: [procurementCitationId],
                 },
                 {
@@ -6244,7 +6271,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                   columns: ['createdAt', 'orderNo', 'supplierName', 'netAmount', 'status', 'receivedAt'],
                   citationIds: [procurementCitationId],
                 },
-                ...(unpaidRows.length ? [] : [{ kind: 'limitations' as const, items: ['no_data:procurement_unpaid_orders_empty'] }]),
+                ...(unpaidRows.length
+                  ? []
+                  : [{ kind: 'limitations' as const, items: ['no_data:procurement_unpaid_orders_empty'] }]),
               ],
               metadata: {
                 capabilityKey: 'inventory_procurement_advice',
@@ -6258,7 +6287,11 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             dataQuality,
           );
         }
-        if (/(?:采购成本|采购金额|采购额).*(?:品类|类别|分类)|(?:品类|类别|分类).*(?:采购成本|采购金额|采购额|最高)/.test(input.question)) {
+        if (
+          /(?:采购成本|采购金额|采购额).*(?:品类|类别|分类)|(?:品类|类别|分类).*(?:采购成本|采购金额|采购额|最高)/.test(
+            input.question,
+          )
+        ) {
           const categoryRows = [
             ...(analysis.orderItems ?? [])
               .filter((item) => procurementOrderInRange(item))
@@ -6302,7 +6335,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                   columns: ['categoryName', 'amount', 'quantity', 'itemCount', 'orderCount'],
                   citationIds: [procurementCitationId],
                 },
-                ...(categoryRows.length ? [] : [{ kind: 'limitations' as const, items: ['no_data:procurement_category_cost_empty'] }]),
+                ...(categoryRows.length
+                  ? []
+                  : [{ kind: 'limitations' as const, items: ['no_data:procurement_category_cost_empty'] }]),
               ],
               metadata: {
                 capabilityKey: 'inventory_procurement_advice',
@@ -6317,16 +6352,29 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             dataQuality,
           );
         }
-        if (/采购(?:总额|金额|成本)|采购.*(?:多少钱|多少金额|花了多少)|各供应商.*采购金额|采购金额.*供应商/.test(input.question)) {
+        if (
+          /采购(?:总额|金额|成本)|采购.*(?:多少钱|多少金额|花了多少)|各供应商.*采购金额|采购金额.*供应商/.test(
+            input.question,
+          )
+        ) {
           const inRangeRows = orderRows.filter((order) => procurementOrderInRange(order));
-          const grouped = [...inRangeRows.reduce((map, order) => {
-            const current = map.get(order.supplierName) ?? { supplierName: order.supplierName, amount: 0, netAmount: 0, orderCount: 0 };
-            current.amount += Number(order.amount || 0);
-            current.netAmount += Number(order.netAmount || 0);
-            current.orderCount += 1;
-            map.set(order.supplierName, current);
-            return map;
-          }, new Map<string, { supplierName: string; amount: number; netAmount: number; orderCount: number }>()).values()].map((row) => ({
+          const grouped = [
+            ...inRangeRows
+              .reduce((map, order) => {
+                const current = map.get(order.supplierName) ?? {
+                  supplierName: order.supplierName,
+                  amount: 0,
+                  netAmount: 0,
+                  orderCount: 0,
+                };
+                current.amount += Number(order.amount || 0);
+                current.netAmount += Number(order.netAmount || 0);
+                current.orderCount += 1;
+                map.set(order.supplierName, current);
+                return map;
+              }, new Map<string, { supplierName: string; amount: number; netAmount: number; orderCount: number }>())
+              .values(),
+          ].map((row) => ({
             supplierName: row.supplierName,
             amount: Number(row.amount.toFixed(2)),
             netAmount: Number(row.netAmount.toFixed(2)),
@@ -6346,7 +6394,13 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
               blocks: [
                 {
                   kind: 'kpi',
-                  items: [{ label: `${range.label}采购总额`, value: `${totalAmount.toFixed(2)} 元`, hint: `${inRangeRows.length} 张` }],
+                  items: [
+                    {
+                      label: `${range.label}采购总额`,
+                      value: `${totalAmount.toFixed(2)} 元`,
+                      hint: `${inRangeRows.length} 张`,
+                    },
+                  ],
                   citationIds: [procurementCitationId],
                 },
                 {
@@ -6357,7 +6411,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                     : ['createdAt', 'orderNo', 'supplierName', 'amount', 'netAmount', 'status'],
                   citationIds: [procurementCitationId],
                 },
-                ...(inRangeRows.length ? [] : [{ kind: 'limitations' as const, items: ['no_data:procurement_orders_in_range_empty'] }]),
+                ...(inRangeRows.length
+                  ? []
+                  : [{ kind: 'limitations' as const, items: ['no_data:procurement_orders_in_range_empty'] }]),
               ],
               metadata: {
                 capabilityKey: 'inventory_procurement_advice',
@@ -6668,9 +6724,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     }
 
     if (
-      /(?:哪个|哪些|什么).*(?:项目).*(?:预约最多|最忙|最多预约)|(?:预约最多|最忙|最多预约).*(?:项目)/.test(
-        question,
-      )
+      /(?:哪个|哪些|什么).*(?:项目).*(?:预约最多|最忙|最多预约)|(?:预约最多|最忙|最多预约).*(?:项目)/.test(question)
     ) {
       const grouped = new Map<string, { projectId?: number; projectName: string; count: number }>();
       for (const item of active) {
@@ -6688,7 +6742,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       }
       const rows = [...grouped.values()].sort((left, right) => {
         const projectIdComparison = (left.projectId ?? 0) - (right.projectId ?? 0);
-        return right.count - left.count || projectIdComparison || left.projectName.localeCompare(right.projectName, 'zh-CN');
+        return (
+          right.count - left.count || projectIdComparison || left.projectName.localeCompare(right.projectName, 'zh-CN')
+        );
       });
       const topRows = rows.slice(0, 1);
       return {
@@ -7111,8 +7167,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
 
   private singleReservationAnswer(
     item:
-      | Awaited<ReturnType<BrainSkillRuntimeService['listReceptionReservations']>>['reservations'][number]
-      | undefined,
+      Awaited<ReturnType<BrainSkillRuntimeService['listReceptionReservations']>>['reservations'][number] | undefined,
     input: BrainCapabilityExecutionInput,
     range: BrainDateRange,
     citations: BrainDomainAnswer['citations'],
@@ -7820,9 +7875,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             capabilityKey: 'finance_risk_overview',
             answerScope: 'staff_commission_composition',
             unsupportedReason:
-              beauticians.length > 1
-                ? 'beautician_entity_reference_ambiguous'
-                : 'beautician_entity_reference_required',
+              beauticians.length > 1 ? 'beautician_entity_reference_ambiguous' : 'beautician_entity_reference_required',
           },
         };
       }
@@ -8193,7 +8246,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       .filter((name) => name && input.question.includes(name))
       .sort((left, right) => right.length - left.length || left.localeCompare(right, 'zh-CN'))[0];
     if (!matchedCardName) {
-      const hasCardRevenueCue = /(?:次卡|套餐卡|卡项).*(?:核销|确认收入|收入确认|确认的收入|确认收入进度)/.test(semanticText);
+      const hasCardRevenueCue = /(?:次卡|套餐卡|卡项).*(?:核销|确认收入|收入确认|确认的收入|确认收入进度)/.test(
+        semanticText,
+      );
       const hasSpecificCardLabelCue = /\d+\s*次卡/.test(semanticText);
       if (!hasCardRevenueCue) return undefined;
       if (hasSpecificCardLabelCue) {
@@ -8605,7 +8660,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     );
   }
 
-  private readCustomerMemberLevelFilter(input: BrainCapabilityExecutionInput):
+  private readCustomerMemberLevelFilter(
+    input: BrainCapabilityExecutionInput,
+  ):
     | { definitionKey: 'dimension.customerLevel'; definitionVersion: number; operator: 'eq' | 'in'; values: string[] }
     | undefined {
     if (!Array.isArray(input.args.filters) || input.args.filters.length === 0) return undefined;
@@ -8613,7 +8670,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     const [rawFilter] = input.args.filters;
     if (!rawFilter || typeof rawFilter !== 'object' || Array.isArray(rawFilter)) return undefined;
     const filter = rawFilter as Record<string, unknown>;
-    if (Reflect.ownKeys(filter).some((key) => typeof key !== 'string' || !['fieldRef', 'operator', 'value'].includes(key))) {
+    if (
+      Reflect.ownKeys(filter).some((key) => typeof key !== 'string' || !['fieldRef', 'operator', 'value'].includes(key))
+    ) {
       return undefined;
     }
     if (filter.operator !== 'eq' && filter.operator !== 'in') return undefined;
@@ -8650,7 +8709,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     );
     if (!cardDefinition) return undefined;
     const rawValues = filter.operator === 'eq' ? [filter.value] : Array.isArray(filter.value) ? filter.value : [];
-    const values = [...new Set(rawValues.flatMap((value) => (typeof value === 'string' ? [value.trim()] : [])).filter(Boolean))];
+    const values = [
+      ...new Set(rawValues.flatMap((value) => (typeof value === 'string' ? [value.trim()] : [])).filter(Boolean)),
+    ];
     if (!values.length || values.length > 20 || values.some((value) => value.length > 100)) return undefined;
     return {
       definitionKey: 'dimension.customerLevel',
@@ -9127,6 +9188,594 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         completionCriteria: ['customer_audience_loaded', 'active_projects_loaded', 'limitations_disclosed'],
       },
     };
+  }
+
+  private async buildCustomerAnalyticsAnswer(
+    input: BrainCapabilityExecutionInput,
+    range: BrainDateRange,
+  ): Promise<BrainDomainAnswer | undefined> {
+    const question = input.question;
+    const limit = this.resolveLimit(input.args.limit, 10);
+    const timeMetadata = this.executionTimeRange(range, input.context.timezone);
+
+    if (/(?:新客|新客户).*(?:第二次|二次).*(?:消费|复购)/.test(question)) {
+      const result = await this.customerFacts.getRecentNewCustomerSecondPurchaseSummary({
+        storeId: input.context.storeId,
+        startDate: range.startDate,
+        endDate: range.endDate,
+        limit,
+      });
+      const citationId = 'customer_new_cohort_second_purchase_facts';
+      return this.answer({
+        answer: `${range.label}新增客户 ${result.newCustomerCount} 人，其中 ${result.total} 人在该周期内完成了第二笔有效正金额订单。`,
+        citationId,
+        citationLabel: '新客建档与有效订单复购事实',
+        blocks: [
+          {
+            kind: 'kpi',
+            items: [
+              { label: '新增客户', value: `${result.newCustomerCount} 人` },
+              { label: '完成第二次消费', value: `${result.total} 人` },
+            ],
+            citationIds: [citationId],
+          },
+          {
+            kind: 'table',
+            rows: result.rows,
+            columns: [
+              'customerId',
+              'customerName',
+              'memberLevel',
+              'createdAt',
+              'secondPurchaseDate',
+              'validOrderCount',
+            ],
+            citationIds: [citationId],
+          },
+          ...(result.rows.length
+            ? []
+            : [{ kind: 'limitations' as const, items: [`no_data:${range.label}没有新客完成第二笔有效正金额订单。`] }]),
+        ],
+        metadata: {
+          capabilityKey: 'customer_facts',
+          answerScope: 'new_customer_second_purchase',
+          rangeLabel: range.label,
+          definition: 'Customer.createdAt in range and at least two valid positive-net ProductOrder records in range',
+          mappingOutputs: { customerIds: result.rows.map((row) => row.customerId) },
+          ...timeMetadata,
+        },
+      });
+    }
+
+    if (
+      /(?:买过|购买过|做过|体验过).*(?:客户).*(?:平均消费|客单价)|(?:项目|护理|疗程).*(?:客户).*(?:平均消费|客单价)/.test(
+        question,
+      )
+    ) {
+      const result = await this.customerFacts.getProjectBuyerAverageSpend({
+        storeId: input.context.storeId,
+        message: question,
+        limit,
+      });
+      const citationId = 'customer_project_buyer_spend_facts';
+      const projectLabel = result.projectName ?? '指定项目';
+      const unresolved = !result.projectName;
+      return this.answer({
+        answer: unresolved
+          ? '当前问题没有唯一匹配到本门店项目档案中的项目名称，请补充完整项目名后重试。'
+          : `买过${projectLabel}的客户共 ${result.total} 人，这些客户的有效订单累计消费 ${result.totalSpend.toFixed(2)} 元，平均每位客户消费 ${result.averageSpendPerCustomer.toFixed(2)} 元。`,
+        citationId,
+        citationLabel: '项目购买客户与有效订单消费事实',
+        blocks: [
+          {
+            kind: 'kpi',
+            items: [
+              { label: '项目客户数', value: `${result.total} 人` },
+              { label: '客户平均消费', value: `${result.averageSpendPerCustomer.toFixed(2)} 元` },
+              { label: '平均订单金额', value: `${result.averageOrderValue.toFixed(2)} 元` },
+            ],
+            citationIds: [citationId],
+          },
+          {
+            kind: 'table',
+            rows: result.rows,
+            columns: ['customerId', 'customerName', 'memberLevel', 'validOrderCount', 'totalSpend'],
+            citationIds: [citationId],
+          },
+          ...(result.rows.length
+            ? []
+            : [
+                {
+                  kind: 'limitations' as const,
+                  items: [
+                    unresolved
+                      ? 'project_name_unresolved:没有从当前门店项目档案中解析到唯一项目名称。'
+                      : `no_data:当前没有找到购买过${projectLabel}且存在有效正金额订单的客户。`,
+                  ],
+                },
+              ]),
+        ],
+        metadata: {
+          capabilityKey: 'customer_facts',
+          answerScope: 'project_buyer_average_spend',
+          projectName: result.projectName,
+          customerCount: result.total,
+          validOrderCount: result.validOrderCount,
+          definition:
+            'project buyer cohort from OrderItem.name; spend from all valid positive-net orders in current store',
+          mappingOutputs: { customerIds: result.rows.map((row) => row.customerId) },
+        },
+      });
+    }
+
+    if (/(?:健康档案.*过敏|过敏.*健康档案)/.test(question)) {
+      const result = await this.customerFacts.getCustomersWithAllergyHealthProfile(input.context.storeId, limit);
+      const citationId = 'customer_health_profile_allergy_facts';
+      return this.answer({
+        answer: result.total
+          ? `当前门店有 ${result.total} 位客户同时存在健康档案和明确过敏记录。`
+          : '当前门店没有找到同时存在健康档案和明确过敏记录的客户。',
+        citationId,
+        citationLabel: '客户健康档案与过敏记录事实',
+        blocks: [
+          {
+            kind: 'kpi',
+            items: [{ label: '有档案且标注过敏', value: `${result.total} 人` }],
+            citationIds: [citationId],
+          },
+          {
+            kind: 'table',
+            rows: result.rows,
+            columns: ['customerId', 'customerName', 'memberLevel', 'allergyRecord', 'skinType', 'lastCheck'],
+            citationIds: [citationId],
+          },
+          ...(result.rows.length
+            ? []
+            : [{ kind: 'limitations' as const, items: ['no_data:没有命中同时具备健康档案和肯定性过敏记录的客户。'] }]),
+        ],
+        metadata: {
+          capabilityKey: 'customer_facts',
+          answerScope: 'health_profile_allergy_customers',
+          definition:
+            'CustomerHealthProfile exists and allergyHistory or Customer.hasAllergy contains a positive record',
+          mappingOutputs: { customerIds: result.rows.map((row) => row.customerId) },
+        },
+      });
+    }
+
+    const memberLevels = this.customerMemberLevelsFromQuestion(question);
+    if (memberLevels.length && /(?:没来|未到店|没到店|沉睡|不活跃|好久没来)/.test(question)) {
+      const thresholdDays = this.customerInactivityThresholdDays(question, range, /沉睡/.test(question) ? 60 : 30);
+      const result = await this.customerFacts.getInactiveMemberTierCustomers({
+        storeId: input.context.storeId,
+        memberLevels,
+        thresholdDays,
+        asOf: range.endDate,
+        limit,
+      });
+      const citationId = 'customer_member_tier_inactivity_facts';
+      const memberLabel = this.customerMemberLevelLabel(question, memberLevels);
+      return this.answer({
+        answer: `${memberLabel}中有 ${result.total} 位客户截至${range.endDate.toISOString().slice(0, 10)}已至少 ${thresholdDays} 天没有到店。`,
+        citationId,
+        citationLabel: '会员等级客户最近到店事实',
+        blocks: [
+          {
+            kind: 'kpi',
+            items: [{ label: `${memberLabel}未到店`, value: `${result.total} 人`, hint: `至少 ${thresholdDays} 天` }],
+            citationIds: [citationId],
+          },
+          {
+            kind: 'ranking',
+            rows: result.rows,
+            columns: ['customerId', 'customerName', 'memberLevel', 'totalSpent', 'lastVisitDate', 'inactiveDays'],
+            citationIds: [citationId],
+          },
+          {
+            kind: 'text',
+            text: `统一口径：会员等级为${memberLevels.join('、')}，最后到店早于 ${thresholdDays} 天前或从未记录到店。`,
+            citationIds: [citationId],
+          },
+          ...(result.rows.length
+            ? []
+            : [{ kind: 'limitations' as const, items: ['no_data:没有命中符合该会员等级和未到店阈值的客户。'] }]),
+        ],
+        metadata: {
+          capabilityKey: 'customer_facts',
+          answerScope: 'member_tier_inactive_customers',
+          memberLevels,
+          thresholdDays,
+          mappingOutputs: { customerIds: result.rows.map((row) => row.customerId) },
+          ...timeMetadata,
+        },
+      });
+    }
+
+    if (/(?:客户结构|会员等级|各等级).*(?:占比|比例|分布)/.test(question)) {
+      const result = await this.customerFacts.getCustomerMemberLevelDistribution({
+        storeId: input.context.storeId,
+        startDate: range.startDate,
+        endDate: range.endDate,
+      });
+      const citationId = 'customer_member_level_distribution_facts';
+      const rows = result.rows.map((row) => ({
+        memberLevel: row.memberLevel,
+        customerCount: row.customerCount,
+        share: `${(row.share * 100).toFixed(1)}%`,
+      }));
+      return this.answer({
+        answer: `${range.label}有有效消费或实际到店的客户共 ${result.activeCustomerCount} 人，会员等级占比已按人数统计。`,
+        citationId,
+        citationLabel: '期间活跃客户会员等级分布事实',
+        blocks: [
+          {
+            kind: 'kpi',
+            items: [{ label: '期间活跃客户', value: `${result.activeCustomerCount} 人` }],
+            citationIds: [citationId],
+          },
+          {
+            kind: 'ranking',
+            rows,
+            columns: ['memberLevel', 'customerCount', 'share'],
+            citationIds: [citationId],
+          },
+          ...(rows.length
+            ? []
+            : [{ kind: 'limitations' as const, items: [`no_data:${range.label}没有有效消费或实际到店客户。`] }]),
+        ],
+        metadata: {
+          capabilityKey: 'customer_facts',
+          answerScope: 'customer_member_level_distribution',
+          rangeLabel: range.label,
+          definition: 'unique customers with positive valid order or governed arrived reservation in requested period',
+          ...timeMetadata,
+        },
+      });
+    }
+
+    if (
+      /(?:新客|新客户).*(?:老客|老客户).*(?:消费|实收|金额).*(?:对比|比较)|(?:对比|比较).*(?:新客|新客户).*(?:老客|老客户).*(?:消费|实收|金额)/.test(
+        question,
+      )
+    ) {
+      const result = await this.customerFacts.getNewReturningCustomerSpendComparison({
+        storeId: input.context.storeId,
+        startDate: range.startDate,
+        endDate: range.endDate,
+      });
+      const newCustomers = result.rows.find((row) => row.customerType === '新客')!;
+      const returningCustomers = result.rows.find((row) => row.customerType === '老客')!;
+      const citationId = 'customer_new_returning_spend_comparison_facts';
+      return this.answer({
+        answer: `${range.label}新客消费 ${newCustomers.paidAmount.toFixed(2)} 元，老客消费 ${returningCustomers.paidAmount.toFixed(2)} 元，相差 ${(newCustomers.paidAmount - returningCustomers.paidAmount).toFixed(2)} 元。`,
+        citationId,
+        citationLabel: '新老客户有效订单消费事实',
+        blocks: [
+          {
+            kind: 'comparison',
+            items: [
+              {
+                label: '消费金额',
+                current: `新客 ${newCustomers.paidAmount.toFixed(2)} 元`,
+                previous: `老客 ${returningCustomers.paidAmount.toFixed(2)} 元`,
+                delta: `${(newCustomers.paidAmount - returningCustomers.paidAmount).toFixed(2)} 元`,
+              },
+              {
+                label: '消费客户数',
+                current: `新客 ${newCustomers.customerCount} 人`,
+                previous: `老客 ${returningCustomers.customerCount} 人`,
+                delta: `${newCustomers.customerCount - returningCustomers.customerCount} 人`,
+              },
+            ],
+            citationIds: [citationId],
+          },
+          {
+            kind: 'table',
+            rows: result.rows,
+            columns: ['customerType', 'customerCount', 'validOrderCount', 'paidAmount', 'averageSpendPerCustomer'],
+            citationIds: [citationId],
+          },
+          ...(result.rows.every((row) => row.validOrderCount === 0)
+            ? [
+                {
+                  kind: 'limitations' as const,
+                  items: [`no_data:${range.label}没有可用于新老客消费对比的有效正金额订单。`],
+                },
+              ]
+            : []),
+        ],
+        metadata: {
+          capabilityKey: 'customer_facts',
+          answerScope: 'new_returning_customer_spend_comparison',
+          rangeLabel: range.label,
+          newCustomerDefinition: 'Customer.createdAt within requested period',
+          ...timeMetadata,
+        },
+      });
+    }
+
+    if (/(?:到店|来店).*(?:频次|次数).*(?:分布|结构)/.test(question)) {
+      const result = await this.customerFacts.getCustomerVisitFrequencyDistribution({
+        storeId: input.context.storeId,
+        startDate: range.startDate,
+        endDate: range.endDate,
+      });
+      const citationId = 'customer_visit_frequency_distribution_facts';
+      const rows = result.rows.map((row) => ({
+        visitFrequency: row.visitFrequency,
+        customerCount: row.customerCount,
+        share: `${(row.share * 100).toFixed(1)}%`,
+      }));
+      return this.answer({
+        answer: `${range.label}实际到店客户 ${result.arrivedCustomerCount} 人，到店频次分布已按客户去重统计。`,
+        citationId,
+        citationLabel: '客户实际到店频次事实',
+        blocks: [
+          {
+            kind: 'kpi',
+            items: [{ label: '实际到店客户', value: `${result.arrivedCustomerCount} 人` }],
+            citationIds: [citationId],
+          },
+          {
+            kind: 'table',
+            rows,
+            columns: ['visitFrequency', 'customerCount', 'share'],
+            citationIds: [citationId],
+          },
+          ...(rows.length
+            ? []
+            : [{ kind: 'limitations' as const, items: [`no_data:${range.label}没有实际到店记录。`] }]),
+        ],
+        metadata: {
+          capabilityKey: 'customer_facts',
+          answerScope: 'customer_visit_frequency_distribution',
+          rangeLabel: range.label,
+          ...timeMetadata,
+        },
+      });
+    }
+
+    if (
+      /(?:来源|渠道).*(?:客户质量|转化|消费).*(?:对比|比较)|(?:客户质量).*(?:来源|渠道)|(?:对比|比较).*(?:来源|渠道).*(?:客户质量|转化|消费)/.test(
+        question,
+      )
+    ) {
+      const result = await this.customerFacts.getCustomerSourceQualityComparison({
+        storeId: input.context.storeId,
+        startDate: range.startDate,
+        endDate: range.endDate,
+      });
+      const citationId = 'customer_source_quality_comparison_facts';
+      const rows = result.rows.map((row) => ({
+        ...row,
+        repeatCustomerShare: `${(row.repeatCustomerShare * 100).toFixed(1)}%`,
+        paidAmount: row.paidAmount.toFixed(2),
+        averageSpendPerCustomer: row.averageSpendPerCustomer.toFixed(2),
+      }));
+      return this.answer({
+        answer: rows.length
+          ? `${range.label}按客户来源比较有效消费质量，客均消费最高的是 ${rows[0]!.source}（${rows[0]!.averageSpendPerCustomer} 元）。`
+          : `${range.label}没有可用于来源渠道质量比较的有效订单。`,
+        citationId,
+        citationLabel: '客户来源与有效订单消费质量事实',
+        blocks: [
+          {
+            kind: 'ranking',
+            rows,
+            columns: [
+              'source',
+              'activeCustomerCount',
+              'validOrderCount',
+              'repeatCustomerCount',
+              'repeatCustomerShare',
+              'paidAmount',
+              'averageSpendPerCustomer',
+            ],
+            citationIds: [citationId],
+          },
+          {
+            kind: 'text',
+            text: '统一口径：渠道质量按期间有效正金额订单的活跃客户数、复购客户占比、消费金额和客均消费比较，不推断渠道因果。',
+            citationIds: [citationId],
+          },
+          ...(rows.length
+            ? []
+            : [{ kind: 'limitations' as const, items: [`no_data:${range.label}没有可比较的渠道消费事实。`] }]),
+        ],
+        metadata: {
+          capabilityKey: 'customer_facts',
+          answerScope: 'customer_source_quality_comparison',
+          rangeLabel: range.label,
+          ...timeMetadata,
+        },
+      });
+    }
+
+    if (/(?:高价值|高净值).*(?:没来|未到店|没到店|沉睡|不活跃|好久没来)/.test(question)) {
+      const thresholdDays = this.customerInactivityThresholdDays(question, range, 30);
+      const result = await this.customerFacts.getHighValueInactiveCustomers({
+        storeId: input.context.storeId,
+        thresholdDays,
+        asOf: range.endDate,
+        minimumTotalSpent: 5_000,
+        limit,
+      });
+      const citationId = 'customer_high_value_inactivity_facts';
+      return this.answer({
+        answer: `按统一口径“累计消费不少于 ${result.minimumTotalSpent.toFixed(0)} 元”，有 ${result.total} 位高价值客户截至${range.endDate.toISOString().slice(0, 10)}已至少 ${thresholdDays} 天没有到店。`,
+        citationId,
+        citationLabel: '高价值客户消费与最近到店事实',
+        blocks: [
+          {
+            kind: 'kpi',
+            items: [{ label: '高价值未到店客户', value: `${result.total} 人`, hint: `至少 ${thresholdDays} 天` }],
+            citationIds: [citationId],
+          },
+          {
+            kind: 'ranking',
+            rows: result.rows,
+            columns: ['customerId', 'customerName', 'memberLevel', 'totalSpent', 'lastVisitDate', 'inactiveDays'],
+            citationIds: [citationId],
+          },
+          {
+            kind: 'text',
+            text: `治理默认口径：累计消费不少于 ${result.minimumTotalSpent.toFixed(0)} 元，且至少 ${thresholdDays} 天未到店或无到店记录。`,
+            citationIds: [citationId],
+          },
+          ...(result.rows.length
+            ? []
+            : [{ kind: 'limitations' as const, items: ['no_data:没有命中该高价值和未到店阈值的客户。'] }]),
+        ],
+        metadata: {
+          capabilityKey: 'customer_facts',
+          answerScope: 'high_value_inactive_customers',
+          thresholdDays,
+          minimumTotalSpent: result.minimumTotalSpent,
+          mappingOutputs: { customerIds: result.rows.map((row) => row.customerId) },
+          ...timeMetadata,
+        },
+      });
+    }
+
+    if (/(?:储值|会员).{0,4}余额.*(?:异常|偏高|过高|风险)|(?:异常|偏高|过高).*(?:储值|会员).{0,4}余额/.test(question)) {
+      const result = await this.customerFacts.getHighStoredBalanceRiskCustomers({
+        storeId: input.context.storeId,
+        minimumBalance: 1_000,
+        limit,
+      });
+      const citationId = 'customer_stored_balance_risk_facts';
+      return this.answer({
+        answer: `按治理默认阈值“活跃储值账户现金余额加赠送余额不少于 ${result.minimumBalance.toFixed(0)} 元”，当前有 ${result.total} 位客户余额偏高。`,
+        citationId,
+        citationLabel: '客户储值账户余额事实',
+        blocks: [
+          {
+            kind: 'kpi',
+            items: [
+              { label: '余额偏高客户', value: `${result.total} 人` },
+              { label: '治理默认阈值', value: `${result.minimumBalance.toFixed(0)} 元` },
+            ],
+            citationIds: [citationId],
+          },
+          {
+            kind: 'ranking',
+            rows: result.rows,
+            columns: [
+              'customerId',
+              'customerName',
+              'memberLevel',
+              'cashBalance',
+              'giftBalance',
+              'totalBalance',
+              'updatedAt',
+            ],
+            citationIds: [citationId],
+          },
+          {
+            kind: 'text',
+            text: `治理默认阈值：活跃储值账户的现金余额与赠送余额合计不低于 ${result.minimumBalance.toFixed(0)} 元；这是余额关注名单，不等同于长期未消耗风险。`,
+            citationIds: [citationId],
+          },
+          ...(result.rows.length
+            ? []
+            : [{ kind: 'limitations' as const, items: ['no_data:当前没有储值余额达到治理默认阈值的客户。'] }]),
+        ],
+        metadata: {
+          capabilityKey: 'customer_facts',
+          answerScope: 'high_stored_balance_risk_customers',
+          minimumBalance: result.minimumBalance,
+          mappingOutputs: { customerIds: result.rows.map((row) => row.customerId) },
+        },
+      });
+    }
+
+    if (/消费.*(?:骤降|大幅下降|明显下降|下降很多|减少很多)|(?:骤降|大幅下降).*(?:消费)/.test(question)) {
+      const result = await this.customerFacts.getCustomerConsumptionDeclineRanking({
+        storeId: input.context.storeId,
+        asOf: range.endDate,
+        mode: /频率|频次|次数/.test(question) ? 'frequency' : 'amount',
+        declineThreshold: 0.3,
+        periodDays: 30,
+        limit,
+      });
+      const citationId = 'customer_consumption_decline_facts';
+      const rows = result.rows.map((row) => ({ ...row, declineRate: `${(row.declineRate * 100).toFixed(1)}%` }));
+      return this.answer({
+        answer: `按近 ${result.periodDays} 天对比前 ${result.periodDays} 天、下降至少 ${(result.declineThreshold * 100).toFixed(0)}% 的统一口径，发现 ${result.total} 位客户消费${result.mode === 'frequency' ? '频次' : '金额'}明显下降。`,
+        citationId,
+        citationLabel: '客户相邻周期有效订单消费事实',
+        blocks: [
+          {
+            kind: 'kpi',
+            items: [
+              {
+                label: `消费${result.mode === 'frequency' ? '频次' : '金额'}下降客户`,
+                value: `${result.total} 人`,
+                hint: `下降至少 ${(result.declineThreshold * 100).toFixed(0)}%`,
+              },
+            ],
+            citationIds: [citationId],
+          },
+          {
+            kind: 'ranking',
+            rows,
+            columns: [
+              'customerId',
+              'customerName',
+              'memberLevel',
+              'previousOrderCount',
+              'currentOrderCount',
+              'previousAmount',
+              'currentAmount',
+              'declineRate',
+              'lastVisitDate',
+            ],
+            citationIds: [citationId],
+          },
+          {
+            kind: 'text',
+            text: `治理默认口径：近 ${result.periodDays} 天与前 ${result.periodDays} 天比较，下降比例至少 ${(result.declineThreshold * 100).toFixed(0)}%；频次模式要求前期至少 2 笔有效订单。`,
+            citationIds: [citationId],
+          },
+          ...(rows.length ? [] : [{ kind: 'limitations' as const, items: ['no_data:没有客户达到消费下降关注阈值。'] }]),
+        ],
+        metadata: {
+          capabilityKey: 'customer_facts',
+          answerScope: 'customer_consumption_decline_ranking',
+          mode: result.mode,
+          declineThreshold: result.declineThreshold,
+          periodDays: result.periodDays,
+          mappingOutputs: { customerIds: result.rows.map((row) => row.customerId) },
+          ...timeMetadata,
+        },
+      });
+    }
+
+    return undefined;
+  }
+
+  private customerMemberLevelsFromQuestion(question: string): string[] {
+    if (/钻石会员|钻石卡/.test(question)) return ['钻石', '钻石会员'];
+    if (/金卡会员|金卡/.test(question)) return ['金卡', '金卡会员'];
+    if (/银卡会员|银卡/.test(question)) return ['银卡', '银卡会员'];
+    if (/VIP会员|VIP/i.test(question)) return ['VIP', 'VIP会员'];
+    if (/普通会员/.test(question)) return ['普通', '普通会员'];
+    return [];
+  }
+
+  private customerMemberLevelLabel(question: string, levels: string[]): string {
+    return question.match(/钻石会员|金卡会员|银卡会员|VIP会员|VIP|普通会员|钻石|金卡|银卡/i)?.[0] ?? levels.join('、');
+  }
+
+  private customerInactivityThresholdDays(question: string, range: BrainDateRange, fallback: number): number {
+    const explicitDays = Number(question.match(/(?:最近|近)?\s*(\d+)\s*天/)?.[1]);
+    if (Number.isFinite(explicitDays) && explicitDays > 0) return Math.min(3_650, Math.floor(explicitDays));
+    if (/(?:最近|近)?三个月|一个季度|本季度|这个季度/.test(question)) return 90;
+    if (/半年/.test(question)) return 180;
+    if (/一年|今年/.test(question)) return 365;
+    if (/上周|最近一周|近一周/.test(question)) return 7;
+    const rangeDays = Math.ceil((range.endDate.getTime() - range.startDate.getTime()) / 86_400_000);
+    return rangeDays > 1 && rangeDays <= 3_650 ? rangeDays : fallback;
   }
 
   private answer(input: {
