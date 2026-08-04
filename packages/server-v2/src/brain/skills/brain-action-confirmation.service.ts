@@ -30,6 +30,7 @@ import {
   evaluateBusinessActionInstitutionalEffect,
   type BrainActionInstitutionalEffectEvaluation,
 } from '../cognition/business-action-institutional-effect.js';
+import { BrainReleaseService } from '../governance/brain-release.service.js';
 
 interface BrainActionApprovalEnvelope {
   protocolVersion: '1.0' | '1.1' | '1.2' | '1.3' | '1.4' | '1.5';
@@ -81,6 +82,7 @@ export class BrainActionConfirmationService {
     @Optional() private readonly executionIdentity?: BrainActionExecutionIdentityService,
     @Optional() private readonly predicateEffectEvaluator?: BrainActionPredicateEffectEvaluatorService,
     @Optional() private readonly resultReferenceService?: BrainResultReferenceService,
+    @Optional() private readonly releaseService?: BrainReleaseService,
   ) {}
 
   requiresConfirmation(riskLevel: BrainRiskLevel | 'low' | 'medium' | 'high' | 'critical') {
@@ -91,6 +93,7 @@ export class BrainActionConfirmationService {
     runId: number;
     userId: number;
     storeId: number;
+    roles?: string[];
     skillKey: string;
     capabilityVersion?: number;
     riskLevel: BrainRiskLevel;
@@ -101,6 +104,18 @@ export class BrainActionConfirmationService {
     planId?: string;
     expiresInMs?: number;
   }) {
+    this.assertDeploymentActionExecutionEnabled();
+    const actionProvenance = input.actionProvenance
+      ? this.validateActionProvenance(input.actionProvenance, input.skillKey)
+      : undefined;
+    await this.assertReleaseActionExecutionEnabled({
+      runId: input.runId,
+      userId: input.userId,
+      storeId: input.storeId,
+      roleKey: actionProvenance?.situationContext.qualifiedRole ?? this.authenticatedRole(input.roles),
+      releaseId: actionProvenance?.release?.releaseId,
+      releaseFingerprint: actionProvenance?.release?.releaseFingerprint,
+    });
     const actionId = `brain_action_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     this.assertNoConfirmationClaim(input.payload);
     const capabilityVersion = input.capabilityVersion ?? this.capabilityGateway?.resolve(input.skillKey).version ?? 1;
@@ -109,9 +124,6 @@ export class BrainActionConfirmationService {
       throw new BadRequestException(`action_risk_mismatch:${input.skillKey}`);
     }
     let validatedArgs = validation?.payload ?? this.asRecord(input.payload);
-    const actionProvenance = input.actionProvenance
-      ? this.validateActionProvenance(input.actionProvenance, input.skillKey)
-      : undefined;
     if (actionProvenance) {
       if (
         actionProvenance.situationContext.runId !== input.runId ||
@@ -268,7 +280,7 @@ export class BrainActionConfirmationService {
     requestChannel?: string;
     deviceIdHash?: string;
   }) {
-    if (!this.capabilityGateway) throw new Error('capability_gateway_unavailable');
+    this.assertDeploymentActionExecutionEnabled();
     const action = await this.prisma.brainActionConfirmation.findFirst({
       where: {
         actionId: input.actionId,
@@ -278,6 +290,15 @@ export class BrainActionConfirmationService {
       },
     });
     if (!action) return null;
+    await this.assertReleaseActionExecutionEnabled({
+      runId: action.runId,
+      userId: input.userId,
+      storeId: input.storeId,
+      roleKey: this.authenticatedRole(input.roles),
+      releaseId: action.releaseId,
+      releaseFingerprint: action.releaseFingerprint,
+    });
+    if (!this.capabilityGateway) throw new Error('capability_gateway_unavailable');
 
     const storedPayload = this.asRecord(action.payload);
     const isVersionedEnvelope =
@@ -397,7 +418,7 @@ export class BrainActionConfirmationService {
     requestChannel?: string;
     deviceIdHash?: string;
   }) {
-    if (!this.capabilityGateway) throw new Error('capability_gateway_unavailable');
+    this.assertDeploymentActionExecutionEnabled();
     const action = await this.prisma.brainActionConfirmation.findFirst({
       where: {
         actionId: input.actionId,
@@ -407,6 +428,15 @@ export class BrainActionConfirmationService {
       },
     });
     if (!action) return null;
+    await this.assertReleaseActionExecutionEnabled({
+      runId: action.runId,
+      userId: input.userId,
+      storeId: input.storeId,
+      roleKey: this.authenticatedRole(input.roles),
+      releaseId: action.releaseId,
+      releaseFingerprint: action.releaseFingerprint,
+    });
+    if (!this.capabilityGateway) throw new Error('capability_gateway_unavailable');
 
     const idempotencyKey = this.actionIdempotencyKey(action);
     const existing = await this.prisma.brainActionExecution.findUnique({
@@ -1913,6 +1943,64 @@ export class BrainActionConfirmationService {
     value: Prisma.JsonValue | undefined,
   ): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput {
     return value == null ? Prisma.JsonNull : this.toInputJson(value);
+  }
+
+  private assertDeploymentActionExecutionEnabled(): void {
+    const value = process.env.BRAIN_ACTION_EXECUTION_ENABLED?.trim().toLowerCase();
+    if (value === 'false' || value === '0' || value === 'off' || value === 'no') {
+      throw new ForbiddenException('brain_action_execution_disabled_by_release_profile');
+    }
+  }
+
+  private authenticatedRole(roles?: string[]): string {
+    return (
+      roles
+        ?.map((role) => resolveBrainDomainRole(role))
+        .find((role): role is NonNullable<typeof role> => Boolean(role)) ?? 'store_manager'
+    );
+  }
+
+  private async assertReleaseActionExecutionEnabled(input: {
+    runId: number;
+    userId: number;
+    storeId: number;
+    roleKey: string;
+    releaseId?: number | null;
+    releaseFingerprint?: string | null;
+  }): Promise<void> {
+    if (!this.releaseService) return;
+    const policy = await this.releaseService.resolveActionExecutionPolicy({
+      storeId: input.storeId,
+      userId: input.userId,
+      roleKey: input.roleKey,
+      sourceReleaseId: input.releaseId,
+      sourceReleaseFingerprint: input.releaseFingerprint,
+    });
+    if (policy.allowed) return;
+    await this.recordActionPolicyDenial(input, policy.reason);
+    throw new ForbiddenException(policy.reason);
+  }
+
+  private async recordActionPolicyDenial(
+    input: { runId: number; releaseId?: number | null; releaseFingerprint?: string | null },
+    reason: string,
+  ): Promise<void> {
+    if (!this.traceService) return;
+    try {
+      await this.traceService.recordStep({
+        runId: input.runId,
+        stepKey: 'action_execution_policy',
+        layer: 'governance',
+        input: this.toInputJson({
+          sourceReleaseId: input.releaseId ?? null,
+          sourceReleaseFingerprint: input.releaseFingerprint ?? null,
+        }),
+        error: this.toInputJson({ code: reason }),
+        status: 'failed',
+      });
+    } catch {
+      // Policy denial remains fail-closed even when best-effort tracing fails.
+    }
   }
 
   private async recordExecutionTrace(input: {

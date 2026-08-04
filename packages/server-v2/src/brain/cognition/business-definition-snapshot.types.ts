@@ -528,6 +528,8 @@ export interface PrismaRuntimeDataModel {
 export interface BusinessDefinitionSnapshotProvider {
   loadActiveDefinitions(): Promise<BusinessDefinitionSnapshotInput>;
   loadEvaluationDefinitions?(definitionVersionIds: readonly number[]): Promise<BusinessDefinitionSnapshotInput>;
+  getEvaluationCacheIdentity?(definitionVersionIds: readonly number[]): Promise<string>;
+  primeEvaluationCacheIdentity?(definitionVersionIds: readonly number[], identity: string): void;
   loadActiveMetricDefinitions?(): Promise<BusinessMetricDefinitionSnapshot[]>;
   getRuntimeDataModel(): PrismaRuntimeDataModel;
 }

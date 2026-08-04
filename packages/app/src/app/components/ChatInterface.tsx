@@ -54,6 +54,7 @@ interface UIMessage {
   blocks?: ComponentProps<typeof ChatMessage>['blocks']
   runId?: number
   brainStatus?: ComponentProps<typeof ChatMessage>['brainStatus']
+  actionsEnabled?: boolean
 }
 
 export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
@@ -106,6 +107,7 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
               blocks: presentation.blocks,
               runId: result.runId,
               brainStatus: presentation.status,
+              actionsEnabled: result.actionsEnabled,
             } : m))
           )
         },
@@ -173,7 +175,9 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
               value || label,
               msg.runId ? { kind: 'follow_up', sourceRunId: msg.runId, optionId } : undefined,
             )}
-            onConfirmAction={msg.runId ? (action) => void handleActionDecision(msg.runId!, action, 'confirm') : undefined}
+            onConfirmAction={msg.runId && msg.actionsEnabled !== false
+              ? (action) => void handleActionDecision(msg.runId!, action, 'confirm')
+              : undefined}
             onRejectAction={msg.runId ? (action) => void handleActionDecision(msg.runId!, action, 'reject') : undefined}
           />
         ))}

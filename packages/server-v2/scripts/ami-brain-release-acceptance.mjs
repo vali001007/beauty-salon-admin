@@ -59,6 +59,7 @@ const identity = {
   contractVersion: 'ami-brain-release-acceptance/v1',
   runKey: options.runKey,
   releaseId: options.releaseId,
+  evaluationReleaseId: options.evaluationReleaseId ?? null,
   runtimeCommit: options.runtimeCommit,
   productionHealthUrl: options.productionHealthUrl,
   storeId: options.storeId,
@@ -420,17 +421,22 @@ function parseOptions(args) {
   const get = (name) => args.find((value) => value.startsWith(`${name}=`))?.slice(name.length + 1);
   const has = (name) => args.includes(name) || get(name) === 'true';
   const releaseId = Number(get('--release-id'));
+  const evaluationReleaseId = positiveNumber(get('--evaluation-release-id'));
   const runtimeCommit = String(get('--runtime-commit') ?? '');
   const productionHealthUrl = String(get('--production-health-url') ?? '');
   const storeId = Number(get('--store-id'));
   const runKey = String(get('--run-key') ?? '');
   if (!Number.isInteger(releaseId) || releaseId <= 0) throw new Error('release-id is required');
+  if (evaluationReleaseId && evaluationReleaseId !== releaseId) {
+    throw new Error('evaluation-release-id must match release-id');
+  }
   if (!/^[0-9a-f]{40}$/iu.test(runtimeCommit)) throw new Error('runtime-commit must be a full 40-character SHA');
   if (!/^https?:\/\//iu.test(productionHealthUrl)) throw new Error('production-health-url is required');
   if (!Number.isInteger(storeId) || storeId <= 0) throw new Error('store-id is required');
   if (!/^[a-zA-Z0-9_-]+$/u.test(runKey)) throw new Error('run-key is required and must be filesystem safe');
   return {
     releaseId,
+    evaluationReleaseId,
     runtimeCommit,
     productionHealthUrl,
     storeId,

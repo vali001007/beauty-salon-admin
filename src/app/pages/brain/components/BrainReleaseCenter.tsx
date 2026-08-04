@@ -152,18 +152,18 @@ export function BrainReleaseCenter() {
 
   async function createSequence() {
     if (!releaseKey.trim() || !selected.length) {
-      toast.error('请填写发布标识并选择至少一个能力版本');
+      toast.error('请填写运行版本内部幂等标识并选择至少一个能力版本');
       return;
     }
     setBusyId('create');
     try {
       await createBrainRolloutSequence({ releaseKey: releaseKey.trim(), resourceVersionIds: selected });
-      toast.success('五阶段发布序列已生成，需逐阶段评测和批准');
+      toast.success('运行版本的五阶段序列已生成，五个阶段共用同一个 RT 编号');
       setReleaseKey('');
       setSelected([]);
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '灰度发布序列创建失败');
+      toast.error(error instanceof Error ? error.message : '运行版本灰度序列创建失败');
     } finally {
       setBusyId(null);
     }
@@ -173,10 +173,10 @@ export function BrainReleaseCenter() {
     setBusyId(releaseId);
     try {
       await activateBrainRelease(releaseId);
-      toast.success('该阶段已批准并生效');
+      toast.success('该运行阶段已批准并生效');
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '发布门禁未通过');
+      toast.error(error instanceof Error ? error.message : '运行阶段门禁未通过');
     } finally {
       setBusyId(null);
     }
@@ -186,10 +186,10 @@ export function BrainReleaseCenter() {
     setBusyId(releaseId);
     try {
       await rejectBrainRelease(releaseId, 'governance_console_rejected');
-      toast.success('发布已拒绝并归档');
+      toast.success('运行阶段已拒绝并归档');
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '拒绝发布失败');
+      toast.error(error instanceof Error ? error.message : '拒绝运行阶段失败');
     } finally {
       setBusyId(null);
     }
@@ -199,7 +199,7 @@ export function BrainReleaseCenter() {
     setBusyId(releaseId);
     try {
       await rollbackBrainReleaseToRules(releaseId, 'governance_console_rules_rollback');
-      toast.success('已切回上一稳定版本，无需回滚业务数据库');
+      toast.success('已切回上一稳定运行版本，无需回滚业务数据库');
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '回滚失败');
@@ -258,9 +258,9 @@ export function BrainReleaseCenter() {
     <section className="min-w-0">
       <header className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-base font-semibold">发布审批与灰度</h2>
+          <h2 className="text-base font-semibold">运行版本（RT）审批与灰度</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            系统自动生成 Shadow、5%、20%、50%、100% 五个独立发布记录；每个阶段都需通过评测门禁后批准。
+            一个 RT 运行版本包含 Shadow、5%、20%、50%、100% 五个阶段；阶段记录用于审计，不会生成五个产品版本号。治理策略请在 GP 策略区单独审批。
           </p>
         </div>
         <button
@@ -314,22 +314,22 @@ export function BrainReleaseCenter() {
             );
           }) : (
             <div className="rounded-md border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-              暂无发布记录。先从右侧选择已生成的能力版本。
+              暂无运行阶段记录。先从右侧选择已生成的能力版本，创建一个 RT 运行版本。
             </div>
           )}
         </div>
 
         <aside className="min-w-0 border-t border-border pt-5 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-          <h3 className="text-sm font-semibold">生成五阶段发布</h3>
-          <p className="mt-1 text-xs text-muted-foreground">这里只选择能力版本，灰度范围和回滚链由系统自动生成。</p>
+          <h3 className="text-sm font-semibold">创建一个 RT 运行版本</h3>
+          <p className="mt-1 text-xs text-muted-foreground">这里只选择运行能力；五个灰度阶段共用同一个 RT 编号，治理策略 GP 不在这里创建。</p>
           {!canManage ? <p className="mt-4 rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">当前账号只有查看权限，创建发布序列需要 Brain 治理管理权限。</p> : null}
-          <label htmlFor="release-key" className="mt-4 block text-xs font-medium text-muted-foreground">发布标识</label>
+          <label htmlFor="release-key" className="mt-4 block text-xs font-medium text-muted-foreground">运行版本内部幂等标识</label>
           <input
             id="release-key"
             value={releaseKey}
             onChange={(event) => setReleaseKey(event.target.value)}
             disabled={!canManage}
-            placeholder="例如 brain-2026-07-13"
+            placeholder="例如 ami-brain-runtime-query-only-v1"
             className="mt-1 h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"
           />
 
@@ -363,7 +363,7 @@ export function BrainReleaseCenter() {
             disabled={busyId !== null}
           >
             {busyId === 'create' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
-            生成 Shadow 到 100% 序列
+            创建 RT 及 Shadow 到 Full 阶段
           </button> : null}
         </aside>
       </div>
@@ -373,7 +373,7 @@ export function BrainReleaseCenter() {
 
 function RolloutProgress({ releases }: { releases: BrainGovernanceRelease[] }) {
   return (
-    <div className="grid min-w-0 grid-cols-5 gap-1" aria-label="灰度发布阶段">
+    <div className="grid min-w-0 grid-cols-5 gap-1" aria-label="运行版本灰度阶段">
       {ROLLOUT_STAGES.map((stage) => {
         const release = releases.find((item) => rolloutStage(item) === stage.key);
         return (
@@ -409,13 +409,14 @@ function ReleaseApprovalCard(props: {
   const summary = summarizeRelease(props.release);
   const isDraft = props.release.status === 'draft';
   const isActive = props.release.status === 'active';
+  const readinessBlocksApproval = Boolean(props.release.releaseReadiness && !props.release.releaseReadiness.canRelease);
 
   return (
     <article className="min-w-0 rounded-md border border-border p-4">
       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="break-all text-sm font-semibold">{props.release.releaseKey}</h3>
+            <h3 className="break-all text-sm font-semibold">{runtimeIdentityText(props.release)}</h3>
             <span className={`rounded border px-2 py-0.5 text-xs ${statusClass(props.release.status)}`}>
               {statusLabel(props.release.status)}
             </span>
@@ -423,8 +424,7 @@ function ReleaseApprovalCard(props: {
           <p className="mt-2 break-words text-sm text-muted-foreground">{summary.description}</p>
         </div>
         <div className="shrink-0 text-left text-xs text-muted-foreground sm:text-right">
-          <p>{rolloutLabel(props.release)}</p>
-          <p className="mt-1">发布记录 #{props.release.id}</p>
+          <p>{props.release.productIdentity?.stageCode ?? rolloutLabel(props.release)}</p>
         </div>
       </div>
 
@@ -434,13 +434,24 @@ function ReleaseApprovalCard(props: {
         <BusinessField label="风险" value={riskLabel(summary.riskLevel)} />
         <BusinessField label="确认策略" value={summary.confirmation} />
         <BusinessField label="自动测试" value={summary.testStatus} />
-        <BusinessField label="回滚点" value={props.release.previousReleaseId ? `发布 #${props.release.previousReleaseId}` : '当前 rules 配置'} />
+        <BusinessField label="回滚点" value={props.release.previousReleaseId ? `LEGACY-RT-${props.release.previousReleaseId}` : '当前 rules 配置'} />
       </dl>
+
+      <details className="mt-3 text-xs text-muted-foreground"><summary className="cursor-pointer">审计信息</summary><p className="mt-1 break-all">内部 key：{props.release.releaseKey} · 数据库记录 #{props.release.id}</p></details>
 
       <div className="mt-4 min-w-0">
         <p className="text-xs font-medium text-muted-foreground">影响面</p>
         <p className="mt-1 break-words text-sm">{summary.impact}</p>
       </div>
+
+      {props.release.releaseReadiness?.blockers.length ? (
+        <div className={`mt-4 rounded-md border px-3 py-2 text-xs ${props.release.releaseReadiness.status === 'unavailable' ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-destructive/40 bg-destructive/5 text-destructive'}`}>
+          <p className="font-medium">
+            {isActive ? '运行阶段已生效，但当前证据状态需要关注' : '当前运行阶段尚未满足激活条件'}
+          </p>
+          {props.release.releaseReadiness.blockers.map((blocker) => <p key={blocker} className="mt-1 break-all">{blocker}</p>)}
+        </div>
+      ) : null}
 
       {props.regenerationJob ? (
         <RegenerationStatus
@@ -491,11 +502,13 @@ function ReleaseApprovalCard(props: {
             type="button"
             className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm text-primary-foreground disabled:opacity-60"
             onClick={props.onApprove}
-            disabled={props.busy || Boolean(props.regenerationJob)}
-            title={props.regenerationJob ? '该发布已提交修改要求，需使用新生成草稿重新创建发布' : undefined}
+            disabled={props.busy || Boolean(props.regenerationJob) || readinessBlocksApproval}
+            title={props.regenerationJob
+              ? '该运行阶段已提交修改要求，需使用新生成草稿重新创建运行版本'
+              : readinessBlocksApproval ? '正式评测证据尚未就绪或当前不可验证' : undefined}
           >
             {props.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-            批准发布
+            批准运行阶段
           </button> : null}
           {props.canManage ? <button
             type="button"
@@ -524,7 +537,7 @@ function ReleaseApprovalCard(props: {
           disabled={props.busy}
         >
           {props.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-          一键回滚
+          回滚运行版本
         </button>
       ) : null}
     </article>
@@ -628,19 +641,24 @@ function summarizeRelease(release: BrainGovernanceRelease) {
   const sideEffect = snapshots.some((snapshot) => snapshot.sideEffect === true || snapshot.readOnly === false);
   const roles = unique(snapshots.flatMap((snapshot) => strings(snapshot.allowedRoles)));
   const riskLevel = highestRisk(snapshots.map((snapshot) => String(snapshot.riskLevel ?? 'low') as BrainRiskLevel));
-  const tests = snapshots.flatMap((snapshot) => Object.values(record(snapshot.tests)));
-  const testsPassed = tests.length > 0 && tests.every((value) => value === 'passed' || value === true);
+  const readiness = release.releaseReadiness;
   const confirmation = snapshots.some((snapshot) => snapshot.requiresConfirmation === true)
     ? '真实执行需再次确认'
     : sideEffect ? '发布后按风险确认' : '无需执行确认';
   return {
     description: snapshots.map((snapshot) => String(snapshot.description ?? '')).find(Boolean)
-      ?? `本次发布包含 ${itemCount} 个能力版本。`,
+      ?? `当前运行阶段包含 ${itemCount} 个能力版本。`,
     dataScope: sideEffect ? '读取并生成操作预览' : '只读',
     roles: roles.length ? roles.map(roleLabel).join('、') : '按权限自动收口',
     riskLevel,
     confirmation,
-    testStatus: testsPassed ? '全部通过' : '等待评测门禁',
+    testStatus: readiness?.status === 'ready'
+      ? `已通过${readiness.evalRunId ? `（Eval Run #${readiness.evalRunId}）` : ''}`
+      : readiness?.status === 'blocked'
+        ? `未就绪${readiness.blockers[0] ? `：${readiness.blockers[0]}` : ''}`
+        : readiness?.status === 'unavailable'
+          ? '证据暂不可用（不代表未执行）'
+          : '证据状态未返回',
     impact: items.length
       ? items.map((item) => businessName(item.snapshot, item.resourceKey)).join('、')
       : itemCount > 0 ? `包含 ${itemCount} 个能力版本` : '尚未绑定能力版本',
@@ -656,6 +674,12 @@ function rolloutLabel(release: BrainGovernanceRelease) {
   const stage = rolloutStage(release);
   const configured = ROLLOUT_STAGES.find((item) => item.key === stage);
   return configured ? `${configured.label} 阶段` : `${String(rollout.userPercentage ?? '-')}% 灰度`;
+}
+
+function runtimeIdentityText(release: BrainGovernanceRelease) {
+  const code = release.productIdentity?.stageCode ?? release.productIdentity?.code ?? `LEGACY-RT-${release.id}`;
+  const name = release.productIdentity?.name ?? release.displayName;
+  return name && name !== code ? `${code} · ${name}` : code;
 }
 
 function highestRisk(values: BrainRiskLevel[]) {

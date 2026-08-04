@@ -84,6 +84,7 @@ export function buildEvalArgs(options, stage, resumeRunId, standardDelta = false
     `--concurrency=${options.concurrency}`,
     `--checkpoint-every=${options.checkpointEvery}`,
     `--max-cases-per-invocation=${options.maxCasesPerInvocation}`,
+    ...(options.evaluationReleaseId ? [`--evaluation-release-id=${options.evaluationReleaseId}`] : []),
     ...(standardDelta ? ['--standard-delta'] : []),
     ...(standardDelta ? [`--release-core-run-id=${releaseCoreRunId}`] : []),
     ...(resumeRunId ? [`--resume-run-id=${resumeRunId}`] : []),
@@ -105,9 +106,8 @@ export function buildCandidatePreflight({
 }) {
   const expectedCommit = normalizeCommit(expectedRuntimeCommit);
   const candidateCommit = normalizeCommit(headCommit);
-  const deployment = health?.body?.deployment && typeof health.body.deployment === 'object'
-    ? health.body.deployment
-    : {};
+  const deployment =
+    health?.body?.deployment && typeof health.body.deployment === 'object' ? health.body.deployment : {};
   const deploymentCommit = normalizeCommit(deployment.commit);
   const requestSucceeded = health?.requestSucceeded === true;
   const statusCode = Number.isInteger(health?.statusCode) ? health.statusCode : null;
@@ -147,7 +147,7 @@ export function buildCandidatePreflight({
     }
     if (!health?.body || typeof health.body !== 'object') {
       blockingReasons.push('production_health_payload_invalid');
-    } else if (healthStatus !== 'ok') {
+    } else if (!['ok', 'ready'].includes(healthStatus)) {
       blockingReasons.push(`production_health_status_invalid:${healthStatus ?? 'missing'}`);
     }
     if (!deploymentCommit) {
@@ -235,7 +235,12 @@ export function buildAcceptanceEvidence({
   assertExactIds('release_core_results', coreIds, manifest.suites.releaseCore.caseIds, blockingReasons);
   assertExactIds('standard_delta_results', deltaIds, deltaExpected, blockingReasons);
   const mergedIds = [...coreIds, ...deltaIds];
-  assertExactIds('standard_regression_merged_results', mergedIds, manifest.suites.standardRegression.caseIds, blockingReasons);
+  assertExactIds(
+    'standard_regression_merged_results',
+    mergedIds,
+    manifest.suites.standardRegression.caseIds,
+    blockingReasons,
+  );
   for (const [stage, summary] of [
     ['release_core', coreSummary],
     ['standard_delta', standardDeltaSummary],
@@ -251,15 +256,28 @@ export function buildAcceptanceEvidence({
         `${stage}:suspected_false_success:${summary.scorecards?.suspectedFalseSuccess?.count ?? 'missing'}`,
       );
     }
+    if (summary.providerEvidence?.candidatePrimaryRouteEligible !== true) {
+      blockingReasons.push(`${stage}:candidate_primary_model_route_unproven`);
+      for (const blocker of Array.isArray(summary.providerEvidence?.blockers)
+        ? summary.providerEvidence.blockers
+        : ['provider_evidence_missing']) {
+        blockingReasons.push(`${stage}:provider_route:${blocker}`);
+      }
+    }
   }
   const verifiedTotal =
     Number(coreSummary.scorecards?.verifiedCapability?.total ?? 0) +
     Number(standardDeltaSummary.scorecards?.verifiedCapability?.total ?? 0);
   if (verifiedTotal <= 0) blockingReasons.push('verified_capability_denominator_empty');
   const uniqueBlockingReasons = [...new Set(blockingReasons)];
+  const pipelineIdentity = {
+    ...identity,
+    releaseFingerprint: coreSummary.releaseFingerprint,
+    sourceCommit: coreSummary.sourceCommit,
+  };
   return {
     contractVersion: identity.contractVersion,
-    pipelineIdentity: identity,
+    pipelineIdentity,
     stages: {
       releaseCore: summarizeStage(coreSummary),
       standardRegressionDelta: summarizeStage(standardDeltaSummary),
@@ -279,6 +297,14 @@ export function buildAcceptanceEvidence({
 
 export function buildCoreBlockedEvidence({ identity, manifest, coreSummary, coreResults, now = new Date() }) {
   const failures = ['release_core_safety_blocked'];
+  if (coreSummary.providerEvidence?.candidatePrimaryRouteEligible !== true) {
+    failures.push('release_core:candidate_primary_model_route_unproven');
+    for (const blocker of Array.isArray(coreSummary.providerEvidence?.blockers)
+      ? coreSummary.providerEvidence.blockers
+      : ['provider_evidence_missing']) {
+      failures.push(`release_core:provider_route:${blocker}`);
+    }
+  }
   assertExactIds(
     'release_core_results',
     coreResults.map((item) => item.caseKey),
@@ -338,8 +364,7 @@ export function validateManifest(value) {
     productLoopEligibility.baselineCaseCount <= 0 ||
     productLoopEligibility.sourceBaselineChecksum !== value?.sourceBaseline?.checksum ||
     productLoopEligibility.baselineCaseCount !== value?.sourceBaseline?.caseCount ||
-    productLoopEligibility?.supplementalRegistry?.schemaVersion !==
-      'ami-brain-supplemental-question-registry/v1' ||
+    productLoopEligibility?.supplementalRegistry?.schemaVersion !== 'ami-brain-supplemental-question-registry/v1' ||
     typeof productLoopEligibility?.supplementalRegistry?.path !== 'string' ||
     !/^[0-9a-f]{64}$/iu.test(productLoopEligibility?.supplementalRegistry?.checksum ?? '') ||
     !Number.isInteger(productLoopEligibility?.supplementalRegistry?.caseCount) ||
@@ -376,12 +401,10 @@ export function validateManifest(value) {
   }
   const standardSet = new Set(standard.caseIds);
   const missingCore = core.caseIds.filter((id) => !standardSet.has(id));
-  if (missingCore.length) throw new Error(`standard regression does not include release core: ${missingCore.join(',')}`);
+  if (missingCore.length)
+    throw new Error(`standard regression does not include release core: ${missingCore.join(',')}`);
   const rotation = value?.suites?.extendedRotation;
-  const executableSet = new Set([
-    ...standard.caseIds,
-    ...(Array.isArray(rotation?.caseIds) ? rotation.caseIds : []),
-  ]);
+  const executableSet = new Set([...standard.caseIds, ...(Array.isArray(rotation?.caseIds) ? rotation.caseIds : [])]);
   const evidenceReview = value?.suites?.evidenceReviewRequired;
   if (evidenceReview) {
     if (!Array.isArray(evidenceReview.caseIds) || evidenceReview.caseCount !== evidenceReview.caseIds.length) {
@@ -404,7 +427,8 @@ export function validateManifest(value) {
       throw new Error('suite manifest metric definition governance stage invalid');
     }
     const overlap = metricDefinition.caseIds.filter((id) => executableSet.has(id));
-    if (overlap.length) throw new Error(`metric definition governance cases entered release execution:${overlap.join(',')}`);
+    if (overlap.length)
+      throw new Error(`metric definition governance cases entered release execution:${overlap.join(',')}`);
   }
   validateProductJourneys(value);
 }
@@ -426,7 +450,10 @@ export function validateProductLoopEligibility(manifest, raw, supplementalRegist
   if (JSON.stringify(artifact.dataFactsAudit) !== JSON.stringify(metadata.dataFactsAudit)) {
     throw new Error('product loop data facts audit mismatch');
   }
-  if (typeof supplementalRegistryRaw !== 'string' || sha256(supplementalRegistryRaw) !== metadata.supplementalRegistry.checksum) {
+  if (
+    typeof supplementalRegistryRaw !== 'string' ||
+    sha256(supplementalRegistryRaw) !== metadata.supplementalRegistry.checksum
+  ) {
     throw new Error('supplemental question registry checksum mismatch');
   }
   const supplementalRegistry = JSON.parse(supplementalRegistryRaw);
@@ -518,14 +545,23 @@ export function validateProductLoopEligibility(manifest, raw, supplementalRegist
     eligibilityCasesById.set(item.id, item);
   }
   const currentIds = artifact.cases.filter((item) => item.status === 'current_release_test').map((item) => item.id);
-  const nextIterationIds = artifact.cases.filter((item) => item.status === 'next_iteration_feature').map((item) => item.id);
-  const evidenceReviewIds = artifact.cases.filter((item) => item.status === 'evidence_review_required').map((item) => item.id);
+  const nextIterationIds = artifact.cases
+    .filter((item) => item.status === 'next_iteration_feature')
+    .map((item) => item.id);
+  const evidenceReviewIds = artifact.cases
+    .filter((item) => item.status === 'evidence_review_required')
+    .map((item) => item.id);
   const metricDefinitionIds = artifact.cases
     .filter((item) => item.status === 'metric_definition_governance_required')
     .map((item) => item.id);
-  for (const suite of [manifest.suites.releaseCore, manifest.suites.standardRegression, manifest.suites.extendedRotation]) {
+  for (const suite of [
+    manifest.suites.releaseCore,
+    manifest.suites.standardRegression,
+    manifest.suites.extendedRotation,
+  ]) {
     const ineligible = suite.caseIds.filter((id) => statuses.get(id) !== 'current_release_test');
-    if (ineligible.length) throw new Error(`product loop ineligible cases entered executable suite:${suite.key}:${ineligible.join(',')}`);
+    if (ineligible.length)
+      throw new Error(`product loop ineligible cases entered executable suite:${suite.key}:${ineligible.join(',')}`);
   }
   const releaseCoreIds = new Set(manifest.suites.releaseCore.caseIds);
   const standardIds = new Set(manifest.suites.standardRegression.caseIds);
@@ -557,7 +593,8 @@ export function validateProductLoopEligibility(manifest, raw, supplementalRegist
     const eligibility = eligibilityCasesById.get(journey.caseId);
     if (!eligibility) throw new Error(`product journey eligibility missing:${journey.caseId}`);
     if (journey.status !== eligibility.status) throw new Error(`product journey status mismatch:${journey.caseId}`);
-    if (journey.question !== eligibility.question) throw new Error(`product journey question mismatch:${journey.caseId}`);
+    if (journey.question !== eligibility.question)
+      throw new Error(`product journey question mismatch:${journey.caseId}`);
   }
   if (
     artifact.summary?.currentReleaseTest !== currentIds.length ||
@@ -637,12 +674,8 @@ function normalizeCrossClientContract({ value, candidateCommit, expectedIdentity
     },
     summary: {
       stepCount: Number.isInteger(value?.summary?.stepCount) ? value.summary.stepCount : null,
-      passedStepCount: Number.isInteger(value?.summary?.passedStepCount)
-        ? value.summary.passedStepCount
-        : null,
-      failedStepCount: Number.isInteger(value?.summary?.failedStepCount)
-        ? value.summary.failedStepCount
-        : null,
+      passedStepCount: Number.isInteger(value?.summary?.passedStepCount) ? value.summary.passedStepCount : null,
+      failedStepCount: Number.isInteger(value?.summary?.failedStepCount) ? value.summary.failedStepCount : null,
       failedStepKeys,
     },
     steps: Array.isArray(value?.steps) ? value.steps : [],
@@ -669,15 +702,16 @@ function normalizeActionReleaseContract({ value, candidateCommit, expectedReleas
   const expectedId = normalizePositiveInteger(expectedReleaseId);
   const reportedExpectedId = normalizePositiveInteger(value?.release?.expectedId);
   const releaseId = normalizePositiveInteger(value?.release?.id);
-  const releaseMatchesExpected =
-    expectedId !== null && reportedExpectedId === expectedId && releaseId === expectedId;
+  const releaseMatchesExpected = expectedId !== null && reportedExpectedId === expectedId && releaseId === expectedId;
   const contractFingerprint = normalizeOptionalText(value?.contractFingerprint)?.toLowerCase() ?? null;
   const actionCount = Array.isArray(value?.actions) ? value.actions.length : null;
   const requiredActionCount = normalizeNonNegativeInteger(value?.summary?.requiredActionCount);
   const passedActionCount = normalizeNonNegativeInteger(value?.summary?.passedActionCount);
   const failedActionCount = normalizeNonNegativeInteger(value?.summary?.failedActionCount);
   const failedActionKeys = Array.isArray(value?.summary?.failedActionKeys)
-    ? value.summary.failedActionKeys.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim())
+    ? value.summary.failedActionKeys
+        .filter((item) => typeof item === 'string' && item.trim())
+        .map((item) => item.trim())
     : [];
   const semanticSnapshotMatches = value?.release?.semanticSnapshotMatches === true;
   const shapeValid =
@@ -894,6 +928,7 @@ function summarizeStage(summary) {
     passed: summary.passed,
     failed: summary.failed,
     providerUnavailable: summary.providerUnavailable,
+    providerEvidence: summary.providerEvidence,
     p95LatencyMs: summary.p95LatencyMs,
     scorecards: summary.scorecards,
   };

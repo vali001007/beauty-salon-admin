@@ -73,6 +73,11 @@ export interface BrainChatResponse {
   citations: BrainCitation[];
   suggestedActions: BrainActionPreview[];
   blocks?: BrainResponseBlock[];
+  productProfile?: string | null;
+  actionsEnabled?: boolean;
+  actionExecutionPolicy?: string | null;
+  allowedCapabilityManifest?: string | null;
+  productProfileFingerprint?: string | null;
   clarification?: { question: string; options: Array<{ id: string; label: string; value: unknown }> };
 }
 

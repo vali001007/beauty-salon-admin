@@ -5609,25 +5609,56 @@ model BrainResourceVersion {
 }
 
 model BrainRelease {
-  id                Int                @id @default(autoincrement())
-  releaseKey        String             @unique
-  scope             String
-  versionMap        Json
-  rollout           Json
-  status            BrainReleaseStatus @default(draft)
-  createdBy         Int
-  previousReleaseId Int?
-  activatedAt       DateTime?
-  rolledBackAt      DateTime?
-  failureReason     String?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  id                    Int                @id @default(autoincrement())
+  releaseKey            String             @unique
+  scope                 String
+  versionMap            Json
+  rollout               Json
+  status                BrainReleaseStatus @default(draft)
+  createdBy             Int
+  previousReleaseId     Int?
+  activatedAt           DateTime?
+  rolledBackAt          DateTime?
+  failureReason         String?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  rolloutSequenceId     Int?
+  rolloutStage          String?
+  supersededAt          DateTime?
+  releaseFamily         String             @default("legacy")
+  displayCode           String?            @unique
+  displayName           String?
+  retiredAt             DateTime?
+  retirementReason      String?
+  supersededByReleaseId Int?
 
-  items            BrainReleaseItem[]
-  regenerationJobs BrainCapabilityRegenerationJob[]
+  items                 BrainReleaseItem[]
+  regenerationJobs      BrainCapabilityRegenerationJob[]
+  governanceCandidates  BrainGovernanceCandidate[]       @relation("BrainGovernanceCandidatePolicySnapshot")
+  rolloutSequence       BrainRolloutSequence?            @relation("BrainRolloutSequenceReleases", fields: [rolloutSequenceId], references: [id], onDelete: SetNull)
+  policySequences       BrainRolloutSequence[]           @relation("BrainRolloutSequencePolicySnapshot")
+  previousForSequences  BrainRolloutSequence[]           @relation("BrainRolloutSequencePreviousRuntime")
+  warmupArtifacts       BrainWarmupArtifact[]
+  supersededBy          BrainRelease?                    @relation("BrainReleaseSupersession", fields: [supersededByReleaseId], references: [id], onDelete: SetNull)
+  supersedes            BrainRelease[]                   @relation("BrainReleaseSupersession")
+  transitionOldPolicies BrainGovernanceTransition[]      @relation("BrainGovernanceTransitionOldPolicy")
+  transitionNewPolicies BrainGovernanceTransition[]      @relation("BrainGovernanceTransitionNewPolicy")
+  transitionOldRuntimes BrainGovernanceTransition[]      @relation("BrainGovernanceTransitionOldRuntime")
 
   @@index([scope, status])
+  @@index([rolloutSequenceId, rolloutStage])
+  @@index([releaseFamily, status])
+  @@index([supersededByReleaseId])
   @@map("brain_release")
+}
+
+model BrainVersionCounter {
+  family     String   @id
+  lastNumber Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("brain_version_counter")
 }
 
 model BrainCapabilityRegenerationJob {
@@ -5684,6 +5715,40 @@ model BrainReleaseItem {
   @@map("brain_release_item")
 }
 
+model BrainWarmupArtifact {
+  id                       Int      @id @default(autoincrement())
+  releaseId                Int
+  releaseFingerprint       String   @db.VarChar(64)
+  versionMapChecksum       String   @db.VarChar(64)
+  definitionSetFingerprint String   @db.VarChar(64)
+  builderVersion           String   @db.VarChar(64)
+  status                   String   @default("ready")
+  definitionVersionIds     Json
+  candidates               Json
+  ontologyPayload          Json
+  catalogPayload           Json
+  payloadCompressed        Bytes?
+  compression              String?
+  payloadBytes             Int?
+  ontologyFingerprint      String   @db.VarChar(64)
+  capabilityCount          Int
+  resultChecksum           String   @db.VarChar(64)
+  metrics                  Json?
+  errorCode                String?
+  errorMessage             String?
+  builtAt                  DateTime @default(now())
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  release BrainRelease @relation(fields: [releaseId], references: [id], onDelete: Restrict)
+
+  @@unique([releaseId, builderVersion, releaseFingerprint, versionMapChecksum])
+  @@index([status, builtAt])
+  @@index([releaseFingerprint])
+  @@index([definitionSetFingerprint])
+  @@map("brain_warmup_artifact")
+}
+
 model BrainGovernanceTask {
   id             Int       @id @default(autoincrement())
   idempotencyKey String    @unique
@@ -5710,37 +5775,240 @@ model BrainGovernanceTask {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
+  candidateId        Int?
+  receiptId          Int?
+  blockerType        String  @default("none")
+  blockerCode        String?
+  resolutionType     String?
+  supersededByTaskId Int?
+
+  candidate        BrainGovernanceCandidate? @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  receipt          BrainGateReceipt?         @relation(fields: [receiptId], references: [id], onDelete: SetNull)
+  supersededByTask BrainGovernanceTask?      @relation("BrainGovernanceTaskSupersession", fields: [supersededByTaskId], references: [id], onDelete: SetNull)
+  supersedes       BrainGovernanceTask[]     @relation("BrainGovernanceTaskSupersession")
+
   @@index([status, availableAt])
   @@index([resourceType, resourceKey, status, createdAt])
   @@index([stage, status, createdAt])
+  @@index([candidateId, status, createdAt])
+  @@index([receiptId])
+  @@index([blockerType, status, createdAt])
   @@map("brain_governance_task")
 }
 
 model BrainGateReceipt {
-  id                    Int      @id @default(autoincrement())
-  receiptKey            String   @unique
-  stage                 String
-  riskLevel             String
-  changedFilesChecksum  String   @db.VarChar(64)
-  diffChecksum          String   @db.VarChar(64)
-  sourceFingerprint     String   @db.VarChar(64)
-  releaseFingerprint    String?
-  suiteChecksum         String   @db.VarChar(64)
-  dataSnapshot          String?
-  provider              String?
-  model                 String?
-  timeoutMs             Int?
-  resultChecksum        String   @db.VarChar(64)
-  status                String
-  result                Json
-  createdBy             Int?
-  createdAt             DateTime @default(now())
-  expiresAt             DateTime
+  id                   Int      @id @default(autoincrement())
+  receiptKey           String   @unique
+  stage                String
+  riskLevel            String
+  changedFilesChecksum String   @db.VarChar(64)
+  diffChecksum         String   @db.VarChar(64)
+  sourceFingerprint    String   @db.VarChar(64)
+  releaseFingerprint   String?
+  suiteChecksum        String   @db.VarChar(64)
+  dataSnapshot         String?
+  provider             String?
+  model                String?
+  timeoutMs            Int?
+  resultChecksum       String   @db.VarChar(64)
+  status               String
+  result               Json
+  createdBy            Int?
+  createdAt            DateTime @default(now())
+  expiresAt            DateTime
+
+  schemaVersion       Int       @default(1)
+  candidateId         Int?
+  baseCommit          String?
+  headCommit          String?
+  mergeBaseCommit     String?
+  identityChecksum    String?   @db.VarChar(64)
+  issuerType          String    @default("local")
+  issuer              String?
+  trustLevel          String    @default("untrusted_dev")
+  verificationStatus  String    @default("received")
+  verificationError   String?
+  verifiedAt          DateTime?
+  ingestedAt          DateTime  @default(now())
+  evalRunId           Int?
+  evaluationReleaseId Int?
+
+  candidate       BrainGovernanceCandidate?    @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  gates           BrainGateReceiptGate[]
+  capabilities    BrainGateReceiptCapability[]
+  governanceTasks BrainGovernanceTask[]
 
   @@index([stage, sourceFingerprint])
   @@index([resultChecksum])
   @@index([expiresAt, status])
+  @@index([candidateId, status, createdAt])
+  @@index([trustLevel, verificationStatus, expiresAt])
+  @@index([evalRunId])
+  @@index([evaluationReleaseId])
   @@map("brain_gate_receipt")
+}
+
+model BrainGovernanceCandidate {
+  id                   Int       @id @default(autoincrement())
+  candidateKey         String    @unique
+  repository           String
+  eventName            String
+  branch               String?
+  baseCommit           String
+  mergeBaseCommit      String
+  headCommit           String
+  changedFilesChecksum String    @db.VarChar(64)
+  diffChecksum         String    @db.VarChar(64)
+  sourceFingerprint    String    @db.VarChar(64)
+  riskLevel            String    @default("unclassified")
+  status               String    @default("collecting")
+  policyDecision       String?
+  policySnapshotId     Int?
+  completedAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  policySnapshot  BrainRelease?               @relation("BrainGovernanceCandidatePolicySnapshot", fields: [policySnapshotId], references: [id], onDelete: SetNull)
+  receipts        BrainGateReceipt[]
+  tasks           BrainGovernanceTask[]
+  rolloutSequence BrainRolloutSequence?       @relation("BrainGovernanceCandidateRolloutSequence")
+  events          BrainGovernanceEvent[]
+  transitions     BrainGovernanceTransition[]
+
+  @@index([status, updatedAt])
+  @@index([repository, headCommit])
+  @@index([policySnapshotId])
+  @@map("brain_governance_candidate")
+}
+
+model BrainGovernanceEvent {
+  id             Int      @id @default(autoincrement())
+  candidateId    Int?
+  eventType      String
+  entityType     String
+  entityId       String
+  actorType      String
+  actorId        String?
+  payload        Json     @default("{}")
+  resultChecksum String?  @db.VarChar(64)
+  createdAt      DateTime @default(now())
+
+  candidate BrainGovernanceCandidate? @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+
+  @@index([candidateId, eventType, createdAt])
+  @@index([entityType, entityId, createdAt])
+  @@index([eventType, createdAt])
+  @@map("brain_governance_event")
+}
+
+model BrainRolloutSequence {
+  id                       Int       @id @default(autoincrement())
+  sequenceKey              String    @unique
+  candidateId              Int       @unique
+  status                   String    @default("draft")
+  currentStage             String    @default("shadow")
+  policySnapshotId         Int
+  governanceMode           String    @default("shadow")
+  promotionPolicy          Json
+  healthThresholds         Json
+  pauseReason              String?
+  previousRuntimeReleaseId Int?
+  createdBy                Int
+  approvedBy               Int?
+  startedAt                DateTime?
+  completedAt              DateTime?
+  runtimeVersionNumber     Int?
+  runtimeVersionCode       String?   @unique
+  displayName              String?
+  productProfile           String?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  candidate              BrainGovernanceCandidate    @relation("BrainGovernanceCandidateRolloutSequence", fields: [candidateId], references: [id], onDelete: Restrict)
+  policySnapshot         BrainRelease                @relation("BrainRolloutSequencePolicySnapshot", fields: [policySnapshotId], references: [id], onDelete: Restrict)
+  previousRuntimeRelease BrainRelease?               @relation("BrainRolloutSequencePreviousRuntime", fields: [previousRuntimeReleaseId], references: [id], onDelete: SetNull)
+  releases               BrainRelease[]              @relation("BrainRolloutSequenceReleases")
+  transitions            BrainGovernanceTransition[]
+
+  @@index([status, updatedAt])
+  @@index([policySnapshotId])
+  @@index([previousRuntimeReleaseId])
+  @@map("brain_rollout_sequence")
+}
+
+model BrainGovernanceTransition {
+  id                     Int       @id @default(autoincrement())
+  transitionKey          String    @unique
+  status                 String    @default("draft")
+  candidateId            Int
+  oldPolicyReleaseId     Int
+  newPolicyReleaseId     Int
+  oldRuntimeReleaseId    Int
+  runtimeSequenceId      Int
+  policyApprovedBy       Int?
+  policyApprovedAt       DateTime?
+  runtimeApprovedBy      Int?
+  runtimeApprovedAt      DateTime?
+  currentStep            String    @default("prepared")
+  failureCode            String?
+  failureMessage         String?
+  mutationLeaseToken     String?
+  mutationLeaseOperation String?
+  mutationLeaseExpiresAt DateTime?
+  startedAt              DateTime?
+  completedAt            DateTime?
+  createdBy              Int
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  candidate       BrainGovernanceCandidate @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  oldPolicy       BrainRelease             @relation("BrainGovernanceTransitionOldPolicy", fields: [oldPolicyReleaseId], references: [id], onDelete: Restrict)
+  newPolicy       BrainRelease             @relation("BrainGovernanceTransitionNewPolicy", fields: [newPolicyReleaseId], references: [id], onDelete: Restrict)
+  oldRuntime      BrainRelease             @relation("BrainGovernanceTransitionOldRuntime", fields: [oldRuntimeReleaseId], references: [id], onDelete: Restrict)
+  runtimeSequence BrainRolloutSequence     @relation(fields: [runtimeSequenceId], references: [id], onDelete: Restrict)
+
+  @@index([status, updatedAt])
+  @@index([candidateId, status])
+  @@index([newPolicyReleaseId])
+  @@index([runtimeSequenceId])
+  @@index([mutationLeaseExpiresAt])
+  @@map("brain_governance_transition")
+}
+
+model BrainGateReceiptGate {
+  id                   Int      @id @default(autoincrement())
+  receiptId            Int
+  gateKey              String
+  status               String
+  inputChecksum        String   @db.VarChar(64)
+  resultChecksum       String   @db.VarChar(64)
+  commandChecksum      String   @db.VarChar(64)
+  durationMs           Int?
+  modelInvocationCount Int      @default(0)
+  artifactUri          String?
+  createdAt            DateTime @default(now())
+  expiresAt            DateTime
+
+  receipt BrainGateReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+
+  @@unique([receiptId, gateKey])
+  @@index([gateKey, inputChecksum, status, expiresAt])
+  @@map("brain_gate_receipt_gate")
+}
+
+model BrainGateReceiptCapability {
+  id            Int      @id @default(autoincrement())
+  receiptId     Int
+  capabilityKey String
+  impactRuleId  String?
+  changeType    String?
+  createdAt     DateTime @default(now())
+
+  receipt BrainGateReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+
+  @@unique([receiptId, capabilityKey])
+  @@index([capabilityKey, createdAt])
+  @@map("brain_gate_receipt_capability")
 }
 
 model BrainFeedback {

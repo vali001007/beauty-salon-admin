@@ -198,11 +198,13 @@ describe('BusinessDefinitionRegistryService', () => {
 
   it('ignores client validation claims and generates a passing canonical report', async () => {
     const version = makeVersion({ lifecycleStatus: 'draft', validationStatus: 'pending' });
+    const invalidateArtifacts = jest.fn().mockResolvedValue({ count: 2 });
     const prisma = createPrismaMock({
       businessDefinitionVersion: {
         findUnique: jest.fn().mockResolvedValue(version),
         update: jest.fn().mockImplementation(async ({ data }: any) => ({ ...version, ...data })),
       },
+      brainWarmupArtifact: { updateMany: invalidateArtifacts },
     });
     const verifier = passingVerifier();
     const service = createService(prisma, verifier);
@@ -236,6 +238,14 @@ describe('BusinessDefinitionRegistryService', () => {
       fixtureSetKey: version.fixtureSetKey,
       timezone: version.timezone,
       storeScope: version.storeScope,
+    });
+    expect(invalidateArtifacts).toHaveBeenCalledWith({
+      where: { status: { in: ['building', 'ready'] } },
+      data: expect.objectContaining({
+        status: 'invalid',
+        errorCode: 'definition_identity_changed',
+        errorMessage: `definition_versions_changed:${version.id}`,
+      }),
     });
   });
 
@@ -609,6 +619,35 @@ describe('BusinessDefinitionRegistryService', () => {
     ]);
   });
 
+  it('reuses the shared definition bundle and coalesces repeated evaluation snapshots', async () => {
+    const definition = baseDefinitionRecord({ currentPublishedVersionId: 21 });
+    const version = makeVersion({
+      lifecycleStatus: 'published',
+      validationStatus: 'passed',
+      definition,
+      projections: [{ targetType: 'capability_semantic_view' }],
+    });
+    const bundle = {
+      load: jest.fn().mockResolvedValue({ rows: [version] }),
+      invalidate: jest.fn(),
+    };
+    const service = createService(
+      createPrismaMock({ businessDefinitionVersion: { findMany: jest.fn() } }),
+      passingVerifier(),
+      undefined,
+      bundle,
+    );
+
+    const [first, second] = await Promise.all([
+      service.getEvaluationSnapshot([21]),
+      service.getEvaluationSnapshot([21, 21]),
+    ]);
+
+    expect(bundle.load).toHaveBeenCalledTimes(1);
+    expect(first).toBe(second);
+    expect(first.definitions).toEqual([expect.objectContaining({ definitionId: definition.id, versionId: 21 })]);
+  });
+
   it('keeps a validated historical published version trusted for a pinned release', async () => {
     const definition = baseDefinitionRecord({ currentPublishedVersionId: 22 });
     const historical = makeVersion({
@@ -729,12 +768,20 @@ describe('BusinessDefinitionRegistryService', () => {
   });
 });
 
-function createService(prisma: any, verifier: any = passingVerifier(), refresher?: { refresh(): Promise<void> }) {
+function createService(
+  prisma: any,
+  verifier: any = passingVerifier(),
+  refresher?: { refresh(): Promise<void> },
+  bundle?: { load(ids: readonly number[]): Promise<unknown>; invalidate(ids?: readonly number[]): void },
+  publishedSnapshotProvider?: { invalidateActiveDefinitions(): void },
+) {
   return new (BusinessDefinitionRegistryService as any)(
     prisma,
     new BusinessDefinitionProjectionCompilerService(),
     verifier,
     refresher,
+    bundle,
+    publishedSnapshotProvider,
   );
 }
 

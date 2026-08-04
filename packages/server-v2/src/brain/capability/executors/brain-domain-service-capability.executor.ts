@@ -1,6 +1,9 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { BrainTimeRangeParserService, type BrainDateRange } from '../../cognition/brain-time-range-parser.service.js';
-import { BrainCustomerFactResolverService } from '../../domain/brain-customer-fact-resolver.service.js';
+import {
+  BrainCustomerFactResolverService,
+  type BrainCustomerIdentityClarification,
+} from '../../domain/brain-customer-fact-resolver.service.js';
 import {
   extractCustomerPhoneTail,
   extractSpecificCustomerNameFromMention,
@@ -5651,19 +5654,44 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           }
           if (result.status === 'ambiguous') {
             const question = '找到多位匹配客户，请补充手机号后四位后继续。';
-            return {
-              status: 'completed',
-              answer: question,
-              citations: [],
-              grounding: 'none',
-              blocks: [{ kind: 'clarification', question, options: [] }],
+            return this.answer({
+              answer: `${question}\n${result.rows
+                .map(
+                  (customer, index) =>
+                    `${index + 1}. ${customer.customerName}，手机 ${customer.maskedPhone}，${customer.memberLevel}`,
+                )
+                .join('\n')}`,
+              citationId: 'customer_identity_candidates',
+              citationLabel: '客户身份匹配事实',
+              blocks: [
+                {
+                  kind: 'clarification',
+                  question,
+                  options: customerIdentityClarificationOptions(result.rows),
+                },
+                {
+                  kind: 'table',
+                  rows: result.rows,
+                  columns: ['customerName', 'maskedPhone', 'memberLevel'],
+                  citationIds: ['customer_identity_candidates'],
+                },
+              ],
               metadata: {
                 capabilityKey: 'customer_facts',
+                matchStatus: 'ambiguous',
                 unsupportedReason: 'customer_identity_requires_clarification',
-                clarification: { questions: [question], missingSlots: ['entity'], ambiguities: [] },
+                clarification: {
+                  questions: [question],
+                  missingSlots: ['entity'],
+                  ambiguities: result.rows.map((customer) => ({
+                    customerName: customer.customerName,
+                    maskedPhone: customer.maskedPhone,
+                    memberLevel: customer.memberLevel,
+                  })),
+                },
                 completion: { status: 'partial', missingCriteria: ['entity'], recoverable: true },
               },
-            };
+            });
           }
           const customer = result.rows[0];
           const asksLastProject =
@@ -5709,6 +5737,39 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           startDate: range.startDate,
           endDate: range.endDate,
         });
+        if (isCustomerIdentityMatchClarification(answer)) {
+          const question = '找到多位匹配客户，请补充手机号后四位后继续。';
+          return this.answer({
+            answer: answer.answer,
+            citationId: 'customer_identity_candidates',
+            citationLabel: '客户身份匹配事实',
+            blocks: [
+              {
+                kind: 'clarification',
+                question,
+                options: customerIdentityClarificationOptions(answer.candidates),
+              },
+              {
+                kind: 'table',
+                rows: answer.candidates,
+                columns: ['customerName', 'maskedPhone', 'memberLevel'],
+                citationIds: ['customer_identity_candidates'],
+              },
+            ],
+            metadata: {
+              capabilityKey: 'customer_facts',
+              rangeLabel: range.label,
+              matchStatus: 'ambiguous',
+              unsupportedReason: 'customer_identity_requires_clarification',
+              clarification: {
+                questions: [question],
+                missingSlots: ['entity'],
+                ambiguities: answer.candidates,
+              },
+              completion: { status: 'partial', missingCriteria: ['entity'], recoverable: true },
+            },
+          });
+        }
         if (isCustomerIdentityClarification(answer)) {
           const question = '找到多位匹配客户，请补充手机号后四位后继续。';
           return {
@@ -9101,11 +9162,35 @@ function structuredDefinitionKeys(value: unknown): Set<string> {
   );
 }
 
-function isCustomerIdentityClarification(answer: string) {
+function isCustomerIdentityMatchClarification(answer: unknown): answer is BrainCustomerIdentityClarification {
   return (
-    answer.includes('请提供客户姓名或手机号后四位') ||
-    (answer.includes('找到 ') && answer.includes('请补充完整姓名或手机号后四位后继续'))
+    Boolean(answer) &&
+    typeof answer === 'object' &&
+    (answer as BrainCustomerIdentityClarification).kind === 'customer_identity_clarification' &&
+    typeof (answer as BrainCustomerIdentityClarification).answer === 'string' &&
+    Array.isArray((answer as BrainCustomerIdentityClarification).candidates)
   );
+}
+
+function isCustomerIdentityClarification(answer: unknown): answer is string {
+  return (
+    typeof answer === 'string' &&
+    (answer.includes('请提供客户姓名或手机号后四位') ||
+      (answer.includes('找到 ') && answer.includes('请补充完整姓名或手机号后四位后继续')))
+  );
+}
+
+function customerIdentityClarificationOptions(
+  candidates: Array<{ customerName: string; maskedPhone: string; memberLevel: string }>,
+) {
+  return candidates.map((candidate, index) => ({
+    id: `customer-candidate-${index + 1}`,
+    label: `${candidate.customerName}（${candidate.maskedPhone}，${candidate.memberLevel}）`,
+    value: {
+      slot: 'entity',
+      candidate: `${candidate.customerName} 手机号后四位 ${candidate.maskedPhone.slice(-4)}`,
+    },
+  }));
 }
 
 function structuredDefinitionRef(value: unknown, definitionKey: string) {

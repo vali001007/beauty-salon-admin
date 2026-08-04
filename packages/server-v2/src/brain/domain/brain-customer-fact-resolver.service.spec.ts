@@ -207,6 +207,31 @@ describe('BrainCustomerFactResolverService', () => {
     }));
   });
 
+  it('returns structured masked candidates when an exact lookup matches multiple customers', async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      { name: '林小雨', phone: '13800007636', memberLevel: '金卡' },
+      { name: '林小雨', phone: '13900000522', memberLevel: '银卡' },
+    ]);
+    const service = new BrainCustomerFactResolverService({ customer: { findMany } } as never);
+
+    await expect(
+      service.answerCustomerQuestion({
+        storeId: 6,
+        message: '查询林小雨的手机信息', // ami-brain-unit-only: structured resolver return contract, not a release-eval input.
+        specificCustomerMention: '林小雨',
+        permissions: ['core:customer:view'],
+      }),
+    ).resolves.toEqual({
+      kind: 'customer_identity_clarification',
+      answer:
+        '找到 2 位同名或尾号匹配客户：\n1. 林小雨，手机 ***7636，金卡\n2. 林小雨，手机 ***0522，银卡\n请补充完整姓名或手机号后四位后继续。',
+      candidates: [
+        { customerName: '林小雨', maskedPhone: '***7636', memberLevel: '金卡' },
+        { customerName: '林小雨', maskedPhone: '***0522', memberLevel: '银卡' },
+      ],
+    });
+  });
+
   it('routes a resolved customer mention to exact facts and a generic segment question to customer analysis', async () => {
     const service = new BrainCustomerFactResolverService({} as never);
     const exact = jest.spyOn(service, 'answerExactCustomerQuestion').mockResolvedValue('张女士客户事实');
@@ -236,6 +261,7 @@ describe('BrainCustomerFactResolverService', () => {
       message: '帮我查一下这个客户',
       customerName: '张女士',
       permissions: ['core:customer:view'],
+      structuredIdentityClarification: true,
     });
     expect(segment).toHaveBeenCalledWith(expect.objectContaining({
       storeId: 6,

@@ -140,12 +140,14 @@ const ACTION_INSTITUTIONAL_EFFECT_KEYS = new Set([
   'fingerprint',
 ]);
 const PHYSICAL_SOURCE_KEYS = new Set(['model', 'field']);
+export const BRAIN_ONTOLOGY_BUILDER_VERSION = 'production-ready-snapshot-v1';
 
 @Injectable()
 export class BrainOntologyRuntimeService implements OnModuleInit {
   private snapshot: ProductionReadyBusinessDefinitionSnapshot | null = null;
   private aliasIndex: EntityAliasIndex | null = null;
   private readonly evaluationSnapshotCache = new Map<string, Promise<ProductionReadyBusinessDefinitionSnapshot>>();
+  private readonly evaluationSnapshotCacheMax = positiveInteger(process.env.BRAIN_ONTOLOGY_EVALUATION_CACHE_MAX, 128);
 
   constructor(
     @Inject(BUSINESS_DEFINITION_SNAPSHOT_PROVIDER)
@@ -162,6 +164,10 @@ export class BrainOntologyRuntimeService implements OnModuleInit {
 
   getSnapshot(): ProductionReadyBusinessDefinitionSnapshot | null {
     return this.snapshot;
+  }
+
+  getRuntimeDataModelFingerprint(): string {
+    return createHash('sha256').update(stableStringify(this.provider.getRuntimeDataModel())).digest('hex');
   }
 
   async loadProductionReadySnapshot(): Promise<ProductionReadyBusinessDefinitionSnapshot> {
@@ -181,20 +187,43 @@ export class BrainOntologyRuntimeService implements OnModuleInit {
     const normalizedVersionIds = [
       ...new Set(definitionVersionIds.filter((value) => Number.isInteger(value) && value > 0)),
     ].sort((left, right) => left - right);
-    const cacheKey = normalizedVersionIds.join(',');
+    const providerIdentity = this.provider.getEvaluationCacheIdentity
+      ? await this.provider.getEvaluationCacheIdentity(normalizedVersionIds)
+      : normalizedVersionIds.join(',');
+    const cacheKey = `${normalizedVersionIds.join(',')}:${providerIdentity}`;
     const cached = this.evaluationSnapshotCache.get(cacheKey);
-    if (cached) return cached;
+    if (cached) {
+      this.evaluationSnapshotCache.delete(cacheKey);
+      this.evaluationSnapshotCache.set(cacheKey, cached);
+      return cached;
+    }
 
     const loading = this.provider
       .loadEvaluationDefinitions(normalizedVersionIds)
       .then((input) => buildProductionReadyBusinessDefinitionSnapshot(input, this.provider.getRuntimeDataModel()));
     this.evaluationSnapshotCache.set(cacheKey, loading);
+    trimOldest(this.evaluationSnapshotCache, this.evaluationSnapshotCacheMax);
     try {
       return await loading;
     } catch (error) {
       this.evaluationSnapshotCache.delete(cacheKey);
       throw error;
     }
+  }
+
+  primeEvaluationSnapshot(
+    definitionVersionIds: readonly number[],
+    providerIdentity: string,
+    snapshot: ProductionReadyBusinessDefinitionSnapshot,
+  ): void {
+    const normalizedVersionIds = [
+      ...new Set(definitionVersionIds.filter((value) => Number.isInteger(value) && value > 0)),
+    ].sort((left, right) => left - right);
+    this.provider.primeEvaluationCacheIdentity?.(normalizedVersionIds, providerIdentity);
+    const cacheKey = `${normalizedVersionIds.join(',')}:${providerIdentity}`;
+    this.evaluationSnapshotCache.delete(cacheKey);
+    this.evaluationSnapshotCache.set(cacheKey, Promise.resolve(snapshot));
+    trimOldest(this.evaluationSnapshotCache, this.evaluationSnapshotCacheMax);
   }
 
   resolveEntityAlias(
@@ -326,6 +355,19 @@ export class BrainOntologyRuntimeService implements OnModuleInit {
       throw new Error('Brain ontology alias index is not loaded');
     }
     return this.aliasIndex;
+  }
+}
+
+function positiveInteger(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function trimOldest<K, V>(cache: Map<K, V>, maxEntries: number): void {
+  while (cache.size > maxEntries) {
+    const oldest = cache.keys().next().value as K | undefined;
+    if (oldest === undefined) return;
+    cache.delete(oldest);
   }
 }
 

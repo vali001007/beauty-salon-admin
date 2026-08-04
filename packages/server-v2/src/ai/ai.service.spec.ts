@@ -923,6 +923,58 @@ describe('AiService', () => {
     expect(JSON.stringify(prisma.aiAuditLog.create.mock.calls)).not.toContain(result.rawText);
   });
 
+  it('defaults production Ami Brain to the DeepSeek route without labeling it as fallback', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'deepseek-primary-for-brain',
+        choices: [{ message: { content: '{"answer":"ok","count":2}' } }],
+        usage: { prompt_tokens: 14, completion_tokens: 6 },
+      }),
+    });
+    global.fetch = fetchMock as any;
+    const { service: structuredService } = await createConfiguredService({
+      NODE_ENV: 'production',
+      LLM_PROVIDER: 'openai_compatible',
+      LLM_API_KEY: 'luna-key',
+      LLM_BASE_URL: 'https://luna.example/v1',
+      LLM_MODEL: 'gpt-5.6-luna',
+      LLM_FALLBACK_PROVIDER: 'deepseek',
+      LLM_FALLBACK_API_KEY: 'deepseek-key',
+      LLM_FALLBACK_BASE_URL: 'https://api.deepseek.com',
+      LLM_FALLBACK_CHAT_PATH: '/chat/completions',
+      LLM_FALLBACK_MODEL: 'deepseek-v4-flash',
+      LLM_FALLBACK_STRUCTURED_OUTPUT_MODE: 'auto',
+    });
+
+    const result = await structuredService.generateStructured<{ answer: string; count: number }>({
+      scenario: 'brain.semantic_intent.v1',
+      allowFallback: true,
+      messages: [{ role: 'system', content: 'primary route fixture' }],
+      fallbackMessages: [{ role: 'system', content: 'deepseek route fixture' }],
+      schema: structuredSchema,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://api.deepseek.com/chat/completions');
+    expect(fetchMock.mock.calls[0]?.[1].headers.Authorization).toBe('Bearer deepseek-key');
+    expect(JSON.parse(fetchMock.mock.calls[0]?.[1].body).messages).toEqual(
+      expect.arrayContaining([{ role: 'system', content: 'deepseek route fixture' }]),
+    );
+    expect(JSON.stringify(JSON.parse(fetchMock.mock.calls[0]?.[1].body).messages)).not.toContain(
+      'primary route fixture',
+    );
+    expect(result).toMatchObject({
+      provider: 'deepseek',
+      model: 'deepseek-v4-flash',
+      routing: {
+        primarySkipped: false,
+        fallbackUsed: false,
+        redundancyMode: 'disabled',
+      },
+    });
+  });
+
   it('sends strict json_schema through the OpenAI Responses API', async () => {
     const fetchMock = jest.fn().mockResolvedValue({
       ok: true,

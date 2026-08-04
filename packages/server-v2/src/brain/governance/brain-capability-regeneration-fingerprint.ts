@@ -7,11 +7,14 @@ type ReleaseCapabilityItem = {
   resourceVersion: { checksum: string; snapshot?: unknown };
 };
 
-export function createReleaseFingerprint(items: ReleaseCapabilityItem[]): string {
+export function createReleaseFingerprint(items: ReleaseCapabilityItem[], rollout?: unknown): string {
   const resources = items
     .map((item) => ({ resourceVersionId: item.resourceVersionId, checksum: item.resourceVersion.checksum }))
     .sort((left, right) => left.resourceVersionId - right.resourceVersionId || left.checksum.localeCompare(right.checksum));
-  return createHash('sha256').update(JSON.stringify(resources)).digest('hex');
+  const productProfile = releaseProductProfileFingerprintIdentity(rollout);
+  return createHash('sha256')
+    .update(JSON.stringify(productProfile ? { resources, productProfile } : resources))
+    .digest('hex');
 }
 
 export function selectAffectedCapability(items: ReleaseCapabilityItem[], requirement: string): string[] {
@@ -53,4 +56,23 @@ function record(value: unknown): Record<string, unknown> {
 
 function string(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function releaseProductProfileFingerprintIdentity(value: unknown): Record<string, unknown> | null {
+  const rollout = record(value);
+  const productProfile = string(rollout.productProfile);
+  if (!productProfile) return null;
+  return {
+    productProfile,
+    actionsEnabled: rollout.actionsEnabled === true,
+    actionExecutionPolicy: string(rollout.actionExecutionPolicy),
+    allowedCapabilityManifest: string(rollout.allowedCapabilityManifest),
+    allowedCapabilityCount: Number.isInteger(rollout.allowedCapabilityCount)
+      ? Number(rollout.allowedCapabilityCount)
+      : null,
+    sideEffectCapabilityCount: Number.isInteger(rollout.sideEffectCapabilityCount)
+      ? Number(rollout.sideEffectCapabilityCount)
+      : null,
+    productProfileFingerprint: string(rollout.productProfileFingerprint),
+  };
 }

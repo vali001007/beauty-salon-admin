@@ -6,6 +6,10 @@ import type { BrainCapabilityGenerationResult } from './brain-capability-codegen
 import { createGeneratedCapabilityProposalFingerprint } from './brain-generated-capability-binding.js';
 
 describe('BrainCapabilityGenerationBundleService', () => {
+  // Bundle tests perform repeated temporary-directory writes and recursive cleanup.
+  // The complete Jest run can heavily contend for filesystem resources.
+  jest.setTimeout(30_000);
+
   it('writes bundle, summary, and markdown into a private random staging root', async () => {
     const workspaceRoot = await mkdtemp(join(tmpdir(), 'ami-brain-bundle-workspace-'));
     const result = fixtureResult();

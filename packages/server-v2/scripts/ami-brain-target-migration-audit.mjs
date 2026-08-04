@@ -2,15 +2,16 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 import { config } from 'dotenv';
 import pg from 'pg';
+import { validateCandidateLock } from './ami-brain-candidate-identity-core.mjs';
 
 const { Client } = pg;
 const packageRoot = resolve(import.meta.dirname, '..');
+const repoRoot = resolve(packageRoot, '..', '..');
 const migrationsRoot = join(packageRoot, 'prisma', 'migrations');
 const checksumExceptionsPath = join(packageRoot, 'prisma', 'migration-checksum-exceptions.json');
-
-config({ path: join(packageRoot, '.env') });
 
 function argValue(name) {
   const prefix = `--${name}=`;
@@ -52,7 +53,7 @@ function inspectMigrations() {
   };
 }
 
-function sanitizeDatabaseTarget(connectionString) {
+export function sanitizeDatabaseTarget(connectionString) {
   const parsed = new URL(connectionString);
   return {
     protocol: parsed.protocol.replace(':', ''),
@@ -61,6 +62,69 @@ function sanitizeDatabaseTarget(connectionString) {
     database: parsed.pathname.replace(/^\//, ''),
     schema: parsed.searchParams.get('schema') || 'public',
   };
+}
+
+export function buildTargetMigrationAuditSummary({
+  candidateLock: candidateLockValue = null,
+  target,
+  inventory,
+  rawHistory,
+  structure,
+  checksumExceptions,
+  targetLabel = 'target-database',
+  generatedAt = new Date().toISOString(),
+}) {
+  const candidateLock = candidateLockValue ? validateCandidateLock(candidateLockValue) : null;
+  const checkedHistory = applyChecksumExceptions(rawHistory, target, checksumExceptions);
+  const outOfScopeAppliedMigrations = checkedHistory.unexpected.filter(isAmiBrainOutOfScopeMigration);
+  const history = {
+    ...checkedHistory,
+    unexpected: checkedHistory.unexpected.filter((migration) => !isAmiBrainOutOfScopeMigration(migration)),
+    outOfScopeAppliedMigrations,
+    outOfScopePolicy: 'Ami Ask migrations are reported for audit only and do not block Ami Brain.',
+  };
+  const blockers = [];
+  if (!history.migrationTableExists) blockers.push('migration_table_missing');
+  if (history.pending.length) blockers.push('pending_migrations');
+  if (history.checksumMismatches.length) blockers.push('checksum_mismatch');
+  if (history.failedOrRolledBack.length) blockers.push('failed_or_rolled_back_migrations');
+  if (history.unexpected.length) blockers.push('unexpected_migrations');
+  if (structure.missingTables.length || structure.missingColumns.length || structure.missingIndexes.length) {
+    blockers.push('critical_structure_missing');
+  }
+
+  return {
+    schemaVersion: 'ami-brain-target-migration-audit/v2',
+    generatedAt,
+    status: blockers.length ? 'blocked' : 'ready',
+    databaseWritePerformed: false,
+    candidateId: candidateLock?.candidateId ?? null,
+      candidateIdentity: candidateLock ? {
+      productProfile: candidateLock.identity.productProfile,
+      runtimeCommit: candidateLock.identity.runtimeCommit,
+      releaseId: candidateLock.identity.releaseId,
+      releaseFingerprint: candidateLock.identity.releaseFingerprint,
+        dataSnapshot: candidateLock.identity.dataSnapshot,
+        storeId: candidateLock.identity.storeId,
+        databaseTarget: candidateLock.identity.databaseTarget,
+      } : null,
+    targetLabel,
+    target,
+    inventory: {
+      count: inventory.count,
+      first: inventory.first,
+      latest: inventory.latest,
+      rawChainHash: inventory.rawChainHash,
+      canonicalLfChainHash: inventory.canonicalLfChainHash,
+    },
+    history,
+    structure,
+    blockers,
+  };
+}
+
+export function isAmiBrainOutOfScopeMigration(migrationName) {
+  return /^\d{14}_ask_data_/u.test(String(migrationName ?? ''));
 }
 
 function loadChecksumExceptions() {
@@ -207,6 +271,8 @@ async function collectCriticalStructure(client) {
     'agent_v3_text_to_sql_semantic_views',
     'brain_action_execution',
     'brain_capability_regeneration_job',
+    'brain_governance_transition',
+    'brain_version_counter',
     'customer_service_feedback',
     'customer_waiting_episode',
     'store_metric_target',
@@ -234,6 +300,23 @@ async function collectCriticalStructure(client) {
     ['ProcurementOrder', 'creationFingerprint'],
     ['ProcurementReceipt', 'idempotencyKey'],
     ['ProcurementReceipt', 'creationFingerprint'],
+    ['brain_release', 'releaseFamily'],
+    ['brain_release', 'displayCode'],
+    ['brain_release', 'displayName'],
+    ['brain_release', 'retiredAt'],
+    ['brain_release', 'retirementReason'],
+    ['brain_release', 'supersededByReleaseId'],
+    ['brain_rollout_sequence', 'runtimeVersionNumber'],
+    ['brain_rollout_sequence', 'runtimeVersionCode'],
+    ['brain_rollout_sequence', 'displayName'],
+    ['brain_rollout_sequence', 'productProfile'],
+    ['brain_governance_transition', 'transitionKey'],
+    ['brain_governance_transition', 'candidateId'],
+    ['brain_governance_transition', 'oldPolicyReleaseId'],
+    ['brain_governance_transition', 'newPolicyReleaseId'],
+    ['brain_governance_transition', 'oldRuntimeReleaseId'],
+    ['brain_governance_transition', 'runtimeSequenceId'],
+    ['brain_governance_transition', 'currentStep'],
   ];
   const requiredIndexes = [
     'CardUsageRecord_idempotencyKey_key',
@@ -242,6 +325,10 @@ async function collectCriticalStructure(client) {
     'TerminalFollowUpTask_idempotencyKey_key',
     'ProcurementOrder_idempotencyKey_key',
     'ProcurementReceipt_idempotencyKey_key',
+    'brain_release_displayCode_key',
+    'brain_rollout_sequence_runtimeVersionCode_key',
+    'brain_governance_transition_transitionKey_key',
+    'brain_governance_transition_candidate_open_key',
   ];
 
   const tables = await queryRows(
@@ -270,8 +357,13 @@ async function collectCriticalStructure(client) {
 }
 
 async function main() {
+  config({ path: join(packageRoot, '.env') });
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) throw new Error('DATABASE_URL is required for read-only target migration audit.');
+  const candidateLockPath = argValue('candidate-lock');
+  const candidateLock = candidateLockPath
+    ? validateCandidateLock(JSON.parse(readFileSync(resolve(repoRoot, candidateLockPath), 'utf8')))
+    : null;
   const inventory = inspectMigrations();
   const checksumExceptions = loadChecksumExceptions();
   const client = new Client({ connectionString, application_name: 'ami-brain-target-migration-audit' });
@@ -289,35 +381,15 @@ async function main() {
     await client.query('COMMIT');
 
     const target = { ...sanitizeDatabaseTarget(connectionString), ...databaseRows[0] };
-    const history = applyChecksumExceptions(rawHistory, target, checksumExceptions);
-
-    const blockers = [];
-    if (!history.migrationTableExists) blockers.push('migration_table_missing');
-    if (history.pending.length) blockers.push('pending_migrations');
-    if (history.checksumMismatches.length) blockers.push('checksum_mismatch');
-    if (history.failedOrRolledBack.length) blockers.push('failed_or_rolled_back_migrations');
-    if (history.unexpected.length) blockers.push('unexpected_migrations');
-    if (structure.missingTables.length || structure.missingColumns.length || structure.missingIndexes.length) {
-      blockers.push('critical_structure_missing');
-    }
-
-    summary = {
-      generatedAt: new Date().toISOString(),
-      status: blockers.length ? 'blocked' : 'ready',
-      databaseWritePerformed: false,
-      targetLabel: argValue('label') ?? 'target-database',
+    summary = buildTargetMigrationAuditSummary({
+      candidateLock,
       target,
-      inventory: {
-        count: inventory.count,
-        first: inventory.first,
-        latest: inventory.latest,
-        rawChainHash: inventory.rawChainHash,
-        canonicalLfChainHash: inventory.canonicalLfChainHash,
-      },
-      history,
+      inventory,
+      rawHistory,
       structure,
-      blockers,
-    };
+      checksumExceptions,
+      targetLabel: argValue('label') ?? 'target-database',
+    });
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined);
     throw error;
@@ -335,7 +407,9 @@ async function main() {
   if (process.argv.includes('--strict') && summary.status !== 'ready') process.exitCode = 1;
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (resolve(process.argv[1] ?? '') === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

@@ -1,0 +1,33 @@
+{
+  "runId": 253,
+  "stage": "targeted",
+  "sourceChecksum": "eeabcf0ba6d2652cabe91950bfc04bb2fa6f3fd6c95510d583d9ed6d99f186ec",
+  "completed": 5,
+  "items": [
+    {
+      "caseKey": "BQ0001",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0002",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0003",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0004",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0005",
+      "deterministicPassed": true,
+      "failureCluster": null
+    }
+  ]
+}

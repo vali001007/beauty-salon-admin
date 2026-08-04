@@ -2,6 +2,57 @@
 
 > 本文件是 Agent 与核心模块版本定位、主入口、兼容边界和退役状态的唯一决策记录。
 
+## 2026-08-04：Ami Brain 治理策略与运行版本采用独立编号体系
+
+### 决策
+
+- 治理策略和运行版本不再共用数据库 Release ID 作为用户版本号。
+- 治理策略使用 `GP-{三位序号}`，例如 `GP-003 · Query Only V1 强制治理策略`。
+- 运行产品使用 `RT-{三位序号}`，例如 `RT-001 · Query Only V1`。
+- 同一运行产品的灰度阶段使用 `RT-001-SHADOW/C05/C20/C50/FULL`，不得显示为五个独立产品版本。
+- 评测证据版本使用 `EV-*`；Eval Run 是评测运行记录，不属于 GP 或 RT 版本线。
+- 历史未迁移运行对象使用 `LEGACY-RT-{数据库ID}`；数据库 `#ID` 仅在审计详情和故障排查中显示。
+- 三条编号线使用独立计数器，新增 GP 不推动 RT/EV 序号，新增 RT 不推动 GP/EV 序号。
+- 对象类型与前缀必须一致：治理策略只能是 GP，运行产品只能是 RT，评测快照只能是 EV；不一致时服务端拒绝复用，数据库约束拒绝写入。
+- Rollout Sequence ID、Release ID、Eval Run ID 均不得作为新产品编号；未编号对象显示“编号待分配”，禁止使用 `LEGACY-RTS-{sequenceId}`。
+- 用户主界面分别使用“治理策略（GP）”“运行版本（RT）”“评测版本/评测运行（EV / Eval Run）”，`Release` 仅保留在底层技术字段、API 兼容和审计语境中。
+
+### 后续编号与命名红线
+
+| 变更对象 | 新编号示例 | 不得联动变更 |
+| --- | --- | --- |
+| 只调整治理准入、禁止边界或证据要求 | `GP-004` | `RT-001` 和当前 `EV-*` 保持不变 |
+| 只调整线上能力目录、运行画像或兼容合同 | `RT-002` | 当前 `GP-*` 和 `EV-*` 保持不变 |
+| 只新增评测题集、口径或证据快照 | `EV-002` | 当前 `GP-*` 和 `RT-*` 保持不变 |
+| 同一运行版本从 Shadow 晋级到 Full | `RT-001-SHADOW` → `RT-001-FULL` | 不创建 `RT-002`，不改变 GP/EV 编号 |
+
+- 面向用户只称“治理策略”“运行版本”“评测版本/评测运行”，禁止使用“当前 Release”同时指代 GP 和 RT。
+- 编号只表示各自版本线内的顺序；`GP-004` 与 `RT-004` 没有必然绑定关系。
+- GP 与 RT 可在一次 Transition 中组合切换，但组合切换不改变它们是两个独立产品对象。
+
+### 当前目标组合
+
+| 对象 | 产品身份 | 状态 |
+| --- | --- | --- |
+| 当前旧治理策略 | `GP-002 · Legacy Shadow Policy` / 内部 #436 | 尚未退役 |
+| 当前旧运行 | `LEGACY-RT-452 · Governance Shadow Runtime` | 尚未被取代 |
+| 新治理策略 | `GP-003 · Query Only V1 强制治理策略` | 代码已支持，数据库尚未创建/发布 |
+| 新运行版本 | `RT-001 · Query Only V1` | 代码已支持，数据库尚未创建/激活 |
+
+### 切换边界
+
+- GP-003 和 RT-001 必须通过同一 `BrainGovernanceTransition` 组合切换；禁止只发布策略后由用户自行判断 Runtime 是否已接入。
+- 任一步骤失败时补偿恢复旧治理策略和旧运行；旧快照只标记退役/被取代，不物理删除。
+- 目标 Supabase 已应用版本身份与 Transition migration，但尚未创建/发布 GP-003，尚未创建/激活 RT-001，也未退役 #436/#452。
+
+### 主入口
+
+- 版本身份：`packages/server-v2/src/brain/governance/brain-release-identity.service.ts`
+- 切换编排：`packages/server-v2/src/brain/governance/brain-governance-transition.service.ts`
+- 治理工作台：`src/app/pages/brain/components/BrainGovernanceWorkbench.tsx`
+- 运行发布：`src/app/pages/brain/components/BrainRolloutSequencePage.tsx`
+- 详细方案：`docs/03-开发计划/01-AI智能体与问数能力/07-Ami-Brain-当前主线/Ami-Brain-旧治理策略退役与新策略启用详细开发方案-2026-08-04.md`
+
 ## 2026-07-21：Ami Aura Lite 智能终端统一接入 Ami Brain
 
 ### 决策

@@ -1,4 +1,6 @@
+import type { ExecutionContext } from '@nestjs/common';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
+import { Reflector } from '@nestjs/core';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { PermissionsGuard } from '../common/guards/permissions.guard.js';
 import { PERMISSIONS_KEY } from '../common/decorators/permissions.decorator.js';
@@ -56,6 +58,8 @@ describe('BrainController', () => {
   it('splits governance approval, policy publishing and runtime release permissions', () => {
     expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.classifyCapabilityPolicy))
       .toEqual(['core:brain-governance:manage']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.updateCapabilityPolicyOwners))
+      .toEqual(['core:brain-governance:manage']);
     expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.approveCapabilityPolicy))
       .toEqual(['core:brain-governance:approve']);
     expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.publishPolicySnapshot))
@@ -68,6 +72,177 @@ describe('BrainController', () => {
       .toEqual(['core:brain-governance:release']);
     expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.rollbackRelease))
       .toEqual(['core:brain-governance:release']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.getReleaseReadiness))
+      .toEqual(['core:brain-governance:view']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.ingestGovernanceReceipt))
+      .toEqual(['core:brain-governance:manage']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.listGovernanceCandidates))
+      .toEqual(['core:brain-governance:view']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.evaluateGovernanceCandidate))
+      .toEqual(['core:brain-governance:manage']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.prepareGovernanceCandidatePolicy))
+      .toEqual(['core:brain-governance:manage']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.listGovernanceReceipts))
+      .toEqual(['core:brain-governance:view']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.cancelGovernanceTask))
+      .toEqual(['core:brain-governance:manage']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.getGovernanceQualityLatency))
+      .toEqual(['core:brain-governance:view']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.getGovernanceProcessLatency))
+      .toEqual(['core:brain-governance:view']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.previewGovernanceTransition))
+      .toEqual(['core:brain-governance:view']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.prepareGovernanceTransition))
+      .toEqual(['core:brain-governance:manage']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.validateGovernanceTransition))
+      .toEqual(['core:brain-governance:manage']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.approveGovernanceTransitionPolicy))
+      .toEqual(['core:brain-governance:publish']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.approveGovernanceTransitionRuntime))
+      .toEqual(['core:brain-governance:release']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.switchGovernanceTransition))
+      .toEqual(['core:brain-governance:publish', 'core:brain-governance:release']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.rollbackGovernanceTransition))
+      .toEqual(['core:brain-governance:publish', 'core:brain-governance:release']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.finalizeGovernanceTransition))
+      .toEqual(['core:brain-governance:release']);
+  });
+
+  it('allows governance latency APIs for view users and denies users without view permission', () => {
+    const guard = new PermissionsGuard(new Reflector());
+    const executionContext = (handler: () => unknown, permissions: string[]): ExecutionContext => ({
+      getHandler: () => handler,
+      getClass: () => BrainController,
+      switchToHttp: () => ({ getRequest: () => ({ user: { permissions, deniedPermissions: [] } }) }),
+    }) as unknown as ExecutionContext;
+
+    expect(guard.canActivate(executionContext(controller.getGovernanceQualityLatency, ['core:brain-governance:view'])))
+      .toBe(true);
+    expect(guard.canActivate(executionContext(controller.getGovernanceQualityLatency, ['core:brain:use'])))
+      .toBe(false);
+    expect(guard.canActivate(executionContext(controller.getGovernanceProcessLatency, ['core:brain-governance:view'])))
+      .toBe(true);
+    expect(guard.canActivate(executionContext(controller.getGovernanceProcessLatency, [])))
+      .toBe(false);
+  });
+
+  it('keeps role, memory, eval, inspection and semantic mutations behind their dedicated permissions', () => {
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.listRoleProfiles))
+      .toEqual(['core:brain-governance:view']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.createRoleProfile))
+      .toEqual(['core:brain-governance:manage']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.updateRoleProfile))
+      .toEqual(['core:brain-governance:manage']);
+
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.listMemories))
+      .toEqual(['core:brain-governance:view']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.listMemoryRevisions))
+      .toEqual(['core:brain-governance:view']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.correctMemory))
+      .toEqual(['core:brain-governance:manage']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.deleteMemory))
+      .toEqual(['core:brain-governance:manage']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.restoreMemory))
+      .toEqual(['core:brain-governance:manage']);
+
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.listEvalRuns))
+      .toEqual(['core:brain-governance:view']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.createEvalRun))
+      .toEqual(['core:brain-governance:manage']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.listSemanticGovernanceSummaries))
+      .toEqual(['core:brain-governance:view']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.setPublishedSemanticEnabled))
+      .toEqual(['core:brain-governance:manage']);
+
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.runInspection))
+      .toEqual(['core:brain-governance:manage']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.listInspectionFindings))
+      .toEqual(['core:brain-governance:view']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.listInspectionInbox))
+      .toEqual(['core:brain:use']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.getInspectionRepairPreview))
+      .toEqual(['core:brain:execute']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.decideInspectionRepair))
+      .toEqual(['core:brain:execute']);
+  });
+
+  it('does not require a store selection for global candidate governance actions', () => {
+    const globalRequest = {
+      headers: { 'x-request-id': 'global-governance-action' },
+      user: {
+        id: 9,
+        roles: ['brain_governance_manager'],
+        permissions: ['core:brain-governance:manage'],
+        deniedPermissions: [],
+      },
+    } as never;
+
+    expect(() => controller.evaluateGovernanceCandidate(globalRequest, 'candidate-test'))
+      .toThrow('治理控制面服务不可用');
+  });
+
+  it('prepares policy through the candidate alias and returns aggregated policy and release readiness', async () => {
+    const globalRequest = {
+      headers: { 'x-request-id': 'candidate-policy-prepare' },
+      user: { id: 9, permissions: ['core:brain-governance:manage'], deniedPermissions: [] },
+    } as never;
+    const candidateService = {
+      get: jest.fn().mockResolvedValue({
+        id: 17,
+        candidateKey: 'candidate-17',
+        rolloutSequence: { id: 71, currentStage: 'shadow', releases: [] },
+        receipts: [],
+        tasks: [],
+        affectedCapabilities: [],
+        blockers: [],
+      }),
+    };
+    const policyService = {
+      prepare: jest.fn().mockResolvedValue({ decision: 'created', snapshot: { id: 81 } }),
+      preview: jest.fn().mockResolvedValue({
+        decision: 'create_snapshot',
+        diff: { added: [{ capabilityKey: 'customer_facts' }], changed: [], removed: [], unchanged: [], hasDiff: true },
+        blockers: [],
+      }),
+    };
+    const rolloutService = {
+      get: jest.fn().mockResolvedValue({
+        id: 71,
+        currentStage: 'shadow',
+        releases: [{
+          id: 91,
+          releaseKey: 'candidate-17-shadow',
+          rolloutStage: 'shadow',
+          releaseReadiness: { status: 'ready', canRelease: true, blockers: [] },
+        }],
+      }),
+    };
+    const dependencies = Array<unknown>(22).fill(undefined);
+    dependencies[18] = candidateService;
+    dependencies[19] = policyService;
+    dependencies[20] = rolloutService;
+    const governanceController = Reflect.construct(BrainController, [contextService, chatService, ...dependencies]) as BrainController;
+
+    await expect(governanceController.prepareGovernanceCandidatePolicy(globalRequest, 'candidate-17', { note: 'ui' }))
+      .resolves.toMatchObject({ decision: 'created' });
+    await expect(governanceController.getGovernanceCandidate('candidate-17')).resolves.toMatchObject({
+      policyDiff: { hasDiff: true },
+      releaseReadiness: { currentStage: 'shadow', releaseKey: 'candidate-17-shadow', canRelease: true },
+    });
+    expect(policyService.prepare).toHaveBeenCalledWith({ candidateKey: 'candidate-17', note: 'ui', actorId: 9 });
+  });
+
+  it('continues requiring a store selection for store-scoped memory governance', () => {
+    const globalRequest = {
+      headers: {},
+      user: {
+        id: 9,
+        permissions: ['core:brain-governance:view'],
+        deniedPermissions: [],
+      },
+    } as never;
+
+    expect(() => controller.listMemories(globalRequest)).toThrow();
   });
 
   it('creates a conversation through the real chat service with injected store context', async () => {
@@ -438,6 +613,68 @@ describe('BrainController', () => {
     await expect(controller.listInspectionRules()).resolves.toMatchObject({ items: [] });
   });
 
+  it('includes disabled registry Skills when the governance workspace requests a complete inventory', async () => {
+    const skillRegistryService = {
+      listSkills: jest.fn().mockResolvedValue([{ skillKey: 'legacy_disabled', enabled: false }]),
+      listSkillSummaries: jest.fn().mockResolvedValue([{ skillKey: 'legacy_disabled', enabled: false }]),
+    };
+    const skillController = new BrainController(
+      contextService,
+      chatService as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      skillRegistryService as never,
+    );
+
+    await expect(skillController.listSkills('true', 'true')).resolves.toEqual({
+      items: [{ skillKey: 'legacy_disabled', enabled: false }],
+    });
+    await expect(skillController.listSkills(undefined, 'true')).resolves.toEqual({
+      items: [{ skillKey: 'legacy_disabled', enabled: false }],
+    });
+
+    expect(skillRegistryService.listSkillSummaries).toHaveBeenCalledWith({ includeDisabled: true });
+    expect(skillRegistryService.listSkills).toHaveBeenCalledWith({ includeDisabled: true });
+  });
+
+  it('forwards resourceKey when loading the latest governed Skill snapshot for editing', async () => {
+    const governanceResourceService = {
+      listVersions: jest.fn().mockResolvedValue([{ resourceKey: 'appointment_gap_list', version: 17 }]),
+    };
+    const resourceController = new BrainController(
+      contextService,
+      chatService as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      governanceResourceService as never,
+    );
+
+    await expect(
+      resourceController.listResourceVersions('skill', 'appointment_gap_list', 'draft', 'true', '1'),
+    ).resolves.toEqual({ items: [{ resourceKey: 'appointment_gap_list', version: 17 }] });
+
+    expect(governanceResourceService.listVersions).toHaveBeenCalledWith({
+      resourceType: 'skill',
+      resourceKey: 'appointment_gap_list',
+      status: 'draft',
+      includeSnapshot: true,
+      take: 1,
+    });
+  });
+
   it('exposes skill summaries, history and the published-version runtime switch', async () => {
     const governanceResourceService = {
       listSkillGovernanceSummaries: jest.fn().mockResolvedValue([{ skillKey: 'appointment_gap_list' }]),
@@ -562,7 +799,8 @@ describe('BrainController', () => {
   it('runs and manages store-scoped inspection findings', async () => {
     const inspectionService = {
       runInspection: jest.fn().mockResolvedValue({ runId: 11, storeId: 2, findingCount: 3, status: 'completed' }),
-      listFindings: jest.fn().mockResolvedValue([{ id: 21, storeId: 2, status: 'open' }]),
+      listFindingsPage: jest.fn().mockResolvedValue({ items: [{ id: 21, storeId: 2, status: 'open' }], total: 1, page: 1, pageSize: 20 }),
+      getFinding: jest.fn().mockResolvedValue({ id: 21, storeId: 2, status: 'open', evidence: { stock: 2 } }),
       listInbox: jest.fn().mockResolvedValue({ items: [{ id: 21 }], summary: { total: 1 }, storeId: 2 }),
       updateFinding: jest.fn().mockResolvedValue({ id: 21, storeId: 2, status: 'in_progress', disposition: 'adopted' }),
     };
@@ -579,8 +817,24 @@ describe('BrainController', () => {
     );
 
     await expect(inspectionController.runInspection(request)).resolves.toMatchObject({ runId: 11, storeId: 2 });
-    await expect(inspectionController.listInspectionFindings(request, 'open')).resolves.toMatchObject({
+    await expect(inspectionController.listInspectionFindings(
+      request,
+      'open',
+      '风险',
+      '2',
+      '25',
+      'high',
+      'risk-team',
+      'candidate-21',
+      '2026-08-01',
+      '2026-08-02',
+    )).resolves.toMatchObject({
       items: [{ id: 21 }],
+      total: 1,
+    });
+    await expect(inspectionController.getInspectionFinding(request, '21')).resolves.toMatchObject({
+      id: 21,
+      evidence: { stock: 2 },
     });
     await expect(inspectionController.listInspectionInbox(request, '3')).resolves.toMatchObject({
       items: [{ id: 21 }],
@@ -593,9 +847,26 @@ describe('BrainController', () => {
       status: 'in_progress',
     });
     expect(inspectionService.runInspection).toHaveBeenCalledWith({ storeId: 2, triggerType: 'manual' });
-    expect(inspectionService.listFindings).toHaveBeenCalledWith({
+    expect(inspectionService.listFindingsPage).toHaveBeenCalledWith({
       storeId: 2,
       status: 'open',
+      search: '风险',
+      page: 2,
+      pageSize: 25,
+      severity: 'high',
+      owner: 'risk-team',
+      candidateKey: 'candidate-21',
+      createdFrom: '2026-08-01',
+      createdTo: '2026-08-02',
+      permissions: ['core:brain:use'],
+      deniedPermissions: [],
+      userId: 9,
+      roles: [],
+      enabledRulesOnly: true,
+    });
+    expect(inspectionService.getFinding).toHaveBeenCalledWith({
+      storeId: 2,
+      findingId: 21,
       permissions: ['core:brain:use'],
       deniedPermissions: [],
       userId: 9,

@@ -38,8 +38,8 @@ async function main() {
     const sourcePolicy = await resolveSourcePolicy(prisma, options.sourcePolicySnapshotId);
     const evidenceReleaseId = options.evidenceReleaseId ?? Number(record(sourceRuntime.rollout).evaluationEvidenceReleaseId);
     const evidence = await resolveEvidenceRelease(prisma, evidenceReleaseId);
-    const sourceRuntimeFingerprint = createReleaseFingerprint(sourceRuntime.items);
-    const runtimeFingerprint = createReleaseFingerprint(evidence.items);
+    const sourceRuntimeFingerprint = createReleaseFingerprint(sourceRuntime.items, sourceRuntime.rollout);
+    const runtimeFingerprint = createReleaseFingerprint(evidence.items, evidence.rollout);
     const runtimeKeys = evidence.items.filter((item) => item.resourceType === 'skill').map((item) => item.resourceKey).sort();
     const policyKeys = sourcePolicy.items.map((item) => item.resourceKey).sort();
     if (JSON.stringify(runtimeKeys) !== JSON.stringify(policyKeys)) {
@@ -124,7 +124,7 @@ async function main() {
     ) {
       throw new Error('target_runtime_release_contract_invalid');
     }
-    if (createReleaseFingerprint(targetRuntime.items) !== runtimeFingerprint) {
+    if (createReleaseFingerprint(targetRuntime.items, targetRuntime.rollout) !== runtimeFingerprint) {
       throw new Error('target_runtime_release_fingerprint_mismatch');
     }
     runtimeReleaseId = targetRuntime.id;

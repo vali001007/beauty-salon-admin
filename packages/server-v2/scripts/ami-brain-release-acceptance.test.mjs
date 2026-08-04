@@ -6,6 +6,7 @@ import test from 'node:test';
 import {
   buildAcceptanceEvidence,
   buildCoreBlockedEvidence,
+  buildEvalArgs,
   buildReleaseAcceptancePreflight,
   resolveResumePlan,
   sha256,
@@ -18,6 +19,27 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, '..', '..', '..');
 const CROSS_CLIENT_IDENTITY_CHECKSUM = 'f'.repeat(64);
 const ACTION_RELEASE_CONTRACT_IDENTITY_CHECKSUM = 'c'.repeat(64);
+
+test('passes an EV candidate identity into both product evidence stages', () => {
+  const args = buildEvalArgs(
+    {
+      suiteManifest: '/repo/suite.json',
+      releaseId: 453,
+      evaluationReleaseId: 453,
+      runtimeCommit: 'a'.repeat(40),
+      productionHealthUrl: 'https://example.test/api/health/ready',
+      storeId: 6,
+      runKey: 'candidate-ev-001',
+      concurrency: 2,
+      checkpointEvery: 25,
+      maxCasesPerInvocation: 100,
+    },
+    'release-core',
+  );
+
+  assert.ok(args.includes('--expected-release-id=453'));
+  assert.ok(args.includes('--evaluation-release-id=453'));
+});
 
 function passingCrossClientContract(commit, overrides = {}) {
   return {
@@ -98,7 +120,7 @@ test('marks release acceptance preflight ready only for a clean matching candida
       requestSucceeded: true,
       statusCode: 200,
       body: {
-        status: 'ok',
+        status: 'ready',
         deployment: { commit, branch: 'main', buildId: 'build-1', environment: 'production' },
       },
     },
@@ -486,6 +508,14 @@ function fixture() {
     storeId: 6,
     failed: 0,
     providerUnavailable: 0,
+    providerEvidence: {
+      candidatePrimaryRouteEligible: true,
+      expectedPrimarySuccessCount: 10,
+      fallbackSuccessCount: 0,
+      mismatchedSuccessCount: 0,
+      failedRouteCount: 0,
+      blockers: [],
+    },
     scorecards: {
       suspectedFalseSuccess: { count: 0 },
       verifiedCapability: { total: 50, passed: 50 },
@@ -720,6 +750,30 @@ test('builds ready evidence from exact 350 then 690 incremental fixtures for a 1
   assert.equal(evidence.decision, 'ready_for_activation');
   assert.equal(evidence.mergedStandardRegression.resultCount, 1040);
   assert.deepEqual(evidence.blockingReasons, []);
+});
+
+test('blocks activation when fallback answers are present but the candidate primary model route is unproven', () => {
+  const input = fixture();
+  input.coreSummary.providerEvidence = {
+    candidatePrimaryRouteEligible: false,
+    expectedPrimarySuccessCount: 0,
+    fallbackSuccessCount: 25,
+    mismatchedSuccessCount: 0,
+    failedRouteCount: 1,
+    blockers: ['expected_primary_route_not_observed', 'fallback_route_used:25', 'provider_route_failed:1'],
+  };
+  const evidence = buildAcceptanceEvidence({
+    identity: input.identity,
+    manifest: input.manifest,
+    coreSummary: input.coreSummary,
+    standardDeltaSummary: input.standardSummary,
+    coreResults: input.coreIds.map((caseKey) => ({ caseKey })),
+    standardDeltaResults: input.deltaIds.map((caseKey) => ({ caseKey })),
+  });
+
+  assert.equal(evidence.canActivate, false);
+  assert.ok(evidence.blockingReasons.includes('release_core:candidate_primary_model_route_unproven'));
+  assert.ok(evidence.blockingReasons.includes('release_core:provider_route:fallback_route_used:25'));
 });
 
 test('emits blocked evidence and never starts a merged standard result after a core safety failure', () => {

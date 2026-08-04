@@ -54,6 +54,7 @@ export function BrainWorkspace() {
     return {
       question: params.get('question')?.trim() || undefined,
       evalCase: params.get('debugEvalCase')?.trim() || undefined,
+      panel: params.get('panel') === 'trace' ? 'trace' as const : 'evidence' as const,
     };
   }, []);
   const currentStoreId = useStoreStore((state) => state.currentStoreId);
@@ -97,7 +98,7 @@ export function BrainWorkspace() {
   const [loadingInspectionInbox, setLoadingInspectionInbox] = useState(false);
   const [inspectionInboxError, setInspectionInboxError] = useState<string | null>(null);
   const [inspectionPage, setInspectionPage] = useState(1);
-  const [contextPanelTab, setContextPanelTab] = useState<BrainContextPanelTab>('evidence');
+  const [contextPanelTab, setContextPanelTab] = useState<BrainContextPanelTab>(initialDebug.panel);
   const [mobileRiskOpen, setMobileRiskOpen] = useState(false);
   const [inspectionPreview, setInspectionPreview] = useState<BrainInspectionRepairPreview | null>(null);
   const [reviewingFindingId, setReviewingFindingId] = useState<number | null>(null);
@@ -142,8 +143,8 @@ export function BrainWorkspace() {
     };
   }, [hasExecutingAction, selectedRunId]);
 
-  const loadRunEvents = useCallback(async (message: BrainMessage | null) => {
-    setContextPanelTab('evidence');
+  const loadRunEvents = useCallback(async (message: BrainMessage | null, preferredTab?: BrainContextPanelTab) => {
+    setContextPanelTab((current) => preferredTab ?? (current === 'risks' ? 'evidence' : current));
     setSelectedAssistant(message);
     setRunEvents([]);
     const runId = message?.metadata?.runId;
@@ -305,12 +306,12 @@ export function BrainWorkspace() {
     setEvalPage(1);
     setEvalTotal(0);
     setInspectionPage(1);
-    setContextPanelTab('evidence');
+    setContextPanelTab(initialDebug.panel);
     setMobileRiskOpen(false);
     void loadConversations(true, 1);
     void loadFeedbackIssues(1);
     void loadInspectionInbox({ page: 1 });
-  }, [currentStoreId, loadConversations, loadFeedbackIssues, loadInspectionInbox]);
+  }, [currentStoreId, initialDebug.panel, loadConversations, loadFeedbackIssues, loadInspectionInbox]);
 
   useEffect(() => {
     if (currentStoreId === null) return;
@@ -617,7 +618,10 @@ export function BrainWorkspace() {
         prefillRequest={composerPrefill}
         onCreateConversation={() => void createConversation()}
         onSend={handleSend}
-        onSelectAssistant={(message) => void loadRunEvents(message)}
+        onSelectAssistant={(message) => {
+          if (!window.matchMedia || window.matchMedia('(max-width: 1279px)').matches) setMobileRiskOpen(true);
+          void loadRunEvents(message, 'trace');
+        }}
         riskSummary={inspectionInbox?.summary}
         loadingRisks={loadingInspectionInbox}
         riskLoadFailed={Boolean(inspectionInboxError)}

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-06 11:49:03 Asia/Shanghai",
+  "generatedAt": "2026-08-03 01:56:56 Asia/Shanghai",
   "summary": {
     "localClosureReady": true,
     "productionReady": false,
@@ -11,7 +11,7 @@
     "recommendation": "本地开发闭环已可审计：task.md 剩余未勾选项均属于生产/真实流量/旧正则最终退役后置项。"
   },
   "source": {
-    "task": "docs/03-开发计划/01-AI智能体与问数能力/task.md",
+    "task": "docs/03-开发计划/01-AI智能体与问数能力/02-Agent-V2/task.md",
     "reports": {
       "evalGate": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-eval-gate-report.json",
       "legacyDiffAttribution": "docs/04-测试数据/Agent评测与知识治理-2026-06-30至07-03/agent-v2-legacy-diff-attribution.json",

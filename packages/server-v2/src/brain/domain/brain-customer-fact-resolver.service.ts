@@ -157,6 +157,23 @@ export interface BrainExactCustomerBasicSummary {
   }>;
 }
 
+export interface BrainCustomerIdentityClarification {
+  kind: 'customer_identity_clarification';
+  answer: string;
+  candidates: Array<{
+    customerName: string;
+    maskedPhone: string;
+    memberLevel: string;
+  }>;
+}
+
+interface BrainExactCustomerQuestionInput {
+  storeId: number;
+  message: string;
+  customerName?: string;
+  permissions: string[];
+}
+
 @Injectable()
 export class BrainCustomerFactResolverService {
   constructor(
@@ -179,6 +196,7 @@ export class BrainCustomerFactResolverService {
         message: input.message,
         customerName: input.specificCustomerMention?.trim(),
         permissions: input.permissions,
+        structuredIdentityClarification: true,
       });
     }
     return this.answerCustomerFactQuestion({
@@ -445,12 +463,13 @@ export class BrainCustomerFactResolverService {
     };
   }
 
-  async answerExactCustomerQuestion(input: {
-    storeId: number;
-    message: string;
-    customerName?: string;
-    permissions: string[];
-  }) {
+  async answerExactCustomerQuestion(
+    input: BrainExactCustomerQuestionInput & { structuredIdentityClarification: true },
+  ): Promise<string | BrainCustomerIdentityClarification>;
+  async answerExactCustomerQuestion(input: BrainExactCustomerQuestionInput): Promise<string>;
+  async answerExactCustomerQuestion(
+    input: BrainExactCustomerQuestionInput & { structuredIdentityClarification?: boolean },
+  ): Promise<string | BrainCustomerIdentityClarification> {
     const customerMention = input.customerName?.trim();
     const name =
       (customerMention ? extractSpecificCustomerNameFromMention(customerMention) : undefined) ||
@@ -492,12 +511,22 @@ export class BrainCustomerFactResolverService {
 
     if (!customers.length) return '当前门店没有找到匹配客户，请核对姓名或手机号后四位。';
     if (customers.length > 1) {
-      return `找到 ${customers.length} 位同名或尾号匹配客户：\n${customers
-        .map(
-          (customer, index) =>
-            `${index + 1}. ${customer.name}，手机 ${this.maskPhone(customer.phone)}，${customer.memberLevel}`,
-        )
-        .join('\n')}\n请补充完整姓名或手机号后四位后继续。`;
+      const candidates = customers.map((customer) => ({
+        customerName: customer.name,
+        maskedPhone: this.maskPhone(customer.phone),
+        memberLevel: customer.memberLevel,
+      }));
+      const clarification = {
+        kind: 'customer_identity_clarification' as const,
+        answer: `找到 ${customers.length} 位同名或尾号匹配客户：\n${candidates
+          .map(
+            (customer, index) =>
+              `${index + 1}. ${customer.customerName}，手机 ${customer.maskedPhone}，${customer.memberLevel}`,
+          )
+          .join('\n')}\n请补充完整姓名或手机号后四位后继续。`,
+        candidates,
+      } satisfies BrainCustomerIdentityClarification;
+      return input.structuredIdentityClarification ? clarification : clarification.answer;
     }
 
     const customer = customers[0];

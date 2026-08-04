@@ -8,6 +8,7 @@ export function assertReusableEvaluationRelease(
   },
   expectedResourceVersionIds: readonly number[],
   baseReleaseId: number,
+  expectedProductProfile?: string,
 ) {
   const rollout = record(release.rollout);
   const actualResourceVersionIds = release.items
@@ -21,6 +22,7 @@ export function assertReusableEvaluationRelease(
     rollout.mode !== 'shadow' ||
     rollout.evaluationOnly !== true ||
     rollout.userPercentage !== 100 ||
+    (expectedProductProfile !== undefined && rollout.productProfile !== expectedProductProfile) ||
     JSON.stringify(actualResourceVersionIds) !== JSON.stringify(expectedResourceVersionIds)
   ) {
     throw new Error('evaluation_release_existing_mismatch');

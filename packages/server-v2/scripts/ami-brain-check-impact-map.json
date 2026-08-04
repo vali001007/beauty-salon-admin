@@ -17,6 +17,7 @@
       "id": "brain-runtime",
       "patterns": ["packages/server-v2/src/brain/**"],
       "riskLevel": "medium",
+      "capabilityImpact": "all_runtime",
       "capabilities": ["brain_runtime"],
       "contracts": ["brain_unit", "brain_catalog"],
       "gates": {
@@ -34,6 +35,7 @@
         "packages/server-v2/prisma/ami-brain-*-action-acceptance.ts"
       ],
       "riskLevel": "high",
+      "capabilityImpact": "all_runtime",
       "capabilities": ["brain_actions"],
       "contracts": ["action_contract", "mutation_receipt"],
       "gates": {
@@ -52,6 +54,7 @@
         "packages/server-v2/src/brain/dto/**"
       ],
       "riskLevel": "high",
+      "capabilityImpact": "all_runtime",
       "capabilities": ["brain_governance"],
       "contracts": ["governance_api", "release_scope"],
       "gates": {
@@ -72,6 +75,7 @@
         "src/app/components/Layout.tsx"
       ],
       "riskLevel": "medium",
+      "capabilityImpact": "none",
       "capabilities": ["brain_governance_ui"],
       "contracts": ["brain_admin_types", "brain_admin_routes"],
       "gates": {
@@ -90,6 +94,7 @@
         "packages/server-v2/src/common/guards/**"
       ],
       "riskLevel": "critical",
+      "capabilityImpact": "none",
       "capabilities": ["brain_permissions"],
       "contracts": ["permission_registry", "permission_guard"],
       "gates": {
@@ -107,6 +112,7 @@
         "packages/server-v2/src/brain/governance/brain-pending-migration-preflight*"
       ],
       "riskLevel": "critical",
+      "capabilityImpact": "all_runtime",
       "capabilities": ["brain_storage"],
       "contracts": ["prisma_schema", "migration_preflight"],
       "gates": {
@@ -125,6 +131,7 @@
         "packages/server-v2/prisma/ami-brain-*eval*"
       ],
       "riskLevel": "medium",
+      "capabilityImpact": "all_runtime",
       "capabilities": ["brain_evaluation"],
       "contracts": ["question_registry", "gold_standard"],
       "gates": {
@@ -143,6 +150,7 @@
         "packages/server-v2/scripts/ami-brain-check*"
       ],
       "riskLevel": "medium",
+      "capabilityImpact": "none",
       "capabilities": ["brain_delivery"],
       "contracts": ["gate_orchestration"],
       "gates": {

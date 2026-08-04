@@ -21,6 +21,7 @@ const IDEMPOTENCY_POLICIES = new Set(['not_applicable', 'required']);
 const GROUNDING_TYPES = new Set(['semantic_query', 'domain_service', 'preview_action', 'model', 'template']);
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const SEMANTIC_INTENTS = new Set<string>(BRAIN_SEMANTIC_INTENTS);
+export const BRAIN_CAPABILITY_CATALOG_VALIDATOR_VERSION = 'catalog-validator-v1';
 
 export class BrainCapabilityCatalogValidationError extends Error {
   constructor(readonly report: BrainCapabilityCatalogValidationReport) {
@@ -34,6 +35,7 @@ export class BrainCapabilityCatalogService implements OnModuleInit {
   private readonly ajv = applyAjvFormats(new Ajv({ allErrors: true, strict: true }));
   private readonly schemaValidatorCache = new Map<string, { valid: boolean; error?: string }>();
   private readonly validatedCatalogCache = new Map<string, BrainCapabilityCatalogValidationReport>();
+  private readonly validatedCatalogCacheMax = positiveInteger(process.env.BRAIN_CAPABILITY_CATALOG_CACHE_MAX, 128);
 
   constructor(
     private readonly registry: BrainSkillRegistryService,
@@ -59,15 +61,31 @@ export class BrainCapabilityCatalogService implements OnModuleInit {
     return report.cards;
   }
 
+  primeValidatedCapabilities(
+    releaseCandidates: readonly BrainCapabilityCandidate[],
+    report: BrainCapabilityCatalogValidationReport,
+  ): void {
+    if (!report.valid) return;
+    const catalogCacheKey = stableStringify(releaseCandidates);
+    this.validatedCatalogCache.delete(catalogCacheKey);
+    this.validatedCatalogCache.set(catalogCacheKey, report);
+    trimOldest(this.validatedCatalogCache, this.validatedCatalogCacheMax);
+  }
+
   async validateEnabledCapabilities(
     releaseCandidates?: readonly BrainCapabilityCandidate[],
   ): Promise<BrainCapabilityCatalogValidationReport> {
-    const candidates = releaseCandidates === undefined
-      ? await this.registry.listLatestEnabledCapabilityCandidates()
-      : [...releaseCandidates];
+    const candidates =
+      releaseCandidates === undefined
+        ? await this.registry.listLatestEnabledCapabilityCandidates()
+        : [...releaseCandidates];
     const catalogCacheKey = stableStringify(candidates);
     const cachedReport = this.validatedCatalogCache.get(catalogCacheKey);
-    if (cachedReport) return cachedReport;
+    if (cachedReport) {
+      this.validatedCatalogCache.delete(catalogCacheKey);
+      this.validatedCatalogCache.set(catalogCacheKey, cachedReport);
+      return cachedReport;
+    }
     const structurallyValidCards: BrainCapabilityCard[] = [];
     const issues: BrainCapabilityValidationIssue[] = [];
 
@@ -95,11 +113,12 @@ export class BrainCapabilityCatalogService implements OnModuleInit {
       } else {
         let snapshot: Awaited<ReturnType<BrainCapabilitySemanticVerifierService['loadVerifiedSnapshot']>> | undefined;
         try {
-          snapshot = releaseCandidates === undefined
-            ? await this.semanticVerifier.loadVerifiedSnapshot()
-            : await this.semanticVerifier.loadEvaluationSnapshot(
-                [...new Set(structurallyValidCards.flatMap((card) => card.definitionRefs.map((ref) => ref.versionId)))],
-              );
+          snapshot =
+            releaseCandidates === undefined
+              ? await this.semanticVerifier.loadVerifiedSnapshot()
+              : await this.semanticVerifier.loadEvaluationSnapshot([
+                  ...new Set(structurallyValidCards.flatMap((card) => card.definitionRefs.map((ref) => ref.versionId))),
+                ]);
         } catch (error) {
           for (const card of structurallyValidCards) {
             issues.push(
@@ -133,7 +152,10 @@ export class BrainCapabilityCatalogService implements OnModuleInit {
       cards: Object.freeze(cards),
       issues: Object.freeze(issues.map((issue) => Object.freeze({ ...issue }))),
     });
-    if (report.valid) this.validatedCatalogCache.set(catalogCacheKey, report);
+    if (report.valid) {
+      this.validatedCatalogCache.set(catalogCacheKey, report);
+      trimOldest(this.validatedCatalogCache, this.validatedCatalogCacheMax);
+    }
     return report;
   }
 
@@ -277,7 +299,7 @@ export class BrainCapabilityCatalogService implements OnModuleInit {
 
   private optionalRecord(value: unknown): Record<string, unknown> | undefined {
     return value && typeof value === 'object' && !Array.isArray(value)
-      ? JSON.parse(JSON.stringify(value)) as Record<string, unknown>
+      ? (JSON.parse(JSON.stringify(value)) as Record<string, unknown>)
       : undefined;
   }
 
@@ -441,6 +463,19 @@ export class BrainCapabilityCatalogService implements OnModuleInit {
       add('invalid_json_schema', message, { field });
       return undefined;
     }
+  }
+}
+
+function positiveInteger(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function trimOldest<K, V>(cache: Map<K, V>, maxEntries: number): void {
+  while (cache.size > maxEntries) {
+    const oldest = cache.keys().next().value as K | undefined;
+    if (oldest === undefined) return;
+    cache.delete(oldest);
   }
 }
 

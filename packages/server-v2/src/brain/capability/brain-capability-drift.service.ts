@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import type {
   BrainCapabilityCandidate,
+  BrainCapabilityDriftApproval,
   BrainCapabilityDriftItem,
   BrainCapabilityDriftReport,
   BrainCapabilityDriftType,
   BrainCapabilityScanReport,
+  BrainCapabilityStrictEvaluation,
 } from './brain-capability-scan.types.js';
 
 @Injectable()
@@ -57,15 +59,21 @@ export class BrainCapabilityDriftService {
     return { items, summary: countTypes(items) };
   }
 
-  evaluateStrict(report: BrainCapabilityDriftReport): { passed: boolean; failures: BrainCapabilityDriftItem[] } {
-    const failures = report.items.filter(
+  evaluateStrict(
+    report: BrainCapabilityDriftReport,
+    approvals: BrainCapabilityDriftApproval[] = [],
+  ): BrainCapabilityStrictEvaluation {
+    const strictItems = report.items.filter(
       (item) =>
         item.type === 'blocked' ||
         item.type === 'added' ||
         item.highRisk ||
         (['removed', 'stale'] as BrainCapabilityDriftType[]).includes(item.type),
     );
-    return { passed: failures.length === 0, failures };
+    const approved = strictItems.filter((item) => approvals.some((approval) => approvalMatches(item, approval)));
+    const approvedItems = new Set(approved);
+    const failures = strictItems.filter((item) => !approvedItems.has(item));
+    return { passed: failures.length === 0, failures, approved };
   }
 
   private changeReasons(before: BrainCapabilityCandidate, after: BrainCapabilityCandidate): string[] {
@@ -112,6 +120,18 @@ export class BrainCapabilityDriftService {
       afterFingerprint: after?.sourceFingerprint,
     };
   }
+}
+
+function approvalMatches(item: BrainCapabilityDriftItem, approval: BrainCapabilityDriftApproval): boolean {
+  if (item.type !== 'added' && item.type !== 'changed') return false;
+  return (
+    approval.key === item.key &&
+    approval.type === item.type &&
+    approval.highRisk === item.highRisk &&
+    sameSet(approval.reasons, item.reasons) &&
+    approval.beforeFingerprint === item.beforeFingerprint &&
+    approval.afterFingerprint === item.afterFingerprint
+  );
 }
 
 function sameSet(left: string[], right: string[]): boolean {

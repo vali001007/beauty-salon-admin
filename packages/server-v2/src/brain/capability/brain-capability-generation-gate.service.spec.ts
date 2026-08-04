@@ -12,6 +12,11 @@ import {
 } from './brain-generated-capability-binding.js';
 
 describe('BrainCapabilityGenerationGateService', () => {
+  // These cases invoke the TypeScript compiler against a temporary workspace.
+  // Under the complete Jest suite the worker can be CPU-starved, so the default
+  // 5-second timeout is too small even though the isolated run finishes quickly.
+  jest.setTimeout(30_000);
+
   const gate = new BrainCapabilityGenerationGateService();
 
   it('passes compile, contract, security and deterministic test gates for a fixed read-only target', async () => {

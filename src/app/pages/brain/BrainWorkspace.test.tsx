@@ -38,6 +38,7 @@ const conversation = {
 describe('BrainWorkspace', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, '', '/brain');
     useStoreStore.setState({ currentStoreId: 6, stores: [] });
     apiMocks.listBrainConversations.mockResolvedValue({ items: [], total: 0, storeId: 6 });
     apiMocks.listBrainMessages.mockResolvedValue({ conversationId: 42, items: [], total: 0, storeId: 6 });
@@ -147,6 +148,15 @@ describe('BrainWorkspace', () => {
     expect(screen.getByText('Ami Brain')).toBeInTheDocument();
     expect(screen.getByText('门店经营智能体')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('问经营数据、风险和下一步动作')).toBeInTheDocument();
+    await waitFor(() => expect(apiMocks.listBrainConversations).toHaveBeenCalledOnce());
+  });
+
+  it('opens the migrated planning view when the legacy planning route targets panel=trace', async () => {
+    window.history.replaceState({}, '', '/brain?panel=trace');
+    render(<BrainWorkspace />);
+
+    expect(screen.getByRole('tab', { name: '运行轨迹' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('选择一条回答后查看能力选择、执行计划和完成判定。')).toBeInTheDocument();
     await waitFor(() => expect(apiMocks.listBrainConversations).toHaveBeenCalledOnce());
   });
 

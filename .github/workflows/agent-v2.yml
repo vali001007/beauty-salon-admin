@@ -111,6 +111,7 @@ jobs:
             prisma/ami-brain-capability-scan.ts \
             --workspace-root="$GITHUB_WORKSPACE" \
             --baseline="$base_report" \
+            --approvals="$GITHUB_WORKSPACE/packages/server-v2/scripts/fixtures/ami-brain-capability-drift-approvals-v1.json" \
             --explicit-only \
             --output="$current_report" \
             --md="$current_markdown" \

@@ -88,6 +88,7 @@ import type {
 } from './cognition/brain-action-execution-provenance.types.js';
 import { createBrainActionExecutionParticipants } from './cognition/business-action-participant-profile.js';
 import { createBrainActionSituationContext } from './cognition/brain-action-situation-context.js';
+import type { AiStructuredOutputResult } from '../ai/ai.service.js';
 
 type BrainChatStatus = 'completed' | 'failed';
 type BrainModelStage = 'prepare' | 'compile' | 'validate' | 'retrieve' | 'plan' | 'execute';
@@ -102,6 +103,7 @@ interface BrainModelMetadata {
   planId: string | null;
   model: string | null;
   provider: string | null;
+  modelRouting: AiStructuredOutputResult<unknown>['routing'] | null;
 }
 
 interface BrainChatAnswer {
@@ -289,6 +291,7 @@ export class BrainChatService {
 
     let chatAnswer: BrainChatAnswer | undefined;
     const standaloneMemoryInstruction = this.memoryService && this.isStandaloneMemoryInstruction(dto.message);
+    const productProfile = await this.resolveResponseProductProfile(requestContext);
     if (standaloneMemoryInstruction) {
       try {
         const memoryInstruction = await this.memoryService!.applyUserInstruction({
@@ -329,6 +332,25 @@ export class BrainChatService {
           error: { message: this.errorMessage(error) } as Prisma.InputJsonValue,
         });
       }
+    }
+    if (!chatAnswer && !productProfile.actionsEnabled && this.hasExplicitSideEffectRequest(dto.message)) {
+      chatAnswer = this.buildActionExecutionDisabledAnswer(productProfile);
+      await this.recordModelTrace({
+        runId: run.id,
+        stepKey: 'action_execution_policy',
+        layer: 'governance',
+        status: 'completed',
+        output: this.toJsonValue({
+          decision: 'denied',
+          reason: 'brain_action_execution_disabled_by_release_profile',
+          productProfile: productProfile.productProfile,
+          actionExecutionPolicy: productProfile.actionExecutionPolicy,
+          previewCreated: false,
+          confirmationCreated: false,
+          retryCreated: false,
+          businessStateChanged: false,
+        }),
+      });
     }
     if (!chatAnswer) {
       try {
@@ -469,14 +491,23 @@ export class BrainChatService {
         });
       }
     }
+    const responseSuggestedActions = productProfile.actionsEnabled ? chatAnswer.suggestedActions : [];
+    const responseBlocks = productProfile.actionsEnabled
+      ? (chatAnswer.blocks ?? [])
+      : (chatAnswer.blocks ?? []).filter((block) => block.kind !== 'action_preview');
     const responseEnvelope = {
       conversationId,
       runId: run.id,
       status: chatAnswer.status,
       answer: chatAnswer.answer,
       citations: chatAnswer.citations,
-      suggestedActions: chatAnswer.suggestedActions,
-      blocks: chatAnswer.blocks ?? [],
+      suggestedActions: responseSuggestedActions,
+      blocks: responseBlocks,
+      productProfile: productProfile.productProfile,
+      actionsEnabled: productProfile.actionsEnabled,
+      actionExecutionPolicy: productProfile.actionExecutionPolicy,
+      allowedCapabilityManifest: productProfile.allowedCapabilityManifest,
+      productProfileFingerprint: productProfile.productProfileFingerprint,
       ...(chatAnswer.cognition ? { cognition: chatAnswer.cognition } : {}),
       ...(chatAnswer.routePlan ? { routePlan: chatAnswer.routePlan } : {}),
       ...(chatAnswer.adapterKey ? { adapterKey: chatAnswer.adapterKey } : {}),
@@ -725,11 +756,18 @@ export class BrainChatService {
       output: this.toJsonValue({
         mode: releaseRuntime.mode ?? null,
         releaseId: releaseRuntime.releaseIdentity?.releaseId ?? null,
+        releaseKey: releaseRuntime.releaseKey ?? null,
         releaseFingerprint: releaseRuntime.releaseIdentity?.releaseFingerprint ?? null,
         capabilityCandidateCount: releaseRuntime.capabilityCandidates?.length ?? null,
+        productProfile: releaseRuntime.productProfile ?? null,
+        evaluationIdentity: releaseRuntime.evaluationIdentity ?? null,
         governancePolicyReleaseId: releaseRuntime.governancePolicy?.releaseId ?? null,
         governancePolicyMode: releaseRuntime.governancePolicy?.mode ?? null,
         governancePolicyWouldBlockCount: releaseRuntime.governancePolicy?.blockedCapabilityKeys.length ?? null,
+        runtimeProductIdentity: releaseRuntime.productIdentity ?? null,
+        governancePolicyIdentity: releaseRuntime.governancePolicyIdentity ?? null,
+        governanceTransitionStatus: releaseRuntime.governanceTransitionStatus ?? null,
+        governanceTransitionStep: releaseRuntime.governanceTransitionStep ?? null,
         failureCode: releaseRuntime.failureCode ?? null,
       }),
     });
@@ -1186,8 +1224,59 @@ export class BrainChatService {
     return Boolean(runtime?.cognitionMode === 'model' && runtime.plannerMode === 'model' && runtime.singleToolFastPath);
   }
 
+  private async resolveResponseProductProfile(context: BrainRequestContext): Promise<{
+    productProfile: string | null;
+    actionsEnabled: boolean;
+    actionExecutionPolicy: string | null;
+    allowedCapabilityManifest: string | null;
+    productProfileFingerprint: string | null;
+  }> {
+    const evaluationProfile = context.governanceEvalReleaseSnapshot?.productProfile;
+    if (evaluationProfile) {
+      return {
+        productProfile: evaluationProfile.productProfile,
+        actionsEnabled: evaluationProfile.actionsEnabled,
+        actionExecutionPolicy: evaluationProfile.actionExecutionPolicy,
+        allowedCapabilityManifest: evaluationProfile.allowedCapabilityManifest,
+        productProfileFingerprint: evaluationProfile.productProfileFingerprint,
+      };
+    }
+    if (!this.releaseService || typeof this.releaseService.resolveActionExecutionPolicy !== 'function') {
+      return {
+        productProfile: null,
+        actionsEnabled: true,
+        actionExecutionPolicy: null,
+        allowedCapabilityManifest: null,
+        productProfileFingerprint: null,
+      };
+    }
+    try {
+      const policy = await this.releaseService.resolveActionExecutionPolicy({
+        storeId: context.storeId,
+        userId: context.userId,
+        roleKey: this.modelRoleFromContext(context),
+      });
+      return {
+        productProfile: policy.currentProfile.productProfile,
+        actionsEnabled: policy.allowed,
+        actionExecutionPolicy: policy.currentProfile.actionExecutionPolicy,
+        allowedCapabilityManifest: policy.currentProfile.allowedCapabilityManifest,
+        productProfileFingerprint: policy.currentProfile.productProfileFingerprint,
+      };
+    } catch {
+      return {
+        productProfile: null,
+        actionsEnabled: false,
+        actionExecutionPolicy: 'deny_on_policy_unavailable',
+        allowedCapabilityManifest: null,
+        productProfileFingerprint: null,
+      };
+    }
+  }
+
   private async resolveReleaseRuntime(context: BrainRequestContext): Promise<{
     mode?: 'rules' | 'shadow' | 'model';
+    releaseKey?: string;
     capabilityCandidates?: readonly BrainCapabilityCandidate[];
     releaseIdentity?: BrainActionReleaseIdentity;
     governancePolicy?: {
@@ -1195,16 +1284,51 @@ export class BrainChatService {
       mode: 'shadow' | 'enforced';
       blockedCapabilityKeys: readonly string[];
     };
+    productIdentity?: {
+      family: string;
+      code: string;
+      stageCode: string | null;
+      name: string;
+      internalReleaseId: number | null;
+    } | null;
+    governancePolicyIdentity?: {
+      family: string;
+      code: string;
+      stageCode: string | null;
+      name: string;
+      internalReleaseId: number | null;
+    } | null;
+    governanceTransitionStatus?: string | null;
+    governanceTransitionStep?: string | null;
+    productProfile?: {
+      productProfile: string | null;
+      actionsEnabled: boolean;
+      actionExecutionPolicy: string | null;
+      allowedCapabilityManifest: string | null;
+      allowedCapabilityCount: number | null;
+      sideEffectCapabilityCount: number | null;
+      productProfileFingerprint: string | null;
+    };
+    evaluationIdentity?: {
+      family: string;
+      code: string;
+      stageCode: string | null;
+      name: string;
+      internalReleaseId: number | null;
+    };
     failureCode?: 'PRODUCTION_BASELINE_UNAVAILABLE' | 'PRODUCTION_BASELINE_INVALID';
   }> {
     if (context.governanceEvalReleaseSnapshot) {
       return {
         mode: context.governanceEvalReleaseSnapshot.mode,
+        releaseKey: context.governanceEvalReleaseSnapshot.releaseKey,
         capabilityCandidates: context.governanceEvalReleaseSnapshot.capabilityCandidates,
         releaseIdentity: {
           releaseId: context.governanceEvalReleaseSnapshot.releaseId,
           releaseFingerprint: context.governanceEvalReleaseSnapshot.releaseFingerprint,
         },
+        productProfile: context.governanceEvalReleaseSnapshot.productProfile,
+        evaluationIdentity: context.governanceEvalReleaseSnapshot.evaluationIdentity,
       };
     }
     if (!this.releaseService) {
@@ -1229,9 +1353,15 @@ export class BrainChatService {
       const releaseIdentity = this.releaseIdentityFromRuntime(resolved);
       return {
         mode,
+        releaseKey: resolved.release.releaseKey,
         capabilityCandidates: resolved.capabilityCandidates,
         ...(releaseIdentity ? { releaseIdentity } : {}),
         ...(resolved.governancePolicy ? { governancePolicy: resolved.governancePolicy } : {}),
+        productProfile: resolved.productProfile,
+        productIdentity: resolved.productIdentity ?? null,
+        governancePolicyIdentity: resolved.governancePolicyIdentity ?? null,
+        governanceTransitionStatus: resolved.governanceTransitionStatus ?? null,
+        governanceTransitionStep: resolved.governanceTransitionStep ?? null,
       };
     } catch (error) {
       if (context.governanceEvalReleaseId !== undefined) throw error;
@@ -1280,7 +1410,7 @@ export class BrainChatService {
     try {
       return {
         releaseId: release.id as number,
-        releaseFingerprint: createReleaseFingerprint(release.items as never),
+        releaseFingerprint: createReleaseFingerprint(release.items as never, release.rollout),
       };
     } catch {
       return undefined;
@@ -1711,6 +1841,7 @@ export class BrainChatService {
     modelMetadata = this.modelMetadata('compile', {
       provider: compilation.provider,
       model: compilation.model,
+      modelRouting: compilation.routing ?? null,
       intentSchemaVersion: compilation.intent.schemaVersion,
     });
     await this.recordModelTrace({
@@ -1722,6 +1853,7 @@ export class BrainChatService {
         status: compilation.status,
         provider: compilation.provider,
         model: compilation.model,
+        routing: compilation.routing ?? null,
         selectedCapabilityKey: compilation.selectedCapabilityKey ?? null,
         semanticIntent: this.modelIntentTraceSummary(compilation.intent),
       }),
@@ -1956,6 +2088,7 @@ export class BrainChatService {
         modelMetadata = this.modelMetadata('compile', {
           provider: repairCompilation.provider,
           model: repairCompilation.model,
+          modelRouting: repairCompilation.routing ?? null,
           intentSchemaVersion: repairCompilation.intent.schemaVersion,
         });
         await this.recordModelTrace({
@@ -2250,37 +2383,37 @@ export class BrainChatService {
                   ? 'reservation_project_ranking_contract'
                   : managerStaffDirectoryCard
                     ? 'manager_staff_directory_contract'
-                  : governedExampleCard
-                  ? 'examples'
-                  : pendingCapabilityCard
-                    ? 'pending_clarification'
-                    : continuationCapability
-                      ? 'conversation_continuation'
-                      : customerFactsCard
-                        ? 'customer_identity'
-                        : modelSelectedDeliveryCard
-                          ? 'model_delivery_contract'
-                          : 'retrieval',
+                    : governedExampleCard
+                      ? 'examples'
+                      : pendingCapabilityCard
+                        ? 'pending_clarification'
+                        : continuationCapability
+                          ? 'conversation_continuation'
+                          : customerFactsCard
+                            ? 'customer_identity'
+                            : modelSelectedDeliveryCard
+                              ? 'model_delivery_contract'
+                              : 'retrieval',
               ],
             },
           ],
           confidence: 1,
           margin: 1,
-        reason: reservationProjectRankingCard
-          ? 'reservation_project_ranking_contract_selected'
-          : managerStaffDirectoryCard
-            ? 'manager_staff_directory_contract_selected'
-          : governedExampleCard
-          ? 'governed_example_selected'
-          : pendingCapabilityCard
-            ? 'pending_clarification_capability_reused'
-              : continuationCapability
-                ? 'conversation_continuation_capability_reused'
-                : customerFactsCard
-                  ? 'specific_customer_fact_selected'
-                  : modelSelectedDeliveryCard
-                    ? 'model_delivery_contract_selected'
-                    : 'capability_retrieval_result',
+          reason: reservationProjectRankingCard
+            ? 'reservation_project_ranking_contract_selected'
+            : managerStaffDirectoryCard
+              ? 'manager_staff_directory_contract_selected'
+              : governedExampleCard
+                ? 'governed_example_selected'
+                : pendingCapabilityCard
+                  ? 'pending_clarification_capability_reused'
+                  : continuationCapability
+                    ? 'conversation_continuation_capability_reused'
+                    : customerFactsCard
+                      ? 'specific_customer_fact_selected'
+                      : modelSelectedDeliveryCard
+                        ? 'model_delivery_contract_selected'
+                        : 'capability_retrieval_result',
         }
       : this.capabilityRetriever!.retrieve({
           intent: validation.intent,
@@ -2758,7 +2891,8 @@ export class BrainChatService {
     );
     const filters = input.intent.filters.filter(
       (filter) =>
-        filter.fieldRef.definitionType === 'dimension' && supportedFilterDefinitionKeys.has(filter.fieldRef.definitionKey),
+        filter.fieldRef.definitionType === 'dimension' &&
+        supportedFilterDefinitionKeys.has(filter.fieldRef.definitionKey),
     );
     const supportedInputDimensions = input.intent.dimensions.filter((dimension) =>
       supportedDefinitionKeys.has(dimension.definitionKey),
@@ -2979,6 +3113,16 @@ export class BrainChatService {
       /^(?:(?:帮我|请|直接|立即|马上|替我|给我|能不能|可以|是否可以)\s*)?(?:把|将).{1,48}(?:改到|改成|取消|提交)/.test(
         normalized,
       ) ||
+      /^(?:(?:帮我|请|直接|立即|马上|替我|给我|能不能|可以|是否可以)\s*)?(?:把|将).{1,64}(?:升到|降到|设为|设置为|调价|上架|下架|发布|修改|更新|加上|添加|移除|删除|安排|配置)/.test(
+        normalized,
+      ) ||
+      /^(?:给|为).{1,48}(?:加个|加上|添加|设置|安排|调价|配置|创建|新建|更新|修改|发布|上架|下架)/.test(normalized) ||
+      /^(?:帮|替).{1,48}(?:创建|新建|修改|更新|改约|取消|核销|扣次|退款|发送|发布|保存|记录|提交|安排|配置|调价|上架|下架)/.test(
+        normalized,
+      ) ||
+      /^(?:(?:帮我|请|直接|立即|马上|替我|给我)\s*)?(?:发布|上架|下架|配置|调价|排班|智能排班|一键智能排)/.test(
+        normalized,
+      ) ||
       /^(?:(?:帮我|请|直接|立即|马上|替我|给我)\s*)?(?:启动|执行|运行).{0,48}(?:策略|任务|流程|触达|方案)/.test(
         normalized,
       ) ||
@@ -2988,10 +3132,36 @@ export class BrainChatService {
       /^(?:给|为).{0,24}(?:准备|生成|创建).{0,32}(?:预览|待确认.{0,12}(?:任务|操作|方案)|确认方案|预约方案)/.test(
         normalized,
       ) ||
-      /^(?:先)?预览.{0,48}(?:取消|完成|核销|划扣|预约|触达|任务|策略)/.test(
-        normalized,
-      )
+      /^(?:先)?预览.{0,48}(?:取消|完成|核销|划扣|预约|触达|任务|策略)/.test(normalized) ||
+      /^(?:先)?预览.{0,48}(?:排班|调班|休假|上下架|调价|配置|方案)/.test(normalized)
     );
+  }
+
+  private buildActionExecutionDisabledAnswer(productProfile: {
+    productProfile: string | null;
+    actionExecutionPolicy: string | null;
+  }): BrainChatAnswer {
+    const answer =
+      '当前运行版本只支持查询与分析，动作执行已关闭。本次未生成动作预览，未进入确认或重试，也未写入任何业务数据；如需变更，请在对应业务页面由有权限的用户完成。';
+    return {
+      status: 'completed',
+      answer,
+      citations: [],
+      suggestedActions: [],
+      blocks: [{ kind: 'limitations', items: [answer] }],
+      grounding: 'none',
+      adapterMetadata: {
+        decisionCode: 'action_execution_denied_by_product_profile',
+        reason: 'brain_action_execution_disabled_by_release_profile',
+        productProfile: productProfile.productProfile,
+        actionExecutionPolicy: productProfile.actionExecutionPolicy,
+        previewCreated: false,
+        confirmationCreated: false,
+        retryCreated: false,
+        businessStateChanged: false,
+        completion: { status: 'complete', missingCriteria: [], recoverable: false },
+      },
+    };
   }
 
   private modelIntentTraceSummary(intent: BrainSemanticIntent) {
@@ -3059,7 +3229,9 @@ export class BrainChatService {
       intent: this.enrichGovernedQuestionMetricIntent(input.intent, input.question, input.cards),
     };
     const inventorySpecificCard =
-      input.intent.intent === 'action' ? undefined : this.findInventorySpecificCapabilityCard(input.question, input.cards);
+      input.intent.intent === 'action'
+        ? undefined
+        : this.findInventorySpecificCapabilityCard(input.question, input.cards);
     if (input.intent.intent === 'workflow') return this.normalizeGovernedWorkflowIntent(input);
     if (inventorySpecificCard) {
       const inventoryIntent = this.inventorySpecificIntent(input.question, inventorySpecificCard);
@@ -3178,7 +3350,11 @@ export class BrainChatService {
       ? candidates.find((candidate) => candidate.card.key === 'finance_risk_overview')
       : undefined;
     const matched =
-      financeStaffCommissionCompositionMatched ?? definitionMatched ?? domainMatched ?? specificityMatched ?? candidates[0];
+      financeStaffCommissionCompositionMatched ??
+      definitionMatched ??
+      domainMatched ??
+      specificityMatched ??
+      candidates[0];
     const margin = matched ? matched.score - (candidates.find((candidate) => candidate !== matched)?.score ?? 0) : 0;
     const governedSingleIntentCapability = (isAction || isDraft) && candidates.length === 1;
     if (
@@ -3202,11 +3378,11 @@ export class BrainChatService {
       )
       .map((ref) => definitionRefFromCard(ref, 'metric'));
     const preserveFinanceOrderProfitMetrics =
-      matched.card.key === 'finance_risk_overview' && input.intent.metrics.some((metric) =>
-        isFinanceOrderProfitMetricDefinitionKey(metric.definitionKey),
-      );
+      matched.card.key === 'finance_risk_overview' &&
+      input.intent.metrics.some((metric) => isFinanceOrderProfitMetricDefinitionKey(metric.definitionKey));
     const preserveFinanceStaffCommissionCompositionMetrics =
-      matched.card.key === 'finance_risk_overview' && input.intent.metrics.some((metric) =>
+      matched.card.key === 'finance_risk_overview' &&
+      input.intent.metrics.some((metric) =>
         isFinanceStaffCommissionCompositionMetricDefinitionKey(metric.definitionKey),
       );
     const metrics =
@@ -3238,9 +3414,9 @@ export class BrainChatService {
         ? supportedInputDimensions
         : preserveFinanceStaffCommissionCompositionMetrics
           ? input.intent.dimensions
-        : ['list', 'ranking'].includes(input.intent.answerShape)
-          ? governedDimensions
-          : supportedInputDimensions;
+          : ['list', 'ranking'].includes(input.intent.answerShape)
+            ? governedDimensions
+            : supportedInputDimensions;
     const governedEntities = (matched.card.definitionRefs ?? [])
       .filter((ref) => ref.definitionKey.startsWith('entity.'))
       .map((ref) => ({
@@ -4013,7 +4189,8 @@ export class BrainChatService {
   ): BrainCapabilityCard | undefined {
     if (!this.isManagerStaffDirectoryQuestion(question)) return undefined;
     return cards.find(
-      (card) => card.key === 'manager_staff_overview' && card.readOnly && !card.sideEffect && card.intents.includes('query'),
+      (card) =>
+        card.key === 'manager_staff_overview' && card.readOnly && !card.sideEffect && card.intents.includes('query'),
     );
   }
 
@@ -4973,7 +5150,9 @@ export class BrainChatService {
     question: string,
     cards: readonly BrainCapabilityCard[],
   ): BrainCapabilityCard | undefined {
-    if (!/(?:库存|产品|商品|货品|耗材|物料|采购|补货|进货|备货|供应商|报价|交货|收货|缺货|断货|临期|过期)/.test(question)) {
+    if (
+      !/(?:库存|产品|商品|货品|耗材|物料|采购|补货|进货|备货|供应商|报价|交货|收货|缺货|断货|临期|过期)/.test(question)
+    ) {
       return undefined;
     }
     const procurementQuestion =
@@ -5020,7 +5199,7 @@ export class BrainChatService {
         !card.sideEffect &&
         card.intents.includes('query') &&
         card.domains.includes('reservation') &&
-      card.definitionRefs.some((ref) => ref.definitionKey === 'dimension.projectName'),
+        card.definitionRefs.some((ref) => ref.definitionKey === 'dimension.projectName'),
     );
   }
 
@@ -5034,7 +5213,9 @@ export class BrainChatService {
       intent.domains.some((domain) => ['staff', 'beautician'].includes(domain)) ||
       intent.entities.some((entity) => ['staff', 'beautician'].includes(entity.entityType)) ||
       intent.dimensions.some((dimension) =>
-        ['dimension.beauticianId', 'dimension.beauticianName', 'dimension.staff_name'].includes(dimension.definitionKey),
+        ['dimension.beauticianId', 'dimension.beauticianName', 'dimension.staff_name'].includes(
+          dimension.definitionKey,
+        ),
       ) ||
       /(?:美容师|员工|技师)/.test(question);
     if (!hasStaffSemanticSignal) return undefined;
@@ -5050,7 +5231,9 @@ export class BrainChatService {
 
   private isManagerStaffDirectoryQuestion(question: string) {
     return (
-      /(?:在职美容师|是什么职级|会做哪些项目|可做项目|项目技能|排班是怎样|有哪些美容师请假|谁在上班|谁在岗)/.test(question) ||
+      /(?:在职美容师|是什么职级|会做哪些项目|可做项目|项目技能|排班是怎样|有哪些美容师请假|谁在上班|谁在岗)/.test(
+        question,
+      ) ||
       /(?:能做|会做).*(?:美容师|员工|技师).*(?:在岗|上班)/.test(question) ||
       /(?:美容师|员工|技师).*(?:能做|会做).*(?:在岗|上班)/.test(question)
     );
@@ -5063,8 +5246,9 @@ export class BrainChatService {
   private isProjectServiceSalesQuestion(question: string) {
     const normalized = question.replace(/\s+/gu, '');
     const projectSignal = /(?:项目|护理|SPA|spa|管理|养护|修护|提拉|焕肤|清洁|舒缓|净透|淡斑)/u.test(normalized);
-    const serviceSalesSignal =
-      /(?:卖了多少|卖出多少|卖了几|卖出几|销量|销售数量|服务次数|做了多少次|做了几次)/u.test(normalized);
+    const serviceSalesSignal = /(?:卖了多少|卖出多少|卖了几|卖出几|销量|销售数量|服务次数|做了多少次|做了几次)/u.test(
+      normalized,
+    );
     const productSignal = /(?:商品|产品|货品)/u.test(normalized) && !/(?:项目|护理|SPA|spa)/u.test(normalized);
     const materialSignal = /(?:BOM|bom|耗材|物料|材料)/iu.test(normalized);
     const aggregateSignal =
@@ -5203,10 +5387,7 @@ export class BrainChatService {
       domains: domains.length ? domains : [...card.domains],
       metrics,
       orderBy,
-      assumptions: [
-        ...intent.assumptions,
-        '预约项目排行按预约事实分组统计，不使用服务核销次数或订单指标替代。',
-      ],
+      assumptions: [...intent.assumptions, '预约项目排行按预约事实分组统计，不使用服务核销次数或订单指标替代。'],
     };
   }
 
@@ -5223,7 +5404,14 @@ export class BrainChatService {
     const dimensions = intent.dimensions.filter((dimension) => supportedDimensionKeys.has(dimension.definitionKey));
     const entities = intent.entities.filter((entity) => entity.entityType === 'beautician');
     const metrics = intent.metrics.filter((metric) =>
-      ['metric.staff_service_count', 'metric.staff_unique_customer_count', 'metric.staff_commission_amount', 'metric.staff_service_revenue', 'metric.staff_performance_score', 'metric.staff_customer_repurchase_rate'].includes(metric.definitionKey),
+      [
+        'metric.staff_service_count',
+        'metric.staff_unique_customer_count',
+        'metric.staff_commission_amount',
+        'metric.staff_service_revenue',
+        'metric.staff_performance_score',
+        'metric.staff_customer_repurchase_rate',
+      ].includes(metric.definitionKey),
     );
     return {
       ...intent,
@@ -5279,6 +5467,9 @@ export class BrainChatService {
         planning.status === 'planned'
           ? {
               status: 'planned',
+              provider: planning.provider,
+              model: planning.model,
+              routing: planning.routing ?? null,
               planId: planning.plan.planId,
               nodeCount: planning.plan.nodes.length,
               plan: planning.plan,
@@ -5346,6 +5537,7 @@ export class BrainChatService {
           planId: planning.plan.planId,
           provider: planning.provider,
           model: planning.model,
+          modelRouting: planning.routing ?? null,
         }),
         input.intent,
       );
@@ -5426,6 +5618,7 @@ export class BrainChatService {
       planId: execution.plan.planId,
       provider: planning.provider,
       model: planning.model,
+      modelRouting: planning.routing ?? null,
     });
     const executionTimeRange = this.modelExecutionTimeRange(
       ...execution.observations.map((observation) => observation.data?.metadata),
@@ -5480,6 +5673,7 @@ export class BrainChatService {
       planId: null,
       model: null,
       provider: null,
+      modelRouting: null,
     };
     return {
       ...defaults,
@@ -5656,7 +5850,8 @@ export class BrainChatService {
 
     const beauticianEntities = input.intent.entities.filter(
       (entity) =>
-        entity.entityType === 'beautician' || entity.definitionRef?.definitionKey === beauticianDefinition.definitionKey,
+        entity.entityType === 'beautician' ||
+        entity.definitionRef?.definitionKey === beauticianDefinition.definitionKey,
     );
     const requestsBeautician =
       beauticianEntities.length > 0 ||
@@ -5686,7 +5881,8 @@ export class BrainChatService {
     });
     const retainedEntities = input.intent.entities.filter(
       (entity) =>
-        entity.entityType !== 'beautician' && entity.definitionRef?.definitionKey !== beauticianDefinition.definitionKey,
+        entity.entityType !== 'beautician' &&
+        entity.definitionRef?.definitionKey !== beauticianDefinition.definitionKey,
     );
     if (!matched.length) {
       const unresolvedBeauticians = beauticianEntities.map((entity) => ({
@@ -6513,6 +6709,7 @@ export class BrainChatService {
         runId,
         userId: _context.userId,
         storeId: _context.storeId,
+        roles: _context.roles,
         skillKey: preview.actionType,
         riskLevel: preview.riskLevel as BrainRiskLevel,
         preview: preview as unknown as Prisma.InputJsonValue,
@@ -7062,9 +7259,7 @@ export function findCapabilityContractMissingDefinitions(
   return [
     ...new Set([
       ...requestedMetrics.filter(
-        (item) =>
-          !declared.includes(normalizeDefinitionKey(item)) &&
-          !allowedFinanceRiskMetrics.has(item),
+        (item) => !declared.includes(normalizeDefinitionKey(item)) && !allowedFinanceRiskMetrics.has(item),
       ),
       ...missingIntentDimensions,
       ...inferredQuestionDimensions.filter((item) => {
