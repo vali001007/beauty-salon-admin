@@ -20,6 +20,16 @@ function releaseFixture(input: {
 }
 
 describe('BrainActiveReleaseWarmupService', () => {
+  const originalStartupMode = process.env.BRAIN_ACTIVE_RELEASE_WARMUP_STARTUP_MODE;
+
+  afterEach(() => {
+    if (originalStartupMode === undefined) {
+      delete process.env.BRAIN_ACTIVE_RELEASE_WARMUP_STARTUP_MODE;
+    } else {
+      process.env.BRAIN_ACTIVE_RELEASE_WARMUP_STARTUP_MODE = originalStartupMode;
+    }
+  });
+
   it('skips unrelated active runtime warmup inside the release pilot process', async () => {
     const previous = process.env.BRAIN_RELEASE_PILOT_MODE;
     process.env.BRAIN_RELEASE_PILOT_MODE = 'true';
@@ -77,6 +87,69 @@ describe('BrainActiveReleaseWarmupService', () => {
       releases: [{ releaseId: 416, releaseStatus: 'active', definitionVersionIds: [11, 12] }],
       failureReason: null,
     });
+  });
+
+  it('starts active Release warmup in the background without blocking application bootstrap', async () => {
+    process.env.BRAIN_ACTIVE_RELEASE_WARMUP_STARTUP_MODE = 'background';
+    let resolveReleases: ((value: unknown[]) => void) | undefined;
+    const findMany = jest.fn().mockImplementation(
+      () =>
+        new Promise<unknown[]>((resolve) => {
+          resolveReleases = resolve;
+        }),
+    );
+    const service = new BrainActiveReleaseWarmupService(
+      { brainRelease: { findMany } } as never,
+      { loadEvaluationSnapshot: jest.fn() } as never,
+      { listEnabledCapabilities: jest.fn() } as never,
+    );
+
+    await expect(service.onApplicationBootstrap()).resolves.toBeUndefined();
+    expect(service.isApplicationReadinessRequired()).toBe(false);
+    expect(service.getStatus()).toMatchObject({
+      startupMode: 'background',
+      applicationReadinessRequired: false,
+      state: 'warming',
+    });
+
+    resolveReleases?.([]);
+    await expect(service.warmActiveReleases()).resolves.toMatchObject({ state: 'ready' });
+  });
+
+  it('keeps the process available and records failure when background warmup fails', async () => {
+    process.env.BRAIN_ACTIVE_RELEASE_WARMUP_STARTUP_MODE = 'background';
+    const service = new BrainActiveReleaseWarmupService(
+      {
+        brainRelease: {
+          findMany: jest.fn().mockRejectedValue(new Error('temporary_catalog_failure')),
+        },
+      } as never,
+      { loadEvaluationSnapshot: jest.fn() } as never,
+      { listEnabledCapabilities: jest.fn() } as never,
+    );
+
+    await expect(service.onApplicationBootstrap()).resolves.toBeUndefined();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(service.getStatus()).toMatchObject({
+      startupMode: 'background',
+      applicationReadinessRequired: false,
+      state: 'failed',
+      failureReason: 'temporary_catalog_failure',
+    });
+  });
+
+  it('rejects an invalid startup mode instead of silently changing readiness behavior', () => {
+    process.env.BRAIN_ACTIVE_RELEASE_WARMUP_STARTUP_MODE = 'optional';
+
+    expect(
+      () =>
+        new BrainActiveReleaseWarmupService(
+          { brainRelease: {} } as never,
+          {} as never,
+          {} as never,
+        ),
+    ).toThrow('invalid_brain_active_release_warmup_startup_mode:optional');
   });
 
   it('does not report ready when an active ontology snapshot fails to warm', async () => {
