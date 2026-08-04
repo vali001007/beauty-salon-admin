@@ -364,6 +364,72 @@ describe('BrainCustomerFactResolverService', () => {
     );
   });
 
+  it('grounds a named-customer project recommendation in completed service history without writing business data', async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      {
+        name: '王思琪',
+        phone: '13800001234',
+        memberLevel: '金卡会员',
+        totalSpent: 6800,
+        visitCount: 8,
+        lastVisitDate: new Date('2026-07-20T00:00:00.000Z'),
+        source: '小红书',
+        tags: [],
+        remark: null,
+        healthProfile: null,
+        customerCards: [
+          {
+            cardName: '胶原焕活提拉疗程卡',
+            remainingTimes: 2,
+            expiryDate: new Date('2026-12-31T00:00:00.000Z'),
+          },
+        ],
+        balanceAccounts: [],
+        consumptionRecords: [],
+        reservations: [],
+        serviceTasks: [
+          {
+            appointmentTime: new Date('2026-07-20T06:00:00.000Z'),
+            completedAt: new Date('2026-07-20T07:00:00.000Z'),
+            remark: '客户反馈舒适',
+            project: { name: '胶原焕活提拉' },
+            beautician: { name: '顾然' },
+          },
+          {
+            appointmentTime: new Date('2026-06-20T06:00:00.000Z'),
+            completedAt: new Date('2026-06-20T07:00:00.000Z'),
+            remark: null,
+            project: { name: '胶原焕活提拉' },
+            beautician: { name: '顾然' },
+          },
+          {
+            appointmentTime: new Date('2026-05-20T06:00:00.000Z'),
+            completedAt: new Date('2026-05-20T07:00:00.000Z'),
+            remark: null,
+            project: { name: '深层补水' },
+            beautician: { name: '唐伊' },
+          },
+        ],
+      },
+    ]);
+    const service = new BrainCustomerFactResolverService({ customer: { findMany } } as never);
+
+    const answer = await service.answerExactCustomerQuestion({
+      storeId: 6,
+      message: '王思琪适合推荐什么项目，为什么', // BQ0152
+      permissions: ['core:customer:view'],
+    });
+
+    expect(answer).toContain('建议优先把“胶原焕活提拉”作为人工沟通的复购候选');
+    expect(answer).toContain('最近 3 条已完成服务中，“胶原焕活提拉”出现 2 次');
+    expect(answer).toContain('本次未创建预约、修改权益或发送消息');
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ storeId: 6, name: { contains: '王思琪' } }),
+      }),
+    );
+  });
+
   it('fails closed when a customer question has no registered business fact', async () => {
     const service = new BrainCustomerFactResolverService({} as never);
 

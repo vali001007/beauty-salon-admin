@@ -26,6 +26,12 @@ import {
 import type { ProductionReadyBusinessDefinitionSnapshot } from './business-definition-snapshot.types.js';
 import type { BrainRoleRuntimeContext } from '../role/brain-role-context-builder.service.js';
 import { BrainTimeRangeParserService, type BrainDateRange } from './brain-time-range-parser.service.js';
+import {
+  extractCustomerPhoneTail,
+  extractSpecificCustomerNameFromQuestion,
+  isSpecificCustomerProjectRecommendationQuestion,
+  isSpecificCustomerReadOnlyQuestion,
+} from '../domain/brain-customer-identity.js';
 
 export interface BrainSemanticOntologyCandidate {
   definitionRef: BrainDefinitionRef<'entity' | 'relation'>;
@@ -516,6 +522,10 @@ export class BrainSemanticIntentCompilerService {
     );
     if (!capability) return undefined;
     const normalized = input.question.replace(/\s+/gu, '');
+    const exactCustomerQuestion = isSpecificCustomerReadOnlyQuestion(input.question);
+    const exactCustomerName = extractSpecificCustomerNameFromQuestion(input.question);
+    const exactCustomerPhoneTail = extractCustomerPhoneTail(input.question);
+    const projectRecommendation = isSpecificCustomerProjectRecommendationQuestion(input.question);
     const isMemberLevelCount =
       /(?:有多少|多少(?:个|位|人)?|几(?:个|位|人)?|一共|共有|总数|统计|查询|查一下).*(?:钻石会员|金卡会员|银卡会员|普通会员|会员等级)/u.test(
         normalized,
@@ -541,6 +551,7 @@ export class BrainSemanticIntentCompilerService {
       /(?:办了|持有|开了|有).*(?:次卡|卡项|综合养护20次卡).*(?:没来|没有来|未到店|没到店)/u.test(normalized) ||
       /(?:次卡|卡项|综合养护20次卡).*(?:没来|没有来|未到店|没到店)/u.test(normalized);
     const supported =
+      exactCustomerQuestion ||
       isMemberLevelCount ||
       isVisitedCustomerCount ||
       isVisitedMemberTierList ||
@@ -551,6 +562,7 @@ export class BrainSemanticIntentCompilerService {
     const customerEntityRef =
       resolveCanonicalDefinitionRef('entity', 'entity.customer', input) ??
       findCapabilityDefinitionRef(capability, 'entity', 'entity.customer');
+    if (exactCustomerQuestion && !customerEntityRef) return undefined;
     const customerLevelDimensionRef =
       resolveCanonicalDefinitionRef('dimension', 'dimension.customerLevel', input) ??
       findCapabilityDefinitionRef(capability, 'dimension', 'dimension.customerLevel');
@@ -563,12 +575,16 @@ export class BrainSemanticIntentCompilerService {
       schemaVersion: '1.0',
       objective: input.question.trim(),
       domains: ['customer'],
-      intent: 'query',
+      intent: projectRecommendation ? 'recommendation' : 'query',
       entities: customerEntityRef
         ? [
             {
               entityType: 'customer',
-              mention: /会员/u.test(input.question) ? '会员' : '客户',
+              mention: exactCustomerQuestion
+                ? (exactCustomerName ?? `手机号后四位${exactCustomerPhoneTail}的客户`)
+                : /会员/u.test(input.question)
+                  ? '会员'
+                  : '客户',
               source: 'user',
               definitionRef: customerEntityRef,
               confidence: 1,
@@ -581,13 +597,27 @@ export class BrainSemanticIntentCompilerService {
       filters: [],
       ...(timeRange ? { timeRange } : {}),
       orderBy: [],
-      answerShape: isExplicitList ? 'list' : 'scalar',
-      successCriteria: ['执行已发布客户事实能力 customer_facts 并返回可追溯结果'],
+      answerShape: projectRecommendation
+        ? 'diagnosis'
+        : isExplicitList
+          ? 'list'
+          : exactCustomerQuestion
+            ? 'list'
+            : 'scalar',
+      successCriteria: projectRecommendation
+        ? ['查询当前门店具体客户的真实消费与服务事实', '仅基于可追溯事实给出人工可复核的项目建议，不执行写操作']
+        : ['执行已发布客户事实能力 customer_facts 并返回可追溯结果'],
       ambiguities: [],
       missingSlots: [],
-      assumptions: ['问题命中客户事实查询的已发布只读交付合同；答案仍必须由客户事实 resolver 查询真实业务数据。'],
+      assumptions: [
+        exactCustomerQuestion
+          ? '问题文本已提供具体客户身份；同名时仍由客户事实 resolver 返回脱敏候选并要求手机号后四位澄清。'
+          : '问题命中客户事实查询的已发布只读交付合同；答案仍必须由客户事实 resolver 查询真实业务数据。',
+      ],
       confidence: 1,
-      decisionSummary: '客户、会员等级、到店或卡项持有/预约关系均由 customer_facts 能力承接。',
+      decisionSummary: exactCustomerQuestion
+        ? '具体客户的只读事实与基于事实的人工建议由 customer_facts 能力承接，不依赖模型先生成客户实体。'
+        : '客户、会员等级、到店或卡项持有/预约关系均由 customer_facts 能力承接。',
     };
     return {
       ...baseIntent,

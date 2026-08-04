@@ -889,6 +889,65 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     ]);
   });
 
+  it('returns a database citation for a named-customer project recommendation and no executable action', async () => {
+    const customerFacts = {
+      answerCustomerQuestion: jest
+        .fn()
+        .mockResolvedValue(
+          '针对王思琪，建议优先把“胶原焕活提拉”作为人工沟通的复购候选。依据：最近完成服务中出现 2 次。本次未创建预约、修改权益或发送消息。',
+        ),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      customerFacts as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'customer_facts', intents: ['query'] },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['marketing'],
+        permissions: ['core:brain:use', 'core:customer:view'],
+        deniedPermissions: [],
+        requestId: 'customer-project-recommendation-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 4,
+      question: '王思琪适合推荐什么项目，为什么', // BQ0152
+      answerShape: 'diagnosis',
+      args: {
+        objective: '基于王思琪的客户事实给出项目建议',
+        entities: [{ entityType: 'customer', mention: '王思琪', source: 'user' }],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(customerFacts.answerCustomerQuestion).toHaveBeenCalledWith(
+      expect.objectContaining({ storeId: 6, specificCustomerMention: '王思琪' }),
+    );
+    expect(result).toMatchObject({
+      status: 'completed',
+      grounding: 'db_skill',
+      citations: [
+        {
+          sourceType: 'db_skill',
+          sourceId: 'customer_exact_project_recommendation_facts',
+          label: '客户历史服务与消费事实',
+        },
+      ],
+      metadata: {
+        answerScope: 'exact_customer_project_recommendation',
+      },
+    });
+    expect(result.suggestedActions ?? []).toEqual([]);
+  });
+
   it('grounds an ambiguous last-visit clarification with matched customer facts', async () => {
     const customerFacts = {
       getExactCustomerBasicSummary: jest.fn().mockResolvedValue({

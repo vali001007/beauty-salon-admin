@@ -1,0 +1,23 @@
+{
+  "runId": 259,
+  "stage": "targeted",
+  "sourceChecksum": "eeabcf0ba6d2652cabe91950bfc04bb2fa6f3fd6c95510d583d9ed6d99f186ec",
+  "completed": 3,
+  "items": [
+    {
+      "caseKey": "BQ0006",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0008",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0152",
+      "deterministicPassed": true,
+      "failureCluster": null
+    }
+  ]
+}

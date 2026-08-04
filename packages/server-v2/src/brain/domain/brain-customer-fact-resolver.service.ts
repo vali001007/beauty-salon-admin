@@ -2,7 +2,12 @@ import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { CustomerLifecycleOntologyService } from '../../marketing/customer-lifecycle-ontology.service.js';
 import { formatBrainMoney, toBrainNumber } from './brain-domain-formatters.js';
-import { extractCustomerPhoneTail, extractSpecificCustomerNameFromMention } from './brain-customer-identity.js';
+import {
+  extractCustomerPhoneTail,
+  extractSpecificCustomerNameFromMention,
+  extractSpecificCustomerNameFromQuestion,
+  isSpecificCustomerProjectRecommendationQuestion,
+} from './brain-customer-identity.js';
 import { CUSTOMER_MONETARY_TIERS, customerMonetaryTier } from '../../customers/customer-value-segmentation.js';
 
 const ARRIVED_CUSTOMER_STATUSES = [
@@ -1238,6 +1243,48 @@ export class BrainCustomerFactResolverService {
     }
 
     const customer = customers[0];
+    if (isSpecificCustomerProjectRecommendationQuestion(input.message)) {
+      const projectFrequency = new Map<
+        string,
+        { count: number; latestAt: Date; latestBeauticianName: string | null; latestRemark: string | null }
+      >();
+      for (const service of customer.serviceTasks) {
+        const projectName = service.project.name.trim();
+        if (!projectName) continue;
+        const occurredAt = service.completedAt ?? service.appointmentTime;
+        const current = projectFrequency.get(projectName);
+        if (!current) {
+          projectFrequency.set(projectName, {
+            count: 1,
+            latestAt: occurredAt,
+            latestBeauticianName: service.beautician?.name ?? null,
+            latestRemark: service.remark || null,
+          });
+          continue;
+        }
+        current.count += 1;
+        if (occurredAt > current.latestAt) {
+          current.latestAt = occurredAt;
+          current.latestBeauticianName = service.beautician?.name ?? null;
+          current.latestRemark = service.remark || null;
+        }
+      }
+      const preferredProject = [...projectFrequency.entries()].sort(
+        ([leftName, left], [rightName, right]) =>
+          right.count - left.count ||
+          right.latestAt.getTime() - left.latestAt.getTime() ||
+          leftName.localeCompare(rightName),
+      )[0];
+      const activeCardSummary = customer.customerCards.length
+        ? customer.customerCards.map((card) => `${card.cardName}剩余${card.remainingTimes}次`).join('、')
+        : '无活跃次卡';
+      if (!preferredProject) {
+        return `当前门店找到了客户 ${customer.name}，但没有查到已完成服务项目，现有事实不足以推荐具体项目。可核对事实：会员等级 ${customer.memberLevel}，累计消费 ${formatBrainMoney(toBrainNumber(customer.totalSpent))}，到店 ${customer.visitCount} 次，${activeCardSummary}。下一步应由员工先确认客户当前需求、预算和禁忌，再人工选择项目；本次未创建预约、修改权益或发送消息。`;
+      }
+      const [projectName, evidence] = preferredProject;
+      const latestServiceEvidence = `最近 ${customer.serviceTasks.length} 条已完成服务中，“${projectName}”出现 ${evidence.count} 次，最近一次为 ${evidence.latestAt.toISOString().slice(0, 10)}`;
+      return `针对 ${customer.name}，建议优先把“${projectName}”作为人工沟通的复购候选，而不是直接断言它一定适合。依据：${latestServiceEvidence}${evidence.latestBeauticianName ? `，最近服务美容师为 ${evidence.latestBeauticianName}` : ''}${evidence.latestRemark ? `，服务备注为“${evidence.latestRemark}”` : ''}；客户累计消费 ${formatBrainMoney(toBrainNumber(customer.totalSpent))}、到店 ${customer.visitCount} 次；当前卡项：${activeCardSummary}。下一步：员工先确认客户近期需求、预算、皮肤/健康禁忌和可预约时间，再决定是否生成预约预览；本次未创建预约、修改权益或发送消息。`;
+    }
     const lines = [
       `客户：${customer.name}，手机 ${this.maskPhone(customer.phone)}，会员等级 ${customer.memberLevel}。`,
       `累计消费 ${formatBrainMoney(toBrainNumber(customer.totalSpent))}，到店 ${customer.visitCount} 次，最近到店 ${customer.lastVisitDate?.toISOString().slice(0, 10) ?? '未记录'}。`,
@@ -2752,6 +2799,8 @@ ${cardLines}`;
   }
 
   private extractCustomerName(message: string) {
+    const directName = extractSpecificCustomerNameFromQuestion(message);
+    if (directName) return directName;
     const patterns = [
       /(?:帮我)?(?:查一下|看一下|找一下|搜一下)(?:客户|顾客|客人|会员)?([\u4e00-\u9fa5·]{2,4})(?=的|，|,|。|$)/u,
       /(?:帮我)?(?:查一下|看一下|找一下|搜一下|叫)([\u4e00-\u9fa5]{2,4})/,

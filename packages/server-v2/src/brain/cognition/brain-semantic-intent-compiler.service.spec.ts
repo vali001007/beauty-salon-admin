@@ -528,6 +528,51 @@ function compilerInput(question: string): BrainSemanticIntentCompilerInput {
   };
 }
 
+function exactCustomerCompilerInput(question: string): BrainSemanticIntentCompilerInput {
+  const input = compilerInput(question);
+  input.ontologySnapshot = {
+    ...ontologySnapshot,
+    entities: [
+      ...ontologySnapshot.entities,
+      {
+        definitionKey: customerEntityRef.definitionKey,
+        version: customerEntityRef.definitionVersion,
+        definitionFingerprint: customerEntityRef.definitionFingerprint,
+        sourceFingerprint: customerEntityRef.sourceFingerprint,
+        domain: 'customer',
+        entityKey: 'customer',
+        name: '客户',
+        aliases: ['顾客', '会员'],
+        attributes: {},
+        tableMap: { model: 'Customer' },
+      },
+    ],
+  };
+  input.capabilitySummaries = [
+    {
+      key: 'customer_facts',
+      name: '客户事实与客群查询',
+      description: '查询当前门店的精确客户事实和基于事实的只读建议',
+      domains: ['customer'],
+      intents: ['query', 'ranking', 'comparison', 'diagnosis'],
+      examples: ['帮我查一下张女士的客户资料'],
+      readOnly: true,
+      sideEffect: false,
+      definitionRefs: [customerEntityRef],
+    },
+  ];
+  input.ontologyCandidates = [
+    {
+      definitionRef: customerEntityRef,
+      name: '客户',
+      domain: 'customer',
+      aliases: ['顾客', '会员'],
+      entityKey: 'customer',
+    },
+  ];
+  return input;
+}
+
 function fakeAiService(
   generate: (input: AiStructuredOutputInput) => Promise<AiStructuredOutputResult<BrainSemanticIntent>>,
 ) {
@@ -582,6 +627,45 @@ function financeMetricDefinition(
 }
 
 describe('BrainSemanticIntentCompilerService', () => {
+  it.each([
+    ['何思琪累计消费了多少钱', '何思琪', 'query', 'list'],
+    ['何思琪是从哪个渠道来的', '何思琪', 'query', 'list'],
+    ['王思琪适合推荐什么项目，为什么', '王思琪', 'recommendation', 'diagnosis'], // BQ0152
+  ])(
+    'uses the governed exact-customer fast path without waiting for model entity extraction: %s',
+    async (question, customerName, intent, answerShape) => {
+      const aiService = fakeAiService(async () => {
+        throw new Error('exact customer fast path must not call the model');
+      });
+      const compiler = createCompiler(aiService);
+
+      const result = await compiler.compile(exactCustomerCompilerInput(question));
+
+      expect(result).toMatchObject({
+        status: 'completed',
+        provider: 'governed_contract',
+        model: 'customer_facts_fast_path',
+        selectedCapabilityKey: 'customer_facts',
+        intent: {
+          intent,
+          answerShape,
+          domains: ['customer'],
+          entities: [
+            expect.objectContaining({
+              entityType: 'customer',
+              mention: customerName,
+              source: 'user',
+              definitionRef: customerEntityRef,
+            }),
+          ],
+          missingSlots: [],
+          ambiguities: [],
+        },
+      });
+      expect(aiService.generateStructured).not.toHaveBeenCalled();
+    },
+  );
+
   it.each(['本月商品销售排行', '哪些货卖得最好'])(
     'compiles product ranking paraphrase into the same governed semantic intent: %s',
     async (question) => {

@@ -1,0 +1,501 @@
+[
+  {
+    "id": 7649,
+    "evalRunId": 261,
+    "caseId": null,
+    "caseKey": "BQ0010",
+    "roleKey": "store_manager",
+    "question": "最近30天到店的客户有多少",
+    "answer": "实际到店客户：0 人。\n\n数据依据：客户到店事实。",
+    "citations": [
+      {
+        "label": "客户到店事实",
+        "sourceId": "customer_visited_count_facts",
+        "sourceType": "db_skill"
+      }
+    ],
+    "deterministicGrade": {
+      "layers": {
+        "intent": {
+          "passed": true
+        },
+        "safety": {
+          "passed": true
+        },
+        "evidence": {
+          "passed": true
+        },
+        "multiTurn": {
+          "passed": true
+        },
+        "completion": {
+          "passed": true
+        },
+        "clarification": {
+          "passed": true
+        }
+      },
+      "passed": true,
+      "strictPassed": true,
+      "qualityBucket": "manual_review",
+      "contractPassed": true,
+      "providerUnavailable": false
+    },
+    "deterministicPassed": true,
+    "llmJudge": {
+      "reason": "答案声称实际到店客户为0人，但未提供任何数据来源或计算依据，无法验证其准确性。仅引用'客户到店事实'，缺乏具体数据支撑，因此证据不足。",
+      "verdict": "insufficient_evidence",
+      "completeness": "insufficient_evidence",
+      "targetAlignment": true,
+      "factualGrounding": "insufficient"
+    },
+    "latencyMs": 4390,
+    "failureCluster": null,
+    "error": null,
+    "metadata": {
+      "role": "店长",
+      "type": "query_single",
+      "notes": "单表字段查询",
+      "turns": [
+        "最近30天到店的客户有多少"
+      ],
+      "domain": "客户域",
+      "runIds": [
+        41383
+      ],
+      "latency": {
+        "brainRun": {
+          "steps": [
+            {
+              "layer": "governance",
+              "status": "completed",
+              "stepKey": "release_runtime_selection",
+              "latencyMs": 0
+            },
+            {
+              "layer": "governance",
+              "status": "completed",
+              "stepKey": "release_ontology_snapshot_load",
+              "latencyMs": 14
+            },
+            {
+              "layer": "memory",
+              "status": "completed",
+              "stepKey": "model_conversation_context_read",
+              "latencyMs": 165
+            },
+            {
+              "layer": "planning",
+              "status": "completed",
+              "stepKey": "model_role_context",
+              "latencyMs": 166
+            },
+            {
+              "layer": "planning",
+              "status": "completed",
+              "stepKey": "capability_catalog_snapshot",
+              "latencyMs": 1
+            },
+            {
+              "layer": "planning",
+              "status": "completed",
+              "stepKey": "capability_catalog_discovery",
+              "latencyMs": 10
+            },
+            {
+              "layer": "cognition",
+              "status": "completed",
+              "stepKey": "model_intent_compile",
+              "latencyMs": 8
+            },
+            {
+              "layer": "cognition",
+              "status": "completed",
+              "stepKey": "model_intent_validation",
+              "latencyMs": 5
+            },
+            {
+              "layer": "planning",
+              "status": "completed",
+              "stepKey": "capability_retrieval",
+              "latencyMs": 0
+            },
+            {
+              "layer": "planning",
+              "status": "completed",
+              "stepKey": "single_step_plan",
+              "latencyMs": 0
+            },
+            {
+              "layer": "planning",
+              "status": "completed",
+              "stepKey": "single_step_plan_validation",
+              "latencyMs": 15
+            },
+            {
+              "layer": "execution",
+              "status": "completed",
+              "stepKey": "capability_execution",
+              "latencyMs": 176
+            },
+            {
+              "layer": "response",
+              "status": "completed",
+              "stepKey": "model_answer_compose",
+              "latencyMs": 2
+            }
+          ],
+          "byLayerMs": {
+            "memory": 165,
+            "planning": 192,
+            "response": 2,
+            "cognition": 13,
+            "execution": 176,
+            "governance": 14
+          },
+          "nestedPhases": [
+            {
+              "phaseKey": "capabilityCatalogLoad",
+              "latencyMs": 136,
+              "parentStepKey": "capability_catalog_snapshot"
+            }
+          ],
+          "byNestedPhaseMs": {
+            "capabilityCatalogLoad": 136
+          },
+          "brainRunLatencyMs": 3878,
+          "outsideBrainRunSteps": [
+            {
+              "layer": "response",
+              "status": "completed",
+              "stepKey": "response_persistence",
+              "latencyMs": 344
+            },
+            {
+              "layer": "memory",
+              "status": "completed",
+              "stepKey": "conversation_touch_after_answer",
+              "latencyMs": 167
+            },
+            {
+              "layer": "semantic",
+              "status": "completed",
+              "stepKey": "business_semantic_evidence_capture",
+              "latencyMs": 1340
+            }
+          ],
+          "unattributedLatencyMs": 3316,
+          "instrumentationCoverage": 0.14492006188757092,
+          "outsideBrainRunByLayerMs": {
+            "memory": 167,
+            "response": 344,
+            "semantic": 1340
+          },
+          "instrumentedStepLatencyMs": 562,
+          "outsideBrainRunStepLatencyMs": 1851
+        },
+        "judgeLatencyMs": 2579,
+        "userResponseLatencyMs": 4390,
+        "evaluationTotalLatencyMs": 9811
+      },
+      "evidence": {
+        "runIds": [
+          41383
+        ],
+        "status": "completed",
+        "routing": [
+          {
+            "output": {
+              "model": null,
+              "domain": null,
+              "intent": null,
+              "reason": "catalog_top1_margin_insufficient",
+              "routing": null,
+              "decision": null,
+              "provider": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "businessStateChanged": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_catalog_discovery"
+          },
+          {
+            "output": {
+              "model": "customer_facts_fast_path",
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "customer"
+                ],
+                "actionKey": null,
+                "metricKeys": [],
+                "ambiguities": [],
+                "answerShape": "scalar",
+                "entityTypes": [
+                  "customer"
+                ],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0",
+                "actionModality": null,
+                "actionPolarity": null,
+                "negatedActionKeys": []
+              },
+              "reason": null,
+              "routing": null,
+              "decision": null,
+              "provider": "governed_contract",
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "businessStateChanged": null,
+              "selectedCapabilityKey": "customer_facts"
+            },
+            "status": "completed",
+            "stepKey": "model_intent_compile"
+          },
+          {
+            "output": {
+              "model": null,
+              "domain": null,
+              "intent": {
+                "intent": "query",
+                "domains": [
+                  "customer"
+                ],
+                "actionKey": null,
+                "metricKeys": [],
+                "ambiguities": [],
+                "answerShape": "scalar",
+                "entityTypes": [
+                  "customer"
+                ],
+                "missingSlots": [],
+                "dimensionKeys": [],
+                "schemaVersion": "1.0",
+                "actionModality": null,
+                "actionPolarity": null,
+                "negatedActionKeys": []
+              },
+              "reason": null,
+              "routing": null,
+              "decision": null,
+              "provider": null,
+              "grounding": null,
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": null,
+              "businessStateChanged": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "model_intent_normalized"
+          },
+          {
+            "output": {
+              "model": null,
+              "domain": null,
+              "intent": null,
+              "reason": null,
+              "routing": null,
+              "decision": null,
+              "provider": null,
+              "grounding": "db_skill",
+              "adapterKey": null,
+              "answerShape": null,
+              "capabilityKey": "customer_facts",
+              "businessStateChanged": null,
+              "selectedCapabilityKey": null
+            },
+            "status": "completed",
+            "stepKey": "capability_execution"
+          }
+        ],
+        "runtimeModel": {
+          "model": "customer_facts_fast_path",
+          "routing": {},
+          "provider": "governed_contract"
+        },
+        "citationCount": 1,
+        "traceStepKeys": [
+          "capability_catalog_discovery",
+          "model_intent_compile",
+          "model_intent_normalized",
+          "capability_execution"
+        ],
+        "capabilityKeys": [
+          "customer_facts"
+        ],
+        "productProfile": {
+          "actionsEnabled": false,
+          "productProfile": "query_only_v1",
+          "actionExecutionPolicy": "deny"
+        },
+        "latencyBreakdown": {
+          "steps": [
+            {
+              "layer": "governance",
+              "status": "completed",
+              "stepKey": "release_runtime_selection",
+              "latencyMs": 0
+            },
+            {
+              "layer": "governance",
+              "status": "completed",
+              "stepKey": "release_ontology_snapshot_load",
+              "latencyMs": 14
+            },
+            {
+              "layer": "memory",
+              "status": "completed",
+              "stepKey": "model_conversation_context_read",
+              "latencyMs": 165
+            },
+            {
+              "layer": "planning",
+              "status": "completed",
+              "stepKey": "model_role_context",
+              "latencyMs": 166
+            },
+            {
+              "layer": "planning",
+              "status": "completed",
+              "stepKey": "capability_catalog_snapshot",
+              "latencyMs": 1
+            },
+            {
+              "layer": "planning",
+              "status": "completed",
+              "stepKey": "capability_catalog_discovery",
+              "latencyMs": 10
+            },
+            {
+              "layer": "cognition",
+              "status": "completed",
+              "stepKey": "model_intent_compile",
+              "latencyMs": 8
+            },
+            {
+              "layer": "cognition",
+              "status": "completed",
+              "stepKey": "model_intent_validation",
+              "latencyMs": 5
+            },
+            {
+              "layer": "planning",
+              "status": "completed",
+              "stepKey": "capability_retrieval",
+              "latencyMs": 0
+            },
+            {
+              "layer": "planning",
+              "status": "completed",
+              "stepKey": "single_step_plan",
+              "latencyMs": 0
+            },
+            {
+              "layer": "planning",
+              "status": "completed",
+              "stepKey": "single_step_plan_validation",
+              "latencyMs": 15
+            },
+            {
+              "layer": "execution",
+              "status": "completed",
+              "stepKey": "capability_execution",
+              "latencyMs": 176
+            },
+            {
+              "layer": "response",
+              "status": "completed",
+              "stepKey": "model_answer_compose",
+              "latencyMs": 2
+            }
+          ],
+          "byLayerMs": {
+            "memory": 165,
+            "planning": 192,
+            "response": 2,
+            "cognition": 13,
+            "execution": 176,
+            "governance": 14
+          },
+          "nestedPhases": [
+            {
+              "phaseKey": "capabilityCatalogLoad",
+              "latencyMs": 136,
+              "parentStepKey": "capability_catalog_snapshot"
+            }
+          ],
+          "byNestedPhaseMs": {
+            "capabilityCatalogLoad": 136
+          },
+          "brainRunLatencyMs": 3878,
+          "outsideBrainRunSteps": [
+            {
+              "layer": "response",
+              "status": "completed",
+              "stepKey": "response_persistence",
+              "latencyMs": 344
+            },
+            {
+              "layer": "memory",
+              "status": "completed",
+              "stepKey": "conversation_touch_after_answer",
+              "latencyMs": 167
+            },
+            {
+              "layer": "semantic",
+              "status": "completed",
+              "stepKey": "business_semantic_evidence_capture",
+              "latencyMs": 1340
+            }
+          ],
+          "unattributedLatencyMs": 3316,
+          "instrumentationCoverage": 0.14492006188757092,
+          "outsideBrainRunByLayerMs": {
+            "memory": 167,
+            "response": 344,
+            "semantic": 1340
+          },
+          "instrumentedStepLatencyMs": 562,
+          "outsideBrainRunStepLatencyMs": 1851
+        }
+      },
+      "suiteKey": "ami_brain_full_domain_v2_targeted_diagnostic",
+      "difficulty": "easy",
+      "judgeEvidence": {
+        "error": null,
+        "model": "deepseek-v4-flash",
+        "reason": null,
+        "status": "success",
+        "routing": {
+          "fallbackUsed": false,
+          "primarySkipped": false,
+          "redundancyMode": "disabled",
+          "primaryCircuitState": "closed"
+        },
+        "attempts": 1,
+        "provider": "deepseek"
+      },
+      "qualityBucket": "manual_review",
+      "actionContract": {
+        "actionsEnabled": false,
+        "productProfile": "query_only_v1",
+        "suggestedActionCount": 0,
+        "actionExecutionPolicy": "deny",
+        "actionPreviewBlockCount": 0
+      },
+      "completedTurns": 1,
+      "conversationId": 40994,
+      "expectedTarget": "Customer 表"
+    },
+    "createdAt": "2026-08-04T19:20:38.942Z"
+  }
+]

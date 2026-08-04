@@ -1,0 +1,13 @@
+{
+  "runId": 261,
+  "stage": "targeted",
+  "sourceChecksum": "eeabcf0ba6d2652cabe91950bfc04bb2fa6f3fd6c95510d583d9ed6d99f186ec",
+  "completed": 1,
+  "items": [
+    {
+      "caseKey": "BQ0010",
+      "deterministicPassed": true,
+      "failureCluster": null
+    }
+  ]
+}

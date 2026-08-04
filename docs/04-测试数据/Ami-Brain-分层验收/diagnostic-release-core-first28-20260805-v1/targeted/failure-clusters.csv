@@ -1,0 +1,2 @@
+case_id,domain,role,type,quality_bucket,failure_cluster,reason
+"BQ0010","客户域","店长","query_single","deterministic_failure","answer_not_grounded","确定性门禁失败：answer_not_grounded"

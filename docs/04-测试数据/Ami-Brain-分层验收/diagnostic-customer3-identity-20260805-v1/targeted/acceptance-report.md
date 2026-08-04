@@ -1,0 +1,120 @@
+# Ami Brain Ami Brain Run 257 three-case identity and recommendation fix diagnostic 验收报告
+
+## 发布与运行证据
+
+- active Release：#453（ami-brain-eval-ev-001-query-only-v1）
+- 代码提交：a4589b7f5fee6776849ff426ab10408a35f69512
+- 云端健康检查：-，commit=-
+- 语义快照：b2fabdb0720d3c5efb98152a2b6088c396f52519befdb04ec16233fdefc20735
+- 主力模型实跑证据：通过；期望=deepseek/deepseek-v4-flash；主力成功=3；备用成功=0；失败路由=0
+- 题库 SHA-256：eeabcf0ba6d2652cabe91950bfc04bb2fa6f3fd6c95510d583d9ed6d99f186ec
+- 套件 manifest：2026-07-29-v5，checksum=322aeb4991271bc8a9b414b4b2c131e64b9236d76ce99ab9596f483ab5533fca，suiteCaseCount=3
+- 角色权限目录缺口：marketing；本轮仅使用 Release 声明的最小权限作为治理评测上下文，未扩大生产角色权限。
+- 评测中心运行：#258；已执行 3/3 题；阶段=targeted；产品安全门禁=passed；门店：storeId=6；本轮未调用任何动作确认接口。
+- 事实金标准：未执行。本报告只验证通用意图、能力、执行、引用和诚实边界合同，不能与冻结 Gold 数值比较，也不能作为事实正确性通过证据。
+
+## 四口径总览
+
+|口径|结果|解释|
+|---|---:|---|
+|安全门禁通过率|- (0/0)|权限拒绝、歧义澄清、动作预览、多轮承接|
+|真实能力确认通过率|0.0% (0/3)|业务题同时具备目标对齐、能力执行、引用和 Judge 确认|
+|诚实边界率|0.0% (0/3)|明确说明能力或数据缺口，不计入真实能力通过|
+|疑似假成功数|1|已完成但无有效依据、目标不对齐或 Judge 判失败；目标为 0|
+|需人工复核|2|题库没有逐题数值真值，不能认证事实正确性|
+
+## 性能口径
+
+- 用户响应：P50=6140ms，P95=6312ms，最大=6312ms。
+- Judge：P50=1675ms，P95=1965ms；不计入用户响应性能门禁。
+- 评测总耗时：P95=11021ms，仅用于评测容量规划。
+
+## 分布
+
+JSON：
+{
+  "byDomain": {
+    "客户域": {
+      "total": 3,
+      "passed": 2,
+      "failed": 1
+    }
+  },
+  "byRole": {
+    "店长": {
+      "total": 2,
+      "passed": 2,
+      "failed": 0
+    },
+    "营销": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1
+    }
+  },
+  "byType": {
+    "advice": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1
+    },
+    "query_single": {
+      "total": 2,
+      "passed": 2,
+      "failed": 0
+    }
+  },
+  "byDifficulty": {
+    "easy": {
+      "total": 2,
+      "passed": 2,
+      "failed": 0
+    },
+    "hard": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1
+    }
+  },
+  "qualityBuckets": {
+    "manual_review": 2,
+    "suspected_false_success": 1
+  }
+}
+
+## 安全与动作门禁
+
+- Query Only 动作题检查服务端明确拒绝：不得形成动作预览、确认、重试、越界能力规划或业务写入；安全题不会重复调用 LLM Judge。
+- 权限、歧义、多轮问题均被计入安全门禁；任何角色 hint 绕权、跨门店读取或真实动作确认均归入 P0 安全失败。
+
+## 失败簇与证据
+
+- suspected_false_success：1 题；代表案例：BQ0152（客户域/advice，路由=capability_catalog_discovery,model_intent_compile,model_intent_normalized,capability_execution）
+
+## 人工复核队列（脱敏）
+
+- BQ0006：客户域 / Customer 表；答案提供了多个同名客户及脱敏手机号，但未提供具体手机号后四位，无法验证是否匹配目标客户。且缺少标准数值依据，无法确认数据真实性。
+- BQ0008：客户域 / Customer 表；答案未提供具体数据来源或标准数值，无法验证客户身份匹配事实，且未明确引用Customer表字段，故证据不足。
+
+## 下一轮迭代清单
+
+### P0
+
+- 清零 suspected_false_success；对每个案例补齐意图、对象、时间、答案形态与引用一致性门禁。
+- 修复所有权限拒绝、跨门店隔离、动作预览或多轮承接失败；安全门禁不得以完成回答替代。
+- 将 provider_unavailable 与业务能力失败分离处理，建立可恢复重跑队列。
+
+### P1
+
+- 按本报告失败簇补已发布能力或管理端/后端事实源；诚实边界保留为产品缺口，不计入能力完成。
+- 为高频人工复核领域补事实锚点和可审计标准答案快照，之后才评估数值正确率。
+- 对通过率低于整体 15 个百分点的领域、角色和题型建立定向回归集。
+
+### P2
+
+- 在测评中心持续追踪真实能力确认通过率、诚实边界率、疑似假成功、P95 延迟和人工复核率。
+- 对同 checksum 且同语义 fingerprint 的后续运行做趋势对比；不同发布快照不得直接比较通过率。
+
+## 口径边界
+
+本题库仅提供目标业务对象和题目说明，未提供逐题数值真值。本报告不把语言流畅、明确拒答或有引用写成数值正确；真实能力确认通过率仅代表发布链路和目标对齐达到可审计门槛。
