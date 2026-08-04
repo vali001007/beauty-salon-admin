@@ -147,7 +147,7 @@ export function buildCandidatePreflight({
     }
     if (!health?.body || typeof health.body !== 'object') {
       blockingReasons.push('production_health_payload_invalid');
-    } else if (healthStatus !== 'ok') {
+    } else if (!['ok', 'ready'].includes(healthStatus)) {
       blockingReasons.push(`production_health_status_invalid:${healthStatus ?? 'missing'}`);
     }
     if (!deploymentCommit) {
