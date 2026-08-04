@@ -38,7 +38,11 @@ import { ReadOnlySqlExecutor } from '../src/read-only-sql-kernel/read-only-sql-e
 import { ReadOnlySqlGuard } from '../src/read-only-sql-kernel/read-only-sql-guard.js';
 import { ReadOnlySqlParser } from '../src/read-only-sql-kernel/read-only-sql-parser.js';
 import { AskDataNamedEntityResolver } from '../src/ask-data-free-sql/ask-data-entity-resolver.js';
-import { detectAskDataAnswerScopeFailure, isAskDataAnswerGrounded } from '../src/ask-data-free-sql/ask-data-answer-eval-quality.js';
+import {
+  detectAskDataAnswerContractFailure,
+  detectAskDataAnswerScopeFailure,
+  isAskDataAnswerGrounded,
+} from '../src/ask-data-free-sql/ask-data-answer-eval-quality.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { validateAskDataGoldRoutePlanMatch } from './ask-data-gold-plan-match.js';
 
@@ -609,7 +613,19 @@ async function evaluate(item: ManifestQuestion): Promise<EvalResult> {
         .filter((aggregation) => aggregation.zeroOnEmpty)
         .map((aggregation) => aggregation.alias),
     }) : undefined;
-    const answerComplete = !answerScopeFailure && (rows.length === 0 || (controlledQueryPlan?.requiredAnswerFacts ?? [])
+    const answerContractFailure = rows.length ? detectAskDataAnswerContractFailure(answer, {
+      question: item.question,
+      rows,
+      requiredOutputFields: controlledQueryPlan?.requiredOutputFields,
+      requiredAnswerFacts: controlledQueryPlan?.requiredAnswerFacts,
+      metricKeys: controlledQueryPlan?.metricKeys,
+      dimensions: controlledQueryPlan?.dimensions,
+      nonNullableRequiredFields: controlledQueryPlan?.aggregations
+        .filter((aggregation) => aggregation.zeroOnEmpty)
+        .map((aggregation) => aggregation.alias),
+    }) : undefined;
+    const answerFailure = answerScopeFailure ?? answerContractFailure;
+    const answerComplete = !answerFailure && (rows.length === 0 || (controlledQueryPlan?.requiredAnswerFacts ?? [])
       .every((fact) => answer.coveredFacts.includes(fact)));
     const answerCorrect = answerGrounded && answerComplete;
     const status = expectedViewHit && answerCorrect
@@ -627,7 +643,11 @@ async function evaluate(item: ManifestQuestion): Promise<EvalResult> {
             ? 'model_view_selection_miss'
             : 'candidate_selector_miss'
           : status === 'answer_incomplete'
-            ? answerScopeFailure ? 'answer_scope_unresolved' : 'answer_incomplete'
+            ? answerScopeFailure
+              ? 'answer_scope_unresolved'
+              : answerContractFailure
+                ? 'answer_contract_incomplete'
+                : 'answer_incomplete'
             : 'answer_not_grounded';
     return {
       ...base,
@@ -639,7 +659,7 @@ async function evaluate(item: ManifestQuestion): Promise<EvalResult> {
         status === 'expected_view_miss'
           ? `Expected ${(item.requiredViews?.length ? item.requiredViews : [item.expectedView]).join(', ')}, selected ${selectedViews.join(', ') || 'none'}`
           : status === 'answer_incomplete'
-            ? answerScopeFailure ?? 'Answer did not cover every required answer fact.'
+            ? answerFailure ?? 'Answer did not cover every required answer fact.'
             : status === 'answer_not_grounded'
             ? 'Answer contains numeric claims not present in query rows or time range.'
             : undefined,

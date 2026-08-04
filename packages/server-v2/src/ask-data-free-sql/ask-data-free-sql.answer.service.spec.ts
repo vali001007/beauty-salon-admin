@@ -300,6 +300,70 @@ describe('AskDataFreeSqlAnswerService', () => {
     expect(answer.summary).not.toContain('T00:00:00.000Z');
   });
 
+  it('preserves the local calendar month for PostgreSQL date values', async () => {
+    const ai = { generateStructured: jest.fn().mockRejectedValue(new Error('provider unavailable')) };
+    const service = new AskDataFreeSqlAnswerService(ai as any);
+    const answer = await service.compose({
+      ...input,
+      question: '最近三个月收入趋势',
+      rows: [{ trend_month: new Date('2026-04-30T16:00:00.000Z'), revenue: 123 }],
+      controlledQueryPlan: {
+        answerShape: 'trend',
+        metricKeys: ['order_revenue'],
+        dimensions: [{ key: 'date', field: 'trend_month', viewName: 'agent_v3_order_summary_view' }],
+        requiredOutputFields: ['trend_month', 'revenue'],
+        resultMode: 'trend',
+      },
+    });
+
+    expect(answer.summary).toContain('月份=2026-05-01');
+    expect(answer.summary).not.toContain('2026-04-30');
+  });
+
+  it('formats refund timestamps in the store business timezone and prioritizes refund detail fields', async () => {
+    const ai = { generateStructured: jest.fn() };
+    const service = new AskDataFreeSqlAnswerService(ai as any);
+    const answer = await service.compose({
+      ...input,
+      question: '帮我生成一份退款明细报告',
+      rows: [{
+        order_id: 901,
+        payment_amount: 298,
+        refund_amount: 298,
+        flow_count: 1,
+        paid_at: new Date('2026-07-12T22:20:00.000Z'),
+        refunded_at: new Date('2026-07-12T23:10:00.000Z'),
+        refund_status: 'completed',
+        refund_reason_category: 'customer_request',
+      }],
+      selectedViews: [{
+        label: '支付与退款',
+        fields: [
+          { name: 'order_id', description: '订单 ID', type: 'number', policy: 'allow' },
+          { name: 'refunded_at', description: '退款时间', type: 'date', policy: 'allow' },
+          { name: 'refund_amount', description: '退款金额', type: 'number', policy: 'allow' },
+          { name: 'refund_status', description: '退款状态', type: 'string', policy: 'allow' },
+          { name: 'refund_reason_category', description: '退款原因分类', type: 'string', policy: 'allow' },
+        ],
+      }] as any,
+      requiredAnswerFacts: ['metric_value', 'time_range', 'data_policy', 'amount_unit', 'list_items'],
+      controlledQueryPlan: {
+        answerShape: 'list',
+        metricKeys: ['payment_flow'],
+        dimensions: [],
+        requiredOutputFields: ['order_id', 'refunded_at', 'refund_amount', 'refund_status', 'refund_reason_category'],
+        resultMode: 'detail',
+      },
+    });
+
+    expect(answer.summary).toContain('订单 ID=901');
+    expect(answer.summary).toContain('退款时间=2026-07-13 07:10');
+    expect(answer.summary).toContain('退款冲减金额=298 元');
+    expect(answer.summary).toContain('退款状态=completed');
+    expect(answer.summary).toContain('退款原因分类=customer_request');
+    expect(answer.summary).not.toContain('支付时间');
+  });
+
   it('renders inventory turnover policies and statuses as product-facing Chinese labels', async () => {
     const ai = { generateStructured: jest.fn() };
     const service = new AskDataFreeSqlAnswerService(ai as any);
@@ -622,6 +686,80 @@ describe('AskDataFreeSqlAnswerService', () => {
     expect(answer.summary).toContain('微信收款=120 元');
     expect(answer.summary).toContain('支付宝收款=80 元');
     expect(answer.coveredFacts).toContain('all_requested_dimensions');
+  });
+
+  it('answers zero-refund income and cost explicitly instead of exposing a technical counter', async () => {
+    const ai = { generateStructured: jest.fn() };
+    const service = new AskDataFreeSqlAnswerService(ai as any);
+    const answer = await service.compose({
+      ...input,
+      question: '本月商品退款冲减了多少收入和成本',
+      rows: [{
+        gross_revenue: 0,
+        discount_amount: 0,
+        refund_amount: 0,
+        net_revenue: 0,
+        attributed_cost: 0,
+        contribution_margin: 0,
+        contribution_margin_rate: null,
+        estimated_cost_event_count: 0,
+        cost_missing_event_count: 0,
+      }],
+      selectedViews: [{ label: '商品与项目贡献毛利', fields: [] }] as any,
+      requiredAnswerFacts: ['metric_value', 'time_range', 'data_policy', 'amount_unit'],
+      controlledQueryPlan: {
+        answerShape: 'scalar',
+        metricKeys: ['item_contribution_margin'],
+        dimensions: [],
+        requiredOutputFields: [
+          'gross_revenue', 'discount_amount', 'refund_amount', 'net_revenue', 'attributed_cost',
+          'contribution_margin', 'contribution_margin_rate', 'estimated_cost_event_count', 'cost_missing_event_count',
+        ],
+        aggregations: [
+          { field: 'refund_amount', alias: 'refund_amount', fn: 'sum', zeroOnEmpty: true },
+          { field: 'attributed_cost', alias: 'attributed_cost', fn: 'sum', zeroOnEmpty: true },
+        ],
+        resultMode: 'scalar',
+      },
+    });
+
+    expect(ai.generateStructured).not.toHaveBeenCalled();
+    expect(answer.summary).toContain('退款冲减金额=0 元');
+    expect(answer.summary).toContain('可归属商品或耗材成本=0 元');
+    expect(answer.summary).not.toContain('estimated cost event');
+    expect(answer.caveats.join(' ')).toContain('不等同于已确认经营利润');
+  });
+
+  it('keeps item-type identity and gives a direct product-versus-project margin conclusion', async () => {
+    const ai = { generateStructured: jest.fn().mockRejectedValue(new Error('provider timeout')) };
+    const service = new AskDataFreeSqlAnswerService(ai as any);
+    const answer = await service.compose({
+      ...input,
+      question: '产品销售和服务项目毛利哪个高',
+      rows: [
+        { item_type: 'product', contribution_margin: 2028.35, contribution_margin_rate: 0.4737, estimated_cost_event_count: 2, cost_missing_event_count: 0 },
+        { item_type: 'project', contribution_margin: 9884.69, contribution_margin_rate: 0.9248, estimated_cost_event_count: 8, cost_missing_event_count: 0 },
+      ],
+      selectedViews: [{ label: '商品与项目贡献毛利', fields: [] }] as any,
+      requiredAnswerFacts: ['metric_value', 'time_range', 'data_policy', 'amount_unit', 'all_requested_dimensions'],
+      controlledQueryPlan: {
+        answerShape: 'comparison',
+        comparisonMode: 'dimension',
+        metricKeys: ['item_contribution_margin'],
+        dimensions: [{ key: 'item_type', field: 'item_type', viewName: 'ask_data_item_margin_view' }],
+        requiredOutputFields: ['item_type', 'contribution_margin', 'contribution_margin_rate', 'estimated_cost_event_count', 'cost_missing_event_count'],
+        aggregations: [
+          { field: 'net_revenue', alias: 'contribution_margin', fn: 'derived', sourceFields: ['net_revenue', 'attributed_cost'] },
+        ],
+        resultMode: 'grouped',
+      },
+    });
+
+    expect(answer.summary).toContain('服务项目的贡献毛利为 9884.69 元');
+    expect(answer.summary).toContain('高于商品的 2028.35 元');
+    expect(answer.keyFindings.join(' ')).toContain('品项类型=商品');
+    expect(answer.keyFindings.join(' ')).toContain('品项类型=服务项目');
+    expect(answer.caveats.join(' ')).toContain('10 个经济事件使用商品档案成本或 BOM 标准成本估算');
   });
 
   it('sends at most 24 representative trend rows and exposes total versus sampled counts', async () => {

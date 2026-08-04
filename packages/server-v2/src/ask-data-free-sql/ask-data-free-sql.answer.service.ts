@@ -1,9 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { AiService } from '../ai/ai.service.js';
+import { AiService, type AiStructuredOutputResult } from '../ai/ai.service.js';
 import type { ReadOnlySqlView } from '../read-only-sql-kernel/read-only-sql-kernel.types.js';
 import { ASK_DATA_ANSWER_SCHEMA, buildAnswerMessages } from './ask-data-free-sql.prompts.js';
-import { detectAskDataAnswerScopeFailure, isAskDataAnswerGrounded } from './ask-data-answer-eval-quality.js';
+import {
+  detectAskDataAnswerContractFailure,
+  detectAskDataAnswerScopeFailure,
+  isAskDataAnswerGrounded,
+} from './ask-data-answer-eval-quality.js';
 import type { AskDataAnswer, AskDataFreeSqlContext } from './ask-data-free-sql.types.js';
+import { acquireAskDataModelSlot } from './ask-data-model-concurrency.js';
 import type { AskDataControlledQueryPlan } from './ask-data-query-plan.js';
 
 type AnswerQueryPlan = Partial<Pick<
@@ -37,6 +42,7 @@ export class AskDataFreeSqlAnswerService {
         input.selectedViews,
       ),
       input.controlledQueryPlan,
+      input.rows,
     );
     if (!input.rows.length) return { ...fallback, summary: '当前筛选范围内没有匹配数据。' };
     if (
@@ -64,23 +70,36 @@ export class AskDataFreeSqlAnswerService {
         requiredAnswerFacts: input.requiredAnswerFacts,
         controlledQueryPlan: input.controlledQueryPlan,
       });
-      const result = await this.aiService.generateStructured<AskDataAnswer>({
-        scenario: 'ask_data_free_sql_answer',
-        messages,
-        allowFallback: true,
-        fallbackMessages: messages,
-        schema: ASK_DATA_ANSWER_SCHEMA,
-        timeoutMs: this.answerTimeoutMs(),
-        temperature: 0,
-        userId: input.context.userId,
-        storeId: input.context.storeId,
-      });
+      const releaseModelSlot = await acquireAskDataModelSlot();
+      let result: AiStructuredOutputResult<AskDataAnswer>;
+      try {
+        result = await this.aiService.generateStructured<AskDataAnswer>({
+          scenario: 'ask_data_free_sql_answer',
+          messages,
+          allowFallback: true,
+          fallbackMessages: messages,
+          schema: ASK_DATA_ANSWER_SCHEMA,
+          timeoutMs: this.answerTimeoutMs(),
+          temperature: 0,
+          userId: input.context.userId,
+          storeId: input.context.storeId,
+        });
+      } finally {
+        releaseModelSlot();
+      }
       const answer = this.applyGovernedCaveats(
         this.normalize(result.data, fallback),
         input.controlledQueryPlan,
+        input.rows,
       );
       const grounded = this.isGrounded(answer, input.rows, input.timeRange);
-      const complete = this.isComplete(answer, input.requiredAnswerFacts ?? [], input.rows, input.controlledQueryPlan);
+      const complete = this.isComplete(
+        answer,
+        input.question,
+        input.requiredAnswerFacts ?? [],
+        input.rows,
+        input.controlledQueryPlan,
+      );
       const scopeFailure = detectAskDataAnswerScopeFailure(answer, {
         rows: input.rows,
         nonNullableRequiredFields: input.controlledQueryPlan?.aggregations
@@ -132,7 +151,11 @@ export class AskDataFreeSqlAnswerService {
     };
   }
 
-  private applyGovernedCaveats(answer: AskDataAnswer, plan?: AnswerQueryPlan): AskDataAnswer {
+  private applyGovernedCaveats(
+    answer: AskDataAnswer,
+    plan?: AnswerQueryPlan,
+    rows: Array<Record<string, unknown>> = [],
+  ): AskDataAnswer {
     const metricKeys = new Set(plan?.metricKeys ?? []);
     const caveats = [...answer.caveats];
     const add = (value: string) => {
@@ -143,6 +166,18 @@ export class AskDataFreeSqlAnswerService {
     }
     if (metricKeys.has('supplier_price_comparison')) {
       add('最低已审批报价只代表同商品价格比较，不代表质量或综合性价比，也不构成更换供应商建议。');
+    }
+    if ([...metricKeys].some((metricKey) =>
+      ['item_contribution_margin', 'project_attributed_cost', 'below_cost_sale'].includes(metricKey))) {
+      add('贡献毛利=已识别净收入-可归属商品或耗材成本，不含员工提成、房租、水电等经营费用，不等同于已确认经营利润或月结利润。');
+      const estimatedCount = this.aggregateEvidenceCount(rows, 'estimated_cost_event_count', 'is_estimated_cost');
+      if (estimatedCount > 0) {
+        add(`其中 ${this.formatNumber(estimatedCount, 0)} 个经济事件使用商品档案成本或 BOM 标准成本估算，不代表实际批次成本。`);
+      }
+      const missingCostCount = this.aggregateEvidenceCount(rows, 'cost_missing_event_count');
+      if (missingCostCount > 0) {
+        add(`其中 ${this.formatNumber(missingCostCount, 0)} 个经济事件缺少可归属成本，相关贡献毛利和毛利率不能视为完整口径。`);
+      }
     }
     return { ...answer, caveats: caveats.slice(0, 5) };
   }
@@ -188,8 +223,7 @@ export class AskDataFreeSqlAnswerService {
         return formatted === undefined ? undefined : `${this.fieldLabel(key, fieldLabels)}=${formatted}`;
       })
       .filter((item): item is string => Boolean(item));
-    const keyFindings = rows
-      .slice(0, 5)
+    const keyFindings = this.selectFindingRows(rows, plan, 5)
       .map((row) => displayFields
         .slice(0, displayFieldLimit)
         .map((key) => {
@@ -201,13 +235,14 @@ export class AskDataFreeSqlAnswerService {
       .filter(Boolean);
     const coveredFacts = requiredAnswerFacts.filter((fact) => this.rowsSupportFact(fact, rows, plan));
     const insufficientTrend = plan?.answerShape === 'trend' && rows.length === 1 && this.hasTimeDimension(rows);
-    const summary = insufficientTrend
+    const comparisonSummary = this.dimensionComparisonSummary(question, rows, plan, fieldLabels);
+    const summary = comparisonSummary ?? (insufficientTrend
       ? `当前范围仅查询到 1 个趋势点，数据不足以形成变化结论；该点为 ${values.join('、')}。`
       : rows.length
         ? rows.length === 1
           ? `查询结果为${values.length ? `：${values.join('、')}` : ' 1 条记录'}。`
           : `已查询到 ${rows.length} 条结果${values.length ? `，首条为 ${values.join('、')}` : ''}。`
-        : '当前筛选范围内没有匹配数据。';
+        : '当前筛选范围内没有匹配数据。');
     return {
       summary,
       keyFindings,
@@ -252,6 +287,22 @@ export class AskDataFreeSqlAnswerService {
   }
 
   private fieldLabel(key: string, labels: Map<string, string>) {
+    const governed: Record<string, string> = {
+      item_type: '品项类型',
+      gross_revenue: '原始收入',
+      discount_amount: '优惠金额',
+      refund_amount: '退款冲减金额',
+      net_revenue: '已识别净收入',
+      attributed_cost: '可归属商品或耗材成本',
+      attributed_cost_rate: '可归属成本占收入比例',
+      contribution_margin: '贡献毛利',
+      contribution_margin_rate: '贡献毛利率',
+      estimated_cost_event_count: '估算成本事件数',
+      cost_missing_event_count: '成本缺失事件数',
+      cost_basis: '成本口径',
+      cost_completeness: '成本完整性',
+    };
+    if (governed[key]) return governed[key];
     const exact = labels.get(key);
     if (exact) return exact.split(/[；;]/)[0]?.trim() || exact;
     const known: Record<string, string> = {
@@ -348,6 +399,9 @@ export class AskDataFreeSqlAnswerService {
       outbound_quantity: '出库数量',
       abnormal_record_count: '异常记录数',
       latest_feedback_at: '最近反馈时间',
+      customer_count: '客户数量',
+      refund_status: '退款状态',
+      refund_reason_category: '退款原因分类',
     };
     if (known[key]) return known[key];
     if (!labels.size) return key;
@@ -382,6 +436,21 @@ export class AskDataFreeSqlAnswerService {
     if (/项目|护理/.test(question)) add('project_name');
     if (/活动/.test(question)) add('activity_title', 'activity_name');
 
+    if (/退款.*(?:明细|报告|记录)|(?:明细|报告).*(?:退款)/.test(question)) {
+      add('order_id', 'refunded_at', 'refund_amount', 'refund_status', 'refund_reason_category');
+    }
+    for (const dimension of plan?.dimensions ?? []) add(dimension.field);
+    if (plan?.timeGrain?.alias) add(plan.timeGrain.alias);
+
+    if (/退款.*(?:冲减|影响).*(?:收入|成本)|(?:收入|成本).*退款冲减/.test(question)) {
+      add('refund_amount', 'attributed_cost', 'net_revenue', 'contribution_margin');
+    }
+    if (/毛利率/.test(question)) add('contribution_margin_rate');
+    if (/(?:贡献)?毛利/.test(question)) add('contribution_margin');
+    if (/(?:耗材|归属|可归属)?成本/.test(question)) add('attributed_cost', 'attributed_cost_rate');
+    if (/净收入/.test(question)) add('net_revenue');
+    if (/成本口径|成本来源/.test(question)) add('cost_basis', 'cost_completeness');
+
     if (/报价.*(?:差额|差多少)|最低报价.*(?:差额|差多少)/.test(question)) {
       add('quote_price', 'lowest_current_quote_price', 'price_difference_from_lowest', 'price_premium_rate');
     } else if (/报价|价格/.test(question)) {
@@ -402,17 +471,136 @@ export class AskDataFreeSqlAnswerService {
     return ordered;
   }
 
+  private selectFindingRows(
+    rows: Array<Record<string, unknown>>,
+    plan: AnswerQueryPlan | undefined,
+    limit: number,
+  ) {
+    if (rows.length <= limit) return rows;
+    const dimensionFields = plan?.dimensions?.map((dimension) => dimension.field) ?? [];
+    const selected: Array<Record<string, unknown>> = [];
+    const selectedIndexes = new Set<number>();
+    for (const field of dimensionFields) {
+      const seen = new Set<string>();
+      rows.forEach((row, index) => {
+        if (selected.length >= limit) return;
+        const value = row[field];
+        if (value === null || value === undefined || value === '') return;
+        const key = `${field}:${String(value)}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        selected.push(row);
+        selectedIndexes.add(index);
+      });
+    }
+    rows.forEach((row, index) => {
+      if (selected.length < limit && !selectedIndexes.has(index)) selected.push(row);
+    });
+    return selected.slice(0, limit);
+  }
+
+  private dimensionComparisonSummary(
+    question: string,
+    rows: Array<Record<string, unknown>>,
+    plan: AnswerQueryPlan | undefined,
+    labels: Map<string, string>,
+  ) {
+    if (rows.length < 2 || !/(?:哪个|哪类|谁).{0,8}(?:更高|最高|高)|(?:更高|最高).{0,8}(?:哪个|哪类|谁)/.test(question)) {
+      return undefined;
+    }
+    const rawDimensionField = plan?.dimensions?.map((dimension) => dimension.field)
+      .find((field) => rows.every((row) => row[field] !== undefined))
+      ?? (rows.every((row) => row.item_type !== undefined) ? 'item_type' : undefined);
+    const dimensionField = this.preferredDisplayDimension(rawDimensionField, rows);
+    const metricField = this.comparisonMetricField(question, plan, rows);
+    if (!dimensionField || !metricField) return undefined;
+    const comparable = rows
+      .map((row) => ({ row, value: this.numericValue(row[metricField]) }))
+      .filter((item): item is { row: Record<string, unknown>; value: number } => item.value !== undefined)
+      .sort((left, right) => right.value - left.value);
+    if (comparable.length < 2) return undefined;
+    const first = comparable[0];
+    const second = comparable[1];
+    const firstDimension = this.formatValue(dimensionField, first.row[dimensionField]);
+    const secondDimension = this.formatValue(dimensionField, second.row[dimensionField]);
+    const firstValue = this.formatValue(metricField, first.row[metricField]);
+    const secondValue = this.formatValue(metricField, second.row[metricField]);
+    if (!firstDimension || !secondDimension || !firstValue || !secondValue) return undefined;
+    const metricLabel = this.fieldLabel(metricField, labels);
+    if (first.value === second.value) {
+      return `${firstDimension}与${secondDimension}的${metricLabel}相同，均为 ${firstValue}。`;
+    }
+    return `${firstDimension}的${metricLabel}为 ${firstValue}，高于${secondDimension}的 ${secondValue}。`;
+  }
+
+  private preferredDisplayDimension(
+    field: string | undefined,
+    rows: Array<Record<string, unknown>>,
+  ) {
+    if (!field) return undefined;
+    const preferredById: Record<string, string> = {
+      product_id: 'product_name',
+      project_id: 'project_name',
+      supplier_id: 'supplier_name',
+      staff_id: 'staff_name',
+      beautician_id: 'beautician_name',
+      customer_id: 'customer_name_masked',
+      activity_id: 'activity_title',
+    };
+    const preferred = preferredById[field];
+    return preferred && rows.every((row) => row[preferred] !== null && row[preferred] !== undefined && row[preferred] !== '')
+      ? preferred
+      : field;
+  }
+
+  private comparisonMetricField(
+    question: string,
+    plan: AnswerQueryPlan | undefined,
+    rows: Array<Record<string, unknown>>,
+  ) {
+    const candidates = [
+      ...(/毛利率/.test(question) ? ['contribution_margin_rate'] : []),
+      ...(/(?:贡献)?毛利/.test(question) ? ['contribution_margin'] : []),
+      ...(/成本/.test(question) ? ['attributed_cost'] : []),
+      ...(plan?.aggregations?.map((aggregation) => aggregation.alias) ?? []),
+    ];
+    return [...new Set(candidates)].find((field) => rows.some((row) => this.numericValue(row[field]) !== undefined));
+  }
+
+  private aggregateEvidenceCount(
+    rows: Array<Record<string, unknown>>,
+    countField: string,
+    booleanField?: string,
+  ) {
+    const explicit = rows.reduce((sum, row) => sum + (this.numericValue(row[countField]) ?? 0), 0);
+    if (explicit > 0 || !booleanField) return explicit;
+    return rows.filter((row) => row[booleanField] === true || row[booleanField] === 'true').length;
+  }
+
   private isComplete(
     answer: AskDataAnswer,
+    question: string,
     requiredFacts: string[],
     rows: Array<Record<string, unknown>>,
     plan?: AnswerQueryPlan,
   ) {
     const covered = new Set(answer.coveredFacts);
-    return requiredFacts.every((fact) => {
+    const factsCovered = requiredFacts.every((fact) => {
       if (!covered.has(fact) || !this.rowsSupportFact(fact, rows, plan)) return false;
       if (fact === 'trend_points' && rows.length < 2) return this.disclosesInsufficientTrend(answer);
       return true;
+    });
+    if (!factsCovered) return false;
+    return !detectAskDataAnswerContractFailure(answer, {
+      question,
+      rows,
+      requiredOutputFields: plan?.requiredOutputFields,
+      requiredAnswerFacts: requiredFacts,
+      metricKeys: plan?.metricKeys,
+      dimensions: plan?.dimensions,
+      nonNullableRequiredFields: plan?.aggregations
+        ?.filter((aggregation) => aggregation.zeroOnEmpty)
+        .map((aggregation) => aggregation.alias),
     });
   }
 
@@ -423,6 +611,12 @@ export class AskDataFreeSqlAnswerService {
   ) {
     if (['metric_value', 'data_policy', 'time_range', 'ranking_order', 'ranking_limit', 'list_items'].includes(fact)) {
       return rows.length > 0;
+    }
+    if (fact === 'amount_unit') {
+      return rows.some((row) => Object.entries(row).some(([key, value]) =>
+        /(?:amount|revenue|profit|cost|margin|balance|receipts|liability|price)$/.test(key)
+        && !/(?:_rate|_ratio)$/.test(key)
+        && this.isNumericValue(value)));
     }
     const keys = [...new Set(rows.flatMap((row) => Object.keys(row)))];
     if (fact === 'trend_granularity') return rows.length > 0 && this.hasTimeDimension(rows);
@@ -450,6 +644,8 @@ export class AskDataFreeSqlAnswerService {
       return presentAliases.length >= Math.max(2, plan?.metricKeys?.length ?? 2);
     }
     if (fact === 'all_requested_dimensions') {
+      const dimensionFields = plan?.dimensions?.map((dimension) => dimension.field) ?? [];
+      if (dimensionFields.length) return dimensionFields.every((field) => keys.includes(field));
       const required = plan?.requiredOutputFields ?? [];
       return required.length > 1 && required.every((field) => keys.includes(field));
     }
@@ -475,6 +671,12 @@ export class AskDataFreeSqlAnswerService {
     return typeof value === 'number' || (typeof value === 'string' && /^-?\d+(?:\.\d+)?$/.test(value));
   }
 
+  private numericValue(value: unknown) {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string' && /^-?\d+(?:\.\d+)?$/.test(value)) return Number(value);
+    return undefined;
+  }
+
   private isGrounded(answer: AskDataAnswer, rows: Array<Record<string, unknown>>, timeRange: string) {
     return isAskDataAnswerGrounded(answer, rows, timeRange);
   }
@@ -482,6 +684,35 @@ export class AskDataFreeSqlAnswerService {
   private formatValue(key: string, value: unknown) {
     if (value === null || value === undefined || value === '') return undefined;
     const governedTextLabels: Record<string, Record<string, string>> = {
+      item_type: {
+        product: '商品',
+        project: '服务项目',
+      },
+      cost_basis: {
+        cost_missing: '成本缺失',
+        catalog_cost_estimate: '商品档案成本估算',
+        recorded_stock_movement_cost: '已记录库存流水成本',
+        movement_quantity_with_catalog_cost: '库存数量加商品档案成本',
+        bom_standard_estimate: 'BOM 标准成本估算',
+        actual_consumption_plus_bom_estimate: '实际消耗加 BOM 标准成本估算',
+        recorded_consumption_cost: '已记录实际消耗成本',
+        actual_quantity_with_catalog_cost: '实际用量加商品档案成本',
+        no_cost_reversal: '退款不涉及成本冲回',
+        no_inventory_return_cost_reversal: '无返库成本冲回事实',
+        catalog_return_cost_estimate: '商品档案返库成本估算',
+        recorded_return_cost_reversal: '已记录返库成本冲回',
+      },
+      cost_completeness: {
+        missing: '成本缺失',
+        movement_covered: '库存流水成本已覆盖',
+        catalog_fallback: '部分使用商品档案成本',
+        bom_estimate_only: '仅有 BOM 标准成本估算',
+        mixed_actual_and_standard: '实际成本与标准成本混合',
+        actual_consumption_covered: '实际消耗成本已覆盖',
+        not_applicable: '不适用',
+        inventory_return_recorded: '已记录返库成本',
+        no_inventory_return_fact: '无返库成本事实',
+      },
       slow_moving_status: {
         no_outbound_90d: '近 90 天无出库',
         low_turnover: '低周转',
@@ -521,7 +752,10 @@ export class AskDataFreeSqlAnswerService {
     };
     const governedText = governedTextLabels[key]?.[String(value)];
     if (governedText) return governedText;
-    if (value instanceof Date) return this.formatBusinessDate(value.toISOString(), key);
+    if (value instanceof Date) {
+      if (/(?:date|day|month)$/.test(key)) return this.formatLocalCalendarDate(value);
+      return this.formatBusinessDate(value.toISOString(), key);
+    }
     if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) {
       return this.formatBusinessDate(value, key);
     }
@@ -533,7 +767,7 @@ export class AskDataFreeSqlAnswerService {
     if (numeric !== undefined && Number.isFinite(numeric)) {
       if (/_rate$|_ratio$|utilization_rate$/.test(key)) return `${this.formatNumber(numeric * 100, 2)}%`;
       if (key === 'roi') return this.formatNumber(numeric, 2);
-      if (/(?:amount|revenue|profit|cost|balance|receipts|liability|stock_value|price|price_difference_from_lowest)$/.test(key)) {
+      if (/(?:amount|revenue|profit|margin|cost|balance|receipts|liability|stock_value|price|price_difference_from_lowest)$/.test(key)) {
         return `${this.formatNumber(numeric, 2)} 元`;
       }
       if (/(?:count|quantity|times|minutes|duration|capacity|current_stock|standard_qty|actual_qty|deviation_qty)$/.test(key)) {
@@ -550,9 +784,35 @@ export class AskDataFreeSqlAnswerService {
 
   private formatBusinessDate(value: string, key: string) {
     const iso = value.replace(' ', 'T');
-    if (/(?:date|day|month)$/.test(key) || /^\d{4}-\d{2}-\d{2}(?:T00:00:00(?:\.000)?Z?)?$/.test(value)) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    if (/(?:date|day|month)$/.test(key) && /^\d{4}-\d{2}-\d{2}(?:T00:00:00(?:\.000)?Z?)?$/.test(value)) {
       return iso.slice(0, 10);
     }
+    const parsed = new Date(iso);
+    if (!Number.isNaN(parsed.getTime())) return this.formatBusinessDateTime(parsed);
     return iso.slice(0, 16).replace('T', ' ');
+  }
+
+  private formatLocalCalendarDate(value: Date) {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(value);
+  }
+
+  private formatBusinessDateTime(value: Date) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(value);
+    const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? '';
+    return `${part('year')}-${part('month')}-${part('day')} ${part('hour')}:${part('minute')}`;
   }
 }
