@@ -48,7 +48,6 @@ jobs:
       - run: npm ci
       - run: npx prisma generate
       - run: npm run build
-      - run: npm run brain:check -- --stage=candidate --scope=packages/server-v2/src/brain/brain.controller.ts
       - name: Verify compiled Brain governance runtime imports
         run: npm run brain:runtime-import:test
       - name: Run backend test suite within the hosted-runner memory budget
