@@ -77,6 +77,29 @@ describe('HealthController', () => {
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
   });
 
+  it('reports the promoted DeepSeek route as the effective Ami Brain primary', async () => {
+    prisma.$queryRaw.mockResolvedValueOnce([{ database_ready: 1 }]);
+    process.env.BRAIN_LLM_PRIMARY_ROUTE = 'fallback';
+    process.env.LLM_PROVIDER = 'openai_compatible';
+    process.env.LLM_MODEL = 'gpt-5.6-luna';
+    process.env.LLM_TIMEOUT_MS = '30000';
+    process.env.LLM_FALLBACK_PROVIDER = 'deepseek';
+    process.env.LLM_FALLBACK_MODEL = 'deepseek-v4-flash';
+    process.env.LLM_FALLBACK_TIMEOUT_MS = '20000';
+    process.env.BRAIN_FALLBACK_POLICY = 'deterministic';
+    const controller = new HealthController(prisma as any);
+
+    await expect(controller.ready()).resolves.toMatchObject({
+      brainModel: {
+        provider: 'deepseek',
+        model: 'deepseek-v4-flash',
+        timeoutMs: 20000,
+        fallbackPolicy: 'disabled',
+        routeMode: 'fallback_promoted',
+      },
+    });
+  });
+
   it('reports the active Release ontology startup evidence when Brain warmup is ready', async () => {
     prisma.$queryRaw.mockResolvedValueOnce([{ database_ready: 1 }]);
     const brainWarmup = {

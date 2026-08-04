@@ -21,6 +21,7 @@ COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 ENV NODE_ENV=production
 ENV TZ=Asia/Shanghai
 ENV BRAIN_ACTION_EXECUTION_ENABLED=false
+ENV BRAIN_LLM_PRIMARY_ROUTE=fallback
 ENV ASK_DATA_FREE_SQL_ENABLED=false
 EXPOSE 8080
 
