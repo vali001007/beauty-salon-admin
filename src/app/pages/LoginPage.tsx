@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Button, Input } from '../components/UI';
 import { loginSchema, type LoginFormData } from '@/schemas/auth';
 import { useAuthStore } from '@/stores/authStore';
+import { EnvironmentBanner } from '../components/EnvironmentBanner';
 
 const highlights = [
   { icon: UsersRound, label: '客户洞察', value: '画像分层' },
@@ -50,8 +51,9 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="grid min-h-screen lg:grid-cols-[1.08fr_0.92fr]">
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
+      <EnvironmentBanner />
+      <div className="grid min-h-0 flex-1 lg:grid-cols-[1.08fr_0.92fr]">
         <section className="hidden border-r border-border bg-sidebar px-12 py-10 text-sidebar-foreground lg:flex lg:flex-col lg:justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground shadow-sm">

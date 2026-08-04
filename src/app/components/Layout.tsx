@@ -15,6 +15,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { StoreSwitcher } from './StoreSwitcher';
 import { hasPermission } from '@/config/permissions';
 import { BRAIN_GOVERNANCE_SECTIONS } from '@/app/pages/brain/brainGovernanceNavigation';
+import { EnvironmentBanner } from './EnvironmentBanner';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -385,6 +386,8 @@ export function Layout() {
             </button>
           </div>
         </header>
+
+        <EnvironmentBanner />
 
         {/* Page Content */}
         <main className={cn('flex-1 min-h-0 p-3 sm:p-6 bg-background/70', location.pathname === '/brain' ? 'overflow-hidden' : 'overflow-auto')}>

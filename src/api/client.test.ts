@@ -82,6 +82,7 @@ describe('API Client', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.doUnmock('axios');
     vi.doUnmock('../stores/storeStore');
     vi.restoreAllMocks();
@@ -124,6 +125,18 @@ describe('API Client', () => {
       const result = requestInterceptorFn(config);
 
       expect(result.headers['X-Request-Id']).toMatch(/^req_/);
+    });
+
+    it('preserves an existing X-Request-Id across retries', async () => {
+      const { default: axios } = await import('axios');
+      const config = {
+        headers: new axios.AxiosHeaders({ 'X-Request-Id': 'req_stable_1' }),
+        method: 'get',
+      } as InternalAxiosRequestConfig;
+
+      const result = requestInterceptorFn(config);
+
+      expect(result.headers['X-Request-Id']).toBe('req_stable_1');
     });
 
     it('adds the governed Ami client channel header', async () => {
@@ -180,6 +193,53 @@ describe('API Client', () => {
   });
 
   describe('retry logic', () => {
+    it('does not retry mutating requests by default', async () => {
+      const error = {
+        response: { status: 500, data: { message: 'Internal Server Error' } },
+        config: { method: 'post', headers: {}, _retryCount: 0 },
+        message: 'Server Error',
+      } as unknown as AxiosError;
+
+      await expect(responseErrorFn(error)).rejects.toThrow('Internal Server Error');
+      expect(mockApiClient).not.toHaveBeenCalled();
+    });
+
+    it('retries an explicitly idempotent write with a stable key', async () => {
+      vi.useFakeTimers();
+      const error = {
+        response: { status: 500, data: { message: 'Internal Server Error' } },
+        config: {
+          method: 'post',
+          headers: { 'Idempotency-Key': 'card-usage-stable-1', 'X-Request-Id': 'req_stable_1' },
+          retryPolicy: 'idempotent',
+          _retryCount: 0,
+        },
+        message: 'Server Error',
+      } as unknown as AxiosError;
+
+      const pending = responseErrorFn(error);
+      await vi.runAllTimersAsync();
+      await expect(pending).resolves.toEqual({ ok: true });
+      expect(mockApiClient).toHaveBeenCalledWith(expect.objectContaining({
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'card-usage-stable-1',
+          'X-Request-Id': 'req_stable_1',
+        }),
+      }));
+      vi.useRealTimers();
+    });
+
+    it('does not retry an idempotent write without an idempotency key', async () => {
+      const error = {
+        response: { status: 500, data: { message: 'Internal Server Error' } },
+        config: { method: 'post', headers: {}, retryPolicy: 'idempotent', _retryCount: 0 },
+        message: 'Server Error',
+      } as unknown as AxiosError;
+
+      await expect(responseErrorFn(error)).rejects.toThrow('Internal Server Error');
+      expect(mockApiClient).not.toHaveBeenCalled();
+    });
+
     it('does not retry on 4xx errors', async () => {
       const error = {
         response: { status: 400, data: { message: 'Bad Request' } },

@@ -296,6 +296,33 @@ describe('CardsService inventory consumption', () => {
     expect(commissionService.calculateCommission).not.toHaveBeenCalled();
   });
 
+  it('reports that an idempotent usage response was replayed for terminal recovery', async () => {
+    const existing = {
+      id: 88,
+      customerCardId: 66,
+      customerId: 10,
+      projectId: 101,
+      projectName: '深层补水护理',
+      times: 1,
+      beauticianId: 2,
+      remainingTimes: 4,
+    };
+    tx.cardUsageRecord.findUnique.mockResolvedValue(existing);
+
+    const result = await service.verifyCardUsageWithOutcome({
+      customerCardId: 66,
+      customerId: 10,
+      projectId: 101,
+      projectName: '深层补水护理',
+      times: 1,
+      beauticianId: 2,
+      idempotencyKey: 'terminal-recovery-71',
+    });
+
+    expect(result).toEqual({ record: existing, replayed: true });
+    expect(tx.customerCard.update).not.toHaveBeenCalled();
+  });
+
   it('rejects a reused idempotency key when the requested usage is different', async () => {
     tx.cardUsageRecord.findUnique.mockResolvedValue({
       id: 88,

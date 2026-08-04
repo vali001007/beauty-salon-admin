@@ -520,7 +520,11 @@ export async function realPreviewTerminalCardUsage(data: TerminalCardUsagePrevie
 }
 
 export async function realVerifyTerminalCardUsage(data: TerminalCardUsageVerifyRequest): Promise<TerminalCardUsageRecord> {
-  return apiClient.post('/terminal/cards/consume', data);
+  const { idempotencyKey, ...payload } = data;
+  return apiClient.post('/terminal/cards/consume', payload, {
+    headers: { 'Idempotency-Key': idempotencyKey },
+    retryPolicy: 'idempotent',
+  });
 }
 
 export async function realCreateTerminalCashierOrder(
