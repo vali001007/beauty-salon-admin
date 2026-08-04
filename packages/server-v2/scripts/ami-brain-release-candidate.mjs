@@ -535,26 +535,24 @@ async function fetchHealth(url) {
 async function persistCandidateLock(lock) {
   await withPrisma(async (prisma) => {
     const resultChecksum = sha256(lock);
-    const pointerResult = { candidateId: lock.candidateId, candidateLockReceiptKey: lock.receiptKey };
-    const pointerResultChecksum = sha256(pointerResult);
     const existing = await prisma.brainGateReceipt.findUnique({ where: { receiptKey: lock.receiptKey } });
     if (existing && existing.resultChecksum !== resultChecksum) throw new Error('candidate_lock_receipt_conflict');
     if (!existing) await prisma.brainGateReceipt.create({ data: receiptData(lock.receiptKey, lock, lock, resultChecksum) });
+    const officialPointer = buildOfficialCandidatePointerUpsert(lock);
     await prisma.brainGateReceipt.upsert({
       where: { receiptKey: lock.officialCandidateKey },
-      create: receiptData(lock.officialCandidateKey, lock, pointerResult, pointerResultChecksum),
-      update: {
-        result: pointerResult,
-        resultChecksum: pointerResultChecksum,
-        releaseFingerprint: lock.identity.releaseFingerprint,
-        dataSnapshot: lock.identity.dataSnapshot,
-        provider: lock.identity.provider,
-        model: lock.identity.model,
-        timeoutMs: lock.identity.timeoutMs,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      },
+      create: officialPointer.create,
+      update: officialPointer.update,
     });
   });
+}
+
+export function buildOfficialCandidatePointerUpsert(lock) {
+  const pointerResult = { candidateId: lock.candidateId, candidateLockReceiptKey: lock.receiptKey };
+  const create = receiptData(lock.officialCandidateKey, lock, pointerResult, sha256(pointerResult));
+  const { receiptKey, ...update } = create;
+  if (receiptKey !== lock.officialCandidateKey) throw new Error('official_candidate_pointer_receipt_key_mismatch');
+  return { create, update };
 }
 
 async function persistReleaseEligibility(lock, eligibility) {
