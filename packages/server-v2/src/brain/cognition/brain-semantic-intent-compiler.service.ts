@@ -3,6 +3,7 @@ import {
   AiService,
   AiStructuredOutputError,
   type AiStructuredOutputErrorCode,
+  type AiStructuredOutputResult,
   type AiUsage,
 } from '../../ai/ai.service.js';
 import type { BrainDomainRole } from '../domain/brain-domain-adapter.types.js';
@@ -74,10 +75,7 @@ export interface BrainSemanticIntentCompilerInput {
 }
 
 export type BrainSemanticIntentCompilerErrorCode =
-  | AiStructuredOutputErrorCode
-  | 'MODEL_UNAVAILABLE'
-  | 'INVALID_AUDIT_CONTEXT'
-  | 'CONTEXT_LIMIT_EXCEEDED';
+  AiStructuredOutputErrorCode | 'MODEL_UNAVAILABLE' | 'INVALID_AUDIT_CONTEXT' | 'CONTEXT_LIMIT_EXCEEDED';
 
 export type BrainSemanticIntentCompilerResult =
   | {
@@ -87,6 +85,7 @@ export type BrainSemanticIntentCompilerResult =
       provider: string;
       model: string;
       usage: AiUsage;
+      routing?: AiStructuredOutputResult<unknown>['routing'];
     }
   | {
       status: 'unavailable';
@@ -302,6 +301,7 @@ export class BrainSemanticIntentCompilerService {
         provider: result.provider,
         model: result.model,
         usage: result.usage,
+        ...(result.routing ? { routing: result.routing } : {}),
       };
     } catch (error) {
       if (error instanceof BrainSemanticAuditContextError) {
@@ -508,7 +508,9 @@ export class BrainSemanticIntentCompilerService {
     return this.buildGovernedCapabilityIntent(capability, input, 'catalog_match');
   }
 
-  private buildCustomerFactsCapabilityFastPath(input: BrainSemanticIntentCompilerInput): BrainSemanticIntent | undefined {
+  private buildCustomerFactsCapabilityFastPath(
+    input: BrainSemanticIntentCompilerInput,
+  ): BrainSemanticIntent | undefined {
     const capability = input.capabilitySummaries.find(
       (candidate) => candidate.key === 'customer_facts' && candidate.readOnly && candidate.intents.includes('query'),
     );
@@ -534,13 +536,10 @@ export class BrainSemanticIntentCompilerService {
       /(?:金卡以上|金卡及以上|金卡及其以上|钻石会员|金卡会员).*(?:到店|来店)/u.test(normalized);
     const isCardExpiryWithoutReservation =
       /(?:次卡|卡项).*(?:快到期|快过期|即将过期|临期).*(?:还没预约|没有预约|未预约|没预约)/u.test(normalized) ||
-      /(?:还没预约|没有预约|未预约|没预约).*(?:次卡|卡项).*(?:快到期|快过期|即将过期|临期)/u.test(
-        normalized,
-      );
+      /(?:还没预约|没有预约|未预约|没预约).*(?:次卡|卡项).*(?:快到期|快过期|即将过期|临期)/u.test(normalized);
     const isCardHoldersWithoutVisit =
-      /(?:办了|持有|开了|有).*(?:次卡|卡项|综合养护20次卡).*(?:没来|没有来|未到店|没到店)/u.test(
-        normalized,
-      ) || /(?:次卡|卡项|综合养护20次卡).*(?:没来|没有来|未到店|没到店)/u.test(normalized);
+      /(?:办了|持有|开了|有).*(?:次卡|卡项|综合养护20次卡).*(?:没来|没有来|未到店|没到店)/u.test(normalized) ||
+      /(?:次卡|卡项|综合养护20次卡).*(?:没来|没有来|未到店|没到店)/u.test(normalized);
     const supported =
       isMemberLevelCount ||
       isVisitedCustomerCount ||
@@ -578,9 +577,7 @@ export class BrainSemanticIntentCompilerService {
         : [],
       metrics: [],
       dimensions:
-        customerLevelDimensionRef && (isMemberLevelCount || isVisitedMemberTierList)
-          ? [customerLevelDimensionRef]
-          : [],
+        customerLevelDimensionRef && (isMemberLevelCount || isVisitedMemberTierList) ? [customerLevelDimensionRef] : [],
       filters: [],
       ...(timeRange ? { timeRange } : {}),
       orderBy: [],
@@ -588,9 +585,7 @@ export class BrainSemanticIntentCompilerService {
       successCriteria: ['执行已发布客户事实能力 customer_facts 并返回可追溯结果'],
       ambiguities: [],
       missingSlots: [],
-      assumptions: [
-        '问题命中客户事实查询的已发布只读交付合同；答案仍必须由客户事实 resolver 查询真实业务数据。',
-      ],
+      assumptions: ['问题命中客户事实查询的已发布只读交付合同；答案仍必须由客户事实 resolver 查询真实业务数据。'],
       confidence: 1,
       decisionSummary: '客户、会员等级、到店或卡项持有/预约关系均由 customer_facts 能力承接。',
     };
@@ -632,8 +627,8 @@ export class BrainSemanticIntentCompilerService {
       findCapabilityDefinitionRef(capability, 'entity', 'entity.project');
     const productRef =
       selectedCapabilityKey === 'project_material_consumption_analysis'
-        ? resolveCanonicalDefinitionRef('entity', 'entity.product', input) ??
-          findCapabilityDefinitionRef(capability, 'entity', 'entity.product')
+        ? (resolveCanonicalDefinitionRef('entity', 'entity.product', input) ??
+          findCapabilityDefinitionRef(capability, 'entity', 'entity.product'))
         : undefined;
     const metrics =
       selectedCapabilityKey === 'project_service_ranking'
@@ -682,12 +677,7 @@ export class BrainSemanticIntentCompilerService {
         filters: [],
         ...(timeRange ? { timeRange } : {}),
         orderBy: [],
-        answerShape:
-          selectedCapabilityKey === 'project_service_ranking'
-            ? 'scalar'
-            : asksBomCost
-              ? 'scalar'
-              : 'list',
+        answerShape: selectedCapabilityKey === 'project_service_ranking' ? 'scalar' : asksBomCost ? 'scalar' : 'list',
         successCriteria: [`执行已发布能力 ${selectedCapabilityKey} 并返回可追溯项目事实`],
         ambiguities: [],
         missingSlots: [],
@@ -713,7 +703,9 @@ export class BrainSemanticIntentCompilerService {
     );
   }
 
-  private buildFinanceScalarCapabilityFastPath(input: BrainSemanticIntentCompilerInput): BrainSemanticIntent | undefined {
+  private buildFinanceScalarCapabilityFastPath(
+    input: BrainSemanticIntentCompilerInput,
+  ): BrainSemanticIntent | undefined {
     const cardRecognizedRevenueQuestion = isCardRecognizedRevenueQuestion(normalizeSemanticText(input.question));
     if (
       isExplicitListQuestion(input.question) ||
@@ -737,9 +729,7 @@ export class BrainSemanticIntentCompilerService {
     if (!metricKeys.length) return undefined;
     const capability = this.orderedCapabilitySummaries(input).find(
       (candidate) =>
-        candidate.key === 'finance_risk_overview' &&
-        candidate.readOnly &&
-        candidate.intents.includes('query'),
+        candidate.key === 'finance_risk_overview' && candidate.readOnly && candidate.intents.includes('query'),
     );
     if (!capability) return undefined;
     const timeRange = this.resolveQuestionTimeRange(input.question, input.timezone);
@@ -897,18 +887,16 @@ export class BrainSemanticIntentCompilerService {
       : undefined;
   }
 
-  private buildFinanceOrderProfitCapabilityFastPath(input: BrainSemanticIntentCompilerInput): BrainSemanticIntent | undefined {
+  private buildFinanceOrderProfitCapabilityFastPath(
+    input: BrainSemanticIntentCompilerInput,
+  ): BrainSemanticIntent | undefined {
     if (
       !/(?:订单|开卡|卡销售|商品订单|产品订单|项目订单)/.test(input.question) ||
       !/(?:利润|毛利|成本)/.test(input.question)
     ) {
       return undefined;
     }
-    if (
-      /排行|排名|对比|相比|趋势|走势|原因|为什么|建议|推荐|写一|文案|提醒|发送|创建|修改|删除/.test(
-        input.question,
-      )
-    ) {
+    if (/排行|排名|对比|相比|趋势|走势|原因|为什么|建议|推荐|写一|文案|提醒|发送|创建|修改|删除/.test(input.question)) {
       return undefined;
     }
     const parsedTime = this.timeRangeParser.parse(input.question);
@@ -916,9 +904,7 @@ export class BrainSemanticIntentCompilerService {
 
     const capability = this.orderedCapabilitySummaries(input).find(
       (candidate) =>
-        candidate.key === 'finance_risk_overview' &&
-        candidate.readOnly &&
-        candidate.intents.includes('query'),
+        candidate.key === 'finance_risk_overview' && candidate.readOnly && candidate.intents.includes('query'),
     );
     const capabilityDomains = capability?.domains ?? ['finance', 'order', 'product_order'];
     const timeRange = this.resolveQuestionTimeRange(input.question, input.timezone);
@@ -978,11 +964,7 @@ export class BrainSemanticIntentCompilerService {
   ): BrainSemanticIntent | undefined {
     const normalizedQuestion = normalizeSemanticText(input.question);
     if (!isStaffCommissionCompositionQuestion(normalizedQuestion)) return undefined;
-    if (
-      /排行|排名|对比|相比|趋势|走势|原因|为什么|建议|推荐|写一|文案|提醒|发送|创建|修改|删除/.test(
-        input.question,
-      )
-    ) {
+    if (/排行|排名|对比|相比|趋势|走势|原因|为什么|建议|推荐|写一|文案|提醒|发送|创建|修改|删除/.test(input.question)) {
       return undefined;
     }
     const parsedTime = this.timeRangeParser.parse(input.question);
@@ -990,9 +972,7 @@ export class BrainSemanticIntentCompilerService {
 
     const capability = this.orderedCapabilitySummaries(input).find(
       (candidate) =>
-        candidate.key === 'finance_risk_overview' &&
-        candidate.readOnly &&
-        candidate.intents.includes('query'),
+        candidate.key === 'finance_risk_overview' && candidate.readOnly && candidate.intents.includes('query'),
     );
     const timeRange = this.resolveQuestionTimeRange(input.question, input.timezone);
     if (!timeRange) return undefined;
@@ -1418,9 +1398,7 @@ export class BrainSemanticIntentCompilerService {
         const capabilityDimension = input.capabilitySummaries
           .flatMap((capability) => capability.definitionRefs ?? [])
           .find((ref) => ref.definitionType === 'dimension' && ref.definitionKey === dimensionKey);
-        return capabilityDimension
-          ? [copyDefinitionRef(capabilityDimension as BrainDefinitionRef<'dimension'>)]
-          : [];
+        return capabilityDimension ? [copyDefinitionRef(capabilityDimension as BrainDefinitionRef<'dimension'>)] : [];
       }),
     );
   }
@@ -1981,7 +1959,9 @@ function resolveCanonicalDefinitionRef<T extends 'entity' | 'relation' | 'metric
     const capabilityRef = input.capabilitySummaries
       .flatMap((capability) => capability.definitionRefs ?? [])
       .find((ref) => ref.definitionType === 'dimension' && ref.definitionKey === definitionKey);
-    return capabilityRef ? (copyDefinitionRef(capabilityRef as BrainDefinitionRef<'dimension'>) as BrainDefinitionRef<T>) : undefined;
+    return capabilityRef
+      ? (copyDefinitionRef(capabilityRef as BrainDefinitionRef<'dimension'>) as BrainDefinitionRef<T>)
+      : undefined;
   }
   const snapshotDefinitions =
     definitionType === 'entity'
@@ -2192,9 +2172,8 @@ function exactCapabilityAnswerShape(intent: BrainSemanticIntent['intent']): Brai
 }
 
 function isExplicitListQuestion(question: string) {
-  const explicitListCue = /(哪些|哪几|名单|列表|列出|找出|分别是谁|各项目|每个项目|都有谁|最紧急的是什么|缺货最紧急)/.test(
-    question,
-  );
+  const explicitListCue =
+    /(哪些|哪几|名单|列表|列出|找出|分别是谁|各项目|每个项目|都有谁|最紧急的是什么|缺货最紧急)/.test(question);
   const entityBreakdownCue =
     /(?:客户|客人|会员|预约|项目|商品|产品|员工|美容师).{0,24}分别|分别.{0,24}(?:客户|客人|会员|预约|项目|商品|产品|员工|美容师)/.test(
       question,
@@ -2239,13 +2218,13 @@ function isExplicitScalarQuestion(question: string) {
 function isProjectServiceSalesQuestion(question: string) {
   const normalized = question.replace(/\s+/gu, '');
   const projectSignal = /(?:项目|护理|SPA|spa|管理|养护|修护|提拉|焕肤|清洁|舒缓|净透|淡斑)/u.test(normalized);
-  const serviceSalesSignal =
-    /(?:卖了多少|卖出多少|卖了几|卖出几|销量|销售数量|服务次数|做了多少次|做了几次)/u.test(normalized);
-  const productSignal = /(?:商品|产品|货品)/u.test(normalized) && !/(?:项目|护理|SPA|spa)/u.test(normalized);
-  const materialSignal = /(?:BOM|bom|耗材|物料|材料)/iu.test(normalized);
-  const aggregateSignal = /(?:各项目|每个项目|所有项目|全店|哪个项目|哪些项目|排行|排名|最多|最少|最高|最低|前\d+|top\d+)/iu.test(
+  const serviceSalesSignal = /(?:卖了多少|卖出多少|卖了几|卖出几|销量|销售数量|服务次数|做了多少次|做了几次)/u.test(
     normalized,
   );
+  const productSignal = /(?:商品|产品|货品)/u.test(normalized) && !/(?:项目|护理|SPA|spa)/u.test(normalized);
+  const materialSignal = /(?:BOM|bom|耗材|物料|材料)/iu.test(normalized);
+  const aggregateSignal =
+    /(?:各项目|每个项目|所有项目|全店|哪个项目|哪些项目|排行|排名|最多|最少|最高|最低|前\d+|top\d+)/iu.test(normalized);
   return projectSignal && serviceSalesSignal && !productSignal && !materialSignal && !aggregateSignal;
 }
 
@@ -2432,9 +2411,7 @@ function isCardRecognizedRevenueQuestion(normalizedQuestion: string): boolean {
     /(?:次卡|套餐卡|卡项).*(?:核销.*(?:确认.*收入|收入确认)|确认.*收入|收入确认|确认收入进度)/u.test(
       normalizedQuestion,
     ) ||
-    /(?:核销.*(?:确认.*收入|收入确认)|确认.*收入|收入确认|确认收入进度).*(?:次卡|套餐卡|卡项)/u.test(
-      normalizedQuestion,
-    )
+    /(?:核销.*(?:确认.*收入|收入确认)|确认.*收入|收入确认|确认收入进度).*(?:次卡|套餐卡|卡项)/u.test(normalizedQuestion)
   );
 }
 
@@ -2456,8 +2433,7 @@ function governedMetricKeyMatchesQuestion(question: string, definitionKey: strin
   switch (metricKey) {
     case 'gross_profit_amount':
       return (
-        /毛利(?!率)/.test(normalizedQuestion) &&
-        !/(?:订单|项目|产品|商品|货品|开卡|卡销售)/.test(normalizedQuestion)
+        /毛利(?!率)/.test(normalizedQuestion) && !/(?:订单|项目|产品|商品|货品|开卡|卡销售)/.test(normalizedQuestion)
       );
     case 'gross_margin_rate':
       return /毛利率/.test(normalizedQuestion) && !/(?:订单|项目|产品|商品|货品)/.test(normalizedQuestion);

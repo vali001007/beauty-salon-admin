@@ -3,6 +3,7 @@ import {
   AiService,
   AiStructuredOutputError,
   type AiStructuredOutputErrorCode,
+  type AiStructuredOutputResult,
   type AiUsage,
 } from '../../ai/ai.service.js';
 import type { BrainCapabilityRankedCandidate } from '../capability/brain-capability-retriever.service.js';
@@ -26,7 +27,14 @@ export type BrainSupervisorPlannerAudit =
   | { storeId: number; systemActor: 'brain_inspection'; userId?: never };
 
 export type BrainSupervisorPlanningResult =
-  | { status: 'planned'; plan: BrainExecutionPlan; provider: string; model: string; usage: AiUsage }
+  | {
+      status: 'planned';
+      plan: BrainExecutionPlan;
+      provider: string;
+      model: string;
+      usage: AiUsage;
+      routing?: AiStructuredOutputResult<unknown>['routing'];
+    }
   | { status: 'unavailable'; errorCode: BrainSupervisorPlannerErrorCode; reason: string };
 
 const EXECUTION_SCHEDULING_BUFFER_MS = 1_000;
@@ -53,9 +61,10 @@ export class BrainSupervisorPlannerService {
       const candidates = input.topK.map((item) => item.card);
       let contractRepair: { rejectedPlan: BrainExecutionPlan; reason: string } | undefined;
       for (let attempt = 0; attempt < 2; attempt += 1) {
-        const remainingMs = input.deadlineAt === undefined
-          ? this.config.runtime.modelTimeoutMs
-          : Math.floor(input.deadlineAt - Date.now());
+        const remainingMs =
+          input.deadlineAt === undefined
+            ? this.config.runtime.modelTimeoutMs
+            : Math.floor(input.deadlineAt - Date.now());
         if (remainingMs <= 0) {
           throw new AiStructuredOutputError('BUDGET_EXCEEDED', 'Brain Supervisor deadline is exhausted.');
         }
@@ -79,10 +88,20 @@ export class BrainSupervisorPlannerService {
           userId: input.audit.userId,
           storeId: input.audit.storeId,
         });
-        const plan = this.normalizeBudget(this.normalizeStructuredArgs(result.data, candidates, input.intent), candidates);
+        const plan = this.normalizeBudget(
+          this.normalizeStructuredArgs(result.data, candidates, input.intent),
+          candidates,
+        );
         try {
           this.assertPlanPolicy(plan, candidates, input.intent, input.previousPlan);
-          return { status: 'planned', plan, provider: result.provider, model: result.model, usage: result.usage };
+          return {
+            status: 'planned',
+            plan,
+            provider: result.provider,
+            model: result.model,
+            usage: result.usage,
+            ...(result.routing ? { routing: result.routing } : {}),
+          };
         } catch (error) {
           if (attempt === 0 && error instanceof BrainSupervisorPlanPolicyError && error.repairableMappingContract) {
             contractRepair = { rejectedPlan: plan, reason: error.message };
@@ -107,12 +126,19 @@ export class BrainSupervisorPlannerService {
     }
   }
 
-  private assertInput(input: { question: string; topK: readonly BrainCapabilityRankedCandidate[]; audit: BrainSupervisorPlannerAudit }) {
-    if (!input.question.trim() || input.question.length > 4000) throw new BrainSupervisorPlanPolicyError('supervisor_question_invalid');
-    const userAudit = typeof input.audit.userId === 'number' && Number.isInteger(input.audit.userId) && input.audit.userId > 0;
+  private assertInput(input: {
+    question: string;
+    topK: readonly BrainCapabilityRankedCandidate[];
+    audit: BrainSupervisorPlannerAudit;
+  }) {
+    if (!input.question.trim() || input.question.length > 4000)
+      throw new BrainSupervisorPlanPolicyError('supervisor_question_invalid');
+    const userAudit =
+      typeof input.audit.userId === 'number' && Number.isInteger(input.audit.userId) && input.audit.userId > 0;
     const systemAudit = input.audit.systemActor === 'brain_inspection';
     if (!userAudit && !systemAudit) throw new BrainSupervisorPlanPolicyError('supervisor_actor_invalid');
-    if (!Number.isInteger(input.audit.storeId) || input.audit.storeId < 1) throw new BrainSupervisorPlanPolicyError('supervisor_store_invalid');
+    if (!Number.isInteger(input.audit.storeId) || input.audit.storeId < 1)
+      throw new BrainSupervisorPlanPolicyError('supervisor_store_invalid');
     if (!input.topK.length || input.topK.length > this.config.runtime.capabilityTopK) {
       throw new BrainSupervisorPlanPolicyError('supervisor_topk_invalid');
     }
@@ -129,7 +155,8 @@ export class BrainSupervisorPlannerService {
     if (previousPlan && plan.replanCount !== previousPlan.replanCount + 1) {
       throw new BrainSupervisorPlanPolicyError('supervisor_replan_count_invalid');
     }
-    if (!previousPlan && plan.replanCount !== 0) throw new BrainSupervisorPlanPolicyError('supervisor_initial_replan_count_invalid');
+    if (!previousPlan && plan.replanCount !== 0)
+      throw new BrainSupervisorPlanPolicyError('supervisor_initial_replan_count_invalid');
     for (const node of plan.nodes) {
       const card = allowed.get(capabilityIdentity(node.capabilityKey, node.capabilityVersion));
       if (!card) throw new BrainSupervisorPlanPolicyError(`supervisor_capability_not_in_topk:${node.capabilityKey}`);
@@ -141,7 +168,9 @@ export class BrainSupervisorPlannerService {
           throw new BrainSupervisorPlanPolicyError(`supervisor_mapping_source_invalid:${node.id}`);
         }
         if (!node.dependsOn.includes(mapping.fromNodeId)) {
-          throw new BrainSupervisorPlanPolicyError(`supervisor_mapping_dependency_missing:${node.id}:${mapping.fromNodeId}`);
+          throw new BrainSupervisorPlanPolicyError(
+            `supervisor_mapping_dependency_missing:${node.id}:${mapping.fromNodeId}`,
+          );
         }
         const sourceNode = nodes.get(mapping.fromNodeId);
         const sourceCard = sourceNode
@@ -229,10 +258,16 @@ export class BrainSupervisorPlannerService {
     };
   }
 
-  private assertDomainCoverage(plan: BrainExecutionPlan, candidates: readonly BrainCapabilityCard[], intent: BrainSemanticIntent) {
+  private assertDomainCoverage(
+    plan: BrainExecutionPlan,
+    candidates: readonly BrainCapabilityCard[],
+    intent: BrainSemanticIntent,
+  ) {
     const byIdentity = new Map(candidates.map((card) => [capabilityIdentity(card.key, card.version), card]));
     const plannedDomains = new Set(
-      plan.nodes.flatMap((node) => byIdentity.get(capabilityIdentity(node.capabilityKey, node.capabilityVersion))?.domains ?? []),
+      plan.nodes.flatMap(
+        (node) => byIdentity.get(capabilityIdentity(node.capabilityKey, node.capabilityVersion))?.domains ?? [],
+      ),
     );
     for (const domain of intent.domains) {
       if (!plannedDomains.has(domain) && candidates.some((card) => card.domains.includes(domain))) {
@@ -243,7 +278,9 @@ export class BrainSupervisorPlannerService {
 
   private assertKnownWorkflowOrdering(plan: BrainExecutionPlan) {
     const schedules = plan.nodes.filter((node) => node.capabilityKey === 'reservation_list');
-    const candidatesNodes = plan.nodes.filter((node) => ['customer_facts', 'marketing_customer_segment'].includes(node.capabilityKey));
+    const candidatesNodes = plan.nodes.filter((node) =>
+      ['customer_facts', 'marketing_customer_segment'].includes(node.capabilityKey),
+    );
     const reminderDrafts = plan.nodes.filter((node) => node.capabilityKey === 'customer_follow_up_draft');
     const touches = plan.nodes.filter((node) => node.capabilityKey === 'marketing_touch_draft');
     if (schedules.length && candidatesNodes.length && reminderDrafts.length) {
@@ -253,11 +290,7 @@ export class BrainSupervisorPlannerService {
   }
 }
 
-function requireDependency(
-  targets: BrainExecutionPlan['nodes'],
-  sources: BrainExecutionPlan['nodes'],
-  code: string,
-) {
+function requireDependency(targets: BrainExecutionPlan['nodes'], sources: BrainExecutionPlan['nodes'], code: string) {
   const sourceIds = new Set(sources.map((node) => node.id));
   if (targets.some((target) => ![...sourceIds].every((sourceId) => target.dependsOn.includes(sourceId)))) {
     throw new BrainSupervisorPlanPolicyError(`supervisor_workflow_dependency_invalid:${code}`);
@@ -265,7 +298,10 @@ function requireDependency(
 }
 
 class BrainSupervisorPlanPolicyError extends Error {
-  constructor(message: string, readonly repairableMappingContract = false) {
+  constructor(
+    message: string,
+    readonly repairableMappingContract = false,
+  ) {
     super(message);
   }
 }

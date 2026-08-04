@@ -16,7 +16,11 @@ describe('BrainSupervisorPlannerService', () => {
       card('marketing_customer_segment', ['marketing']),
     ];
     const plan = {
-      schemaVersion: '1.0', planId: 'stock-plan', objective: '临期商品处理方案', replanCount: 0, budgetMs: 20_000,
+      schemaVersion: '1.0',
+      planId: 'stock-plan',
+      objective: '临期商品处理方案',
+      replanCount: 0,
+      budgetMs: 20_000,
       nodes: [
         node('inventory', cards[0]),
         node('finance', cards[1], ['inventory']),
@@ -25,9 +29,20 @@ describe('BrainSupervisorPlannerService', () => {
     };
     const service = planner(plan);
 
-    await expect(service.plan({ question: '临期商品处理方案', intent: intent(['inventory', 'finance', 'marketing']), topK: ranked(cards), audit: { userId: 9, storeId: 6 } })).resolves.toMatchObject({
+    await expect(
+      service.plan({
+        question: '临期商品处理方案',
+        intent: intent(['inventory', 'finance', 'marketing']),
+        topK: ranked(cards),
+        audit: { userId: 9, storeId: 6 },
+      }),
+    ).resolves.toMatchObject({
       status: 'planned',
-      plan: expect.objectContaining({ nodes: expect.arrayContaining([expect.objectContaining({ id: 'marketing', dependsOn: ['inventory', 'finance'] })]) }),
+      plan: expect.objectContaining({
+        nodes: expect.arrayContaining([
+          expect.objectContaining({ id: 'marketing', dependsOn: ['inventory', 'finance'] }),
+        ]),
+      }),
     });
   });
 
@@ -39,7 +54,11 @@ describe('BrainSupervisorPlannerService', () => {
       card('marketing_touch_draft', ['marketing'], true),
     ];
     const plan = {
-      schemaVersion: '1.0', planId: 'gap-plan', objective: '明天下午空档补齐', replanCount: 0, budgetMs: 20_000,
+      schemaVersion: '1.0',
+      planId: 'gap-plan',
+      objective: '明天下午空档补齐',
+      replanCount: 0,
+      budgetMs: 20_000,
       nodes: [
         node('schedule', cards[0]),
         node('candidates', cards[1]),
@@ -48,7 +67,14 @@ describe('BrainSupervisorPlannerService', () => {
       ],
     };
 
-    await expect(planner(plan).plan({ question: '明天下午空档补齐', intent: intent(['front_desk', 'customer_service', 'marketing']), topK: ranked(cards), audit: { userId: 9, storeId: 6 } })).resolves.toMatchObject({ status: 'planned' });
+    await expect(
+      planner(plan).plan({
+        question: '明天下午空档补齐',
+        intent: intent(['front_desk', 'customer_service', 'marketing']),
+        topK: ranked(cards),
+        audit: { userId: 9, storeId: 6 },
+      }),
+    ).resolves.toMatchObject({ status: 'planned' });
   });
 
   it('accepts a six-domain improvement DAG using the discoverable composite capabilities', async () => {
@@ -61,7 +87,11 @@ describe('BrainSupervisorPlannerService', () => {
       { ...card('marketing_growth_overview', ['customer']), timeoutMs: 10_000 },
     ];
     const plan = {
-      schemaVersion: '1.0', planId: 'six-domain-review', objective: '门店六域经营诊断', replanCount: 0, budgetMs: 20_000,
+      schemaVersion: '1.0',
+      planId: 'six-domain-review',
+      objective: '门店六域经营诊断',
+      replanCount: 0,
+      budgetMs: 20_000,
       nodes: [
         node('store', cards[0]),
         node('front_desk', cards[1]),
@@ -72,12 +102,14 @@ describe('BrainSupervisorPlannerService', () => {
       ],
     };
 
-    await expect(planner(plan).plan({
-      question: '全面诊断门店经营、前台、美容师、库存、财务和营销问题',
-      intent: intent(['reservation', 'payment', 'order', 'beautician', 'product', 'customer']),
-      topK: ranked(cards),
-      audit: { userId: 9, storeId: 6 },
-    })).resolves.toMatchObject({
+    await expect(
+      planner(plan).plan({
+        question: '全面诊断门店经营、前台、美容师、库存、财务和营销问题',
+        intent: intent(['reservation', 'payment', 'order', 'beautician', 'product', 'customer']),
+        topK: ranked(cards),
+        audit: { userId: 9, storeId: 6 },
+      }),
+    ).resolves.toMatchObject({
       status: 'planned',
       plan: {
         budgetMs: 20_000,
@@ -91,15 +123,34 @@ describe('BrainSupervisorPlannerService', () => {
   });
 
   it('fails closed when the model invents a capability or bypasses a required dependency', async () => {
-    const cards = [card('inventory_risk_ranking', ['inventory']), card('order_revenue_analysis', ['finance']), card('marketing_customer_segment', ['marketing'])];
+    const cards = [
+      card('inventory_risk_ranking', ['inventory']),
+      card('order_revenue_analysis', ['finance']),
+      card('marketing_customer_segment', ['marketing']),
+    ];
     const invented = {
-      schemaVersion: '1.0', planId: 'bad', objective: 'bad', replanCount: 0, budgetMs: 20_000,
+      schemaVersion: '1.0',
+      planId: 'bad',
+      objective: 'bad',
+      replanCount: 0,
+      budgetMs: 20_000,
       nodes: [node('invented', card('delete_everything', ['inventory']))],
     };
-    await expect(planner(invented).plan({ question: 'test', intent: intent(['inventory']), topK: ranked(cards), audit: { userId: 9, storeId: 6 } })).resolves.toMatchObject({ status: 'unavailable', errorCode: 'PLAN_POLICY_INVALID' });
+    await expect(
+      planner(invented).plan({
+        question: 'test',
+        intent: intent(['inventory']),
+        topK: ranked(cards),
+        audit: { userId: 9, storeId: 6 },
+      }),
+    ).resolves.toMatchObject({ status: 'unavailable', errorCode: 'PLAN_POLICY_INVALID' });
 
     const missingDependency = {
-      schemaVersion: '1.0', planId: 'bad-order', objective: 'bad', replanCount: 0, budgetMs: 20_000,
+      schemaVersion: '1.0',
+      planId: 'bad-order',
+      objective: 'bad',
+      replanCount: 0,
+      budgetMs: 20_000,
       nodes: [
         node('inventory', cards[0]),
         {
@@ -108,7 +159,14 @@ describe('BrainSupervisorPlannerService', () => {
         },
       ],
     };
-    await expect(planner(missingDependency).plan({ question: 'test', intent: intent(['inventory', 'finance']), topK: ranked(cards), audit: { userId: 9, storeId: 6 } })).resolves.toMatchObject({ status: 'unavailable', errorCode: 'PLAN_POLICY_INVALID' });
+    await expect(
+      planner(missingDependency).plan({
+        question: 'test',
+        intent: intent(['inventory', 'finance']),
+        topK: ranked(cards),
+        audit: { userId: 9, storeId: 6 },
+      }),
+    ).resolves.toMatchObject({ status: 'unavailable', errorCode: 'PLAN_POLICY_INVALID' });
   });
 
   it('repairs a model plan that references an undeclared mapping output', async () => {
@@ -118,7 +176,11 @@ describe('BrainSupervisorPlannerService', () => {
     };
     const target = card('marketing_campaign_plan', ['customer']);
     const invalidPlan = {
-      schemaVersion: '1.0', planId: 'invalid-mapping', objective: '提升复购', replanCount: 0, budgetMs: 10_000,
+      schemaVersion: '1.0',
+      planId: 'invalid-mapping',
+      objective: '提升复购',
+      replanCount: 0,
+      budgetMs: 10_000,
       nodes: [
         node('priority', source),
         {
@@ -147,12 +209,14 @@ describe('BrainSupervisorPlannerService', () => {
       contextConfig as never,
     );
 
-    await expect(service.plan({
-      question: '我想提升复购率',
-      intent: intent(['customer']),
-      topK: ranked([source, target]),
-      audit: { userId: 9, storeId: 6 },
-    })).resolves.toMatchObject({
+    await expect(
+      service.plan({
+        question: '我想提升复购率',
+        intent: intent(['customer']),
+        topK: ranked([source, target]),
+        audit: { userId: 9, storeId: 6 },
+      }),
+    ).resolves.toMatchObject({
       status: 'planned',
       plan: {
         planId: 'repaired-mapping',
@@ -170,24 +234,46 @@ describe('BrainSupervisorPlannerService', () => {
 
   it('requires a replan to increment replanCount exactly once', async () => {
     const capability = card('customer_facts', ['customer_service']);
-    const previous = { schemaVersion: '1.0', planId: 'p1', objective: 'facts', replanCount: 0, budgetMs: 10_000, nodes: [node('facts', capability)] } as const;
+    const previous = {
+      schemaVersion: '1.0',
+      planId: 'p1',
+      objective: 'facts',
+      replanCount: 0,
+      budgetMs: 10_000,
+      nodes: [node('facts', capability)],
+    } as const;
     const next = { ...previous, planId: 'p2', replanCount: 0 };
-    await expect(planner(next).plan({ question: 'facts', intent: intent(['customer_service']), topK: ranked([capability]), audit: { userId: 9, storeId: 6 }, previousPlan: previous as any, observations: [] })).resolves.toMatchObject({ status: 'unavailable', errorCode: 'PLAN_POLICY_INVALID' });
+    await expect(
+      planner(next).plan({
+        question: 'facts', // ami-brain-unit-only
+        intent: intent(['customer_service']),
+        topK: ranked([capability]),
+        audit: { userId: 9, storeId: 6 },
+        previousPlan: previous as any,
+        observations: [],
+      }),
+    ).resolves.toMatchObject({ status: 'unavailable', errorCode: 'PLAN_POLICY_INVALID' });
   });
 
   it('raises a model budget to the governed critical path plus scheduling buffer', async () => {
     const capability = card('customer_facts', ['customer_service']);
     const plan = {
-      schemaVersion: '1.0', planId: 'low-budget', objective: 'facts', replanCount: 0, budgetMs: 1000,
+      schemaVersion: '1.0',
+      planId: 'low-budget',
+      objective: 'facts',
+      replanCount: 0,
+      budgetMs: 1000,
       nodes: [{ ...node('facts', capability), args: { time: { start: 'hallucinated' } } }],
     };
 
-    await expect(planner(plan).plan({
-      question: 'facts',
-      intent: intent(['customer_service']),
-      topK: ranked([capability]),
-      audit: { userId: 9, storeId: 6 },
-    })).resolves.toMatchObject({
+    await expect(
+      planner(plan).plan({
+        question: 'facts',
+        intent: intent(['customer_service']),
+        topK: ranked([capability]),
+        audit: { userId: 9, storeId: 6 },
+      }),
+    ).resolves.toMatchObject({
       status: 'planned',
       plan: {
         budgetMs: 5000,
@@ -224,11 +310,17 @@ describe('BrainSupervisorPlannerService', () => {
       limit: 5,
     };
     const plan = {
-      schemaVersion: '1.0', planId: 'normalized', objective: 'ranking', replanCount: 0, budgetMs: 1000,
-      nodes: [{
-        ...node('ranking', capability),
-        args: { time: { start: '2025-01-01' }, objective: 'model objective' },
-      }],
+      schemaVersion: '1.0',
+      planId: 'normalized',
+      objective: 'ranking',
+      replanCount: 0,
+      budgetMs: 1000,
+      nodes: [
+        {
+          ...node('ranking', capability),
+          args: { time: { start: '2025-01-01' }, objective: 'model objective' },
+        },
+      ],
     };
 
     const result = await planner(plan).plan({
@@ -241,19 +333,21 @@ describe('BrainSupervisorPlannerService', () => {
     expect(result).toMatchObject({
       status: 'planned',
       plan: {
-        nodes: [{
-          args: {
-            objective: semanticIntent.objective,
-            time: semanticIntent.timeRange,
-            comparisonTarget: semanticIntent.comparisonTarget,
-            entities: [],
-            metrics: [],
-            dimensions: [],
-            filters: [],
-            orderBy: [],
-            limit: 5,
+        nodes: [
+          {
+            args: {
+              objective: semanticIntent.objective,
+              time: semanticIntent.timeRange,
+              comparisonTarget: semanticIntent.comparisonTarget,
+              entities: [],
+              metrics: [],
+              dimensions: [],
+              filters: [],
+              orderBy: [],
+              limit: 5,
+            },
           },
-        }],
+        ],
       },
     });
   });
@@ -262,63 +356,135 @@ describe('BrainSupervisorPlannerService', () => {
     const first = card('customer_facts', ['customer_service']);
     const second = { ...card('reservation_list', ['front_desk']), timeoutMs: 17_000 };
     const plan = {
-      schemaVersion: '1.0', planId: 'oversized', objective: 'facts', replanCount: 0, budgetMs: 20_000,
+      schemaVersion: '1.0',
+      planId: 'oversized',
+      objective: 'facts',
+      replanCount: 0,
+      budgetMs: 20_000,
       nodes: [node('facts', first), node('schedule', second, ['facts'])],
     };
 
-    await expect(planner(plan).plan({
-      question: 'facts then schedule',
-      intent: intent(['customer_service', 'front_desk']),
-      topK: ranked([first, second]),
-      audit: { userId: 9, storeId: 6 },
-    })).resolves.toMatchObject({ status: 'unavailable', errorCode: 'PLAN_POLICY_INVALID' });
+    await expect(
+      planner(plan).plan({
+        question: 'facts then schedule',
+        intent: intent(['customer_service', 'front_desk']),
+        topK: ranked([first, second]),
+        audit: { userId: 9, storeId: 6 },
+      }),
+    ).resolves.toMatchObject({ status: 'unavailable', errorCode: 'PLAN_POLICY_INVALID' });
   });
 
   it('uses only the remaining shared deadline for Supervisor generation', async () => {
     jest.spyOn(Date, 'now').mockReturnValue(10_000);
     const capability = card('customer_facts', ['customer_service']);
     const plan = {
-      schemaVersion: '1.0', planId: 'deadline', objective: 'facts', replanCount: 0, budgetMs: 5000,
+      schemaVersion: '1.0',
+      planId: 'deadline',
+      objective: 'facts',
+      replanCount: 0,
+      budgetMs: 5000,
       nodes: [node('facts', capability)],
     };
-    const generateStructured = jest.fn().mockResolvedValue({ data: plan, provider: 'test', model: 'test-model', usage });
-    const service = new BrainSupervisorPlannerService({ generateStructured } as unknown as AiService, contextConfig as never);
+    const generateStructured = jest
+      .fn()
+      .mockResolvedValue({ data: plan, provider: 'test', model: 'test-model', usage });
+    const service = new BrainSupervisorPlannerService(
+      { generateStructured } as unknown as AiService,
+      contextConfig as never,
+    );
 
-    await expect(service.plan({
-      question: 'facts',
-      intent: intent(['customer_service']),
-      topK: ranked([capability]),
-      audit: { userId: 9, storeId: 6 },
-      deadlineAt: 10_250,
-    })).resolves.toMatchObject({ status: 'planned' });
+    await expect(
+      service.plan({
+        question: 'facts',
+        intent: intent(['customer_service']),
+        topK: ranked([capability]),
+        audit: { userId: 9, storeId: 6 },
+        deadlineAt: 10_250,
+      }),
+    ).resolves.toMatchObject({ status: 'planned' });
 
-    expect(generateStructured).toHaveBeenCalledWith(expect.objectContaining({
-      timeoutMs: 250,
-      allowFallback: true,
-      fallbackMessages: expect.any(Array),
-    }));
-    expect(generateStructured.mock.calls[0]?.[0].fallbackMessages).toEqual(generateStructured.mock.calls[0]?.[0].messages);
+    expect(generateStructured).toHaveBeenCalledWith(
+      expect.objectContaining({
+        timeoutMs: 250,
+        allowFallback: true,
+        fallbackMessages: expect.any(Array),
+      }),
+    );
+    expect(generateStructured.mock.calls[0]?.[0].fallbackMessages).toEqual(
+      generateStructured.mock.calls[0]?.[0].messages,
+    );
+  });
+
+  it('preserves fallback routing evidence from the actual Supervisor provider call', async () => {
+    const capability = card('customer_facts', ['customer_service']);
+    const plan = {
+      schemaVersion: '1.0',
+      planId: 'fallback-route',
+      objective: 'facts',
+      replanCount: 0,
+      budgetMs: 5000,
+      nodes: [node('facts', capability)],
+    };
+    const generateStructured = jest.fn().mockResolvedValue({
+      data: plan,
+      provider: 'deepseek(fallback)',
+      model: 'deepseek-v4-flash',
+      usage,
+      routing: {
+        primarySkipped: false,
+        fallbackUsed: true,
+        primaryErrorCode: 'PROVIDER_UNAVAILABLE',
+        primaryCircuitState: 'closed',
+        fallbackCircuitState: 'closed',
+        redundancyMode: 'independent_route',
+      },
+    });
+    const service = new BrainSupervisorPlannerService(
+      { generateStructured } as unknown as AiService,
+      contextConfig as never,
+    );
+
+    await expect(
+      service.plan({
+        question: 'facts',
+        intent: intent(['customer_service']),
+        topK: ranked([capability]),
+        audit: { userId: 9, storeId: 6 },
+      }),
+    ).resolves.toMatchObject({
+      status: 'planned',
+      provider: 'deepseek(fallback)',
+      model: 'deepseek-v4-flash',
+      routing: { fallbackUsed: true, primaryErrorCode: 'PROVIDER_UNAVAILABLE' },
+    });
   });
 
   it('does not call Supervisor after the shared deadline has expired', async () => {
     jest.spyOn(Date, 'now').mockReturnValue(10_000);
     const capability = card('customer_facts', ['customer_service']);
     const generateStructured = jest.fn();
-    const service = new BrainSupervisorPlannerService({ generateStructured } as unknown as AiService, contextConfig as never);
+    const service = new BrainSupervisorPlannerService(
+      { generateStructured } as unknown as AiService,
+      contextConfig as never,
+    );
 
-    await expect(service.plan({
-      question: 'facts',
-      intent: intent(['customer_service']),
-      topK: ranked([capability]),
-      audit: { userId: 9, storeId: 6 },
-      deadlineAt: 9_999,
-    })).resolves.toMatchObject({ status: 'unavailable', errorCode: 'BUDGET_EXCEEDED' });
+    await expect(
+      service.plan({
+        question: 'facts',
+        intent: intent(['customer_service']),
+        topK: ranked([capability]),
+        audit: { userId: 9, storeId: 6 },
+        deadlineAt: 9_999,
+      }),
+    ).resolves.toMatchObject({ status: 'unavailable', errorCode: 'BUDGET_EXCEEDED' });
     expect(generateStructured).not.toHaveBeenCalled();
   });
 });
 
 function planner(data: unknown) {
-  const aiService = { generateStructured: jest.fn().mockResolvedValue({ data, provider: 'test', model: 'test-model', usage }) } as unknown as AiService;
+  const aiService = {
+    generateStructured: jest.fn().mockResolvedValue({ data, provider: 'test', model: 'test-model', usage }),
+  } as unknown as AiService;
   return new BrainSupervisorPlannerService(aiService, contextConfig as never);
 }
 
@@ -328,12 +494,33 @@ function ranked(cards: BrainCapabilityCard[]): BrainCapabilityRankedCandidate[] 
 
 function card(key: string, domains: string[], sideEffect = false): BrainCapabilityCard {
   return {
-    key, version: 1, name: key, description: key, domains, intents: ['workflow'],
-    inputSchema: { type: 'object' }, outputSchema: { type: 'object' }, requiredPermissions: [], allowedRoles: [],
-    readOnly: !sideEffect, sideEffect, riskLevel: sideEffect ? 'high' : 'low', requiresConfirmation: sideEffect,
-    idempotency: sideEffect ? 'required' : 'not_applicable', timeoutMs: 4000,
-    grounding: sideEffect ? 'domain_service' : key.includes('ranking') || key.includes('analysis') ? 'semantic_query' : 'domain_service',
-    examples: [], sourceFingerprint: 'a'.repeat(64), definitionRefs: [], synonyms: [], negativeExamples: [], successSchema: {},
+    key,
+    version: 1,
+    name: key,
+    description: key,
+    domains,
+    intents: ['workflow'],
+    inputSchema: { type: 'object' },
+    outputSchema: { type: 'object' },
+    requiredPermissions: [],
+    allowedRoles: [],
+    readOnly: !sideEffect,
+    sideEffect,
+    riskLevel: sideEffect ? 'high' : 'low',
+    requiresConfirmation: sideEffect,
+    idempotency: sideEffect ? 'required' : 'not_applicable',
+    timeoutMs: 4000,
+    grounding: sideEffect
+      ? 'domain_service'
+      : key.includes('ranking') || key.includes('analysis')
+        ? 'semantic_query'
+        : 'domain_service',
+    examples: [],
+    sourceFingerprint: 'a'.repeat(64),
+    definitionRefs: [],
+    synonyms: [],
+    negativeExamples: [],
+    successSchema: {},
   };
 }
 
@@ -343,6 +530,21 @@ function node(id: string, capability: BrainCapabilityCard, dependsOn: string[] =
 
 function intent(domains: string[]): BrainSemanticIntent {
   return {
-    schemaVersion: '1.0', objective: '复合经营任务', domains, intent: 'workflow', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [], answerShape: 'diagnosis', successCriteria: [], ambiguities: [], missingSlots: [], assumptions: [], confidence: 0.95, decisionSummary: '复合经营任务',
+    schemaVersion: '1.0',
+    objective: '复合经营任务',
+    domains,
+    intent: 'workflow',
+    entities: [],
+    metrics: [],
+    dimensions: [],
+    filters: [],
+    orderBy: [],
+    answerShape: 'diagnosis',
+    successCriteria: [],
+    ambiguities: [],
+    missingSlots: [],
+    assumptions: [],
+    confidence: 0.95,
+    decisionSummary: '复合经营任务',
   };
 }
