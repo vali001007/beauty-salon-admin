@@ -625,7 +625,7 @@ async function installGovernanceMocks(
     }
     if (path === '/brain/governance/capability-policies/customer_facts/approve' && request.method() === 'POST') {
       // ami-brain-unit-only: mocked HTTP authorization response, not a product question.
-      if (!permissions.includes('*') && !permissions.includes('core:brain-governance:approve')) return fulfillJson(route, { message: 'Forbidden' }, 403);
+      if (!permissions.includes('*') && !permissions.includes('core:brain-governance:approve')) return fulfillJson(route, { message: 'Forbidden' }, 403); // ami-brain-unit-only: mocked permission response.
       return fulfillJson(route, { ...capabilityPolicy, policy: { ...capabilityPolicy.policy, whitelistStatus: 'approved' } });
     }
     if (path === '/brain/governance/tasks') {
@@ -721,7 +721,7 @@ async function installGovernanceMocks(
     }
     if (path === '/brain/governance/policy-snapshots/7/publish' && request.method() === 'POST') {
       // ami-brain-unit-only: mocked HTTP authorization response, not a product question.
-      if (!permissions.includes('*') && !permissions.includes('core:brain-governance:publish')) return fulfillJson(route, { message: 'Forbidden' }, 403);
+      if (!permissions.includes('*') && !permissions.includes('core:brain-governance:publish')) return fulfillJson(route, { message: 'Forbidden' }, 403); // ami-brain-unit-only: mocked permission response.
       policyPublished = true;
       return fulfillJson(route, { id: 7, releaseKey: 'governance-v7', scope: 'governance_policy', rollout: {}, status: 'active', createdAt: '2026-08-01T00:00:00.000Z', items: [capabilityPolicy] });
     }

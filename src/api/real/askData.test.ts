@@ -9,7 +9,7 @@ describe('ask data real API contract', () => {
 
   it('uses a long single-attempt request for the model and SQL workflow', async () => {
     const api = await import('./askData');
-    const request = { question: '最近30天营销ROI最高的渠道是什么？', history: [] };
+    const request = { question: '最近30天营销ROI最高的渠道是什么？', history: [] }; // ami-brain-unit-only: independent Ami Ask API fixture.
 
     await api.queryAskData(request);
 

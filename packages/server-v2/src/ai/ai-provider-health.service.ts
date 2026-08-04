@@ -58,11 +58,7 @@ export class AiProviderHealthService {
     circuit.lastFailureAt = now;
     circuit.lastErrorCode = errorCode;
     circuit.probeInFlight = false;
-    if (
-      errorCode === 'PROVIDER_AUTH_FAILED' ||
-      circuit.state === 'half_open' ||
-      circuit.consecutiveFailures >= this.failureThreshold
-    ) {
+    if (circuit.state === 'half_open' || circuit.consecutiveFailures >= this.failureThreshold) {
       circuit.state = 'open';
       circuit.openedAt = now;
     }

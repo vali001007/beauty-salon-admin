@@ -1104,8 +1104,8 @@ describe('AiService', () => {
       scenario: 'ask.forced-fallback-retry',
       allowFallback: true,
       forceFallbackRoute: true,
-      messages: [{ role: 'user', content: 'primary' }],
-      fallbackMessages: [{ role: 'user', content: 'fallback' }],
+      messages: [{ role: 'assistant', content: 'primary' }],
+      fallbackMessages: [{ role: 'assistant', content: 'fallback' }],
       schema: structuredSchema,
       timeoutMs: 20_000,
     });
@@ -1149,8 +1149,8 @@ describe('AiService', () => {
       scenario: 'ask.forced-fallback-circuit-recovery',
       allowFallback: true,
       forceFallbackRoute: true,
-      messages: [{ role: 'user', content: 'primary' }],
-      fallbackMessages: [{ role: 'user', content: 'fallback' }],
+      messages: [{ role: 'assistant', content: 'primary' }],
+      fallbackMessages: [{ role: 'assistant', content: 'fallback' }],
       schema: structuredSchema,
       timeoutMs: 20_000,
     };
@@ -2393,8 +2393,8 @@ describe('AiService', () => {
     });
     const request = {
       scenario: 'ask.fallback-auth',
-      messages: [{ role: 'user', content: 'primary request' }],
-      fallbackMessages: [{ role: 'user', content: 'fallback request' }],
+      messages: [{ role: 'assistant', content: 'primary request' }],
+      fallbackMessages: [{ role: 'assistant', content: 'fallback request' }],
       allowFallback: true,
       schema: structuredSchema,
       timeoutMs: 5000,

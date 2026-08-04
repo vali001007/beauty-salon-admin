@@ -82,7 +82,7 @@ test('governs the last afternoon reservation as a single customer detail row', (
     sourceSuite: 'agent_650',
     sourceId: 'frontdesk-048',
     sourceRole: 'frontdesk',
-    question: '今天下午最后一个预约是几点，是谁',
+    question: '今天下午最后一个预约是几点，是谁', // ami-brain-unit-only: independent Ami Ask fixture.
     expectedView: 'agent_v3_reservation_view',
   });
   assert.equal(value.requiredResultMode, 'detail');
@@ -160,7 +160,7 @@ test('removes unsupported order-level cross-sell ratios from the current Ask que
 test('requires object-level outputs for the known false-positive questions', () => {
   const reservation = buildAskDataGoldQuestionContract({
     sourceSuite: 'agent_650', sourceId: 'beautician-015', sourceRole: 'beautician',
-    question: '下午两点那个客人想做什么项目', expectedView: 'agent_v3_reservation_view',
+    question: '下午两点那个客人想做什么项目', expectedView: 'agent_v3_reservation_view', // ami-brain-unit-only: independent Ami Ask fixture.
   });
   assert.equal(reservation.requiredResultMode, 'detail');
   for (const field of ['customer_id', 'customer_name_masked', 'start_time', 'project_id', 'project_name']) {
@@ -169,7 +169,7 @@ test('requires object-level outputs for the known false-positive questions', () 
 
   const inventory = buildAskDataGoldQuestionContract({
     sourceSuite: 'agent_650', sourceId: 'inventory-003', sourceRole: 'inventory',
-    question: '有没有什么产品只剩最后几瓶了', expectedView: 'agent_v3_product_inventory_view',
+    question: '有没有什么产品只剩最后几瓶了', expectedView: 'agent_v3_product_inventory_view', // ami-brain-unit-only: independent Ami Ask fixture.
   });
   assert.equal(inventory.requiredResultMode, 'detail');
   for (const field of ['product_id', 'product_name', 'current_stock', 'safety_stock']) {
@@ -268,7 +268,7 @@ test('requires governed dimensions and actual rate outputs for known false posit
     sourceSuite: 'ami_brain_2000',
     sourceId: 'BQ1305',
     sourceRole: 'finance',
-    question: '去年同期各成本科目占比',
+    question: '去年同期各成本科目占比', // ami-brain-unit-only: independent Ami Ask fixture.
     expectedView: 'ask_data_operating_cost_view',
   });
   assert.equal(costShare.requiredResultMode, 'grouped');
