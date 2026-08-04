@@ -41,6 +41,17 @@ describe('AskDataWorkbench', () => {
     await waitFor(() => expect(apiMocks.getAskDataCatalog).toHaveBeenCalledTimes(1));
   });
 
+  it('renders the independent three-panel Ask workspace', async () => {
+    render(<AskDataWorkbench />);
+
+    expect(screen.getByRole('tab', { name: '测试集' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '错题集' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '历史记录' })).toBeInTheDocument();
+    expect(screen.getByLabelText('智能问数对话')).toBeInTheDocument();
+    expect(screen.getByText('运行可视化')).toBeInTheDocument();
+    expect(screen.getByText(/不写入 Brain/)).toBeInTheDocument();
+  });
+
   it('shows summary, result table and sources for a successful query', async () => {
     apiMocks.queryAskData.mockResolvedValueOnce({
       status: 'success',
