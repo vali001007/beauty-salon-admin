@@ -428,6 +428,66 @@ describe('BrainChatService', () => {
     };
   };
 
+  it('normalizes governed customer analytics defaults without asking users for internal thresholds', () => {
+    const { service } = createService();
+    const baseIntent = {
+      schemaVersion: '1.0',
+      objective: '客户分析',
+      domains: ['customer'],
+      intent: 'query',
+      entities: [],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'list',
+      successCriteria: ['返回结果'],
+      ambiguities: [
+        { slot: 'metric', reason: '需要指标', candidates: [] },
+        { slot: 'entity', reason: '需要客户', candidates: [] },
+      ],
+      missingSlots: ['metric', 'dimension', 'orderBy', 'entity'],
+      assumptions: [],
+      confidence: 0.8,
+      decisionSummary: '客户风险',
+    };
+
+    const balance = (service as any).normalizeCustomerAnalyticsDefaults({
+      intent: baseIntent,
+      question: '列出会员储值余额过高的关注名单', // ami-brain-unit-only
+    });
+    expect(balance).toMatchObject({ intent: 'ranking', answerShape: 'ranking' });
+    expect(balance.missingSlots).not.toEqual(expect.arrayContaining(['metric', 'dimension', 'orderBy']));
+
+    const cohort = (service as any).normalizeCustomerAnalyticsDefaults({
+      intent: baseIntent,
+      question: '钻石会员中有哪些长期未到店的客户', // ami-brain-unit-only
+    });
+    expect(cohort.missingSlots).not.toContain('entity');
+    expect(cohort.assumptions).toEqual(expect.arrayContaining([expect.stringContaining('客群筛选')]));
+  });
+
+  it('deterministically selects customer_facts for supported customer analysis paraphrases', () => {
+    const { service } = createService();
+    const cards = [
+      { key: 'store_operations_overview', readOnly: true, sideEffect: false },
+      { key: 'customer_facts', readOnly: true, sideEffect: false },
+    ];
+
+    expect(
+      (service as any).findCustomerAnalyticsCapabilityCard(
+        '比较不同获客渠道的客户质量', // ami-brain-unit-only
+        cards,
+      ),
+    ).toMatchObject({ key: 'customer_facts' });
+    expect(
+      (service as any).findCustomerAnalyticsCapabilityCard(
+        '找出消费金额骤降的客户', // ami-brain-unit-only
+        cards,
+      ),
+    ).toMatchObject({ key: 'customer_facts' });
+  });
+
   it('resolves the BQ1332 named beautician only from the active current-store directory', async () => {
     const { service, prisma } = createService();
     prisma.beautician.findMany.mockResolvedValue([{ id: 19, name: '顾然' }]);

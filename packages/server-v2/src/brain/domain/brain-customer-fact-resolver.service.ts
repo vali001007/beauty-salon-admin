@@ -16,7 +16,17 @@ const ARRIVED_CUSTOMER_STATUSES = [
   '已完成',
 ];
 
-const CUSTOMER_MEMBER_TIER_ORDER = ['无', '普通', '普通会员', '银卡', '银卡会员', '金卡', '金卡会员', '钻石', '钻石会员'];
+const CUSTOMER_MEMBER_TIER_ORDER = [
+  '无',
+  '普通',
+  '普通会员',
+  '银卡',
+  '银卡会员',
+  '金卡',
+  '金卡会员',
+  '钻石',
+  '钻石会员',
+];
 
 export interface BrainNewCustomerSourceDistribution {
   total: number;
@@ -140,6 +150,17 @@ export interface BrainInactiveCustomerSummary {
     visitCount: number;
     lastVisitDate: string | null;
   }>;
+}
+
+export interface BrainCustomerAnalyticsRow {
+  [key: string]: unknown;
+  customerId: number;
+  customerName: string;
+}
+
+export interface BrainCustomerAnalyticsSummary<T extends Record<string, unknown>> {
+  total: number;
+  rows: T[];
 }
 
 export interface BrainExactCustomerBasicSummary {
@@ -395,6 +416,693 @@ export class BrainCustomerFactResolverService {
         visitCount: customer.visitCount,
         lastVisitDate: customer.lastVisitDate?.toISOString().slice(0, 10) ?? null,
       })),
+    };
+  }
+
+  async getRecentNewCustomerSecondPurchaseSummary(input: {
+    storeId: number;
+    startDate: Date;
+    endDate: Date;
+    limit?: number;
+  }): Promise<
+    BrainCustomerAnalyticsSummary<
+      BrainCustomerAnalyticsRow & {
+        memberLevel: string;
+        createdAt: string;
+        secondPurchaseDate: string;
+        validOrderCount: number;
+      }
+    > & { newCustomerCount: number }
+  > {
+    const customers = await this.prisma.customer.findMany({
+      where: {
+        storeId: input.storeId,
+        deletedAt: null,
+        createdAt: { gte: input.startDate, lte: input.endDate },
+      },
+      select: { id: true, name: true, memberLevel: true, createdAt: true },
+      take: 20_000,
+    });
+    if (!customers.length) return { total: 0, newCustomerCount: 0, rows: [] };
+
+    const orders = await this.prisma.productOrder.findMany({
+      where: {
+        storeId: input.storeId,
+        customerId: { in: customers.map((customer) => customer.id) },
+        createdAt: { gte: input.startDate, lte: input.endDate },
+        status: { notIn: ['cancelled', 'canceled', 'refunded', '已取消'] },
+        netAmount: { gt: 0 },
+      },
+      select: { customerId: true, createdAt: true },
+      orderBy: [{ customerId: 'asc' }, { createdAt: 'asc' }],
+      take: 20_000,
+    });
+    const ordersByCustomer = new Map<number, Date[]>();
+    for (const order of orders) {
+      if (!order.customerId) continue;
+      const values = ordersByCustomer.get(order.customerId) ?? [];
+      values.push(order.createdAt);
+      ordersByCustomer.set(order.customerId, values);
+    }
+    const rows = customers
+      .flatMap((customer) => {
+        const customerOrders = ordersByCustomer.get(customer.id) ?? [];
+        if (customerOrders.length < 2) return [];
+        return [
+          {
+            customerId: customer.id,
+            customerName: customer.name,
+            memberLevel: customer.memberLevel,
+            createdAt: customer.createdAt.toISOString(),
+            secondPurchaseDate: customerOrders[1]!.toISOString(),
+            validOrderCount: customerOrders.length,
+          },
+        ];
+      })
+      .sort(
+        (left, right) =>
+          right.validOrderCount - left.validOrderCount ||
+          left.secondPurchaseDate.localeCompare(right.secondPurchaseDate),
+      );
+    return {
+      total: rows.length,
+      newCustomerCount: customers.length,
+      rows: rows.slice(0, input.limit ?? 10),
+    };
+  }
+
+  async getProjectBuyerAverageSpend(input: { storeId: number; message: string; limit?: number }): Promise<
+    BrainCustomerAnalyticsSummary<
+      BrainCustomerAnalyticsRow & { memberLevel: string; validOrderCount: number; totalSpend: number }
+    > & {
+      projectName: string | null;
+      totalSpend: number;
+      validOrderCount: number;
+      averageSpendPerCustomer: number;
+      averageOrderValue: number;
+    }
+  > {
+    const projects = await this.prisma.project.findMany({
+      where: { storeId: input.storeId, deletedAt: null },
+      select: { name: true },
+      take: 5_000,
+    });
+    const projectName = projects
+      .map((project) => project.name)
+      .filter((name) => input.message.includes(name))
+      .sort((left, right) => right.length - left.length || left.localeCompare(right, 'zh-CN'))[0];
+    if (!projectName) {
+      return {
+        projectName: null,
+        total: 0,
+        totalSpend: 0,
+        validOrderCount: 0,
+        averageSpendPerCustomer: 0,
+        averageOrderValue: 0,
+        rows: [],
+      };
+    }
+
+    const cohortOrders = await this.prisma.productOrder.findMany({
+      where: {
+        storeId: input.storeId,
+        customerId: { not: null },
+        status: { notIn: ['cancelled', 'canceled', 'refunded', '已取消'] },
+        netAmount: { gt: 0 },
+        orderItems: { some: { name: projectName } },
+      },
+      select: { customerId: true },
+      take: 20_000,
+    });
+    const customerIds = [...new Set(cohortOrders.flatMap((order) => (order.customerId ? [order.customerId] : [])))];
+    if (!customerIds.length) {
+      return {
+        projectName,
+        total: 0,
+        totalSpend: 0,
+        validOrderCount: 0,
+        averageSpendPerCustomer: 0,
+        averageOrderValue: 0,
+        rows: [],
+      };
+    }
+    const [orders, customers] = await Promise.all([
+      this.prisma.productOrder.findMany({
+        where: {
+          storeId: input.storeId,
+          customerId: { in: customerIds },
+          status: { notIn: ['cancelled', 'canceled', 'refunded', '已取消'] },
+          netAmount: { gt: 0 },
+        },
+        select: { customerId: true, netAmount: true },
+        take: 20_000,
+      }),
+      this.prisma.customer.findMany({
+        where: { storeId: input.storeId, id: { in: customerIds }, deletedAt: null },
+        select: { id: true, name: true, memberLevel: true },
+        take: 20_000,
+      }),
+    ]);
+    const totalsByCustomer = new Map<number, { totalSpend: number; validOrderCount: number }>();
+    for (const order of orders) {
+      if (!order.customerId) continue;
+      const current = totalsByCustomer.get(order.customerId) ?? { totalSpend: 0, validOrderCount: 0 };
+      current.totalSpend += toBrainNumber(order.netAmount);
+      current.validOrderCount += 1;
+      totalsByCustomer.set(order.customerId, current);
+    }
+    const rows = customers
+      .map((customer) => ({
+        customerId: customer.id,
+        customerName: customer.name,
+        memberLevel: customer.memberLevel,
+        totalSpend: totalsByCustomer.get(customer.id)?.totalSpend ?? 0,
+        validOrderCount: totalsByCustomer.get(customer.id)?.validOrderCount ?? 0,
+      }))
+      .sort((left, right) => right.totalSpend - left.totalSpend || left.customerId - right.customerId);
+    const totalSpend = rows.reduce((sum, row) => sum + row.totalSpend, 0);
+    const validOrderCount = rows.reduce((sum, row) => sum + row.validOrderCount, 0);
+    return {
+      projectName,
+      total: rows.length,
+      totalSpend,
+      validOrderCount,
+      averageSpendPerCustomer: rows.length ? totalSpend / rows.length : 0,
+      averageOrderValue: validOrderCount ? totalSpend / validOrderCount : 0,
+      rows: rows.slice(0, input.limit ?? 10),
+    };
+  }
+
+  async getCustomersWithAllergyHealthProfile(
+    storeId: number,
+    limit = 10,
+  ): Promise<
+    BrainCustomerAnalyticsSummary<
+      BrainCustomerAnalyticsRow & {
+        memberLevel: string;
+        allergyRecord: string;
+        skinType: string;
+        lastCheck: string;
+      }
+    >
+  > {
+    const customers = await this.prisma.customer.findMany({
+      where: { storeId, deletedAt: null },
+      select: {
+        id: true,
+        name: true,
+        memberLevel: true,
+        hasAllergy: true,
+        healthProfile: { select: { skinType: true, allergyHistory: true, lastCheck: true } },
+      },
+      take: 20_000,
+    });
+    const isPositiveAllergy = (value?: string | null) => {
+      const normalized = value?.trim().toLowerCase();
+      return Boolean(normalized && !['无', '否', '没有', '未记录', 'none', 'no', 'false', '0'].includes(normalized));
+    };
+    const rows = customers
+      .filter(
+        (customer) =>
+          customer.healthProfile &&
+          (isPositiveAllergy(customer.healthProfile.allergyHistory) || isPositiveAllergy(customer.hasAllergy)),
+      )
+      .map((customer) => ({
+        customerId: customer.id,
+        customerName: customer.name,
+        memberLevel: customer.memberLevel,
+        allergyRecord: customer.healthProfile?.allergyHistory?.trim() || customer.hasAllergy?.trim() || '已标注过敏',
+        skinType: customer.healthProfile?.skinType ?? '未记录',
+        lastCheck: customer.healthProfile!.lastCheck.toISOString(),
+      }))
+      .sort((left, right) => right.lastCheck.localeCompare(left.lastCheck) || left.customerId - right.customerId);
+    return { total: rows.length, rows: rows.slice(0, limit) };
+  }
+
+  async getInactiveMemberTierCustomers(input: {
+    storeId: number;
+    memberLevels: string[];
+    thresholdDays: number;
+    asOf?: Date;
+    limit?: number;
+  }): Promise<
+    BrainCustomerAnalyticsSummary<
+      BrainCustomerAnalyticsRow & {
+        memberLevel: string;
+        totalSpent: number;
+        visitCount: number;
+        lastVisitDate: string | null;
+        inactiveDays: number | null;
+      }
+    > & { memberLevels: string[]; thresholdDays: number }
+  > {
+    const asOf = input.asOf ? new Date(input.asOf) : new Date();
+    const inactiveBefore = new Date(asOf);
+    inactiveBefore.setDate(inactiveBefore.getDate() - input.thresholdDays);
+    const where = {
+      storeId: input.storeId,
+      deletedAt: null,
+      memberLevel: { in: input.memberLevels },
+      OR: [{ lastVisitDate: null }, { lastVisitDate: { lt: inactiveBefore } }],
+    };
+    const [total, customers] = await Promise.all([
+      this.prisma.customer.count({ where }),
+      this.prisma.customer.findMany({
+        where,
+        select: { id: true, name: true, memberLevel: true, totalSpent: true, visitCount: true, lastVisitDate: true },
+        orderBy: [{ totalSpent: 'desc' }],
+        take: input.limit ?? 10,
+      }),
+    ]);
+    return {
+      total,
+      memberLevels: input.memberLevels,
+      thresholdDays: input.thresholdDays,
+      rows: customers.map((customer) => ({
+        customerId: customer.id,
+        customerName: customer.name,
+        memberLevel: customer.memberLevel,
+        totalSpent: toBrainNumber(customer.totalSpent),
+        visitCount: customer.visitCount,
+        lastVisitDate: customer.lastVisitDate?.toISOString().slice(0, 10) ?? null,
+        inactiveDays: customer.lastVisitDate
+          ? Math.max(0, Math.floor((asOf.getTime() - customer.lastVisitDate.getTime()) / 86_400_000))
+          : null,
+      })),
+    };
+  }
+
+  async getCustomerMemberLevelDistribution(input: { storeId: number; startDate: Date; endDate: Date }): Promise<{
+    activeCustomerCount: number;
+    rows: Array<{ memberLevel: string; customerCount: number; share: number }>;
+  }> {
+    const [orders, arrivals] = await Promise.all([
+      this.prisma.productOrder.findMany({
+        where: {
+          storeId: input.storeId,
+          customerId: { not: null },
+          createdAt: { gte: input.startDate, lte: input.endDate },
+          status: { notIn: ['cancelled', 'canceled', 'refunded', '已取消'] },
+          netAmount: { gt: 0 },
+        },
+        select: { customerId: true },
+        take: 20_000,
+      }),
+      this.arrivedReservations(input),
+    ]);
+    const customerIds = [
+      ...new Set([
+        ...orders.flatMap((order) => (order.customerId ? [order.customerId] : [])),
+        ...arrivals.map((arrival) => arrival.customerId),
+      ]),
+    ];
+    const customers = customerIds.length
+      ? await this.prisma.customer.findMany({
+          where: { storeId: input.storeId, id: { in: customerIds }, deletedAt: null },
+          select: { id: true, memberLevel: true },
+          take: 20_000,
+        })
+      : [];
+    const counts = new Map<string, number>();
+    for (const customer of customers) {
+      const level = customer.memberLevel?.trim() || '未记录';
+      counts.set(level, (counts.get(level) ?? 0) + 1);
+    }
+    return {
+      activeCustomerCount: customers.length,
+      rows: [...counts.entries()]
+        .map(([memberLevel, customerCount]) => ({
+          memberLevel,
+          customerCount,
+          share: customers.length ? customerCount / customers.length : 0,
+        }))
+        .sort(
+          (left, right) =>
+            right.customerCount - left.customerCount ||
+            this.customerMemberTierRank(right.memberLevel) - this.customerMemberTierRank(left.memberLevel) ||
+            left.memberLevel.localeCompare(right.memberLevel, 'zh-CN'),
+        ),
+    };
+  }
+
+  async getNewReturningCustomerSpendComparison(input: { storeId: number; startDate: Date; endDate: Date }): Promise<{
+    rows: Array<{
+      customerType: '新客' | '老客';
+      customerCount: number;
+      validOrderCount: number;
+      paidAmount: number;
+      averageSpendPerCustomer: number;
+    }>;
+  }> {
+    const orders = await this.prisma.productOrder.findMany({
+      where: {
+        storeId: input.storeId,
+        customerId: { not: null },
+        createdAt: { gte: input.startDate, lte: input.endDate },
+        status: { notIn: ['cancelled', 'canceled', 'refunded', '已取消'] },
+        netAmount: { gt: 0 },
+      },
+      select: {
+        customerId: true,
+        netAmount: true,
+        customer: { select: { createdAt: true } },
+      },
+      take: 20_000,
+    });
+    const buckets = new Map<'新客' | '老客', { customerIds: Set<number>; validOrderCount: number; paidAmount: number }>(
+      [
+        ['新客', { customerIds: new Set(), validOrderCount: 0, paidAmount: 0 }],
+        ['老客', { customerIds: new Set(), validOrderCount: 0, paidAmount: 0 }],
+      ],
+    );
+    for (const order of orders) {
+      if (!order.customerId || !order.customer) continue;
+      const customerType =
+        order.customer.createdAt >= input.startDate && order.customer.createdAt <= input.endDate ? '新客' : '老客';
+      const bucket = buckets.get(customerType)!;
+      bucket.customerIds.add(order.customerId);
+      bucket.validOrderCount += 1;
+      bucket.paidAmount += toBrainNumber(order.netAmount);
+    }
+    return {
+      rows: (['新客', '老客'] as const).map((customerType) => {
+        const bucket = buckets.get(customerType)!;
+        return {
+          customerType,
+          customerCount: bucket.customerIds.size,
+          validOrderCount: bucket.validOrderCount,
+          paidAmount: bucket.paidAmount,
+          averageSpendPerCustomer: bucket.customerIds.size ? bucket.paidAmount / bucket.customerIds.size : 0,
+        };
+      }),
+    };
+  }
+
+  async getCustomerVisitFrequencyDistribution(input: { storeId: number; startDate: Date; endDate: Date }): Promise<{
+    arrivedCustomerCount: number;
+    rows: Array<{ visitFrequency: string; customerCount: number; share: number }>;
+  }> {
+    const arrivals = await this.arrivedReservations(input);
+    const visitsByCustomer = new Map<number, number>();
+    for (const arrival of arrivals) {
+      visitsByCustomer.set(arrival.customerId, (visitsByCustomer.get(arrival.customerId) ?? 0) + 1);
+    }
+    const counts = new Map<string, number>();
+    for (const count of visitsByCustomer.values()) {
+      const label = count === 1 ? '1次' : count === 2 ? '2次' : count <= 4 ? '3-4次' : '5次及以上';
+      counts.set(label, (counts.get(label) ?? 0) + 1);
+    }
+    const order = ['1次', '2次', '3-4次', '5次及以上'];
+    return {
+      arrivedCustomerCount: visitsByCustomer.size,
+      rows: order.flatMap((visitFrequency) => {
+        const customerCount = counts.get(visitFrequency) ?? 0;
+        return customerCount
+          ? [
+              {
+                visitFrequency,
+                customerCount,
+                share: visitsByCustomer.size ? customerCount / visitsByCustomer.size : 0,
+              },
+            ]
+          : [];
+      }),
+    };
+  }
+
+  async getCustomerSourceQualityComparison(input: { storeId: number; startDate: Date; endDate: Date }): Promise<{
+    rows: Array<{
+      source: string;
+      activeCustomerCount: number;
+      validOrderCount: number;
+      repeatCustomerCount: number;
+      repeatCustomerShare: number;
+      paidAmount: number;
+      averageSpendPerCustomer: number;
+    }>;
+  }> {
+    const orders = await this.prisma.productOrder.findMany({
+      where: {
+        storeId: input.storeId,
+        customerId: { not: null },
+        createdAt: { gte: input.startDate, lte: input.endDate },
+        status: { notIn: ['cancelled', 'canceled', 'refunded', '已取消'] },
+        netAmount: { gt: 0 },
+      },
+      select: {
+        customerId: true,
+        netAmount: true,
+        customer: { select: { source: true } },
+      },
+      take: 20_000,
+    });
+    const bySource = new Map<
+      string,
+      { orderCountByCustomer: Map<number, number>; validOrderCount: number; paidAmount: number }
+    >();
+    for (const order of orders) {
+      if (!order.customerId || !order.customer) continue;
+      const source = this.customerSourceLabel(order.customer.source);
+      const bucket = bySource.get(source) ?? {
+        orderCountByCustomer: new Map<number, number>(),
+        validOrderCount: 0,
+        paidAmount: 0,
+      };
+      bucket.orderCountByCustomer.set(order.customerId, (bucket.orderCountByCustomer.get(order.customerId) ?? 0) + 1);
+      bucket.validOrderCount += 1;
+      bucket.paidAmount += toBrainNumber(order.netAmount);
+      bySource.set(source, bucket);
+    }
+    return {
+      rows: [...bySource.entries()]
+        .map(([source, bucket]) => {
+          const activeCustomerCount = bucket.orderCountByCustomer.size;
+          const repeatCustomerCount = [...bucket.orderCountByCustomer.values()].filter((count) => count >= 2).length;
+          return {
+            source,
+            activeCustomerCount,
+            validOrderCount: bucket.validOrderCount,
+            repeatCustomerCount,
+            repeatCustomerShare: activeCustomerCount ? repeatCustomerCount / activeCustomerCount : 0,
+            paidAmount: bucket.paidAmount,
+            averageSpendPerCustomer: activeCustomerCount ? bucket.paidAmount / activeCustomerCount : 0,
+          };
+        })
+        .sort(
+          (left, right) =>
+            right.averageSpendPerCustomer - left.averageSpendPerCustomer ||
+            right.repeatCustomerShare - left.repeatCustomerShare ||
+            left.source.localeCompare(right.source, 'zh-CN'),
+        ),
+    };
+  }
+
+  async getHighValueInactiveCustomers(input: {
+    storeId: number;
+    thresholdDays: number;
+    asOf?: Date;
+    minimumTotalSpent?: number;
+    limit?: number;
+  }): Promise<
+    BrainCustomerAnalyticsSummary<
+      BrainCustomerAnalyticsRow & {
+        memberLevel: string;
+        totalSpent: number;
+        visitCount: number;
+        lastVisitDate: string | null;
+        inactiveDays: number | null;
+      }
+    > & { thresholdDays: number; minimumTotalSpent: number }
+  > {
+    const asOf = input.asOf ? new Date(input.asOf) : new Date();
+    const minimumTotalSpent = input.minimumTotalSpent ?? 5_000;
+    const inactiveBefore = new Date(asOf);
+    inactiveBefore.setDate(inactiveBefore.getDate() - input.thresholdDays);
+    const where = {
+      storeId: input.storeId,
+      deletedAt: null,
+      totalSpent: { gte: minimumTotalSpent },
+      OR: [{ lastVisitDate: null }, { lastVisitDate: { lt: inactiveBefore } }],
+    };
+    const [total, customers] = await Promise.all([
+      this.prisma.customer.count({ where }),
+      this.prisma.customer.findMany({
+        where,
+        select: { id: true, name: true, memberLevel: true, totalSpent: true, visitCount: true, lastVisitDate: true },
+        orderBy: [{ totalSpent: 'desc' }],
+        take: input.limit ?? 10,
+      }),
+    ]);
+    return {
+      total,
+      thresholdDays: input.thresholdDays,
+      minimumTotalSpent,
+      rows: customers.map((customer) => ({
+        customerId: customer.id,
+        customerName: customer.name,
+        memberLevel: customer.memberLevel,
+        totalSpent: toBrainNumber(customer.totalSpent),
+        visitCount: customer.visitCount,
+        lastVisitDate: customer.lastVisitDate?.toISOString().slice(0, 10) ?? null,
+        inactiveDays: customer.lastVisitDate
+          ? Math.max(0, Math.floor((asOf.getTime() - customer.lastVisitDate.getTime()) / 86_400_000))
+          : null,
+      })),
+    };
+  }
+
+  async getHighStoredBalanceRiskCustomers(input: { storeId: number; minimumBalance?: number; limit?: number }): Promise<
+    BrainCustomerAnalyticsSummary<
+      BrainCustomerAnalyticsRow & {
+        memberLevel: string;
+        cashBalance: number;
+        giftBalance: number;
+        totalBalance: number;
+        updatedAt: string;
+      }
+    > & { minimumBalance: number }
+  > {
+    const minimumBalance = input.minimumBalance ?? 1_000;
+    const accounts = await this.prisma.customerBalanceAccount.findMany({
+      where: {
+        storeId: input.storeId,
+        status: 'active',
+        OR: [{ cashBalance: { gt: 0 } }, { giftBalance: { gt: 0 } }],
+      },
+      select: {
+        customerId: true,
+        cashBalance: true,
+        giftBalance: true,
+        updatedAt: true,
+        customer: { select: { name: true, memberLevel: true } },
+      },
+      take: 20_000,
+    });
+    const rows = accounts
+      .map((account) => ({
+        customerId: account.customerId,
+        customerName: account.customer.name,
+        memberLevel: account.customer.memberLevel,
+        cashBalance: toBrainNumber(account.cashBalance),
+        giftBalance: toBrainNumber(account.giftBalance),
+        totalBalance: toBrainNumber(account.cashBalance) + toBrainNumber(account.giftBalance),
+        updatedAt: account.updatedAt.toISOString(),
+      }))
+      .filter((row) => row.totalBalance >= minimumBalance)
+      .sort((left, right) => right.totalBalance - left.totalBalance || left.customerId - right.customerId);
+    return { total: rows.length, minimumBalance, rows: rows.slice(0, input.limit ?? 10) };
+  }
+
+  async getCustomerConsumptionDeclineRanking(input: {
+    storeId: number;
+    asOf?: Date;
+    mode?: 'frequency' | 'amount';
+    declineThreshold?: number;
+    periodDays?: number;
+    limit?: number;
+  }): Promise<
+    BrainCustomerAnalyticsSummary<
+      BrainCustomerAnalyticsRow & {
+        memberLevel: string;
+        previousOrderCount: number;
+        currentOrderCount: number;
+        previousAmount: number;
+        currentAmount: number;
+        declineRate: number;
+        lastVisitDate: string | null;
+      }
+    > & { mode: 'frequency' | 'amount'; declineThreshold: number; periodDays: number }
+  > {
+    const mode = input.mode ?? 'amount';
+    const declineThreshold = input.declineThreshold ?? 0.3;
+    const periodDays = input.periodDays ?? 30;
+    const currentEnd = input.asOf ? new Date(input.asOf) : new Date();
+    const currentStart = new Date(currentEnd);
+    currentStart.setDate(currentStart.getDate() - periodDays);
+    const previousStart = new Date(currentStart);
+    previousStart.setDate(previousStart.getDate() - periodDays);
+    const orders = await this.prisma.productOrder.findMany({
+      where: {
+        storeId: input.storeId,
+        customerId: { not: null },
+        createdAt: { gte: previousStart, lt: currentEnd },
+        status: { notIn: ['cancelled', 'canceled', 'refunded', '已取消'] },
+        netAmount: { gt: 0 },
+      },
+      select: {
+        customerId: true,
+        createdAt: true,
+        netAmount: true,
+        customer: { select: { name: true, memberLevel: true, lastVisitDate: true } },
+      },
+      take: 20_000,
+    });
+    const grouped = new Map<
+      number,
+      {
+        customerName: string;
+        memberLevel: string;
+        lastVisitDate: Date | null;
+        currentOrderCount: number;
+        previousOrderCount: number;
+        currentAmount: number;
+        previousAmount: number;
+      }
+    >();
+    for (const order of orders) {
+      if (!order.customerId || !order.customer) continue;
+      const row = grouped.get(order.customerId) ?? {
+        customerName: order.customer.name,
+        memberLevel: order.customer.memberLevel,
+        lastVisitDate: order.customer.lastVisitDate,
+        currentOrderCount: 0,
+        previousOrderCount: 0,
+        currentAmount: 0,
+        previousAmount: 0,
+      };
+      if (order.createdAt >= currentStart) {
+        row.currentOrderCount += 1;
+        row.currentAmount += toBrainNumber(order.netAmount);
+      } else {
+        row.previousOrderCount += 1;
+        row.previousAmount += toBrainNumber(order.netAmount);
+      }
+      grouped.set(order.customerId, row);
+    }
+    const rows = [...grouped.entries()]
+      .map(([customerId, row]) => {
+        const previous = mode === 'frequency' ? row.previousOrderCount : row.previousAmount;
+        const current = mode === 'frequency' ? row.currentOrderCount : row.currentAmount;
+        return {
+          customerId,
+          customerName: row.customerName,
+          memberLevel: row.memberLevel,
+          previousOrderCount: row.previousOrderCount,
+          currentOrderCount: row.currentOrderCount,
+          previousAmount: row.previousAmount,
+          currentAmount: row.currentAmount,
+          declineRate: previous > 0 ? (previous - current) / previous : 0,
+          lastVisitDate: row.lastVisitDate?.toISOString().slice(0, 10) ?? null,
+        };
+      })
+      .filter((row) => {
+        if (row.declineRate < declineThreshold) return false;
+        return mode === 'frequency'
+          ? row.previousOrderCount >= 2 && row.currentOrderCount < row.previousOrderCount
+          : row.previousAmount > 0 && row.currentAmount < row.previousAmount;
+      })
+      .sort(
+        (left, right) =>
+          right.declineRate - left.declineRate ||
+          right.previousAmount - left.previousAmount ||
+          left.customerId - right.customerId,
+      );
+    return {
+      total: rows.length,
+      mode,
+      declineThreshold,
+      periodDays,
+      rows: rows.slice(0, input.limit ?? 10),
     };
   }
 
@@ -688,12 +1396,15 @@ export class BrainCustomerFactResolverService {
     return '当前客户事实能力尚未注册该业务口径，不会编造回答。已接入精确客户、VIP、高价值、沉睡、生日、低余次卡、重要到店和营销响应客户查询。';
   }
 
-  async getStructuredMarketingSegment(input: { storeId: number; message: string }): Promise<{
-    answer: string;
-    rows: Array<Record<string, unknown>>;
-    columns: string[];
-    limitation?: string;
-  } | undefined> {
+  async getStructuredMarketingSegment(input: { storeId: number; message: string }): Promise<
+    | {
+        answer: string;
+        rows: Array<Record<string, unknown>>;
+        columns: string[];
+        limitation?: string;
+      }
+    | undefined
+  > {
     if (
       /VIP/i.test(input.message) &&
       /(?:沉睡|不活跃|好久没来)/.test(input.message) &&
@@ -1333,7 +2044,10 @@ export class BrainCustomerFactResolverService {
         ? `本次分析前 ${customers.length}/${total} 位客户，结果为受控样本`
         : `覆盖当前门店 ${total} 位客户`;
     const answer = `客户累计消费金额分层（复用管理端客户画像 M 值阈值，${coverage}）：\n${rows
-      .map((row, index) => `${index + 1}. ${row.tier}（${row.range}）：${row.customerCount} 人${row.examples ? `；示例 ${row.examples}` : ''}`)
+      .map(
+        (row, index) =>
+          `${index + 1}. ${row.tier}（${row.range}）：${row.customerCount} 人${row.examples ? `；示例 ${row.examples}` : ''}`,
+      )
       .join('\n')}`;
     return { answer, rows, columns: ['tier', 'range', 'customerCount', 'examples'] };
   }
@@ -1352,7 +2066,8 @@ export class BrainCustomerFactResolverService {
       projects.filter((project) => /基础/.test(project.type?.name ?? '')).map((project) => project.id),
     );
     if (!basicProjectIds.size) {
-      const answer = '当前门店项目类型没有标记“基础”的项目，无法识别基础项目未升单客户；Ami Brain 不会按价格猜测项目层级。';
+      const answer =
+        '当前门店项目类型没有标记“基础”的项目，无法识别基础项目未升单客户；Ami Brain 不会按价格猜测项目层级。';
       return {
         answer,
         rows: [],

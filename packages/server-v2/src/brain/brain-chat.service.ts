@@ -1935,6 +1935,10 @@ export class BrainChatService {
         catalogAmbiguous: catalogDiscovery.status === 'clarify',
         conversationSlots: compilerInput.conversationSlots,
       }) ?? enrichedIntent;
+    enrichedIntent = this.normalizeCustomerAnalyticsDefaults({
+      intent: enrichedIntent,
+      question: input.dto.message,
+    });
     enrichedIntent = this.normalizeExactGovernedCapabilityAfterCompleteness({
       intent: enrichedIntent,
       question: input.dto.message,
@@ -3602,6 +3606,49 @@ export class BrainChatService {
     };
   }
 
+  private normalizeCustomerAnalyticsDefaults(input: {
+    intent: BrainSemanticIntent;
+    question: string;
+  }): BrainSemanticIntent {
+    const customerCohortComparison =
+      /(?:新客|新客户).*(?:老客|老客户).*(?:消费|实收|金额).*(?:对比|比较)|(?:对比|比较).*(?:新客|新客户).*(?:老客|老客户).*(?:消费|实收|金额)/.test(
+        input.question,
+      );
+    const governedBalanceRisk =
+      /(?:储值|会员).{0,4}余额.*(?:异常|偏高|过高|风险)|(?:异常|偏高|过高).*(?:储值|会员).{0,4}余额/.test(
+        input.question,
+      );
+    const governedCustomerSegment =
+      /(?:金卡|银卡|钻石|VIP|高价值|高净值).*(?:没来|未到店|没到店|沉睡|不活跃)|(?:沉睡|不活跃).*(?:金卡|银卡|钻石|VIP|高价值|高净值)/i.test(
+        input.question,
+      );
+    if (!customerCohortComparison && !governedBalanceRisk && !governedCustomerSegment) return input.intent;
+
+    const clearedSlots = new Set<string>();
+    if (customerCohortComparison) clearedSlots.add('comparisonTarget');
+    if (governedBalanceRisk) {
+      clearedSlots.add('metric');
+      clearedSlots.add('dimension');
+      clearedSlots.add('orderBy');
+    }
+    if (governedCustomerSegment) {
+      clearedSlots.add('entity');
+      clearedSlots.add('customerIdentity');
+    }
+    return {
+      ...input.intent,
+      ...(customerCohortComparison ? { intent: 'comparison' as const, answerShape: 'comparison' as const } : {}),
+      ...(governedBalanceRisk ? { intent: 'ranking' as const, answerShape: 'ranking' as const } : {}),
+      missingSlots: input.intent.missingSlots.filter((slot) => !clearedSlots.has(slot)),
+      ambiguities: input.intent.ambiguities.filter((ambiguity) => !clearedSlots.has(ambiguity.slot)),
+      assumptions: [
+        ...input.intent.assumptions,
+        ...(governedBalanceRisk ? ['储值余额异常使用能力内已治理默认阈值，并在答案中披露。'] : []),
+        ...(governedCustomerSegment ? ['会员等级和价值标签按客群筛选处理，不作为具体客户姓名。'] : []),
+      ],
+    };
+  }
+
   private normalizeConversationContinuationIntent(input: {
     intent: BrainSemanticIntent;
     question: string;
@@ -5099,6 +5146,8 @@ export class BrainChatService {
   ): BrainCapabilityCard | undefined {
     const reservationListCard = this.findReservationListCapabilityCard(question, cards);
     if (reservationListCard) return reservationListCard;
+    const customerAnalyticsCard = this.findCustomerAnalyticsCapabilityCard(question, cards);
+    if (customerAnalyticsCard) return customerAnalyticsCard;
     const exactExampleCard = this.findExactGovernedCapabilityExampleCard(question, cards);
     if (exactExampleCard) return exactExampleCard;
     const inventorySpecificCard = this.findInventorySpecificCapabilityCard(question, cards);
@@ -5120,6 +5169,18 @@ export class BrainChatService {
       if (paymentCard) return paymentCard;
     }
     return undefined;
+  }
+
+  private findCustomerAnalyticsCapabilityCard(
+    question: string,
+    cards: readonly BrainCapabilityCard[],
+  ): BrainCapabilityCard | undefined {
+    const customerAnalyticsQuestion =
+      /(?:新客|新客户).*(?:第二次|二次).*(?:消费|复购)|(?:买过|购买过|做过|体验过).*(?:项目|护理|疗程)?.*(?:客户).*(?:平均消费|客单价)|(?:健康档案.*过敏|过敏.*健康档案)|(?:客户结构|会员等级|各等级).*(?:占比|比例|分布)|(?:新客|新客户).*(?:老客|老客户).*(?:消费|实收|金额).*(?:对比|比较)|(?:到店|来店).*(?:频次|次数).*(?:分布|结构)|(?:来源|渠道).*(?:客户质量|转化|消费).*(?:对比|比较)|(?:对比|比较).*(?:来源|渠道).*(?:客户质量|转化|消费)|(?:储值|会员).{0,4}余额.*(?:异常|偏高|过高|风险)|(?:高价值|高净值).*(?:没来|未到店|没到店|沉睡|不活跃)|(?:金卡|银卡|钻石|VIP).*(?:没来|未到店|没到店|沉睡|不活跃)|消费.*(?:骤降|大幅下降|明显下降)/i.test(
+        question,
+      );
+    if (!customerAnalyticsQuestion) return undefined;
+    return cards.find((card) => card.key === 'customer_facts' && card.readOnly && !card.sideEffect);
   }
 
   private findExactGovernedCapabilityExampleCard(

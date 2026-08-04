@@ -605,7 +605,13 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         memberLevels: ['钻石'],
         total: 2,
         rows: [
-          { customerId: 31, customerName: '李女士', memberLevel: '钻石', totalSpent: 8800, lastVisitDate: '2026-07-01' },
+          {
+            customerId: 31,
+            customerName: '李女士',
+            memberLevel: '钻石',
+            totalSpent: 8800,
+            lastVisitDate: '2026-07-01',
+          },
         ],
       }),
     };
@@ -635,7 +641,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       card,
       context,
       runId: 91,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '给我当前等级客户数量',
       answerShape: 'scalar',
       args: {
@@ -651,7 +657,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       card,
       context,
       runId: 92,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '列出当前等级客户',
       answerShape: 'list',
       args: {
@@ -687,7 +693,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         card,
         context,
         runId: 93,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+        // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
         question: '列出当前等级客户',
         args: {
           objective: '列出指定会员等级客户',
@@ -765,7 +771,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       card: { ...storeCard(), key: 'customer_facts' },
       context,
       runId: 94,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年6月1日至30日到店的客户有多少',
       answerShape: 'scalar',
       args,
@@ -774,7 +780,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       card: { ...storeCard(), key: 'customer_facts' },
       context,
       runId: 95,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年6月22日至28日到店的客户里有哪些是金卡以上',
       answerShape: 'list',
       args,
@@ -783,14 +789,16 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       card: { ...storeCard(), key: 'customer_facts' },
       context,
       runId: 96,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '办了综合养护 20 次卡但2026年6月15日至21日没来的客户名单',
       answerShape: 'list',
       args,
     });
 
     expect(count.blocks).toEqual(
-      expect.arrayContaining([expect.objectContaining({ kind: 'kpi', items: [{ label: '实际到店客户', value: '77 人' }] })]),
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'kpi', items: [{ label: '实际到店客户', value: '77 人' }] }),
+      ]),
     );
     expect(tierSet.blocks).toEqual(
       expect.arrayContaining([
@@ -955,9 +963,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         expect.objectContaining({ kind: 'clarification' }),
         expect.objectContaining({
           kind: 'table',
-          rows: expect.arrayContaining([
-            expect.objectContaining({ customerName: '赵敏', maskedPhone: '***7636' }),
-          ]),
+          rows: expect.arrayContaining([expect.objectContaining({ customerName: '赵敏', maskedPhone: '***7636' })]),
           citationIds: ['customer_identity_candidates'],
         }),
       ]),
@@ -2748,7 +2754,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 55,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '有多少个供应商',
       answerShape: 'list',
       args: { objective: '供应商数量', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
@@ -2815,7 +2821,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 56,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '有几个待收货的采购单',
       answerShape: 'list',
       args: { objective: '待收货采购单数量', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
@@ -2824,7 +2830,10 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     expect(result.answer).toContain('当前有 1 张待收货采购单');
     expect(result.blocks).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ kind: 'kpi', items: expect.arrayContaining([expect.objectContaining({ value: '1 张' })]) }),
+        expect.objectContaining({
+          kind: 'kpi',
+          items: expect.arrayContaining([expect.objectContaining({ value: '1 张' })]),
+        }),
         expect.objectContaining({
           kind: 'table',
           rows: [expect.objectContaining({ orderNo: 'PO-SHIPPED', status: '已发货待收货' })],
@@ -2899,7 +2908,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 57,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '上周采购结算待付款多少',
       answerShape: 'list',
       args: { objective: '待付款采购单金额', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
@@ -2984,7 +2993,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 58,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '本月采购成本最高的品类',
       answerShape: 'ranking',
       args: { objective: '采购品类成本排行', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
@@ -3355,7 +3364,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 72,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '把当天各单贡献展开给我看',
       answerShape: 'list',
       args: {
@@ -3415,7 +3424,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 73,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '把风险订单挑出来',
       answerShape: 'list',
       args: {
@@ -3476,7 +3485,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 74,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '看看当天零售经营结果',
       answerShape: 'scalar',
       args: {
@@ -3540,7 +3549,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 75,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '给我正式结算结果',
     };
 
@@ -3565,7 +3574,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     const inferredScalar = await executor.execute({
       ...base,
       runId: 751,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年1月1日至6月30日的毛利是多少',
       answerShape: 'scalar',
       args: {
@@ -3585,7 +3594,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     const ratioScalar = await executor.execute({
       ...base,
       runId: 752,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年6月成本占收入的比例',
       answerShape: 'scalar',
       args: {
@@ -3644,7 +3653,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 77,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '把她这段时间的组成拆开',
       answerShape: 'list',
       args: {
@@ -3693,7 +3702,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 78,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '顾然和宋乔的提成构成',
       answerShape: 'list',
       args: {
@@ -3850,7 +3859,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 8,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年6月30日次卡核销确认的收入有多少', // BQ0855
       answerShape: 'scalar',
       args: {
@@ -4356,7 +4365,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 56,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '有没有次卡即将过期但客户还有很多余量',
       answerShape: 'list',
       args: { objective: '次卡临期高余量名单', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
@@ -4401,7 +4410,12 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
 
     expect(result.answer).toContain('没有符合“临期且余量较高”的次卡');
     expect(result.blocks).toEqual(
-      expect.arrayContaining([expect.objectContaining({ kind: 'limitations', items: expect.arrayContaining([expect.stringContaining('no_data:')]) })]),
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'limitations',
+          items: expect.arrayContaining([expect.stringContaining('no_data:')]),
+        }),
+      ]),
     );
   });
 
@@ -4444,7 +4458,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 59,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '哪些客户的综合养护 20 次卡快到期还没预约',
       answerShape: 'list',
       args: {
@@ -5443,12 +5457,17 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 75,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年6月15日至21日的预约都有谁',
       answerShape: 'list',
       args: {
         objective: '查询预约客户名单',
-        time: { label: '2026年6月15日至21日', timezone: 'Asia/Shanghai', startDate: '2026-06-15', endDate: '2026-06-21' },
+        time: {
+          label: '2026年6月15日至21日',
+          timezone: 'Asia/Shanghai',
+          startDate: '2026-06-15',
+          endDate: '2026-06-21',
+        },
         entities: [{ entityType: 'customer', mention: '谁', source: 'user', confidence: 0.82 }],
         metrics: [],
         dimensions: [],
@@ -5465,7 +5484,9 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       expect.arrayContaining([
         expect.objectContaining({
           kind: 'kpi',
-          items: expect.arrayContaining([expect.objectContaining({ label: '2026年6月15日至21日有效预约', value: '2 个' })]),
+          items: expect.arrayContaining([
+            expect.objectContaining({ label: '2026年6月15日至21日有效预约', value: '2 个' }),
+          ]),
         }),
         expect.objectContaining({
           kind: 'table',
@@ -5597,7 +5618,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 79,
-// ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
+      // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '今年哪个项目预约最多',
       answerShape: 'ranking',
       args: { objective: '项目预约排行', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
@@ -6569,6 +6590,201 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       answerScope: 'beautician_personal_inactive_customers',
       identitySource: 'server_context_user',
     });
+  });
+
+  it('routes customer cohort analysis and risk paraphrases to structured database answers', async () => {
+    const customerFacts = {
+      getRecentNewCustomerSecondPurchaseSummary: jest.fn().mockResolvedValue({
+        newCustomerCount: 5,
+        total: 1,
+        rows: [
+          {
+            customerId: 1,
+            customerName: '李女士',
+            memberLevel: '金卡',
+            createdAt: '2026-06-01',
+            secondPurchaseDate: '2026-06-08',
+            validOrderCount: 2,
+          },
+        ],
+      }),
+      getProjectBuyerAverageSpend: jest.fn().mockResolvedValue({
+        projectName: '光感修护护理',
+        total: 1,
+        totalSpend: 1800,
+        validOrderCount: 2,
+        averageSpendPerCustomer: 1800,
+        averageOrderValue: 900,
+        rows: [{ customerId: 1, customerName: '李女士', memberLevel: '金卡', validOrderCount: 2, totalSpend: 1800 }],
+      }),
+      getCustomersWithAllergyHealthProfile: jest.fn().mockResolvedValue({
+        total: 1,
+        rows: [
+          {
+            customerId: 1,
+            customerName: '李女士',
+            memberLevel: '金卡',
+            allergyRecord: '酒精过敏',
+            skinType: '敏感肌',
+            lastCheck: '2026-07-01',
+          },
+        ],
+      }),
+      getInactiveMemberTierCustomers: jest.fn().mockResolvedValue({
+        total: 1,
+        memberLevels: ['金卡', '金卡会员'],
+        thresholdDays: 90,
+        rows: [
+          {
+            customerId: 1,
+            customerName: '李女士',
+            memberLevel: '金卡',
+            totalSpent: 8000,
+            visitCount: 5,
+            lastVisitDate: '2026-03-01',
+            inactiveDays: 120,
+          },
+        ],
+      }),
+      getCustomerMemberLevelDistribution: jest.fn().mockResolvedValue({
+        activeCustomerCount: 2,
+        rows: [{ memberLevel: '金卡', customerCount: 2, share: 1 }],
+      }),
+      getNewReturningCustomerSpendComparison: jest.fn().mockResolvedValue({
+        rows: [
+          { customerType: '新客', customerCount: 1, validOrderCount: 1, paidAmount: 500, averageSpendPerCustomer: 500 },
+          {
+            customerType: '老客',
+            customerCount: 2,
+            validOrderCount: 3,
+            paidAmount: 1500,
+            averageSpendPerCustomer: 750,
+          },
+        ],
+      }),
+      getCustomerVisitFrequencyDistribution: jest.fn().mockResolvedValue({
+        arrivedCustomerCount: 2,
+        rows: [{ visitFrequency: '1次', customerCount: 2, share: 1 }],
+      }),
+      getCustomerSourceQualityComparison: jest.fn().mockResolvedValue({
+        rows: [
+          {
+            source: '美团',
+            activeCustomerCount: 2,
+            validOrderCount: 3,
+            repeatCustomerCount: 1,
+            repeatCustomerShare: 0.5,
+            paidAmount: 1800,
+            averageSpendPerCustomer: 900,
+          },
+        ],
+      }),
+      getHighValueInactiveCustomers: jest.fn().mockResolvedValue({
+        total: 1,
+        thresholdDays: 7,
+        minimumTotalSpent: 5000,
+        rows: [
+          {
+            customerId: 1,
+            customerName: '李女士',
+            memberLevel: '金卡',
+            totalSpent: 8000,
+            visitCount: 5,
+            lastVisitDate: '2026-06-01',
+            inactiveDays: 40,
+          },
+        ],
+      }),
+      getHighStoredBalanceRiskCustomers: jest.fn().mockResolvedValue({
+        total: 1,
+        minimumBalance: 1000,
+        rows: [
+          {
+            customerId: 1,
+            customerName: '李女士',
+            memberLevel: '金卡',
+            cashBalance: 900,
+            giftBalance: 200,
+            totalBalance: 1100,
+            updatedAt: '2026-07-01',
+          },
+        ],
+      }),
+      getCustomerConsumptionDeclineRanking: jest.fn().mockResolvedValue({
+        total: 1,
+        mode: 'amount',
+        declineThreshold: 0.3,
+        periodDays: 30,
+        rows: [
+          {
+            customerId: 1,
+            customerName: '李女士',
+            memberLevel: '金卡',
+            previousOrderCount: 2,
+            currentOrderCount: 1,
+            previousAmount: 2000,
+            currentAmount: 800,
+            declineRate: 0.6,
+            lastVisitDate: '2026-07-01',
+          },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      customerFacts as never,
+      new BrainTimeRangeParserService(),
+    );
+    const context = {
+      userId: 9,
+      storeId: 6,
+      visibleStoreIds: [6],
+      roles: ['store_manager'],
+      permissions: ['core:brain:use', 'core:customer:view'],
+      deniedPermissions: [],
+      requestId: 'customer-analytics-routing-test',
+      timezone: 'Asia/Shanghai',
+    };
+    const time = {
+      label: '上周',
+      timezone: 'Asia/Shanghai',
+      startDate: '2026-07-06',
+      endDate: '2026-07-12',
+    };
+    const cases = [
+      ['近90天新客户中完成二次消费的有几位', 'new_customer_second_purchase'], // ami-brain-unit-only
+      ['体验过光感修护护理的客户平均消费是多少', 'project_buyer_average_spend'], // ami-brain-unit-only
+      ['列出既有健康档案又有过敏记录的顾客', 'health_profile_allergy_customers'], // ami-brain-unit-only
+      ['金卡客群中近三个月未到店的名单', 'member_tier_inactive_customers'], // ami-brain-unit-only
+      ['统计上周活跃客户的各会员等级占比', 'customer_member_level_distribution'], // ami-brain-unit-only
+      ['对比上周新客和老客的消费金额', 'new_returning_customer_spend_comparison'], // ami-brain-unit-only
+      ['统计上周客户到店次数的分布', 'customer_visit_frequency_distribution'], // ami-brain-unit-only
+      ['比较上周各来源渠道的客户质量', 'customer_source_quality_comparison'], // ami-brain-unit-only
+      ['有哪些高价值客户近7天未到店', 'high_value_inactive_customers'], // ami-brain-unit-only
+      ['列出储值余额偏高的风险客户', 'high_stored_balance_risk_customers'], // ami-brain-unit-only
+      ['找出消费金额大幅下降需要关注的客户', 'customer_consumption_decline_ranking'], // ami-brain-unit-only
+    ] as const;
+
+    for (const [question, answerScope] of cases) {
+      const result = await executor.execute({
+        card: { ...storeCard(), key: 'customer_facts', intents: ['query', 'ranking', 'comparison', 'diagnosis'] },
+        context,
+        runId: 910,
+        question,
+        args: { objective: question, time, entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+      });
+      expect(result).toMatchObject({
+        status: 'completed',
+        grounding: 'db_skill',
+        metadata: { answerScope },
+      });
+      expect(result.citations).toEqual(expect.arrayContaining([expect.objectContaining({ sourceType: 'db_skill' })]));
+      expect(
+        result.blocks?.some(
+          (block) => block.kind === 'table' || block.kind === 'ranking' || block.kind === 'comparison',
+        ),
+      ).toBe(true);
+    }
   });
 });
 
