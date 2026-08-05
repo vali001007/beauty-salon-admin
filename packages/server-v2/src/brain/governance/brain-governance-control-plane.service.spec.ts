@@ -7,6 +7,10 @@ import {
 
 const HASH = 'a'.repeat(64);
 
+function freshEvidenceExpiry() {
+  return new Date(Date.now() + 60 * 60 * 1000);
+}
+
 function policyRow(overrides: Record<string, unknown> = {}) {
   return {
     id: 11,
@@ -76,7 +80,7 @@ describe('BrainGovernanceControlPlaneService', () => {
             receiptKey: 'trusted-receipt',
             stage: 'release',
             resultChecksum: 'b'.repeat(64),
-            expiresAt: new Date('2026-08-05T00:00:00.000Z'),
+            expiresAt: freshEvidenceExpiry(),
             capabilities: keys.map((capabilityKey) => ({ capabilityKey })),
           }],
         }),
@@ -109,7 +113,7 @@ describe('BrainGovernanceControlPlaneService', () => {
         mode: 'readonly',
         whitelistStatus: 'approved',
         runtimeEnforcementStatus: 'enforced',
-        evidence: [{ expiresAt: '2026-08-05T00:00:00.000Z' }],
+        evidence: [{ expiresAt: freshEvidenceExpiry().toISOString() }],
       },
     });
     const existing = {
