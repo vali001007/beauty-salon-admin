@@ -191,6 +191,19 @@ export function assertApplyAuthorization({ apply, yes, planChecksum, preview, ac
   if (!Number.isInteger(Number(actorId)) || Number(actorId) <= 0) throw new Error('identity_repair_actor_id_invalid');
 }
 
+export function assertRepairActor(actor, expectedActorId) {
+  if (!actor) throw new Error('identity_repair_actor_not_found');
+  if (number(actor.id) !== number(expectedActorId)) throw new Error('identity_repair_actor_identity_mismatch');
+  if (String(actor.status ?? '') !== 'active' || actor.deletedAt) throw new Error('identity_repair_actor_inactive');
+  if (actor.isSuperAdmin !== true) throw new Error('identity_repair_actor_super_admin_required');
+  if (!String(actor.username ?? '').trim()) throw new Error('identity_repair_actor_username_missing');
+  return {
+    id: number(actor.id),
+    username: String(actor.username),
+    role: 'super_admin',
+  };
+}
+
 async function queryRows(client, sql, params = []) {
   const result = await client.query(sql, params);
   return result.rows;
@@ -269,12 +282,35 @@ async function collectRepairState(client, { lock = false } = {}) {
   };
 }
 
+async function collectRepairActor(client, actorId) {
+  const rows = await queryRows(client, `
+    SELECT
+      u.id,
+      u.username,
+      u.status,
+      u."deletedAt",
+      EXISTS (
+        SELECT 1
+        FROM "UserRole" ur
+        INNER JOIN "Role" r ON r.id = ur."roleId"
+        WHERE ur."userId" = u.id
+          AND r.key = 'super_admin'
+          AND r.status = 'active'
+      ) AS "isSuperAdmin"
+    FROM "User" u
+    WHERE u.id = $1
+    FOR SHARE
+  `, [Number(actorId)]);
+  return rows[0] ?? null;
+}
+
 async function applyRepair(client, { mode, expectedPlanChecksum, actorId }) {
   await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
   try {
     const state = await collectRepairState(client, { lock: true });
     const preview = buildIdentityRepairPreview(state, { mode });
     assertApplyAuthorization({ apply: true, yes: true, planChecksum: expectedPlanChecksum, preview, actorId });
+    const actor = assertRepairActor(await collectRepairActor(client, actorId), actorId);
     if (mode === 'reclaim') {
       const releaseResult = await client.query(`
         UPDATE brain_release
@@ -335,13 +371,14 @@ async function applyRepair(client, { mode, expectedPlanChecksum, actorId }) {
         mode,
         planChecksum: preview.planChecksum,
         previousState: preview.state,
+        actor,
         deletesRows: false,
         mutatesReleaseItems: false,
       }),
       preview.planChecksum,
     ]);
     await client.query('COMMIT');
-    return { ...preview, applied: true, appliedAt: new Date().toISOString(), actorId: Number(actorId) };
+    return { ...preview, applied: true, appliedAt: new Date().toISOString(), actor };
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined);
     throw error;

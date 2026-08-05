@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
   assertApplyAuthorization,
+  assertRepairActor,
   buildIdentityRepairPreview,
   REPAIR_CONTRACT,
 } from './ami-brain-governance-identity-repair.mjs';
@@ -73,6 +74,23 @@ test('requires double confirmation, exact preview checksum, and actor identity',
   assert.throws(() => assertApplyAuthorization({ apply: true, yes: true, planChecksum: 'f'.repeat(64), preview, actorId: 9 }), /plan_checksum_mismatch/u);
   assert.throws(() => assertApplyAuthorization({ apply: true, yes: true, planChecksum: preview.planChecksum, preview, actorId: 0 }), /actor_id_invalid/u);
   assert.doesNotThrow(() => assertApplyAuthorization({ apply: true, yes: true, planChecksum: preview.planChecksum, preview, actorId: 9 }));
+});
+
+test('requires the repair actor to be an active, existing super administrator', () => {
+  const actor = {
+    id: 1,
+    username: 'admin',
+    status: 'active',
+    deletedAt: null,
+    isSuperAdmin: true,
+  };
+  assert.deepEqual(assertRepairActor(actor, 1), { id: 1, username: 'admin', role: 'super_admin' });
+  assert.throws(() => assertRepairActor(null, 1), /actor_not_found/u);
+  assert.throws(() => assertRepairActor({ ...actor, id: 2 }, 1), /actor_identity_mismatch/u);
+  assert.throws(() => assertRepairActor({ ...actor, status: 'disabled' }, 1), /actor_inactive/u);
+  assert.throws(() => assertRepairActor({ ...actor, deletedAt: '2026-08-06T00:00:00.000Z' }, 1), /actor_inactive/u);
+  assert.throws(() => assertRepairActor({ ...actor, isSuperAdmin: false }, 1), /super_admin_required/u);
+  assert.throws(() => assertRepairActor({ ...actor, username: ' ' }, 1), /actor_username_missing/u);
 });
 
 test('builds a reversible restore plan only before GP-003 is reallocated', () => {
