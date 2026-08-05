@@ -542,17 +542,17 @@ async function installGovernanceMocks(
       return fulfillJson(route, { transitionId: 801, valid: true, blockers: [] });
     }
     if (path === '/brain/governance/transitions/801/approve-policy' && request.method() === 'POST') {
-      if (!permissions.includes('*') && !permissions.includes('core:brain-governance:publish')) return fulfillJson(route, { message: 'Forbidden' }, 403);
+      if (!permissions.includes('*') && !permissions.includes('core:brain-governance:publish')) return fulfillJson(route, { message: 'Forbidden' }, 403); // ami-brain-unit-only: mocked permission response.
       transitionState = { ...transitionState, policyApprovedAt: '2026-08-04T00:10:00.000Z', currentStep: 'policy_approved' };
       return fulfillJson(route, transitionState);
     }
     if (path === '/brain/governance/transitions/801/approve-runtime' && request.method() === 'POST') {
-      if (!permissions.includes('*') && !permissions.includes('core:brain-governance:release')) return fulfillJson(route, { message: 'Forbidden' }, 403);
+      if (!permissions.includes('*') && !permissions.includes('core:brain-governance:release')) return fulfillJson(route, { message: 'Forbidden' }, 403); // ami-brain-unit-only: mocked permission response.
       transitionState = { ...transitionState, runtimeApprovedAt: '2026-08-04T00:11:00.000Z', status: transitionState.policyApprovedAt ? 'approved' : transitionState.status, currentStep: 'runtime_approved' };
       return fulfillJson(route, transitionState);
     }
     if (path === '/brain/governance/transitions/801/switch' && request.method() === 'POST') {
-      if (!permissions.includes('*') && (!permissions.includes('core:brain-governance:publish') || !permissions.includes('core:brain-governance:release'))) return fulfillJson(route, { message: 'Forbidden' }, 403);
+      if (!permissions.includes('*') && (!permissions.includes('core:brain-governance:publish') || !permissions.includes('core:brain-governance:release'))) return fulfillJson(route, { message: 'Forbidden' }, 403); // ami-brain-unit-only: mocked permission response.
       transitionState = {
         ...transitionState,
         status: 'observing',
@@ -563,7 +563,7 @@ async function installGovernanceMocks(
       return fulfillJson(route, transitionState);
     }
     if (path === '/brain/governance/transitions/801/rollback' && request.method() === 'POST') {
-      if (!permissions.includes('*') && (!permissions.includes('core:brain-governance:publish') || !permissions.includes('core:brain-governance:release'))) return fulfillJson(route, { message: 'Forbidden' }, 403);
+      if (!permissions.includes('*') && (!permissions.includes('core:brain-governance:publish') || !permissions.includes('core:brain-governance:release'))) return fulfillJson(route, { message: 'Forbidden' }, 403); // ami-brain-unit-only: mocked permission response.
       transitionState = { ...transitionState, status: 'rolled_back', currentStep: 'rollback_completed' };
       return fulfillJson(route, transitionState);
     }
