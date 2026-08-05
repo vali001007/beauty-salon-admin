@@ -93,7 +93,7 @@ import type {
 } from './cognition/brain-action-execution-provenance.types.js';
 import { createBrainActionExecutionParticipants } from './cognition/business-action-participant-profile.js';
 import { createBrainActionSituationContext } from './cognition/brain-action-situation-context.js';
-import type { AiStructuredOutputResult } from '../ai/ai.service.js';
+import { AiStructuredOutputError, type AiStructuredOutputResult } from '../ai/ai.service.js';
 
 type BrainChatStatus = 'completed' | 'failed';
 type BrainModelStage = 'prepare' | 'compile' | 'validate' | 'retrieve' | 'plan' | 'execute';
@@ -1818,20 +1818,32 @@ export class BrainChatService {
     try {
       compilation = await this.semanticIntentCompiler!.compile(compilerInput);
     } catch (error) {
+      const diagnosticCode = error instanceof AiStructuredOutputError ? error.code : undefined;
+      const failureCode =
+        diagnosticCode === 'PROVIDER_AUTH_FAILED'
+          ? 'PROVIDER_AUTH_FAILED'
+          : diagnosticCode === 'PROVIDER_UNAVAILABLE'
+            ? 'PROVIDER_UNAVAILABLE'
+            : 'MODEL_INTENT_UNAVAILABLE';
       await this.recordModelFailure({
         runId: input.runId,
         stepKey: 'model_intent_compile',
         layer: 'cognition',
         stage: 'compile',
-        code: 'MODEL_INTENT_UNAVAILABLE',
+        code: failureCode,
+        ...(diagnosticCode && diagnosticCode !== failureCode ? { diagnosticCode } : {}),
         latencyMs: Date.now() - compilationStartedAt,
         error,
       });
-      return this.modelFailure('MODEL_INTENT_UNAVAILABLE', this.modelMetadata('compile'));
+      return this.modelFailure(failureCode, this.modelMetadata('compile'));
     }
     if (compilation.status !== 'completed') {
       const failureCode =
-        compilation.errorCode === 'PROVIDER_AUTH_FAILED' ? 'PROVIDER_AUTH_FAILED' : 'MODEL_INTENT_UNAVAILABLE';
+        compilation.errorCode === 'PROVIDER_AUTH_FAILED'
+          ? 'PROVIDER_AUTH_FAILED'
+          : compilation.errorCode === 'PROVIDER_UNAVAILABLE'
+            ? 'PROVIDER_UNAVAILABLE'
+            : 'MODEL_INTENT_UNAVAILABLE';
       await this.recordModelFailure({
         runId: input.runId,
         stepKey: 'model_intent_compile',

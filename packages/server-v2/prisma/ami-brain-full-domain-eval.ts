@@ -1369,6 +1369,7 @@ async function judgeCase(
       try {
         result = await ai.generateStructured<JudgeResult>({
           scenario: 'brain.full-domain-eval.judge',
+          providerHealthScope: 'evaluation_judge',
           storeId,
           temperature: 0,
           timeoutMs: 30000,
@@ -1516,6 +1517,8 @@ function summarizeRunEvidence(trace: unknown, status: string, citations: unknown
 function compactTraceOutput(output: Record<string, any>) {
   const metadata = asRecord(output.metadata);
   return {
+    code: output.code ?? null,
+    diagnosticCode: output.diagnosticCode ?? null,
     intent: output.intent ?? output.semanticIntent ?? null,
     domain: output.domain ?? null,
     answerShape: output.answerShape ?? null,

@@ -221,7 +221,9 @@ export function deterministicFullDomainGrade(input: {
   const providerUnavailable = Boolean(
     (input.error && /provider|timeout|gateway|network|模型服务|供应商/i.test(input.error)) ||
     (failedTurn &&
-      /provider|timeout|gateway|network|模型服务|供应商/i.test(`${failedTurn.failureCode ?? ''} ${failedTurn.answer}`)),
+      /MODEL_INTENT_UNAVAILABLE|MODEL_CATALOG_UNAVAILABLE|PROVIDER_UNAVAILABLE|PROVIDER_AUTH_FAILED|provider|timeout|gateway|network|模型服务|供应商/i.test(
+        `${failedTurn.failureCode ?? ''} ${failedTurn.answer}`,
+      )),
   );
   const hasClarification = input.status === 'clarify' || /请.*(确认|补充|选择)|澄清|不明确/.test(text);
   const hasRefusal = /无权限|权限不足|不能.*查看|无法.*查看|越权|脱敏/.test(text);

@@ -35,6 +35,11 @@ export type AiStructuredOutputInput = {
    * Reserved for one bounded retry after the fallback only received the tail of the first deadline.
    */
   forceFallbackRoute?: boolean;
+  /**
+   * Keeps evaluation-only infrastructure failures from opening the shared
+   * runtime provider circuit. Production callers should use the default.
+   */
+  providerHealthScope?: 'shared' | 'evaluation_judge';
   schema: AiStructuredOutputSchema;
   promptSchema?: AiStructuredOutputSchema;
   timeoutMs?: number;
@@ -2802,7 +2807,7 @@ export class AiService {
       budget.lastModel = primaryConfig.model;
       this.tightenStructuredTokenBudget(budget, primaryConfig.maxTotalTokens);
     }
-    const primaryKey = this.structuredProviderCircuitKey(primaryConfig);
+    const primaryKey = this.structuredProviderCircuitKey(primaryConfig, input.providerHealthScope);
     const fallbackConfig: StructuredProviderConfig | undefined = !promoteFallbackToPrimary && this.canUseStructuredFallback(input)
       ? {
           provider: this.normalizeProviderName(this.fallbackProvider),
@@ -2820,7 +2825,9 @@ export class AiService {
       promoteFallbackToPrimary && this.hasStructuredMessages(input.fallbackMessages)
         ? input.fallbackMessages
         : input.messages;
-    const fallbackKey = fallbackConfig ? this.structuredProviderCircuitKey(fallbackConfig) : undefined;
+    const fallbackKey = fallbackConfig
+      ? this.structuredProviderCircuitKey(fallbackConfig, input.providerHealthScope)
+      : undefined;
     const redundancyMode = this.providerHealth.redundancyMode(primaryKey, fallbackKey);
 
     if (input.forceFallbackRoute === true) {
@@ -3143,7 +3150,10 @@ export class AiService {
     };
   }
 
-  private structuredProviderCircuitKey(config: StructuredProviderConfig) {
+  private structuredProviderCircuitKey(
+    config: StructuredProviderConfig,
+    scope: AiStructuredOutputInput['providerHealthScope'] = 'shared',
+  ) {
     let route = config.baseUrl.trim().replace(/\/+$/, '');
     try {
       const parsed = new URL(route);
@@ -3151,7 +3161,9 @@ export class AiService {
     } catch {
       route = route || 'unconfigured';
     }
-    return [this.normalizeProviderName(config.provider), route, config.chatPath, config.model].join('|');
+    return [scope ?? 'shared', this.normalizeProviderName(config.provider), route, config.chatPath, config.model].join(
+      '|',
+    );
   }
 
   private publicProviderRoute(

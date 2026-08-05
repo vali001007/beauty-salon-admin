@@ -1301,7 +1301,7 @@ describe('AiService', () => {
 
     await structuredService.generateStructured({
       scenario: 'brain.semantic_intent.v1',
-      messages: [{ role: 'user', content: 'request' }],
+      messages: [{ role: 'user', content: '昨天新增了多少个客户' }], // BQ0001
       schema: structuredSchema,
     });
 
@@ -1615,12 +1615,14 @@ describe('AiService', () => {
       LLM_STRUCTURED_OUTPUT_MODE: 'json_object',
     });
 
-    await expect(structuredService.generateStructured({
-      scenario: 'brain.compact-prompt-schema',
-      messages: [{ role: 'user', content: 'request' }],
-      schema: structuredSchema,
-      promptSchema,
-    })).rejects.toMatchObject({ code: 'SCHEMA_INVALID' });
+    await expect(
+      structuredService.generateStructured({
+        scenario: 'brain.compact-prompt-schema',
+        messages: [{ role: 'user', content: 'request' }],
+        schema: structuredSchema,
+        promptSchema,
+      }),
+    ).rejects.toMatchObject({ code: 'SCHEMA_INVALID' });
 
     const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(JSON.parse(requestBody.messages[1].content).schema).toEqual(promptSchema);
@@ -2341,7 +2343,11 @@ describe('AiService', () => {
       scenario: 'brain.circuit.second',
     });
 
-    expect(first.routing).toMatchObject({ fallbackUsed: true, primarySkipped: false, redundancyMode: 'independent_route' });
+    expect(first.routing).toMatchObject({
+      fallbackUsed: true,
+      primarySkipped: false,
+      redundancyMode: 'independent_route',
+    });
     expect(second.routing).toMatchObject({ fallbackUsed: true, primarySkipped: true, primaryCircuitState: 'open' });
     expect(urls.filter((url) => url.includes('primary.example'))).toHaveLength(1);
     expect(structuredService.getProviderHealth()).toMatchObject({
@@ -2362,6 +2368,55 @@ describe('AiService', () => {
     });
     expect(structuredService.getProviderHealth().circuits).toEqual(
       expect.arrayContaining([expect.objectContaining({ state: 'closed', consecutiveFailures: 0 })]),
+    );
+  });
+
+  it('isolates evaluation Judge circuit failures from the shared runtime circuit', async () => {
+    const fetchMock = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('judge provider unavailable'))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: '{"answer":"runtime healthy","count":1}' } }] }),
+      });
+    global.fetch = fetchMock as any;
+    const { service: structuredService } = await createConfiguredService({
+      LLM_PROVIDER: 'openai_compatible',
+      LLM_API_KEY: 'primary-key',
+      LLM_BASE_URL: 'https://primary.example/v1',
+      LLM_MODEL: 'primary-model',
+      LLM_CIRCUIT_FAILURE_THRESHOLD: '1',
+      LLM_CIRCUIT_OPEN_MS: '60000',
+    });
+    const request = {
+      messages: [{ role: 'user', content: 'request' }],
+      schema: structuredSchema,
+      timeoutMs: 5000,
+    };
+
+    await expect(
+      structuredService.generateStructured({
+        ...request,
+        scenario: 'brain.full-domain-eval.judge',
+        providerHealthScope: 'evaluation_judge',
+      }),
+    ).rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE' });
+
+    const runtime = await structuredService.generateStructured<{ answer: string; count: number }>({
+      ...request,
+      scenario: 'brain.semantic_intent.v1',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(runtime).toMatchObject({
+      data: { answer: 'runtime healthy', count: 1 },
+      routing: { primarySkipped: false, fallbackUsed: false, primaryCircuitState: 'closed' },
+    });
+    expect(structuredService.getProviderHealth().circuits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: expect.stringMatching(/^evaluation_judge\|/), state: 'open' }),
+        expect.objectContaining({ key: expect.stringMatching(/^shared\|/), state: 'closed' }),
+      ]),
     );
   });
 
