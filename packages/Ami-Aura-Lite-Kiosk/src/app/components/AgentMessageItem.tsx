@@ -100,8 +100,49 @@ function getRouteText(data: AgentRunWithBlocks) {
   return `由 ${personaLabels[String(personaCode)] ?? `${personaCode} Agent`} 处理`;
 }
 
-function hasAnswerBlock(blocks: AuraResponseBlock[]) {
-  return blocks.some((block) => block.kind === "text" || block.kind === "summary_text");
+const DEFAULT_PLAN_GOAL = "基于受治理门店经营数据";
+
+const PRIMARY_ANSWER_BLOCK_KINDS = new Set<AuraResponseBlock["kind"]>([
+  "summary_text",
+  "text",
+  "kpi_card",
+  "table",
+  "chart",
+  "link_card",
+  "customer_card",
+  "opportunity_card",
+  "copy_variants",
+  "activity_draft_card",
+  "inventory_item_card",
+  "supplier_purchase_card",
+  "clarification_card",
+  "alert",
+  "data_gap",
+  "permission_notice",
+  "document_preview",
+]);
+
+function hasPrimaryAnswerSurface(blocks: AuraResponseBlock[]) {
+  return blocks.some((block) => PRIMARY_ANSWER_BLOCK_KINDS.has(block.kind));
+}
+
+function normalizeDisplayText(value: string) {
+  return value.replace(/\s+/gu, " ").trim();
+}
+
+function getPlanGoalText(data: AgentRunWithBlocks) {
+  const goal = data.plan?.goal?.trim();
+  if (!goal) return DEFAULT_PLAN_GOAL;
+
+  const answer = data.answer?.trim();
+  if (!answer) return goal;
+
+  const normalizedGoal = normalizeDisplayText(goal);
+  const normalizedAnswer = normalizeDisplayText(answer);
+  const answerDerivedGoal = normalizedGoal === normalizedAnswer
+    || (normalizedGoal.length >= 20 && normalizedAnswer.startsWith(normalizedGoal));
+
+  return answerDerivedGoal ? DEFAULT_PLAN_GOAL : goal;
 }
 
 function hasEvidencePanel(blocks: AuraResponseBlock[]) {
@@ -177,7 +218,8 @@ export function AgentMessageItem({
   const statusNotice = displayModel.statusNotice;
   const routeText = getRouteText(data);
   const architectureMeta = getAgentArchitectureMeta(data);
-  const shouldRenderAnswer = Boolean(data.answer) && !hasAnswerBlock(blocks);
+  const planGoalText = getPlanGoalText(data);
+  const shouldRenderAnswer = Boolean(data.answer) && !hasPrimaryAnswerSurface(blocks);
   const shouldRenderEvidence = Boolean(evidenceText) && !hasEvidencePanel(blocks);
   const embeddedActionKeys = getEmbeddedActionKeys(blocks);
   const visibleActions = hasEmbeddedActionSurface(blocks)
@@ -219,7 +261,7 @@ export function AgentMessageItem({
             </div>
             <div className="min-w-0">
               <div className="text-sm font-semibold text-[#2D1B69]">Ami Brain</div>
-              <div className="mt-1 text-xs text-[#6F6678]">{data.plan?.goal ?? "基于受治理门店经营数据"}</div>
+              <div className="mt-1 text-xs text-[#6F6678]">{planGoalText}</div>
             </div>
           </div>
           <div className="flex flex-wrap justify-end gap-2">

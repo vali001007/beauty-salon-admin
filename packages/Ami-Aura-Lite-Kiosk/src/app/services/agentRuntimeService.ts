@@ -102,7 +102,7 @@ function mapBrainResult(response: BrainChatResponse, role: Role): AgentRunResult
     answer,
     plan: {
       intentType: confirmationActions.length ? 'draft' : 'query',
-      goal: answer.slice(0, 80) || 'Ami Brain 经营协助',
+      goal: '基于受治理门店经营数据',
       toolPlan: citations.map((citation) => ({ tool: `brain.${citation.sourceType}`, args: { sourceId: citation.sourceId } })),
       confidence: 1,
       clarificationNeeded: Boolean(response.clarification),

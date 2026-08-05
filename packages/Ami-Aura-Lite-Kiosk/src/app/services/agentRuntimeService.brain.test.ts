@@ -51,6 +51,7 @@ describe('terminal Ami Brain runtime', () => {
       runId: 88,
       status: 'completed',
       answer: '上周预约 3 单。',
+      plan: { goal: '基于受治理门店经营数据' },
       responseMode: 'structured_blocks',
       brainBlocks: [{ kind: 'kpi', items: [{ label: '上周预约', value: '3 单' }] }],
     });

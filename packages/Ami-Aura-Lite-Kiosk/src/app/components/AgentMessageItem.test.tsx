@@ -159,6 +159,82 @@ describe("AgentMessageItem", () => {
     expect(container.textContent).toContain("商品数");
     expect(container.textContent).toContain("抗衰紧致眼霜");
     expect(container.textContent).toContain("14");
+    expect(container.textContent).not.toContain("本月商品销售排行已完成。");
+  });
+
+  it("keeps structured business results and removes duplicated raw answer and derived goal text", async () => {
+    const answer = "60 天未到店客户：1185 人。明细：1. 客户=刘婉清，累计消费=186301.00，visitCount=94，最近到店=2026-04-23";
+
+    await act(async () => {
+      root.render(
+        <AgentMessageItem
+          data={createAgentResult({
+            answer,
+            plan: {
+              intentType: "query",
+              goal: answer.slice(0, 80),
+              toolPlan: [],
+              confidence: 1,
+              clarificationNeeded: false,
+            },
+            brainBlocks: [
+              { kind: "kpi", items: [{ label: "60 天未到店客户", value: "1185 人" }] },
+              {
+                kind: "ranking",
+                columns: ["客户", "累计消费", "到店次数", "最近到店"],
+                rows: [{ 客户: "刘婉清", 累计消费: "186,301.00", 到店次数: 94, 最近到店: "2026年04月23日" }],
+              },
+            ],
+          })}
+        />,
+      );
+    });
+
+    await act(async () => {
+      await vi.dynamicImportSettled();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(container.textContent).toContain("60 天未到店客户");
+    expect(container.textContent).toContain("1185 人");
+    expect(container.textContent?.match(/刘婉清/g) ?? []).toHaveLength(1);
+    expect(container.textContent).not.toContain("visitCount=94");
+    expect(container.textContent).not.toContain(answer.slice(0, 80));
+    expect(container.textContent).toContain("基于受治理门店经营数据");
+  });
+
+  it("keeps the raw answer when blocks only provide evidence or action controls", async () => {
+    await act(async () => {
+      root.render(
+        <AgentMessageItem
+          data={createAgentResult({
+            answer: "已生成预约调整建议，请确认后执行。",
+            renderedBlocks: [
+              {
+                kind: "evidence_panel",
+                sources: ["预约"],
+                metricDefinition: "当前门店预约排班",
+              },
+              {
+                kind: "confirm_action",
+                title: "调整预约",
+                preview: "将预约调整至明天下午",
+                actionId: "reservation.reschedule",
+                riskLevel: "medium",
+              },
+            ],
+          })}
+        />,
+      );
+    });
+
+    await act(async () => {
+      await vi.dynamicImportSettled();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(container.textContent).toContain("已生成预约调整建议，请确认后执行。");
+    expect(container.textContent).toContain("调整预约");
   });
 
   it("does not repeat top-level actions as follow-up suggestions", () => {
@@ -291,6 +367,7 @@ describe("AgentMessageItem", () => {
     });
 
     expect(container.textContent).toContain("Ami Brain");
+    expect(container.textContent).toContain("识别今日经营风险");
   });
 
   it("does not duplicate answer, evidence, or actions already represented by blocks", async () => {
