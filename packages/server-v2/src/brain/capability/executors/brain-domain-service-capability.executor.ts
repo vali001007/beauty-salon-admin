@@ -208,6 +208,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '有没有主力美容师本周业绩下滑',
       '技能覆盖有短板吗，某些项目缺人做',
       '唐伊业绩下滑，建议怎么帮她',
+      '昨天排班怎么优化能提升产能',
+      '给宋乔制定成长建议',
+      '技能缺口怎么补，要不要培训',
       '新员工试用期表现怎么样',
       '有没有员工到期转正需要我处理',
       '有没有员工的客户被别的美容师挖走的迹象',
@@ -233,6 +236,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '主力美容师下滑',
       '项目技能覆盖短板',
       '员工业绩下滑建议',
+      '排班产能优化',
+      '员工成长建议',
+      '技能培训建议',
       '员工转正待办',
       '客户归属流转',
     ],
@@ -595,6 +601,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '查某个项目的订单在指定期间的利润情况',
       '帮我统计一下本月折扣总金额和折扣率',
       '本月退款和上月比增加了多少',
+      '本月卖得最好的次卡是哪个',
     ],
     negativeExamples: ['直接修改结算数据', '查看其他门店的财务数据', '有没有项目成本明显上涨影响毛利的'],
     synonyms: [
@@ -613,6 +620,8 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '不赚钱',
       '毛利根因',
       '项目结构影响',
+      '次卡销售排行',
+      '最畅销次卡',
     ],
     businessDefinitionKeys: [
       'metric.paid_amount',
@@ -2099,10 +2108,167 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             dataQuality,
           );
         }
-        if (/(?:技能覆盖|技能配置).*(?:短板|不足|缺口)|(?:项目).*(?:缺人做|没人做|只有一人做)/.test(input.question)) {
+        if (
+          /(?:排班).*(?:怎么|如何|怎样)?.*(?:优化|调整).*(?:产能|人效)|(?:提升|提高).*(?:产能|人效).*(?:排班)/.test(
+            input.question,
+          )
+        ) {
+          const [directory, analysis] = await Promise.all([
+            this.skillRuntime.buildManagerStaffDirectoryFacts({
+              storeId: input.context.storeId,
+              startDate: range.startDate,
+              endDate: range.endDate,
+            }),
+            this.skillRuntime.buildManagerStaffAnalysis({
+              storeId: input.context.storeId,
+              startDate: range.startDate,
+              endDate: range.endDate,
+            }),
+          ]);
+          const analysisById = new Map(analysis.staff.map((staff) => [staff.beauticianId, staff]));
+          const rows = directory.staff
+            .map((staff) => {
+              const facts = analysisById.get(staff.beauticianId);
+              const scheduledMinutes = staff.schedules.reduce((sum, schedule) => {
+                const start = this.staffClockMinutes(schedule.startTime);
+                let end = this.staffClockMinutes(schedule.endTime);
+                if (end <= start) end += 24 * 60;
+                return sum + Math.max(0, end - start);
+              }, 0);
+              const timeOffMinutes = Math.round((facts?.timeOffHours ?? 0) * 60);
+              const netScheduledMinutes = Math.max(0, scheduledMinutes - timeOffMinutes);
+              const serviceCount = facts?.serviceCount ?? 0;
+              return {
+                beauticianId: staff.beauticianId,
+                staff: staff.name,
+                scheduledHours: Number((scheduledMinutes / 60).toFixed(2)),
+                timeOffHours: Number((timeOffMinutes / 60).toFixed(2)),
+                netScheduledHours: Number((netScheduledMinutes / 60).toFixed(2)),
+                serviceCount,
+                uniqueCustomerCount: facts?.uniqueCustomerCount ?? 0,
+                revenueAmount: facts?.revenueAmount ?? 0,
+                servicesPerScheduledHour:
+                  netScheduledMinutes > 0 ? Number((serviceCount / (netScheduledMinutes / 60)).toFixed(2)) : null,
+              };
+            })
+            .sort(
+              (left, right) =>
+                (left.servicesPerScheduledHour ?? -1) - (right.servicesPerScheduledHour ?? -1) ||
+                right.netScheduledHours - left.netScheduledHours ||
+                left.staff.localeCompare(right.staff, 'zh-CN'),
+            );
+          const scheduledRows = rows.filter((row) => row.netScheduledHours > 0);
+          const unusedRows = scheduledRows.filter((row) => row.serviceCount === 0);
+          const lowYieldRows = scheduledRows.filter(
+            (row) => row.serviceCount > 0 && (row.servicesPerScheduledHour ?? 0) < 0.25,
+          );
+          const suggestions = [
+            ...(unusedRows.length
+              ? [
+                  `下一相似营业日优先复核 ${unusedRows.map((row) => row.staff).join('、')} 的整段空排班，并结合预约量缩短或错峰安排`,
+                ]
+              : []),
+            ...(lowYieldRows.length
+              ? [
+                  `复核 ${lowYieldRows.map((row) => row.staff).join('、')} 的预约分配、可做项目覆盖和空档来源，避免只延长工时不增加服务机会`,
+                ]
+              : []),
+            ...(rows.some((row) => row.timeOffHours > 0)
+              ? ['请假时段应从可用工时中扣除，再安排具备对应项目技能的替补人员']
+              : []),
+          ];
+          if (!suggestions.length) {
+            suggestions.push(
+              '当前排班与服务事实未显示明显空排，建议保持总工时并在下一相似营业日前按预约项目和员工技能做小时级复核',
+            );
+          }
+          const citationIds = ['manager_staff_directory_facts', 'manager_staff_analysis'];
+          const totalNetHours = scheduledRows.reduce((sum, row) => sum + row.netScheduledHours, 0);
+          const totalServices = rows.reduce((sum, row) => sum + row.serviceCount, 0);
+          return this.applyDataQualityGuard(
+            {
+              status: 'completed',
+              answer: `${range.label}净排班 ${totalNetHours.toFixed(1)} 小时、完成服务 ${totalServices} 次。${suggestions.join('；')}。以上只生成排班优化建议，不修改或发布排班。`,
+              citations: [
+                {
+                  sourceType: 'db_skill',
+                  sourceId: 'manager_staff_directory_facts',
+                  label: '员工排班、请假与项目技能事实',
+                },
+                {
+                  sourceType: 'db_skill',
+                  sourceId: 'manager_staff_analysis',
+                  label: '员工服务、客户与业绩事实',
+                },
+              ],
+              grounding: 'db_skill',
+              blocks: [
+                {
+                  kind: 'kpi',
+                  items: [
+                    { label: '净排班工时', value: `${totalNetHours.toFixed(1)} 小时` },
+                    { label: '完成服务', value: `${totalServices} 次` },
+                    { label: '整段空排员工', value: `${unusedRows.length} 人` },
+                  ],
+                  citationIds,
+                },
+                {
+                  kind: 'table',
+                  rows,
+                  columns: [
+                    'staff',
+                    'scheduledHours',
+                    'timeOffHours',
+                    'netScheduledHours',
+                    'serviceCount',
+                    'uniqueCustomerCount',
+                    'revenueAmount',
+                    'servicesPerScheduledHour',
+                  ],
+                  citationIds,
+                },
+                {
+                  kind: 'diagnosis',
+                  findings: suggestions.map((suggestion) => ({
+                    title: '只读排班优化建议',
+                    detail: suggestion,
+                    severity: 'info' as const,
+                  })),
+                  citationIds,
+                },
+                {
+                  kind: 'limitations',
+                  items: [
+                    '服务次数/净排班小时仅用于发现排班复核优先级，不等同于标准服务时长口径下的精确产能利用率。',
+                    '只读建议：未修改、发布或预览任何排班动作。',
+                  ],
+                },
+              ],
+              metadata: {
+                capabilityKey: 'manager_staff_overview',
+                answerScope: 'staff_schedule_capacity_optimization_advice',
+                rangeLabel: range.label,
+                totalNetScheduledHours: totalNetHours,
+                totalServiceCount: totalServices,
+                unusedScheduledStaffCount: unusedRows.length,
+                lowYieldStaffCount: lowYieldRows.length,
+                productivityProxy: 'completed_service_count_per_net_scheduled_hour',
+                actionWriteCount: 0,
+                completionCriteria: ['staff_schedule_loaded', 'staff_time_off_loaded', 'staff_service_facts_loaded'],
+              },
+            },
+            dataQuality,
+          );
+        }
+        if (
+          /(?:技能覆盖|技能配置).*(?:短板|不足|缺口)|(?:技能).*(?:缺口|短板|不足)|(?:项目).*(?:缺人做|没人做|只有一人做)/.test(
+            input.question,
+          )
+        ) {
           const coverage = await this.skillRuntime.buildManagerStaffSkillCoverage({
             storeId: input.context.storeId,
           });
+          const trainingAdviceRequested = /(?:怎么补|如何补|培训|训练|提升)/.test(input.question);
           const citation = {
             sourceType: 'db_skill',
             sourceId: 'manager_staff_skill_coverage',
@@ -2117,11 +2283,22 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
               certifiedStaffCount: project.certifiedStaffCount,
               staffNames: project.staffNames.join('、'),
               coverageStatus: project.staffCount === 0 ? '无人覆盖' : '单人覆盖',
-            }));
+            }))
+            .sort(
+              (left, right) =>
+                left.staffCount - right.staffCount ||
+                left.certifiedStaffCount - right.certifiedStaffCount ||
+                left.projectName.localeCompare(right.projectName, 'zh-CN'),
+            );
           const uncoveredCount = rows.filter((row) => row.staffCount === 0).length;
           const singleCoveredCount = rows.filter((row) => row.staffCount === 1).length;
+          const trainingSuggestions = rows.map((row) =>
+            row.staffCount === 0
+              ? `${row.projectName}：优先选择至少 2 位在职美容师完成基础训练，其中至少 1 位完成认证后再作为稳定可售能力`
+              : `${row.projectName}：在现有 ${row.staffNames || '单人'} 覆盖之外补训第 2 位人员，并复核认证状态`,
+          );
           const answer = rows.length
-            ? `当前 ${coverage.projects.length} 个在售项目中有 ${rows.length} 个技能覆盖短板：${uncoveredCount} 个无人覆盖、${singleCoveredCount} 个仅 1 人覆盖。短板口径为在职美容师技能配置人数不超过 1 人，认证人数单独披露。`
+            ? `当前 ${coverage.projects.length} 个在售项目中有 ${rows.length} 个技能覆盖短板：${uncoveredCount} 个无人覆盖、${singleCoveredCount} 个仅 1 人覆盖。${trainingAdviceRequested ? `建议优先培训 ${rows.length} 个短板项目，顺序为无人覆盖、单人覆盖、认证不足。` : ''}短板口径为在职美容师技能配置人数不超过 1 人，认证人数单独披露。`
             : `当前 ${coverage.projects.length} 个在售项目均至少有 2 位在职美容师配置技能，按当前口径未发现技能覆盖短板。`;
           return this.applyDataQualityGuard(
             {
@@ -2153,6 +2330,23 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                   ],
                   citationIds: [citation.sourceId],
                 },
+                ...(trainingAdviceRequested && trainingSuggestions.length
+                  ? [
+                      {
+                        kind: 'diagnosis' as const,
+                        findings: trainingSuggestions.map((suggestion) => ({
+                          title: '培训优先级建议',
+                          detail: suggestion,
+                          severity: 'info' as const,
+                        })),
+                        citationIds: [citation.sourceId],
+                      },
+                      {
+                        kind: 'limitations' as const,
+                        items: ['只读建议：未创建培训任务、未修改员工技能或认证状态。'],
+                      },
+                    ]
+                  : []),
               ],
               metadata: {
                 capabilityKey: 'manager_staff_overview',
@@ -2160,6 +2354,8 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                 projectCount: coverage.projects.length,
                 coverageGapCount: rows.length,
                 coverageThreshold: 1,
+                trainingAdviceRequested,
+                actionWriteCount: 0,
                 completionCriteria: ['active_projects_loaded', 'active_staff_skill_assignments_loaded'],
               },
             },
@@ -2190,7 +2386,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             }));
           const answer = rows.length
             ? `${range.label}美容师连带销售能力最高的是 ${rows[0]!.staff}，连带率 ${(rows[0]!.crossSellRate * 100).toFixed(1)}%。口径为该员工归属订单中，包含至少 2 种不同非赠品项目或商品的订单占比。`
-            : `${range.label}没有可归属到美容师的有效非赠品订单，暂时无法形成连带销售对比。`;
+            : `${range.label}当前没有连带率排行数据；该周期没有可归属到美容师的有效非赠品订单，暂时无法形成连带销售对比。`;
           return this.applyDataQualityGuard(
             {
               status: 'completed',
@@ -2214,7 +2410,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                   ? [
                       {
                         kind: 'limitations' as const,
-                        items: ['no_data: 当前周期没有可归属到美容师的有效非赠品订单。'],
+                        items: ['no_data: 当前没有连带率排行数据；该周期没有可归属到美容师的有效非赠品订单。'],
                       },
                     ]
                   : []),
@@ -2311,10 +2507,14 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           /(?:业绩|实收).*(?:下滑|下降).*(?:建议|怎么帮|怎么办|如何帮)|(?:建议|怎么帮|怎么办|如何帮).*(?:业绩|实收).*(?:下滑|下降)/.test(
             input.question,
           );
-        if (staffTrendQuestion || staffDeclineAdviceQuestion) {
+        const namedStaffGrowthAdviceQuestion =
+          /(?:给|帮).{0,8}(?:美容师|员工|技师)?.{0,6}(?:制定|做|给出).{0,4}(?:成长|提升|发展)(?:建议|方案)/.test(
+            input.question,
+          );
+        if (staffTrendQuestion || staffDeclineAdviceQuestion || namedStaffGrowthAdviceQuestion) {
           const effectiveRange = this.resolveStaffPerformanceRange(input, range);
           const previousRange = this.previousComparableRange(effectiveRange);
-          const [current, previous] = await Promise.all([
+          const [current, previous, directory] = await Promise.all([
             this.skillRuntime.buildManagerStaffAnalysis({
               storeId: input.context.storeId,
               startDate: effectiveRange.startDate,
@@ -2325,12 +2525,24 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
               startDate: previousRange.startDate,
               endDate: previousRange.endDate,
             }),
+            namedStaffGrowthAdviceQuestion
+              ? this.skillRuntime.buildManagerStaffDirectoryFacts({
+                  storeId: input.context.storeId,
+                  startDate: effectiveRange.startDate,
+                  endDate: effectiveRange.endDate,
+                })
+              : Promise.resolve(undefined),
           ]);
           const matches = this.resolveMentionedManagerStaff(current.staff, input.question);
           const citation = {
             sourceType: 'db_skill',
             sourceId: 'manager_staff_performance_period_comparison',
             label: '指定员工当前期与上一等长周期服务、客户和业绩事实',
+          };
+          const directoryCitation = {
+            sourceType: 'db_skill',
+            sourceId: 'manager_staff_directory_facts',
+            label: '指定员工当前职级、项目技能和认证事实',
           };
           if (matches.length !== 1) {
             const question = matches.length
@@ -2394,7 +2606,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
               changeRate: null,
             },
           ];
-          if (!staffDeclineAdviceQuestion) {
+          if (!staffDeclineAdviceQuestion && !namedStaffGrowthAdviceQuestion) {
             const trend = revenueChange > 0 ? '上升' : revenueChange < 0 ? '下降' : '持平';
             const rateText =
               revenueChangeRate === null
@@ -2457,13 +2669,27 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           ) {
             suggestions.push('服务量未同步下降，建议核对项目结构、客单和连带销售变化');
           }
-          if (revenueChange >= 0) suggestions.push('当前数据不支持“业绩下滑”前提，暂不建议按下滑问题干预');
-          const answer = `${effectiveRange.label}${staff.name}业绩实收 ${revenueChange < 0 ? '下降' : revenueChange > 0 ? '上升' : '持平'}：${previousRevenue.toFixed(2)} -> ${staff.revenueAmount.toFixed(2)} 元。${suggestions.join('；')}。以上为只读诊断建议，不创建跟进、排班或营销动作。`;
+          const directoryStaff = directory?.staff.find((item) => item.beauticianId === staff.beauticianId);
+          if (namedStaffGrowthAdviceQuestion) {
+            if (!directoryStaff?.projectSkills.length)
+              suggestions.push('先补齐可做项目和技能等级配置，再制定可量化成长目标');
+            else if (directoryStaff.projectSkills.filter((skill) => skill.certified).length < 2)
+              suggestions.push('优先选择当前技能中未认证或门店覆盖薄弱的项目完成训练与认证');
+            if (!suggestions.length) suggestions.push('保持当前优势，并选择一个门店覆盖薄弱项目作为下一阶段训练目标');
+          } else if (revenueChange >= 0) {
+            suggestions.push('当前数据不支持“业绩下滑”前提，暂不建议按下滑问题干预');
+          }
+          const answer = namedStaffGrowthAdviceQuestion
+            ? `${effectiveRange.label}${staff.name}成长基线：业绩实收 ${previousRevenue.toFixed(2)} -> ${staff.revenueAmount.toFixed(2)} 元，服务 ${previousStaff?.serviceCount ?? 0} -> ${staff.serviceCount} 次，当前职级 ${directoryStaff?.level?.name ?? '未配置'}，已配置 ${directoryStaff?.projectSkills.length ?? 0} 项技能。建议：${suggestions.join('；')}。以上为只读成长建议，不创建培训、跟进、排班或营销动作。`
+            : `${effectiveRange.label}${staff.name}业绩实收 ${revenueChange < 0 ? '下降' : revenueChange > 0 ? '上升' : '持平'}：${previousRevenue.toFixed(2)} -> ${staff.revenueAmount.toFixed(2)} 元。${suggestions.join('；')}。以上为只读诊断建议，不创建跟进、排班或营销动作。`;
+          const adviceCitationIds = namedStaffGrowthAdviceQuestion
+            ? [citation.sourceId, directoryCitation.sourceId]
+            : [citation.sourceId];
           return this.applyDataQualityGuard(
             {
               status: 'completed',
               answer,
-              citations: [citation],
+              citations: namedStaffGrowthAdviceQuestion ? [citation, directoryCitation] : [citation],
               grounding: 'db_skill',
               blocks: [
                 {
@@ -2480,7 +2706,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                       severity: 'info' as const,
                     })),
                   ],
-                  citationIds: [citation.sourceId],
+                  citationIds: adviceCitationIds,
                 },
                 {
                   kind: 'table',
@@ -2488,11 +2714,34 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                   columns: ['metric', 'current', 'previous', 'change', 'changeRate'],
                   citationIds: [citation.sourceId],
                 },
+                ...(namedStaffGrowthAdviceQuestion
+                  ? [
+                      {
+                        kind: 'table' as const,
+                        rows: [
+                          {
+                            beauticianId: staff.beauticianId,
+                            staff: staff.name,
+                            level: directoryStaff?.level?.name ?? '未配置',
+                            projectSkillCount: directoryStaff?.projectSkills.length ?? 0,
+                            certifiedSkillCount:
+                              directoryStaff?.projectSkills.filter((skill) => skill.certified).length ?? 0,
+                            projectSkills:
+                              directoryStaff?.projectSkills.map((skill) => skill.projectName).join('、') ?? '',
+                          },
+                        ],
+                        columns: ['staff', 'level', 'projectSkillCount', 'certifiedSkillCount', 'projectSkills'],
+                        citationIds: [directoryCitation.sourceId],
+                      },
+                    ]
+                  : []),
                 { kind: 'limitations', items: ['只读建议：未创建跟进任务、排班调整、营销触达或其他业务写入。'] },
               ],
               metadata: {
                 capabilityKey: 'manager_staff_overview',
-                answerScope: 'named_staff_decline_diagnosis_advice',
+                answerScope: namedStaffGrowthAdviceQuestion
+                  ? 'named_staff_growth_diagnosis_advice'
+                  : 'named_staff_decline_diagnosis_advice',
                 beauticianId: staff.beauticianId,
                 rangeLabel: effectiveRange.label,
                 previousRangeLabel: previousRange.label,
@@ -2501,6 +2750,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                   'staff_current_period_loaded',
                   'staff_previous_equal_period_loaded',
                   'read_only_suggestions_generated',
+                  ...(namedStaffGrowthAdviceQuestion ? ['staff_level_and_skill_profile_loaded'] : []),
                 ],
               },
             },
@@ -4229,6 +4479,109 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         if (structuredFinanceAnswer) return structuredFinanceAnswer;
         const projectOrderProfit = await this.buildProjectOrderProfitAnswer(input, diagnosisRange);
         if (projectOrderProfit) return projectOrderProfit;
+        if (
+          /(?:次卡|套餐卡).*(?:卖得最好|卖得最多|销量最高|销售排行|销售排名|哪个卖得好)|(?:卖得最好|卖得最多|销量最高|销售排行|销售排名).*(?:次卡|套餐卡)/.test(
+            input.question,
+          )
+        ) {
+          if (!this.prisma) throw new Error('card_package_sales_ranking_prisma_unavailable');
+          const normalizedQuestion = input.question.replace(/\s+/gu, '');
+          const catalogCards = await this.prisma.card.findMany({
+            where: { storeId: input.context.storeId, status: 'active' },
+            select: { id: true, name: true },
+          });
+          const mentionedCardIds = catalogCards
+            .filter((card) => normalizedQuestion.includes(card.name.replace(/\s+/gu, '')))
+            .map((card) => card.id);
+          const sales = await this.prisma.customerCard.findMany({
+            where: {
+              customer: { storeId: input.context.storeId },
+              createdAt: { gte: diagnosisRange.startDate, lte: diagnosisRange.endDate },
+              ...(mentionedCardIds.length ? { cardId: { in: mentionedCardIds } } : {}),
+            },
+            select: {
+              id: true,
+              cardId: true,
+              cardName: true,
+              paidAmount: true,
+              giftTimes: true,
+              saleType: true,
+            },
+          });
+          const aggregate = new Map<
+            string,
+            {
+              cardId: number;
+              cardName: string;
+              soldCount: number;
+              paidAmount: number;
+              giftTimes: number;
+              newSaleCount: number;
+              renewalCount: number;
+            }
+          >();
+          for (const sale of sales) {
+            const key = `${sale.cardId}:${sale.cardName}`;
+            const row = aggregate.get(key) ?? {
+              cardId: sale.cardId,
+              cardName: sale.cardName,
+              soldCount: 0,
+              paidAmount: 0,
+              giftTimes: 0,
+              newSaleCount: 0,
+              renewalCount: 0,
+            };
+            row.soldCount += 1;
+            row.paidAmount += Number(sale.paidAmount);
+            row.giftTimes += sale.giftTimes;
+            if (sale.saleType === 'renewal') row.renewalCount += 1;
+            else row.newSaleCount += 1;
+            aggregate.set(key, row);
+          }
+          const rows = [...aggregate.values()]
+            .sort(
+              (left, right) =>
+                right.soldCount - left.soldCount ||
+                right.paidAmount - left.paidAmount ||
+                left.cardName.localeCompare(right.cardName, 'zh-CN'),
+            )
+            .slice(0, this.resolveLimit(input.args.limit, 20));
+          const leader = rows[0];
+          const citation = {
+            sourceType: 'db_skill',
+            sourceId: 'finance_card_package_sales_ranking',
+            label: '当前门店次卡开卡张数与实收排行',
+          };
+          return {
+            status: 'completed',
+            answer: leader
+              ? `${diagnosisRange.label}按开卡张数统计，卖得最好的是 ${leader.cardName}：${leader.soldCount} 张，实收 ${leader.paidAmount.toFixed(2)} 元。张数相同时按实收金额排序。`
+              : `${diagnosisRange.label}当前没有匹配的${mentionedCardIds.length ? '指定次卡' : '门店次卡'}开卡销售数据。`,
+            citations: [citation],
+            grounding: 'db_skill',
+            blocks: [
+              {
+                kind: 'ranking',
+                rows,
+                columns: ['cardName', 'soldCount', 'paidAmount', 'newSaleCount', 'renewalCount', 'giftTimes'],
+                citationIds: [citation.sourceId],
+              },
+              ...(!rows.length
+                ? [{ kind: 'limitations' as const, items: ['no_data: 当前没有匹配的次卡开卡销售数据。'] }]
+                : []),
+            ],
+            metadata: {
+              capabilityKey: 'finance_risk_overview',
+              answerScope: 'card_package_sales_ranking',
+              rangeLabel: diagnosisRange.label,
+              matchedCatalogCardIds: mentionedCardIds,
+              rankingDefinition: 'customer_card_count_desc_then_paid_amount_desc',
+              actionWriteCount: 0,
+              mappingOutputs: { cardRanking: rows },
+              completionCriteria: ['customer_card_sales_loaded', 'card_sales_ranked'],
+            },
+          };
+        }
         if (/(?:次卡|套餐卡).*(?:销售|开卡).*(?:金额|多少)|(?:次卡|套餐卡).*(?:卖了多少)/.test(input.question)) {
           if (!this.sharedBusinessMetrics) throw new Error('shared_business_metric_service_unavailable');
           const result = await this.sharedBusinessMetrics.execute(
@@ -10330,9 +10683,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       /(?:最可能复购|复购(?:概率|评分|可能性).*(?:最高|排行)|(?:最高|排行).*(?:复购概率|复购评分|复购可能性))/.test(
         question,
       ) ||
-      /(?:营销触达|营销).*(?:响应度|响应评分).*(?:最高|排行)|(?:响应度|响应评分).*(?:最高|排行)/.test(
-        question,
-      ) ||
+      /(?:营销触达|营销).*(?:响应度|响应评分).*(?:最高|排行)|(?:响应度|响应评分).*(?:最高|排行)/.test(question) ||
       /(?:预测|预估).*(?:12个月|十二个月).*(?:生命周期价值|LTV)|(?:12个月|十二个月).*(?:生命周期价值|LTV).*(?:预测|预估)/i.test(
         question,
       )

@@ -4209,6 +4209,8 @@ export class BrainChatService {
     const customerPredictionCapability = this.modelCustomerPredictionCapabilityCard(cards, question);
     const managerStaffDirectoryCapability = this.modelManagerStaffDirectoryCapabilityCard(cards, question);
     const managerStaffMetricCapability = this.modelManagerStaffMetricCapabilityCard(cards, question);
+    const cardPackageSalesCapability = this.modelCardPackageSalesCapabilityCard(cards, question);
+    const projectMarginCapability = this.modelProjectMarginCapabilityCard(cards, question);
     const projectCatalogCapability = this.modelProjectCatalogCapabilityCard(cards, question);
     const ordered = [
       selected,
@@ -4219,6 +4221,8 @@ export class BrainChatService {
       customerPredictionCapability,
       managerStaffDirectoryCapability,
       managerStaffMetricCapability,
+      cardPackageSalesCapability,
+      projectMarginCapability,
       projectCatalogCapability,
       ...topK.map((candidate) => candidate.card),
     ].filter((card): card is BrainCapabilityCard => Boolean(card));
@@ -4276,9 +4280,7 @@ export class BrainChatService {
       /(?:最可能复购|复购(?:概率|评分|可能性).*(?:最高|排行)|(?:最高|排行).*(?:复购概率|复购评分|复购可能性))/.test(
         question,
       ) ||
-      /(?:营销触达|营销).*(?:响应度|响应评分).*(?:最高|排行)|(?:响应度|响应评分).*(?:最高|排行)/.test(
-        question,
-      ) ||
+      /(?:营销触达|营销).*(?:响应度|响应评分).*(?:最高|排行)|(?:响应度|响应评分).*(?:最高|排行)/.test(question) ||
       /(?:预测|预估).*(?:12个月|十二个月).*(?:生命周期价值|LTV)|(?:12个月|十二个月).*(?:生命周期价值|LTV).*(?:预测|预估)/i.test(
         question,
       );
@@ -4309,6 +4311,41 @@ export class BrainChatService {
         card.readOnly &&
         !card.sideEffect &&
         (card.intents.includes('query') || card.intents.includes('ranking')),
+    );
+  }
+
+  private modelCardPackageSalesCapabilityCard(
+    cards: readonly BrainCapabilityCard[],
+    question: string,
+  ): BrainCapabilityCard | undefined {
+    if (
+      !/(?:次卡|套餐卡).*(?:卖得最好|卖得最多|销量最高|销售排行|销售排名|哪个卖得好)|(?:卖得最好|卖得最多|销量最高|销售排行|销售排名).*(?:次卡|套餐卡)/.test(
+        question,
+      )
+    ) {
+      return undefined;
+    }
+    return cards.find(
+      (card) =>
+        card.key === 'finance_risk_overview' && card.readOnly && !card.sideEffect && card.intents.includes('query'),
+    );
+  }
+
+  private modelProjectMarginCapabilityCard(
+    cards: readonly BrainCapabilityCard[],
+    question: string,
+  ): BrainCapabilityCard | undefined {
+    if (
+      !/(?:各个?|每个|所有)(?:项目|护理项目|服务项目).*(?:毛利|利润)|(?:毛利|利润).*(?:各个?|每个|所有)(?:项目|护理项目|服务项目)|(?:项目|护理项目|服务项目)(?:的)?(?:毛利|利润)(?:排行|排名|对比|分析)/.test(
+        question,
+      ) ||
+      /(?:商品|产品|订单|单号)/.test(question)
+    ) {
+      return undefined;
+    }
+    return cards.find(
+      (card) =>
+        card.key === 'project_margin_analysis' && card.readOnly && !card.sideEffect && card.intents.includes('query'),
     );
   }
 
@@ -5383,6 +5420,15 @@ export class BrainChatService {
       ) ||
       /(?:技能覆盖|技能配置).*(?:短板|不足|缺口)|(?:项目).*(?:缺人做|没人做|只有一人做)/.test(question) ||
       /(?:业绩|实收).*(?:下滑|下降).*(?:建议|怎么帮|怎么办|如何帮)|(?:建议|怎么帮|怎么办|如何帮).*(?:业绩|实收).*(?:下滑|下降)/.test(
+        question,
+      ) ||
+      /(?:排班).*(?:怎么|如何|怎样)?.*(?:优化|调整).*(?:产能|人效)|(?:提升|提高).*(?:产能|人效).*(?:排班)/.test(
+        question,
+      ) ||
+      /(?:给|帮).{0,8}(?:美容师|员工|技师)?.{0,6}(?:制定|做|给出).{0,4}(?:成长|提升|发展)(?:建议|方案)/.test(
+        question,
+      ) ||
+      /(?:技能).*(?:缺口|短板|不足).*(?:怎么补|如何补|培训|训练|提升)|(?:培训|训练).*(?:技能).*(?:缺口|短板|不足)/.test(
         question,
       )
     );

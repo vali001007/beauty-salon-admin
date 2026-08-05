@@ -841,6 +841,65 @@ describe('BrainChatService', () => {
     ]);
   });
 
+  it('keeps the staff-advice, card-sales and aggregate project-margin cards in compiler context when TopK misses them', () => {
+    const { service } = createService();
+    const managerStaffCard = {
+      ...controlledDomainCard('manager_staff_overview'),
+      intents: ['query', 'ranking', 'comparison', 'diagnosis'],
+      readOnly: true,
+      sideEffect: false,
+    };
+    const financeCard = {
+      ...controlledDomainCard('finance_risk_overview'),
+      intents: ['query', 'ranking', 'diagnosis'],
+      readOnly: true,
+      sideEffect: false,
+    };
+    const projectMarginCard = {
+      ...controlledDomainCard('project_margin_analysis'),
+      intents: ['query', 'ranking', 'diagnosis'],
+      readOnly: true,
+      sideEffect: false,
+    };
+    const distractor = controlledDomainCard('inventory_operations_overview');
+    const cards = [managerStaffCard, financeCard, projectMarginCard, distractor];
+    const topK = [{ card: distractor, score: 0.9, matchedFields: [] }];
+
+    const staffResult = (service as any).modelCompilerCapabilityCards(
+      cards,
+      topK,
+      undefined,
+      undefined,
+      '昨天排班如何调整才能提高人效', // ami-brain-unit-only
+    );
+    const cardSalesResult = (service as any).modelCompilerCapabilityCards(
+      cards,
+      topK,
+      undefined,
+      undefined,
+      '这个月哪一种次卡卖得最多', // ami-brain-unit-only
+    );
+    const projectMarginResult = (service as any).modelCompilerCapabilityCards(
+      cards,
+      topK,
+      undefined,
+      undefined,
+      '请对比最近三个月各个项目的贡献毛利', // ami-brain-unit-only
+    );
+    const singleProjectProfitResult = (service as any).modelCompilerCapabilityCards(
+      cards,
+      topK,
+      undefined,
+      undefined,
+      '晒后舒缓修护项目利润归因', // ami-brain-historical-only
+    );
+
+    expect(staffResult.map((card: any) => card.key)).toEqual(['manager_staff_overview', distractor.key]);
+    expect(cardSalesResult.map((card: any) => card.key)).toEqual(['finance_risk_overview', distractor.key]);
+    expect(projectMarginResult.map((card: any) => card.key)).toEqual(['project_margin_analysis', distractor.key]);
+    expect(singleProjectProfitResult.map((card: any) => card.key)).not.toContain('project_margin_analysis');
+  });
+
   it('keeps an exact governed action capability when catalog TopK misses it', () => {
     const { service } = createService();
     // ami-brain-unit-only: capability-selection fixture; not a release-eval input.
@@ -7755,6 +7814,9 @@ describe('BrainChatService', () => {
       '本周主力员工中有没有人实收下降',
       '项目技能配置有没有缺口，哪些护理只有一人或没人能做',
       '唐伊业绩下降了，如何帮她改善',
+      '昨天排班如何调整才能提高人效',
+      '帮宋乔做成长建议',
+      '技能短板该怎么补，是否安排训练',
     ]) {
       expect(
         (service as any).findManagerStaffDirectoryCapabilityCard(question, baseIntent, [

@@ -63,12 +63,108 @@ describe('BrainFocusedBusinessCapabilityExecutor', () => {
     ]);
   });
 
+  it('delivers a recent-period all-project margin contract with income, costs, profit rate and cost gaps', async () => {
+    const operationProfit = {
+      getProjectMargins: jest.fn().mockResolvedValue({
+        items: [
+          {
+            ...projectMargin({
+              projectId: 1,
+              projectName: '肩颈护理',
+              serviceIncome: 3000,
+              materialCost: 120,
+              contributionProfit: 2100,
+            }),
+            actualMaterialCost: 0,
+            standardMaterialCost: 120,
+            status: 'partial',
+            missingCostReasons: ['actual_material_cost_missing'],
+          },
+          projectMargin({
+            projectId: 2,
+            projectName: '面部护理',
+            serviceIncome: 2600,
+            materialCost: 260,
+            contributionProfit: 1600,
+          }),
+        ],
+        total: 2,
+        page: 1,
+        pageSize: 100,
+      }),
+    };
+    const executor = createExecutor({ operationProfit });
+    const request = input('project_margin_analysis', '分析下最近三个月各项目的毛利', 'ranking'); // BQ0536
+    request.args.time = {
+      label: '最近三个月',
+      timezone: 'Asia/Shanghai',
+      startDate: '2026-05-01',
+      endDate: '2026-07-31',
+    };
+
+    const result = await executor.execute(request);
+
+    expect(operationProfit.getProjectMargins).toHaveBeenCalledWith({
+      storeId: 6,
+      from: '2026-05-01',
+      to: '2026-07-31',
+      page: 1,
+      pageSize: 100,
+    });
+    expect(result.answer).toContain('已返回 2 个项目的收入、耗材成本、提成成本和贡献毛利');
+    expect(result.citations).toEqual(
+      expect.arrayContaining([expect.objectContaining({ sourceId: 'operation_profit_project_margins' })]),
+    );
+    expect(result.blocks).toEqual([
+      expect.objectContaining({
+        kind: 'ranking',
+        columns: expect.arrayContaining([
+          'projectName',
+          'serviceIncome',
+          'materialCost',
+          'commissionCost',
+          'contributionProfit',
+          'marginRate',
+          'status',
+        ]),
+        rows: [
+          expect.objectContaining({
+            projectName: '肩颈护理',
+            serviceIncome: 3000,
+            materialCost: 120,
+            contributionProfit: 2100,
+            status: 'partial',
+            missingCostReasons: 'actual_material_cost_missing',
+          }),
+          expect.objectContaining({ projectName: '面部护理', serviceIncome: 2600, contributionProfit: 1600 }),
+        ],
+      }),
+    ]);
+    expect(result.metadata).toMatchObject({
+      answerScope: 'project_margin_ranking',
+      actionWriteCount: 0,
+      completionCriteria: ['project_income_loaded', 'project_cost_loaded', 'project_margin_ranked'],
+    });
+  });
+
   it('calculates project income share from the management project profit facts', async () => {
     const operationProfit = {
       getProjectMargins: jest.fn().mockResolvedValue({
         items: [
-          projectMargin({ projectId: 1, projectName: '肩颈护理', serviceIncome: 3000, materialCost: 100, contributionProfit: 1800 }),
-          projectMargin({ projectId: 2, projectName: '面部护理', serviceIncome: 1000, materialCost: 260, contributionProfit: 500 }),
+          projectMargin({
+            projectId: 1,
+            projectName: '肩颈护理',
+            serviceIncome: 3000,
+            materialCost: 100,
+            contributionProfit: 1800,
+          }),
+          projectMargin({
+            projectId: 2,
+            projectName: '面部护理',
+            serviceIncome: 1000,
+            materialCost: 260,
+            contributionProfit: 500,
+          }),
         ],
         total: 2,
         page: 1,
@@ -125,9 +221,10 @@ describe('BrainFocusedBusinessCapabilityExecutor', () => {
     });
     expect(result.blocks).toEqual([
       expect.objectContaining({ kind: 'ranking', rows: [] }),
-      expect.objectContaining({ kind: 'limitations', items: expect.arrayContaining([
-        'no_data: project_actual_material_quantity_not_recorded',
-      ]) }),
+      expect.objectContaining({
+        kind: 'limitations',
+        items: expect.arrayContaining(['no_data: project_actual_material_quantity_not_recorded']),
+      }),
     ]);
   });
 
@@ -168,8 +265,20 @@ describe('BrainFocusedBusinessCapabilityExecutor', () => {
             id: 21,
             name: '胶原焕活提拉',
             bomItems: [
-              { id: 101, productId: 110, standardQty: 1, unit: '片', product: { id: 110, name: '胶原面膜', sku: 'M110', unit: '片', costPrice: 12 } },
-              { id: 102, productId: 125, standardQty: 2, unit: 'ml', product: { id: 125, name: '焕活精华', sku: 'M125', unit: 'ml', costPrice: 8.5 } },
+              {
+                id: 101,
+                productId: 110,
+                standardQty: 1,
+                unit: '片',
+                product: { id: 110, name: '胶原面膜', sku: 'M110', unit: '片', costPrice: 12 },
+              },
+              {
+                id: 102,
+                productId: 125,
+                standardQty: 2,
+                unit: 'ml',
+                product: { id: 125, name: '焕活精华', sku: 'M125', unit: 'ml', costPrice: 8.5 },
+              },
             ],
           },
         ]),
@@ -212,8 +321,20 @@ describe('BrainFocusedBusinessCapabilityExecutor', () => {
             id: 22,
             name: '全身精油 SPA',
             bomItems: [
-              { id: 201, productId: 210, standardQty: 1, unit: '瓶', product: { id: 210, name: '舒缓精油', sku: 'M210', unit: '瓶', costPrice: 18.2 } },
-              { id: 202, productId: 211, standardQty: 2, unit: '片', product: { id: 211, name: '护理面膜', sku: 'M211', unit: '片', costPrice: 10.7 } },
+              {
+                id: 201,
+                productId: 210,
+                standardQty: 1,
+                unit: '瓶',
+                product: { id: 210, name: '舒缓精油', sku: 'M210', unit: '瓶', costPrice: 18.2 },
+              },
+              {
+                id: 202,
+                productId: 211,
+                standardQty: 2,
+                unit: '片',
+                product: { id: 211, name: '护理面膜', sku: 'M211', unit: '片', costPrice: 10.7 },
+              },
             ],
           },
         ]),
@@ -283,9 +404,10 @@ describe('BrainFocusedBusinessCapabilityExecutor', () => {
     expect(result.answer).toContain('不会用员工表现分、业绩或全店退款率替代');
     expect(result.blocks).toEqual([
       expect.objectContaining({ kind: 'ranking', rows: [] }),
-      expect.objectContaining({ kind: 'limitations', items: expect.arrayContaining([
-        'no_data: staff_refund_attribution_not_available',
-      ]) }),
+      expect.objectContaining({
+        kind: 'limitations',
+        items: expect.arrayContaining(['no_data: staff_refund_attribution_not_available']),
+      }),
     ]);
   });
 
@@ -314,7 +436,10 @@ describe('BrainFocusedBusinessCapabilityExecutor', () => {
       },
     });
     expect(result.blocks).toEqual(
-      expect.arrayContaining([expect.objectContaining({ kind: 'diagnosis' }), expect.objectContaining({ kind: 'limitations' })]),
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'diagnosis' }),
+        expect.objectContaining({ kind: 'limitations' }),
+      ]),
     );
   });
 
@@ -329,12 +454,14 @@ describe('BrainFocusedBusinessCapabilityExecutor', () => {
       input('finance_transaction_anomaly_review', '有没有需要复核的退款和优惠风险', 'diagnosis'),
     );
 
-    expect(result.blocks).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        kind: 'diagnosis',
-        findings: [expect.objectContaining({ severity: 'info', title: '当前未命中聚合风险' })],
-      }),
-    ]));
+    expect(result.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'diagnosis',
+          findings: [expect.objectContaining({ severity: 'info', title: '当前未命中聚合风险' })],
+        }),
+      ]),
+    );
   });
 
   it('returns receipt discrepancy guidance without performing inventory writes', async () => {
@@ -373,7 +500,10 @@ describe('BrainFocusedBusinessCapabilityExecutor', () => {
     expect(result.answer).toContain('已归因收入 3600.00 元');
     expect(result.answer).toContain('没有统一的营销活动成本事实');
     expect(result.blocks).toEqual(
-      expect.arrayContaining([expect.objectContaining({ kind: 'kpi' }), expect.objectContaining({ kind: 'diagnosis' })]),
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'kpi' }),
+        expect.objectContaining({ kind: 'diagnosis' }),
+      ]),
     );
   });
 });

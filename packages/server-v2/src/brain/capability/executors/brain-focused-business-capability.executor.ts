@@ -105,17 +105,9 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
       '胶原焕活提拉用到哪些耗材',
       '全身精油 SPA的BOM成本是多少',
     ],
-    negativeExamples: [
-      '查询商品出库排行',
-      '直接扣减库存',
-      '耗材成本占服务收入的比例',
-      '全店耗材成本率是多少',
-    ],
+    negativeExamples: ['查询商品出库排行', '直接扣减库存', '耗材成本占服务收入的比例', '全店耗材成本率是多少'],
     synonyms: ['项目耗材消耗', '项目实际用料', '服务耗材排行', '项目BOM', '项目耗材清单', '标准BOM成本'],
-    businessDefinitionKeys: [
-      'entity.project',
-      'entity.product',
-    ],
+    businessDefinitionKeys: ['entity.project', 'entity.product'],
     readOnly: true,
     storeScope: 'required',
     permissions: ['core:brain:use', 'core:store:reservations', 'core:inventory:stock'],
@@ -255,9 +247,7 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
         const asksCustomerCount = /(?:几个|多少).*(?:客人|客户)|(?:客人|客户).*(?:几个|多少)/.test(input.question);
         const asksCommission = /提成/.test(input.question);
         const items = [
-          ...(asksCustomerCount
-            ? [{ label: '服务客户', value: `${performance.uniqueCustomerCount} 人` }]
-            : []),
+          ...(asksCustomerCount ? [{ label: '服务客户', value: `${performance.uniqueCustomerCount} 人` }] : []),
           { label: '个人服务业绩', value: `${performance.revenueAmount.toFixed(2)} 元` },
           ...(asksCommission ? [{ label: '个人提成', value: `${performance.commissionAmount.toFixed(2)} 元` }] : []),
         ];
@@ -293,9 +283,10 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
           /毛利(?:率)?.*(?:最低|最少|异常低|偏低|过低)|(?:最低|最少|异常低|偏低|过低).*(?:毛利|利润)/.test(
             input.question,
           );
-        const asksIncomeShare = /(?:各|每个).*(?:项目).*(?:收入|营收).*(?:占比|比例)|(?:项目).*(?:收入|营收).*(?:占比|比例)/.test(
-          input.question,
-        );
+        const asksIncomeShare =
+          /(?:各|每个).*(?:项目).*(?:收入|营收).*(?:占比|比例)|(?:项目).*(?:收入|营收).*(?:占比|比例)/.test(
+            input.question,
+          );
         const sourceRows = [...result.items].filter((item) => item.serviceCount > 0 || item.serviceIncome > 0);
         const totalServiceIncome = sourceRows.reduce((sum, item) => sum + item.serviceIncome, 0);
         const rows = sourceRows
@@ -338,7 +329,7 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
               ? `${range.label}项目毛利率最低的是 ${first.projectName}，毛利率 ${first.marginRate}。`
               : asksIncomeShare
                 ? `${range.label}项目服务收入合计 ${totalServiceIncome.toFixed(2)} 元，占比最高的是 ${first.projectName}，占 ${first.incomeShare}。`
-              : `${range.label}已返回 ${rows.length} 个项目的收入、耗材成本、提成成本和贡献毛利。`;
+                : `${range.label}已返回 ${rows.length} 个项目的收入、耗材成本、提成成本和贡献毛利。`;
         return {
           status: 'completed',
           answer,
@@ -365,6 +356,7 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
           metadata: {
             capabilityKey,
             answerScope: asksIncomeShare ? 'project_income_share_ranking' : 'project_margin_ranking',
+            actionWriteCount: 0,
             mappingOutputs: { projectRanking: rows },
             completionCriteria: asksIncomeShare
               ? ['project_income_loaded', 'project_income_share_calculated', 'project_income_ranked']
@@ -460,7 +452,12 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
             citations: [citation],
             grounding: 'db_skill',
             blocks: [
-              { kind: 'ranking', rows: [], columns: ['projectName', 'quantity', 'unit'], citationIds: [citation.sourceId] },
+              {
+                kind: 'ranking',
+                rows: [],
+                columns: ['projectName', 'quantity', 'unit'],
+                citationIds: [citation.sourceId],
+              },
               { kind: 'limitations', items: ['no_data: project_actual_material_quantity_not_recorded', answer] },
             ],
             metadata: {
@@ -593,8 +590,15 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
         }));
         const displayedFindings = findings.length
           ? findings
-          : [{ title: '当前未命中聚合风险', detail: `${range.label}未发现已接入规则命中的聚合财务风险。`, severity: 'info' as const }];
-        const limitation = '当前后台未发布逐笔异常流水判定规则，本结果只能提示聚合风险，不能把某一笔普通流水直接标记为异常。';
+          : [
+              {
+                title: '当前未命中聚合风险',
+                detail: `${range.label}未发现已接入规则命中的聚合财务风险。`,
+                severity: 'info' as const,
+              },
+            ];
+        const limitation =
+          '当前后台未发布逐笔异常流水判定规则，本结果只能提示聚合风险，不能把某一笔普通流水直接标记为异常。';
         return {
           status: 'completed',
           answer: findings.length
@@ -696,7 +700,10 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
         endDate: new Date(structuredRange.endExclusive.getTime() - 1),
       };
     }
-    return this.timeRangeParser.parse(structuredTime?.label ?? structuredTime?.preset ?? input.question).range ?? defaultBrainDateRange();
+    return (
+      this.timeRangeParser.parse(structuredTime?.label ?? structuredTime?.preset ?? input.question).range ??
+      defaultBrainDateRange()
+    );
   }
 
   private formatDate(value: Date, timezone: string) {
@@ -733,9 +740,7 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
         normalized,
       );
     const asksBomCost =
-      /(?:BOM|bom).*(?:成本|多少钱|金额|是多少)|(?:耗材|物料|材料).*(?:成本|多少钱|金额|是多少)/iu.test(
-        normalized,
-      );
+      /(?:BOM|bom).*(?:成本|多少钱|金额|是多少)|(?:耗材|物料|材料).*(?:成本|多少钱|金额|是多少)/iu.test(normalized);
     const aggregateQuestion =
       /(?:各项目|每个项目|所有项目|全店|哪个项目|哪些项目|排行|排名|最高|最多|最低|实际消耗|消耗最多|消耗排行)/u.test(
         normalized,
@@ -807,7 +812,9 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
       })
       .sort((left, right) => left.productId - right.productId);
     const totalCost = rows.reduce((sum, item) => sum + item.itemCost, 0);
-    const asksCost = /(?:BOM|bom|耗材|物料|材料).*(?:成本|多少钱|金额|是多少)/iu.test(input.question.replace(/\s+/gu, ''));
+    const asksCost = /(?:BOM|bom|耗材|物料|材料).*(?:成本|多少钱|金额|是多少)/iu.test(
+      input.question.replace(/\s+/gu, ''),
+    );
     return {
       status: 'completed',
       answer: asksCost
