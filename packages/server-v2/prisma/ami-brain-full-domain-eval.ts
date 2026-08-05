@@ -48,7 +48,9 @@ import {
   AMI_BRAIN_FULL_DOMAIN_SUITE_KEY,
   AMI_BRAIN_FULL_DOMAIN_SUITE_LABEL,
   classifyFullDomainOutcome,
+  classifyFullDomainResumeResult,
   deterministicFullDomainGrade,
+  fullDomainResumeModelIdentityMismatches,
   fullDomainEvalCsvChecksum,
   parseFullDomainEvalCsv,
   parseSupplementalFullDomainEvalCases,
@@ -292,7 +294,7 @@ async function main() {
     const run = options.resumeRunId
       ? await prisma.brainEvalRun.findFirst({
           where: { id: options.resumeRunId, storeId: options.storeId },
-          select: { id: true, releaseId: true, summary: true },
+          select: { id: true, releaseId: true, status: true, summary: true, error: true, finishedAt: true },
         })
       : await prisma.brainEvalRun.create({
           data: {
@@ -342,6 +344,7 @@ async function main() {
               candidateWorktree,
               registeredPermissionGaps,
               evaluationPermissionPolicy: 'registered_role_permissions_plus_release_declared_minimum_permissions',
+              provider: process.env.LLM_PROVIDER ?? null,
               model: process.env.LLM_MODEL ?? null,
               storeId: options.storeId,
               evaluation: true,
@@ -377,6 +380,12 @@ async function main() {
         resumeSummary.releaseFingerprint !== snapshot.releaseFingerprint ? 'release_fingerprint' : null,
         resumeSummary.sourceCommit !== sourceCommit ? 'source_commit' : null,
         asRecord(resumeSummary.productionHealth).commit !== productionHealth.commit ? 'runtime_commit' : null,
+        ...fullDomainResumeModelIdentityMismatches({
+          previousProvider: resumeSummary.provider,
+          previousModel: resumeSummary.model,
+          currentProvider: process.env.LLM_PROVIDER,
+          currentModel: process.env.LLM_MODEL,
+        }),
       ].filter(Boolean);
       if (resumeMismatches.length) {
         throw new Error(`ami_brain_full_domain_eval_resume_identity_mismatch:${resumeMismatches.join(',')}`);
@@ -393,9 +402,45 @@ async function main() {
         metadata: true,
       },
     });
-    const completed = new Set(
-      existing.filter((item) => Boolean(asRecord(item.metadata).qualityBucket)).map((item) => item.caseKey),
-    );
+    const expectedProvider = String(process.env.LLM_PROVIDER ?? '').trim();
+    const expectedModel = String(process.env.LLM_MODEL ?? '').trim();
+    const resumeDecisions = existing.map((item) => ({
+      caseKey: item.caseKey,
+      ...classifyFullDomainResumeResult(item, { provider: expectedProvider, model: expectedModel }),
+    }));
+    const completed = new Set(resumeDecisions.filter((item) => item.reusable).map((item) => item.caseKey));
+    if (options.resumeRunId) {
+      const resumeSummary = asRecord(run.summary);
+      const previousResumeAudit = asRecord(resumeSummary.resumeAudit);
+      const retryReasons = Object.fromEntries(
+        [...new Set(resumeDecisions.filter((item) => !item.reusable).map((item) => item.reason))]
+          .sort()
+          .map((reason) => [reason, resumeDecisions.filter((item) => item.reason === reason).length]),
+      );
+      await prisma.brainEvalRun.update({
+        where: { id: run.id },
+        data: {
+          status: 'running',
+          error: Prisma.DbNull,
+          finishedAt: null,
+          summary: asJson({
+            ...resumeSummary,
+            resumeAudit: {
+              attemptCount: Number(previousResumeAudit.attemptCount ?? 0) + 1,
+              resumedAt: new Date().toISOString(),
+              previousStatus: run.status,
+              previousFinishedAt: run.finishedAt?.toISOString() ?? null,
+              previousError: run.error ?? null,
+              reusableCaseCount: completed.size,
+              reprocessedCaseCount: resumeDecisions.length - completed.size,
+              retryReasons,
+              provider: expectedProvider,
+              model: expectedModel,
+            },
+          }),
+        },
+      });
+    }
     let providerFailures = 0;
     let cursor = 0;
     const pending = cases.filter((item) => !completed.has(item.id));
@@ -770,6 +815,7 @@ async function main() {
         failedCount: summary.failed,
         summary: asJson(summary),
         results: asJson(summary.compactResults),
+        error: Prisma.DbNull,
         finishedAt: new Date(),
       },
     });
@@ -1813,6 +1859,8 @@ async function summarize(
         ? 'query_only_server_rejection_no_preview_no_confirm_no_retry_no_business_write'
         : 'preview_or_confirmation_only_no_confirm_endpoint',
     executionMode: options.standardDelta ? 'delta_after_release_core' : 'full_suite',
+    provider: String(process.env.LLM_PROVIDER ?? '').trim() || null,
+    model: String(process.env.LLM_MODEL ?? '').trim() || null,
     storeId: options.storeId,
     sourceChecksum,
     releaseFingerprint,

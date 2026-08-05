@@ -129,7 +129,9 @@ describe('BrainEvidencePanel', () => {
     expect(screen.getAllByText('输入')).toHaveLength(events.length);
     expect(screen.getAllByText('输出')).toHaveLength(events.length);
     expect(screen.getByText(/"role": "store_manager"/)).toBeInTheDocument();
-    expect(screen.getByText('运行版本（历史）· runtime-r416')).toBeInTheDocument();
+    expect(screen.getByText('LEGACY-RT-416')).toBeInTheDocument();
+    expect(screen.getByText('未记录治理策略')).toBeInTheDocument();
+    expect(screen.getByText(/运行数据库记录 #416/).closest('details')).not.toHaveAttribute('open');
     expect(screen.getByText(/语义版本 1.0/)).toBeInTheDocument();
     expect(screen.getByText('营收汇总')).toBeInTheDocument();
     expect(screen.getByText('入选依据：intent、metric')).toBeInTheDocument();
@@ -137,6 +139,41 @@ describe('BrainEvidencePanel', () => {
     expect(screen.getByText('系统错误')).toBeInTheDocument();
     expect(screen.getByText('执行 DAG')).toBeInTheDocument();
     expect(screen.getByText('完整完成')).toBeInTheDocument();
+  });
+
+  it('shows runtime and governance policy as separate product identities', () => {
+    const identityEvents = events.map((event) => event.stepKey === 'release_runtime_selection' ? {
+      ...event,
+      output: {
+        ...event.output,
+        governancePolicyReleaseId: 460,
+        governancePolicyMode: 'enforced',
+        governanceTransitionStatus: 'completed',
+        runtimeProductIdentity: { family: 'runtime', code: 'RT-001', stageCode: 'RT-001-FULL', name: 'Query Only V1' },
+        governancePolicyIdentity: { family: 'policy', code: 'GP-003', stageCode: null, name: 'Query Only V1 强制治理策略' },
+      },
+    } : event);
+
+    render(
+      <BrainEvidencePanel
+        message={message}
+        events={identityEvents}
+        loadingEvents={false}
+        actionResults={{}}
+        pendingActionId={null}
+        feedbackLoading={false}
+        onConfirmAction={vi.fn()}
+        onRejectAction={vi.fn()}
+        onRetryAction={vi.fn()}
+        onFeedback={vi.fn()}
+        activeTab="trace"
+      />,
+    );
+
+    expect(screen.getByText('RT-001-FULL · Query Only V1')).toBeInTheDocument();
+    expect(screen.getByText('GP-003 · Query Only V1 强制治理策略')).toBeInTheDocument();
+    expect(screen.getByText('运行版本（RT）')).toBeInTheDocument();
+    expect(screen.getByText('治理策略（GP）')).toBeInTheDocument();
   });
 
   it('switches to the proactive risk tab and keeps paging actions available', () => {

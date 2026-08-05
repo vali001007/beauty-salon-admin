@@ -111,8 +111,19 @@ export async function listBrainMessages(conversationId: number): Promise<BrainMe
   return apiClient.get<unknown, BrainMessageListResponse>(`/brain/conversations/${conversationId}/messages`);
 }
 
+const BRAIN_CHAT_TIMEOUT_MS = 90_000;
+
 export async function sendBrainMessage(conversationId: number, payload: BrainChatRequest): Promise<BrainChatResponse> {
-  return apiClient.post<unknown, BrainChatResponse>(`/brain/conversations/${conversationId}/messages`, payload);
+  return apiClient.post<unknown, BrainChatResponse>(
+    `/brain/conversations/${conversationId}/messages`,
+    payload,
+    {
+      timeout: BRAIN_CHAT_TIMEOUT_MS,
+      // A timed-out POST may still be running on the server. Retrying it creates
+      // duplicate Brain Runs and makes the terminal wait for several executions.
+      skipRetry: true,
+    } as Parameters<typeof apiClient.post>[2] & { skipRetry: boolean },
+  );
 }
 
 function readCsrfToken() {

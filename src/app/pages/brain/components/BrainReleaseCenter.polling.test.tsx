@@ -48,6 +48,10 @@ function renderReleaseCenter() {
   return render(<MemoryRouter><BrainReleaseCenter /></MemoryRouter>);
 }
 
+function renderHistoricalReleaseCenter() {
+  return render(<MemoryRouter><BrainReleaseCenter historicalOnly /></MemoryRouter>);
+}
+
 async function flush() {
   await act(async () => { await Promise.resolve(); await Promise.resolve(); });
 }
@@ -158,6 +162,32 @@ describe('BrainReleaseCenter regeneration polling', () => {
     expect(screen.queryByRole('button', { name: '批准运行阶段' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '拒绝' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '修改要求' })).toBeInTheDocument();
+  });
+
+  it('keeps the legacy runtime surface read-only even for fully privileged users', async () => {
+    api.listBrainCapabilityRegenerationJobs.mockResolvedValue({ items: [] });
+    api.listBrainReleases.mockResolvedValue({
+      items: [{
+        id: 61,
+        releaseKey: 'runtime-draft-v1',
+        scope: 'percentage',
+        rollout: { stage: 'shadow', mode: 'shadow', userPercentage: 100 },
+        status: 'draft',
+        previousReleaseId: 60,
+        createdAt: '2026-08-01T00:00:00.000Z',
+        items: [],
+      }],
+    });
+
+    renderHistoricalReleaseCenter();
+    await flush();
+
+    expect(screen.getByText('历史运行快照（LEGACY）')).toBeInTheDocument();
+    expect(screen.getByText(/历史页面为只读入口/)).toBeInTheDocument();
+    expect(screen.queryByText('创建一个 RT 运行版本')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '批准运行阶段' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '拒绝' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '修改要求' })).not.toBeInTheDocument();
   });
 
   it('renders server-verified readiness instead of inferring tests from snapshots', async () => {

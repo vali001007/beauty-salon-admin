@@ -26,7 +26,7 @@ vi.mock('./components/BrainSemanticGovernance', () => ({ BrainSemanticGovernance
 vi.mock('./components/BrainEvalCenter', () => ({ BrainEvalCenter: () => <div>eval-content</div> }));
 vi.mock('./components/BrainFeedbackBoard', () => ({ BrainFeedbackBoard: () => <div>feedback-content</div> }));
 vi.mock('./components/BrainQualityLatencyPanel', () => ({ BrainQualityLatencyPanel: () => <div>latency-content</div> }));
-vi.mock('./components/BrainReleaseCenter', () => ({ BrainReleaseCenter: () => <div>runtime-content</div> }));
+vi.mock('./components/BrainReleaseCenter', () => ({ BrainReleaseCenter: ({ historicalOnly }: { historicalOnly?: boolean }) => <div>{historicalOnly ? 'runtime-history-content' : 'runtime-content'}</div> }));
 vi.mock('./components/BrainRolloutSequencePage', () => ({ BrainRolloutSequencePage: () => <div>sequence-content</div> }));
 vi.mock('./components/BrainRoleGovernance', () => ({ BrainRoleGovernance: () => <div>role-content</div> }));
 vi.mock('./components/BrainMemoryGovernance', () => ({ BrainMemoryGovernance: () => <div>memory-content</div> }));
@@ -78,6 +78,13 @@ describe('Brain governance compact containers', () => {
     expect(screen.getByRole('tab', { name: '治理策略（GP）' })).toBeInTheDocument();
     await user.click(screen.getByRole('tab', { name: '运行版本（RT）' }));
     expect(screen.getByText('sequence-content')).toBeInTheDocument();
+  });
+
+  it('opens legacy runtime snapshots as a read-only historical surface', () => {
+    renderPage(<BrainGovernanceReleasesPage />, '/brain-governance/releases?tab=runtime&legacy=1');
+
+    expect(screen.getByText('runtime-history-content')).toBeInTheDocument();
+    expect(screen.queryByText('sequence-content')).not.toBeInTheDocument();
   });
 
   it('keeps roles and memory in low-frequency advanced settings', () => {

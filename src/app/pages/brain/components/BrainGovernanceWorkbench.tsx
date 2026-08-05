@@ -420,14 +420,14 @@ export function BrainGovernanceOverviewPage() {
                 {canRelease && !transition.runtimeApprovedAt && ['draft', 'validated', 'approved'].includes(transition.status) ? <Button variant="outline" disabled={transitionBusy} onClick={() => void runTransitionAction(() => approveBrainGovernanceTransitionRuntime(transition.id), '运行版本已审批')}>审批 RT</Button> : null}
                 {canPublish && canRelease && transition.policyApprovedAt && transition.runtimeApprovedAt && ['validated', 'approved'].includes(transition.status) ? <Button disabled={transitionBusy} onClick={() => window.confirm('将同时发布新治理策略并激活新运行版本 Shadow，失败会自动补偿回滚。确认继续？') && void runTransitionAction(() => switchBrainGovernanceTransition(transition.id), '新治理策略与运行版本 Shadow 已组合生效')}>组合切换</Button> : null}
                 {canPublish && canRelease && ['switching', 'observing'].includes(transition.status) ? <Button variant="destructive" disabled={transitionBusy} onClick={() => void rollbackTransition()}><RotateCcw />组合回滚</Button> : null}
-                {canRelease && transition.status === 'observing' && transition.runtimeSequence.status === 'completed' && transition.runtimeSequence.currentStage === 'full' ? <Button disabled={transitionBusy} onClick={() => void runTransitionAction(() => finalizeBrainGovernanceTransition(transition.id), '旧运行版本已标记为被取代，切换完成')}>完成退役</Button> : null}
+                {canPublish && canRelease && transition.status === 'observing' && transition.runtimeSequence.status === 'completed' && transition.runtimeSequence.currentStage === 'full' ? <Button disabled={transitionBusy} onClick={() => void runTransitionAction(() => finalizeBrainGovernanceTransition(transition.id), '旧治理策略已退役，旧运行版本已标记为被取代，切换完成')}>完成退役</Button> : null}
               </div>
               <details className="mt-3 text-xs text-muted-foreground"><summary className="cursor-pointer">审计信息</summary><p className="mt-1 break-all">Transition {transition.transitionKey} · 内部记录 #{transition.id}</p></details>
             </div>
           ) : (
             <div className="rounded-lg border border-dashed p-4">
               <p className="text-muted-foreground">尚未创建新的 GP/RT 组合。先预检同一 Candidate 的 41 项可信证据，再分别生成治理策略与运行版本。</p>
-              {transitionPreview ? <div className={`mt-3 rounded-lg p-3 ${transitionPreview.canPrepare ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}><div className="font-medium">目标：{transitionPreview.target.policyCode} + {transitionPreview.target.runtimeCode}</div><p className="mt-1">产品画像：{transitionPreview.target.productProfile} · {transitionPreview.target.allowedCapabilityCount} 项只读能力允许 · {transitionPreview.target.deniedCapabilityCount} 项 Action 能力禁止 · Action 关闭。</p><p className="mt-1">Candidate 证据：{transitionPreview.missingEvidence.length ? `缺少 ${transitionPreview.missingEvidence.length} 项` : '41/41 已覆盖'}</p>{transitionPreview.missingEvidence.length ? <details className="mt-2"><summary className="cursor-pointer">查看缺失证据</summary><p className="mt-1 break-all">{transitionPreview.missingEvidence.join('、')}</p></details> : null}{transitionPreview.blockers.length ? <p className="mt-1 break-all">阻塞：{transitionPreview.blockers.join('、')}</p> : null}</div> : null}
+              {transitionPreview ? <TransitionPreviewSummary preview={transitionPreview} /> : null}
               <div className="mt-3 flex flex-wrap gap-2"><Button variant="outline" disabled={!currentCandidate || transitionBusy} onClick={() => void previewTransition()}>预检新策略与运行版本</Button>{canManage && transitionPreview?.canPrepare ? <Button disabled={transitionBusy} onClick={() => void prepareTransition()}>创建 GP 与 RT 草稿</Button> : null}</div>
             </div>
           )}
@@ -1158,6 +1158,70 @@ function CurrentCombinationFacts({ data, transition }: { data: BrainGovernanceOv
       <StatusRow label="切换状态" value={transition ? transitionStatusLabel(transition.status) : data.runtimeConsistency === 'aligned' ? '组合一致' : '待核对'} />
     </div>
   );
+}
+
+function TransitionPreviewSummary({ preview }: { preview: BrainGovernanceTransitionPreview }) {
+  const identity = preview.target.identity;
+  const receipt = preview.evidenceReceipt;
+  const blockerMessages = [...new Set(preview.blockers.map(transitionPreviewBlockerLabel))];
+  const evidenceLabel = preview.missingEvidence.length
+    ? `缺少 ${preview.missingEvidence.length} 项能力证据`
+    : receipt?.materializationPending
+      ? '正式证据正在固化'
+      : receipt
+        ? '可信 Receipt 已绑定'
+        : '41/41 已覆盖，Receipt 状态待确认';
+  return (
+    <div className={`mt-3 rounded-lg p-3 ${preview.canPrepare ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
+      <div className="font-medium">目标：{preview.target.policyCode} + {preview.target.runtimeCode}</div>
+      <p className="mt-1">产品画像：{preview.target.productProfile} · {preview.target.allowedCapabilityCount} 项只读能力允许 · {preview.target.deniedCapabilityCount} 项 Action 能力禁止 · Action 关闭。</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <TargetIdentityStatus family="GP" code={preview.target.policyCode} name={identity?.policy.name} status={identity?.policy.status} />
+        <TargetIdentityStatus family="RT" code={preview.target.runtimeCode} name={identity?.runtime.name} status={identity?.runtime.status} />
+      </div>
+      <p className="mt-3">Candidate 证据：{evidenceLabel}</p>
+      {preview.missingEvidence.length ? <details className="mt-2"><summary className="cursor-pointer">查看缺失证据</summary><p className="mt-1 break-all">{preview.missingEvidence.join('、')}</p></details> : null}
+      {blockerMessages.length ? <div className="mt-3 space-y-1"><div className="font-medium">当前无法创建组合：</div>{blockerMessages.map((message) => <p key={message}>{message}</p>)}</div> : null}
+      {(identity || receipt || preview.blockers.length) ? (
+        <details className="mt-3 text-xs">
+          <summary className="cursor-pointer font-medium">审计信息</summary>
+          <div className="mt-2 space-y-1 break-all">
+            {identity ? <><p>GP 内部 key：{identity.policy.releaseKey} · 数据库记录 #{identity.policy.internalReleaseId ?? '-'} · 编号计数 {identity.policy.counterNumber}</p><p>RT 内部 key：{identity.runtime.releaseKey} · 序列记录 #{identity.runtime.internalSequenceId ?? '-'} · 编号计数 {identity.runtime.counterNumber}</p></> : null}
+            {receipt ? <p>Receipt：{receipt.receiptKey ?? '待固化'} · 数据库记录 #{receipt.id ?? '-'} · Eval Run #{receipt.evalRunId ?? '-'}</p> : null}
+            {preview.blockers.length ? <p>原始阻断代码：{preview.blockers.join('、')}</p> : null}
+          </div>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
+function TargetIdentityStatus({ family, code, name, status }: { family: 'GP' | 'RT'; code: string; name?: string; status?: 'available' | 'reusable' | 'conflict' }) {
+  return (
+    <div className="rounded-md border border-current/20 bg-background/60 p-3">
+      <div className="text-xs opacity-80">{family === 'GP' ? '治理策略编号' : '运行版本编号'}</div>
+      <div className="mt-1 font-medium">{code}{name && name !== code ? ` · ${name}` : ''}</div>
+      <div className="mt-1 text-xs">{targetIdentityStatusLabel(status)}</div>
+    </div>
+  );
+}
+
+function targetIdentityStatusLabel(status?: 'available' | 'reusable' | 'conflict') {
+  if (status === 'available') return '编号可创建';
+  if (status === 'reusable') return '现有对象可安全复用';
+  if (status === 'conflict') return '编号已被不兼容对象占用，需要先处理';
+  return '编号状态未返回';
+}
+
+function transitionPreviewBlockerLabel(blocker: string) {
+  const [code, targetCode] = blocker.split(':');
+  if (code === 'candidate_transition_already_open') return '当前 Candidate 已有未完成的组合切换，请继续现有流程。';
+  if (code === 'target_policy_identity_conflict') return `${targetCode || '目标 GP'} 已被其他治理策略对象占用，当前 Candidate 不能安全复用。`;
+  if (code === 'target_runtime_identity_conflict') return `${targetCode || '目标 RT'} 已被其他运行序列占用，当前 Candidate 不能安全复用。`;
+  if (code === 'target_policy_counter_conflict') return `${targetCode || '目标 GP'} 的编号计数与现有对象不一致，暂不能创建。`;
+  if (code === 'target_runtime_counter_conflict') return `${targetCode || '目标 RT'} 的编号计数与现有对象不一致，暂不能创建。`;
+  if (code.includes('evidence') || code.includes('receipt')) return 'Candidate 的正式可信证据尚未完整绑定。';
+  return '预检发现未满足的安全条件，请展开审计信息查看技术代码。';
 }
 
 function TransitionEvidenceSummary({ transition }: { transition: BrainGovernanceTransition }) {

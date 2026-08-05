@@ -94,6 +94,8 @@ export class BrainRolloutSequenceService {
     evaluationEvidenceEvalRunId?: number;
     evaluationEvidenceReceiptId?: number;
     allowDraftPolicy?: boolean;
+    expectedRuntimeVersionCode?: string;
+    transitionPreparation?: boolean;
     actorId: number;
   }) {
     const candidate = await this.prisma.brainGovernanceCandidate.findUnique({
@@ -112,11 +114,17 @@ export class BrainRolloutSequenceService {
         candidateKey: candidate.candidateKey,
         resourceVersionIds: input.resourceVersionIds,
         evaluationEvidenceReleaseId: input.evaluationEvidenceReleaseId,
+        expectedRuntimeVersionCode: input.expectedRuntimeVersionCode,
+        productProfile: input.productProfile,
       });
       return this.get(candidate.rolloutSequence.id);
     }
-    if (!candidate.rolloutSequence && candidate.status !== 'ready') throw new BadRequestException('candidate_not_ready_for_rollout');
-    if (candidate.rolloutSequence && !['ready', 'releasing'].includes(candidate.status)) {
+    const preparableCandidateStatuses = input.transitionPreparation ? ['governing', 'ready'] : ['ready'];
+    const repairableCandidateStatuses = input.transitionPreparation ? ['governing', 'ready', 'releasing'] : ['ready', 'releasing'];
+    if (!candidate.rolloutSequence && !preparableCandidateStatuses.includes(candidate.status)) {
+      throw new BadRequestException('candidate_not_ready_for_rollout');
+    }
+    if (candidate.rolloutSequence && !repairableCandidateStatuses.includes(candidate.status)) {
       throw new BadRequestException('candidate_rollout_sequence_not_repairable');
     }
     const policyStatusAllowed = candidate.policySnapshot?.status === 'active'
@@ -172,12 +180,15 @@ export class BrainRolloutSequenceService {
     if (sequence.governanceMode !== expectedMode) {
       throw new BadRequestException('rollout_sequence_governance_mode_conflict');
     }
-    if (this.releaseIdentity && !sequence.runtimeVersionCode) {
+    if (this.releaseIdentity) {
       sequence = await this.releaseIdentity.assignRuntimeIdentity(
         sequence.id,
         input.displayName ?? input.releaseKey,
         input.productProfile,
+        input.expectedRuntimeVersionCode,
       ) as typeof sequence;
+    } else if (input.expectedRuntimeVersionCode && sequence.runtimeVersionCode !== input.expectedRuntimeVersionCode) {
+      throw new BadRequestException(`rollout_sequence_runtime_identity_conflict:${input.expectedRuntimeVersionCode}:${sequence.runtimeVersionCode ?? 'unassigned'}`);
     }
     const existingByStage = new Map(sequence.releases.map((release) => [release.rolloutStage, release]));
     let previousReleaseId = sequence.previousRuntimeReleaseId ?? previousRuntimeRelease?.id;
@@ -258,7 +269,9 @@ export class BrainRolloutSequenceService {
       });
       previousReleaseId = releaseId;
     }
-    await this.prisma.brainGovernanceCandidate.update({ where: { id: candidate.id }, data: { status: 'releasing' } });
+    if (!input.transitionPreparation) {
+      await this.prisma.brainGovernanceCandidate.update({ where: { id: candidate.id }, data: { status: 'releasing' } });
+    }
     await this.events?.record({
       candidateId: candidate.id,
       eventType: sequenceCreated ? 'rollout_sequence_created' : 'rollout_sequence_recovered',
@@ -266,7 +279,12 @@ export class BrainRolloutSequenceService {
       entityId: sequence.id,
       actorType: 'user',
       actorId: input.actorId,
-      payload: { sequenceKey, releaseCount: STAGES.length, governanceMode: sequence.governanceMode },
+      payload: {
+        sequenceKey,
+        releaseCount: STAGES.length,
+        governanceMode: sequence.governanceMode,
+        transitionPreparation: input.transitionPreparation === true,
+      },
     });
     return this.get(sequence.id);
   }
@@ -580,6 +598,8 @@ function assertSequenceIdentity(
     id: number;
     policySnapshotId: number;
     governanceMode: string;
+    runtimeVersionCode?: string | null;
+    productProfile?: string | null;
     releases: Array<{
       releaseKey: string;
       scope: string;
@@ -597,6 +617,8 @@ function assertSequenceIdentity(
     candidateKey: string;
     resourceVersionIds: number[];
     evaluationEvidenceReleaseId?: number;
+    expectedRuntimeVersionCode?: string;
+    productProfile?: string;
   },
 ) {
   if (sequence.policySnapshotId !== expected.policySnapshotId) {
@@ -604,6 +626,12 @@ function assertSequenceIdentity(
   }
   if (sequence.governanceMode !== expected.governanceMode) {
     throw new BadRequestException('rollout_sequence_governance_mode_conflict');
+  }
+  if (expected.expectedRuntimeVersionCode && sequence.runtimeVersionCode !== expected.expectedRuntimeVersionCode) {
+    throw new BadRequestException('rollout_sequence_runtime_identity_conflict');
+  }
+  if (expected.productProfile && sequence.productProfile !== expected.productProfile) {
+    throw new BadRequestException('rollout_sequence_product_profile_conflict');
   }
   const releaseByStage = new Map(sequence.releases.map((release) => [release.rolloutStage, release]));
   for (const stage of STAGES) {

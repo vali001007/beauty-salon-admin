@@ -196,6 +196,89 @@ describe('BrainRolloutSequenceService', () => {
     expect(releaseCreate).not.toHaveBeenCalled();
   });
 
+  it('prepares RT-001 for a governing candidate without moving it to releasing', async () => {
+    const releaseCreate = jest.fn().mockImplementation(({ releaseKey }) => Promise.resolve({
+      id: releaseCreate.mock.calls.length + 100,
+      releaseKey,
+    }));
+    const sequence = {
+      id: 51,
+      governanceMode: 'enforced',
+      policySnapshotId: 81,
+      previousRuntimeReleaseId: 82,
+      runtimeVersionCode: null,
+      productProfile: null,
+      releases: [],
+    };
+    const identifiedSequence = {
+      ...sequence,
+      runtimeVersionCode: 'RT-001',
+      runtimeVersionNumber: 1,
+      displayName: 'Query Only V1',
+      productProfile: 'query_only_v1',
+    };
+    const candidateUpdate = jest.fn().mockResolvedValue({});
+    const prisma = {
+      brainGovernanceCandidate: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 17,
+          candidateKey: 'repo:head:merge',
+          headCommit: 'head',
+          status: 'governing',
+          policySnapshot: { id: 81, scope: 'governance_policy', status: 'draft' },
+          rolloutSequence: null,
+        }),
+        update: candidateUpdate,
+      },
+      brainRelease: {
+        findFirst: jest.fn().mockResolvedValue({ id: 82, status: 'active', scope: 'global' }),
+        findUnique: jest.fn().mockResolvedValue(null),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      brainRolloutSequence: { create: jest.fn().mockResolvedValue(sequence) },
+    };
+    const releaseIdentity = {
+      assignRuntimeIdentity: jest.fn().mockResolvedValue(identifiedSequence),
+    };
+    const events = { record: jest.fn().mockResolvedValue({}) };
+    const service = new BrainRolloutSequenceService(
+      prisma as never,
+      { createRelease: releaseCreate } as never,
+      undefined,
+      events as never,
+      releaseIdentity as never,
+    );
+    jest.spyOn(service, 'get').mockResolvedValue({ id: 51, runtimeVersionCode: 'RT-001' } as never);
+
+    await expect(service.create({
+      candidateKey: 'repo:head:merge',
+      releaseKey: 'ami-brain-runtime-query-only-v1-head',
+      resourceVersionIds: [1, 2],
+      governanceMode: 'enforced',
+      displayName: 'Query Only V1',
+      productProfile: 'query_only_v1',
+      evaluationEvidenceReleaseId: 901,
+      evaluationEvidenceEvalRunId: 902,
+      evaluationEvidenceReceiptId: 903,
+      allowDraftPolicy: true,
+      expectedRuntimeVersionCode: 'RT-001',
+      transitionPreparation: true,
+      actorId: 9,
+    })).resolves.toMatchObject({ id: 51, runtimeVersionCode: 'RT-001' });
+
+    expect(releaseIdentity.assignRuntimeIdentity).toHaveBeenCalledWith(
+      51,
+      'Query Only V1',
+      'query_only_v1',
+      'RT-001',
+    );
+    expect(releaseCreate).toHaveBeenCalledTimes(5);
+    expect(candidateUpdate).not.toHaveBeenCalled();
+    expect(events.record).toHaveBeenCalledWith(expect.objectContaining({
+      payload: expect.objectContaining({ transitionPreparation: true }),
+    }));
+  });
+
   it('blocks promotion when health evidence exceeds the configured threshold', async () => {
     const service = new BrainRolloutSequenceService(
       {} as never,

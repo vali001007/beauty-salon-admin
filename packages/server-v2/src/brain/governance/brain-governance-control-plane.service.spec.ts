@@ -146,9 +146,47 @@ describe('BrainGovernanceControlPlaneService', () => {
       resourceVersionIds: [11],
       actorId: 9,
       displayName: 'Query Only V1 强制治理策略',
+      expectedDisplayCode: 'GP-003',
     })).resolves.toMatchObject({ id: 460, releaseKey: existing.releaseKey });
     expect(prisma.$transaction).not.toHaveBeenCalled();
     expect(events.record).not.toHaveBeenCalled();
+  });
+
+  it('rejects a reusable policy snapshot when GP-003 is not the stored identity', async () => {
+    const version = policyRow({
+      id: 11,
+      resourceKey: 'customer_facts',
+      snapshot: {
+        ...policyRow().snapshot as object,
+        capabilityKey: 'customer_facts',
+        riskLevel: 'low',
+        mode: 'readonly',
+        whitelistStatus: 'approved',
+        runtimeEnforcementStatus: 'enforced',
+        evidence: [{ expiresAt: freshEvidenceExpiry().toISOString() }],
+      },
+    });
+    const existing = {
+      id: 460,
+      releaseKey: 'ami-brain-policy-query-only-v1-abcdef123456',
+      scope: 'governance_policy',
+      status: 'draft',
+      displayCode: 'GP-004',
+      items: [{ resourceVersionId: 11 }],
+    };
+    const prisma = {
+      brainResourceVersion: { findMany: jest.fn().mockResolvedValue([version]) },
+      brainRelease: { findUnique: jest.fn().mockResolvedValue(existing) },
+    };
+    const service = new BrainGovernanceControlPlaneService(prisma as never);
+
+    await expect(service.createPolicySnapshot({
+      releaseKey: existing.releaseKey,
+      resourceVersionIds: [11],
+      actorId: 9,
+      displayName: 'Query Only V1 强制治理策略',
+      expectedDisplayCode: 'GP-003',
+    })).rejects.toThrow('policy_snapshot_display_code_conflict:GP-003:GP-004');
   });
 
   it('exposes runtime ontology warmup summary, detail and single-flight retry result', async () => {

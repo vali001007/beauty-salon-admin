@@ -310,6 +310,112 @@ describe('Brain governance V2 workbench', () => {
     expect(screen.queryByRole('button', { name: '组合校验' })).not.toBeInTheDocument();
   });
 
+  it('explains target identity conflicts without exposing internal object ids outside audit details', async () => {
+    state.permissions = new Set(['core:brain-governance:view', 'core:brain-governance:manage']);
+    brainApi.listBrainGovernanceCandidates.mockResolvedValue({
+      items: [{ id: 17, candidateKey: 'repo:head:merge', branch: 'feature/governance', headCommit: '3'.repeat(40), status: 'ready' }],
+      total: 1,
+      page: 1,
+      pageSize: 3,
+    });
+    brainApi.previewBrainGovernanceTransition.mockResolvedValue({
+      candidate: { id: 17, candidateKey: 'repo:head:merge', headCommit: '3'.repeat(40), status: 'ready' },
+      oldPolicy: { id: 436, releaseKey: 'legacy-policy', scope: 'governance_policy', status: 'active', createdAt: '2026-08-01T00:00:00.000Z' },
+      oldRuntime: { id: 452, releaseKey: 'legacy-runtime', scope: 'global', status: 'active', createdAt: '2026-08-01T00:00:00.000Z' },
+      existingTransition: null,
+      target: {
+        policyCode: 'GP-003',
+        runtimeCode: 'RT-001',
+        productProfile: 'query_only_v1',
+        allowedCapabilityCount: 33,
+        deniedCapabilityCount: 8,
+        identity: {
+          policy: { code: 'GP-003', name: 'Query Only V1 强制治理策略', releaseKey: 'target-policy', status: 'conflict', internalReleaseId: 454, counterNumber: 3 },
+          runtime: { code: 'RT-001', name: 'Query Only V1', releaseKey: 'target-runtime', status: 'available', internalSequenceId: null, counterNumber: 0 },
+          blockers: ['target_policy_identity_conflict:GP-003:release_454'],
+        },
+      },
+      evidenceReceipt: { id: 301, receiptKey: 'receipt-301', evaluationReleaseId: 362, evalRunId: 307, contractVersion: 'v2' },
+      missingEvidence: [],
+      canPrepare: false,
+      blockers: ['target_policy_identity_conflict:GP-003:release_454'],
+    });
+
+    const user = userEvent.setup();
+    renderPage(<BrainGovernanceOverviewPage />, '/brain-governance/workbench?tab=overview');
+    await user.click(await screen.findByRole('button', { name: '预检新策略与运行版本' }));
+
+    expect(await screen.findByText('编号已被不兼容对象占用，需要先处理')).toBeInTheDocument();
+    expect(screen.getByText('GP-003 已被其他治理策略对象占用，当前 Candidate 不能安全复用。')).toBeInTheDocument();
+    expect(screen.getByText('编号可创建')).toBeInTheDocument();
+    expect(screen.getByText('Candidate 证据：可信 Receipt 已绑定')).toBeInTheDocument();
+    expect(screen.getByText(/数据库记录 #454/).closest('details')).not.toHaveAttribute('open');
+    expect(screen.getByText(/原始阻断代码：target_policy_identity_conflict/).closest('details')).not.toHaveAttribute('open');
+  });
+
+  it('requires both GP publish and RT release permissions before completing legacy retirement', async () => {
+    brainApi.listBrainGovernanceCandidates.mockResolvedValue({
+      items: [{ id: 17, candidateKey: 'repo:head:merge', headCommit: '3'.repeat(40), status: 'observing' }],
+      total: 1,
+      page: 1,
+      pageSize: 3,
+    });
+    brainApi.listBrainGovernanceTransitions.mockResolvedValue({
+      items: [{
+        id: 81,
+        transitionKey: 'transition-query-only-v1',
+        status: 'observing',
+        candidateId: 17,
+        candidate: { id: 17, candidateKey: 'repo:head:merge', headCommit: '3'.repeat(40), status: 'observing' },
+        oldPolicyReleaseId: 436,
+        newPolicyReleaseId: 460,
+        oldRuntimeReleaseId: 452,
+        runtimeSequenceId: 71,
+        oldPolicy: { id: 436, releaseKey: 'legacy-policy', scope: 'governance_policy', status: 'archived', createdAt: '2026-08-01T00:00:00.000Z', productIdentity: { family: 'policy', code: 'GP-002', stageCode: null, name: 'Legacy Shadow Policy', internalReleaseId: 436 }, retiredAt: '2026-08-04T00:10:00.000Z' },
+        newPolicy: { id: 460, releaseKey: 'query-only-policy', scope: 'governance_policy', status: 'active', createdAt: '2026-08-04T00:00:00.000Z', productIdentity: { family: 'policy', code: 'GP-003', stageCode: null, name: 'Query Only V1 强制治理策略', internalReleaseId: 460 }, items: [] },
+        oldRuntime: { id: 452, releaseKey: 'legacy-runtime', scope: 'global', status: 'archived', createdAt: '2026-08-01T00:00:00.000Z', productIdentity: { family: 'legacy', code: 'LEGACY-RT-452', stageCode: null, name: 'Governance Shadow Runtime', internalReleaseId: 452 } },
+        runtimeSequence: {
+          id: 71,
+          sequenceKey: 'rollout:17:head',
+          runtimeVersionCode: 'RT-001',
+          displayName: 'Query Only V1',
+          productProfile: 'query_only_v1',
+          productIdentity: { family: 'runtime', code: 'RT-001', stageCode: null, name: 'Query Only V1', internalReleaseId: null },
+          status: 'completed',
+          currentStage: 'full',
+          governanceMode: 'enforced',
+          promotionPolicy: {},
+          healthThresholds: {},
+          candidateId: 17,
+          candidate: { id: 17, candidateKey: 'repo:head:merge' },
+          policySnapshot: { id: 460, releaseKey: 'query-only-policy', scope: 'governance_policy', status: 'active', createdAt: '2026-08-04T00:00:00.000Z' },
+          releases: [{ id: 501, rolloutStage: 'full', status: 'active', productIdentity: { family: 'runtime', code: 'RT-001', stageCode: 'RT-001-FULL', name: 'Query Only V1', internalReleaseId: 501 } }],
+          createdAt: '2026-08-04T00:00:00.000Z',
+          updatedAt: '2026-08-04T00:20:00.000Z',
+        },
+        policyApprovedAt: '2026-08-04T00:05:00.000Z',
+        runtimeApprovedAt: '2026-08-04T00:06:00.000Z',
+        currentStep: 'runtime_shadow_active',
+        createdBy: 9,
+        createdAt: '2026-08-04T00:00:00.000Z',
+        updatedAt: '2026-08-04T00:20:00.000Z',
+      }],
+      total: 1,
+      page: 1,
+      pageSize: 5,
+    });
+
+    state.permissions = new Set(['core:brain-governance:view', 'core:brain-governance:release']);
+    const releaseOnly = renderPage(<BrainGovernanceOverviewPage />, '/brain-governance/workbench?tab=overview');
+    expect(await screen.findByText('GP-003 · Query Only V1 强制治理策略')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '完成退役' })).not.toBeInTheDocument();
+    releaseOnly.unmount();
+
+    state.permissions = new Set(['core:brain-governance:view', 'core:brain-governance:publish', 'core:brain-governance:release']);
+    renderPage(<BrainGovernanceOverviewPage />, '/brain-governance/workbench?tab=overview');
+    expect(await screen.findByRole('button', { name: '完成退役' })).toBeInTheDocument();
+  });
+
   it('never attaches an unfinished transition from a different Candidate', async () => {
     brainApi.listBrainGovernanceCandidates.mockResolvedValue({
       items: [{ id: 17, candidateKey: 'repo:current', branch: 'current-branch', headCommit: '3'.repeat(40), status: 'ready' }],

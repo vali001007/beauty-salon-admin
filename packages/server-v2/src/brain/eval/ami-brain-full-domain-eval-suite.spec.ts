@@ -1,6 +1,8 @@
 import {
   classifyFullDomainOutcome,
+  classifyFullDomainResumeResult,
   deterministicFullDomainGrade,
+  fullDomainResumeModelIdentityMismatches,
 } from '../../../prisma/ami-brain-full-domain-eval-suite.js';
 
 describe('Ami Brain full-domain multi-turn gate', () => {
@@ -241,5 +243,184 @@ describe('Ami Brain Judge infrastructure classification', () => {
         judgeEvidenceStatus: 'failed',
       }),
     ).toBe('manual_review');
+  });
+});
+
+describe('Ami Brain RC-350 resume evidence filtering', () => {
+  const expected = { provider: 'openai_compatible', model: 'gpt-5.6-luna' };
+  const result = (overrides: Record<string, unknown> = {}) => ({
+    caseKey: 'BQ0001',
+    deterministicPassed: true,
+    failureCluster: null,
+    metadata: {
+      qualityBucket: 'verified_capability',
+      evidence: {
+        runtimeModel: {
+          provider: expected.provider,
+          model: expected.model,
+          routing: { fallbackUsed: false },
+        },
+      },
+      judgeEvidence: {
+        status: 'success',
+        provider: expected.provider,
+        model: expected.model,
+        routing: { fallbackUsed: false },
+      },
+    },
+    ...overrides,
+  });
+
+  it('reuses only a clean result from the locked provider/model', () => {
+    expect(classifyFullDomainResumeResult(result(), expected)).toEqual({ reusable: true, reason: 'clean_result' });
+  });
+
+  it.each([
+    [
+      'provider unavailable',
+      result({ deterministicPassed: false, failureCluster: 'provider_unavailable' }),
+      'provider_unavailable',
+    ],
+    [
+      'judge infrastructure failure',
+      result({
+        metadata: {
+          ...(result().metadata as Record<string, unknown>),
+          judgeEvidence: { status: 'failed', error: { code: 'NETWORK_ERROR' } },
+        },
+      }),
+      'judge_infrastructure_failed',
+    ],
+    [
+      'runtime fallback',
+      result({
+        metadata: {
+          ...(result().metadata as Record<string, unknown>),
+          evidence: {
+            runtimeModel: {
+              provider: 'deepseek(fallback)',
+              model: 'deepseek-v4-flash',
+              routing: { fallbackUsed: true },
+            },
+          },
+        },
+      }),
+      'runtime_fallback_used',
+    ],
+    [
+      'judge model drift',
+      result({
+        metadata: {
+          ...(result().metadata as Record<string, unknown>),
+          judgeEvidence: {
+            status: 'success',
+            provider: 'deepseek',
+            model: 'deepseek-v4-flash',
+            routing: { fallbackUsed: false },
+          },
+        },
+      }),
+      'judge_provider_model_mismatch',
+    ],
+  ])('reprocesses %s instead of treating it as completed', (_label, row, reason) => {
+    expect(classifyFullDomainResumeResult(row as never, expected)).toEqual({ reusable: false, reason });
+  });
+
+  it('keeps a genuine deterministic product failure when its runtime route is clean', () => {
+    const cleanFailure = result({
+      deterministicPassed: false,
+      failureCluster: 'answer_not_grounded',
+      metadata: {
+        qualityBucket: 'deterministic_failure',
+        evidence: {
+          runtimeModel: {
+            provider: expected.provider,
+            model: expected.model,
+            routing: { fallbackUsed: false },
+          },
+        },
+        judgeEvidence: { status: 'skipped', reason: 'deterministic_gate_failed' },
+      },
+    });
+    expect(classifyFullDomainResumeResult(cleanFailure, expected)).toEqual({ reusable: true, reason: 'clean_result' });
+  });
+
+  it('keeps a deterministic safety result without requiring a redundant LLM Judge route', () => {
+    const safetyResult = result({
+      metadata: {
+        qualityBucket: 'safety_pass',
+        evidence: {
+          runtimeModel: {
+            provider: 'governed_contract',
+            model: null,
+            routing: { fallbackUsed: false },
+          },
+        },
+        judgeEvidence: { status: 'skipped', reason: 'deterministic_safety_contract' },
+      },
+    });
+    expect(classifyFullDomainResumeResult(safetyResult, expected)).toEqual({ reusable: true, reason: 'clean_result' });
+  });
+
+  it('reprocesses 82 polluted results while retaining 18 clean or genuine product results', () => {
+    const rows = [
+      ...Array.from({ length: 5 }, (_, index) => result({ caseKey: `provider-${index}`, deterministicPassed: false, failureCluster: 'provider_unavailable' })),
+      ...Array.from({ length: 45 }, (_, index) => result({
+        caseKey: `judge-${index}`,
+        metadata: {
+          ...(result().metadata as Record<string, unknown>),
+          judgeEvidence: { status: 'failed', error: { code: 'NETWORK_ERROR' } },
+        },
+      })),
+      ...Array.from({ length: 32 }, (_, index) => result({
+        caseKey: `fallback-${index}`,
+        metadata: {
+          ...(result().metadata as Record<string, unknown>),
+          evidence: {
+            runtimeModel: {
+              provider: 'deepseek(fallback)',
+              model: 'deepseek-v4-flash',
+              routing: { fallbackUsed: true },
+            },
+          },
+        },
+      })),
+      ...Array.from({ length: 15 }, (_, index) => result({ caseKey: `clean-${index}` })),
+      ...Array.from({ length: 3 }, (_, index) => result({
+        caseKey: `product-failure-${index}`,
+        deterministicPassed: false,
+        failureCluster: 'answer_not_grounded',
+        metadata: {
+          qualityBucket: 'deterministic_failure',
+          evidence: {
+            runtimeModel: {
+              provider: expected.provider,
+              model: expected.model,
+              routing: { fallbackUsed: false },
+            },
+          },
+          judgeEvidence: { status: 'skipped', reason: 'deterministic_gate_failed' },
+        },
+      })),
+    ];
+
+    const decisions = rows.map((row) => classifyFullDomainResumeResult(row, expected));
+    expect(decisions.filter((item) => !item.reusable)).toHaveLength(82);
+    expect(decisions.filter((item) => item.reusable)).toHaveLength(18);
+  });
+
+  it('rejects resume when provider or model is missing or changed', () => {
+    expect(fullDomainResumeModelIdentityMismatches({
+      previousProvider: 'openai_compatible',
+      previousModel: 'gpt-5.6-luna',
+      currentProvider: 'openai_compatible',
+      currentModel: 'gpt-5.6-luna',
+    })).toEqual([]);
+    expect(fullDomainResumeModelIdentityMismatches({
+      previousProvider: null,
+      previousModel: 'gpt-5.6-luna',
+      currentProvider: 'openai_compatible',
+      currentModel: 'deepseek-v4-flash',
+    })).toEqual(['provider', 'model']);
   });
 });

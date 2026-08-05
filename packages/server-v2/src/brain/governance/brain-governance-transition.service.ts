@@ -12,6 +12,15 @@ import {
   BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS,
   BRAIN_QUERY_ONLY_PRODUCT_PROFILE,
 } from './brain-release-product-profile.js';
+import {
+  BRAIN_GOVERNANCE_TARGET_POLICY_CODE,
+  BRAIN_GOVERNANCE_TARGET_POLICY_NAME,
+  BRAIN_GOVERNANCE_TARGET_RUNTIME_CODE,
+  BRAIN_GOVERNANCE_TARGET_RUNTIME_NAME,
+  brainGovernanceTargetPolicyReleaseKey,
+  brainGovernanceTargetRuntimeReleaseKey,
+  inspectBrainGovernanceTransitionTargets,
+} from './brain-governance-transition-target.js';
 
 const OPEN_TRANSITION_STATUSES = ['draft', 'validated', 'approved', 'switching', 'observing', 'rolling_back'] as const;
 const TRANSITION_MUTATION_LEASE_MS = 5 * 60 * 1000;
@@ -70,25 +79,32 @@ export class BrainGovernanceTransitionService {
     const candidate = await this.loadCandidateEvidence(nonEmpty(candidateKey, 'candidateKey'));
     if (!candidate) throw new NotFoundException('brain_governance_candidate_not_found');
     const evidence = await this.resolveCandidateEvidence(candidate);
-    const [oldPolicy, oldRuntime, existing] = await Promise.all([
+    const [oldPolicy, oldRuntime, existing, targetIdentity] = await Promise.all([
       this.currentPolicy(),
       this.currentRuntime(),
       this.prisma.brainGovernanceTransition.findFirst({
         where: { candidateId: candidate.id, status: { in: [...OPEN_TRANSITION_STATUSES] } },
         include: transitionInclude,
       }),
+      this.inspectTargetIdentity(candidate),
     ]);
+    const blockers = [
+      ...(existing ? ['candidate_transition_already_open'] : []),
+      ...targetIdentity.blockers,
+      ...evidence.blockers,
+    ];
     return {
       candidate: { id: candidate.id, candidateKey: candidate.candidateKey, headCommit: candidate.headCommit, status: candidate.status },
       oldPolicy: this.withReleaseIdentity(oldPolicy),
       oldRuntime: this.withReleaseIdentity(oldRuntime),
       existingTransition: existing ? this.withProductIdentities(existing) : null,
       target: {
-        policyCode: 'next GP',
-        runtimeCode: 'next RT',
+        policyCode: BRAIN_GOVERNANCE_TARGET_POLICY_CODE,
+        runtimeCode: BRAIN_GOVERNANCE_TARGET_RUNTIME_CODE,
         productProfile: BRAIN_QUERY_ONLY_PRODUCT_PROFILE,
         allowedCapabilityCount: BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS.length,
         deniedCapabilityCount: BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS.length,
+        identity: targetIdentity,
       },
       evidenceReceipt: evidence.receipt ? {
         id: evidence.receipt.id,
@@ -106,11 +122,8 @@ export class BrainGovernanceTransitionService {
         materializationPending: true,
       } : null,
       missingEvidence: evidence.missingEvidence,
-      canPrepare: !existing && evidence.blockers.length === 0,
-      blockers: [
-        ...(existing ? ['candidate_transition_already_open'] : []),
-        ...evidence.blockers,
-      ],
+      canPrepare: !existing && blockers.length === 0,
+      blockers,
     };
   }
 
@@ -137,15 +150,16 @@ export class BrainGovernanceTransitionService {
       evidenceReceiptId: evidence.receipt.id,
     });
     const policy = await this.controlPlane.createPolicySnapshot({
-      releaseKey: `ami-brain-policy-query-only-v1-${candidate.headCommit.slice(0, 12)}`,
+      releaseKey: brainGovernanceTargetPolicyReleaseKey(candidate.headCommit),
       resourceVersionIds: policyVersions.resourceVersionIds,
       actorId: input.actorId,
       note: `candidate:${candidate.candidateKey};productProfile:${BRAIN_QUERY_ONLY_PRODUCT_PROFILE}`,
-      displayName: 'Query Only V1 强制治理策略',
+      displayName: BRAIN_GOVERNANCE_TARGET_POLICY_NAME,
+      expectedDisplayCode: BRAIN_GOVERNANCE_TARGET_POLICY_CODE,
     });
     await this.prisma.brainGovernanceCandidate.update({
       where: { id: candidate.id },
-      data: { policySnapshotId: policy.id, policyDecision: 'create_query_only_snapshot', status: 'ready' },
+      data: { policySnapshotId: policy.id, policyDecision: 'create_query_only_snapshot' },
     });
 
     const runtimeSource = await this.currentRuntime(true);
@@ -165,17 +179,25 @@ export class BrainGovernanceTransitionService {
 
     const sequence = await this.rolloutSequence.create({
       candidateKey: candidate.candidateKey,
-      releaseKey: `ami-brain-runtime-query-only-v1-${candidate.headCommit.slice(0, 12)}`,
+      releaseKey: brainGovernanceTargetRuntimeReleaseKey(candidate.headCommit),
       resourceVersionIds,
       governanceMode: 'enforced',
-      displayName: 'Query Only V1',
+      displayName: BRAIN_GOVERNANCE_TARGET_RUNTIME_NAME,
       productProfile: BRAIN_QUERY_ONLY_PRODUCT_PROFILE,
+      expectedRuntimeVersionCode: BRAIN_GOVERNANCE_TARGET_RUNTIME_CODE,
       evaluationEvidenceReleaseId: evidence.receipt.evaluationReleaseId!,
       evaluationEvidenceEvalRunId: evidence.receipt.evalRunId!,
       evaluationEvidenceReceiptId: evidence.receipt.id,
       allowDraftPolicy: true,
+      transitionPreparation: true,
       actorId: input.actorId,
     });
+    if (policy.displayCode !== BRAIN_GOVERNANCE_TARGET_POLICY_CODE) {
+      throw new ConflictException(`governance_transition_policy_identity_invalid:${policy.displayCode ?? 'unassigned'}`);
+    }
+    if (sequence.runtimeVersionCode !== BRAIN_GOVERNANCE_TARGET_RUNTIME_CODE) {
+      throw new ConflictException(`governance_transition_runtime_identity_invalid:${sequence.runtimeVersionCode ?? 'unassigned'}`);
+    }
     const transitionKey = sha256({
       candidateId: candidate.id,
       headCommit: candidate.headCommit,
@@ -706,6 +728,42 @@ export class BrainGovernanceTransitionService {
       }
     }
     return { receipt, readiness, missingEvidence, blockers: [...new Set(blockers)], materialization: null };
+  }
+
+  private async inspectTargetIdentity(candidate: { id: number; headCommit: string }) {
+    const [policyCounter, runtimeCounter, policy, runtime] = await Promise.all([
+      this.prisma.brainVersionCounter.findUnique({ where: { family: 'policy' }, select: { lastNumber: true } }),
+      this.prisma.brainVersionCounter.findUnique({ where: { family: 'runtime' }, select: { lastNumber: true } }),
+      this.prisma.brainRelease.findUnique({
+        where: { displayCode: BRAIN_GOVERNANCE_TARGET_POLICY_CODE },
+        select: {
+          id: true,
+          releaseKey: true,
+          scope: true,
+          releaseFamily: true,
+          displayCode: true,
+          displayName: true,
+        },
+      }),
+      this.prisma.brainRolloutSequence.findUnique({
+        where: { runtimeVersionCode: BRAIN_GOVERNANCE_TARGET_RUNTIME_CODE },
+        select: {
+          id: true,
+          candidateId: true,
+          runtimeVersionCode: true,
+          displayName: true,
+          productProfile: true,
+        },
+      }),
+    ]);
+    return inspectBrainGovernanceTransitionTargets({
+      candidateId: candidate.id,
+      headCommit: candidate.headCommit,
+      policyCounterNumber: policyCounter?.lastNumber ?? null,
+      runtimeCounterNumber: runtimeCounter?.lastNumber ?? null,
+      policy,
+      runtime,
+    });
   }
 
   private async resolveReleaseSnapshotMaterialization(candidate: Omit<CandidateWithEvidence, 'receipts'>) {

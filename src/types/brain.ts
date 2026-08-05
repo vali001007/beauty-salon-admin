@@ -1010,7 +1010,35 @@ export interface BrainGovernanceTransitionPreview {
     productProfile: string;
     allowedCapabilityCount: number;
     deniedCapabilityCount: number;
+    identity: {
+      policy: {
+        code: string;
+        name: string;
+        releaseKey: string;
+        status: 'available' | 'reusable' | 'conflict';
+        internalReleaseId: number | null;
+        counterNumber: number;
+      };
+      runtime: {
+        code: string;
+        name: string;
+        releaseKey: string;
+        status: 'available' | 'reusable' | 'conflict';
+        internalSequenceId: number | null;
+        counterNumber: number;
+      };
+      blockers: string[];
+    };
   };
+  evidenceReceipt: {
+    id: number | null;
+    receiptKey: string | null;
+    evaluationReleaseId: number | null;
+    evalRunId: number | null;
+    contractVersion: string | null;
+    sourceEligibilityReceiptId?: number | null;
+    materializationPending?: boolean;
+  } | null;
   missingEvidence: string[];
   canPrepare: boolean;
   blockers: string[];
