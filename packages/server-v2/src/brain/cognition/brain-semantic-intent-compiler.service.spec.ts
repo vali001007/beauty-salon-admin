@@ -58,12 +58,28 @@ const paidAmountMetricRef = {
   sourceFingerprint: '8'.repeat(64),
 } as const;
 
+const orderCountMetricRef = {
+  definitionType: 'metric',
+  definitionKey: 'metric.order_count',
+  definitionVersion: 1,
+  definitionFingerprint: '7b'.repeat(32),
+  sourceFingerprint: '8b'.repeat(32),
+} as const;
+
 const paymentMethodDimensionRef = {
   definitionType: 'dimension',
   definitionKey: 'dimension.paymentMethod',
   definitionVersion: 2,
   definitionFingerprint: '9'.repeat(64),
   sourceFingerprint: 'a'.repeat(64),
+} as const;
+
+const cardNameDimensionRef = {
+  definitionType: 'dimension',
+  definitionKey: 'dimension.cardName',
+  definitionVersion: 1,
+  definitionFingerprint: '9c'.repeat(32),
+  sourceFingerprint: 'ac'.repeat(32),
 } as const;
 
 const refundAmountMetricRef = {
@@ -2532,6 +2548,121 @@ describe('BrainSemanticIntentCompilerService', () => {
     });
   });
 
+  it.each([
+    {
+      caseId: 'BQ0464',
+      question: '有哪些焕肤清洁 12 次卡在售', // BQ0464
+      capabilityKey: 'finance_risk_overview',
+      intents: ['query', 'comparison', 'diagnosis'],
+      definitionRefs: [paidAmountMetricRef, cardNameDimensionRef],
+      expected: {
+        intent: 'query',
+        answerShape: 'list',
+        dimensions: [expect.objectContaining({ definitionKey: 'dimension.cardName' })],
+        successCriteria: [expect.stringContaining('在售 Card')],
+      },
+    },
+    {
+      caseId: 'BQ0621',
+      question: '最近三个月一共有多少笔订单', // BQ0621
+      capabilityKey: 'finance_payment_breakdown',
+      intents: ['query', 'ranking', 'comparison', 'trend'],
+      definitionRefs: [paidAmountMetricRef, orderCountMetricRef],
+      expected: {
+        intent: 'query',
+        answerShape: 'scalar',
+        timeRange: { label: '过去3个月' },
+        metrics: [expect.objectContaining({ definitionKey: 'metric.order_count' })],
+        successCriteria: [expect.stringContaining('ProductOrder')],
+      },
+    },
+    {
+      caseId: 'BQ0661',
+      // BQ0661
+      question: '最近三个月各支付方式的金额分别多少',
+      capabilityKey: 'finance_payment_breakdown',
+      intents: ['query', 'ranking', 'comparison', 'trend'],
+      definitionRefs: [paidAmountMetricRef, paymentMethodDimensionRef],
+      expected: {
+        intent: 'query',
+        answerShape: 'list',
+        timeRange: { label: '过去3个月' },
+        dimensions: [expect.objectContaining({ definitionKey: 'dimension.paymentMethod' })],
+      },
+    },
+    {
+      caseId: 'BQ0706',
+      // BQ0706
+      question: '最近三个月营业额和最近7天比怎么样',
+      capabilityKey: 'finance_payment_breakdown',
+      intents: ['query', 'ranking', 'comparison', 'trend'],
+      definitionRefs: [paidAmountMetricRef, paymentMethodDimensionRef],
+      expected: {
+        intent: 'comparison',
+        answerShape: 'comparison',
+        timeRange: { label: '过去3个月' },
+        comparisonTarget: { type: 'time', timeRange: { label: '最近7天' } },
+      },
+    },
+    {
+      caseId: 'BQ0707',
+      // BQ0707
+      question: '最近三个月订单量的趋势',
+      capabilityKey: 'finance_payment_breakdown',
+      intents: ['query', 'ranking', 'comparison', 'trend'],
+      definitionRefs: [paidAmountMetricRef, orderCountMetricRef],
+      expected: {
+        intent: 'trend',
+        answerShape: 'trend',
+        timeRange: { label: '过去3个月' },
+        metrics: [expect.objectContaining({ definitionKey: 'metric.order_count' })],
+      },
+    },
+    {
+      caseId: 'BQ0747',
+      // BQ0747
+      question: '最近三个月有订单支付和金额对不上吗',
+      capabilityKey: 'finance_risk_overview',
+      intents: ['query', 'comparison', 'diagnosis'],
+      definitionRefs: [paidAmountMetricRef],
+      expected: {
+        intent: 'diagnosis',
+        answerShape: 'diagnosis',
+        timeRange: { label: '过去3个月' },
+      },
+    },
+  ])(
+    '$caseId routes the release-core finance question through an exact governed contract',
+    async ({ question, capabilityKey, intents, definitionRefs, expected }) => {
+      const aiService = fakeAiService(async () => {
+        throw new Error('model_should_not_be_called');
+      });
+      const compiler = createCompiler(aiService);
+      const input = compilerInput(question);
+      input.capabilitySummaries = [
+        {
+          key: capabilityKey,
+          name: capabilityKey === 'finance_risk_overview' ? '财务经营风险概览' : '实收与储值流水拆分',
+          description: '财务查询与风险核对',
+          domains: ['finance', 'payment', 'order'],
+          intents,
+          examples: ['这是一条不相关的财务能力示例'],
+          readOnly: true,
+          definitionRefs,
+        },
+      ];
+
+      await expect(compiler.compile(input)).resolves.toMatchObject({
+        status: 'completed',
+        selectedCapabilityKey: capabilityKey,
+        provider: 'governed_contract',
+        model: 'finance_release_core_fast_path',
+        intent: expected,
+      });
+      expect(aiService.generateStructured).not.toHaveBeenCalled();
+    },
+  );
+
   it('keeps an exact paid amount question scalar instead of adding payment grouping', async () => {
     const aiService = fakeAiService(async () => {
       throw new Error('model_should_not_be_called');
@@ -2884,6 +3015,13 @@ describe('BrainSemanticIntentCompilerService', () => {
 
   it.each([
     {
+      // BQ0181
+      question: '预测马欣怡的流失风险有多高',
+      expectedIntent: 'query',
+      expectedShape: 'list',
+      expectedCustomerName: '马欣怡',
+    },
+    {
       // BQ0183
       question: '本周末哪些客户最可能复购',
       expectedIntent: 'query',
@@ -2900,10 +3038,11 @@ describe('BrainSemanticIntentCompilerService', () => {
       question: '预测黄婉清的12个月生命周期价值',
       expectedIntent: 'query',
       expectedShape: 'list',
+      expectedCustomerName: '黄婉清',
     },
   ])(
     'routes customer prediction assets without spending model budget: $question',
-    async ({ question, expectedIntent, expectedShape }) => {
+    async ({ question, expectedIntent, expectedShape, expectedCustomerName }) => {
       const aiService = fakeAiService(async () => {
         throw new AiStructuredOutputError('BUDGET_EXCEEDED', 'structured budget exhausted');
       });
@@ -2931,9 +3070,9 @@ describe('BrainSemanticIntentCompilerService', () => {
         model: 'customer_prediction_fast_path',
         intent: { intent: expectedIntent, answerShape: expectedShape, missingSlots: [] },
       });
-      if (question.includes('黄婉清')) {
+      if (expectedCustomerName) {
         expect(result.status === 'completed' ? result.intent.entities : []).toEqual([
-          expect.objectContaining({ entityType: 'customer', mention: '黄婉清' }),
+          expect.objectContaining({ entityType: 'customer', mention: expectedCustomerName }),
         ]);
       }
       expect(aiService.generateStructured).not.toHaveBeenCalled();
@@ -3229,6 +3368,89 @@ describe('BrainSemanticIntentCompilerService', () => {
         answerShape: 'ranking',
         entities: [expect.objectContaining({ entityType: 'project' })],
         missingSlots: [],
+      },
+    });
+    expect(aiService.generateStructured).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['BQ0537', '哪些项目叫好不叫座'],
+    ['BQ0540', '紧致抗衰护理最近7天的复购情况分析'],
+    ['BQ0566', '想提升客单价该主推哪些项目'],
+    ['BQ0567', '射频紧致提升护理卖不动，建议怎么办'],
+    ['BQ0568', '该不该给眼周紧致护理调价'],
+    ['BQ0611', '全身精油 SPA是不是卖不动了'],
+    ['BQ0613', '有哪些项目毛利过低'],
+    ['BQ0616', '有没有项目长期零销量'],
+  ])('routes release-core project operating case %s through governed project facts', async (_caseId, question) => {
+    const aiService = fakeAiService(async () => {
+      throw new Error('model_should_not_be_called');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput(question);
+    input.capabilitySummaries = [
+      {
+        key: 'project_margin_analysis',
+        name: '项目经营与毛利分析',
+        description: '返回项目销量、价格、收入、成本、贡献毛利与成本缺口',
+        domains: ['project', 'finance'],
+        intents: ['query', 'ranking', 'diagnosis'],
+        readOnly: true,
+        definitionRefs: [projectEntityRef],
+      },
+    ];
+
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      selectedCapabilityKey: 'project_margin_analysis',
+      provider: 'governed_contract',
+      model: 'project_margin_fast_path',
+      intent: {
+        entities: [expect.objectContaining({ entityType: 'project' })],
+        missingSlots: [],
+        assumptions: expect.arrayContaining([expect.stringContaining('只读经营判断')]),
+      },
+    });
+    expect(aiService.generateStructured).not.toHaveBeenCalled();
+  });
+
+  it('BQ0614 routes project sales demand and BOM stock coverage to the read-only inventory capability', async () => {
+    const aiService = fakeAiService(async () => {
+      throw new Error('model_should_not_be_called');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput('紧致抗衰护理的库存耗材跟得上销量吗'); // BQ0614
+    input.capabilitySummaries = [
+      {
+        key: 'project_margin_analysis',
+        name: '项目经营与毛利分析',
+        description: '返回项目销量、收入和毛利',
+        domains: ['project', 'finance'],
+        intents: ['query', 'diagnosis'],
+        readOnly: true,
+        definitionRefs: [projectEntityRef],
+      },
+      {
+        key: 'inventory_operations_overview',
+        name: '库存采购运营概览',
+        description: '核对项目销量需求、标准 BOM 与当前耗材库存',
+        domains: ['inventory', 'project', 'product'],
+        intents: ['query', 'diagnosis'],
+        readOnly: true,
+        definitionRefs: [projectEntityRef, productNameDimensionRef],
+      },
+    ];
+
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      selectedCapabilityKey: 'inventory_operations_overview',
+      provider: 'governed_contract',
+      model: 'project_material_coverage_fast_path',
+      intent: {
+        intent: 'diagnosis',
+        answerShape: 'diagnosis',
+        domains: ['project', 'inventory', 'product'],
+        successCriteria: expect.arrayContaining([expect.stringContaining('不创建采购单')]),
       },
     });
     expect(aiService.generateStructured).not.toHaveBeenCalled();

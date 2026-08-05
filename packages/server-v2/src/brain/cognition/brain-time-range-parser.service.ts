@@ -90,6 +90,18 @@ export class BrainTimeRangeParserService {
     text: string,
     now: Date,
   ): { range: BrainDateRange; comparison?: BrainComparisonRange; incompleteComparison?: boolean } | undefined {
+    const rollingRanges = [...text.matchAll(/(?:最近|过去|近)\s*([一二三四五六七八九十\d]{1,3})\s*(个月|天|年)/gu)];
+    if (rollingRanges.length >= 2 && /(?:相比|对比|比较|跟.*比|和.*比|与.*比)/.test(text)) {
+      const current = this.rollingRange(now, chineseOrArabicNumber(rollingRanges[0]![1]!), rollingRanges[0]![2]!);
+      const previous = this.rollingRange(now, chineseOrArabicNumber(rollingRanges[1]![1]!), rollingRanges[1]![2]!);
+      if (current && previous) {
+        const label = `${current.label}对比${previous.label}`;
+        return {
+          range: { ...current, label },
+          comparison: { label, current, previous },
+        };
+      }
+    }
     if ((text.includes('本月') || text.includes('这个月')) && (text.includes('上月') || text.includes('上个月'))) {
       const current = this.currentMonthRange(now);
       const previous = this.previousMonthRange(now);
@@ -146,15 +158,7 @@ export class BrainTimeRangeParserService {
     }
     if (text.includes('去年同期')) {
       const start = new Date(now.getFullYear() - 1, 0, 1, 0, 0, 0, 0);
-      const end = new Date(
-        now.getFullYear() - 1,
-        now.getMonth(),
-        now.getDate(),
-        23,
-        59,
-        59,
-        999,
-      );
+      const end = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate(), 23, 59, 59, 999);
       return { range: { label: '去年同期', startDate: start, endDate: end, granularity: 'year' } };
     }
     if (text.includes('环比')) {
@@ -169,6 +173,39 @@ export class BrainTimeRangeParserService {
       const anchor = this.incompleteComparisonAnchor(text, now);
       if (anchor) return { range: anchor, incompleteComparison: true };
       return { range: { label: '对比时间', startDate: now, endDate: now, granularity: 'day' } };
+    }
+    return undefined;
+  }
+
+  private rollingRange(now: Date, amount: number, unit: string): BrainDateRange | undefined {
+    if (!Number.isInteger(amount) || amount < 1) return undefined;
+    if (unit === '天' && amount <= 366) {
+      const startDate = this.startOfDay(now);
+      startDate.setDate(startDate.getDate() - (amount - 1));
+      return {
+        label: `最近${amount}天`,
+        startDate,
+        endDate: this.endOfDay(now),
+        granularity: 'day',
+      };
+    }
+    if (unit === '个月' && amount <= 36) {
+      const startDate = this.subtractCalendarMonthsClamped(this.startOfDay(now), amount);
+      return {
+        label: `过去${amount}个月`,
+        startDate,
+        endDate: this.endOfDay(now),
+        granularity: amount % 12 === 0 ? 'year' : 'month',
+      };
+    }
+    if (unit === '年' && amount <= 10) {
+      const startDate = this.subtractCalendarYearsClamped(this.startOfDay(now), amount);
+      return {
+        label: `过去${amount}年`,
+        startDate,
+        endDate: this.endOfDay(now),
+        granularity: 'year',
+      };
     }
     return undefined;
   }
@@ -246,8 +283,7 @@ export class BrainTimeRangeParserService {
     if (recentMonths) {
       const months = chineseOrArabicNumber(recentMonths[1]);
       if (months >= 1 && months <= 36) {
-        const startDate = this.startOfDay(now);
-        startDate.setMonth(startDate.getMonth() - months);
+        const startDate = this.subtractCalendarMonthsClamped(this.startOfDay(now), months);
         return {
           label: `过去${months}个月`,
           startDate,
@@ -260,8 +296,7 @@ export class BrainTimeRangeParserService {
     if (recentYears) {
       const years = chineseOrArabicNumber(recentYears[1]);
       if (years >= 1 && years <= 10) {
-        const startDate = this.startOfDay(now);
-        startDate.setFullYear(startDate.getFullYear() - years);
+        const startDate = this.subtractCalendarYearsClamped(this.startOfDay(now), years);
         return {
           label: `过去${years}年`,
           startDate,
@@ -531,7 +566,9 @@ export class BrainTimeRangeParserService {
   }
 
   private clockLabel(date: Date) {
-    return [date.getHours(), date.getMinutes(), date.getSeconds()].map((part) => String(part).padStart(2, '0')).join(':');
+    return [date.getHours(), date.getMinutes(), date.getSeconds()]
+      .map((part) => String(part).padStart(2, '0'))
+      .join(':');
   }
 
   private currentPeriodToNow(text: string, now: Date): BrainDateRange | undefined {
@@ -561,6 +598,26 @@ export class BrainTimeRangeParserService {
       };
     }
     return undefined;
+  }
+
+  private subtractCalendarMonthsClamped(date: Date, months: number): Date {
+    const result = new Date(date);
+    const originalDay = result.getDate();
+    result.setDate(1);
+    result.setMonth(result.getMonth() - months);
+    const targetMonthLastDay = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
+    result.setDate(Math.min(originalDay, targetMonthLastDay));
+    return result;
+  }
+
+  private subtractCalendarYearsClamped(date: Date, years: number): Date {
+    const result = new Date(date);
+    const originalDay = result.getDate();
+    result.setDate(1);
+    result.setFullYear(result.getFullYear() - years);
+    const targetMonthLastDay = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
+    result.setDate(Math.min(originalDay, targetMonthLastDay));
+    return result;
   }
 
   private relativeThresholdRange(now: Date, days: number, label: string): BrainDateRange {
@@ -623,9 +680,7 @@ export class BrainTimeRangeParserService {
     return {
       label: `${month}月`,
       startDate: new Date(year, month - 1, 1, 0, 0, 0, 0),
-      endDate: isCurrentMonth
-        ? this.endOfDay(now)
-        : new Date(year, month, 0, 23, 59, 59, 999),
+      endDate: isCurrentMonth ? this.endOfDay(now) : new Date(year, month, 0, 23, 59, 59, 999),
       granularity: 'month',
     };
   }

@@ -301,8 +301,13 @@ const COLUMN_LABELS: Readonly<Record<string, string>> = {
   value: '数值',
   project: '项目',
   projectName: '项目',
+  projects: '适用项目',
   projectType: '项目类型',
+  cardName: '卡项',
+  totalTimes: '总次数',
   price: '价格',
+  description: '说明',
+  scope: '适用范围',
   recommended: '门店推荐',
   project_service_count: '服务次数',
   serviceCount: '服务次数',
@@ -377,6 +382,12 @@ function renderValue(value: unknown) {
   if (value === null) return '空';
   if (value === '') return '暂无';
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (
+    Array.isArray(value) &&
+    value.every((item) => typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean')
+  ) {
+    return value.length > 0 ? value.map(String).join('、') : '暂无';
+  }
   return '[结构化值]';
 }
 

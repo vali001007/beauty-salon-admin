@@ -371,11 +371,8 @@ export class BrainFinanceSkillsService {
       this.prisma.paymentRecord.findMany({
         where: {
           order: { storeId: input.storeId },
-          status: { notIn: ['failed', 'cancelled', 'refunded'] },
-          OR: [
-            { paidAt: { gte: input.startDate, lte: input.endDate } },
-            { paidAt: null, createdAt: { gte: input.startDate, lte: input.endDate } },
-          ],
+          status: { in: ['paid', 'success', 'completed'] },
+          paidAt: { gte: input.startDate, lte: input.endDate },
         },
         select: { method: true, amount: true },
       }),
@@ -383,7 +380,7 @@ export class BrainFinanceSkillsService {
         where: {
           storeId: input.storeId,
           createdAt: { gte: input.startDate, lte: input.endDate },
-          status: { notIn: ['cancelled', 'canceled', 'refunded'] },
+          status: { in: ['completed', 'paid'] },
         },
         orderBy: { netAmount: 'desc' },
         select: { orderNo: true, orderKind: true, netAmount: true, customerName: true, createdAt: true },

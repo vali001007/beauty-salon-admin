@@ -879,6 +879,13 @@ describe('BrainChatService', () => {
       undefined,
       '这个月哪一种次卡卖得最多', // ami-brain-unit-only
     );
+    const cardCatalogResult = (service as any).modelCompilerCapabilityCards(
+      cards,
+      topK,
+      undefined,
+      undefined,
+      '有哪些焕肤清洁 12 次卡在售', // BQ0464
+    );
     const projectMarginResult = (service as any).modelCompilerCapabilityCards(
       cards,
       topK,
@@ -896,8 +903,121 @@ describe('BrainChatService', () => {
 
     expect(staffResult.map((card: any) => card.key)).toEqual(['manager_staff_overview', distractor.key]);
     expect(cardSalesResult.map((card: any) => card.key)).toEqual(['finance_risk_overview', distractor.key]);
+    expect(cardCatalogResult.map((card: any) => card.key)).toEqual(['finance_risk_overview', distractor.key]);
     expect(projectMarginResult.map((card: any) => card.key)).toEqual(['project_margin_analysis', distractor.key]);
     expect(singleProjectProfitResult.map((card: any) => card.key)).not.toContain('project_margin_analysis');
+  });
+
+  it.each([
+    ['BQ0566', '想提升客单价该主推哪些项目'],
+    ['BQ0567', '射频紧致提升护理卖不动，建议怎么办'],
+    ['BQ0568', '该不该给眼周紧致护理调价'],
+    ['BQ0611', '全身精油 SPA是不是卖不动了'],
+  ])('%s keeps the read-only project operating card when catalog TopK misses it', (_caseId, question) => {
+    const { service } = createService();
+    const projectMarginCard = {
+      ...controlledDomainCard('project_margin_analysis'),
+      intents: ['query', 'ranking', 'diagnosis'],
+      readOnly: true,
+      sideEffect: false,
+    };
+    const distractor = controlledDomainCard('inventory_operations_overview');
+
+    const compilerCards = (service as any).modelCompilerCapabilityCards(
+      [projectMarginCard, distractor],
+      [{ card: distractor, score: 0.9, matchedFields: [] }],
+      undefined,
+      undefined,
+      question,
+    );
+
+    expect(compilerCards.map((card: any) => card.key)).toEqual(['project_margin_analysis', distractor.key]);
+    expect((service as any).findProjectOperatingAdviceCapabilityCard(question, [projectMarginCard, distractor])).toBe(
+      projectMarginCard,
+    );
+  });
+
+  it.each([
+    ['BQ0613', '有哪些项目毛利过低'],
+    ['BQ0616', '有没有项目长期零销量'],
+  ])('%s keeps the read-only project risk card when catalog TopK misses it', (_caseId, question) => {
+    const { service } = createService();
+    const projectMarginCard = {
+      ...controlledDomainCard('project_margin_analysis'),
+      intents: ['query', 'ranking', 'diagnosis'],
+      readOnly: true,
+      sideEffect: false,
+    };
+    const distractor = controlledDomainCard('project_service_ranking');
+
+    const compilerCards = (service as any).modelCompilerCapabilityCards(
+      [projectMarginCard, distractor],
+      [{ card: distractor, score: 0.9, matchedFields: [] }],
+      distractor,
+      undefined,
+      question,
+    );
+
+    expect(compilerCards.map((card: any) => card.key)).toEqual(['project_service_ranking', 'project_margin_analysis']);
+    expect((service as any).findProjectOperatingRiskCapabilityCard(question, [projectMarginCard, distractor])).toBe(
+      projectMarginCard,
+    );
+  });
+
+  it('BQ0614 keeps and deterministically selects the read-only inventory coverage capability', () => {
+    const { service } = createService();
+    const question = '紧致抗衰护理的库存耗材跟得上销量吗'; // BQ0614
+    const inventoryCard = {
+      ...controlledDomainCard('inventory_operations_overview'),
+      domains: ['inventory', 'project', 'product'],
+      intents: ['query', 'diagnosis'],
+      readOnly: true,
+      sideEffect: false,
+    };
+    const projectMarginCard = {
+      ...controlledDomainCard('project_margin_analysis'),
+      intents: ['query', 'diagnosis'],
+      readOnly: true,
+      sideEffect: false,
+    };
+
+    const compilerCards = (service as any).modelCompilerCapabilityCards(
+      [inventoryCard, projectMarginCard],
+      [{ card: projectMarginCard, score: 0.9, matchedFields: ['description'] }],
+      projectMarginCard,
+      undefined,
+      question,
+    );
+
+    expect(compilerCards.map((card: any) => card.key)).toEqual([
+      'project_margin_analysis',
+      'inventory_operations_overview',
+    ]);
+    expect(
+      (service as any).findProjectMaterialCoverageCapabilityCard(question, [inventoryCard, projectMarginCard]),
+    ).toBe(inventoryCard);
+    expect(
+      (service as any).modelProjectMarginCapabilityCard([inventoryCard, projectMarginCard], question),
+    ).toBeUndefined();
+    expect((service as any).inventorySpecificIntent(question, inventoryCard)).toEqual({
+      intent: 'diagnosis',
+      answerShape: 'diagnosis',
+    });
+  });
+
+  it.each([
+    ['把眼周紧致护理调价到399元', 'price mutation'], // ami-brain-unit-only
+    ['射频紧致提升护理卖不动，直接下架这个项目', 'delist mutation'], // ami-brain-unit-only
+  ])('does not promote an explicit project mutation into read-only operating advice: %s', (question) => {
+    const { service } = createService();
+    const projectMarginCard = {
+      ...controlledDomainCard('project_margin_analysis'),
+      intents: ['query', 'ranking', 'diagnosis'],
+      readOnly: true,
+      sideEffect: false,
+    };
+
+    expect((service as any).findProjectOperatingAdviceCapabilityCard(question, [projectMarginCard])).toBeUndefined();
   });
 
   it('keeps an exact governed action capability when catalog TopK misses it', () => {
@@ -1800,6 +1920,156 @@ describe('BrainChatService', () => {
         }),
       }),
     );
+  });
+
+  it('BQ0537 routes noisy project/customer/reservation intent to project operating facts instead of reservations', async () => {
+    // BQ0537
+    const question = '哪些项目叫好不叫座';
+    const projectNameRef = {
+      definitionType: 'dimension',
+      definitionKey: 'dimension.projectName',
+      definitionVersion: 2,
+      definitionFingerprint: 'f'.repeat(64),
+      sourceFingerprint: 'a'.repeat(64),
+    } as const;
+    const projectMarginCard = {
+      ...controlledDomainCard('project_margin_analysis'),
+      name: '项目经营与毛利分析',
+      description: '读取真实项目服务次数、收入、成本与贡献毛利，并披露评价数据缺口。',
+      domains: ['project', 'finance'],
+      intents: ['query', 'ranking', 'diagnosis'],
+      definitionRefs: [projectNameRef],
+    };
+    const managerStaffCard = {
+      ...controlledDomainCard('manager_staff_overview'),
+      domains: ['staff', 'project'],
+      intents: ['query', 'ranking', 'diagnosis'],
+    };
+    const reservationCard = {
+      ...controlledDomainCard('reservation_list'),
+      domains: ['reservation', 'project', 'customer'],
+      intents: ['query'],
+      definitionRefs: [projectNameRef],
+    };
+    const cards = [managerStaffCard, reservationCard, projectMarginCard];
+    const { prisma, modelPipeline, service } = createService({ modelPipeline: {} });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 12, storeId: 2, userId: 9 });
+    prisma.brainMessage.create.mockResolvedValue({ id: 101 });
+    prisma.brainRun.create.mockResolvedValue({ id: 77 });
+    prisma.brainRun.update.mockResolvedValue({ id: 77 });
+    prisma.brainConversation.update.mockResolvedValue({ id: 12 });
+    modelPipeline!.catalog.listEnabledCapabilities.mockResolvedValue(cards);
+    modelPipeline!.retriever.discover.mockReturnValue({
+      status: 'selected',
+      selected: managerStaffCard,
+      topK: [
+        { card: managerStaffCard, score: 0.91, matchedFields: ['description'] },
+        { card: reservationCard, score: 0.78, matchedFields: ['domains'] },
+      ],
+      confidence: 0.91,
+      margin: 0.13,
+      reason: 'catalog_top1_selected',
+    });
+    modelPipeline!.compiler.compile.mockResolvedValue({
+      status: 'completed',
+      provider: 'deepseek',
+      model: 'deepseek-v4-flash',
+      usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+      intent: {
+        schemaVersion: '1.0',
+        objective: question,
+        domains: ['project', 'customer', 'reservation'],
+        intent: 'ranking',
+        entities: [
+          { entityType: 'project', mention: '项目', source: 'user', confidence: 1 },
+          { entityType: 'customer', mention: '客户', source: 'model', confidence: 0.6 },
+          { entityType: 'reservation', mention: '预约', source: 'model', confidence: 0.6 },
+        ],
+        metrics: [],
+        dimensions: [projectNameRef],
+        filters: [],
+        orderBy: [],
+        answerShape: 'ranking',
+        successCriteria: ['返回项目排行'],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [],
+        confidence: 0.82,
+        decisionSummary: '项目、客户和预约综合排行',
+      },
+    });
+    modelPipeline!.planner.plan.mockImplementation((input: any) => ({
+      status: 'planned',
+      plan: {
+        schemaVersion: '1.0',
+        planId: `single:${input.retrieval.selected.key}:v1`,
+        objective: input.intent.objective,
+        isSingleStep: true,
+        replanCount: 0,
+        budgetMs: 1_000,
+        nodes: [
+          {
+            id: 'capability_1',
+            capabilityKey: input.retrieval.selected.key,
+            capabilityVersion: input.retrieval.selected.version,
+            dependsOn: [],
+            previewOnly: false,
+            args: {
+              objective: input.intent.objective,
+              entities: input.intent.entities,
+              metrics: input.intent.metrics,
+              dimensions: input.intent.dimensions,
+              filters: input.intent.filters,
+              orderBy: input.intent.orderBy,
+            },
+          },
+        ],
+      },
+    }));
+    modelPipeline!.executor.execute.mockResolvedValue({
+      status: 'completed',
+      answer:
+        '当前没有已接入的项目评价、满意度或口碑数据，无法判断哪些项目“叫好”；仅按真实服务次数列出低销量项目供人工对照。',
+      citations: [{ sourceType: 'db_skill', sourceId: 'operation_profit_project_margins' }],
+      grounding: 'db_skill',
+      metadata: { capabilityKey: 'project_margin_analysis', answerScope: 'project_reputation_sales_boundary' },
+    });
+
+    const response = await service.sendMessage(context, 12, { message: question, timezone: 'Asia/Shanghai' });
+
+    expect(modelPipeline!.compiler.compile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        question,
+        capabilitySummaries: expect.arrayContaining([expect.objectContaining({ key: 'project_margin_analysis' })]),
+      }),
+    );
+    expect(modelPipeline!.planner.plan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: expect.objectContaining({
+          domains: ['project', 'finance'],
+          intent: 'diagnosis',
+          answerShape: 'diagnosis',
+          metrics: [],
+          dimensions: [],
+          orderBy: [],
+        }),
+        retrieval: expect.objectContaining({ selected: expect.objectContaining({ key: 'project_margin_analysis' }) }),
+      }),
+    );
+    expect(modelPipeline!.executor.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        card: expect.objectContaining({ key: 'project_margin_analysis' }),
+        question,
+      }),
+    );
+    expect(modelPipeline!.executor.execute).not.toHaveBeenCalledWith(
+      expect.objectContaining({ card: expect.objectContaining({ key: 'reservation_list' }) }),
+    );
+    expect(response).toMatchObject({
+      status: 'completed',
+      answer: expect.stringContaining('当前没有已接入的项目评价'),
+      adapterMetadata: expect.objectContaining({ answerScope: 'project_reputation_sales_boundary' }),
+    });
   });
 
   it('persists and reuses the exact BQ1933 capability through two BrainChat turns without a model call', async () => {
@@ -8786,7 +9056,7 @@ describe('BrainChatService', () => {
 
   it('recognizes every release-core Query Only action case before model planning', () => {
     const { service } = createService();
-    const questions = [
+    const existingQuestions = [
       '帮王静怡新建客户档案，电话138xxxx807',
       '把吴梦瑶的会员等级升到金卡会员',
       '给吴梦瑶的档案加个"敏感肌"标签',
@@ -8802,8 +9072,128 @@ describe('BrainChatService', () => {
       '下架小气泡清洁护理',
       '配置敏感肌舒缓修护的耗材BOM',
     ];
+    const stableTransactionCases = [
+      { id: 'BQ0776', question: '给王心怡的综合养护 20 次卡充值803元' },
+      { id: 'BQ0777', question: '帮周语嫣开一张综合养护 20 次卡' },
+      { id: 'BQ0778', question: '给周语嫣最近三个月的这单退款' },
+      { id: 'BQ0779', question: '周语嫣结账，做了全身精油 SPA' },
+      {
+        id: 'transaction-record-action',
+        question: '帮我记录一笔王心怡充值803元', // ami-brain-unit-only: explicit mutation guard paraphrase, not a release-eval input.
+      },
+      {
+        id: 'transaction-record-generation',
+        question: '给王心怡充值803元并生成充值记录', // ami-brain-unit-only: explicit mutation guard paraphrase, not a release-eval input.
+      },
+      {
+        id: 'transaction-record-modify',
+        question: '修改开卡记录', // ami-brain-unit-only: transaction-history mutation must remain a side effect.
+      },
+      {
+        id: 'transaction-record-update',
+        question: '更新退款流水', // ami-brain-unit-only: transaction-history mutation must remain a side effect.
+      },
+      {
+        id: 'transaction-record-delete',
+        question: '删除充值记录', // ami-brain-unit-only: transaction-history mutation must remain a side effect.
+      },
+      {
+        id: 'transaction-record-remove',
+        question: '移除办卡记录', // ami-brain-unit-only: transaction-history mutation must remain a side effect.
+      },
+      {
+        id: 'transaction-record-clear',
+        question: '清除充值明细', // ami-brain-unit-only: transaction-history mutation must remain a side effect.
+      },
+      {
+        id: 'transaction-record-void',
+        question: '作废开卡记录', // ami-brain-unit-only: transaction-history mutation must remain a side effect.
+      },
+    ];
 
-    expect(questions.filter((question) => !(service as any).hasExplicitSideEffectRequest(question))).toEqual([]);
+    expect(existingQuestions.filter((question) => !(service as any).hasExplicitSideEffectRequest(question))).toEqual(
+      [],
+    );
+    expect(
+      stableTransactionCases.filter(({ question }) => !(service as any).hasExplicitSideEffectRequest(question)),
+    ).toEqual([]);
+  });
+
+  it('keeps transaction-history questions outside the explicit side-effect guard', () => {
+    const { service } = createService();
+    const readOnlyQuestions = [
+      '给我充值记录',
+      '帮我开卡记录',
+      '给我最近三个月的充值记录',
+      '给我查王心怡的充值记录',
+      '帮我查周语嫣的开卡记录',
+      '查询周语嫣最近三个月的退款记录',
+      '周语嫣结账了吗',
+    ];
+
+    expect(readOnlyQuestions.filter((question) => (service as any).hasExplicitSideEffectRequest(question))).toEqual([]);
+  });
+
+  it.each([
+    ['BQ0776', '给王心怡的综合养护 20 次卡充值803元'],
+    ['BQ0777', '帮周语嫣开一张综合养护 20 次卡'],
+    ['BQ0778', '给周语嫣最近三个月的这单退款'],
+    ['BQ0779', '周语嫣结账，做了全身精油 SPA'],
+  ])('%s hard-denies the transaction action under Query Only before model planning', async (_questionId, question) => {
+    const releaseService = {
+      resolveActionExecutionPolicy: jest.fn().mockResolvedValue({
+        allowed: false,
+        currentProfile: {
+          productProfile: 'query_only_v1',
+          actionExecutionPolicy: 'deny',
+          allowedCapabilityManifest: 'ami-brain-query-only-v1',
+          productProfileFingerprint: 'f'.repeat(64),
+        },
+      }),
+    };
+    const { prisma, trace, modelPipeline, skillRuntime, actionConfirmation, semanticEngine, service } = createService({
+      releaseService,
+      modelPipeline: {},
+    });
+    prisma.brainConversation.findFirst.mockResolvedValue({ id: 121, storeId: 2, userId: 9 });
+    prisma.brainMessage.create
+      .mockResolvedValueOnce({ id: 1820, role: 'user', content: question })
+      .mockResolvedValueOnce({ id: 1821, role: 'assistant', content: '动作执行已关闭。' });
+    prisma.brainRun.create.mockResolvedValue({ id: 196 });
+    prisma.brainRun.update.mockResolvedValue({ id: 196, status: 'completed' });
+
+    const response = await service.sendMessage(context, 121, {
+      message: question,
+      timezone: 'Asia/Shanghai',
+      roleHint: 'receptionist',
+    });
+
+    expect(response).toMatchObject({
+      status: 'completed',
+      productProfile: 'query_only_v1',
+      actionsEnabled: false,
+      actionExecutionPolicy: 'deny',
+      suggestedActions: [],
+      adapterMetadata: {
+        decisionCode: 'action_execution_denied_by_product_profile',
+        previewCreated: false,
+        confirmationCreated: false,
+        retryCreated: false,
+        businessStateChanged: false,
+      },
+    });
+    expect(response.answer).toContain('未写入任何业务数据');
+    expect(modelPipeline?.compiler.compile).not.toHaveBeenCalled();
+    expect(skillRuntime.previewReservationAction).not.toHaveBeenCalled();
+    expect(actionConfirmation.createPreview).not.toHaveBeenCalled();
+    expect(semanticEngine.run).not.toHaveBeenCalled();
+    expect(trace.recordStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        runId: 196,
+        stepKey: 'action_execution_policy',
+        output: expect.objectContaining({ businessStateChanged: false, previewCreated: false }),
+      }),
+    );
   });
 
   it('hard-denies explicit actions under Query Only before compiler, preview, confirmation, or business execution', async () => {

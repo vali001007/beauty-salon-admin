@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { OperationProfitService } from '../../../operation-profit/operation-profit.service.js';
 import { PrismaService } from '../../../prisma/prisma.service.js';
-import { BrainTimeRangeParserService } from '../../cognition/brain-time-range-parser.service.js';
+import { BrainTimeRangeParserService, type BrainDateRange } from '../../cognition/brain-time-range-parser.service.js';
 import { defaultBrainDateRange } from '../../domain/brain-domain-formatters.js';
 import type { BrainDomainAnswer } from '../../domain/brain-domain-adapter.types.js';
 import { BrainSkillRuntimeService } from '../../skills/brain-skill-runtime.service.js';
@@ -271,10 +271,11 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
         };
       }
       case 'project_margin_analysis': {
+        const projectRange = this.resolveProjectOperatingRange(input, range);
         const result = await this.operationProfit.getProjectMargins({
           storeId: input.context.storeId,
-          from: this.formatDate(range.startDate, input.context.timezone),
-          to: this.formatDate(range.endDate, input.context.timezone),
+          from: this.formatDate(projectRange.startDate, input.context.timezone),
+          to: this.formatDate(projectRange.endDate, input.context.timezone),
           page: 1,
           pageSize: 100,
         });
@@ -283,13 +284,72 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
           /毛利(?:率)?.*(?:最低|最少|异常低|偏低|过低)|(?:最低|最少|异常低|偏低|过低).*(?:毛利|利润)/.test(
             input.question,
           );
+        const asksLowMarginList = /(?:哪些|有哪些|列出).*(?:毛利|利润).*(?:低|过低)|(?:低毛利|毛利过低).*(?:项目)/.test(
+          input.question,
+        );
         const asksIncomeShare =
           /(?:各|每个).*(?:项目).*(?:收入|营收).*(?:占比|比例)|(?:项目).*(?:收入|营收).*(?:占比|比例)/.test(
             input.question,
           );
-        const sourceRows = [...result.items].filter((item) => item.serviceCount > 0 || item.serviceIncome > 0);
+        const asksPopularButLowSales = /叫好不叫座/.test(input.question);
+        const asksProjectRepurchase = /(?:项目|护理|SPA|spa).*(?:复购)|(?:复购).*(?:项目|护理|SPA|spa)/u.test(
+          input.question,
+        );
+        const asksAverageOrderValueRecommendation =
+          /(?:提升|提高).*(?:客单价).*(?:主推|推荐)|(?:主推|推荐).*(?:客单价)/.test(input.question);
+        const asksSellThroughRisk = /卖不动|销量(?:太)?低|销售(?:太)?少/.test(input.question);
+        const asksPriceAdvice = /(?:该不该|是否|要不要).*(?:调价)|(?:调价).*(?:建议|该不该|是否|要不要)/.test(
+          input.question,
+        );
+        const asksZeroSales = /(?:长期)?零销量|(?:长期)?零销售|没有销量/.test(input.question);
+        const completeResult =
+          Number(result.total ?? result.items.length) > result.items.length
+            ? await this.operationProfit.getProjectMargins({
+                storeId: input.context.storeId,
+                from: this.formatDate(projectRange.startDate, input.context.timezone),
+                to: this.formatDate(projectRange.endDate, input.context.timezone),
+                page: 1,
+                pageSize: Number(result.total),
+              })
+            : result;
+        const allRows = [...completeResult.items];
+        const operatingRiskQuestion = asksLowMarginList || asksZeroSales;
+        const activeProjectIds = operatingRiskQuestion
+          ? new Set(
+              (
+                await this.prisma.project.findMany({
+                  where: {
+                    storeId: input.context.storeId,
+                    deletedAt: null,
+                    status: 'active',
+                  },
+                  select: { id: true },
+                })
+              ).map((project) => project.id),
+            )
+          : undefined;
+        const operatingRows = activeProjectIds
+          ? allRows.filter((item) => activeProjectIds.has(item.projectId))
+          : allRows;
+        const sourceRows = operatingRows.filter((item) => item.serviceCount > 0 || item.serviceIncome > 0);
+        const specificProject = operatingRows
+          .filter((item) => item.projectName && input.question.includes(item.projectName))
+          .sort(
+            (left, right) =>
+              right.projectName.length - left.projectName.length ||
+              left.projectName.localeCompare(right.projectName, 'zh-CN'),
+          )[0];
         const totalServiceIncome = sourceRows.reduce((sum, item) => sum + item.serviceIncome, 0);
-        const rows = sourceRows
+        const rowSource = asksZeroSales
+          ? operatingRows.filter((item) => item.serviceCount <= 0 && item.serviceIncome <= 0)
+          : asksLowMarginList
+            ? sourceRows.filter((item) => item.marginRate < 0.3 && !item.missingCostReasons.length)
+            : asksSellThroughRisk && specificProject
+              ? [specificProject]
+              : asksPriceAdvice && specificProject
+                ? [specificProject]
+                : sourceRows;
+        const rows = rowSource
           .sort((left, right) => {
             if (asksHighestCost) {
               const leftCost = left.actualMaterialCost || left.standardMaterialCost;
@@ -298,12 +358,26 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
             }
             if (asksLowestMargin) return left.marginRate - right.marginRate || right.serviceIncome - left.serviceIncome;
             if (asksIncomeShare) return right.serviceIncome - left.serviceIncome;
+            if (asksAverageOrderValueRecommendation) {
+              const leftEligible = Number(left.contributionProfit > 0 && !left.missingCostReasons.length);
+              const rightEligible = Number(right.contributionProfit > 0 && !right.missingCostReasons.length);
+              return (
+                rightEligible - leftEligible ||
+                right.standardPrice - left.standardPrice ||
+                right.contributionProfit - left.contributionProfit
+              );
+            }
+            if (asksPopularButLowSales || asksSellThroughRisk) {
+              return left.serviceCount - right.serviceCount || left.serviceIncome - right.serviceIncome;
+            }
             return right.contributionProfit - left.contributionProfit || right.serviceIncome - left.serviceIncome;
           })
           .slice(0, this.resolveLimit(input.args.limit, 20))
           .map((item) => ({
             projectId: item.projectId,
             projectName: item.projectName,
+            standardPrice: item.standardPrice,
+            avgDealPrice: item.avgDealPrice,
             serviceCount: item.serviceCount,
             serviceIncome: item.serviceIncome,
             incomeShare:
@@ -321,26 +395,70 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
           label: '管理端项目收入、耗材、提成与贡献毛利分析',
         };
         const first = rows[0];
-        const answer = !first
-          ? `${range.label}没有可计算的项目毛利记录。`
-          : asksHighestCost
-            ? `${range.label}项目耗材成本最高的是 ${first.projectName}，成本 ${Number(first.materialCost).toFixed(2)} 元。`
-            : asksLowestMargin
-              ? `${range.label}项目毛利率最低的是 ${first.projectName}，毛利率 ${first.marginRate}。`
-              : asksIncomeShare
-                ? `${range.label}项目服务收入合计 ${totalServiceIncome.toFixed(2)} 元，占比最高的是 ${first.projectName}，占 ${first.incomeShare}。`
-                : `${range.label}已返回 ${rows.length} 个项目的收入、耗材成本、提成成本和贡献毛利。`;
+        const preservesOperatingNarrative =
+          asksProjectRepurchase ||
+          asksPopularButLowSales ||
+          asksAverageOrderValueRecommendation ||
+          asksSellThroughRisk ||
+          asksPriceAdvice ||
+          asksZeroSales ||
+          asksLowMarginList;
+        const answer = asksProjectRepurchase
+          ? specificProject
+            ? `${projectRange.label}${specificProject.projectName}共有 ${specificProject.serviceCount} 次服务、项目收入 ${specificProject.serviceIncome.toFixed(2)} 元；但当前没有已发布的客户级重复购买分母与复购客户数，无法计算该项目复购率。Ami Brain 不会用服务次数或收入替代复购。`
+            : `${projectRange.label}当前没有匹配到该护理项目的项目档案，也没有已发布的客户级项目复购口径，无法计算项目复购率。Ami Brain 不会用全店复购率或服务次数替代。`
+          : asksPopularButLowSales
+            ? first
+              ? `${projectRange.label}当前没有已接入的项目评价、满意度或口碑数据，无法判断哪些项目“叫好”；仅按真实服务次数列出低销量项目供人工对照，其中销量最低的是 ${first.projectName}，共 ${first.serviceCount} 次。Ami Brain 不会把低销量直接说成叫好不叫座。`
+              : `${projectRange.label}当前没有项目销量数据，也没有已接入的项目评价、满意度或口碑数据，无法判断“叫好不叫座”。`
+            : asksAverageOrderValueRecommendation
+              ? first
+                ? `${projectRange.label}若目标是人工提升客单价，可优先评估 ${first.projectName}：标准价 ${first.standardPrice.toFixed(2)} 元、成交均价 ${first.avgDealPrice.toFixed(2)} 元、贡献毛利 ${first.contributionProfit.toFixed(2)} 元。建议先核对客户适配、成本缺口和档期；本次只提供经营候选，不执行推荐、调价或上架。`
+                : `${projectRange.label}当前没有同时具备真实销量和可计算项目毛利的数据，无法形成可靠的客单价主推候选。`
+              : asksSellThroughRisk
+                ? first
+                  ? `${projectRange.label}${first.projectName}服务 ${first.serviceCount} 次、收入 ${first.serviceIncome.toFixed(2)} 元、成交均价 ${first.avgDealPrice.toFixed(2)} 元、贡献毛利 ${first.contributionProfit.toFixed(2)} 元。是否“卖不动”仍应与同店其他项目和上一周期人工复核；本次不自动调价或下架。`
+                  : `${projectRange.label}当前没有匹配到该项目的真实经营数据，无法判断是否卖不动。`
+                : asksPriceAdvice
+                  ? first
+                    ? `${projectRange.label}${first.projectName}标准价 ${first.standardPrice.toFixed(2)} 元、成交均价 ${first.avgDealPrice.toFixed(2)} 元、服务 ${first.serviceCount} 次、毛利率 ${first.marginRate}。是否调价需结合成本完整性、客户反馈和竞品信息人工决策；本次不执行调价。`
+                    : `${projectRange.label}当前没有匹配到该项目的价格、销量和毛利数据，无法形成调价建议；本次不会执行调价。`
+                  : asksZeroSales
+                    ? first
+                      ? `${projectRange.label}发现 ${rows.length} 个零销量项目，包含 ${rows
+                          .slice(0, 3)
+                          .map((row) => row.projectName)
+                          .join(
+                            '、',
+                          )}。这里的“零销量”仅指当前查询周期服务次数和收入均为 0，不自动推断为长期停销，也不执行下架。`
+                      : `${projectRange.label}未发现服务次数和项目收入同时为 0 的项目。`
+                    : asksLowMarginList
+                      ? first
+                        ? `${projectRange.label}发现 ${rows.length} 个毛利率低于 30% 且成本数据完整的项目，最低的是 ${first.projectName}，毛利率 ${first.marginRate}。成本缺失项目未被冒充为低毛利项目。`
+                        : `${projectRange.label}未发现毛利率低于 30% 且成本数据完整的项目；成本缺失项目不纳入低毛利结论。`
+                      : !first
+                        ? `${projectRange.label}当前没有可计算的项目毛利数据。`
+                        : asksHighestCost
+                          ? `${projectRange.label}项目耗材成本最高的是 ${first.projectName}，成本 ${Number(first.materialCost).toFixed(2)} 元。`
+                          : asksLowestMargin
+                            ? `${projectRange.label}项目毛利率最低的是 ${first.projectName}，毛利率 ${first.marginRate}。`
+                            : asksIncomeShare
+                              ? `${projectRange.label}项目服务收入合计 ${totalServiceIncome.toFixed(2)} 元，占比最高的是 ${first.projectName}，占 ${first.incomeShare}。`
+                              : `${projectRange.label}已返回 ${rows.length} 个项目的收入、耗材成本、提成成本和贡献毛利。`;
         return {
           status: 'completed',
           answer,
           citations: [citation],
           grounding: 'db_skill',
           blocks: [
+            ...(preservesOperatingNarrative ? [{ kind: 'text' as const, text: answer }] : []),
             {
-              kind: 'ranking',
+              kind: 'ranking' as const,
               rows,
               columns: [
                 'projectName',
+                'standardPrice',
+                'avgDealPrice',
                 'serviceCount',
                 'serviceIncome',
                 'incomeShare',
@@ -352,10 +470,42 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
               ],
               citationIds: [citation.sourceId],
             },
+            ...(asksProjectRepurchase
+              ? [
+                  {
+                    kind: 'limitations' as const,
+                    items: ['当前没有已发布的客户级项目复购口径，不能用服务次数或全店复购率替代。'],
+                  },
+                ]
+              : []),
+            ...(asksPopularButLowSales
+              ? [
+                  {
+                    kind: 'limitations' as const,
+                    items: ['当前没有已接入的项目评价、满意度或口碑数据，只能展示销量供人工对照。'],
+                  },
+                ]
+              : []),
           ],
           metadata: {
             capabilityKey,
-            answerScope: asksIncomeShare ? 'project_income_share_ranking' : 'project_margin_ranking',
+            answerScope: asksProjectRepurchase
+              ? 'project_repurchase_boundary'
+              : asksPopularButLowSales
+                ? 'project_reputation_sales_boundary'
+                : asksAverageOrderValueRecommendation
+                  ? 'project_average_order_value_candidates'
+                  : asksSellThroughRisk
+                    ? 'project_sell_through_review'
+                    : asksPriceAdvice
+                      ? 'project_price_review'
+                      : asksZeroSales
+                        ? 'project_zero_sales_review'
+                        : asksLowMarginList
+                          ? 'project_low_margin_review'
+                          : asksIncomeShare
+                            ? 'project_income_share_ranking'
+                            : 'project_margin_ranking',
             actionWriteCount: 0,
             mappingOutputs: { projectRanking: rows },
             completionCriteria: asksIncomeShare
@@ -698,12 +848,31 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
         label: structuredRange.label,
         startDate: structuredRange.startDate,
         endDate: new Date(structuredRange.endExclusive.getTime() - 1),
+        granularity: 'day' as const,
       };
     }
     return (
       this.timeRangeParser.parse(structuredTime?.label ?? structuredTime?.preset ?? input.question).range ??
       defaultBrainDateRange()
     );
+  }
+
+  private resolveProjectOperatingRange(input: BrainCapabilityExecutionInput, fallback: BrainDateRange): BrainDateRange {
+    const parsed = this.timeRangeParser.parse(input.question);
+    if (
+      parsed.mentionedTime ||
+      !/(?:叫好不叫座|复购|客单价|主推|卖不动|销量|调价|毛利过低|低毛利)/.test(input.question)
+    ) {
+      return fallback;
+    }
+    const endDate = new Date();
+    const startDate = new Date(endDate.getTime() - 89 * 86_400_000);
+    return {
+      label: '最近90天（治理默认）',
+      startDate,
+      endDate,
+      granularity: 'day',
+    };
   }
 
   private formatDate(value: Date, timezone: string) {
@@ -753,6 +922,7 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
       where: { storeId: input.context.storeId, deletedAt: null },
       include: {
         bomItems: {
+          where: { product: { storeId: input.context.storeId } },
           include: {
             product: {
               select: { id: true, name: true, sku: true, unit: true, costPrice: true },

@@ -112,6 +112,26 @@ describe('BrainTimeRangeParserService', () => {
     });
   });
 
+  it('clamps a rolling month to the target month end', () => {
+    const monthEndNow = new Date(2025, 2, 31, 10, 30, 0, 0);
+
+    expect(parser.parse('过去1个月订单情况', { now: monthEndNow }).range).toMatchObject({
+      label: '过去1个月',
+      startDate: new Date(2025, 1, 28, 0, 0, 0, 0),
+      endDate: new Date(2025, 2, 31, 23, 59, 59, 999),
+    });
+  });
+
+  it('clamps a rolling year from leap day to February month end', () => {
+    const leapDayNow = new Date(2024, 1, 29, 10, 30, 0, 0);
+
+    expect(parser.parse('过去1年订单情况', { now: leapDayNow }).range).toMatchObject({
+      label: '过去1年',
+      startDate: new Date(2023, 1, 28, 0, 0, 0, 0),
+      endDate: new Date(2024, 1, 29, 23, 59, 59, 999),
+    });
+  });
+
   it('marks year-over-year same period as comparison instead of scalar all-history', () => {
     const result = parser.parse('去年同期收入多少', { now });
 
@@ -197,6 +217,40 @@ describe('BrainTimeRangeParserService', () => {
         startDate: new Date(2026, 5, 1, 0, 0, 0, 0),
         endDate: new Date(2026, 5, 30, 23, 59, 59, 999),
       },
+    });
+  });
+
+  it('BQ0706 parses two explicit rolling periods without asking for clarification', () => {
+    const result = parser.parse('最近三个月营业额和最近7天比怎么样', { now });
+
+    expect(result).toMatchObject({
+      mentionedTime: true,
+      requiresComparison: true,
+      unsupportedExpressions: [],
+      comparison: {
+        label: '过去3个月对比最近7天',
+        current: {
+          label: '过去3个月',
+          startDate: new Date(2026, 3, 10, 0, 0, 0, 0),
+          endDate: new Date(2026, 6, 10, 23, 59, 59, 999),
+        },
+        previous: {
+          label: '最近7天',
+          startDate: new Date(2026, 6, 4, 0, 0, 0, 0),
+          endDate: new Date(2026, 6, 10, 23, 59, 59, 999),
+        },
+      },
+    });
+  });
+
+  it('clamps rolling comparison periods at the target month end', () => {
+    const monthEndNow = new Date(2025, 2, 31, 10, 30, 0, 0);
+    const result = parser.parse('最近1个月营业额和最近7天比怎么样', { now: monthEndNow });
+
+    expect(result.comparison?.current).toMatchObject({
+      label: '过去1个月',
+      startDate: new Date(2025, 1, 28, 0, 0, 0, 0),
+      endDate: new Date(2025, 2, 31, 23, 59, 59, 999),
     });
   });
 
