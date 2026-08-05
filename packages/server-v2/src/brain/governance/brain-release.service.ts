@@ -30,6 +30,8 @@ import {
 const ACTIVE_RUNTIME_RELEASE_CACHE_TTL_MS = 1_000;
 const RUNTIME_RELEASE_SCOPES = ['global', 'store', 'user', 'role', 'percentage'] as const;
 const ROLLOUT_SEQUENCE_STAGES = ['shadow', 'canary_5', 'canary_20', 'canary_50', 'full'] as const;
+const RELEASE_ACCEPTANCE_V2 = 'ami-brain-release-acceptance/v2';
+const RELEASE_CORE_REQUIRED_CASE_COUNT = 350;
 const PERFORMANCE_BUCKET_POLICY = {
   quick: { count: 20, budgetsMs: { p50: 1500, p95: 3000, max: 5000 } },
   single: { count: 20, budgetsMs: { p50: 3000, p95: 8000, max: 12000 } },
@@ -53,6 +55,8 @@ export interface BrainReleaseReadiness {
   questionCount: number | null;
   provider: string | null;
   model: string | null;
+  contractVersion: string | null;
+  sourceCommit: string | null;
   generatedAt: string | null;
   expiresAt: string | null;
   blockers: string[];
@@ -838,20 +842,26 @@ export class BrainReleaseService implements OnModuleInit {
       );
       const evidenceRun = runs.find((run) => {
         const summary = this.record(run.summary);
-        return this.record(summary.productAcceptance as Prisma.JsonValue).contractVersion === 'ami-brain-release-acceptance/v1';
+        return this.record(summary.productAcceptance as Prisma.JsonValue).contractVersion === RELEASE_ACCEPTANCE_V2;
       }) ?? runs.find((run) => this.record(run.summary).gateMode === 'release_gate') ?? runs[0];
       const summary = this.record(evidenceRun?.summary);
       const productAcceptance = this.record(summary.productAcceptance as Prisma.JsonValue);
+      const pipelineIdentity = this.record(productAcceptance.pipelineIdentity as Prisma.JsonValue);
+      const releaseCore = this.record(this.record(productAcceptance.stages as Prisma.JsonValue).releaseCore as Prisma.JsonValue);
+      const providerEvidence = this.record(releaseCore.providerEvidence as Prisma.JsonValue);
+      const expectedProvider = this.record(providerEvidence.expected as Prisma.JsonValue);
       return {
         status: 'ready',
         canRelease: true,
         evaluationReleaseId,
-        evalRunId: positiveNumber(evidenceRun?.id ?? summary.runId),
+        evalRunId: positiveNumber(releaseCore.runId ?? evidenceRun?.id ?? summary.runId),
         releaseFingerprint,
         suiteChecksum: optionalText(summary.suiteManifestChecksum ?? productAcceptance.suiteManifestChecksum),
-        questionCount: positiveNumber(summary.suiteCaseCount ?? summary.total ?? evidenceRun?.caseCount),
-        provider: optionalText(summary.provider ?? productAcceptance.provider),
-        model: optionalText(evidenceRun?.modelVersion ?? summary.model ?? productAcceptance.model),
+        questionCount: positiveNumber(releaseCore.total ?? summary.suiteCaseCount ?? summary.total ?? evidenceRun?.caseCount),
+        provider: optionalText(expectedProvider.provider ?? summary.provider),
+        model: optionalText(expectedProvider.model ?? evidenceRun?.modelVersion ?? summary.model),
+        contractVersion: optionalText(productAcceptance.contractVersion),
+        sourceCommit: optionalText(pipelineIdentity.sourceCommit),
         generatedAt: optionalIsoDate(productAcceptance.generatedAt ?? evidenceRun?.finishedAt ?? evidenceRun?.createdAt),
         expiresAt: optionalIsoDate(productAcceptance.expiresAt),
         blockers: [],
@@ -1180,83 +1190,81 @@ export class BrainReleaseService implements OnModuleInit {
     const evidence = this.record(summary.productAcceptance as Prisma.JsonValue);
     const blockingReasons = Array.isArray(evidence.blockingReasons) ? evidence.blockingReasons : [];
     if (
-      evidence.contractVersion !== 'ami-brain-release-acceptance/v1' ||
+      evidence.contractVersion !== RELEASE_ACCEPTANCE_V2 ||
       evidence.canActivate !== true ||
+      evidence.decision !== 'ready_for_activation' ||
       blockingReasons.length > 0
     ) {
       throw new BadRequestException('release_product_acceptance_failed');
     }
-    if (evidence.releaseFingerprint !== releaseFingerprint || summary.releaseFingerprint !== releaseFingerprint) {
+    const pipelineIdentity = this.record(evidence.pipelineIdentity as Prisma.JsonValue);
+    const releaseGate = this.record(evidence.releaseGate as Prisma.JsonValue);
+    const releaseCore = this.record(this.record(evidence.stages as Prisma.JsonValue).releaseCore as Prisma.JsonValue);
+    const providerEvidence = this.record(releaseCore.providerEvidence as Prisma.JsonValue);
+    const suspectedFalseSuccess = this.record(this.record(releaseCore.scorecards as Prisma.JsonValue).suspectedFalseSuccess as Prisma.JsonValue);
+    const extendedManual = this.record(evidence.extendedManual as Prisma.JsonValue);
+    if (pipelineIdentity.releaseFingerprint !== releaseFingerprint || summary.releaseFingerprint !== releaseFingerprint) {
       throw new BadRequestException('release_product_acceptance_fingerprint_mismatch');
     }
     if (
-      !Number.isInteger(Number(evidence.releaseCoreRunId)) ||
-      !Number.isInteger(Number(evidence.standardRegressionRunId)) ||
-      Number(evidence.releaseCoreCaseCount) < 300 ||
-      Number(evidence.releaseCoreCaseCount) > 400 ||
-      Number(evidence.standardRegressionCaseCount) < 1000 ||
-      Number(evidence.standardRegressionCaseCount) > 1100 ||
-      Number(evidence.standardDeltaCaseCount) + Number(evidence.releaseCoreCaseCount) !==
-        Number(evidence.standardRegressionCaseCount) ||
-      Number(evidence.verifiedCapabilityTotal) <= 0 ||
-      Number(evidence.goldStandardCaseCount) !== 100 ||
-      Number(evidence.goldStandardAuditQueryReady) !== 100 ||
-      Number(evidence.goldStandardSnapshotReady) !== 100 ||
-      Number(evidence.goldStandardEvaluated) !== 100 ||
-      Number(evidence.goldStandardPassed) !== 100 ||
-      !Number.isInteger(Number(evidence.goldStandardRunId)) ||
-      Number(evidence.goldStandardRunId) <= 0 ||
-      Number(evidence.goldStandardRunId) === Number(evidence.releaseCoreRunId) ||
-      Number(evidence.goldStandardRunId) === Number(evidence.standardRegressionRunId) ||
-      Number(evidence.releaseCoreRunId) === Number(evidence.standardRegressionRunId) ||
-      Number(summary.runId) !== Number(evidence.standardRegressionRunId)
+      releaseGate.suite !== 'release-core' ||
+      Number(releaseGate.expectedCaseCount) !== RELEASE_CORE_REQUIRED_CASE_COUNT ||
+      Number(releaseGate.manifestCaseCount) !== RELEASE_CORE_REQUIRED_CASE_COUNT ||
+      Number(releaseGate.resultCount) !== RELEASE_CORE_REQUIRED_CASE_COUNT ||
+      releaseGate.complete !== true ||
+      Number(releaseGate.verifiedCapabilityTotal) <= 0 ||
+      !this.sha256String(releaseGate.caseIdsChecksum) ||
+      !Number.isInteger(Number(releaseCore.runId)) ||
+      Number(releaseCore.runId) <= 0 ||
+      releaseCore.stage !== 'release-core' ||
+      Number(releaseCore.total) !== RELEASE_CORE_REQUIRED_CASE_COUNT ||
+      Number(releaseCore.expectedTotal) !== RELEASE_CORE_REQUIRED_CASE_COUNT ||
+      Number(releaseCore.passed) !== RELEASE_CORE_REQUIRED_CASE_COUNT ||
+      Number(releaseCore.failed) !== 0 ||
+      Number(releaseCore.providerUnavailable) !== 0 ||
+      providerEvidence.candidatePrimaryRouteEligible !== true ||
+      Number(suspectedFalseSuccess.count) !== 0
     ) {
       throw new BadRequestException('release_product_acceptance_incomplete');
     }
     if (
-      typeof evidence.sourceCommit !== 'string' ||
-      !/^[0-9a-f]{40}$/iu.test(evidence.sourceCommit) ||
-      evidence.runtimeCommit !== evidence.sourceCommit ||
-      typeof evidence.suiteManifestVersion !== 'string' ||
-      !this.sha256String(evidence.suiteManifestChecksum) ||
-      !this.sha256String(evidence.sourceChecksum) ||
-      !this.sha256String(evidence.releaseCoreCaseIdsChecksum) ||
-      !this.sha256String(evidence.standardDeltaCaseIdsChecksum) ||
-      !this.sha256String(evidence.standardRegressionCaseIdsChecksum) ||
-      typeof evidence.goldStandardManifestVersion !== 'string' ||
-      !evidence.goldStandardManifestVersion ||
-      !this.sha256String(evidence.goldStandardManifestChecksum) ||
-      !this.sha256String(evidence.goldStandardCaseIdsChecksum) ||
-      !this.sha256String(evidence.goldStandardAcceptanceChecksum) ||
-      typeof evidence.runKey !== 'string' ||
-      !evidence.runKey
+      pipelineIdentity.contractVersion !== RELEASE_ACCEPTANCE_V2 ||
+      typeof pipelineIdentity.sourceCommit !== 'string' ||
+      !/^[0-9a-f]{40}$/iu.test(pipelineIdentity.sourceCommit) ||
+      pipelineIdentity.runtimeCommit !== pipelineIdentity.sourceCommit ||
+      typeof pipelineIdentity.suiteManifestVersion !== 'string' ||
+      !this.sha256String(pipelineIdentity.suiteManifestChecksum) ||
+      !this.sha256String(pipelineIdentity.sourceBaselineChecksum) ||
+      typeof pipelineIdentity.runKey !== 'string' ||
+      !pipelineIdentity.runKey ||
+      Number(pipelineIdentity.releaseCoreCaseCount) !== RELEASE_CORE_REQUIRED_CASE_COUNT ||
+      Number(pipelineIdentity.releaseId) <= 0
     ) {
       throw new BadRequestException('release_product_acceptance_identity_invalid');
     }
     if (
-      summary.stage !== 'standard-regression' ||
-      summary.executionMode !== 'delta_after_release_core' ||
-      summary.runKey !== evidence.runKey ||
-      summary.suiteManifestVersion !== evidence.suiteManifestVersion ||
-      summary.suiteManifestChecksum !== evidence.suiteManifestChecksum ||
-      summary.sourceChecksum !== evidence.sourceChecksum ||
-      summary.sourceCommit !== evidence.sourceCommit ||
-      Number(summary.storeId) !== Number(evidence.storeId) ||
-      Number(summary.total) !== Number(evidence.standardDeltaCaseCount) ||
-      Number(summary.suiteCaseCount) !== Number(evidence.standardRegressionCaseCount) ||
-      summary.suiteCaseIdsChecksum !== evidence.standardRegressionCaseIdsChecksum ||
-      Number(summary.goldStandardRunId) !== Number(evidence.goldStandardRunId) ||
-      jsonChecksum(this.record(summary.goldStandardAcceptance as Prisma.JsonValue)) !==
-        evidence.goldStandardAcceptanceChecksum ||
-      this.record(summary.productionHealth as Prisma.JsonValue).commit !== evidence.runtimeCommit
+      summary.stage !== 'release-core' ||
+      summary.runKey !== pipelineIdentity.runKey ||
+      summary.suiteManifestVersion !== pipelineIdentity.suiteManifestVersion ||
+      summary.suiteManifestChecksum !== pipelineIdentity.suiteManifestChecksum ||
+      summary.sourceChecksum !== pipelineIdentity.sourceBaselineChecksum ||
+      summary.sourceCommit !== pipelineIdentity.sourceCommit ||
+      Number(summary.storeId) !== Number(pipelineIdentity.storeId) ||
+      Number(summary.total) !== RELEASE_CORE_REQUIRED_CASE_COUNT ||
+      Number(summary.suiteCaseCount) !== RELEASE_CORE_REQUIRED_CASE_COUNT ||
+      Number(summary.runId) !== Number(releaseCore.runId) ||
+      this.record(summary.productionHealth as Prisma.JsonValue).commit !== pipelineIdentity.runtimeCommit
     ) {
       throw new BadRequestException('release_product_acceptance_summary_mismatch');
     }
-    const expiresAt = Date.parse(String(evidence.expiresAt ?? ''));
-    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
-      throw new BadRequestException('release_product_acceptance_expired');
+    if (
+      extendedManual.blocksCurrentAcceptance !== false ||
+      extendedManual.releaseDecisionMutable !== false ||
+      evidence.mergedStandardRegression !== null
+    ) {
+      throw new BadRequestException('release_product_acceptance_extended_scope_blocking');
     }
-    return evidence;
+    return { ...evidence, pipelineIdentity, releaseGate, releaseCore };
   }
 
   private async assertGoldStandardEvidenceRun(
@@ -1588,18 +1596,15 @@ export class BrainReleaseService implements OnModuleInit {
     const productRun = runs.find(
       (run) =>
         this.record(this.record(run.summary).productAcceptance as Prisma.JsonValue).contractVersion ===
-        'ami-brain-release-acceptance/v1',
+        RELEASE_ACCEPTANCE_V2,
     );
     if (!productRun) throw new BadRequestException('release_product_acceptance_missing');
     const productSummary = this.record(productRun.summary);
     const productEvidence = this.assertProductAcceptanceSummary(productSummary, releaseFingerprint);
-    await this.assertGoldStandardEvidenceRun(prisma, releaseId, productSummary, productEvidence);
-    if (requirePerformanceAcceptance) {
-      await this.assertPerformanceEvidenceRuns(prisma, releaseId, productSummary, productEvidence);
-    }
     const capabilityRun = runs.find((run) => {
       const summary = this.record(run.summary);
-      return summary.gateMode === 'release_gate' && summary.runtimeCommit === productEvidence.runtimeCommit;
+      const identity = this.record(productEvidence.pipelineIdentity as Prisma.JsonValue);
+      return summary.gateMode === 'release_gate' && summary.runtimeCommit === identity.runtimeCommit;
     });
     if (!capabilityRun) throw new BadRequestException('release_eval_pipeline_identity_mismatch');
     this.assertReleaseEvalSummary(this.record(capabilityRun.summary), releaseFingerprint);
@@ -2186,6 +2191,8 @@ function blockedReadiness(
     questionCount: null,
     provider: null,
     model: null,
+    contractVersion: null,
+    sourceCommit: null,
     generatedAt: null,
     expiresAt: null,
     blockers: [blocker],

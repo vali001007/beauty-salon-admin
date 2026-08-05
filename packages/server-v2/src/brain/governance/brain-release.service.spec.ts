@@ -37,25 +37,78 @@ function passingProductSummary(items: any[], overrides: Record<string, unknown> 
   const sourceCommit = 'a'.repeat(40);
   const goldStandardAcceptance = passingGoldStandardAcceptance();
   const goldIds = goldStandardCaseIds();
+  const contractVersion = 'ami-brain-release-acceptance/v2';
   return {
-    runId: 502,
-    stage: 'standard-regression',
-    executionMode: 'delta_after_release_core',
+    runId: 501,
+    stage: 'release-core',
+    executionMode: 'release_core_acceptance',
     runKey: 'release416-v2',
     suiteManifestVersion: '2026-07-28-v2',
     suiteManifestChecksum: 'b'.repeat(64),
     sourceChecksum: 'c'.repeat(64),
     sourceCommit,
     storeId: 6,
-    total: 690,
-    suiteCaseCount: 1040,
-    suiteCaseIdsChecksum: 'f'.repeat(64),
+    total: 350,
+    suiteCaseCount: 350,
+    suiteCaseIdsChecksum: 'd'.repeat(64),
     productionHealth: { commit: sourceCommit },
     releaseFingerprint,
     goldStandardRunId: 503,
     goldStandardAcceptance,
     productAcceptance: {
-      contractVersion: 'ami-brain-release-acceptance/v1',
+      contractVersion,
+      pipelineIdentity: {
+        contractVersion,
+        runKey: 'release416-v2',
+        releaseId: 20,
+        runtimeCommit: sourceCommit,
+        sourceCommit,
+        storeId: 6,
+        suiteManifestVersion: '2026-07-28-v2',
+        suiteManifestChecksum: 'b'.repeat(64),
+        sourceBaselineChecksum: 'c'.repeat(64),
+        productLoopEligibilityChecksum: '9'.repeat(64),
+        releaseCoreCaseCount: 350,
+        standardRegressionCaseCount: 1040,
+        standardDeltaCaseCount: 690,
+        releaseFingerprint,
+      },
+      releaseGate: {
+        suite: 'release-core',
+        expectedCaseCount: 350,
+        manifestCaseCount: 350,
+        resultCount: 350,
+        caseIdsChecksum: 'd'.repeat(64),
+        verifiedCapabilityTotal: 100,
+        complete: true,
+      },
+      stages: {
+        releaseCore: {
+          runId: 501,
+          stage: 'release-core',
+          total: 350,
+          expectedTotal: 350,
+          passed: 350,
+          failed: 0,
+          providerUnavailable: 0,
+          providerEvidence: {
+            candidatePrimaryRouteEligible: true,
+            expected: { provider: 'openai_responses', model: 'gpt-test' },
+          },
+          scorecards: {
+            suspectedFalseSuccess: { count: 0 },
+            verifiedCapability: { total: 100, passed: 100 },
+          },
+        },
+      },
+      extendedManual: {
+        suite: 'standard-regression-delta',
+        expectedCaseCount: 690,
+        status: 'not_run',
+        blocksCurrentAcceptance: false,
+        releaseDecisionMutable: false,
+      },
+      mergedStandardRegression: null,
       releaseCoreRunId: 501,
       standardRegressionRunId: 502,
       runKey: 'release416-v2',
@@ -85,6 +138,7 @@ function passingProductSummary(items: any[], overrides: Record<string, unknown> 
       goldStandardPassed: 100,
       blockingReasons: [],
       canActivate: true,
+      decision: 'ready_for_activation',
       createdAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
       ...overrides,
@@ -1070,7 +1124,7 @@ describe('BrainReleaseService', () => {
     ).rejects.toMatchObject({ message: expect.stringContaining('release_performance_run_invalid:single:') });
   });
 
-  it('rejects product evidence when the referenced gold-standard child run is missing', async () => {
+  it('does not require a legacy gold-standard child run for RC-350 v2 activation', async () => {
     const resourceVersion = {
       id: 11,
       checksum: 'a'.repeat(64),
@@ -1107,10 +1161,11 @@ describe('BrainReleaseService', () => {
 
     await expect(
       (service as any).assertReleaseEvalEvidence(prisma, target, createReleaseFingerprint(items)),
-    ).rejects.toMatchObject({ message: 'release_gold_standard_run_missing' });
+    ).resolves.toBeUndefined();
+    expect(prisma.brainEvalRun.findFirst).not.toHaveBeenCalled();
   });
 
-  it('rejects product evidence when the gold-standard child results are incomplete', async () => {
+  it('keeps failed 690 extended-manual observations non-blocking for RC-350 v2', async () => {
     const resourceVersion = {
       id: 11,
       checksum: 'a'.repeat(64),
@@ -1130,13 +1185,22 @@ describe('BrainReleaseService', () => {
       rollout: { mode: 'shadow', stage: 'shadow' },
       items,
     };
+    const productSummary = passingProductSummary(items) as any;
+    productSummary.productAcceptance.extendedManual = {
+      ...productSummary.productAcceptance.extendedManual,
+      status: 'completed_with_failures',
+      evaluated: 690,
+      passed: 677,
+      failed: 13,
+      blockingReasons: ['manual_follow_up_required'],
+    };
     const prisma = {
       brainRelease: { findUnique: jest.fn().mockResolvedValue(evidenceRelease) },
       brainEvalRun: {
         findMany: jest.fn(({ where }: { where: { releaseId: number } }) =>
           Promise.resolve(
             where.releaseId === evidenceRelease.id
-              ? [{ summary: passingProductSummary(items) }, { summary: passingEvalSummary(items) }]
+              ? [{ summary: productSummary }, { summary: passingEvalSummary(items) }]
               : [],
           ),
         ),
@@ -1150,10 +1214,11 @@ describe('BrainReleaseService', () => {
 
     await expect(
       (service as any).assertReleaseEvalEvidence(prisma, target, createReleaseFingerprint(items)),
-    ).rejects.toMatchObject({ message: 'release_gold_standard_results_invalid' });
+    ).resolves.toBeUndefined();
+    expect(prisma.brainEvalResult.findMany).not.toHaveBeenCalled();
   });
 
-  it('rejects product evidence when one actual gold-standard row failed despite a passing summary', async () => {
+  it('rejects extended-manual evidence that is allowed to block the RC-350 decision', async () => {
     const resourceVersion = {
       id: 11,
       checksum: 'a'.repeat(64),
@@ -1173,6 +1238,8 @@ describe('BrainReleaseService', () => {
       rollout: { mode: 'shadow', stage: 'shadow' },
       items,
     };
+    const productSummary = passingProductSummary(items) as any;
+    productSummary.productAcceptance.extendedManual.blocksCurrentAcceptance = true;
     const rows = passingGoldStandardResultRows();
     rows[0] = {
       caseKey: rows[0]!.caseKey,
@@ -1185,7 +1252,7 @@ describe('BrainReleaseService', () => {
         findMany: jest.fn(({ where }: { where: { releaseId: number } }) =>
           Promise.resolve(
             where.releaseId === evidenceRelease.id
-              ? [{ summary: passingProductSummary(items) }, { summary: passingEvalSummary(items) }]
+              ? [{ summary: productSummary }, { summary: passingEvalSummary(items) }]
               : [],
           ),
         ),
@@ -1197,7 +1264,7 @@ describe('BrainReleaseService', () => {
 
     await expect(
       (service as any).assertReleaseEvalEvidence(prisma, target, createReleaseFingerprint(items)),
-    ).rejects.toMatchObject({ message: 'release_gold_standard_results_invalid' });
+    ).rejects.toMatchObject({ message: 'release_product_acceptance_extended_scope_blocking' });
   });
 
   it('rejects capability and product evidence produced by different runtime commits', async () => {
@@ -1319,7 +1386,7 @@ describe('BrainReleaseService', () => {
     ).rejects.toMatchObject({ message: 'release_product_acceptance_missing' });
   });
 
-  it('rejects expired two-stage product evidence', async () => {
+  it('keeps v1 acceptance as historical evidence and rejects it for current readiness', async () => {
     const resourceVersion = {
       id: 11,
       checksum: 'a'.repeat(64),
@@ -1345,7 +1412,7 @@ describe('BrainReleaseService', () => {
         findMany: jest
           .fn()
           .mockResolvedValue([
-            { summary: passingProductSummary(items, { expiresAt: new Date(Date.now() - 1000).toISOString() }) },
+            { summary: passingProductSummary(items, { contractVersion: 'ami-brain-release-acceptance/v1' }) },
             { summary: passingEvalSummary(items) },
           ]),
         findFirst: jest.fn(),
@@ -1355,7 +1422,7 @@ describe('BrainReleaseService', () => {
 
     await expect(
       (service as any).assertReleaseEvalEvidence(prisma, target, createReleaseFingerprint(items)),
-    ).rejects.toMatchObject({ message: 'release_product_acceptance_expired' });
+    ).rejects.toMatchObject({ message: 'release_product_acceptance_missing' });
   });
 
   it('rejects inherited evaluation evidence when the production fingerprint differs', async () => {

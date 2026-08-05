@@ -188,30 +188,65 @@ test('binds evidence result checksum to the allowlisted type, status and every a
   );
 });
 
-test('closes only when every required receipt is passed, current and bound to the same candidate', () => {
+test('closes RC-350 only when the release contract and all five safety receipts are current', () => {
   const now = new Date('2026-08-02T12:00:00Z');
   const lock = createCandidateLock({ identity: identity() }, now);
-  const evidenceTypes = [
+  const requiredEvidenceTypes = [
     'release_contract',
-    'gold_100',
-    'performance_60',
     'permission_matrix',
     'cross_client_e2e',
     'target_database',
     'provider_fallback',
     'rollback_drill',
   ];
-  const evidenceReceipts = evidenceTypes.map((evidenceType, index) => evidenceInput(lock, evidenceType, index + 1));
+  const evidenceReceipts = requiredEvidenceTypes.map((evidenceType, index) => evidenceInput(lock, evidenceType, index + 1));
 
   const result = closeCandidateEvidence({ candidateLock: lock, evidenceReceipts }, now);
   assert.equal(result.releaseEligible, true);
   assert.deepEqual(result.blockers, []);
-  assert.equal(Object.keys(result.evidenceChecksums).length, 8);
+  assert.equal(Object.keys(result.evidenceChecksums).length, 6);
+  assert.equal(result.schemaVersion, 'ami-brain-release-eligibility/v2');
+  assert.deepEqual(result.requiredEvidenceTypes, requiredEvidenceTypes);
+  assert.deepEqual(result.extendedManualEvidenceTypes, []);
+  assert.equal(result.extendedManualComplete, false);
+  assert.equal(result.extendedManualBlocksRelease, false);
   assert.equal(result.expiresAt, '2026-08-09T12:00:00.000Z');
 
-  const blocked = closeCandidateEvidence({ candidateLock: lock, evidenceReceipts: evidenceReceipts.slice(0, -1) }, now);
-  assert.equal(blocked.releaseEligible, false);
-  assert.ok(blocked.blockers.includes('required_evidence_missing:rollback_drill'));
+  for (const missingEvidenceType of requiredEvidenceTypes) {
+    const blocked = closeCandidateEvidence({
+      candidateLock: lock,
+      evidenceReceipts: evidenceReceipts.filter((receipt) => receipt.evidenceType !== missingEvidenceType),
+    }, now);
+    assert.equal(blocked.releaseEligible, false, `${missingEvidenceType} must block release`);
+    assert.ok(blocked.blockers.includes(`required_evidence_missing:${missingEvidenceType}`));
+  }
+});
+
+test('keeps historical Gold100 and Performance60 receipts compatible without calling them MO-690 evidence', () => {
+  const now = new Date('2026-08-02T12:00:00Z');
+  const lock = createCandidateLock({ identity: identity() }, now);
+  const required = [
+    'release_contract',
+    'permission_matrix',
+    'cross_client_e2e',
+    'target_database',
+    'provider_fallback',
+    'rollback_drill',
+  ].map((evidenceType, index) => evidenceInput(lock, evidenceType, index + 1));
+  const result = closeCandidateEvidence({
+    candidateLock: lock,
+    evidenceReceipts: [
+      ...required,
+      evidenceInput(lock, 'gold_100', 7),
+      evidenceInput(lock, 'performance_60', 8),
+    ],
+  }, now);
+
+  assert.equal(result.releaseEligible, true);
+  assert.deepEqual(result.extendedManualEvidenceTypes, []);
+  assert.equal(result.extendedManualComplete, false);
+  assert.equal(result.evidenceChecksums.gold_100.length, 64);
+  assert.equal(result.evidenceChecksums.performance_60.length, 64);
 });
 
 test('never aggregates evidence from another candidate', () => {

@@ -93,13 +93,18 @@ describe('BrainGovernanceControlPlaneService', () => {
     const events = { record: jest.fn().mockResolvedValue({}) };
     const service = new BrainGovernanceControlPlaneService(prisma as never, events as never);
 
-    const first = await service.createQueryOnlyPolicyVersions({ candidateKey: 'repo:commit:merge', actorId: 9 });
-    const second = await service.createQueryOnlyPolicyVersions({ candidateKey: 'repo:commit:merge', actorId: 9 });
+    const first = await service.createQueryOnlyPolicyVersions({ candidateKey: 'repo:commit:merge', actorId: 9, evidenceReceiptId: 91 });
+    const second = await service.createQueryOnlyPolicyVersions({ candidateKey: 'repo:commit:merge', actorId: 9, evidenceReceiptId: 91 });
 
     expect(first.resourceVersionIds).toEqual(second.resourceVersionIds);
     expect(first.resourceVersionIds).toHaveLength(41);
     expect(createMany).toHaveBeenCalledTimes(1);
     expect(events.record).toHaveBeenCalledTimes(1);
+    expect(prisma.brainGovernanceCandidate.findUnique).toHaveBeenCalledWith(expect.objectContaining({
+      include: expect.objectContaining({
+        receipts: expect.objectContaining({ where: expect.objectContaining({ id: 91 }) }),
+      }),
+    }));
   });
 
   it('reuses a matching policy snapshot release key without creating duplicate releases or audit events', async () => {
@@ -459,7 +464,8 @@ describe('BrainGovernanceControlPlaneService', () => {
     const resourceCreate = jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 51, ...data }));
     const tx = {
       brainGateReceipt: {
-        upsert: jest.fn().mockResolvedValue({ id: 31, receiptKey: 'receipt-new' }),
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 31, receiptKey: 'receipt-new' }),
         updateMany: receiptUpdateMany,
       },
       brainGateReceiptGate: {
@@ -515,9 +521,9 @@ describe('BrainGovernanceControlPlaneService', () => {
   });
 
   it('stores human-uploaded receipts as untrusted and does not create governance policies', async () => {
-    const upsert = jest.fn().mockImplementation(({ create }) => Promise.resolve({ id: 32, ...create }));
+    const create = jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 32, ...data }));
     const updateMany = jest.fn();
-    const tx = { brainGateReceipt: { findUnique: jest.fn().mockResolvedValue(null), upsert, updateMany } };
+    const tx = { brainGateReceipt: { findUnique: jest.fn().mockResolvedValue(null), create, updateMany } };
     const prisma = {
       $transaction: jest.fn((operation: (client: typeof tx) => Promise<unknown>) => operation(tx)),
       brainResourceVersion: { findFirst: jest.fn() },
@@ -539,8 +545,8 @@ describe('BrainGovernanceControlPlaneService', () => {
     }, 9);
 
     expect(result.status).toBe('untrusted');
-    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
-      create: expect.objectContaining({
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
         status: 'untrusted',
         result: expect.objectContaining({
           verification: expect.objectContaining({ trustLevel: 'untrusted_dev', status: 'untrusted' }),
@@ -583,6 +589,121 @@ describe('BrainGovernanceControlPlaneService', () => {
     expect(upsert).not.toHaveBeenCalled();
   });
 
+  it('treats a trusted receipt with the same frozen identity as idempotent', async () => {
+    const existing = {
+      id: 71,
+      receiptKey: 'trusted-idempotent',
+      stage: 'candidate',
+      candidateId: 17,
+      identityChecksum: HASH,
+      resultChecksum: HASH,
+      sourceFingerprint: HASH,
+      releaseFingerprint: HASH,
+      suiteChecksum: HASH,
+      evalRunId: 81,
+      evaluationReleaseId: 82,
+      headCommit: 'abcdef123456',
+      trustLevel: 'trusted_candidate',
+      verificationStatus: 'verified',
+    };
+    const create = jest.fn();
+    const tx = {
+      brainGateReceipt: {
+        findUnique: jest.fn().mockResolvedValue(existing),
+        create,
+        update: jest.fn(),
+        updateMany: jest.fn(),
+      },
+      brainGateReceiptGate: { createMany: jest.fn() },
+      brainGateReceiptCapability: { createMany: jest.fn() },
+    };
+    const service = new BrainGovernanceControlPlaneService({
+      $transaction: jest.fn((operation: (client: typeof tx) => Promise<unknown>) => operation(tx)),
+      brainResourceVersion: { findFirst: jest.fn().mockResolvedValue(policyRow()) },
+    } as never);
+
+    await expect(service.ingestReceipt({
+      schemaVersion: 3,
+      receiptId: 'trusted-idempotent',
+      governanceCandidateId: 17,
+      stage: 'candidate',
+      riskLevel: 'low',
+      changedFilesChecksum: HASH,
+      diffChecksum: HASH,
+      sourceFingerprint: HASH,
+      releaseFingerprint: HASH,
+      suiteChecksum: HASH,
+      identityChecksum: HASH,
+      resultChecksum: HASH,
+      headCommit: 'abcdef123456',
+      evalRunId: 81,
+      evaluationReleaseId: 82,
+      status: 'passed',
+      expiresAt: '2099-08-03T00:00:00.000Z',
+      verification: { admissionEligible: false, issuer: 'CI/CD' },
+      plan: { capabilities: ['customer_facts'] },
+    }, undefined, 'trusted_candidate')).resolves.toMatchObject({ id: 71, receiptKey: 'trusted-idempotent' });
+
+    expect(create).not.toHaveBeenCalled();
+    expect(tx.brainGateReceipt.update).not.toHaveBeenCalled();
+    expect(tx.brainGateReceiptGate.createMany).not.toHaveBeenCalled();
+    expect(tx.brainGateReceiptCapability.createMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects a trusted receipt key when its frozen identity changes', async () => {
+    const tx = {
+      brainGateReceipt: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 72,
+          stage: 'candidate',
+          candidateId: 17,
+          identityChecksum: HASH,
+          resultChecksum: HASH,
+          sourceFingerprint: HASH,
+          releaseFingerprint: HASH,
+          suiteChecksum: HASH,
+          evalRunId: 81,
+          evaluationReleaseId: 82,
+          headCommit: 'abcdef123456',
+          trustLevel: 'trusted_candidate',
+          verificationStatus: 'verified',
+        }),
+        create: jest.fn(),
+        update: jest.fn(),
+        updateMany: jest.fn(),
+      },
+    };
+    const service = new BrainGovernanceControlPlaneService({
+      $transaction: jest.fn((operation: (client: typeof tx) => Promise<unknown>) => operation(tx)),
+      brainResourceVersion: { findFirst: jest.fn() },
+    } as never);
+
+    await expect(service.ingestReceipt({
+      schemaVersion: 3,
+      receiptId: 'trusted-conflict',
+      governanceCandidateId: 17,
+      stage: 'candidate',
+      riskLevel: 'low',
+      changedFilesChecksum: HASH,
+      diffChecksum: HASH,
+      sourceFingerprint: HASH,
+      releaseFingerprint: HASH,
+      suiteChecksum: HASH,
+      identityChecksum: HASH,
+      resultChecksum: 'b'.repeat(64),
+      headCommit: 'abcdef123456',
+      evalRunId: 81,
+      evaluationReleaseId: 82,
+      status: 'passed',
+      expiresAt: '2099-08-03T00:00:00.000Z',
+      verification: { admissionEligible: false, issuer: 'CI/CD' },
+      plan: { capabilities: ['customer_facts'] },
+    }, undefined, 'trusted_candidate')).rejects.toMatchObject({ message: 'trusted_receipt_identity_conflict' });
+
+    expect(tx.brainGateReceipt.create).not.toHaveBeenCalled();
+    expect(tx.brainGateReceipt.update).not.toHaveBeenCalled();
+  });
+
   it('automatically creates a replacement evaluation when trusted evidence arrives', async () => {
     const currentPolicy = policyRow({
       id: 61,
@@ -593,7 +714,8 @@ describe('BrainGovernanceControlPlaneService', () => {
     const taskUpdate = jest.fn().mockResolvedValue({ id: 201, supersededByTaskId: 202 });
     const tx = {
       brainGateReceipt: {
-        upsert: jest.fn().mockResolvedValue({ id: 41, receiptKey: 'receipt-admission' }),
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 41, receiptKey: 'receipt-admission' }),
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       brainGateReceiptGate: { deleteMany: jest.fn(), createMany: jest.fn() },
@@ -643,8 +765,8 @@ describe('BrainGovernanceControlPlaneService', () => {
     }, undefined, 'trusted_candidate');
 
     expect(result.rescheduledTaskIds).toEqual([202]);
-    expect(tx.brainGateReceipt.upsert).toHaveBeenCalledWith(expect.objectContaining({
-      create: expect.objectContaining({
+    expect(tx.brainGateReceipt.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
         candidateId: 17,
         result: expect.objectContaining({ candidateId: HASH, governanceCandidateId: 17 }),
       }),
@@ -664,7 +786,8 @@ describe('BrainGovernanceControlPlaneService', () => {
     const taskUpsert = jest.fn().mockResolvedValue({ id: 203, status: 'pending' });
     const tx = {
       brainGateReceipt: {
-        upsert: jest.fn().mockResolvedValue({ id: 42, receiptKey: 'receipt-fresh' }),
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 42, receiptKey: 'receipt-fresh' }),
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       brainGateReceiptGate: { deleteMany: jest.fn(), createMany: jest.fn() },

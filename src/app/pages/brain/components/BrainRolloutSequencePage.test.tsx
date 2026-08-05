@@ -64,24 +64,16 @@ describe('BrainRolloutSequencePage', () => {
     expect(screen.getByText('20%')).toBeInTheDocument();
     expect(screen.getByText('50%')).toBeInTheDocument();
     expect(screen.getByText('100%')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /校验并激活 Shadow/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '返回组合切换激活 Shadow' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /创建运行版本/ })).not.toBeInTheDocument();
   });
 
-  it('offers only ready candidates when creating a rollout sequence', async () => {
-    api.listBrainGovernanceCandidates.mockResolvedValue({
-      items: [
-        { id: 17, candidateKey: 'repo:ready', branch: 'ready-branch', headCommit: 'a'.repeat(40), status: 'ready' },
-        { id: 18, candidateKey: 'repo:governing', branch: 'governing-branch', headCommit: 'b'.repeat(40), status: 'governing' },
-      ],
-      total: 2,
-      page: 1,
-      pageSize: 50,
-    });
-
+  it('keeps transition as the only default creation and first-activation entry', async () => {
     render(<MemoryRouter><BrainRolloutSequencePage /></MemoryRouter>);
 
-    expect(await screen.findByRole('option', { name: /ready-branch/ })).toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: /governing-branch/ })).not.toBeInTheDocument();
+    expect(await screen.findByText(/新 GP 与 RT 必须在治理总览由同一 transition 组合创建和首次切换/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /校验并激活 Shadow/ })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Candidate')).not.toBeInTheDocument();
   });
 
   it('uses server-observed health and does not expose manual health inputs', async () => {
@@ -233,7 +225,7 @@ describe('BrainRolloutSequencePage', () => {
 
     await user.click(screen.getByRole('button', { name: '恢复' }));
     await waitFor(() => expect(api.resumeBrainGovernanceRolloutSequence).toHaveBeenCalledWith(51));
-    await user.click(screen.getByRole('button', { name: '回滚' }));
+    await user.click(screen.getByRole('button', { name: '组合回滚' }));
     await waitFor(() => expect(api.rollbackBrainGovernanceRolloutSequence).toHaveBeenCalledWith(51, '恢复候选前基线'));
     expect(prompt).toHaveBeenCalledWith('填写回滚原因；将恢复该 Candidate 开始前记录的运行版本');
     prompt.mockRestore();

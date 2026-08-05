@@ -7,9 +7,9 @@
     "classificationPath": "docs/04-测试数据/Ami-Brain-全领域题集治理/ami-brain-suite-classification-v2.csv",
     "classificationChecksum": "5ad4088948f9235fbee38a812f0203c250582b4f135433426f2270fb9ab1c9e9",
     "suiteManifestPath": "docs/04-测试数据/Ami-Brain-全领域题集治理/ami-brain-suite-manifest-v2.json",
-    "suiteManifestChecksum": "84871a83d734298eba906323171e0a69a03a2a0e3a5268334193858ea8b4cef0",
+    "suiteManifestChecksum": "88570d7c62f40db6e882606978a66fe1c903610c20ad219ed91f9922602d4ebd",
     "productLoopEligibilityPath": "docs/04-测试数据/Ami-Brain-全领域题集治理/ami-brain-product-loop-eligibility-v1.json",
-    "productLoopEligibilityChecksum": "fe1496eb518d5df48ede22fa0258a872ef65e6939c5769a9c9e57b3a8908000e",
+    "productLoopEligibilityChecksum": "2f99a0787106ee8b45e836a2359120aff04111e62daf5ad6fd237995ec03efb5",
     "standardRegressionSuiteKey": "ami_brain_standard_regression_v2",
     "standardRegressionCaseIdsChecksum": "d1a8afc646f802da057a3fe9b4e806b9b86bf5ef31807d525ff8cad572fca98f"
   },

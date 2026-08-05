@@ -842,19 +842,32 @@ export class BrainGovernanceControlPlaneService {
     const capabilities = trusted ? extractReceiptCapabilities(input) : [];
     const gates = trusted ? extractReceiptGates(input, expiresAt) : [];
     const receipt = await this.prisma.$transaction(async (tx) => {
-      if (!trusted) {
-        const existing = await tx.brainGateReceipt.findUnique({
-          where: { receiptKey },
-          select: { trustLevel: true, verificationStatus: true },
-        });
-        if (existing && (existing.trustLevel !== 'untrusted_dev' || existing.verificationStatus === 'verified')) {
+      const existing = await tx.brainGateReceipt.findUnique({ where: { receiptKey } });
+      if (existing) {
+        if (!trusted && (existing.trustLevel !== 'untrusted_dev' || existing.verificationStatus === 'verified')) {
           throw new ConflictException('trusted_receipt_key_reserved');
         }
+        if (trusted) {
+          const immutableIdentityMatches =
+            existing.stage === data.stage
+            && existing.candidateId === data.candidateId
+            && existing.identityChecksum === data.identityChecksum
+            && existing.resultChecksum === data.resultChecksum
+            && existing.sourceFingerprint === data.sourceFingerprint
+            && existing.releaseFingerprint === data.releaseFingerprint
+            && existing.suiteChecksum === data.suiteChecksum
+            && existing.evalRunId === data.evalRunId
+            && existing.evaluationReleaseId === data.evaluationReleaseId
+            && existing.headCommit === data.headCommit
+            && existing.trustLevel === trustLevel
+            && existing.verificationStatus === 'verified';
+          if (!immutableIdentityMatches) throw new ConflictException('trusted_receipt_identity_conflict');
+          return existing;
+        }
+        return tx.brainGateReceipt.update({ where: { id: existing.id }, data });
       }
-      const saved = await tx.brainGateReceipt.upsert({ where: { receiptKey }, create: { receiptKey, ...data }, update: data });
+      const saved = await tx.brainGateReceipt.create({ data: { receiptKey, ...data } });
       if (trusted) {
-        await tx.brainGateReceiptGate.deleteMany({ where: { receiptId: saved.id } });
-        await tx.brainGateReceiptCapability.deleteMany({ where: { receiptId: saved.id } });
         if (gates.length) await tx.brainGateReceiptGate.createMany({ data: gates.map((gate) => ({ ...gate, receiptId: saved.id })) });
         if (capabilities.length) {
           await tx.brainGateReceiptCapability.createMany({
@@ -1137,15 +1150,17 @@ export class BrainGovernanceControlPlaneService {
     return transitioned;
   }
 
-  async createQueryOnlyPolicyVersions(input: { candidateKey: string; actorId: number }) {
+  async createQueryOnlyPolicyVersions(input: { candidateKey: string; actorId: number; evidenceReceiptId: number }) {
     const candidate = await this.prisma.brainGovernanceCandidate.findUnique({
       where: { candidateKey: nonEmpty(input.candidateKey, 'candidateKey') },
       include: {
         receipts: {
           where: {
+            id: input.evidenceReceiptId,
+            stage: 'release',
             status: 'passed',
             expiresAt: { gt: new Date() },
-            trustLevel: { in: ['trusted_candidate', 'verified_release'] },
+            trustLevel: 'verified_release',
             verificationStatus: 'verified',
             result: { path: ['verification', 'admissionEligible'], equals: true },
           },
@@ -1155,6 +1170,7 @@ export class BrainGovernanceControlPlaneService {
       },
     });
     if (!candidate) throw new NotFoundException('brain_governance_candidate_not_found');
+    if (candidate.receipts.length !== 1) throw new BadRequestException('query_only_policy_verified_release_receipt_missing');
     const active = await this.prisma.brainRelease.findFirst({
       where: { scope: 'governance_policy', status: 'active' },
       orderBy: { activatedAt: 'desc' },
@@ -1174,12 +1190,9 @@ export class BrainGovernanceControlPlaneService {
       );
     }
 
-    const receiptByCapability = new Map<string, typeof candidate.receipts[number]>();
-    for (const receipt of candidate.receipts) {
-      for (const capability of receipt.capabilities) {
-        if (!receiptByCapability.has(capability.capabilityKey)) receiptByCapability.set(capability.capabilityKey, receipt);
-      }
-    }
+    const evidenceReceipt = candidate.receipts[0]!;
+    const receiptByCapability = new Map<string, typeof evidenceReceipt>();
+    for (const capability of evidenceReceipt.capabilities) receiptByCapability.set(capability.capabilityKey, evidenceReceipt);
     const missingEvidence = [...expected].filter((key) => !receiptByCapability.has(key));
     if (missingEvidence.length) {
       throw new BadRequestException(`query_only_policy_valid_evidence_missing:${missingEvidence.sort().join(',')}`);

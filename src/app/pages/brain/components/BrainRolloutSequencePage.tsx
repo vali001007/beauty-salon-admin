@@ -3,12 +3,8 @@ import { Loader2, Pause, Play, RefreshCw, RotateCcw, ShieldCheck } from 'lucide-
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import {
-  activateBrainGovernanceRolloutSequenceShadow,
-  createBrainGovernanceRolloutSequence,
   isBrainGovernanceReadCancelled,
-  listBrainGovernanceCandidates,
   listBrainGovernanceRolloutSequences,
-  listBrainResourceVersions,
   pauseBrainGovernanceRolloutSequence,
   promoteBrainGovernanceRolloutSequence,
   rollbackBrainGovernanceRolloutSequence,
@@ -18,9 +14,8 @@ import {
 import { Badge } from '@/app/components/ui/badge';
 import { Button } from '@/app/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
-import { Input } from '@/app/components/ui/input';
 import { usePermission } from '@/hooks/usePermission';
-import type { BrainGovernanceCandidate, BrainGovernanceResourceVersion, BrainGovernanceRolloutSequence } from '@/types/brain';
+import type { BrainGovernanceRolloutSequence } from '@/types/brain';
 import { BRAIN_GOVERNANCE_UI_MODE } from '../brainGovernanceNavigation';
 
 const stages = [
@@ -46,12 +41,6 @@ export function BrainRolloutSequencePage() {
   const canManage = usePermission('core:brain-governance:manage') && BRAIN_GOVERNANCE_UI_MODE === 'manage';
   const canRelease = usePermission('core:brain-governance:release') && BRAIN_GOVERNANCE_UI_MODE === 'manage';
   const [sequences, setSequences] = useState<BrainGovernanceRolloutSequence[]>([]);
-  const [candidates, setCandidates] = useState<BrainGovernanceCandidate[]>([]);
-  const [versions, setVersions] = useState<BrainGovernanceResourceVersion[]>([]);
-  const [candidateKey, setCandidateKey] = useState('');
-  const [releaseKey, setReleaseKey] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [selectedVersions, setSelectedVersions] = useState<number[]>([]);
   const [observedHealth, setObservedHealth] = useState<Record<number, ObservedHealth>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -63,15 +52,9 @@ export function BrainRolloutSequencePage() {
     setLoading(true);
     setError('');
     try {
-      const [sequencePage, candidatePage, versionPage] = await Promise.all([
-        listBrainGovernanceRolloutSequences({ page: 1, pageSize: 20 }),
-        listBrainGovernanceCandidates({ page: 1, pageSize: 50 }),
-        listBrainResourceVersions({ status: 'draft', includeSnapshot: false, take: 100 }),
-      ]);
+      const sequencePage = await listBrainGovernanceRolloutSequences({ page: 1, pageSize: 20 });
       if (sequence !== loadSequence.current) return;
       setSequences(sequencePage.items ?? []);
-      setCandidates((candidatePage.items ?? []).filter((item) => item.status === 'ready'));
-      setVersions((versionPage.items ?? []).filter((item) => item.resourceType !== 'capability_change_request' && item.resourceType !== 'capability_policy'));
     } catch (loadError) {
       if (sequence === loadSequence.current && !isBrainGovernanceReadCancelled(loadError)) setError(message(loadError));
     } finally {
@@ -80,20 +63,6 @@ export function BrainRolloutSequencePage() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
-
-  async function create() {
-    if (!candidateKey || !releaseKey.trim() || !displayName.trim() || !selectedVersions.length) {
-      toast.error('请选择 Candidate、填写运行版本名称和内部幂等标识，并选择运行资源版本');
-      return;
-    }
-    await run('create', async () => {
-      await createBrainGovernanceRolloutSequence({ candidateKey, releaseKey: releaseKey.trim(), displayName: displayName.trim(), resourceVersionIds: selectedVersions, governanceMode: 'shadow' });
-      toast.success('已创建单一 RT 灰度序列，当前运行版本尚未改变');
-      setReleaseKey('');
-      setDisplayName('');
-      setSelectedVersions([]);
-    });
-  }
 
   async function validate(sequence: BrainGovernanceRolloutSequence) {
     await run(`validate-${sequence.id}`, async () => {
@@ -105,14 +74,6 @@ export function BrainRolloutSequencePage() {
         result.canActivate ? toast.success('当前阶段校验通过') : toast.error(`当前不可激活：${result.blockers?.join('、') || '证据不完整'}`);
       }
     }, false);
-  }
-
-  async function activateShadow(sequence: BrainGovernanceRolloutSequence) {
-    if (!window.confirm('校验并激活 Shadow？该操作不会直接切换 Enforced。')) return;
-    await run(`activate-${sequence.id}`, async () => {
-      await activateBrainGovernanceRolloutSequenceShadow(sequence.id);
-      toast.success('Shadow 已激活，开始观察');
-    });
   }
 
   async function promote(sequence: BrainGovernanceRolloutSequence) {
@@ -154,9 +115,9 @@ export function BrainRolloutSequencePage() {
 
   return <section className="space-y-5">
     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div><h2 className="text-xl font-semibold">运行版本（RT）</h2><p className="mt-1 text-sm text-muted-foreground">一个 Candidate 只生成一个 RT 编号，并展示一条 Shadow → Full 灰度时间线；治理策略（GP）已启用，不代表运行版本（RT）已生效。</p></div><div className="flex gap-2"><Button variant="outline" onClick={() => navigate('/brain-governance/releases?tab=runtime&legacy=1')}>查看历史运行版本</Button><Button variant="outline" onClick={() => void load()}><RefreshCw />刷新</Button></div></div>
-    {canManage ? <Card><CardHeader><CardTitle className="text-base">为 Candidate 准备运行版本</CardTitle></CardHeader><CardContent className="grid gap-4 lg:grid-cols-3"><label className="text-sm"><span className="mb-1 block text-muted-foreground">Candidate</span><select className="h-10 w-full rounded-md border bg-background px-3" value={candidateKey} onChange={(event) => setCandidateKey(event.target.value)}><option value="">请选择</option>{candidates.map((candidate) => <option key={candidate.id} value={candidate.candidateKey}>{candidate.branch ?? candidate.candidateKey} · {candidate.headCommit.slice(0, 8)}</option>)}</select></label><label className="text-sm"><span className="mb-1 block text-muted-foreground">运行版本名称</span><Input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="例如 Query Only V1" /></label><label className="text-sm"><span className="mb-1 block text-muted-foreground">内部幂等标识</span><Input value={releaseKey} onChange={(event) => setReleaseKey(event.target.value)} placeholder="ami-brain-runtime-query-only-v1" /></label><div className="lg:col-span-3"><span className="text-sm text-muted-foreground">运行资源版本</span><div className="mt-1 max-h-40 overflow-y-auto rounded-md border p-2">{versions.length ? versions.map((version) => <label key={version.id} className="flex gap-2 py-1 text-sm"><input type="checkbox" checked={selectedVersions.includes(version.id)} onChange={(event) => setSelectedVersions((current) => event.target.checked ? [...current, version.id] : current.filter((id) => id !== version.id))} />{version.resourceKey} v{version.version}</label>) : <p className="text-sm text-muted-foreground">暂无可发布草稿</p>}</div></div><div className="lg:col-span-3"><Button disabled={busy !== null} onClick={() => void create()}><ShieldCheck />创建运行版本（不激活）</Button></div></CardContent></Card> : null}
-    {currentSequences.length ? <div className="space-y-4">{currentSequences.map((sequence) => <SequenceCard key={sequence.id} sequence={sequence} health={observedHealth[sequence.id]} busy={busy !== null} canRelease={canRelease} onValidate={validate} onActivateShadow={activateShadow} onPromote={promote} onPause={pause} onResume={resume} onRollback={rollback} />)}</div> : <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">暂无待处理的新运行序列。当前运行版本不会被本页自动修改。</div>}
-    {historicalSequences.length ? <details className="rounded-xl border bg-card"><summary className="cursor-pointer px-5 py-4 text-sm font-medium">历史灰度序列（{historicalSequences.length}）</summary><div className="space-y-4 border-t p-4">{historicalSequences.map((sequence) => <SequenceCard key={sequence.id} sequence={sequence} health={observedHealth[sequence.id]} busy historical canRelease={false} onValidate={validate} onActivateShadow={activateShadow} onPromote={promote} onPause={pause} onResume={resume} onRollback={rollback} />)}</div></details> : null}
+    <div className="flex flex-col gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 sm:flex-row sm:items-center sm:justify-between"><p><strong>唯一入口：</strong>新 GP 与 RT 必须在治理总览由同一 transition 组合创建和首次切换；本页只负责已进入观察期 RT 的校验、晋级、暂停和组合回滚。</p><Button variant="outline" onClick={() => navigate('/brain-governance/workbench?tab=overview')}>前往组合切换</Button></div>
+    {currentSequences.length ? <div className="space-y-4">{currentSequences.map((sequence) => <SequenceCard key={sequence.id} sequence={sequence} health={observedHealth[sequence.id]} busy={busy !== null} canManage={canManage} canRelease={canRelease} onOpenTransition={() => navigate('/brain-governance/workbench?tab=overview')} onValidate={validate} onPromote={promote} onPause={pause} onResume={resume} onRollback={rollback} />)}</div> : <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">暂无待处理的新运行序列。请先从治理总览创建 GP/RT 组合。</div>}
+    {historicalSequences.length ? <details className="rounded-xl border bg-card"><summary className="cursor-pointer px-5 py-4 text-sm font-medium">历史灰度序列（{historicalSequences.length}）</summary><div className="space-y-4 border-t p-4">{historicalSequences.map((sequence) => <SequenceCard key={sequence.id} sequence={sequence} health={observedHealth[sequence.id]} busy historical canManage={false} canRelease={false} onOpenTransition={() => navigate('/brain-governance/workbench?tab=overview')} onValidate={validate} onPromote={promote} onPause={pause} onResume={resume} onRollback={rollback} />)}</div></details> : null}
   </section>;
 }
 
@@ -164,10 +125,11 @@ function SequenceCard({
   sequence,
   health,
   busy,
+  canManage,
   canRelease,
+  onOpenTransition,
   historical = false,
   onValidate,
-  onActivateShadow,
   onPromote,
   onPause,
   onResume,
@@ -176,17 +138,18 @@ function SequenceCard({
   sequence: BrainGovernanceRolloutSequence;
   health?: ObservedHealth;
   busy: boolean;
+  canManage: boolean;
   canRelease: boolean;
+  onOpenTransition: () => void;
   historical?: boolean;
   onValidate: (sequence: BrainGovernanceRolloutSequence) => Promise<void>;
-  onActivateShadow: (sequence: BrainGovernanceRolloutSequence) => Promise<void>;
   onPromote: (sequence: BrainGovernanceRolloutSequence) => Promise<void>;
   onPause: (sequence: BrainGovernanceRolloutSequence) => Promise<void>;
   onResume: (sequence: BrainGovernanceRolloutSequence) => Promise<void>;
   onRollback: (sequence: BrainGovernanceRolloutSequence) => Promise<void>;
 }) {
   return <Card>
-    <CardHeader><div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div><CardTitle className="break-all text-base">{sequenceIdentityLabel(sequence)}</CardTitle><p className="mt-1 text-xs text-muted-foreground">治理策略：{identityLabel(sequence.policySnapshot?.productIdentity, sequence.policySnapshot?.displayCode ?? (sequence.policySnapshot?.id ? `LEGACY-GP-${sequence.policySnapshot.id}` : sequence.policySnapshot?.releaseKey ?? '历史治理策略'), sequence.policySnapshot?.displayName)}</p><details className="mt-2 text-xs text-muted-foreground"><summary className="cursor-pointer">审计信息</summary><p className="mt-1 break-all">序列数据库记录 #{sequence.id} · {sequence.sequenceKey} · Candidate {sequence.candidate?.candidateKey}</p></details></div><Badge variant={sequence.status === 'active' ? 'default' : 'outline'}>{sequence.status}</Badge></div></CardHeader>
+    <CardHeader><div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div><CardTitle className="break-all text-base">{sequenceIdentityLabel(sequence)}</CardTitle><p className="mt-1 text-xs text-muted-foreground">治理策略：{identityLabel(sequence.policySnapshot?.productIdentity, sequence.policySnapshot?.displayCode ?? (sequence.policySnapshot?.id ? `LEGACY-GP-${sequence.policySnapshot.id}` : sequence.policySnapshot?.releaseKey ?? '历史治理策略'), sequence.policySnapshot?.displayName)}</p>{sequence.previousRuntimeRelease ? <p className="mt-1 text-xs text-muted-foreground">回滚备用：LEGACY-RT-{sequence.previousRuntimeRelease.id} · 不接收当前组合正常流量</p> : null}<details className="mt-2 text-xs text-muted-foreground"><summary className="cursor-pointer">审计信息</summary><p className="mt-1 break-all">序列数据库记录 #{sequence.id} · {sequence.sequenceKey} · Candidate {sequence.candidate?.candidateKey}</p></details></div><Badge variant={sequence.status === 'active' ? 'default' : 'outline'}>{sequenceLifecycleLabel(sequence)}</Badge></div></CardHeader>
     <CardContent className="space-y-4">
       <div className="grid grid-cols-5 gap-1">{stages.map(([key, label]) => {
         const release = sequence.releases.find((item) => item.rolloutStage === key);
@@ -195,7 +158,7 @@ function SequenceCard({
       })}</div>
       <div className="rounded-lg bg-muted/50 p-3 text-sm"><strong>当前阶段：</strong>{stages.find(([key]) => key === sequence.currentStage)?.[1] ?? sequence.currentStage}{sequence.pauseReason ? ` · ${sequence.pauseReason}` : ''}</div>
       {health ? <HealthObservation health={health} /> : sequence.status === 'active' && sequence.currentStage !== 'full' ? <div className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">点击“校验当前阶段”从服务端 Run、Trace 和反馈计算真实观察指标；页面不再允许手工填写健康数据。</div> : null}
-      {!historical ? <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={busy} onClick={() => void onValidate(sequence)}><ShieldCheck />校验当前阶段</Button>{canRelease && sequence.status === 'draft' && sequence.currentStage === 'shadow' ? <Button disabled={busy} onClick={() => void onActivateShadow(sequence)}><Play />校验并激活 Shadow</Button> : null}{canRelease && sequence.status === 'active' && sequence.currentStage !== 'full' ? <Button disabled={busy} onClick={() => void onPromote(sequence)}><Play />按真实观察晋级</Button> : null}{canRelease && ['draft', 'active'].includes(sequence.status) ? <Button variant="outline" disabled={busy} onClick={() => void onPause(sequence)}><Pause />暂停</Button> : null}{canRelease && sequence.status === 'paused' ? <Button variant="outline" disabled={busy} onClick={() => void onResume(sequence)}><Play />恢复</Button> : null}{canRelease && ['active', 'paused'].includes(sequence.status) && sequence.releases.some((item) => item.rolloutStage === sequence.currentStage && item.status === 'active') ? <Button variant="destructive" disabled={busy} onClick={() => void onRollback(sequence)}><RotateCcw />回滚</Button> : null}</div> : <p className="text-xs text-muted-foreground">历史序列仅供审计，不进入当前审批队列。</p>}
+      {!historical ? <div className="flex flex-wrap gap-2">{canManage ? <Button variant="outline" disabled={busy} onClick={() => void onValidate(sequence)}><ShieldCheck />校验当前阶段</Button> : null}{sequence.status === 'draft' && sequence.currentStage === 'shadow' ? <Button variant="outline" onClick={onOpenTransition} disabled={busy}>返回组合切换激活 Shadow</Button> : null}{canRelease && sequence.status === 'active' && sequence.currentStage !== 'full' ? <Button disabled={busy} onClick={() => void onPromote(sequence)}><Play />按真实观察晋级</Button> : null}{canRelease && sequence.status === 'active' ? <Button variant="outline" disabled={busy} onClick={() => void onPause(sequence)}><Pause />暂停</Button> : null}{canRelease && sequence.status === 'paused' ? <Button variant="outline" disabled={busy} onClick={() => void onResume(sequence)}><Play />恢复</Button> : null}{canRelease && ['active', 'paused'].includes(sequence.status) && sequence.releases.some((item) => item.rolloutStage === sequence.currentStage && item.status === 'active') ? <Button variant="destructive" disabled={busy} onClick={() => void onRollback(sequence)}><RotateCcw />组合回滚</Button> : null}</div> : <p className="text-xs text-muted-foreground">历史序列仅供审计，不进入当前审批队列。</p>}
     </CardContent>
   </Card>;
 }
@@ -215,4 +178,9 @@ function sequenceIdentityLabel(sequence: BrainGovernanceRolloutSequence) {
   const release = sequence.releases.find((item) => item.rolloutStage === sequence.currentStage) ?? sequence.releases[0];
   const fallbackCode = sequence.runtimeVersionCode ?? (release ? `LEGACY-RT-${release.id}` : 'RT 编号待分配');
   return identityLabel(sequence.productIdentity, fallbackCode, sequence.displayName ?? (release ? null : '运行版本待分配'));
+}
+
+function sequenceLifecycleLabel(sequence: BrainGovernanceRolloutSequence) {
+  if (sequence.candidate?.status === 'superseded') return '已被取代';
+  return ({ draft: '待组合切换', active: '观察中', paused: '已暂停', completed: 'Full 已完成', rolled_back: '已组合回滚', failed: '切换失败' } as Record<string, string>)[sequence.status] ?? sequence.status;
 }

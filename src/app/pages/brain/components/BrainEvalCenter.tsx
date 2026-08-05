@@ -3,51 +3,12 @@ import { CheckCircle2, Loader2, Play, RefreshCw, RotateCcw, XCircle } from 'luci
 import { toast } from 'sonner';
 import { createBrainEvalRun, getBrainEvalRun, listBrainEvalRuns } from '@/api/brain';
 import { usePermission } from '@/hooks/usePermission';
+import type { BrainGovernanceEvalRun, BrainGovernanceEvalRunDetail } from '@/types/brain';
 import { BRAIN_GOVERNANCE_UI_MODE } from '../brainGovernanceNavigation';
-
-interface EvalSummary {
-  gateMode?: string;
-  canRelease?: boolean;
-  providerUnavailable?: number;
-  sourceEvalRunId?: number;
-  regression?: {
-    selected?: number;
-    resolved?: number;
-    unresolved?: number;
-    providerUnavailable?: number;
-    passed?: boolean;
-  };
-}
-
-interface EvalRun {
-  id: number;
-  releaseId?: number | null;
-  roleKey?: string | null;
-  status: string;
-  caseCount: number;
-  passedCount: number;
-  failedCount: number;
-  summary?: EvalSummary;
-  createdAt: string;
-}
-
-interface EvalResult {
-  id: number;
-  caseKey: string;
-  question: string;
-  answer: string;
-  deterministicPassed: boolean;
-  failureCluster?: string | null;
-  latencyMs?: number | null;
-}
-
-interface EvalRunDetail extends EvalRun {
-  evalResults?: EvalResult[];
-}
 
 function itemsFrom(response: unknown) {
   const items = response && typeof response === 'object' ? (response as { items?: unknown }).items : undefined;
-  return Array.isArray(items) ? (items as EvalRun[]) : [];
+  return Array.isArray(items) ? (items as BrainGovernanceEvalRun[]) : [];
 }
 
 function statusLabel(status: string) {
@@ -58,8 +19,8 @@ function statusLabel(status: string) {
   );
 }
 
-function gateLabel(summary?: EvalSummary) {
-  if (summary?.gateMode === 'release_regression') return `失败题回归 #${summary.sourceEvalRunId ?? '-'}`;
+function gateLabel(summary?: BrainGovernanceEvalRun['summary']) {
+  if (summary?.gateMode === 'release_regression') return `失败题回归 Eval Run #${summary.sourceEvalRunId ?? '-'}`;
   if (summary?.gateMode === 'release_gate') return '完整发布门禁';
   if (summary?.gateMode === 'development_sample') return '开发定向评测';
   return '通用评测';
@@ -67,13 +28,13 @@ function gateLabel(summary?: EvalSummary) {
 
 export function BrainEvalCenter() {
   const canManage = usePermission('core:brain-governance:manage') && BRAIN_GOVERNANCE_UI_MODE === 'manage';
-  const [runs, setRuns] = useState<EvalRun[]>([]);
+  const [runs, setRuns] = useState<BrainGovernanceEvalRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [rerunningId, setRerunningId] = useState<number | null>(null);
   const [releaseId, setReleaseId] = useState('');
   const [roleKey, setRoleKey] = useState('');
-  const [detail, setDetail] = useState<EvalRunDetail | null>(null);
+  const [detail, setDetail] = useState<BrainGovernanceEvalRunDetail | null>(null);
 
   const load = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -124,12 +85,12 @@ export function BrainEvalCenter() {
     }
   }
 
-  async function rerunFailures(run: EvalRun) {
+  async function rerunFailures(run: BrainGovernanceEvalRun) {
     if (!canManage) return;
     setRerunningId(run.id);
     try {
       await createBrainEvalRun({ sourceEvalRunId: run.id, modelVersion: 'ami-brain-governed' });
-      toast.success(`已创建 #${run.id} 的失败题回归`);
+      toast.success(`已创建 Eval Run #${run.id} 的失败题回归`);
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '失败题回归启动失败');
@@ -140,7 +101,7 @@ export function BrainEvalCenter() {
 
   async function openDetail(id: number) {
     try {
-      setDetail((await getBrainEvalRun(id)) as unknown as EvalRunDetail);
+      setDetail((await getBrainEvalRun(id)) as unknown as BrainGovernanceEvalRunDetail);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '评测详情加载失败');
     }
@@ -152,19 +113,11 @@ export function BrainEvalCenter() {
         <div>
           <h2 className="text-base font-semibold">评测中心</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            发布门禁与失败题回归分开运行；供应商失败不计为产品缺陷，但会阻断发布。
+            评测版本使用 EV 编号，单次执行使用 Eval Run 审计号；发布门禁与失败题回归分开运行。
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
           {canManage ? <>
-          <label className="text-xs text-muted-foreground">
-            目标运行数据库 ID（审计）
-            <input
-              value={releaseId}
-              onChange={(event) => setReleaseId(event.target.value)}
-              className="mt-1 block h-9 w-28 rounded-md border border-input bg-background px-2 text-sm"
-            />
-          </label>
           <label className="text-xs text-muted-foreground">
             角色
             <input
@@ -194,10 +147,26 @@ export function BrainEvalCenter() {
         </div>
       </div>
 
+      {canManage ? (
+        <details className="mt-3 rounded-md border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+          <summary className="cursor-pointer font-medium text-foreground">高级审计绑定</summary>
+          <label className="mt-3 block max-w-sm">
+            目标评测快照数据库记录（优先由 Candidate 自动绑定 EV）
+            <input
+              value={releaseId}
+              onChange={(event) => setReleaseId(event.target.value)}
+              inputMode="numeric"
+              placeholder="仅排障时填写内部 ID"
+              className="mt-1 block h-9 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground"
+            />
+          </label>
+        </details>
+      ) : null}
+
       <div className="grid grid-cols-2 gap-px border-b border-border bg-border md:grid-cols-4">
         <Metric
-          label="最新运行"
-          value={latest ? `#${latest.id}` : '-'}
+          label="最新 Eval Run"
+          value={latest ? `Eval Run #${latest.id}` : '-'}
           hint={latest ? gateLabel(latest.summary) : '暂无运行'}
         />
         <Metric
@@ -221,12 +190,12 @@ export function BrainEvalCenter() {
         <table className="w-full min-w-[900px] text-left text-sm">
           <thead className="bg-muted/50 text-xs text-muted-foreground">
             <tr>
-              <th className="px-3 py-2">运行</th>
+              <th className="px-3 py-2">Eval Run</th>
               <th className="px-3 py-2">类型</th>
               <th className="px-3 py-2">状态</th>
               <th className="px-3 py-2">通过</th>
               <th className="px-3 py-2">失败</th>
-              <th className="px-3 py-2">发布/角色</th>
+              <th className="px-3 py-2">评测版本（EV）/角色</th>
               <th className="px-3 py-2">操作</th>
             </tr>
           </thead>
@@ -235,7 +204,7 @@ export function BrainEvalCenter() {
               runs.map((run) => (
                 <tr key={run.id} className="border-t border-border">
                   <td className="px-3 py-3">
-                    #{run.id}
+                    Eval Run #{run.id}
                     <div className="text-xs text-muted-foreground">
                       {new Date(run.createdAt).toLocaleString('zh-CN')}
                     </div>
@@ -247,9 +216,15 @@ export function BrainEvalCenter() {
                   </td>
                   <td className="px-3 py-3">{run.failedCount}</td>
                   <td className="px-3 py-3 text-xs">
-                    {run.releaseId ? `目标评测快照：数据库记录 #${run.releaseId}` : '未绑定目标快照'}
+                    <span>{evaluationIdentityLabel(run)}</span>
                     <br />
-                    {run.roleKey ?? '全部角色'}
+                    <span>{run.roleKey ?? '全部角色'}</span>
+                    {run.releaseId ? (
+                      <details className="mt-1 text-muted-foreground">
+                        <summary className="cursor-pointer">审计信息</summary>
+                        <span>{`目标评测快照数据库记录 #${run.releaseId}`}</span>
+                      </details>
+                    ) : null}
                   </td>
                   <td className="px-3 py-3">
                     <div className="flex gap-2">
@@ -293,7 +268,7 @@ export function BrainEvalCenter() {
       {detail ? (
         <div className="mt-5 border-t border-border pt-4">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-medium">运行 #{detail.id} 逐题结果</h3>
+            <h3 className="text-sm font-medium">Eval Run #{detail.id} 逐题结果</h3>
             <span className="text-xs text-muted-foreground">
               失败 {failedResults.length} / 共 {detail.evalResults?.length ?? 0}
             </span>
@@ -345,4 +320,12 @@ function Metric({ label, value, hint }: { label: string; value: string; hint: st
       <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
     </div>
   );
+}
+
+function evaluationIdentityLabel(run: BrainGovernanceEvalRun) {
+  const identity = run.evaluationIdentity;
+  if (identity?.family === 'evaluation' && identity.code) {
+    return identity.name && identity.name !== identity.code ? `${identity.code} · ${identity.name}` : identity.code;
+  }
+  return run.releaseId ? '目标评测快照未编号' : '未绑定评测版本（EV）';
 }

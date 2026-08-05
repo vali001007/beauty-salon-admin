@@ -15,6 +15,7 @@ import { BrainSemanticGovernance } from './components/BrainSemanticGovernance';
 import { BrainQualityLatencyPanel } from './components/BrainQualityLatencyPanel';
 import {
   BrainCapabilityGovernancePage,
+  BrainCurrentCombinationBanner,
   BrainGovernanceOverviewPage,
   BrainGovernanceTasksPage,
   BrainPolicySnapshotsPage,
@@ -94,6 +95,7 @@ export function BrainGovernanceReleasesPage() {
       description="治理策略（GP）决定允许与禁止边界；运行版本（RT）决定用户问答实际装载的能力。两条编号线独立演进、组合切换。"
       tabs={tabs}
     >
+      <BrainCurrentCombinationBanner />
       {activeTab === 'policy' ? <BrainPolicySnapshotsPage /> : null}
       {activeTab === 'runtime' && legacyRuntime ? <BrainReleaseCenter /> : null}
       {activeTab === 'runtime' && !legacyRuntime ? <BrainRolloutSequencePage /> : null}

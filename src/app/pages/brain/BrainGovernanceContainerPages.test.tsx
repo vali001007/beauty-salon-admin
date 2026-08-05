@@ -15,6 +15,7 @@ const brainApi = vi.hoisted(() => ({ cancelBrainGovernanceReads: vi.fn() }));
 vi.mock('@/api/brain', () => brainApi);
 
 vi.mock('./components/BrainGovernanceWorkbench', () => ({
+  BrainCurrentCombinationBanner: () => <div>combination-content</div>,
   BrainGovernanceOverviewPage: () => <div>overview-content</div>,
   BrainCapabilityGovernancePage: () => <div>capability-content</div>,
   BrainGovernanceTasksPage: () => <div>task-content</div>,
@@ -72,6 +73,7 @@ describe('Brain governance compact containers', () => {
     renderPage(<BrainGovernanceReleasesPage />, '/brain-governance/releases?tab=policy');
 
     expect(screen.getByText('policy-content')).toBeInTheDocument();
+    expect(screen.getByText('combination-content')).toBeInTheDocument();
     expect(screen.getByText(/治理策略（GP）决定允许与禁止边界/)).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: '治理策略（GP）' })).toBeInTheDocument();
     await user.click(screen.getByRole('tab', { name: '运行版本（RT）' }));

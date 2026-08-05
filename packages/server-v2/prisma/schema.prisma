@@ -5808,6 +5808,7 @@ model BrainGateReceipt {
   gates           BrainGateReceiptGate[]
   capabilities    BrainGateReceiptCapability[]
   governanceTasks BrainGovernanceTask[]
+  transitions     BrainGovernanceTransition[]
 
   @@index([stage, sourceFingerprint])
   @@index([resultChecksum])
@@ -5916,6 +5917,8 @@ model BrainGovernanceTransition {
   newPolicyReleaseId     Int
   oldRuntimeReleaseId    Int
   runtimeSequenceId      Int
+  evidenceReceiptId      Int?
+  evidenceSnapshot       Json      @default("{}")
   policyApprovedBy       Int?
   policyApprovedAt       DateTime?
   runtimeApprovedBy      Int?
@@ -5937,11 +5940,13 @@ model BrainGovernanceTransition {
   newPolicy       BrainRelease             @relation("BrainGovernanceTransitionNewPolicy", fields: [newPolicyReleaseId], references: [id], onDelete: Restrict)
   oldRuntime      BrainRelease             @relation("BrainGovernanceTransitionOldRuntime", fields: [oldRuntimeReleaseId], references: [id], onDelete: Restrict)
   runtimeSequence BrainRolloutSequence     @relation(fields: [runtimeSequenceId], references: [id], onDelete: Restrict)
+  evidenceReceipt BrainGateReceipt?        @relation(fields: [evidenceReceiptId], references: [id], onDelete: Restrict)
 
   @@index([status, updatedAt])
   @@index([candidateId, status])
   @@index([newPolicyReleaseId])
   @@index([runtimeSequenceId])
+  @@index([evidenceReceiptId])
   @@index([mutationLeaseExpiresAt])
   @@map("brain_governance_transition")
 }

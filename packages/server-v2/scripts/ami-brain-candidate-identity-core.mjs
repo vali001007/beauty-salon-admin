@@ -7,13 +7,27 @@ const MAX_EVIDENCE_VALIDITY_MS = 168 * 60 * 60 * 1000;
 
 export const QUERY_ONLY_REQUIRED_EVIDENCE_TYPES = Object.freeze([
   'release_contract',
-  'gold_100',
-  'performance_60',
   'permission_matrix',
   'cross_client_e2e',
   'target_database',
   'provider_fallback',
   'rollback_drill',
+]);
+
+// MO-690 is intentionally outside the automated release receipt flow for now.
+// Gold/Performance receipts remain parseable only for historical compatibility;
+// they are not mislabeled as the non-blocking MO-690 follow-up.
+export const QUERY_ONLY_EXTENDED_MANUAL_EVIDENCE_TYPES = Object.freeze([]);
+
+const QUERY_ONLY_OPTIONAL_LEGACY_EVIDENCE_TYPES = Object.freeze([
+  'gold_100',
+  'performance_60',
+]);
+
+const QUERY_ONLY_EVIDENCE_TYPES = Object.freeze([
+  ...QUERY_ONLY_REQUIRED_EVIDENCE_TYPES,
+  ...QUERY_ONLY_EXTENDED_MANUAL_EVIDENCE_TYPES,
+  ...QUERY_ONLY_OPTIONAL_LEGACY_EVIDENCE_TYPES,
 ]);
 
 export const REVIEW_REQUIRED_EVIDENCE_TYPES = Object.freeze([
@@ -120,7 +134,7 @@ export function createEvidenceReceipt(input, now = new Date()) {
   }
   const evidenceType = enumText(
     input.evidenceType,
-    QUERY_ONLY_REQUIRED_EVIDENCE_TYPES,
+    QUERY_ONLY_EVIDENCE_TYPES,
     'evidence_type_invalid',
   );
   const status = enumText(input.status, EVIDENCE_STATUSES, 'evidence_status_invalid');
@@ -190,7 +204,7 @@ export function calculateEvidenceResultChecksum(input) {
   }
   return sha256({
     candidateId: hash64(input.candidateId, 'evidence_candidate_id_invalid'),
-    evidenceType: enumText(input.evidenceType, QUERY_ONLY_REQUIRED_EVIDENCE_TYPES, 'evidence_type_invalid'),
+    evidenceType: enumText(input.evidenceType, QUERY_ONLY_EVIDENCE_TYPES, 'evidence_type_invalid'),
     status: enumText(input.status, EVIDENCE_STATUSES, 'evidence_status_invalid'),
     artifactPaths,
     artifactChecksums: normalizedArtifactChecksums(input.artifactChecksums, artifactPaths),
@@ -239,13 +253,16 @@ export function closeCandidateEvidence(input, now = new Date()) {
   const closedAt = now.toISOString();
   const evidenceExpiryTimes = Object.values(evidence).map((receipt) => Date.parse(receipt.expiresAt));
   const result = {
-    schemaVersion: 'ami-brain-release-eligibility/v1',
+    schemaVersion: 'ami-brain-release-eligibility/v2',
     candidateId: lock.candidateId,
     productProfile: lock.identity.productProfile,
     releaseId: lock.identity.releaseId,
     evaluationVersionCode: lock.identity.evaluationIdentity.code,
     releaseFingerprint: lock.identity.releaseFingerprint,
     requiredEvidenceTypes: [...requiredEvidenceTypes],
+    extendedManualEvidenceTypes: [...QUERY_ONLY_EXTENDED_MANUAL_EVIDENCE_TYPES],
+    extendedManualComplete: false,
+    extendedManualBlocksRelease: false,
     evidenceChecksums,
     blockers: normalizedBlockers,
     releaseEligible: normalizedBlockers.length === 0,
