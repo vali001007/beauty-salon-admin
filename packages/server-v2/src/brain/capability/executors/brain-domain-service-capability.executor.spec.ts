@@ -3691,11 +3691,108 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       args: { objective: '项目耗材可执行性', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
     });
 
+    expect(prisma.project.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { storeId: 6, deletedAt: null, status: 'active' },
+        select: expect.objectContaining({
+          bomItems: expect.objectContaining({ where: { product: { storeId: 6 } } }),
+        }),
+      }),
+    );
     expect(result.answer).toContain('1 个项目因至少一项标准耗材库存不足');
     expect(result.answer).toContain('1 个在售项目没有配置 BOM');
     expect(result.blocks?.[0]).toMatchObject({
       kind: 'table',
       rows: [expect.objectContaining({ projectName: '补水护理', shortageQty: 1 })],
+    });
+  });
+
+  it('BQ0614 checks named project sales demand against BOM and current stock without purchasing', async () => {
+    const skillRuntime = {
+      buildInventoryRiskSummary: jest
+        .fn()
+        .mockResolvedValue({ stockoutSkuCount: 0, expiringStockValue: 0, lowStockProducts: [], expiringProducts: [] }),
+      buildInventoryDetailAnalysis: jest
+        .fn()
+        .mockResolvedValue({ totalSku: 0, totalStockValue: 0, products: [], movements: [] }),
+      buildInventoryProcurementAnalysis: jest
+        .fn()
+        .mockResolvedValue({ suggestions: [], suppliers: [], recentOrders: [] }),
+    };
+    const prisma = {
+      project: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 14,
+            name: '紧致抗衰护理',
+            bomItems: [
+              {
+                standardQty: 2,
+                unit: '支',
+                product: { id: 51, name: '紧致安瓶', currentStock: 8, status: 'active', deletedAt: null },
+              },
+            ],
+          },
+        ]),
+      },
+      orderItem: { findMany: jest.fn().mockResolvedValue([{ quantity: 3 }, { quantity: 2 }]) },
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+      undefined,
+      undefined,
+      prisma as never,
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'inventory_operations_overview', intents: ['query', 'diagnosis'] },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'bq0614-project-material-coverage-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 98,
+      question: '紧致抗衰护理的库存耗材跟得上销量吗', // BQ0614
+      answerShape: 'diagnosis',
+      args: { objective: '项目耗材销量覆盖', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    });
+
+    expect(prisma.project.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { storeId: 6, deletedAt: null, status: 'active' },
+        select: expect.objectContaining({
+          bomItems: expect.objectContaining({ where: { product: { storeId: 6 } } }),
+        }),
+      }),
+    );
+    expect(result.answer).toContain('服务销量 5 次');
+    expect(result.answer).toContain('库存不足');
+    expect(result.answer).toContain('不创建采购单、不补货');
+    expect(result.blocks?.[0]).toMatchObject({
+      kind: 'table',
+      rows: [
+        expect.objectContaining({
+          projectName: '紧致抗衰护理',
+          productName: '紧致安瓶',
+          demandQty: 10,
+          currentStock: 8,
+          shortageQty: 2,
+        }),
+      ],
+    });
+    expect(result.metadata).toMatchObject({
+      capabilityKey: 'inventory_operations_overview',
+      answerScope: 'project_material_sales_coverage',
+      serviceCount: 5,
+      shortageItemCount: 1,
+      actionWriteCount: 0,
     });
   });
 
@@ -3742,6 +3839,10 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     expect(result.answer).toContain('微信：0.00 元');
     expect(result.answer).toContain('支付宝：0.00 元');
     expect(result.blocks).toEqual([
+      expect.objectContaining({
+        kind: 'text',
+        text: '今天按统一实收金额口径汇总，当前没有实际支付流水。',
+      }),
       expect.objectContaining({
         kind: 'table',
         rows: [
@@ -3805,6 +3906,497 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         boundary: '[start,end)',
         timezone: 'Asia/Shanghai',
       },
+    });
+  });
+
+  it('BQ0464 returns matching active cards by name, total times and project without side effects', async () => {
+    const prisma = {
+      card: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 3,
+            name: '焕肤清洁 12 次卡',
+            description: '小气泡和水氧清洁组合卡',
+            totalTimes: 12,
+            price: 3280,
+            projects: [
+              { projectName: '小气泡清洁护理', timesPerCard: 6 },
+              { projectName: '水氧清洁焕肤', timesPerCard: 6 },
+            ],
+            status: 'active',
+            storeId: null,
+          },
+        ]),
+      },
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+      undefined,
+      undefined,
+      prisma as never,
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'finance_risk_overview', name: '财务经营风险概览' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'bq0464-active-card-catalog-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 92,
+      question: '有哪些焕肤清洁 12 次卡在售', // BQ0464
+      answerShape: 'list',
+      args: {
+        objective: '查询在售次卡',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(prisma.card.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          status: 'active',
+          OR: [{ storeId: 6 }, { storeId: null }],
+          totalTimes: 12,
+        },
+      }),
+    );
+    expect(result.answer).toContain('焕肤清洁 12 次卡');
+    expect(result.answer).toContain('水氧清洁焕肤');
+    expect(result.citations).toEqual(
+      expect.arrayContaining([expect.objectContaining({ sourceId: 'active_card_catalog' })]),
+    );
+    expect(result.metadata).toMatchObject({
+      answerScope: 'active_card_catalog',
+      requestedTimes: 12,
+      matchedCardCount: 1,
+      actionWriteCount: 0,
+    });
+  });
+
+  it('BQ0621 returns the exact valid ProductOrder count for the requested rolling period', async () => {
+    const skillRuntime = { buildFinanceIncomeAnalysis: jest.fn() };
+    const prisma = { productOrder: { count: jest.fn().mockResolvedValue(37) } };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+      undefined,
+      undefined,
+      prisma as never,
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'finance_payment_breakdown', name: '实收与储值流水拆分' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['finance'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'bq0621-order-count-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 93,
+      question: '最近三个月一共有多少笔订单', // BQ0621
+      answerShape: 'scalar',
+      args: {
+        objective: '最近三个月有效订单数',
+        time: {
+          label: '过去3个月',
+          timezone: 'Asia/Shanghai',
+          startDate: '2026-05-01',
+          endDate: '2026-07-31',
+        },
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(prisma.productOrder.count).toHaveBeenCalledWith({
+      where: {
+        storeId: 6,
+        createdAt: { gte: new Date('2026-04-30T16:00:00.000Z'), lte: new Date('2026-07-31T15:59:59.999Z') },
+        status: { in: ['completed', 'paid'] },
+      },
+    });
+    expect(skillRuntime.buildFinanceIncomeAnalysis).not.toHaveBeenCalled();
+    expect(result.answer).toContain('过去3个月有效订单共 37 笔');
+    expect(result.citations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sourceId: 'product_order_count' }),
+        expect.objectContaining({ sourceId: 'metric.order_count' }),
+      ]),
+    );
+    expect(result.metadata).toMatchObject({
+      answerScope: 'valid_product_order_count',
+      orderCount: 37,
+      includedStatuses: ['completed', 'paid'],
+      actionWriteCount: 0,
+    });
+  });
+
+  it('BQ0661 returns the real payment-method amounts for the requested rolling period', async () => {
+    const skillRuntime = {
+      buildFinanceIncomeAnalysis: jest.fn().mockResolvedValue({
+        totalCollected: 2450,
+        paymentBreakdown: [
+          { method: 'wechat', amount: 900, count: 9 },
+          { method: '微信支付', amount: 150, count: 2 },
+          { method: 'cash', amount: 600, count: 4 },
+          { method: '现金', amount: 200, count: 3 },
+          { method: 'member_balance', amount: 400, count: 2 },
+          { method: '会员余额', amount: 200, count: 1 },
+        ],
+        dailyTrend: [],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'finance_payment_breakdown', name: '实收支付方式拆分' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['finance'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'bq0661-payment-breakdown-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 94,
+      // BQ0661
+      question: '最近三个月各支付方式的金额分别多少',
+      answerShape: 'list',
+      args: {
+        objective: '最近三个月各支付方式金额',
+        time: {
+          label: '过去3个月',
+          timezone: 'Asia/Shanghai',
+          startDate: '2026-05-01',
+          endDate: '2026-07-31',
+        },
+        entities: [],
+        metrics: [{ definitionKey: 'metric.paid_amount' }],
+        dimensions: [{ definitionKey: 'dimension.paymentMethod' }],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(result.answer).toContain('过去3个月实收合计 2450.00 元');
+    expect(result.answer).toContain('各支付方式金额');
+    expect(result.answer).toContain('微信：1050.00 元');
+    expect(result.blocks).toEqual([
+      expect.objectContaining({
+        kind: 'text',
+        text: '过去3个月按统一实收金额口径汇总，实收合计 2450.00 元；同义支付方式已合并为 3 类。',
+      }),
+      expect.objectContaining({
+        kind: 'table',
+        rows: [
+          { paymentMethod: '微信', amount: 1050, count: 11 },
+          { paymentMethod: '现金', amount: 800, count: 7 },
+          { paymentMethod: '储值余额', amount: 600, count: 3 },
+        ],
+      }),
+    ]);
+    expect(result.metadata).toMatchObject({
+      rawPaymentMethodCount: 6,
+      normalizedPaymentMethodCount: 3,
+      mergedPaymentMethodAliasCount: 3,
+    });
+    expect(result.citations).toEqual(
+      expect.arrayContaining([expect.objectContaining({ sourceId: 'metric.paid_amount' })]),
+    );
+  });
+
+  it('BQ0706 compares unequal rolling periods by daily average while disclosing raw totals', async () => {
+    const skillRuntime = {
+      buildFinanceIncomeAnalysis: jest
+        .fn()
+        .mockResolvedValueOnce({ totalCollected: 9200, paymentBreakdown: [], dailyTrend: [] })
+        .mockResolvedValueOnce({ totalCollected: 1400, paymentBreakdown: [], dailyTrend: [] }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'finance_payment_breakdown', name: '实收与储值流水拆分' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['finance'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'bq0706-unequal-period-comparison-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 95,
+      // BQ0706
+      question: '最近三个月营业额和最近7天比怎么样',
+      answerShape: 'comparison',
+      args: {
+        objective: '比较过去3个月与最近7天实收',
+        time: {
+          label: '过去3个月',
+          timezone: 'Asia/Shanghai',
+          startDate: '2026-05-01',
+          endDate: '2026-07-31',
+        },
+        comparisonTarget: {
+          type: 'time',
+          timeRange: {
+            label: '最近7天',
+            timezone: 'Asia/Shanghai',
+            startDate: '2026-07-25',
+            endDate: '2026-07-31',
+          },
+        },
+        entities: [],
+        metrics: [{ definitionKey: 'metric.paid_amount' }],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(result.answer).toContain('过去3个月实收 9200.00 元');
+    expect(result.answer).toContain('最近7天实收 1400.00 元');
+    expect(result.answer).toContain('日均 100.00 元');
+    expect(result.answer).toContain('日均 200.00 元');
+    expect(result.answer).toContain('两个周期天数不同');
+    expect(result.blocks).toEqual([
+      expect.objectContaining({
+        kind: 'comparison',
+        items: expect.arrayContaining([
+          expect.objectContaining({ label: '实收总额' }),
+          expect.objectContaining({ label: '日均实收', delta: '-100.00 元/天（-50.0%）' }),
+        ]),
+      }),
+    ]);
+    expect(result.metadata).toMatchObject({
+      comparisonPeriodDays: { current: 92, previous: 7 },
+      comparisonDailyAverage: { current: 100, previous: 200, delta: -100 },
+    });
+  });
+
+  it('BQ0707 returns the real daily order-count trend instead of a revenue chart', async () => {
+    const skillRuntime = { buildFinanceIncomeAnalysis: jest.fn() };
+    const prisma = {
+      productOrder: {
+        findMany: jest.fn().mockResolvedValue([
+          { createdAt: new Date('2026-07-29T16:30:00.000Z') },
+          { createdAt: new Date('2026-07-30T03:00:00.000Z') },
+          { createdAt: new Date('2026-07-30T16:30:00.000Z') },
+          { createdAt: new Date('2026-07-30T17:00:00.000Z') },
+          { createdAt: new Date('2026-07-31T01:00:00.000Z') },
+          { createdAt: new Date('2026-07-31T02:00:00.000Z') },
+          { createdAt: new Date('2026-07-31T03:00:00.000Z') },
+        ]),
+      },
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+      undefined,
+      undefined,
+      prisma as never,
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'finance_payment_breakdown', name: '实收与储值流水拆分' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['finance'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'bq0707-order-count-trend-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 96,
+      // BQ0707
+      question: '最近三个月订单量的趋势',
+      answerShape: 'trend',
+      args: {
+        objective: '最近三个月订单量趋势',
+        time: {
+          label: '过去3个月',
+          timezone: 'Asia/Shanghai',
+          startDate: '2026-05-01',
+          endDate: '2026-07-31',
+        },
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(result.answer).toContain('过去3个月订单量趋势');
+    expect(prisma.productOrder.findMany).toHaveBeenCalledWith({
+      where: {
+        storeId: 6,
+        createdAt: { gte: new Date('2026-04-30T16:00:00.000Z'), lte: new Date('2026-07-31T15:59:59.999Z') },
+        status: { in: ['completed', 'paid'] },
+      },
+      select: { createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    expect(skillRuntime.buildFinanceIncomeAnalysis).not.toHaveBeenCalled();
+    expect(result.blocks).toEqual([
+      expect.objectContaining({
+        kind: 'chart',
+        rows: expect.arrayContaining([
+          { date: '2026-07-30', orderCount: 2 },
+          { date: '2026-07-31', orderCount: 5 },
+        ]),
+        xKey: 'date',
+        yKeys: ['orderCount'],
+        citationIds: ['product_order_daily_count', 'metric.order_count'],
+      }),
+    ]);
+    expect((result.blocks?.[0] as { rows: unknown[] }).rows).toHaveLength(92);
+    expect(result.citations).toEqual(
+      expect.arrayContaining([expect.objectContaining({ sourceId: 'metric.order_count' })]),
+    );
+    expect(result.metadata).toMatchObject({
+      trendMetric: 'order_count',
+      trendDataSource: 'ProductOrder',
+      includedStatuses: ['completed', 'paid'],
+      actionWriteCount: 0,
+    });
+  });
+
+  it('BQ0747 reconciles order net amounts against successful payments and preserves the unverifiable boundary', async () => {
+    const prisma = {
+      productOrder: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 1,
+            orderNo: 'PO-OK',
+            netAmount: 100,
+            totalAmount: 100,
+            paymentRecords: [{ id: 11, amount: 100 }],
+          },
+          {
+            id: 2,
+            orderNo: 'PO-DIFF',
+            netAmount: 200,
+            totalAmount: 200,
+            paymentRecords: [{ id: 21, amount: 180 }],
+          },
+          {
+            id: 3,
+            orderNo: 'PO-NO-PAYMENT-DETAIL',
+            netAmount: 300,
+            totalAmount: 300,
+            paymentRecords: [],
+          },
+        ]),
+      },
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+      undefined,
+      undefined,
+      prisma as never,
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'finance_risk_overview', name: '财务经营风险概览' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['finance'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'bq0747-order-payment-reconciliation-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 97,
+      // BQ0747
+      question: '最近三个月有订单支付和金额对不上吗',
+      answerShape: 'diagnosis',
+      args: {
+        objective: '核对订单净额与成功支付流水',
+        time: {
+          label: '过去3个月',
+          timezone: 'Asia/Shanghai',
+          startDate: '2026-05-01',
+          endDate: '2026-07-31',
+        },
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(prisma.productOrder.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ storeId: 6, status: { in: ['completed', 'paid'] } }),
+      }),
+    );
+    expect(result.answer).toContain('发现 1 张订单');
+    expect(result.answer).toContain('1 张有效订单缺少成功支付明细');
+    expect(result.answer).toContain('不将它们判定为金额不一致');
+    expect(result.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'table',
+          rows: [
+            expect.objectContaining({
+              orderNo: 'PO-DIFF',
+              orderAmount: 200,
+              successfulPaymentAmount: 180,
+              difference: -20,
+            }),
+          ],
+        }),
+        expect.objectContaining({ kind: 'diagnosis' }),
+        expect.objectContaining({ kind: 'limitations' }),
+      ]),
+    );
+    expect(result.metadata).toMatchObject({
+      answerScope: 'order_payment_amount_reconciliation',
+      sourceOrderCount: 3,
+      auditableOrderCount: 2,
+      mismatchOrderCount: 1,
+      unverifiableOrderCount: 1,
+      actionWriteCount: 0,
     });
   });
 
@@ -5803,6 +6395,179 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       if (metric === 'repurchase30d') expect(result.answer).toContain('不是周末专属复购概率');
     },
   );
+
+  it('BQ0181 returns the named customer churn snapshot from the latest completed model batch', async () => {
+    const predictionSkills = {
+      getLatestCustomerChurnPrediction: jest.fn().mockResolvedValue({
+        status: 'available',
+        snapshotId: 811,
+        customerId: 7,
+        customerName: '马欣怡',
+        maskedPhone: '***1234',
+        memberLevel: '金卡',
+        churnScore: 82,
+        churnLevel: 'high',
+        modelVersion: 'customer-churn-v4',
+        generatedAt: '2026-08-05T01:08:00.000Z',
+        predictionRun: {
+          id: 81,
+          modelVersion: 'customer-churn-v4',
+          businessDate: '2026-08-05',
+          customerCount: 1253,
+          startedAt: '2026-08-05T01:00:00.000Z',
+          finishedAt: '2026-08-05T01:10:00.000Z',
+        },
+        boundary:
+          '流失评分和等级是该模型批次生成时的风险排序信号，不是客户一定会流失的事实；人工跟进前仍需回查最新到店、预约、消费和权益状态。',
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      predictionSkills as never,
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'marketing_customer_segment', intents: ['query', 'ranking', 'diagnosis'] },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['marketing'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'bq0181-customer-churn-prediction-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 92,
+      // BQ0181
+      question: '预测马欣怡的流失风险有多高',
+      answerShape: 'list',
+      args: {
+        objective: '预测马欣怡的流失风险有多高',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(predictionSkills.getLatestCustomerChurnPrediction).toHaveBeenCalledWith({
+      storeId: 6,
+      customerName: '马欣怡',
+      phoneTail: undefined,
+    });
+    expect(result.answer).toContain('流失风险评分为 82%');
+    expect(result.answer).toContain('风险等级为高风险');
+    expect(result.answer).toContain('不是客户一定会流失的事实');
+    expect(result.citations).toEqual([
+      expect.objectContaining({
+        sourceId: 'customer_prediction_snapshot_latest_completed',
+        label: expect.stringContaining('CustomerPredictionSnapshot.churnScore/churnLevel'),
+      }),
+    ]);
+    expect(result.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'text', text: expect.stringContaining('PredictionRun #81') }),
+        expect.objectContaining({
+          kind: 'kpi',
+          items: [expect.objectContaining({ label: '马欣怡 流失风险评分', value: '82%', hint: '风险等级：高风险' })],
+        }),
+        expect.objectContaining({ kind: 'limitations' }),
+      ]),
+    );
+    expect(result.metadata).toMatchObject({
+      answerScope: 'customer_churn_prediction',
+      predictionMetric: 'churn',
+      predictionRun: { id: 81, modelVersion: 'customer-churn-v4' },
+      predictionSnapshotId: 811,
+      customerId: 7,
+    });
+    expect(result.suggestedActions).toBeUndefined();
+  });
+
+  it('BQ0181 asks for a phone tail instead of guessing between same-name prediction snapshots', async () => {
+    const predictionSkills = {
+      getLatestCustomerChurnPrediction: jest.fn().mockResolvedValue({
+        status: 'ambiguous',
+        predictionRun: { id: 81, modelVersion: 'customer-churn-v4' },
+        candidates: [
+          { customerId: 7, customerName: '马欣怡', maskedPhone: '***1234', memberLevel: '金卡' },
+          { customerId: 8, customerName: '马欣怡', maskedPhone: '***5678', memberLevel: '银卡' },
+        ],
+        boundary: '找到多位匹配客户，必须先用手机号后四位确认唯一身份；本次不会猜测或返回其中任何一人的流失评分。',
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      {} as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      predictionSkills as never,
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'marketing_customer_segment', intents: ['query', 'ranking', 'diagnosis'] },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['marketing'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'bq0181-customer-churn-ambiguity-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 93,
+      // BQ0181
+      question: '预测马欣怡的流失风险有多高',
+      answerShape: 'list',
+      args: {
+        objective: '预测马欣怡的流失风险有多高',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(result.answer).toContain('补充手机号后四位');
+    expect(result.answer).toContain('不会猜测');
+    expect(result.answer).not.toContain('82%');
+    expect(result.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'table',
+          rows: expect.arrayContaining([expect.objectContaining({ maskedPhone: '***1234' })]),
+        }),
+        expect.objectContaining({ kind: 'clarification', options: expect.any(Array) }),
+      ]),
+    );
+    expect(result.metadata).toMatchObject({
+      answerScope: 'customer_churn_prediction_identity_clarification',
+      completion: { status: 'partial', missingCriteria: ['entity'], recoverable: true },
+    });
+  });
 
   it('returns a grounded honest boundary when the store has no completed prediction run', async () => {
     const predictionSkills = {

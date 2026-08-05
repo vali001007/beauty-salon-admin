@@ -192,6 +192,237 @@ describe('BrainFocusedBusinessCapabilityExecutor', () => {
     ]);
   });
 
+  it.each([
+    ['BQ0537', '哪些项目叫好不叫座', 'project_reputation_sales_boundary', '当前没有已接入的项目评价'],
+    ['BQ0540', '紧致抗衰护理最近7天的复购情况分析', 'project_repurchase_boundary', '无法计算该项目复购率'],
+  ])('returns a grounded honest boundary for release-core project case %s', async (_caseId, question, scope, text) => {
+    const operationProfit = {
+      getProjectMargins: jest.fn().mockResolvedValue({
+        items: [
+          {
+            ...projectMargin({
+              projectId: 1,
+              projectName: '紧致抗衰护理',
+              serviceIncome: 1800,
+              materialCost: 200,
+              contributionProfit: 1200,
+            }),
+            standardPrice: 680,
+            avgDealPrice: 600,
+          },
+          {
+            ...projectMargin({
+              projectId: 2,
+              projectName: '基础补水护理',
+              serviceIncome: 500,
+              materialCost: 80,
+              contributionProfit: 300,
+            }),
+            serviceCount: 1,
+            standardPrice: 280,
+            avgDealPrice: 250,
+          },
+        ],
+      }),
+    };
+    const executor = createExecutor({ operationProfit });
+
+    const result = await executor.execute(input('project_margin_analysis', question, 'diagnosis'));
+
+    expect(result).toMatchObject({
+      status: 'completed',
+      grounding: 'db_skill',
+      metadata: { answerScope: scope, actionWriteCount: 0 },
+    });
+    expect(result.answer).toContain(text);
+    expect(result.citations).toEqual(
+      expect.arrayContaining([expect.objectContaining({ sourceId: 'operation_profit_project_margins' })]),
+    );
+  });
+
+  it.each([
+    ['BQ0567', '射频紧致提升护理卖不动，建议怎么办', 'project_sell_through_review', '服务 2 次'],
+    ['BQ0611', '全身精油 SPA是不是卖不动了', 'project_sell_through_review', '服务 1 次'],
+    ['BQ0568', '该不该给眼周紧致护理调价', 'project_price_review', '本次不执行调价'],
+  ])('uses matched project facts for release-core case %s', async (_caseId, question, scope, expectedText) => {
+    const operationProfit = {
+      getProjectMargins: jest.fn().mockResolvedValue({
+        items: [
+          {
+            ...projectMargin({
+              projectId: 1,
+              projectName: '射频紧致提升护理',
+              serviceIncome: 900,
+              materialCost: 180,
+              contributionProfit: 500,
+            }),
+            serviceCount: 2,
+            standardPrice: 680,
+            avgDealPrice: 450,
+          },
+          {
+            ...projectMargin({
+              projectId: 2,
+              projectName: '全身精油 SPA',
+              serviceIncome: 380,
+              materialCost: 90,
+              contributionProfit: 190,
+            }),
+            serviceCount: 1,
+            standardPrice: 480,
+            avgDealPrice: 380,
+          },
+          {
+            ...projectMargin({
+              projectId: 3,
+              projectName: '眼周紧致护理',
+              serviceIncome: 1600,
+              materialCost: 220,
+              contributionProfit: 900,
+            }),
+            serviceCount: 4,
+            standardPrice: 520,
+            avgDealPrice: 400,
+          },
+        ],
+      }),
+    };
+    const executor = createExecutor({ operationProfit });
+
+    const result = await executor.execute(input('project_margin_analysis', question, 'diagnosis'));
+
+    expect(result).toMatchObject({ metadata: { answerScope: scope, actionWriteCount: 0 } });
+    expect(result.answer).toContain(expectedText);
+  });
+
+  it('builds a read-only average-order-value candidate from profitable project facts for BQ0566', async () => {
+    const operationProfit = {
+      getProjectMargins: jest.fn().mockResolvedValue({
+        items: [
+          {
+            ...projectMargin({
+              projectId: 1,
+              projectName: '高端抗衰护理',
+              serviceIncome: 6000,
+              materialCost: 600,
+              contributionProfit: 4200,
+            }),
+            standardPrice: 1280,
+            avgDealPrice: 1000,
+          },
+          {
+            ...projectMargin({
+              projectId: 2,
+              projectName: '基础补水护理',
+              serviceIncome: 8000,
+              materialCost: 800,
+              contributionProfit: 5000,
+            }),
+            standardPrice: 280,
+            avgDealPrice: 250,
+          },
+        ],
+      }),
+    };
+    const executor = createExecutor({ operationProfit });
+
+    const result = await executor.execute(
+      input('project_margin_analysis', '想提升客单价该主推哪些项目', 'diagnosis'), // BQ0566
+    );
+
+    expect(result.answer).toContain('可优先评估 高端抗衰护理');
+    expect(result.answer).toContain('不执行推荐、调价或上架');
+    expect(result).toMatchObject({ metadata: { answerScope: 'project_average_order_value_candidates' } });
+  });
+
+  it('separates low-margin and zero-sales project facts for BQ0613 and BQ0616', async () => {
+    const operationProfit = {
+      getProjectMargins: jest.fn().mockImplementation(({ pageSize }: { pageSize: number }) => {
+        const items = [
+          {
+            ...projectMargin({
+              projectId: 1,
+              projectName: '低毛利护理',
+              serviceIncome: 1000,
+              materialCost: 500,
+              contributionProfit: 200,
+            }),
+            standardPrice: 300,
+            avgDealPrice: 200,
+          },
+          {
+            ...projectMargin({
+              projectId: 2,
+              projectName: '成本待补护理',
+              serviceIncome: 1000,
+              materialCost: 0,
+              contributionProfit: 100,
+            }),
+            standardPrice: 300,
+            avgDealPrice: 200,
+            missingCostReasons: ['missing_bom'],
+          },
+          {
+            ...projectMargin({
+              projectId: 3,
+              projectName: '零销量护理',
+              materialCost: 0,
+              contributionProfit: 0,
+            }),
+            serviceCount: 0,
+            serviceIncome: 0,
+            standardPrice: 500,
+            avgDealPrice: 0,
+          },
+          {
+            ...projectMargin({
+              projectId: 4,
+              projectName: '已停用零销量护理',
+              materialCost: 0,
+              contributionProfit: 0,
+            }),
+            serviceCount: 0,
+            serviceIncome: 0,
+            standardPrice: 500,
+            avgDealPrice: 0,
+          },
+        ];
+        return Promise.resolve({
+          items: pageSize >= 101 ? items : items.slice(0, 2),
+          total: 101,
+          page: 1,
+          pageSize,
+        });
+      }),
+    };
+    const prisma = {
+      project: {
+        findMany: jest.fn().mockResolvedValue([{ id: 1 }, { id: 2 }, { id: 3 }]),
+      },
+    };
+    const executor = createExecutor({ operationProfit, prisma });
+
+    const lowMargin = await executor.execute(
+      input('project_margin_analysis', '有哪些项目毛利过低', 'diagnosis'), // BQ0613
+    );
+    const zeroSales = await executor.execute(
+      input('project_margin_analysis', '有没有项目长期零销量', 'diagnosis'), // BQ0616
+    );
+
+    expect(lowMargin.answer).toContain('发现 1 个毛利率低于 30%');
+    expect(lowMargin.answer).toContain('低毛利护理');
+    expect(JSON.stringify(lowMargin.blocks)).not.toContain('成本待补护理');
+    expect(zeroSales.answer).toContain('零销量护理');
+    expect(zeroSales.answer).not.toContain('已停用零销量护理');
+    expect(zeroSales.answer).toContain('最近90天（治理默认）');
+    expect(zeroSales.answer).toContain('仅指当前查询周期');
+    expect(operationProfit.getProjectMargins).toHaveBeenCalledWith(expect.objectContaining({ pageSize: 101 }));
+    expect(prisma.project.findMany).toHaveBeenCalledWith({
+      where: { storeId: 6, deletedAt: null, status: 'active' },
+      select: { id: true },
+    });
+  });
+
   it('reports the actual material collection gap instead of substituting BOM or outbound data', async () => {
     const prisma = {
       serviceTask: {
@@ -291,7 +522,12 @@ describe('BrainFocusedBusinessCapabilityExecutor', () => {
     );
 
     expect(prisma.project.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ storeId: 6, deletedAt: null }) }),
+      expect.objectContaining({
+        where: expect.objectContaining({ storeId: 6, deletedAt: null }),
+        include: expect.objectContaining({
+          bomItems: expect.objectContaining({ where: { product: { storeId: 6 } } }),
+        }),
+      }),
     );
     expect(result).toMatchObject({
       grounding: 'db_skill',
@@ -309,6 +545,72 @@ describe('BrainFocusedBusinessCapabilityExecutor', () => {
           expect.objectContaining({ productId: 110, productName: '胶原面膜', itemCost: 12 }),
           expect.objectContaining({ productId: 125, productName: '焕活精华', itemCost: 17 }),
         ],
+      }),
+    ]);
+  });
+
+  it('filters cross-store products out of a project BOM at the Prisma query boundary', async () => {
+    const bomItems = [
+      {
+        id: 111,
+        productId: 120,
+        standardQty: 1,
+        unit: '瓶',
+        product: { id: 120, storeId: 6, name: '本店精华', sku: 'LOCAL-120', unit: '瓶', costPrice: 20 },
+      },
+      {
+        id: 112,
+        productId: 220,
+        standardQty: 1,
+        unit: '瓶',
+        product: { id: 220, storeId: 7, name: '他店精华', sku: 'OTHER-220', unit: '瓶', costPrice: 99 },
+      },
+    ];
+    const prisma = {
+      project: {
+        findMany: jest.fn().mockImplementation((args) => {
+          const productStoreId = args.include.bomItems.where.product.storeId;
+          return Promise.resolve([
+            {
+              id: 23,
+              name: '门店隔离护理',
+              bomItems: bomItems
+                .filter((item) => item.product.storeId === productStoreId)
+                .map((item) => ({
+                  ...item,
+                  product: {
+                    id: item.product.id,
+                    name: item.product.name,
+                    sku: item.product.sku,
+                    unit: item.product.unit,
+                    costPrice: item.product.costPrice,
+                  },
+                })),
+            },
+          ]);
+        }),
+      },
+    };
+    const executor = createExecutor({ prisma });
+
+    const result = await executor.execute(
+      input('project_material_consumption_analysis', '门店隔离护理配置了哪些耗材', 'list'),
+    );
+
+    expect(prisma.project.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { storeId: 6, deletedAt: null },
+        include: expect.objectContaining({
+          bomItems: expect.objectContaining({ where: { product: { storeId: 6 } } }),
+        }),
+      }),
+    );
+    expect(result.answer).toContain('门店隔离护理 已维护 1 个 BOM 耗材');
+    expect(result.answer).not.toContain('他店精华');
+    expect(result.blocks).toEqual([
+      expect.objectContaining({
+        kind: 'table',
+        rows: [expect.objectContaining({ productId: 120, productName: '本店精华', itemCost: 20 })],
       }),
     ]);
   });

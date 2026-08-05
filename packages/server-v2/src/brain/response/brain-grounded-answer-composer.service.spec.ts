@@ -36,6 +36,39 @@ describe('BrainGroundedAnswerComposerService', () => {
     expect(result.answer).not.toContain('结构化结果见下方');
   });
 
+  it('renders primitive arrays in table cells as readable evidence', () => {
+    const result = composer.compose({
+      observations: [
+        observation({
+          data: {
+            blocks: [
+              {
+                kind: 'table',
+                rows: [
+                  {
+                    cardName: '焕肤清洁 12 次卡',
+                    totalTimes: 12,
+                    price: 3280,
+                    projects: ['焕肤清洁', '深层补水'],
+                  },
+                ],
+                columns: ['cardName', 'totalTimes', 'price', 'projects'],
+              },
+            ],
+            metadata: {},
+            suggestedActions: [],
+          },
+        }),
+      ],
+      completion: { status: 'complete', missingCriteria: [] },
+    });
+
+    expect(result.answer).toContain(
+      '卡项=焕肤清洁 12 次卡，总次数=12，价格=3280.00，适用项目=焕肤清洁、深层补水',
+    );
+    expect(result.answer).not.toContain('[结构化值]');
+  });
+
   it('preserves follow-up questions without treating them as grounding or answer text', () => {
     const result = composer.compose({
       observations: [

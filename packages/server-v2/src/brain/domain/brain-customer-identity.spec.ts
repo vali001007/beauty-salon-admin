@@ -28,6 +28,7 @@ describe('brain customer identity helpers', () => {
     ['王思琪适合推荐什么项目，为什么', '王思琪'],
     ['帮我查一下客户马美琳的余额', '马美琳'],
     ['预测黄婉清的12个月生命周期价值', '黄婉清'],
+    ['预测马欣怡的流失风险有多高', '马欣怡'], // BQ0181
   ])('extracts a concrete customer directly from the question: %s', (question, expected) => {
     expect(extractSpecificCustomerNameFromQuestion(question)).toBe(expected);
     expect(isSpecificCustomerReadOnlyQuestion(question)).toBe(true);

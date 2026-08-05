@@ -87,6 +87,29 @@ describe('BrainFinanceSkillsService', () => {
       endDate: new Date('2026-07-03T23:59:59+08:00'),
     });
 
+    expect(prisma.paymentRecord.findMany).toHaveBeenCalledWith({
+      where: {
+        order: { storeId: 6 },
+        status: { in: ['paid', 'success', 'completed'] },
+        paidAt: {
+          gte: new Date('2026-06-30T16:00:00.000Z'),
+          lte: new Date('2026-07-03T15:59:59.000Z'),
+        },
+      },
+      select: { method: true, amount: true },
+    });
+    expect(prisma.productOrder.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          storeId: 6,
+          createdAt: {
+            gte: new Date('2026-06-30T16:00:00.000Z'),
+            lte: new Date('2026-07-03T15:59:59.000Z'),
+          },
+          status: { in: ['completed', 'paid'] },
+        },
+      }),
+    );
     expect(result.totalCollected).toBe(25653.27);
     expect(result.paymentBreakdown).toEqual([{ method: 'wechat', amount: 25653.27, count: 0 }]);
     expect(result.dailyTrend).toEqual([
