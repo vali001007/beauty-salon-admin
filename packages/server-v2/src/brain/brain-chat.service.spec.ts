@@ -4631,7 +4631,7 @@ describe('BrainChatService', () => {
       'unavailable',
       { status: 'unavailable', errorCode: 'PROVIDER_UNAVAILABLE', reason: 'provider raw failure' },
       'compile',
-      'MODEL_INTENT_UNAVAILABLE',
+      'PROVIDER_UNAVAILABLE',
     ],
     ['invalid', undefined, 'validate', 'MODEL_INTENT_INVALID'],
     ['none', undefined, 'retrieve', 'CAPABILITY_RETRIEVAL_NONE'],

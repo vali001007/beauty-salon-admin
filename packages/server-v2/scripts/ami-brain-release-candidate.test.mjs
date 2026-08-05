@@ -251,10 +251,35 @@ test('final candidate verification revalidates artifact content instead of trust
 test('accepts only a ready Release contract bound to the locked candidate', () => {
   const lock = candidateLock();
   const artifact = {
-    contractVersion: 'ami-brain-release-acceptance/v1',
+    contractVersion: 'ami-brain-release-acceptance/v2',
     canActivate: true,
     decision: 'ready_for_activation',
     blockingReasons: [],
+    releaseGate: {
+      suite: 'release-core',
+      expectedCaseCount: 350,
+      manifestCaseCount: 350,
+      resultCount: 350,
+      verifiedCapabilityTotal: 50,
+      complete: true,
+    },
+    stages: {
+      releaseCore: {
+        total: 350,
+        expectedTotal: 350,
+        failed: 0,
+        providerUnavailable: 0,
+        providerEvidence: { candidatePrimaryRouteEligible: true },
+        scorecards: { suspectedFalseSuccess: { count: 0 } },
+      },
+    },
+    extendedManual: {
+      expectedCaseCount: 690,
+      status: 'not_run',
+      blocksCurrentAcceptance: false,
+      releaseDecisionMutable: false,
+    },
+    mergedStandardRegression: null,
     pipelineIdentity: {
       runtimeCommit: lock.identity.runtimeCommit,
       sourceCommit: lock.identity.runtimeCommit,
@@ -271,6 +296,20 @@ test('accepts only a ready Release contract bound to the locked candidate', () =
       pipelineIdentity: { ...artifact.pipelineIdentity, releaseId: 999 },
     }),
     /release_contract_candidate_identity_mismatch:releaseId/,
+  );
+  assert.throws(
+    () => validateArtifact(lock, 'release_contract', {
+      ...artifact,
+      contractVersion: 'ami-brain-release-acceptance/v1',
+    }),
+    /release_contract_artifact_missing/,
+  );
+  assert.throws(
+    () => validateArtifact(lock, 'release_contract', {
+      ...artifact,
+      extendedManual: { ...artifact.extendedManual, blocksCurrentAcceptance: true },
+    }),
+    /release_contract_artifact_not_ready/,
   );
 });
 

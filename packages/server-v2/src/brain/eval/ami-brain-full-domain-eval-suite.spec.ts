@@ -53,6 +53,29 @@ describe('Ami Brain full-domain multi-turn gate', () => {
 
     expect(result).toMatchObject({ passed: true, providerUnavailable: false });
   });
+
+  it('classifies the safe model-intent failure code as provider unavailable', () => {
+    const result = deterministicFullDomainGrade({
+      test: { ...test, type: 'analysis' },
+      answer: '当前无法理解该问题，请换一种清晰表述后重试。',
+      status: 'failed',
+      citations: [],
+      completedTurns: 1,
+      turnResults: [
+        {
+          status: 'failed',
+          answer: '当前无法理解该问题，请换一种清晰表述后重试。',
+          failureCode: 'MODEL_INTENT_UNAVAILABLE',
+        },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      passed: false,
+      providerUnavailable: true,
+      failureCluster: 'provider_unavailable',
+    });
+  });
 });
 
 describe('Ami Brain Query Only action gate used by the executable evaluator', () => {

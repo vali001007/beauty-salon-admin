@@ -192,11 +192,17 @@ export function deterministicFullDomainGrade(input: {
   allowedCapabilityKeys?: string[];
   error?: string;
   completedTurns: number;
+  turnResults?: Array<{ status: string; answer: string; failureCode?: string }>;
 }) {
   const answer = input.answer.trim();
   const text = `${answer}\n${JSON.stringify(input.blocks ?? [])}`;
+  const failedTurn = input.turnResults?.find((turn) => turn.status === 'failed');
   const providerUnavailable = Boolean(
-    input.error && /provider|timeout|gateway|network|模型服务|供应商/i.test(input.error),
+    (input.error && /provider|timeout|gateway|network|模型服务|供应商/i.test(input.error)) ||
+    (failedTurn &&
+      /MODEL_INTENT_UNAVAILABLE|MODEL_CATALOG_UNAVAILABLE|PROVIDER_UNAVAILABLE|PROVIDER_AUTH_FAILED|provider|timeout|gateway|network|模型服务|供应商/i.test(
+        `${failedTurn.failureCode ?? ''} ${failedTurn.answer}`,
+      )),
   );
   const hasClarification = input.status === 'clarify' || /请.*(确认|补充|选择)|澄清|不明确/.test(text);
   const hasRefusal = /无权限|权限不足|不能.*查看|无法.*查看|越权|脱敏/.test(text);
@@ -236,7 +242,7 @@ export function deterministicFullDomainGrade(input: {
         input.productProfile === 'query_only_v1' ? 'query_only_action_not_rejected' : 'action_not_previewed';
     }
   } else if (input.test.type === 'multi_turn') {
-    passed = baseCompleted && input.completedTurns === 2 && (hasEvidence || answer.length > 16);
+    passed = baseCompleted && input.completedTurns === 2 && !failedTurn && (hasEvidence || answer.length > 16);
     if (!passed) failureCluster = 'multi_turn_not_continued';
   } else {
     passed = baseCompleted && (hasEvidence || /暂不支持|当前.*没有|无法.*口径|需人工/.test(text));

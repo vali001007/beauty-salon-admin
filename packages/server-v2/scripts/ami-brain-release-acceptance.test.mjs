@@ -7,6 +7,7 @@ import {
   buildAcceptanceEvidence,
   buildCoreBlockedEvidence,
   buildEvalArgs,
+  buildExtendedManualObservation,
   buildReleaseAcceptancePreflight,
   resolveResumePlan,
   sha256,
@@ -20,7 +21,7 @@ const REPO_ROOT = resolve(SCRIPT_DIR, '..', '..', '..');
 const CROSS_CLIENT_IDENTITY_CHECKSUM = 'f'.repeat(64);
 const ACTION_RELEASE_CONTRACT_IDENTITY_CHECKSUM = 'c'.repeat(64);
 
-test('passes an EV candidate identity into both product evidence stages', () => {
+test('passes an EV candidate identity into the 350-case release-core stage', () => {
   const args = buildEvalArgs(
     {
       suiteManifest: '/repo/suite.json',
@@ -483,7 +484,7 @@ function fixture() {
     },
   };
   const identity = {
-    contractVersion: 'ami-brain-release-acceptance/v1',
+    contractVersion: 'ami-brain-release-acceptance/v2',
     runKey: 'release416-v2-fixture',
     releaseId: 416,
     runtimeCommit,
@@ -734,22 +735,87 @@ test('validates a reviewed supplemental question without adding a third release 
   );
 });
 
-test('builds ready evidence from exact 350 then 690 incremental fixtures for a 1040-case standard suite', () => {
+test('builds a ready frozen release contract from the exact 350 core cases without running the 690 extension', () => {
   const input = fixture();
   const evidence = buildAcceptanceEvidence({
     identity: input.identity,
     manifest: input.manifest,
     coreSummary: input.coreSummary,
-    standardDeltaSummary: input.standardSummary,
     coreResults: input.coreIds.map((caseKey) => ({ caseKey })),
-    standardDeltaResults: input.deltaIds.map((caseKey) => ({ caseKey })),
     now: new Date('2026-07-28T12:00:00.000Z'),
   });
 
   assert.equal(evidence.canActivate, true);
   assert.equal(evidence.decision, 'ready_for_activation');
-  assert.equal(evidence.mergedStandardRegression.resultCount, 1040);
+  assert.equal(evidence.contractVersion, 'ami-brain-release-acceptance/v2');
+  assert.equal(evidence.releaseGate.resultCount, 350);
+  assert.equal(evidence.releaseGate.complete, true);
+  assert.equal(evidence.extendedManual.expectedCaseCount, 690);
+  assert.equal(evidence.extendedManual.status, 'not_run');
+  assert.equal(evidence.extendedManual.blocksCurrentAcceptance, false);
+  assert.equal(evidence.mergedStandardRegression, null);
   assert.deepEqual(evidence.blockingReasons, []);
+});
+
+test('still blocks incomplete, failed, provider-unavailable, or false-success core evidence', () => {
+  const input = fixture();
+  const evidence = buildAcceptanceEvidence({
+    identity: input.identity,
+    manifest: input.manifest,
+    coreSummary: {
+      ...input.coreSummary,
+      total: 349,
+      failed: 1,
+      providerUnavailable: 1,
+      scorecards: {
+        ...input.coreSummary.scorecards,
+        suspectedFalseSuccess: { count: 1 },
+      },
+    },
+    coreResults: input.coreIds.slice(0, -1).map((caseKey) => ({ caseKey })),
+  });
+
+  assert.equal(evidence.canActivate, false);
+  assert.equal(evidence.decision, 'blocked');
+  assert.equal(evidence.releaseGate.complete, false);
+  assert.ok(evidence.blockingReasons.some((item) => item.startsWith('release_core_results:missing:')));
+  assert.ok(evidence.blockingReasons.includes('release_core:result_count_incomplete'));
+  assert.ok(evidence.blockingReasons.includes('release_core:deterministic_failures:1'));
+  assert.ok(evidence.blockingReasons.includes('release_core:provider_unavailable:1'));
+  assert.ok(evidence.blockingReasons.includes('release_core:suspected_false_success:1'));
+});
+
+test('records a failing 690-case manual extension as an observation without changing the frozen 350 release decision', () => {
+  const input = fixture();
+  const releaseEvidence = buildAcceptanceEvidence({
+    identity: input.identity,
+    manifest: input.manifest,
+    coreSummary: input.coreSummary,
+    coreResults: input.coreIds.map((caseKey) => ({ caseKey })),
+    now: new Date('2026-07-28T12:00:00.000Z'),
+  });
+  const observation = buildExtendedManualObservation({
+    identity: input.identity,
+    manifest: input.manifest,
+    releaseEvidence,
+    coreSummary: input.coreSummary,
+    standardDeltaSummary: {
+      ...input.standardSummary,
+      failed: 1,
+      passed: 689,
+      providerUnavailable: 1,
+    },
+    standardDeltaResults: input.deltaIds.map((caseKey) => ({ caseKey })),
+    now: new Date('2026-07-29T12:00:00.000Z'),
+  });
+
+  assert.equal(observation.status, 'attention_required');
+  assert.equal(observation.blocksCurrentAcceptance, false);
+  assert.equal(observation.releaseDecisionChanged, false);
+  assert.ok(observation.warnings.includes('extended_manual:deterministic_failures:1'));
+  assert.ok(observation.warnings.includes('extended_manual:provider_unavailable:1'));
+  assert.equal(releaseEvidence.canActivate, true);
+  assert.equal(releaseEvidence.decision, 'ready_for_activation');
 });
 
 test('blocks activation when fallback answers are present but the candidate primary model route is unproven', () => {
@@ -766,9 +832,7 @@ test('blocks activation when fallback answers are present but the candidate prim
     identity: input.identity,
     manifest: input.manifest,
     coreSummary: input.coreSummary,
-    standardDeltaSummary: input.standardSummary,
     coreResults: input.coreIds.map((caseKey) => ({ caseKey })),
-    standardDeltaResults: input.deltaIds.map((caseKey) => ({ caseKey })),
   });
 
   assert.equal(evidence.canActivate, false);

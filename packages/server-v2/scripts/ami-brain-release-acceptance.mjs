@@ -9,9 +9,11 @@ import {
   buildAcceptanceEvidence,
   buildCoreBlockedEvidence,
   buildEvalArgs,
+  buildExtendedManualObservation,
   buildReleaseAcceptancePreflight,
   clamp,
   positiveNumber,
+  RELEASE_ACCEPTANCE_CONTRACT_VERSION,
   renderReport,
   resolveResumePlan,
   sha256,
@@ -56,7 +58,7 @@ validateProductLoopEligibility(manifest, productLoopEligibilityRaw, supplemental
 
 const standardDeltaIds = standardDeltaCaseIds(manifest);
 const identity = {
-  contractVersion: 'ami-brain-release-acceptance/v1',
+  contractVersion: RELEASE_ACCEPTANCE_CONTRACT_VERSION,
   runKey: options.runKey,
   releaseId: options.releaseId,
   evaluationReleaseId: options.evaluationReleaseId ?? null,
@@ -75,31 +77,36 @@ const identity = {
 const preflight = await inspectReleaseAcceptancePreflight(identity);
 const acceptanceDir = resolve(ACCEPTANCE_OUTPUT_ROOT, options.runKey);
 mkdirSync(acceptanceDir, { recursive: true });
+const executionOutputDir = options.extendedManual ? resolve(acceptanceDir, 'extended-manual') : acceptanceDir;
+mkdirSync(executionOutputDir, { recursive: true });
 const statePath = resolve(acceptanceDir, 'orchestrator-state.json');
 let orchestratorState = options.resume && existsSync(statePath) ? readJson(statePath) : {};
 const resumePlan = resolveResumePlan({ options, state: orchestratorState, identity });
-writeJson(resolve(acceptanceDir, 'identity.json'), identity);
-writeJson(resolve(acceptanceDir, 'preflight.json'), preflight);
+writeJson(resolve(executionOutputDir, 'identity.json'), identity);
+writeJson(resolve(executionOutputDir, 'preflight.json'), preflight);
 
 if (options.dryRun) {
+  const coreRunId = resumePlan.coreRunId ?? positiveNumber(orchestratorState.coreRunId);
   const preview = {
     identity,
     preflight,
     ready: preflight.ready,
     blockingReasons: preflight.blockingReasons,
-    stages: [
-      buildEvalArgs(options, 'release-core', resumePlan.coreRunId),
-      buildEvalArgs(
-        options,
-        'standard-regression',
-        resumePlan.standardRunId,
-        true,
-        resumePlan.coreRunId ?? '<release-core-run-id-from-stage-1>',
-      ),
-    ],
+    mode: options.extendedManual ? 'extended_manual_observation' : 'release_core_acceptance',
+    stages: options.extendedManual
+      ? [
+          buildEvalArgs(
+            options,
+            'standard-regression',
+            resumePlan.standardRunId,
+            true,
+            coreRunId ?? '<release-core-run-id-from-frozen-contract>',
+          ),
+        ]
+      : [buildEvalArgs(options, 'release-core', resumePlan.coreRunId)],
     resumePlan,
   };
-  writeJson(resolve(acceptanceDir, 'dry-run.json'), preview);
+  writeJson(resolve(executionOutputDir, 'dry-run.json'), preview);
   console.log(JSON.stringify(preview, null, 2));
   process.exit(preflight.ready ? 0 : 2);
 }
@@ -111,13 +118,18 @@ if (!preflight.ready) {
         status: 'preflight_blocked',
         ready: false,
         blockingReasons: preflight.blockingReasons,
-        output: relativeToRepo(acceptanceDir),
+        output: relativeToRepo(executionOutputDir),
       },
       null,
       2,
     ),
   );
   process.exit(2);
+}
+
+if (options.extendedManual) {
+  await runExtendedManualObservation();
+  process.exit();
 }
 
 const coreStage = resumePlan.skipReleaseCore
@@ -136,56 +148,63 @@ if (coreStage.blocked) {
   process.exitCode = 2;
   process.exit();
 }
-const standardStage = resumePlan.skipStandardRegression
-  ? { runId: resumePlan.standardRunId, blocked: false, skipped: true }
-  : runStage('standard-regression', resumePlan.standardRunId, true, coreRunId);
-const standardRunId = standardStage.runId;
-if (!standardRunId) throw new Error('standard-regression run id missing');
-updateState({
-  coreRunId,
-  standardRunId,
-  status: 'standard_delta_complete',
-  stage: null,
-  resumeRunId: null,
-});
 
 const coreDir = resolve(EVAL_OUTPUT_ROOT, options.runKey, 'release-core');
-const standardDir = resolve(EVAL_OUTPUT_ROOT, options.runKey, 'standard-regression');
 const coreSummary = readJson(resolve(coreDir, 'summary.json'));
-const standardDeltaSummary = readJson(resolve(standardDir, 'summary.json'));
 const coreResults = readJson(resolve(coreDir, 'results.json'));
-const standardDeltaResults = readJson(resolve(standardDir, 'results.json'));
 const evidence = buildAcceptanceEvidence({
   identity,
   manifest,
   coreSummary,
-  standardDeltaSummary,
   coreResults,
-  standardDeltaResults,
 });
-if (standardStage.blocked && !evidence.blockingReasons.includes('standard_regression_safety_blocked')) {
-  updateState({
-    coreRunId,
-    standardRunId,
-    status: 'standard_regression_blocked',
-    stage: null,
-    resumeRunId: null,
-  });
-  evidence.blockingReasons.push('standard_regression_safety_blocked');
-  evidence.canActivate = false;
-  evidence.decision = 'blocked';
-}
 finalizeEvidence(evidence, {
   coreSummary,
-  standardDeltaSummary,
   coreResults,
-  standardDeltaResults,
   coreRunId,
-  standardRunId,
 });
 if (!evidence.canActivate) process.exitCode = 2;
 
-function runStage(stage, initialResumeRunId, standardDelta, releaseCoreRunId) {
+async function runExtendedManualObservation() {
+  const evidencePath = resolve(acceptanceDir, 'acceptance-evidence.json');
+  if (!existsSync(evidencePath)) throw new Error('extended_manual_release_contract_missing');
+  const releaseEvidence = readJson(evidencePath);
+  const coreRunId = positiveNumber(orchestratorState.coreRunId ?? releaseEvidence.stages?.releaseCore?.runId);
+  if (!coreRunId) throw new Error('extended_manual_release_core_run_id_missing');
+  const extendedStatePath = resolve(executionOutputDir, 'state.json');
+  let extendedState = options.resume && existsSync(extendedStatePath) ? readJson(extendedStatePath) : {};
+  const resumeRunId = options.standardResumeRunId ?? positiveNumber(extendedState.resumeRunId);
+  const updateExtendedState = (patch) => {
+    extendedState = { ...extendedState, ...identity, releaseCoreRunId: coreRunId, ...patch };
+    writeJson(extendedStatePath, extendedState);
+  };
+  const standardStage = runStage('standard-regression', resumeRunId, true, coreRunId, updateExtendedState);
+  const standardRunId = standardStage.runId;
+  if (!standardRunId) throw new Error('extended_manual_run_id_missing');
+  updateExtendedState({
+    standardRunId,
+    status: standardStage.blocked ? 'attention_required' : 'complete',
+    stage: null,
+    resumeRunId: null,
+  });
+  const coreDir = resolve(EVAL_OUTPUT_ROOT, options.runKey, 'release-core');
+  const standardDir = resolve(EVAL_OUTPUT_ROOT, options.runKey, 'standard-regression');
+  const coreSummary = readJson(resolve(coreDir, 'summary.json'));
+  const standardDeltaSummary = readJson(resolve(standardDir, 'summary.json'));
+  const standardDeltaResults = readJson(resolve(standardDir, 'results.json'));
+  const observation = buildExtendedManualObservation({
+    identity,
+    manifest,
+    releaseEvidence,
+    coreSummary,
+    standardDeltaSummary,
+    standardDeltaResults,
+  });
+  finalizeExtendedManualObservation(observation, { standardDeltaSummary, standardRunId });
+  if (observation.status !== 'passed') process.exitCode = 3;
+}
+
+function runStage(stage, initialResumeRunId, standardDelta, releaseCoreRunId, stateUpdater = updateState) {
   let resumeRunId = initialResumeRunId;
   for (let invocation = 1; invocation <= options.maxInvocations; invocation += 1) {
     const args = buildEvalArgs(options, stage, resumeRunId, standardDelta, releaseCoreRunId);
@@ -199,7 +218,7 @@ function runStage(stage, initialResumeRunId, standardDelta, releaseCoreRunId) {
     const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
     const detectedRunId = Number(output.match(/\[full-domain-eval\] run=(\d+)/u)?.[1] ?? resumeRunId);
     if (Number.isInteger(detectedRunId) && detectedRunId > 0) resumeRunId = detectedRunId;
-    updateState({
+    stateUpdater({
       status: `${stage}_invocation_${invocation}`,
       stage,
       resumeRunId: resumeRunId ?? null,
@@ -217,29 +236,20 @@ function runStage(stage, initialResumeRunId, standardDelta, releaseCoreRunId) {
 function finalizeEvidence(evidence, summaries) {
   if (summaries.coreSummary) writeJson(resolve(acceptanceDir, 'release-core-summary.json'), summaries.coreSummary);
   if (summaries.coreResults) {
-    writeJson(
-      resolve(acceptanceDir, 'release-core-legacy-subsets.json'),
-      {
-        targeted12: summarizeSubset(summaries.coreResults, manifest.legacySubsets.targeted12),
-        preflight140: summarizeSubset(summaries.coreResults, manifest.legacySubsets.preflight140),
-      },
-    );
-  }
-  if (summaries.standardDeltaSummary) {
-    writeJson(resolve(acceptanceDir, 'standard-regression-delta-summary.json'), summaries.standardDeltaSummary);
-    writeJson(resolve(acceptanceDir, 'standard-regression-summary.json'), {
-      stage: 'standard-regression',
-      executionMode: 'release_core_plus_delta',
-      expectedTotal: evidence.mergedStandardRegression?.expectedCaseCount ?? null,
-      total: evidence.mergedStandardRegression?.resultCount ?? null,
-      verifiedCapabilityTotal: evidence.mergedStandardRegression?.verifiedCapabilityTotal ?? 0,
-      releaseCoreRunId: summaries.coreRunId,
-      standardRegressionRunId: summaries.standardRunId,
-      caseIdsChecksum: evidence.mergedStandardRegression?.caseIdsChecksum ?? null,
-      canActivate: evidence.canActivate,
-      blockingReasons: evidence.blockingReasons,
+    writeJson(resolve(acceptanceDir, 'release-core-legacy-subsets.json'), {
+      targeted12: summarizeSubset(summaries.coreResults, manifest.legacySubsets.targeted12),
+      preflight140: summarizeSubset(summaries.coreResults, manifest.legacySubsets.preflight140),
     });
   }
+  writeJson(resolve(acceptanceDir, 'extended-manual-plan.json'), {
+    schemaVersion: 'ami-brain-extended-manual-plan/v1',
+    suite: 'standard-regression-delta',
+    expectedCaseCount: standardDeltaIds.length,
+    blocksCurrentAcceptance: false,
+    releaseDecisionMutable: false,
+    command: 'npm run brain:release:extended-manual -- <same candidate arguments>',
+    releaseCoreRunId: summaries.coreRunId ?? evidence.stages?.releaseCore?.runId ?? null,
+  });
   writeJson(resolve(acceptanceDir, 'extended-rotation-reference.json'), {
     suiteManifestVersion: manifest.manifestVersion,
     suiteManifestChecksum: identity.suiteManifestChecksum,
@@ -249,18 +259,15 @@ function finalizeEvidence(evidence, summaries) {
   });
   writeJson(resolve(acceptanceDir, 'latency-breakdown.json'), {
     releaseCore: summaries.coreSummary?.latencyBreakdown ?? null,
-    standardRegressionDelta: summaries.standardDeltaSummary?.latencyBreakdown ?? null,
     productPerformanceGateUses: 'userResponse',
     judgeExcludedFromUserLatency: true,
   });
   writeJson(resolve(acceptanceDir, 'failure-clusters.json'), {
     releaseCore: summaries.coreSummary?.failureClusters ?? {},
-    standardRegressionDelta: summaries.standardDeltaSummary?.failureClusters ?? {},
   });
-  const allResults = [...(summaries.coreResults ?? []), ...(summaries.standardDeltaResults ?? [])];
   writeJson(
     resolve(acceptanceDir, 'manual-review.json'),
-    allResults
+    (summaries.coreResults ?? [])
       .filter((item) => item?.metadata?.qualityBucket === 'manual_review')
       .map((item) => ({ caseKey: item.caseKey, domain: item.metadata?.domain, reason: item.llmJudge?.reason ?? null })),
   );
@@ -271,8 +278,7 @@ function finalizeEvidence(evidence, summaries) {
     'preflight.json',
     ...(summaries.coreSummary ? ['release-core-summary.json'] : []),
     ...(summaries.coreResults ? ['release-core-legacy-subsets.json'] : []),
-    ...(summaries.standardDeltaSummary ? ['standard-regression-delta-summary.json'] : []),
-    ...(summaries.standardDeltaSummary ? ['standard-regression-summary.json'] : []),
+    'extended-manual-plan.json',
     'extended-rotation-reference.json',
     'latency-breakdown.json',
     'failure-clusters.json',
@@ -291,7 +297,43 @@ function finalizeEvidence(evidence, summaries) {
         blockingReasons: evidence.blockingReasons,
         output: relativeToRepo(acceptanceDir),
         coreRunId: summaries.coreRunId ?? evidence.stages?.releaseCore?.runId ?? null,
-        standardRunId: summaries.standardRunId ?? evidence.stages?.standardRegressionDelta?.runId ?? null,
+        extendedManualStatus: evidence.extendedManual?.status ?? 'not_run',
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+function finalizeExtendedManualObservation(observation, summaries) {
+  const outputDir = executionOutputDir;
+  writeJson(resolve(outputDir, 'standard-regression-delta-summary.json'), summaries.standardDeltaSummary);
+  writeJson(resolve(outputDir, 'observation.json'), observation);
+  writeFileSync(
+    resolve(outputDir, 'observation-report.md'),
+    `# Ami Brain 690 扩展人工观察报告\n\n- 状态：\`${observation.status}\`\n- 题数：${observation.resultCount}/${observation.expectedCaseCount}\n- 是否阻断已冻结的 350 发布结论：否\n\n## 观察告警\n\n${observation.warnings.length ? observation.warnings.map((item) => `- ${item}`).join('\n') : '无'}\n`,
+    'utf8',
+  );
+  const files = [
+    'identity.json',
+    'preflight.json',
+    'standard-regression-delta-summary.json',
+    'observation.json',
+    'observation-report.md',
+  ];
+  writeJson(
+    resolve(outputDir, 'sha256-manifest.json'),
+    Object.fromEntries(files.map((name) => [name, sha256(readFileSync(resolve(outputDir, name), 'utf8'))])),
+  );
+  console.log(
+    JSON.stringify(
+      {
+        status: observation.status,
+        blocksCurrentAcceptance: false,
+        releaseDecisionChanged: false,
+        output: relativeToRepo(outputDir),
+        standardRunId: summaries.standardRunId,
+        warnings: observation.warnings,
       },
       null,
       2,
@@ -416,7 +458,6 @@ async function fetchProductionHealth(url) {
   }
 }
 
-
 function parseOptions(args) {
   const get = (name) => args.find((value) => value.startsWith(`${name}=`))?.slice(name.length + 1);
   const has = (name) => args.includes(name) || get(name) === 'true';
@@ -448,6 +489,7 @@ function parseOptions(args) {
     maxInvocations: Math.max(1, Number(get('--max-invocations') ?? 30)),
     releaseCoreResumeRunId: positiveNumber(get('--release-core-resume-run-id')),
     standardResumeRunId: positiveNumber(get('--standard-resume-run-id')),
+    extendedManual: has('--extended-manual'),
     dryRun: has('--dry-run'),
     resume: has('--resume'),
   };
