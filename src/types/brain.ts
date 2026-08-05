@@ -844,6 +844,47 @@ export interface BrainProductIdentity {
   internalReleaseId: number | null;
 }
 
+export interface BrainGovernanceEvalRunSummary {
+  gateMode?: string;
+  canRelease?: boolean;
+  providerUnavailable?: number;
+  sourceEvalRunId?: number;
+  regression?: {
+    selected?: number;
+    resolved?: number;
+    unresolved?: number;
+    providerUnavailable?: number;
+    passed?: boolean;
+  };
+}
+
+export interface BrainGovernanceEvalRun {
+  id: number;
+  releaseId?: number | null;
+  evaluationIdentity?: BrainProductIdentity | null;
+  roleKey?: string | null;
+  status: string;
+  caseCount: number;
+  passedCount: number;
+  failedCount: number;
+  summary?: BrainGovernanceEvalRunSummary;
+  createdAt: string;
+}
+
+export interface BrainGovernanceEvalResult {
+  id: number;
+  caseKey: string;
+  question: string;
+  answer: string;
+  deterministicPassed: boolean;
+  failureCluster?: string | null;
+  latencyMs?: number | null;
+}
+
+export interface BrainGovernanceEvalRunDetail extends BrainGovernanceEvalRun {
+  evalResults?: BrainGovernanceEvalResult[];
+}
+
 export interface BrainReleaseReadiness {
   status: 'ready' | 'blocked' | 'unavailable';
   canRelease: boolean;

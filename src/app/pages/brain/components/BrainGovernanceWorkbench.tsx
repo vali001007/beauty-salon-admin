@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AlertTriangle, ArrowRight, Clock3, RefreshCw, RotateCcw, Send, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Clock3, RefreshCw, RotateCcw, ShieldCheck } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import {
@@ -23,14 +23,11 @@ import {
   listBrainGovernanceTasks,
   listBrainGovernanceTransitions,
   listBrainPolicySnapshots,
-  publishBrainPolicySnapshot,
   previewBrainPolicySnapshot,
-  prepareBrainGovernanceCandidatePolicy,
   prepareBrainGovernanceTransition,
   previewBrainGovernanceTransition,
   retryBrainGovernanceTask,
   retryBrainRuntimeOntologyWarmup,
-  rollbackBrainPolicySnapshot,
   rollbackBrainGovernanceTransition,
   switchBrainGovernanceTransition,
   validateBrainGovernanceTransition,
@@ -76,6 +73,63 @@ import { BrainSkillRegistryPanel } from './BrainSkillGovernance';
 const activeTaskStatuses = new Set(['pending', 'validating', 'classifying', 'evaluating']);
 const terminalCandidateStatuses = new Set(['completed', 'superseded']);
 
+export function BrainCurrentCombinationBanner() {
+  const [data, setData] = useState<BrainGovernanceOverview | null>(null);
+  const [transition, setTransition] = useState<BrainGovernanceTransition | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
+    try {
+      const [overview, transitionPage] = await Promise.all([
+        getBrainGovernanceOverview(),
+        listBrainGovernanceTransitions({ page: 1, pageSize: 5 }).catch(() => ({ items: [], total: 0, page: 1, pageSize: 5 })),
+      ]);
+      setData(overview);
+      setTransition(transitionPage.items.find((item) => !['rolled_back', 'failed'].includes(item.status)) ?? null);
+    } catch {
+      if (showLoading) {
+        setData(null);
+        setTransition(null);
+      }
+    } finally {
+      if (showLoading) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (!transition || !['switching', 'rolling_back'].includes(transition.status)) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof globalThis.setTimeout> | undefined;
+    const poll = async () => {
+      await load(false);
+      if (!cancelled) timer = globalThis.setTimeout(() => void poll(), 2000);
+    };
+    timer = globalThis.setTimeout(() => void poll(), 2000);
+    return () => {
+      cancelled = true;
+      if (timer) globalThis.clearTimeout(timer);
+    };
+  }, [load, transition]);
+
+  if (loading) return <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">正在核对当前有效组合…</div>;
+  if (!data) return <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">当前有效组合暂不可用，请刷新后重试。</div>;
+
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-base">当前有效组合</CardTitle></CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <div className="grid gap-3 md:grid-cols-2">
+          <VersionIdentityPanel title="当前治理策略" kind="policy" release={data.latestPolicySnapshot} fallback="尚未发布治理策略" />
+          <VersionIdentityPanel title="当前运行版本" kind="runtime" release={data.runtimeRelease} fallback="规则模式 / 无运行版本" />
+        </div>
+        <CurrentCombinationFacts data={data} transition={transition} />
+      </CardContent>
+    </Card>
+  );
+}
+
 export function BrainGovernanceOverviewPage() {
   const navigate = useNavigate();
   const canManage = usePermission('core:brain-governance:manage') && BRAIN_GOVERNANCE_UI_MODE === 'manage';
@@ -99,9 +153,11 @@ export function BrainGovernanceOverviewPage() {
   const [transitionPreview, setTransitionPreview] = useState<BrainGovernanceTransitionPreview | null>(null);
   const [transitionBusy, setTransitionBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const load = useCallback(async (showLoading = true) => {
+    if (showLoading) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const [overview, candidatePage, latency, transitionPage] = await Promise.all([
         getBrainGovernanceOverview(),
@@ -109,14 +165,21 @@ export function BrainGovernanceOverviewPage() {
         getBrainGovernanceProcessLatency({ days: 7 }).catch(() => null),
         listBrainGovernanceTransitions({ page: 1, pageSize: 5 }).catch(() => ({ items: [], total: 0, page: 1, pageSize: 5 })),
       ]);
+      const loadedCandidates = candidatePage.items ?? [];
+      const loadedCandidate = loadedCandidates.find((item) => !terminalCandidateStatuses.has(item.status)) ?? loadedCandidates[0] ?? null;
+      const candidateTransitions = transitionPage.items.filter((item) => item.candidateId === loadedCandidate?.id);
       setData(overview);
-      setCandidates(candidatePage.items ?? []);
+      setCandidates(loadedCandidates);
       setProcessLatency(latency);
-      setTransition(transitionPage.items.find((item) => !['completed', 'rolled_back', 'failed'].includes(item.status)) ?? transitionPage.items[0] ?? null);
+      setTransition(
+        candidateTransitions.find((item) => !['completed', 'rolled_back', 'failed'].includes(item.status))
+          ?? candidateTransitions[0]
+          ?? null,
+      );
     } catch (loadError) {
-      if (!isBrainGovernanceReadCancelled(loadError)) setError(governanceErrorView(loadError));
+      if (showLoading && !isBrainGovernanceReadCancelled(loadError)) setError(governanceErrorView(loadError));
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, []);
 
@@ -127,7 +190,7 @@ export function BrainGovernanceOverviewPage() {
     let cancelled = false;
     let timer: ReturnType<typeof globalThis.setTimeout> | undefined;
     const poll = async () => {
-      await load();
+      await load(false);
       if (!cancelled) timer = globalThis.setTimeout(() => void poll(), 3000);
     };
     timer = globalThis.setTimeout(() => void poll(), 3000);
@@ -137,8 +200,23 @@ export function BrainGovernanceOverviewPage() {
     };
   }, [data?.runtimeWarmup?.state, load]);
 
+  useEffect(() => {
+    if (!transition || !['switching', 'rolling_back'].includes(transition.status)) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof globalThis.setTimeout> | undefined;
+    const poll = async () => {
+      await load(false);
+      if (!cancelled) timer = globalThis.setTimeout(() => void poll(), 2000);
+    };
+    timer = globalThis.setTimeout(() => void poll(), 2000);
+    return () => {
+      cancelled = true;
+      if (timer) globalThis.clearTimeout(timer);
+    };
+  }, [load, transition]);
+
   if (loading) return <LoadingPanel label="正在汇总治理状态…" />;
-  if (error) return <ErrorPanel error={error} onRetry={load} />;
+  if (error) return <ErrorPanel error={error} onRetry={() => void load()} />;
   if (!data) return <EmptyPanel label="暂无治理数据" />;
 
   const currentCandidate = candidates.find((item) => !['completed', 'superseded'].includes(item.status)) ?? candidates[0] ?? null;
@@ -258,7 +336,7 @@ export function BrainGovernanceOverviewPage() {
 
   return (
     <section className="space-y-5" aria-label="Brain 治理总览">
-      <PageHeader title="治理总览" description="异常驱动的 Brain 治理工作台。策略发布与运行生效分别展示。" action={<Button variant="outline" onClick={load}><RefreshCw />刷新</Button>} />
+      <PageHeader title="治理总览" description="异常驱动的 Brain 治理工作台。策略发布与运行生效分别展示。" action={<Button variant="outline" onClick={() => void load()}><RefreshCw />刷新</Button>} />
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -311,19 +389,20 @@ export function BrainGovernanceOverviewPage() {
               fallback="规则模式 / 无运行版本"
             />
           </div>
+          <CurrentCombinationFacts data={data} transition={transition} />
           {transition ? (
             <div className="rounded-lg border p-4">
               <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
                 <div>
                   <div className="text-xs text-muted-foreground">治理策略目标</div>
                   <div className="mt-1 font-medium">{productIdentityText(transition.newPolicy, 'policy')}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">旧策略：{productIdentityText(transition.oldPolicy, 'policy')}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">旧策略：{productIdentityText(transition.oldPolicy, 'policy')} · {legacyPolicyState(transition)}</div>
                 </div>
                 <ArrowRight className="hidden size-5 text-muted-foreground md:block" />
                 <div>
                   <div className="text-xs text-muted-foreground">运行版本目标</div>
                   <div className="mt-1 font-medium">{sequenceIdentityText(transition.runtimeSequence)}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">旧运行：{productIdentityText(transition.oldRuntime, 'runtime')}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">旧运行：{productIdentityText(transition.oldRuntime, 'runtime')} · {legacyRuntimeState(transition)}</div>
                 </div>
               </div>
               <div className="mt-3 grid gap-2 sm:grid-cols-3">
@@ -331,6 +410,9 @@ export function BrainGovernanceOverviewPage() {
                 <StatusRow label="策略审批" value={transition.policyApprovedAt ? '已审批' : '待审批'} />
                 <StatusRow label="运行审批" value={transition.runtimeApprovedAt ? '已审批' : '待审批'} />
               </div>
+              <TransitionEvidenceSummary transition={transition} />
+              <TransitionRuntimeStages transition={transition} />
+              <TransitionProgress transition={transition} />
               {transition.failureMessage ? <p className="mt-3 rounded-lg bg-amber-50 p-3 text-amber-800">{transition.failureMessage}</p> : null}
               <div className="mt-4 flex flex-wrap gap-2">
                 {canManage && ['draft', 'validated', 'approved'].includes(transition.status) ? <Button variant="outline" disabled={transitionBusy} onClick={() => void runTransitionAction(() => validateBrainGovernanceTransition(transition.id), '治理策略与运行版本组合校验已完成')}><ShieldCheck />组合校验</Button> : null}
@@ -345,7 +427,7 @@ export function BrainGovernanceOverviewPage() {
           ) : (
             <div className="rounded-lg border border-dashed p-4">
               <p className="text-muted-foreground">尚未创建新的 GP/RT 组合。先预检同一 Candidate 的 41 项可信证据，再分别生成治理策略与运行版本。</p>
-              {transitionPreview ? <div className={`mt-3 rounded-lg p-3 ${transitionPreview.canPrepare ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}><div className="font-medium">目标：{transitionPreview.target.policyCode} + {transitionPreview.target.runtimeCode}</div><p className="mt-1">{transitionPreview.target.allowedCapabilityCount} 项只读能力允许，{transitionPreview.target.deniedCapabilityCount} 项 Action 能力禁止。</p>{transitionPreview.blockers.length ? <p className="mt-1 break-all">阻塞：{transitionPreview.blockers.join('、')}</p> : null}</div> : null}
+              {transitionPreview ? <div className={`mt-3 rounded-lg p-3 ${transitionPreview.canPrepare ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}><div className="font-medium">目标：{transitionPreview.target.policyCode} + {transitionPreview.target.runtimeCode}</div><p className="mt-1">产品画像：{transitionPreview.target.productProfile} · {transitionPreview.target.allowedCapabilityCount} 项只读能力允许 · {transitionPreview.target.deniedCapabilityCount} 项 Action 能力禁止 · Action 关闭。</p><p className="mt-1">Candidate 证据：{transitionPreview.missingEvidence.length ? `缺少 ${transitionPreview.missingEvidence.length} 项` : '41/41 已覆盖'}</p>{transitionPreview.missingEvidence.length ? <details className="mt-2"><summary className="cursor-pointer">查看缺失证据</summary><p className="mt-1 break-all">{transitionPreview.missingEvidence.join('、')}</p></details> : null}{transitionPreview.blockers.length ? <p className="mt-1 break-all">阻塞：{transitionPreview.blockers.join('、')}</p> : null}</div> : null}
               <div className="mt-3 flex flex-wrap gap-2"><Button variant="outline" disabled={!currentCandidate || transitionBusy} onClick={() => void previewTransition()}>预检新策略与运行版本</Button>{canManage && transitionPreview?.canPrepare ? <Button disabled={transitionBusy} onClick={() => void prepareTransition()}>创建 GP 与 RT 草稿</Button> : null}</div>
             </div>
           )}
@@ -920,15 +1002,13 @@ export function BrainGovernanceTasksPage() {
 }
 
 export function BrainPolicySnapshotsPage() {
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const search = params.get('search') || undefined;
   const snapshotStatus = params.get('status') || undefined;
-  const canManage = usePermission('core:brain-governance:manage') && BRAIN_GOVERNANCE_UI_MODE === 'manage';
-  const canPublish = usePermission('core:brain-governance:publish') && BRAIN_GOVERNANCE_UI_MODE === 'manage';
   const [items, setItems] = useState<BrainGovernanceRelease[]>([]);
   const [candidates, setCandidates] = useState<BrainGovernanceCandidate[]>([]);
   const [preview, setPreview] = useState<BrainPolicySnapshotPreview | null>(null);
-  const [preparing, setPreparing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<GovernanceErrorView | null>(null);
   const loadSequence = useRef(0);
@@ -947,37 +1027,15 @@ export function BrainPolicySnapshotsPage() {
     try { setPreview(await previewBrainPolicySnapshot(selectedCandidateKey)); } catch (saveError) { toast.error(errorMessage(saveError)); }
   }
 
-  async function prepareCandidate() {
-    if (!selectedCandidateKey) return;
-    setPreparing(true);
-    try {
-      const result = await prepareBrainGovernanceCandidatePolicy(selectedCandidateKey, 'governance_ui_candidate_prepare');
-      setPreview(result);
-      if (result.decision === 'reuse_active') toast.success('策略无差异，已复用当前发布快照');
-      else if (result.decision === 'created') toast.success('已为 Candidate 创建策略草稿，Runtime 尚未改变');
-      else toast.error('候选策略仍有阻塞项');
-      await load();
-    } catch (saveError) { toast.error(errorMessage(saveError)); } finally { setPreparing(false); }
-  }
-  async function publish(item: BrainGovernanceRelease) {
-    if (!window.confirm(`将发布策略快照 ${item.releaseKey}，影响 ${item.items?.length ?? item.itemCount ?? 0} 项能力。\n\n发布治理策略不会自动改变当前 Brain 运行。`)) return;
-    try { await publishBrainPolicySnapshot(item.id); toast.success('治理策略已发布；运行接入状态仍需单独确认'); await load(); } catch (saveError) { toast.error(errorMessage(saveError)); }
-  }
-  async function rollback(item: BrainGovernanceRelease) {
-    const reason = window.prompt('填写策略回滚理由');
-    if (!reason?.trim()) return;
-    try { await rollbackBrainPolicySnapshot(item.id, reason); toast.success('治理策略已回滚，运行版本未改变'); await load(); } catch (saveError) { toast.error(errorMessage(saveError)); }
-  }
-
   return (
     <section className="space-y-4">
-      <PageHeader title="策略快照" description="先对 Candidate 生成差异；无 diff 时复用当前快照，不制造新审批。" />
-      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900"><strong>生效边界：</strong>这里发布的是治理策略（GP），不会自动激活 Skill、Semantic 或当前运行版本（RT）。</div>
-      <Card><CardHeader><CardTitle className="text-base">Candidate 策略准备</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex flex-col gap-2 sm:flex-row"><select aria-label="Candidate" className="h-10 min-w-0 flex-1 rounded-md border bg-background px-3 text-sm" value={selectedCandidateKey} onChange={(event) => { updateParam(params, setParams, 'candidateKey', event.target.value); setPreview(null); }}><option value="">请选择 Candidate</option>{candidates.map((candidate) => <option key={candidate.id} value={candidate.candidateKey}>{candidate.branch ?? candidate.candidateKey} · {shortCommit(candidate.headCommit)}</option>)}</select><Button variant="outline" disabled={!selectedCandidateKey} onClick={() => void previewCandidate()}>预览 diff</Button>{canManage && <Button disabled={!selectedCandidateKey || preparing} onClick={() => void prepareCandidate()}><ShieldCheck />{preparing ? '准备中…' : '准备策略'}</Button>}</div>{preview ? <div className={`rounded-lg border p-4 text-sm ${preview.decision === 'blocked' ? 'border-amber-300 bg-amber-50' : 'bg-muted/30'}`}><div className="flex flex-wrap items-center justify-between gap-2"><strong>{preview.decision === 'reuse_active' ? '无策略差异，复用当前快照' : preview.decision === 'blocked' ? '暂不可准备策略' : '需创建新策略快照'}</strong><Badge variant="outline">{preview.affectedCapabilities.length} 个受影响能力</Badge></div><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4"><StatusRow label="新增" value={String(preview.diff.added.length)} /><StatusRow label="变更" value={String(preview.diff.changed.length)} /><StatusRow label="移除" value={String(preview.diff.removed.length)} /><StatusRow label="未变" value={String(preview.diff.unchanged.length)} /></div>{preview.blockers.length ? <div className="mt-3 space-y-1 text-amber-800">{preview.blockers.map((blocker) => <p key={`${blocker.code}-${blocker.capabilityKey ?? ''}`}>{blocker.capabilityKey ? `${blocker.capabilityKey}：` : ''}{blocker.code}</p>)}</div> : null}</div> : null}</CardContent></Card>
+      <PageHeader title="治理策略（GP）" description="本页只用于查看策略身份、差异和退役记录；新策略必须从治理总览的组合切换向导创建、审批和发布。" action={<Button onClick={() => navigate('/brain-governance/workbench?tab=overview')}><ArrowRight />前往组合切换</Button>} />
+      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900"><strong>统一切换边界：</strong>默认页面不再单独发布或回滚 GP，避免 Runtime 仍绑定旧策略。组合切换和组合回滚统一在治理总览执行。</div>
+      <Card><CardHeader><CardTitle className="text-base">Candidate 策略差异预览（只读）</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex flex-col gap-2 sm:flex-row"><select aria-label="Candidate" className="h-10 min-w-0 flex-1 rounded-md border bg-background px-3 text-sm" value={selectedCandidateKey} onChange={(event) => { updateParam(params, setParams, 'candidateKey', event.target.value); setPreview(null); }}><option value="">请选择 Candidate</option>{candidates.map((candidate) => <option key={candidate.id} value={candidate.candidateKey}>{candidate.branch ?? candidate.candidateKey} · {shortCommit(candidate.headCommit)}</option>)}</select><Button variant="outline" disabled={!selectedCandidateKey} onClick={() => void previewCandidate()}>预览 diff</Button></div>{preview ? <div className={`rounded-lg border p-4 text-sm ${preview.decision === 'blocked' ? 'border-amber-300 bg-amber-50' : 'bg-muted/30'}`}><div className="flex flex-wrap items-center justify-between gap-2"><strong>{preview.decision === 'reuse_active' ? '无策略差异，可由组合向导复用当前快照' : preview.decision === 'blocked' ? '暂不可准备策略' : '组合向导将创建新策略快照'}</strong><Badge variant="outline">{preview.affectedCapabilities.length} 个受影响能力</Badge></div><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4"><StatusRow label="新增" value={String(preview.diff.added.length)} /><StatusRow label="变更" value={String(preview.diff.changed.length)} /><StatusRow label="移除" value={String(preview.diff.removed.length)} /><StatusRow label="未变" value={String(preview.diff.unchanged.length)} /></div>{preview.blockers.length ? <div className="mt-3 space-y-1 text-amber-800">{preview.blockers.map((blocker) => <p key={`${blocker.code}-${blocker.capabilityKey ?? ''}`}>{blocker.capabilityKey ? `${blocker.capabilityKey}：` : ''}{blocker.code}</p>)}</div> : null}</div> : null}</CardContent></Card>
       <div className="grid gap-2 sm:max-w-2xl sm:grid-cols-2"><FilterInput label="搜索快照" value={search ?? ''} onChange={(value) => updateParam(params, setParams, 'search', value)} /><FilterSelect label="状态" value={snapshotStatus ?? ''} options={['draft', 'active', 'archived', 'rolled_back']} onChange={(value) => updateParam(params, setParams, 'status', value)} /></div>
       {loading ? <LoadingPanel label="正在加载策略快照…" /> : error ? <ErrorPanel error={error} onRetry={load} /> : items.length === 0 ? <EmptyPanel label="暂无策略快照" /> : (
         <div className="grid gap-3 xl:grid-cols-2">
-          {items.map((item) => <Card key={item.id}><CardHeader><div className="flex items-start justify-between gap-3"><div><CardTitle className="text-base">{productIdentityText(item, 'policy')}</CardTitle><div className="mt-1 text-xs text-muted-foreground">{new Date(item.createdAt).toLocaleString()}</div></div><Badge variant={item.status === 'active' ? 'default' : 'outline'}>{releaseStatusLabel(item.status)}</Badge></div></CardHeader><CardContent className="space-y-3 text-sm"><StatusRow label="能力策略数量" value={String(item.items?.length ?? item.itemCount ?? 0)} /><StatusRow label="对象类型" value="治理策略（GP）" /><p className="text-muted-foreground">运行版本（RT）需在治理总览和运行版本页单独核对。</p><details className="text-xs text-muted-foreground"><summary className="cursor-pointer">审计信息</summary><p className="mt-1 break-all">内部 key：{item.releaseKey} · 数据库记录 #{item.id}</p></details><div className="flex gap-2">{canPublish && item.status === 'draft' && <Button size="sm" onClick={() => void publish(item)}><Send />发布策略</Button>}{canPublish && item.status === 'active' && item.previousReleaseId && <Button size="sm" variant="outline" onClick={() => void rollback(item)}><RotateCcw />回滚策略</Button>}</div></CardContent></Card>)}
+          {items.map((item) => <Card key={item.id}><CardHeader><div className="flex items-start justify-between gap-3"><div><CardTitle className="text-base">{productIdentityText(item, 'policy')}</CardTitle><div className="mt-1 text-xs text-muted-foreground">{new Date(item.createdAt).toLocaleString()}</div></div><Badge variant={item.status === 'active' && !item.retiredAt ? 'default' : 'outline'}>{policyLifecycleLabel(item)}</Badge></div></CardHeader><CardContent className="space-y-3 text-sm"><StatusRow label="能力策略数量" value={String(item.items?.length ?? item.itemCount ?? 0)} /><StatusRow label="对象类型" value="治理策略（GP）" /><StatusRow label="运行关系" value={item.retiredAt ? '已退役，保留审计和组合回滚身份' : item.status === 'active' ? '当前策略；仍需核对绑定的 RT' : '未通过组合切换生效'} /><details className="text-xs text-muted-foreground"><summary className="cursor-pointer">审计信息</summary><p className="mt-1 break-all">内部 key：{item.releaseKey} · 数据库记录 #{item.id}{item.retirementReason ? ` · 退役原因：${item.retirementReason}` : ''}</p></details></CardContent></Card>)}
         </div>
       )}
     </section>
@@ -1079,6 +1137,127 @@ function WarmupSummaryCard({
 function WarmupFailure({ category, reason }: { category: 'database' | 'lineage' | 'validation' | 'system' | null; reason: string }) {
   const businessBlocker = category === 'lineage' || category === 'validation';
   return <div className={`rounded-lg p-3 text-sm ${businessBlocker ? 'bg-amber-50 text-amber-800' : 'bg-destructive/5 text-destructive'}`}><strong>{businessBlocker ? '版本/校验阻塞' : '数据库/系统错误'}：</strong>{reason}</div>;
+}
+
+function CurrentCombinationFacts({ data, transition }: { data: BrainGovernanceOverview; transition: BrainGovernanceTransition | null }) {
+  const rollout = objectValue(data.runtimeRelease?.rollout);
+  const productProfile = String(rollout.productProfile ?? transition?.runtimeSequence.productProfile ?? '').trim();
+  const actionsEnabled = typeof rollout.actionsEnabled === 'boolean'
+    ? rollout.actionsEnabled
+    : productProfile === 'query_only_v1'
+      ? false
+      : null;
+  const runtimeStage = data.runtimeRelease?.productIdentity?.stageCode
+    ?? (data.runtimeRelease?.rolloutStage ? rolloutStageCode(data.runtimeRelease.rolloutStage) : '阶段未记录');
+  return (
+    <div className="grid gap-2 rounded-lg border bg-muted/20 p-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="当前有效组合详情">
+      <StatusRow label="运行阶段" value={runtimeStage} />
+      <StatusRow label="产品画像" value={productProfile || '未记录'} />
+      <StatusRow label="能力范围" value={`${data.whitelist.approved ?? 0} 项允许 / ${data.whitelist.not_allowed ?? 0} 项禁止`} />
+      <StatusRow label="Action" value={actionsEnabled === false ? '已关闭' : actionsEnabled === true ? '已开启' : '未记录'} />
+      <StatusRow label="切换状态" value={transition ? transitionStatusLabel(transition.status) : data.runtimeConsistency === 'aligned' ? '组合一致' : '待核对'} />
+    </div>
+  );
+}
+
+function TransitionEvidenceSummary({ transition }: { transition: BrainGovernanceTransition }) {
+  const oldItems = new Map((transition.oldPolicy.items ?? []).map((item) => [item.resourceKey, JSON.stringify(item.snapshot)]));
+  const newItems = new Map((transition.newPolicy.items ?? []).map((item) => [item.resourceKey, JSON.stringify(item.snapshot)]));
+  const added = [...newItems.keys()].filter((key) => !oldItems.has(key)).length;
+  const removed = [...oldItems.keys()].filter((key) => !newItems.has(key)).length;
+  const changed = [...newItems.entries()].filter(([key, value]) => oldItems.has(key) && oldItems.get(key) !== value).length;
+  const policySnapshots = (transition.newPolicy.items ?? []).map((item) => objectValue(item.snapshot));
+  const allowed = policySnapshots.filter((item) => item.whitelistStatus === 'approved').length || (transition.runtimeSequence.productProfile === 'query_only_v1' ? 33 : 0);
+  const denied = policySnapshots.filter((item) => item.whitelistStatus === 'not_allowed').length || (transition.runtimeSequence.productProfile === 'query_only_v1' ? 8 : 0);
+  const evidenceReady = transition.status !== 'draft' || transition.currentStep !== 'prepared';
+  return (
+    <div className="mt-3 grid gap-2 rounded-lg bg-muted/30 p-3 sm:grid-cols-2 lg:grid-cols-5">
+      <StatusRow label="策略差异" value={`新增 ${added} / 变更 ${changed} / 移除 ${removed}`} />
+      <StatusRow label="只读准入" value={`${allowed} 项 approved + enforced`} />
+      <StatusRow label="Action 禁止" value={`${denied} 项 not_allowed + enforced`} />
+      <StatusRow label="Candidate 证据" value={evidenceReady ? '已完成组合校验' : 'prepare 已验证 41 项覆盖'} />
+      <StatusRow label="Action 总开关" value={transition.runtimeSequence.productProfile === 'query_only_v1' ? '已关闭' : '待核对'} />
+    </div>
+  );
+}
+
+const transitionRuntimeStages = [
+  ['shadow', 'Shadow'],
+  ['canary_5', '5%'],
+  ['canary_20', '20%'],
+  ['canary_50', '50%'],
+  ['full', 'Full'],
+] as const;
+
+function TransitionRuntimeStages({ transition }: { transition: BrainGovernanceTransition }) {
+  return (
+    <div className="mt-3">
+      <div className="mb-2 text-xs font-medium text-muted-foreground">{sequenceIdentityText(transition.runtimeSequence)} 五阶段绑定关系</div>
+      <div className="grid grid-cols-5 gap-1" aria-label="Transition 运行阶段">
+        {transitionRuntimeStages.map(([key, label]) => {
+          const release = transition.runtimeSequence.releases.find((item) => item.rolloutStage === key);
+          const current = transition.runtimeSequence.currentStage === key;
+          return (
+            <div key={key} className={`rounded-md border-t-4 p-2 text-center ${current ? 'border-primary bg-primary/5' : 'border-border'}`}>
+              <div className="break-words text-xs font-medium">{release?.productIdentity?.stageCode ?? `${transition.runtimeSequence.runtimeVersionCode ?? 'RT 待分配'}-${rolloutStageSuffix(key)}`}</div>
+              <div className="mt-1 text-[11px] text-muted-foreground">{release ? governanceLabel(release.status) : label}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function TransitionProgress({ transition }: { transition: BrainGovernanceTransition }) {
+  const switched = ['observing', 'completed'].includes(transition.status);
+  const full = transition.runtimeSequence.currentStage === 'full' && transition.runtimeSequence.status === 'completed';
+  const steps = [
+    ['1', '准备 GP + RT', true],
+    ['2', '组合校验', transition.status !== 'draft' || transition.currentStep !== 'prepared'],
+    ['3', '审批 GP', Boolean(transition.policyApprovedAt)],
+    ['4', '审批 RT', Boolean(transition.runtimeApprovedAt)],
+    ['5', '组合切换', switched],
+    ['6', 'Shadow / Canary 观察', switched],
+    ['7', 'RT Full', full || transition.status === 'completed'],
+    ['8', '旧版退役', transition.status === 'completed'],
+  ] as const;
+  return (
+    <ol className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4" aria-label="治理切换向导进度">
+      {steps.map(([number, label, complete]) => <li key={number} className={`rounded-md border p-2 text-xs ${complete ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'text-muted-foreground'}`}><strong>{number}. {label}</strong><div className="mt-1">{complete ? '已完成' : transitionStepLabel(transition.currentStep)}</div></li>)}
+    </ol>
+  );
+}
+
+function legacyPolicyState(transition: BrainGovernanceTransition) {
+  if (transition.status === 'observing') return '已退役，保留组合回滚身份';
+  if (transition.oldPolicy.retiredAt || transition.status === 'completed') return '已退役';
+  if (transition.status === 'rolled_back') return '已恢复为当前策略';
+  return '当前策略';
+}
+
+function legacyRuntimeState(transition: BrainGovernanceTransition) {
+  if (transition.oldRuntime.supersededAt || transition.status === 'completed') return '已被新 RT 取代';
+  if (transition.status === 'observing') return '回滚备用，不接收新组合正常流量';
+  if (transition.status === 'rolled_back') return '已恢复为当前运行版本';
+  return '当前运行版本';
+}
+
+function policyLifecycleLabel(release: BrainGovernanceRelease) {
+  if (release.retiredAt) return '已退役';
+  return releaseStatusLabel(release.status);
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function rolloutStageSuffix(value: string) {
+  return ({ shadow: 'SHADOW', canary_5: 'C05', canary_20: 'C20', canary_50: 'C50', full: 'FULL' } as Record<string, string>)[value] ?? value.toUpperCase();
+}
+
+function rolloutStageCode(value: string) {
+  return ({ shadow: 'Shadow', canary_5: '5%', canary_20: '20%', canary_50: '50%', full: 'Full' } as Record<string, string>)[value] ?? value;
 }
 
 function VersionIdentityPanel({ title, kind, release, fallback }: { title: string; kind: 'policy' | 'runtime'; release: BrainGovernanceRelease | null; fallback: string }) {

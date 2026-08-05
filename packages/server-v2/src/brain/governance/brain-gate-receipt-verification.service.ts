@@ -249,6 +249,9 @@ export class BrainGateReceiptVerificationService {
     if (readiness.status !== 'ready' || readiness.canRelease !== true) {
       throw new BadRequestException(`release_receipt_evidence_not_ready:${readiness.blockers.join(',') || readiness.status}`);
     }
+    if (readiness.contractVersion !== 'ami-brain-release-acceptance/v2') {
+      throw new BadRequestException('release_receipt_acceptance_contract_invalid');
+    }
     if (readiness.evaluationReleaseId !== evaluationReleaseId || readiness.evalRunId !== evalRunId) {
       throw new BadRequestException('release_receipt_evaluation_identity_mismatch');
     }
@@ -263,6 +266,9 @@ export class BrainGateReceiptVerificationService {
     }
     if (!readiness.model || readiness.model !== input.receipt.model) {
       throw new BadRequestException('release_receipt_model_mismatch');
+    }
+    if (!readiness.sourceCommit || readiness.sourceCommit !== input.receipt.headCommit) {
+      throw new BadRequestException('release_receipt_source_commit_mismatch');
     }
   }
 }

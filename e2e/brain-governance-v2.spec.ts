@@ -260,6 +260,7 @@ const governanceMemory = {
 const governanceEvalRun = {
   id: 81,
   releaseId: 416,
+  evaluationIdentity: { family: 'evaluation', code: 'EV-001', stageCode: null, name: 'Query Only V1 评测', internalReleaseId: 416 },
   roleKey: null,
   status: 'completed',
   caseCount: 10,
@@ -415,6 +416,19 @@ async function installGovernanceMocks(
   let trustedReceiptIngested = false;
   let shadowActivated = false;
   let rolloutPaused = Boolean(options.pausedRollout);
+  let transitionState = {
+    ...governanceTransition,
+    status: String(governanceTransition.status),
+    policyApprovedAt: null as string | null,
+    runtimeApprovedAt: null as string | null,
+    currentStep: String(governanceTransition.currentStep),
+    oldPolicy: { ...governanceTransition.oldPolicy, retiredAt: null as string | null },
+    runtimeSequence: {
+      ...governanceTransition.runtimeSequence,
+      status: String(governanceTransition.runtimeSequence.status),
+      currentStage: String(governanceTransition.runtimeSequence.currentStage),
+    },
+  };
   const stores = options.allStores ? [store, { id: 2, name: 'Ami 治理验收二店', status: 'active' }] : [store];
   const user = { id: 1, username: 'admin', name: '治理管理员', roles: ['governance_admin'], permissions, deniedPermissions: [], storeIds: stores.map((item) => item.id) };
   await page.route('**/api/**', async (route) => {
@@ -521,11 +535,37 @@ async function installGovernanceMocks(
       return fulfillJson(route, { items: [governanceCandidate], total: 1, page: 1, pageSize: 50 });
     }
     if (path === '/brain/governance/transitions' && request.method() === 'GET') {
-      return fulfillJson(route, { items: options.combinedTransition ? [governanceTransition] : [], total: options.combinedTransition ? 1 : 0, page: 1, pageSize: 5 });
+      return fulfillJson(route, { items: options.combinedTransition ? [transitionState] : [], total: options.combinedTransition ? 1 : 0, page: 1, pageSize: 5 });
     }
     if (path === '/brain/governance/transitions/801/validate' && request.method() === 'POST') {
       if (!permissions.includes('*') && !permissions.includes('core:brain-governance:manage')) return fulfillJson(route, { message: 'Forbidden' }, 403); // ami-brain-unit-only: mocked permission response.
       return fulfillJson(route, { transitionId: 801, valid: true, blockers: [] });
+    }
+    if (path === '/brain/governance/transitions/801/approve-policy' && request.method() === 'POST') {
+      if (!permissions.includes('*') && !permissions.includes('core:brain-governance:publish')) return fulfillJson(route, { message: 'Forbidden' }, 403);
+      transitionState = { ...transitionState, policyApprovedAt: '2026-08-04T00:10:00.000Z', currentStep: 'policy_approved' };
+      return fulfillJson(route, transitionState);
+    }
+    if (path === '/brain/governance/transitions/801/approve-runtime' && request.method() === 'POST') {
+      if (!permissions.includes('*') && !permissions.includes('core:brain-governance:release')) return fulfillJson(route, { message: 'Forbidden' }, 403);
+      transitionState = { ...transitionState, runtimeApprovedAt: '2026-08-04T00:11:00.000Z', status: transitionState.policyApprovedAt ? 'approved' : transitionState.status, currentStep: 'runtime_approved' };
+      return fulfillJson(route, transitionState);
+    }
+    if (path === '/brain/governance/transitions/801/switch' && request.method() === 'POST') {
+      if (!permissions.includes('*') && (!permissions.includes('core:brain-governance:publish') || !permissions.includes('core:brain-governance:release'))) return fulfillJson(route, { message: 'Forbidden' }, 403);
+      transitionState = {
+        ...transitionState,
+        status: 'observing',
+        currentStep: 'runtime_shadow_active',
+        oldPolicy: { ...transitionState.oldPolicy, retiredAt: '2026-08-04T00:12:00.000Z' },
+        runtimeSequence: { ...transitionState.runtimeSequence, status: 'active', currentStage: 'shadow' },
+      };
+      return fulfillJson(route, transitionState);
+    }
+    if (path === '/brain/governance/transitions/801/rollback' && request.method() === 'POST') {
+      if (!permissions.includes('*') && (!permissions.includes('core:brain-governance:publish') || !permissions.includes('core:brain-governance:release'))) return fulfillJson(route, { message: 'Forbidden' }, 403);
+      transitionState = { ...transitionState, status: 'rolled_back', currentStep: 'rollback_completed' };
+      return fulfillJson(route, transitionState);
     }
     if (path === '/brain/governance/rollout-sequences' && request.method() === 'GET') {
       const sequence = rolloutPaused
@@ -781,9 +821,11 @@ test('combined transition keeps GP and RT identities separate and hides validati
   await page.goto('/brain-governance');
 
   await expect(page.getByText('GP-003 · Query Only V1 强制治理策略')).toBeVisible();
-  await expect(page.getByText('RT-001 · Query Only V1')).toBeVisible();
-  await expect(page.getByText('旧策略：GP-002 · Legacy Shadow Policy')).toBeVisible();
-  await expect(page.getByText('旧运行：LEGACY-RT-416 · Production Baseline')).toBeVisible();
+  await expect(page.getByText('RT-001 · Query Only V1', { exact: true })).toBeVisible();
+  await expect(page.getByText(/旧策略：GP-002 · Legacy Shadow Policy · 当前策略/)).toBeVisible();
+  await expect(page.getByText(/旧运行：LEGACY-RT-416 · Production Baseline · 当前运行版本/)).toBeVisible();
+  await expect(page.getByText('33 项 approved + enforced')).toBeVisible();
+  await expect(page.getByText('8 项 not_allowed + enforced')).toBeVisible();
   await expect(page.getByRole('button', { name: '组合校验' })).toHaveCount(0);
 });
 
@@ -795,6 +837,34 @@ test('combined transition validation requires manage permission and remains sepa
   await expect(page.getByText('治理策略与运行版本组合校验已完成')).toBeVisible();
   await expect(page.getByRole('button', { name: '审批 GP' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: '审批 RT' })).toHaveCount(0);
+});
+
+test('combined transition is the only default GP/RT activation path and completes separate approvals before switching', async ({ page }) => {
+  await installGovernanceMocks(page, [
+    'core:brain-governance:view',
+    'core:brain-governance:manage',
+    'core:brain-governance:publish',
+    'core:brain-governance:release',
+  ], { combinedTransition: true });
+  await page.goto('/brain-governance');
+
+  await page.getByRole('button', { name: '审批 GP' }).click();
+  await expect(page.getByText('治理策略已审批')).toBeVisible();
+  await page.getByRole('button', { name: '审批 RT' }).click();
+  await expect(page.getByText('运行版本已审批')).toBeVisible();
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: '组合切换' }).click();
+  await expect(page.getByText('新治理策略与运行版本 Shadow 已组合生效')).toBeVisible();
+  await expect(page.getByText(/已退役，保留组合回滚身份/)).toBeVisible();
+  await expect(page.getByText(/回滚备用，不接收新组合正常流量/)).toBeVisible();
+  await expect(page.getByRole('button', { name: '组合回滚' })).toBeVisible();
+
+  await page.goto('/brain-governance/releases?tab=policy');
+  await expect(page.getByRole('button', { name: '发布策略' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '准备策略' })).toHaveCount(0);
+  await page.getByRole('tab', { name: '运行版本（RT）' }).click();
+  await expect(page.getByRole('button', { name: /创建运行版本/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /校验并激活 Shadow/ })).toHaveCount(0);
 });
 
 test('low-risk trusted receipt is machine-ingested and becomes automatically admitted', async ({ page }) => {
@@ -867,24 +937,23 @@ test('high-risk capability exposes governance approval only and never an executi
   await expect(page.getByRole('button', { name: '审批准入' })).toHaveCount(0);
 });
 
-test('policy preparation reuses the active snapshot when the candidate has no policy diff', async ({ page }) => {
+test('policy tab keeps candidate diff preview read-only and routes mutations to the combined transition', async ({ page }) => {
   await installGovernanceMocks(page, ['core:brain-governance:view', 'core:brain-governance:manage'], { reusePolicy: true });
   await page.goto(`/brain-governance/releases?tab=policy&candidateKey=${encodeURIComponent(governanceCandidate.candidateKey)}`);
   await expect(page.getByLabel('Candidate')).toHaveValue(governanceCandidate.candidateKey);
   await page.getByRole('button', { name: '预览 diff' }).click();
-  await expect(page.getByText('无策略差异，复用当前快照')).toBeVisible();
+  await expect(page.getByText('无策略差异，可由组合向导复用当前快照')).toBeVisible();
   await expect(page.getByText('未变')).toBeVisible();
-  await page.getByRole('button', { name: '准备策略' }).click();
-  await expect(page.getByText('策略无差异，已复用当前发布快照')).toBeVisible();
+  await expect(page.getByRole('button', { name: '准备策略' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '发布策略' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '前往组合切换' })).toBeVisible();
 });
 
-test('publishing a governance policy snapshot does not claim runtime activation', async ({ page }) => {
+test('governance policy snapshots never publish independently from the default UI', async ({ page }) => {
   await installGovernanceMocks(page, ['core:brain-governance:view', 'core:brain-governance:manage', 'core:brain-governance:publish']);
   await page.goto('/brain-governance/releases?tab=policy');
-  await expect(page.getByText(/不会自动激活 Skill、Semantic 或当前运行版本（RT）/)).toBeVisible();
-  page.once('dialog', (dialog) => dialog.accept());
-  await page.getByRole('button', { name: '发布策略' }).click();
-  await expect(page.getByText('治理策略已发布；运行接入状态仍需单独确认')).toBeVisible();
+  await expect(page.getByText(/默认页面不再单独发布或回滚 GP/)).toBeVisible();
+  await expect(page.getByRole('button', { name: '发布策略' })).toHaveCount(0);
 });
 
 test('permission rejection hides approval/publish controls and backend mock returns 403', async ({ page }) => {
@@ -1019,17 +1088,15 @@ test('paused rollout sequence can resume or roll back instead of becoming an ope
   await expect(page.getByRole('button', { name: '暂停' })).toBeVisible();
 });
 
-test('draft rollout sequence validates and activates Shadow without switching Enforced', async ({ page }) => {
+test('draft rollout sequence returns to the combined transition for first Shadow activation', async ({ page }) => {
   await installGovernanceMocks(page, ['core:brain-governance:view', 'core:brain-governance:manage', 'core:brain-governance:release'], { draftRollout: true });
   await page.goto('/brain-governance/releases?tab=runtime');
-  await expect(page.getByRole('button', { name: /校验并激活 Shadow/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /校验并激活 Shadow/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '返回组合切换激活 Shadow' })).toBeVisible();
   await page.getByRole('button', { name: /校验当前阶段/ }).click();
   await expect(page.getByText('当前阶段校验通过')).toBeVisible();
-  page.once('dialog', (dialog) => dialog.accept());
-  await page.getByRole('button', { name: /校验并激活 Shadow/ }).click();
-  await expect(page.getByText('Shadow 已激活，开始观察')).toBeVisible();
-  await expect(page.getByText(/治理策略（GP）已启用，不代表运行版本（RT）已生效/)).toBeVisible();
-  await expect(page.getByText(/Enforced/)).toHaveCount(0);
+  await page.getByRole('button', { name: '返回组合切换激活 Shadow' }).click();
+  await expect(page).toHaveURL(/\/brain-governance\/workbench\?tab=overview$/);
 });
 
 test('rollout promotion uses server-observed health and rejects insufficient observation evidence', async ({ page }) => {
@@ -1082,7 +1149,9 @@ test('view-only governance users can inspect roles, memories, evals and findings
   await expect(page.getByText(/初始记忆/)).toBeVisible();
 
   await page.goto('/brain-governance/quality?tab=eval');
-  await expect(page.getByText('#81').first()).toBeVisible();
+  await expect(page.getByText('Eval Run #81').first()).toBeVisible();
+  await expect(page.getByText('EV-001 · Query Only V1 评测')).toBeVisible();
+  await expect(page.getByText('目标评测快照数据库记录 #416').locator('..')).not.toHaveAttribute('open');
   await expect(page.getByRole('button', { name: '发起评测' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: '复测失败' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: '逐题结果' })).toBeVisible();

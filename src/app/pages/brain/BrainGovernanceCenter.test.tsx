@@ -12,6 +12,8 @@ const brainApi = vi.hoisted(() => ({
   listBrainSkills: vi.fn(),
   listBrainResourceVersions: vi.fn(),
   getBrainGovernanceRuntimeConfig: vi.fn(),
+  getBrainGovernanceOverview: vi.fn(),
+  listBrainGovernanceTransitions: vi.fn(),
   listBrainReleases: vi.fn(),
   createBrainRolloutSequence: vi.fn(),
   activateBrainRelease: vi.fn(),
@@ -166,6 +168,19 @@ describe('BrainGovernanceCenter', () => {
       configured: { cognitionMode: 'rules', plannerMode: 'rules', capabilityTopK: 8, maxPlanNodes: 8, maxReplans: 2 },
       effective: { mode: 'shadow', releaseId: 60, releaseKey: 'brain-r1-shadow', userPercentage: 100 },
     });
+    brainApi.getBrainGovernanceOverview.mockResolvedValue({
+      pending: { unclassified: 0, evaluating: 0, pendingApproval: 0, revisionRequired: 0 },
+      risk: { low: 1, medium: 0, high: 0, critical: 0, unclassified: 0 },
+      whitelist: { not_allowed: 0, pending: 0, approved: 1, suspended: 0, expired: 0 },
+      runtimePending: 0,
+      latestPolicySnapshot: null,
+      runtimeRelease: null,
+      runtimeConsistency: 'drift',
+      runtimeGovernance: null,
+      efficiency: { completed7d: 0, p50DurationMs: null, p95DurationMs: null, autoAdmissionRate: null, manualOverrideRate: null },
+      runtimeWarmup: null,
+    });
+    brainApi.listBrainGovernanceTransitions.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 5 });
     brainApi.listBrainReleases.mockResolvedValue({
       items: [{
         id: 61,

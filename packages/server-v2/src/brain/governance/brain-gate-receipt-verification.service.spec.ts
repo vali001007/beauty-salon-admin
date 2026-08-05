@@ -275,6 +275,8 @@ describe('BrainGateReceiptVerificationService', () => {
       getReleaseReadiness: jest.fn().mockResolvedValue({
         status: 'ready',
         canRelease: true,
+        contractVersion: 'ami-brain-release-acceptance/v2',
+        sourceCommit: receipt.headCommit,
         evaluationReleaseId: 21,
         evalRunId: 501,
         releaseFingerprint: 'release-fingerprint-1',
@@ -317,6 +319,8 @@ describe('BrainGateReceiptVerificationService', () => {
       getReleaseReadiness: jest.fn().mockResolvedValue({
         status: 'ready',
         canRelease: true,
+        contractVersion: 'ami-brain-release-acceptance/v2',
+        sourceCommit: receipt.headCommit,
         evaluationReleaseId: 21,
         evalRunId: 999,
         releaseFingerprint: 'release-fingerprint-1',
@@ -332,7 +336,77 @@ describe('BrainGateReceiptVerificationService', () => {
     await expect(verifyingService.verifyReleaseEvidence(verified))
       .rejects.toThrow('release_receipt_evaluation_identity_mismatch');
   });
+
+  it('rejects historical v1 readiness evidence for a release receipt', async () => {
+    const now = new Date('2026-08-02T10:00:00.000Z');
+    const receipt = releaseReceipt(now);
+    const releaseService = {
+      getReleaseReadiness: jest.fn().mockResolvedValue(
+        releaseReadiness(receipt, { contractVersion: 'ami-brain-release-acceptance/v1' }),
+      ),
+    };
+    const verifyingService = new BrainGateReceiptVerificationService(releaseService as never);
+    const verified = verifyingService.verifyReceipt(receipt, 'release-service', now);
+
+    await expect(verifyingService.verifyReleaseEvidence(verified))
+      .rejects.toThrow('release_receipt_acceptance_contract_invalid');
+  });
+
+  it('rejects release readiness produced from a different source commit', async () => {
+    const now = new Date('2026-08-02T10:00:00.000Z');
+    const receipt = releaseReceipt(now);
+    const releaseService = {
+      getReleaseReadiness: jest.fn().mockResolvedValue(
+        releaseReadiness(receipt, { sourceCommit: 'd'.repeat(40) }),
+      ),
+    };
+    const verifyingService = new BrainGateReceiptVerificationService(releaseService as never);
+    const verified = verifyingService.verifyReceipt(receipt, 'release-service', now);
+
+    await expect(verifyingService.verifyReleaseEvidence(verified))
+      .rejects.toThrow('release_receipt_source_commit_mismatch');
+  });
 });
+
+function releaseReceipt(now: Date) {
+  const candidate = candidateReceipt(now);
+  const releaseIdentity = identityFields({
+    ...candidate,
+    stage: 'release',
+    workflow: 'release-service',
+    releaseFingerprint: 'release-fingerprint-1',
+    dataSnapshot: 'snapshot-1',
+    provider: 'openai_responses',
+    model: 'gpt-test',
+    candidateId: '5'.repeat(64),
+    evalRunId: 501,
+    evaluationReleaseId: 21,
+  });
+  return {
+    ...candidate,
+    ...releaseIdentity,
+    stage: 'release',
+    workflow: 'release-service',
+    identityChecksum: sha256(releaseIdentity),
+  };
+}
+
+function releaseReadiness(receipt: ReturnType<typeof releaseReceipt>, overrides: Record<string, unknown> = {}) {
+  return {
+    status: 'ready',
+    canRelease: true,
+    contractVersion: 'ami-brain-release-acceptance/v2',
+    sourceCommit: receipt.headCommit,
+    evaluationReleaseId: 21,
+    evalRunId: 501,
+    releaseFingerprint: receipt.releaseFingerprint,
+    suiteChecksum: receipt.suiteChecksum,
+    provider: receipt.provider,
+    model: receipt.model,
+    blockers: [],
+    ...overrides,
+  };
+}
 
 function candidateReceipt(now: Date) {
   const results = [{ gateId: 'brain_contract', gateKey: 'brain_contract', status: 'passed', inputChecksum: 'a'.repeat(64) }];

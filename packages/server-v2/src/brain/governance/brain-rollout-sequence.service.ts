@@ -90,6 +90,9 @@ export class BrainRolloutSequenceService {
     healthThresholds?: Record<string, unknown>;
     displayName?: string;
     productProfile?: string;
+    evaluationEvidenceReleaseId?: number;
+    evaluationEvidenceEvalRunId?: number;
+    evaluationEvidenceReceiptId?: number;
     allowDraftPolicy?: boolean;
     actorId: number;
   }) {
@@ -108,6 +111,7 @@ export class BrainRolloutSequenceService {
         governanceMode: input.governanceMode === 'enforced' ? 'enforced' : 'shadow',
         candidateKey: candidate.candidateKey,
         resourceVersionIds: input.resourceVersionIds,
+        evaluationEvidenceReleaseId: input.evaluationEvidenceReleaseId,
       });
       return this.get(candidate.rolloutSequence.id);
     }
@@ -121,6 +125,12 @@ export class BrainRolloutSequenceService {
       throw new BadRequestException('active_governance_policy_snapshot_required');
     }
     if (!input.resourceVersionIds.length) throw new BadRequestException('release_resource_versions_required');
+    if (
+      input.productProfile === 'query_only_v1'
+      && (!Number.isInteger(input.evaluationEvidenceReleaseId) || Number(input.evaluationEvidenceReleaseId) <= 0)
+    ) {
+      throw new BadRequestException('release_evaluation_evidence_required');
+    }
     const previousRuntimeRelease = await this.prisma.brainRelease.findFirst({
       where: { status: 'active', scope: { not: 'governance_policy' } },
       orderBy: { activatedAt: 'desc' },
@@ -187,6 +197,7 @@ export class BrainRolloutSequenceService {
             candidateKey: candidate.candidateKey,
             stage: stage.key,
             resourceVersionIds: input.resourceVersionIds,
+            evaluationEvidenceReleaseId: input.evaluationEvidenceReleaseId,
           });
           releaseId = orphan.id;
         } else {
@@ -203,6 +214,9 @@ export class BrainRolloutSequenceService {
                 governancePolicyMode: sequence.governanceMode,
                 candidateKey: candidate.candidateKey,
                 rolloutSequenceId: sequence.id,
+                ...(input.evaluationEvidenceReleaseId ? { evaluationEvidenceReleaseId: input.evaluationEvidenceReleaseId } : {}),
+                ...(input.evaluationEvidenceEvalRunId ? { evaluationEvidenceEvalRunId: input.evaluationEvidenceEvalRunId } : {}),
+                ...(input.evaluationEvidenceReceiptId ? { evaluationEvidenceReceiptId: input.evaluationEvidenceReceiptId } : {}),
                 ...(input.productProfile ? { productProfile: input.productProfile } : {}),
               },
               resourceVersionIds: input.resourceVersionIds,
@@ -222,6 +236,7 @@ export class BrainRolloutSequenceService {
               candidateKey: candidate.candidateKey,
               stage: stage.key,
               resourceVersionIds: input.resourceVersionIds,
+              evaluationEvidenceReleaseId: input.evaluationEvidenceReleaseId,
             });
             releaseId = raced.id;
           }
@@ -233,6 +248,7 @@ export class BrainRolloutSequenceService {
           candidateKey: candidate.candidateKey,
           stage: stage.key,
           resourceVersionIds: input.resourceVersionIds,
+          evaluationEvidenceReleaseId: input.evaluationEvidenceReleaseId,
         });
         releaseId = existing.id;
       }
@@ -532,6 +548,7 @@ function assertRecoverableRelease(
     candidateKey: string;
     stage: string;
     resourceVersionIds: number[];
+    evaluationEvidenceReleaseId?: number;
     requireDraft?: boolean;
   },
 ) {
@@ -548,6 +565,8 @@ function assertRecoverableRelease(
     || String(rollout.candidateKey ?? '') !== expected.candidateKey
     || String(rollout.stage ?? '') !== expected.stage
     || sequenceId !== expected.sequenceId
+    || (expected.evaluationEvidenceReleaseId !== undefined
+      && Number(rollout.evaluationEvidenceReleaseId) !== expected.evaluationEvidenceReleaseId)
     || (release.rolloutSequenceId != null && release.rolloutSequenceId !== expected.sequenceId)
     || (release.rolloutStage != null && release.rolloutStage !== expected.stage)
     || !matchesResources
@@ -577,6 +596,7 @@ function assertSequenceIdentity(
     governanceMode: string;
     candidateKey: string;
     resourceVersionIds: number[];
+    evaluationEvidenceReleaseId?: number;
   },
 ) {
   if (sequence.policySnapshotId !== expected.policySnapshotId) {
@@ -595,6 +615,7 @@ function assertSequenceIdentity(
       candidateKey: expected.candidateKey,
       stage: stage.key,
       resourceVersionIds: expected.resourceVersionIds,
+      evaluationEvidenceReleaseId: expected.evaluationEvidenceReleaseId,
       requireDraft: false,
     });
   }

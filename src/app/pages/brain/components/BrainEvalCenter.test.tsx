@@ -22,6 +22,7 @@ describe('BrainEvalCenter', () => {
         {
           id: 41,
           releaseId: 362,
+          evaluationIdentity: { family: 'evaluation', code: 'EV-001', stageCode: null, name: 'Query Only V1 评测', internalReleaseId: 362 },
           roleKey: null,
           status: 'completed',
           caseCount: 10,
@@ -77,9 +78,19 @@ describe('BrainEvalCenter', () => {
     permissionState.canManage = false;
     render(<BrainEvalCenter />);
 
-    expect((await screen.findAllByText('#41')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Eval Run #41')).length).toBeGreaterThan(0);
+    expect(screen.getByText('EV-001 · Query Only V1 评测')).toBeInTheDocument();
+    expect(screen.getByText('目标评测快照数据库记录 #362').closest('details')).not.toHaveAttribute('open');
     expect(screen.queryByRole('button', { name: '发起评测' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '复测失败' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '逐题结果' })).toBeInTheDocument();
+  });
+
+  it('keeps an internal evaluation release id inside advanced audit details', async () => {
+    render(<BrainEvalCenter />);
+
+    expect(await screen.findByText('EV-001 · Query Only V1 评测')).toBeInTheDocument();
+    expect(screen.getByText('高级审计绑定').closest('details')).not.toHaveAttribute('open');
+    expect(screen.getByPlaceholderText('仅排障时填写内部 ID')).toBeInTheDocument();
   });
 });

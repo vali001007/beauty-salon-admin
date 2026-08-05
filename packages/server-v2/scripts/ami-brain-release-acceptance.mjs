@@ -1,5 +1,7 @@
 import 'dotenv/config';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { request as httpRequest } from 'node:http';
+import { request as httpsRequest } from 'node:https';
 import { dirname, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -429,33 +431,57 @@ function unavailablePrisma(code) {
 }
 
 async function fetchProductionHealth(url) {
-  try {
-    const response = await fetch(url, {
-      headers: { accept: 'application/json' },
-      signal: AbortSignal.timeout(10_000),
-    });
-    const raw = await response.text();
-    let body = null;
-    let error = null;
+  let lastError = null;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
-      body = raw ? JSON.parse(raw) : null;
-    } catch (parseError) {
-      error = `invalid_json:${parseError instanceof Error ? parseError.message : String(parseError)}`;
+      return await requestProductionHealth(url);
+    } catch (error) {
+      lastError = error;
     }
-    return {
-      requestSucceeded: true,
-      statusCode: response.status,
-      body,
-      error,
-    };
-  } catch (error) {
-    return {
-      requestSucceeded: false,
-      statusCode: null,
-      body: null,
-      error: error instanceof Error ? error.message : String(error),
-    };
   }
+  return {
+    requestSucceeded: false,
+    statusCode: null,
+    body: null,
+    error: lastError instanceof Error ? lastError.message : String(lastError),
+  };
+}
+
+function requestProductionHealth(url) {
+  return new Promise((resolveRequest, rejectRequest) => {
+    const requestFn = new URL(url).protocol === 'http:' ? httpRequest : httpsRequest;
+    const request = requestFn(
+      url,
+      {
+        family: 4,
+        headers: { accept: 'application/json' },
+        timeout: 30_000,
+      },
+      (response) => {
+        const chunks = [];
+        response.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+        response.on('end', () => {
+          const raw = Buffer.concat(chunks).toString('utf8');
+          let body = null;
+          let error = null;
+          try {
+            body = raw ? JSON.parse(raw) : null;
+          } catch (parseError) {
+            error = `invalid_json:${parseError instanceof Error ? parseError.message : String(parseError)}`;
+          }
+          resolveRequest({
+            requestSucceeded: true,
+            statusCode: response.statusCode ?? null,
+            body,
+            error,
+          });
+        });
+      },
+    );
+    request.once('timeout', () => request.destroy(new Error('production_health_timeout')));
+    request.once('error', rejectRequest);
+    request.end();
+  });
 }
 
 function parseOptions(args) {

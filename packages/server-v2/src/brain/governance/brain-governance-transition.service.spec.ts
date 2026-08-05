@@ -1,4 +1,210 @@
+import { createHash } from 'node:crypto';
 import { BrainGovernanceTransitionService } from './brain-governance-transition.service.js';
+import {
+  BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS,
+  BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS,
+} from './brain-release-product-profile.js';
+
+const HASH = 'a'.repeat(64);
+const HEAD_COMMIT = 'abcdef1234567890abcdef1234567890abcdef12';
+const EVALUATION_RELEASE_ID = 901;
+const EVAL_RUN_ID = 902;
+const EVIDENCE_RECEIPT_ID = 903;
+const CORE_REQUIRED_EVIDENCE_TYPES = [
+  'release_contract',
+  'permission_matrix',
+  'cross_client_e2e',
+  'target_database',
+  'provider_fallback',
+  'rollback_drill',
+];
+const EXTENDED_MANUAL_EVIDENCE_TYPES: string[] = [];
+
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  if (value && typeof value === 'object') {
+    const object = value as Record<string, unknown>;
+    return `{${Object.keys(object).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(object[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function stableHash(value: unknown) {
+  return createHash('sha256').update(typeof value === 'string' ? value : stableStringify(value)).digest('hex');
+}
+
+function releaseSnapshotLineage(overrides: { lockRuntimeCommit?: string; missingEvidenceChecksumType?: string } = {}) {
+  const candidate = {
+    id: 3,
+    candidateKey: 'owner/repo:head:merge',
+    branch: 'main',
+    baseCommit: '1'.repeat(40),
+    mergeBaseCommit: '2'.repeat(40),
+    headCommit: HEAD_COMMIT,
+    diffChecksum: '3'.repeat(64),
+    sourceFingerprint: '4'.repeat(64),
+    status: 'checking',
+  };
+  const lockIdentity = {
+    schemaVersion: 'ami-brain-candidate-identity/v1',
+    productProfile: 'query_only_v1',
+    runtimeCommit: overrides.lockRuntimeCommit ?? HEAD_COMMIT,
+    diffChecksum: '5'.repeat(64),
+    releaseId: EVALUATION_RELEASE_ID,
+    releaseFingerprint: HASH,
+    evaluationIdentity: { family: 'evaluation', code: 'EV-901', internalReleaseId: EVALUATION_RELEASE_ID },
+    suiteManifestChecksum: HASH,
+    dataSnapshot: 'shared-supabase-20260805',
+    provider: 'openai_compatible',
+    model: 'gpt-5.6-luna',
+    timeoutMs: 30000,
+    fallbackPolicy: 'deterministic',
+    deployment: { commit: overrides.lockRuntimeCommit ?? HEAD_COMMIT, buildId: 'build-1', environment: 'production' },
+    databaseTarget: { protocol: 'postgresql', host: 'pooler.supabase.com', port: '5432', database: 'postgres', schema: 'public' },
+    storeId: 1,
+    runKey: 'rc-350-run',
+  };
+  const candidateLockId = stableHash(lockIdentity);
+  const candidateLock = {
+    schemaVersion: 'ami-brain-candidate-lock/v1',
+    candidateId: candidateLockId,
+    officialCandidateKey: 'official-candidate:query_only_v1',
+    receiptKey: `candidate-lock:${candidateLockId}`,
+    identity: lockIdentity,
+    branch: 'main',
+    lockedAt: '2026-08-05T00:00:00.000Z',
+  };
+  const evidenceTypes = [...CORE_REQUIRED_EVIDENCE_TYPES, ...EXTENDED_MANUAL_EVIDENCE_TYPES]
+    .filter((key) => key !== overrides.missingEvidenceChecksumType);
+  const evidenceChecksums = Object.fromEntries(evidenceTypes.map((key, index) => [key, String(index + 1).repeat(64)]));
+  const eligibilityCore = {
+    schemaVersion: 'ami-brain-release-eligibility/v2',
+    candidateId: candidateLockId,
+    productProfile: 'query_only_v1',
+    releaseId: EVALUATION_RELEASE_ID,
+    evaluationVersionCode: 'EV-901',
+    releaseFingerprint: HASH,
+    requiredEvidenceTypes: CORE_REQUIRED_EVIDENCE_TYPES,
+    extendedManualEvidenceTypes: EXTENDED_MANUAL_EVIDENCE_TYPES,
+    extendedManualComplete: false,
+    extendedManualBlocksRelease: false,
+    evidenceChecksums,
+    blockers: [],
+    releaseEligible: true,
+    closedAt: '2026-08-05T00:10:00.000Z',
+    expiresAt: '2099-08-05T00:10:00.000Z',
+  };
+  const candidateReceipt = {
+    id: 801,
+    receiptKey: 'candidate-oidc',
+    changedFilesChecksum: HASH,
+    sourceFingerprint: candidate.sourceFingerprint,
+    releaseFingerprint: HASH,
+    suiteChecksum: HASH,
+    dataSnapshot: 'shared-supabase-20260805',
+    provider: 'openai_compatible',
+    model: 'gpt-5.6-luna',
+    timeoutMs: 30000,
+    resultChecksum: HASH,
+    result: {
+      candidateKey: candidate.candidateKey,
+      headCommit: candidate.headCommit,
+      sourceFingerprint: candidate.sourceFingerprint,
+      verification: { admissionEligible: true },
+    },
+    expiresAt: new Date('2099-08-05T00:00:00.000Z'),
+    stage: 'candidate',
+    status: 'passed',
+    trustLevel: 'trusted_candidate',
+    issuerType: 'ci',
+    headCommit: candidate.headCommit,
+    identityChecksum: HASH,
+    issuer: 'CI/CD',
+    verificationStatus: 'verified',
+    evaluationReleaseId: null,
+  };
+  const eligibilityReceipt = {
+    id: 802,
+    receiptKey: `release-eligibility:${candidateLockId}`,
+    changedFilesChecksum: HASH,
+    sourceFingerprint: stableHash(lockIdentity),
+    releaseFingerprint: HASH,
+    suiteChecksum: HASH,
+    dataSnapshot: 'shared-supabase-20260805',
+    provider: 'openai_compatible',
+    model: 'gpt-5.6-luna',
+    timeoutMs: 30000,
+    resultChecksum: stableHash(eligibilityCore),
+    result: { ...eligibilityCore, receiptKey: `release-eligibility:${candidateLockId}`, resultChecksum: stableHash(eligibilityCore) },
+    expiresAt: new Date('2099-08-05T00:10:00.000Z'),
+    stage: 'release',
+    status: 'passed',
+    trustLevel: 'verified_release',
+    issuerType: 'release_candidate_tool',
+    headCommit: candidate.headCommit,
+    identityChecksum: candidateLockId,
+    issuer: 'ami-brain-release-candidate',
+    verificationStatus: 'self_verified',
+    evaluationReleaseId: EVALUATION_RELEASE_ID,
+  };
+  const candidateLockReceipt = {
+    ...eligibilityReceipt,
+    id: 803,
+    receiptKey: candidateLock.receiptKey,
+    resultChecksum: stableHash(candidateLock),
+    result: candidateLock,
+    sourceFingerprint: stableHash(lockIdentity),
+    stage: 'candidate',
+    trustLevel: 'candidate_lock',
+  };
+  const pointerResult = { candidateId: candidateLockId, candidateLockReceiptKey: candidateLock.receiptKey };
+  const officialPointer = {
+    ...candidateLockReceipt,
+    id: 804,
+    receiptKey: 'official-candidate:query_only_v1',
+    resultChecksum: stableHash(pointerResult),
+    result: pointerResult,
+    stage: 'candidate',
+    trustLevel: 'candidate_lock',
+  };
+  return { candidate, candidateReceipt, eligibilityReceipt, candidateLockReceipt, officialPointer };
+}
+
+function releaseReadiness(overrides: Record<string, unknown> = {}) {
+  return {
+    status: 'ready',
+    canRelease: true,
+    blockers: [],
+    contractVersion: 'ami-brain-release-acceptance/v2',
+    evaluationReleaseId: EVALUATION_RELEASE_ID,
+    evalRunId: EVAL_RUN_ID,
+    releaseFingerprint: HASH,
+    suiteChecksum: HASH,
+    provider: 'openai_compatible',
+    model: 'gpt-5.6-luna',
+    sourceCommit: HEAD_COMMIT,
+    expiresAt: '2099-08-04T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function rolloutReleases(shadowStatus = 'draft') {
+  return ['shadow', 'canary_5', 'canary_20', 'canary_50', 'full'].map((rolloutStage, index) => ({
+    id: 454 + index,
+    rolloutStage,
+    status: rolloutStage === 'shadow' ? shadowStatus : 'draft',
+    rollout: {
+      evaluationEvidenceReleaseId: EVALUATION_RELEASE_ID,
+      evaluationEvidenceEvalRunId: EVAL_RUN_ID,
+      evaluationEvidenceReceiptId: EVIDENCE_RECEIPT_ID,
+    },
+    items: BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS.map((resourceKey, itemIndex) => ({
+      resourceVersionId: 1000 + itemIndex,
+      resourceType: 'skill',
+      resourceKey,
+    })),
+  }));
+}
 
 function transition(overrides: Record<string, unknown> = {}) {
   return {
@@ -13,6 +219,65 @@ function transition(overrides: Record<string, unknown> = {}) {
     policyApprovedAt: new Date(),
     runtimeApprovedAt: new Date(),
     startedAt: null,
+    evidenceReceiptId: EVIDENCE_RECEIPT_ID,
+    candidate: {
+      id: 3,
+      candidateKey: 'candidate-1',
+      headCommit: HEAD_COMMIT,
+      sourceFingerprint: HASH,
+      status: 'ready',
+    },
+    evidenceReceipt: {
+      id: EVIDENCE_RECEIPT_ID,
+      receiptKey: 'verified-release-receipt',
+      stage: 'release',
+      status: 'passed',
+      trustLevel: 'verified_release',
+      verificationStatus: 'verified',
+      issuerType: 'release_service',
+      issuer: 'brain-governance-release-snapshot',
+      identityChecksum: HASH,
+      resultChecksum: HASH,
+      evaluationReleaseId: EVALUATION_RELEASE_ID,
+      evalRunId: EVAL_RUN_ID,
+      releaseFingerprint: HASH,
+      provider: 'openai_compatible',
+      model: 'gpt-5.6-luna',
+      dataSnapshot: 'shared-supabase-20260805',
+      suiteChecksum: HASH,
+      capabilities: [],
+      expiresAt: new Date('2099-08-05T00:00:00.000Z'),
+      result: {
+        schemaVersion: 'ami-brain-verified-release-snapshot/v1',
+        candidateKey: 'candidate-1',
+        headCommit: HEAD_COMMIT,
+        sourceFingerprint: HASH,
+        verification: {
+          status: 'verified',
+          trustLevel: 'verified_release',
+          admissionEligible: true,
+          issuer: 'brain-governance-release-snapshot',
+        },
+      },
+    },
+    evidenceSnapshot: {
+      schemaVersion: 1,
+      contractVersion: 'ami-brain-release-acceptance/v2',
+      receiptId: EVIDENCE_RECEIPT_ID,
+      receiptKey: 'verified-release-receipt',
+      identityChecksum: HASH,
+      resultChecksum: HASH,
+      candidateKey: 'candidate-1',
+      headCommit: HEAD_COMMIT,
+      sourceFingerprint: HASH,
+      evaluationReleaseId: EVALUATION_RELEASE_ID,
+      evalRunId: EVAL_RUN_ID,
+      releaseFingerprint: HASH,
+      provider: 'openai_compatible',
+      model: 'gpt-5.6-luna',
+      dataSnapshot: 'shared-supabase-20260805',
+      suiteChecksum: HASH,
+    },
     oldPolicy: { id: 436, status: 'active', items: [] },
     newPolicy: { id: 453, status: 'draft', items: [], productIdentity: { code: 'GP-003' } },
     oldRuntime: { id: 452, status: 'active' },
@@ -22,7 +287,7 @@ function transition(overrides: Record<string, unknown> = {}) {
       productProfile: 'query_only_v1',
       status: 'draft',
       currentStage: 'shadow',
-      releases: [{ id: 454, rolloutStage: 'shadow', status: 'draft' }],
+      releases: rolloutReleases(),
     },
     ...overrides,
   };
@@ -53,6 +318,7 @@ describe('BrainGovernanceTransitionService', () => {
           .mockResolvedValueOnce({ id: 452, scope: 'percentage', status: 'active' }),
       },
       brainGovernanceTransition: { findFirst: jest.fn().mockResolvedValue(null) },
+      brainGateReceipt: { findMany: jest.fn().mockResolvedValue([]) },
     };
     const service = new BrainGovernanceTransitionService(
       prisma as never,
@@ -65,6 +331,205 @@ describe('BrainGovernanceTransitionService', () => {
     expect(result.canPrepare).toBe(false);
     expect(result.missingEvidence).toHaveLength(41);
     expect(result.target).toMatchObject({ productProfile: 'query_only_v1', allowedCapabilityCount: 33, deniedCapabilityCount: 8 });
+  });
+
+  it('derives one verified release snapshot only after binding OIDC candidate, close eligibility, lock and RC-350 v2', async () => {
+    const lineage = releaseSnapshotLineage();
+    const receiptCreate = jest.fn().mockResolvedValue({ id: 990, receiptKey: 'verified-release-snapshot' });
+    const capabilityCreateMany = jest.fn().mockResolvedValue({ count: 41 });
+    const gateCreateMany = jest.fn().mockResolvedValue({ count: 8 });
+    const tx = {
+      brainGateReceipt: { findUnique: jest.fn().mockResolvedValue(null), create: receiptCreate },
+      brainGateReceiptCapability: { createMany: capabilityCreateMany },
+      brainGateReceiptGate: { createMany: gateCreateMany },
+    };
+    const prisma = {
+      brainGateReceipt: {
+        findMany: jest.fn()
+          .mockResolvedValueOnce([lineage.candidateReceipt])
+          .mockResolvedValueOnce([lineage.eligibilityReceipt]),
+        findUnique: jest.fn(({ where }: { where: { receiptKey: string } }) => {
+          if (where.receiptKey === lineage.candidateLockReceipt.receiptKey) return lineage.candidateLockReceipt;
+          if (where.receiptKey === lineage.officialPointer.receiptKey) return lineage.officialPointer;
+          return null;
+        }),
+      },
+      $transaction: jest.fn((work: (client: typeof tx) => Promise<unknown>) => work(tx)),
+    };
+    const releaseService = { getReleaseReadiness: jest.fn().mockResolvedValue(releaseReadiness()) };
+    const service = new BrainGovernanceTransitionService(prisma as never, {} as never, releaseService as never, {} as never);
+
+    const resolved = await (service as any).resolveReleaseSnapshotMaterialization(lineage.candidate);
+    expect(resolved.blockers).toEqual([]);
+    expect(resolved.materialization).toBeTruthy();
+    await (service as any).materializeVerifiedReleaseSnapshot(lineage.candidate, resolved.materialization);
+
+    expect(receiptCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        stage: 'release',
+        trustLevel: 'verified_release',
+        verificationStatus: 'verified',
+        provider: 'openai_compatible',
+        model: 'gpt-5.6-luna',
+        candidateId: lineage.candidate.id,
+        evalRunId: EVAL_RUN_ID,
+        evaluationReleaseId: EVALUATION_RELEASE_ID,
+      }),
+    }));
+    expect(capabilityCreateMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        ...BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS,
+        ...BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS,
+      ].map((capabilityKey) => expect.objectContaining({ capabilityKey }))),
+    });
+    expect(capabilityCreateMany.mock.calls[0][0].data).toHaveLength(41);
+    expect(gateCreateMany.mock.calls[0][0].data).toHaveLength(6);
+  });
+
+  it.each(CORE_REQUIRED_EVIDENCE_TYPES)(
+    'rejects Eligibility v2 when the %s safety receipt checksum is missing',
+    async (missingEvidenceChecksumType) => {
+      const lineage = releaseSnapshotLineage({ missingEvidenceChecksumType });
+      const prisma = {
+        brainGateReceipt: {
+          findMany: jest.fn()
+            .mockResolvedValueOnce([lineage.candidateReceipt])
+            .mockResolvedValueOnce([lineage.eligibilityReceipt]),
+          findUnique: jest.fn(({ where }: { where: { receiptKey: string } }) => {
+            if (where.receiptKey === lineage.candidateLockReceipt.receiptKey) return lineage.candidateLockReceipt;
+            if (where.receiptKey === lineage.officialPointer.receiptKey) return lineage.officialPointer;
+            return null;
+          }),
+        },
+      };
+      const releaseService = { getReleaseReadiness: jest.fn().mockResolvedValue(releaseReadiness()) };
+      const service = new BrainGovernanceTransitionService(prisma as never, {} as never, releaseService as never, {} as never);
+
+      await expect((service as any).resolveReleaseSnapshotMaterialization(lineage.candidate)).resolves.toEqual({
+        materialization: null,
+        blockers: ['release_eligibility_lineage_invalid'],
+      });
+      expect(releaseService.getReleaseReadiness).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects a self-verified close lineage whose candidate lock commit can not bind to the OIDC candidate', async () => {
+    const lineage = releaseSnapshotLineage({ lockRuntimeCommit: 'f'.repeat(40) });
+    const prisma = {
+      brainGateReceipt: {
+        findMany: jest.fn()
+          .mockResolvedValueOnce([lineage.candidateReceipt])
+          .mockResolvedValueOnce([lineage.eligibilityReceipt]),
+        findUnique: jest.fn(({ where }: { where: { receiptKey: string } }) => {
+          if (where.receiptKey === lineage.candidateLockReceipt.receiptKey) return lineage.candidateLockReceipt;
+          if (where.receiptKey === lineage.officialPointer.receiptKey) return lineage.officialPointer;
+          return null;
+        }),
+      },
+    };
+    const releaseService = { getReleaseReadiness: jest.fn().mockResolvedValue(releaseReadiness()) };
+    const service = new BrainGovernanceTransitionService(prisma as never, {} as never, releaseService as never, {} as never);
+
+    await expect((service as any).resolveReleaseSnapshotMaterialization(lineage.candidate)).resolves.toEqual({
+      materialization: null,
+      blockers: ['release_eligibility_lineage_invalid'],
+    });
+    expect(releaseService.getReleaseReadiness).not.toHaveBeenCalled();
+  });
+
+  it('rejects a self-verified eligibility row whose receipt identity was rewritten', async () => {
+    const lineage = releaseSnapshotLineage();
+    lineage.eligibilityReceipt.receiptKey = 'release-eligibility:forged';
+    const prisma = {
+      brainGateReceipt: {
+        findMany: jest.fn()
+          .mockResolvedValueOnce([lineage.candidateReceipt])
+          .mockResolvedValueOnce([lineage.eligibilityReceipt]),
+        findUnique: jest.fn(({ where }: { where: { receiptKey: string } }) => {
+          if (where.receiptKey === lineage.candidateLockReceipt.receiptKey) return lineage.candidateLockReceipt;
+          if (where.receiptKey === lineage.officialPointer.receiptKey) return lineage.officialPointer;
+          return null;
+        }),
+      },
+    };
+    const releaseService = { getReleaseReadiness: jest.fn().mockResolvedValue(releaseReadiness()) };
+    const service = new BrainGovernanceTransitionService(prisma as never, {} as never, releaseService as never, {} as never);
+
+    await expect((service as any).resolveReleaseSnapshotMaterialization(lineage.candidate)).resolves.toEqual({
+      materialization: null,
+      blockers: ['release_eligibility_lineage_invalid'],
+    });
+    expect(releaseService.getReleaseReadiness).not.toHaveBeenCalled();
+  });
+
+  it('rejects RC-350 readiness when its provider/model drift from the locked Luna deployment', async () => {
+    const lineage = releaseSnapshotLineage();
+    const prisma = {
+      brainGateReceipt: {
+        findMany: jest.fn()
+          .mockResolvedValueOnce([lineage.candidateReceipt])
+          .mockResolvedValueOnce([lineage.eligibilityReceipt]),
+        findUnique: jest.fn(({ where }: { where: { receiptKey: string } }) => {
+          if (where.receiptKey === lineage.candidateLockReceipt.receiptKey) return lineage.candidateLockReceipt;
+          if (where.receiptKey === lineage.officialPointer.receiptKey) return lineage.officialPointer;
+          return null;
+        }),
+      },
+    };
+    const releaseService = {
+      getReleaseReadiness: jest.fn().mockResolvedValue(releaseReadiness({ provider: 'deepseek', model: 'deepseek-v4-flash' })),
+    };
+    const service = new BrainGovernanceTransitionService(prisma as never, {} as never, releaseService as never, {} as never);
+
+    await expect((service as any).resolveReleaseSnapshotMaterialization(lineage.candidate)).resolves.toEqual({
+      materialization: null,
+      blockers: ['release_eligibility_lineage_invalid'],
+    });
+  });
+
+  it('rejects an expired RC-350 readiness before deriving a verified release receipt', async () => {
+    const lineage = releaseSnapshotLineage();
+    const prisma = {
+      brainGateReceipt: {
+        findMany: jest.fn()
+          .mockResolvedValueOnce([lineage.candidateReceipt])
+          .mockResolvedValueOnce([lineage.eligibilityReceipt]),
+        findUnique: jest.fn(({ where }: { where: { receiptKey: string } }) => {
+          if (where.receiptKey === lineage.candidateLockReceipt.receiptKey) return lineage.candidateLockReceipt;
+          if (where.receiptKey === lineage.officialPointer.receiptKey) return lineage.officialPointer;
+          return null;
+        }),
+      },
+    };
+    const releaseService = {
+      getReleaseReadiness: jest.fn().mockResolvedValue(releaseReadiness({ expiresAt: '2020-08-04T00:00:00.000Z' })),
+    };
+    const service = new BrainGovernanceTransitionService(prisma as never, {} as never, releaseService as never, {} as never);
+
+    await expect((service as any).resolveReleaseSnapshotMaterialization(lineage.candidate)).resolves.toEqual({
+      materialization: null,
+      blockers: ['release_eligibility_lineage_invalid'],
+    });
+  });
+
+  it('rejects expired derived receipts and readiness that is no longer releasable before transition mutation', async () => {
+    const expiredTransition = transition({
+      evidenceReceipt: {
+        ...transition().evidenceReceipt,
+        expiresAt: new Date('2020-08-05T00:00:00.000Z'),
+      },
+    });
+    const releaseService = {
+      getReleaseReadiness: jest.fn().mockResolvedValue(releaseReadiness({ status: 'blocked', canRelease: false })),
+    };
+    const service = new BrainGovernanceTransitionService({} as never, {} as never, releaseService as never, {} as never);
+
+    await expect((service as any).validateFrozenEvidence(expiredTransition)).resolves.toMatchObject({
+      blockers: expect.arrayContaining([
+        'transition_evidence_receipt_invalid',
+        'transition_evaluation_readiness_invalid',
+      ]),
+    });
   });
 
   it('switches policy and runtime together before marking the transition observing', async () => {
@@ -86,6 +551,7 @@ describe('BrainGovernanceTransitionService', () => {
       rollbackPolicySnapshot: jest.fn(),
     };
     const releaseService = {
+      getReleaseReadiness: jest.fn().mockResolvedValue(releaseReadiness()),
       resolveRuntimeDeploymentIdentity: jest.fn().mockResolvedValue({
         release: { id: 454 },
         productIdentity: { code: 'RT-001' },
@@ -162,7 +628,7 @@ describe('BrainGovernanceTransitionService', () => {
     const service = new BrainGovernanceTransitionService(
       prisma as never,
       controlPlane as never,
-      {} as never,
+      { getReleaseReadiness: jest.fn().mockResolvedValue(releaseReadiness()) } as never,
       rollout as never,
       events as never,
     );
@@ -344,7 +810,7 @@ describe('BrainGovernanceTransitionService', () => {
         productProfile: 'query_only_v1',
         status: 'active',
         currentStage: 'shadow',
-        releases: [{ id: 454, rolloutStage: 'shadow', status: 'active' }],
+        releases: rolloutReleases('active'),
       },
     });
     const prisma = {
@@ -362,6 +828,7 @@ describe('BrainGovernanceTransitionService', () => {
     const controlPlane = { publishPolicySnapshot: jest.fn(), rollbackPolicySnapshot: jest.fn() };
     const rollout = { activateShadow: jest.fn(), rollback: jest.fn() };
     const releaseService = {
+      getReleaseReadiness: jest.fn().mockResolvedValue(releaseReadiness()),
       resolveRuntimeDeploymentIdentity: jest.fn().mockResolvedValue({
         release: { id: 454 },
         productIdentity: { code: 'RT-001' },
