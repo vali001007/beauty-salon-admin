@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto';
 import { resolveProductLoopEligibility } from './ami-brain-product-loop-registry.mjs';
 
+export const RELEASE_ACCEPTANCE_CONTRACT_VERSION = 'ami-brain-release-acceptance/v2';
+export const RELEASE_CORE_REQUIRED_CASE_COUNT = 350;
+
 export function standardDeltaCaseIds(manifest) {
   const core = new Set(manifest.suites.releaseCore.caseIds);
   return manifest.suites.standardRegression.caseIds.filter((id) => !core.has(id));
@@ -201,17 +204,102 @@ export function buildCandidatePreflight({
 
 export const buildReleaseAcceptancePreflight = buildCandidatePreflight;
 
-export function buildAcceptanceEvidence({
+export function buildAcceptanceEvidence({ identity, manifest, coreSummary, coreResults, now = new Date() }) {
+  const blockingReasons = [];
+  validateReleaseCoreIdentity(identity, coreSummary, blockingReasons);
+  const coreRuntimeCommit = coreSummary.productionHealth?.commit;
+  if (coreRuntimeCommit !== identity.runtimeCommit) {
+    blockingReasons.push('pipeline_identity_mismatch:runtime_commit');
+  }
+  const coreIds = coreResults.map((item) => item.caseKey);
+  assertExactIds('release_core_results', coreIds, manifest.suites.releaseCore.caseIds, blockingReasons);
+  if (manifest.suites.releaseCore.caseCount !== RELEASE_CORE_REQUIRED_CASE_COUNT) {
+    blockingReasons.push(
+      `release_core:contract_case_count_mismatch:${manifest.suites.releaseCore.caseCount}:${RELEASE_CORE_REQUIRED_CASE_COUNT}`,
+    );
+  }
+  if (
+    Number(coreSummary.total ?? -1) !== manifest.suites.releaseCore.caseCount ||
+    Number(coreSummary.expectedTotal ?? -1) !== manifest.suites.releaseCore.caseCount ||
+    coreResults.length !== manifest.suites.releaseCore.caseCount
+  ) {
+    blockingReasons.push('release_core:result_count_incomplete');
+  }
+  appendStageSafetyFailures('release_core', coreSummary, blockingReasons);
+  const verifiedTotal = Number(coreSummary.scorecards?.verifiedCapability?.total ?? 0);
+  if (verifiedTotal <= 0) blockingReasons.push('release_core:verified_capability_denominator_empty');
+  const uniqueBlockingReasons = [...new Set(blockingReasons)];
+  const pipelineIdentity = {
+    ...identity,
+    contractVersion: RELEASE_ACCEPTANCE_CONTRACT_VERSION,
+    releaseFingerprint: coreSummary.releaseFingerprint,
+    sourceCommit: coreSummary.sourceCommit,
+  };
+  return {
+    contractVersion: RELEASE_ACCEPTANCE_CONTRACT_VERSION,
+    pipelineIdentity,
+    releaseGate: {
+      suite: 'release-core',
+      expectedCaseCount: RELEASE_CORE_REQUIRED_CASE_COUNT,
+      manifestCaseCount: manifest.suites.releaseCore.caseCount,
+      resultCount: new Set(coreIds).size,
+      caseIdsChecksum: sha256(manifest.suites.releaseCore.caseIds.join('\n')),
+      verifiedCapabilityTotal: verifiedTotal,
+      complete: uniqueBlockingReasons.length === 0,
+    },
+    stages: {
+      releaseCore: summarizeStage(coreSummary),
+    },
+    extendedManual: {
+      suite: 'standard-regression-delta',
+      expectedCaseCount: standardDeltaCaseIds(manifest).length,
+      status: 'not_run',
+      blocksCurrentAcceptance: false,
+      releaseDecisionMutable: false,
+    },
+    mergedStandardRegression: null,
+    blockingReasons: uniqueBlockingReasons,
+    canActivate: uniqueBlockingReasons.length === 0,
+    decision: uniqueBlockingReasons.length === 0 ? 'ready_for_activation' : 'blocked',
+    createdAt: now.toISOString(),
+  };
+}
+
+export function buildExtendedManualObservation({
   identity,
   manifest,
+  releaseEvidence,
   coreSummary,
   standardDeltaSummary,
-  coreResults,
   standardDeltaResults,
   now = new Date(),
 }) {
-  const blockingReasons = [];
-  for (const field of [
+  if (
+    releaseEvidence?.contractVersion !== RELEASE_ACCEPTANCE_CONTRACT_VERSION ||
+    releaseEvidence?.decision !== 'ready_for_activation' ||
+    releaseEvidence?.canActivate !== true ||
+    releaseEvidence?.releaseGate?.suite !== 'release-core' ||
+    releaseEvidence?.releaseGate?.expectedCaseCount !== RELEASE_CORE_REQUIRED_CASE_COUNT ||
+    releaseEvidence?.releaseGate?.resultCount !== RELEASE_CORE_REQUIRED_CASE_COUNT ||
+    releaseEvidence?.releaseGate?.complete !== true ||
+    releaseEvidence?.extendedManual?.blocksCurrentAcceptance !== false ||
+    releaseEvidence?.extendedManual?.releaseDecisionMutable !== false
+  ) {
+    throw new Error('extended_manual_requires_frozen_release_core_contract');
+  }
+  const warnings = [];
+  for (const [field, expected] of Object.entries({
+    runtimeCommit: identity.runtimeCommit,
+    releaseId: identity.releaseId,
+    storeId: identity.storeId,
+    suiteManifestChecksum: identity.suiteManifestChecksum,
+    runKey: identity.runKey,
+  })) {
+    if (releaseEvidence.pipelineIdentity?.[field] !== expected) {
+      throw new Error(`extended_manual_release_contract_identity_mismatch:${field}`);
+    }
+  }
+  const identityFields = [
     'sourceChecksum',
     'suiteManifestVersion',
     'suiteManifestChecksum',
@@ -219,80 +307,86 @@ export function buildAcceptanceEvidence({
     'sourceCommit',
     'storeId',
     'runKey',
-  ]) {
-    if (coreSummary[field] !== standardDeltaSummary[field]) {
-      blockingReasons.push(`pipeline_identity_mismatch:${field}`);
-    }
+  ];
+  for (const field of identityFields) {
+    if (coreSummary[field] !== standardDeltaSummary[field]) warnings.push(`pipeline_identity_mismatch:${field}`);
   }
-  const coreRuntimeCommit = coreSummary.productionHealth?.commit;
-  const standardRuntimeCommit = standardDeltaSummary.productionHealth?.commit;
-  if (coreRuntimeCommit !== standardRuntimeCommit || standardRuntimeCommit !== identity.runtimeCommit) {
-    blockingReasons.push('pipeline_identity_mismatch:runtime_commit');
+  if (
+    standardDeltaSummary.productionHealth?.commit !== identity.runtimeCommit ||
+    coreSummary.productionHealth?.commit !== identity.runtimeCommit
+  ) {
+    warnings.push('pipeline_identity_mismatch:runtime_commit');
   }
-  const deltaExpected = standardDeltaCaseIds(manifest);
-  const coreIds = coreResults.map((item) => item.caseKey);
-  const deltaIds = standardDeltaResults.map((item) => item.caseKey);
-  assertExactIds('release_core_results', coreIds, manifest.suites.releaseCore.caseIds, blockingReasons);
-  assertExactIds('standard_delta_results', deltaIds, deltaExpected, blockingReasons);
-  const mergedIds = [...coreIds, ...deltaIds];
-  assertExactIds(
-    'standard_regression_merged_results',
-    mergedIds,
-    manifest.suites.standardRegression.caseIds,
-    blockingReasons,
-  );
-  for (const [stage, summary] of [
-    ['release_core', coreSummary],
-    ['standard_delta', standardDeltaSummary],
-  ]) {
-    if (Number(summary.failed ?? -1) !== 0) {
-      blockingReasons.push(`${stage}:deterministic_failures:${summary.failed ?? 'missing'}`);
-    }
-    if (Number(summary.providerUnavailable ?? -1) !== 0) {
-      blockingReasons.push(`${stage}:provider_unavailable:${summary.providerUnavailable ?? 'missing'}`);
-    }
-    if (Number(summary.scorecards?.suspectedFalseSuccess?.count ?? -1) !== 0) {
-      blockingReasons.push(
-        `${stage}:suspected_false_success:${summary.scorecards?.suspectedFalseSuccess?.count ?? 'missing'}`,
-      );
-    }
-    if (summary.providerEvidence?.candidatePrimaryRouteEligible !== true) {
-      blockingReasons.push(`${stage}:candidate_primary_model_route_unproven`);
-      for (const blocker of Array.isArray(summary.providerEvidence?.blockers)
-        ? summary.providerEvidence.blockers
-        : ['provider_evidence_missing']) {
-        blockingReasons.push(`${stage}:provider_route:${blocker}`);
-      }
-    }
+  const expectedIds = standardDeltaCaseIds(manifest);
+  if (expectedIds.length !== 690) {
+    warnings.push(`extended_manual:contract_case_count_mismatch:${expectedIds.length}:690`);
   }
-  const verifiedTotal =
-    Number(coreSummary.scorecards?.verifiedCapability?.total ?? 0) +
-    Number(standardDeltaSummary.scorecards?.verifiedCapability?.total ?? 0);
-  if (verifiedTotal <= 0) blockingReasons.push('verified_capability_denominator_empty');
-  const uniqueBlockingReasons = [...new Set(blockingReasons)];
-  const pipelineIdentity = {
-    ...identity,
-    releaseFingerprint: coreSummary.releaseFingerprint,
-    sourceCommit: coreSummary.sourceCommit,
-  };
+  const actualIds = standardDeltaResults.map((item) => item.caseKey);
+  assertExactIds('extended_manual_results', actualIds, expectedIds, warnings);
+  if (
+    Number(standardDeltaSummary.total ?? -1) !== expectedIds.length ||
+    Number(standardDeltaSummary.expectedTotal ?? -1) !== expectedIds.length ||
+    standardDeltaResults.length !== expectedIds.length
+  ) {
+    warnings.push('extended_manual:result_count_incomplete');
+  }
+  appendStageSafetyFailures('extended_manual', standardDeltaSummary, warnings);
+  const uniqueWarnings = [...new Set(warnings)];
   return {
-    contractVersion: identity.contractVersion,
-    pipelineIdentity,
-    stages: {
-      releaseCore: summarizeStage(coreSummary),
-      standardRegressionDelta: summarizeStage(standardDeltaSummary),
+    schemaVersion: 'ami-brain-extended-manual-observation/v1',
+    pipelineIdentity: releaseEvidence.pipelineIdentity,
+    releaseContract: {
+      contractVersion: releaseEvidence.contractVersion,
+      decision: releaseEvidence.decision,
+      createdAt: releaseEvidence.createdAt,
+      releaseCoreRunId: releaseEvidence.stages?.releaseCore?.runId ?? null,
+      immutable: true,
     },
-    mergedStandardRegression: {
-      expectedCaseCount: manifest.suites.standardRegression.caseCount,
-      resultCount: new Set(mergedIds).size,
-      caseIdsChecksum: sha256(manifest.suites.standardRegression.caseIds.join('\n')),
-      verifiedCapabilityTotal: verifiedTotal,
-    },
-    blockingReasons: uniqueBlockingReasons,
-    canActivate: uniqueBlockingReasons.length === 0,
-    decision: uniqueBlockingReasons.length === 0 ? 'ready_for_activation' : 'blocked',
+    suite: 'standard-regression-delta',
+    expectedCaseCount: expectedIds.length,
+    resultCount: new Set(actualIds).size,
+    caseIdsChecksum: sha256(expectedIds.join('\n')),
+    stage: summarizeStage(standardDeltaSummary),
+    status: uniqueWarnings.length === 0 ? 'passed' : 'attention_required',
+    warnings: uniqueWarnings,
+    blocksCurrentAcceptance: false,
+    releaseDecisionChanged: false,
     createdAt: now.toISOString(),
   };
+}
+
+function appendStageSafetyFailures(stage, summary, failures) {
+  if (Number(summary.failed ?? -1) !== 0) {
+    failures.push(`${stage}:deterministic_failures:${summary.failed ?? 'missing'}`);
+  }
+  if (Number(summary.providerUnavailable ?? -1) !== 0) {
+    failures.push(`${stage}:provider_unavailable:${summary.providerUnavailable ?? 'missing'}`);
+  }
+  if (Number(summary.scorecards?.suspectedFalseSuccess?.count ?? -1) !== 0) {
+    failures.push(`${stage}:suspected_false_success:${summary.scorecards?.suspectedFalseSuccess?.count ?? 'missing'}`);
+  }
+  if (summary.providerEvidence?.candidatePrimaryRouteEligible !== true) {
+    failures.push(`${stage}:candidate_primary_model_route_unproven`);
+    for (const blocker of Array.isArray(summary.providerEvidence?.blockers)
+      ? summary.providerEvidence.blockers
+      : ['provider_evidence_missing']) {
+      failures.push(`${stage}:provider_route:${blocker}`);
+    }
+  }
+}
+
+function validateReleaseCoreIdentity(identity, summary, failures) {
+  const comparisons = {
+    sourceChecksum: identity.sourceBaselineChecksum,
+    suiteManifestVersion: identity.suiteManifestVersion,
+    suiteManifestChecksum: identity.suiteManifestChecksum,
+    storeId: identity.storeId,
+    runKey: identity.runKey,
+    sourceCommit: identity.runtimeCommit,
+  };
+  for (const [field, expected] of Object.entries(comparisons)) {
+    if (summary[field] !== expected) failures.push(`pipeline_identity_mismatch:${field}`);
+  }
 }
 
 export function buildCoreBlockedEvidence({ identity, manifest, coreSummary, coreResults, now = new Date() }) {
@@ -312,9 +406,25 @@ export function buildCoreBlockedEvidence({ identity, manifest, coreSummary, core
     failures,
   );
   return {
-    contractVersion: identity.contractVersion,
-    pipelineIdentity: identity,
+    contractVersion: RELEASE_ACCEPTANCE_CONTRACT_VERSION,
+    pipelineIdentity: { ...identity, contractVersion: RELEASE_ACCEPTANCE_CONTRACT_VERSION },
+    releaseGate: {
+      suite: 'release-core',
+      expectedCaseCount: RELEASE_CORE_REQUIRED_CASE_COUNT,
+      manifestCaseCount: manifest.suites.releaseCore.caseCount,
+      resultCount: new Set(coreResults.map((item) => item.caseKey)).size,
+      caseIdsChecksum: sha256(manifest.suites.releaseCore.caseIds.join('\n')),
+      verifiedCapabilityTotal: Number(coreSummary.scorecards?.verifiedCapability?.total ?? 0),
+      complete: false,
+    },
     stages: { releaseCore: summarizeStage(coreSummary) },
+    extendedManual: {
+      suite: 'standard-regression-delta',
+      expectedCaseCount: standardDeltaCaseIds(manifest).length,
+      status: 'not_run',
+      blocksCurrentAcceptance: false,
+      releaseDecisionMutable: false,
+    },
     mergedStandardRegression: null,
     blockingReasons: [...new Set(failures)],
     canActivate: false,
@@ -324,17 +434,15 @@ export function buildCoreBlockedEvidence({ identity, manifest, coreSummary, core
 }
 
 export function renderReport(evidence) {
-  const standardDelta = evidence.stages.standardRegressionDelta;
-  const merged = evidence.mergedStandardRegression;
-  return `# Ami Brain 两阶段发布验收报告
+  return `# Ami Brain 350 核心发布验收报告
 
 - 决策：\`${evidence.decision}\`
 - Release：#${evidence.pipelineIdentity.releaseId}
 - 代码提交：\`${evidence.pipelineIdentity.runtimeCommit}\`
 - manifest：\`${evidence.pipelineIdentity.suiteManifestVersion}\`
 - release-core：${evidence.stages.releaseCore.total}/${evidence.stages.releaseCore.expectedTotal}
-- standard-regression 增量：${standardDelta ? `${standardDelta.total}/${standardDelta.expectedTotal}` : '未启动'}
-- 合并标准回归：${merged ? `${merged.resultCount}/${merged.expectedCaseCount}` : '未形成'}
+- 本次正式发布门禁：${evidence.releaseGate.resultCount}/${evidence.releaseGate.expectedCaseCount}
+- 690 扩展人工观察：${evidence.extendedManual.status}（不阻断本次发布）
 
 ## 阻断原因
 
@@ -343,8 +451,9 @@ ${evidence.blockingReasons.length ? evidence.blockingReasons.map((item) => `- ${
 ## 产品边界
 
 - 本编排器只生成发布判断证据，不激活或回滚 Release。
-- release-core 包含原 targeted/preflight 中所有当前发布资格题，并保留非资格原题与补位记录。
-- standard-regression 第二阶段只执行增量题，最终与 release-core 合并验证。
+- 本次正式发布合同只认同一 Candidate、同一提交下完整通过的 350 题 release-core。
+- standard-regression 中扣除 release-core 后的 690 题仅作为后续人工观察，不参与 \`canActivate\` 计算。
+- 690 题即使失败，也只能生成观察告警，不得修改或拼接已经冻结的 350 题发布收据。
 `;
 }
 

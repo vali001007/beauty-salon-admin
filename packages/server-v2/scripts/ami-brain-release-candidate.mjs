@@ -188,10 +188,29 @@ export function validatePassedEvidenceArtifacts(lockValue, evidenceType, artifac
   if (evidenceType === 'release_contract') {
     const artifact = findJsonArtifact(
       jsonArtifacts,
-      (value) => value.contractVersion === 'ami-brain-release-acceptance/v1',
+      (value) => value.contractVersion === 'ami-brain-release-acceptance/v2',
       'release_contract_artifact_missing',
     );
-    if (artifact.canActivate !== true || artifact.decision !== 'ready_for_activation' || artifact.blockingReasons?.length) {
+    if (
+      artifact.canActivate !== true
+      || artifact.decision !== 'ready_for_activation'
+      || artifact.blockingReasons?.length
+      || artifact.releaseGate?.suite !== 'release-core'
+      || artifact.releaseGate?.expectedCaseCount !== 350
+      || artifact.releaseGate?.manifestCaseCount !== 350
+      || artifact.releaseGate?.resultCount !== 350
+      || artifact.releaseGate?.complete !== true
+      || artifact.stages?.releaseCore?.total !== 350
+      || artifact.stages?.releaseCore?.expectedTotal !== 350
+      || artifact.stages?.releaseCore?.failed !== 0
+      || artifact.stages?.releaseCore?.providerUnavailable !== 0
+      || artifact.stages?.releaseCore?.providerEvidence?.candidatePrimaryRouteEligible !== true
+      || artifact.stages?.releaseCore?.scorecards?.suspectedFalseSuccess?.count !== 0
+      || Number(artifact.releaseGate?.verifiedCapabilityTotal ?? 0) <= 0
+      || artifact.extendedManual?.blocksCurrentAcceptance !== false
+      || artifact.extendedManual?.releaseDecisionMutable !== false
+      || artifact.mergedStandardRegression !== null
+    ) {
       throw new Error('release_contract_artifact_not_ready');
     }
     assertCandidateArtifactIdentity(lock, artifact.pipelineIdentity, {

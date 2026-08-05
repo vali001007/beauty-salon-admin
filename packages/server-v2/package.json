@@ -139,6 +139,7 @@
     "brain:cross-client-contract": "npm --prefix ../.. run check:ami-brain-cross-client-contract",
     "brain:release:acceptance": "node scripts/ami-brain-release-acceptance.mjs",
     "brain:release:acceptance:resume": "node scripts/ami-brain-release-acceptance.mjs --resume",
+    "brain:release:extended-manual": "node scripts/ami-brain-release-acceptance.mjs --extended-manual",
     "brain:release:acceptance:test": "npm run brain:test-question:governance && node --test ../../scripts/check-ami-brain-cross-client-contract.test.mjs scripts/ami-brain-product-loop-registry.test.mjs scripts/ami-brain-test-question-governance.test.mjs scripts/ami-brain-action-release-contract.test.mjs scripts/ami-brain-gold-standard-audit-core.test.mjs scripts/ami-brain-gold-standard-ready-refresh-core.test.mjs scripts/ami-brain-release-acceptance.test.mjs scripts/ami-brain-check.test.mjs scripts/ami-brain-candidate-identity-core.test.mjs scripts/ami-brain-manual-evidence-contracts.test.mjs scripts/ami-brain-release-candidate.test.mjs scripts/ami-brain-target-migration-audit.test.mjs",
     "brain:release:candidate": "node scripts/ami-brain-release-candidate.mjs",
     "brain:candidate:diagnostic": "cross-env TS_NODE_PROJECT=tsconfig.agent-eval-scripts.json TS_NODE_TRANSPILE_ONLY=true node --loader ts-node/esm --experimental-specifier-resolution=node prisma/ami-brain-candidate-diagnostic.ts",
