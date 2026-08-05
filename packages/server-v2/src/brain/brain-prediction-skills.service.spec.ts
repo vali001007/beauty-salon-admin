@@ -30,16 +30,34 @@ describe('BrainPredictionSkillsService', () => {
           recommendedActionsJson: ['一对一回访'],
           createdAt: new Date('2026-07-10T08:00:00.000Z'),
           customer: { name: '张女士' },
-          run: { id: 9, status: 'completed', startedAt: new Date('2026-07-10T07:50:00.000Z'), finishedAt: new Date('2026-07-10T08:00:00.000Z') },
-          lifecycleSnapshots: [{ lifecycleStage: 'at_risk', churnRiskLevel: 'high', computedAt: new Date('2026-07-10T08:00:00.000Z'), evidenceJson: { source: 'lifecycle-v2' } }],
+          run: {
+            id: 9,
+            status: 'completed',
+            startedAt: new Date('2026-07-10T07:50:00.000Z'),
+            finishedAt: new Date('2026-07-10T08:00:00.000Z'),
+          },
+          lifecycleSnapshots: [
+            {
+              lifecycleStage: 'at_risk',
+              churnRiskLevel: 'high',
+              computedAt: new Date('2026-07-10T08:00:00.000Z'),
+              evidenceJson: { source: 'lifecycle-v2' },
+            },
+          ],
         }),
       },
     };
     const service = new BrainPredictionSkillsService(prisma as never);
 
-    const result = await service.getCustomerPrediction({ storeId: 6, customerId: 7, now: new Date('2026-07-11T08:00:00.000Z') });
+    const result = await service.getCustomerPrediction({
+      storeId: 6,
+      customerId: 7,
+      now: new Date('2026-07-11T08:00:00.000Z'),
+    });
 
-    expect(prisma.customerPredictionSnapshot.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { storeId: 6, customerId: 7 } }));
+    expect(prisma.customerPredictionSnapshot.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { storeId: 6, customerId: 7 } }),
+    );
     expect(result).toMatchObject({
       status: 'available',
       customerName: '张女士',
@@ -71,14 +89,21 @@ describe('BrainPredictionSkillsService', () => {
           recommendedActionsJson: [],
           createdAt: new Date('2026-05-01T00:00:00.000Z'),
           customer: { name: '张女士' },
-          run: { id: 9, status: 'completed', startedAt: new Date('2026-05-01T00:00:00.000Z'), finishedAt: new Date('2026-05-01T00:01:00.000Z') },
+          run: {
+            id: 9,
+            status: 'completed',
+            startedAt: new Date('2026-05-01T00:00:00.000Z'),
+            finishedAt: new Date('2026-05-01T00:01:00.000Z'),
+          },
           lifecycleSnapshots: [],
         }),
       },
     };
     const service = new BrainPredictionSkillsService(prisma as never);
 
-    await expect(service.getCustomerPrediction({ storeId: 6, customerId: 7, now: new Date('2026-07-11T00:00:00.000Z') })).resolves.toMatchObject({
+    await expect(
+      service.getCustomerPrediction({ storeId: 6, customerId: 7, now: new Date('2026-07-11T00:00:00.000Z') }),
+    ).resolves.toMatchObject({
       status: 'stale',
       staleAfterDays: 30,
     });
@@ -217,5 +242,226 @@ describe('BrainPredictionSkillsService', () => {
       ltvTier: 'A',
       predictionRun: { id: 80, modelVersion: 'rules-v2.1' },
     });
+  });
+
+  it('loads churnScore/churnLevel only from the latest completed prediction run after identity is unique', async () => {
+    const prisma = {
+      predictionRun: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 81,
+          modelVersion: 'customer-churn-v4',
+          businessDate: new Date('2026-08-05T00:00:00.000Z'),
+          customerCount: 1253,
+          startedAt: new Date('2026-08-05T01:00:00.000Z'),
+          finishedAt: new Date('2026-08-05T01:10:00.000Z'),
+        }),
+      },
+      customerPredictionSnapshot: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 811,
+            modelVersion: 'customer-churn-v4',
+            churnScore: 82,
+            churnLevel: 'high',
+            createdAt: new Date('2026-08-05T01:08:00.000Z'),
+            customer: { id: 7, storeId: 6, name: '马欣怡', phone: '13800121234', memberLevel: '金卡' },
+          },
+        ]),
+      },
+    };
+    const service = new BrainPredictionSkillsService(prisma as never);
+
+    const result = await service.getLatestCustomerChurnPrediction({ storeId: 6, customerName: '马欣怡' });
+
+    expect(prisma.predictionRun.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { storeId: 6, status: 'completed' },
+        orderBy: [{ finishedAt: 'desc' }, { id: 'desc' }],
+      }),
+    );
+    expect(prisma.customerPredictionSnapshot.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          storeId: 6,
+          runId: 81,
+          customer: { storeId: 6, deletedAt: null, name: '马欣怡' },
+        },
+      }),
+    );
+    expect(result).toMatchObject({
+      status: 'available',
+      snapshotId: 811,
+      customerId: 7,
+      customerName: '马欣怡',
+      maskedPhone: '***1234',
+      churnScore: 82,
+      churnLevel: 'high',
+      modelVersion: 'customer-churn-v4',
+      predictionRun: { id: 81, modelVersion: 'customer-churn-v4' },
+    });
+    expect(result.boundary).toContain('不是客户一定会流失的事实');
+  });
+
+  it('requires a phone tail when the latest completed run contains same-name churn snapshots', async () => {
+    const prisma = {
+      predictionRun: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 81,
+          modelVersion: 'customer-churn-v4',
+          businessDate: new Date('2026-08-05T00:00:00.000Z'),
+          customerCount: 1253,
+          startedAt: new Date('2026-08-05T01:00:00.000Z'),
+          finishedAt: new Date('2026-08-05T01:10:00.000Z'),
+        }),
+      },
+      customerPredictionSnapshot: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 811,
+            modelVersion: 'customer-churn-v4',
+            churnScore: 82,
+            churnLevel: 'high',
+            createdAt: new Date('2026-08-05T01:08:00.000Z'),
+            customer: { id: 7, storeId: 6, name: '马欣怡', phone: '13800121234', memberLevel: '金卡' },
+          },
+          {
+            id: 812,
+            modelVersion: 'customer-churn-v4',
+            churnScore: 37,
+            churnLevel: 'low',
+            createdAt: new Date('2026-08-05T01:08:00.000Z'),
+            customer: { id: 8, storeId: 6, name: '马欣怡', phone: '13900125678', memberLevel: '银卡' },
+          },
+        ]),
+      },
+    };
+    const service = new BrainPredictionSkillsService(prisma as never);
+
+    const result = await service.getLatestCustomerChurnPrediction({ storeId: 6, customerName: '马欣怡' });
+
+    expect(result).toMatchObject({
+      status: 'ambiguous',
+      candidates: [
+        { customerName: '马欣怡', maskedPhone: '***1234', memberLevel: '金卡' },
+        { customerName: '马欣怡', maskedPhone: '***5678', memberLevel: '银卡' },
+      ],
+    });
+    expect(result).not.toHaveProperty('churnScore');
+    expect(result.boundary).toContain('不会猜测');
+  });
+
+  it('uses name plus phone tail to uniquely select a churn snapshot from the completed batch', async () => {
+    const prisma = {
+      predictionRun: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 81,
+          modelVersion: 'customer-churn-v4',
+          businessDate: new Date('2026-08-05T00:00:00.000Z'),
+          customerCount: 1253,
+          startedAt: new Date('2026-08-05T01:00:00.000Z'),
+          finishedAt: new Date('2026-08-05T01:10:00.000Z'),
+        }),
+      },
+      customerPredictionSnapshot: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 812,
+            modelVersion: 'customer-churn-v4',
+            churnScore: 37,
+            churnLevel: 'low',
+            createdAt: new Date('2026-08-05T01:08:00.000Z'),
+            customer: { id: 8, storeId: 6, name: '马欣怡', phone: '13900125678', memberLevel: '银卡' },
+          },
+        ]),
+      },
+    };
+    const service = new BrainPredictionSkillsService(prisma as never);
+
+    const result = await service.getLatestCustomerChurnPrediction({
+      storeId: 6,
+      customerName: '马欣怡',
+      phoneTail: '5678',
+    });
+
+    expect(prisma.customerPredictionSnapshot.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          storeId: 6,
+          runId: 81,
+          customer: {
+            storeId: 6,
+            deletedAt: null,
+            AND: [{ name: '马欣怡' }, { phone: { endsWith: '5678' } }],
+          },
+        },
+      }),
+    );
+    expect(result).toMatchObject({
+      status: 'available',
+      customerId: 8,
+      maskedPhone: '***5678',
+      churnScore: 37,
+      churnLevel: 'low',
+    });
+  });
+
+  it('rejects an anomalous churn snapshot whose customer belongs to another store', async () => {
+    const prisma = {
+      predictionRun: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 81,
+          modelVersion: 'customer-churn-v4',
+          businessDate: new Date('2026-08-05T00:00:00.000Z'),
+          customerCount: 1253,
+          startedAt: new Date('2026-08-05T01:00:00.000Z'),
+          finishedAt: new Date('2026-08-05T01:10:00.000Z'),
+        }),
+      },
+      customerPredictionSnapshot: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 899,
+            modelVersion: 'customer-churn-v4',
+            churnScore: 99,
+            churnLevel: 'high',
+            createdAt: new Date('2026-08-05T01:08:00.000Z'),
+            customer: { id: 99, storeId: 9, name: '马欣怡', phone: '13900999999', memberLevel: '黑金卡' },
+          },
+        ]),
+      },
+    };
+    const service = new BrainPredictionSkillsService(prisma as never);
+
+    const result = await service.getLatestCustomerChurnPrediction({ storeId: 6, customerName: '马欣怡' });
+
+    expect(prisma.customerPredictionSnapshot.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          storeId: 6,
+          customer: expect.objectContaining({ storeId: 6 }),
+        }),
+      }),
+    );
+    expect(result).toMatchObject({ status: 'not_found' });
+    expect(result).not.toHaveProperty('customerId');
+    expect(result).not.toHaveProperty('customerName');
+    expect(result).not.toHaveProperty('candidates');
+    expect(result).not.toHaveProperty('churnScore');
+  });
+
+  it('does not derive a churn prediction when no completed model batch exists', async () => {
+    const prisma = {
+      predictionRun: { findFirst: jest.fn().mockResolvedValue(null) },
+      customerPredictionSnapshot: { findMany: jest.fn() },
+    };
+    const service = new BrainPredictionSkillsService(prisma as never);
+
+    await expect(
+      service.getLatestCustomerChurnPrediction({ storeId: 6, customerName: '马欣怡' }),
+    ).resolves.toMatchObject({
+      status: 'missing_run',
+      boundary: expect.stringContaining('不能用普通客户规则'),
+    });
+    expect(prisma.customerPredictionSnapshot.findMany).not.toHaveBeenCalled();
   });
 });

@@ -2343,6 +2343,10 @@ export class BrainChatService {
     }
 
     const governedExampleCard = this.findGovernedCapabilityExampleCard(input.dto.message, cards);
+    const projectMaterialCoverageCard = this.findProjectMaterialCoverageCapabilityCard(input.dto.message, cards);
+    const projectReputationSalesCard = this.findProjectReputationSalesCapabilityCard(input.dto.message, cards);
+    const projectOperatingAdviceCard = this.findProjectOperatingAdviceCapabilityCard(input.dto.message, cards);
+    const projectOperatingRiskCard = this.findProjectOperatingRiskCapabilityCard(input.dto.message, cards);
     const reservationProjectRankingCard = this.findReservationProjectRankingCapabilityCard(validation.intent, cards);
     const managerStaffDirectoryCard = this.findManagerStaffDirectoryCapabilityCard(
       input.dto.message,
@@ -2366,7 +2370,11 @@ export class BrainChatService {
     const deterministicCapabilityCard =
       validation.intent.intent === 'action'
         ? undefined
-        : (reservationProjectRankingCard ??
+        : (projectMaterialCoverageCard ??
+          projectReputationSalesCard ??
+          projectOperatingAdviceCard ??
+          projectOperatingRiskCard ??
+          reservationProjectRankingCard ??
           managerStaffDirectoryCard ??
           governedExampleCard ??
           pendingCapabilityCard ??
@@ -2406,41 +2414,57 @@ export class BrainChatService {
               card: deterministicCapabilityCard,
               score: 1,
               matchedFields: [
-                reservationProjectRankingCard
-                  ? 'reservation_project_ranking_contract'
-                  : managerStaffDirectoryCard
-                    ? 'manager_staff_directory_contract'
-                    : governedExampleCard
-                      ? 'examples'
-                      : pendingCapabilityCard
-                        ? 'pending_clarification'
-                        : continuationCapability
-                          ? 'conversation_continuation'
-                          : customerFactsCard
-                            ? 'customer_identity'
-                            : modelSelectedDeliveryCard
-                              ? 'model_delivery_contract'
-                              : 'retrieval',
+                projectMaterialCoverageCard
+                  ? 'project_material_coverage_contract'
+                  : projectReputationSalesCard
+                    ? 'project_reputation_sales_contract'
+                    : projectOperatingAdviceCard
+                      ? 'project_operating_advice_contract'
+                      : projectOperatingRiskCard
+                        ? 'project_operating_risk_contract'
+                        : reservationProjectRankingCard
+                          ? 'reservation_project_ranking_contract'
+                          : managerStaffDirectoryCard
+                            ? 'manager_staff_directory_contract'
+                            : governedExampleCard
+                              ? 'examples'
+                              : pendingCapabilityCard
+                                ? 'pending_clarification'
+                                : continuationCapability
+                                  ? 'conversation_continuation'
+                                  : customerFactsCard
+                                    ? 'customer_identity'
+                                    : modelSelectedDeliveryCard
+                                      ? 'model_delivery_contract'
+                                      : 'retrieval',
               ],
             },
           ],
           confidence: 1,
           margin: 1,
-          reason: reservationProjectRankingCard
-            ? 'reservation_project_ranking_contract_selected'
-            : managerStaffDirectoryCard
-              ? 'manager_staff_directory_contract_selected'
-              : governedExampleCard
-                ? 'governed_example_selected'
-                : pendingCapabilityCard
-                  ? 'pending_clarification_capability_reused'
-                  : continuationCapability
-                    ? 'conversation_continuation_capability_reused'
-                    : customerFactsCard
-                      ? 'specific_customer_fact_selected'
-                      : modelSelectedDeliveryCard
-                        ? 'model_delivery_contract_selected'
-                        : 'capability_retrieval_result',
+          reason: projectMaterialCoverageCard
+            ? 'project_material_coverage_contract_selected'
+            : projectReputationSalesCard
+              ? 'project_reputation_sales_contract_selected'
+              : projectOperatingAdviceCard
+                ? 'project_operating_advice_contract_selected'
+                : projectOperatingRiskCard
+                  ? 'project_operating_risk_contract_selected'
+                  : reservationProjectRankingCard
+                    ? 'reservation_project_ranking_contract_selected'
+                    : managerStaffDirectoryCard
+                      ? 'manager_staff_directory_contract_selected'
+                      : governedExampleCard
+                        ? 'governed_example_selected'
+                        : pendingCapabilityCard
+                          ? 'pending_clarification_capability_reused'
+                          : continuationCapability
+                            ? 'conversation_continuation_capability_reused'
+                            : customerFactsCard
+                              ? 'specific_customer_fact_selected'
+                              : modelSelectedDeliveryCard
+                                ? 'model_delivery_contract_selected'
+                                : 'capability_retrieval_result',
         }
       : this.capabilityRetriever!.retrieve({
           intent: validation.intent,
@@ -2511,7 +2535,10 @@ export class BrainChatService {
       return this.modelFailure(failureCode, this.modelMetadata('retrieve', modelMetadata), validation.intent);
     }
     const capabilityGovernedIntent = this.normalizeReadOnlyPreviewCapabilityIntent(
-      this.normalizeReservationProjectRankingCapabilityIntent(validation.intent, retrieval.selected),
+      this.normalizeReservationProjectRankingCapabilityIntent(
+        this.normalizeProjectReputationSalesIntent(validation.intent, retrieval.selected, input.dto.message),
+        retrieval.selected,
+      ),
       retrieval.selected,
     );
     const managerStaffGovernedIntent = this.normalizeManagerStaffDirectoryCapabilityIntent(
@@ -2530,7 +2557,8 @@ export class BrainChatService {
         exactGovernedExample:
           governedExampleCard?.key === retrieval.selected.key ||
           customerFactsCard?.key === retrieval.selected.key ||
-          managerStaffDirectoryCard?.key === retrieval.selected.key,
+          managerStaffDirectoryCard?.key === retrieval.selected.key ||
+          projectReputationSalesCard?.key === retrieval.selected.key,
       },
     );
     if (contractMismatches.length > 0) {
@@ -3131,8 +3159,15 @@ export class BrainChatService {
 
   private hasExplicitSideEffectRequest(question: string) {
     const normalized = question.trim();
+    const compact = normalized.replace(/\s+/gu, '');
+    const explicitTransactionHistoryQuery =
+      /(?:充值|退款|开卡|办卡)(?:记录|明细|流水|历史)(?:[呢吗呀啊]?[？?。！!]?)$/u.test(compact) &&
+      !/(?:创建|新建|生成|保存|录入|提交|修改|更新|删除|移除|清除|作废).*(?:充值|退款|开卡|办卡)(?:记录|明细|流水|历史)/u.test(
+        compact,
+      );
+    if (explicitTransactionHistoryQuery) return false;
     return (
-      /^(?:(?:帮我|请|直接|立即|马上|替我|给我|能不能|可以|是否可以)\s*)?(?:再\s*)?(?:创建|新建|修改|更新|改约|取消预约|核销|扣次|退款|发送|群发|发放|发布|保存|记录|提交|下单|采购|安排预约|完成服务|开始服务|结束服务|(?:加|安排|插入|塞)(?:一个|一位)?(?:客人|客户))/.test(
+      /^(?:(?:帮我|请|直接|立即|马上|替我|给我|能不能|可以|是否可以)\s*)?(?:再\s*)?(?:创建|新建|修改|更新|删除|移除|清除|作废|改约|取消预约|核销|扣次|退款|发送|群发|发放|发布|保存|记录|提交|下单|采购|安排预约|完成服务|开始服务|结束服务|(?:加|安排|插入|塞)(?:一个|一位)?(?:客人|客户))/.test(
         normalized,
       ) ||
       /^(?:帮我|请|替我|给我|能不能|可以|是否可以)\s*(?:约|预约)(?:一下|一个|一位)?/.test(normalized) ||
@@ -3144,9 +3179,14 @@ export class BrainChatService {
         normalized,
       ) ||
       /^(?:给|为).{1,48}(?:加个|加上|添加|设置|安排|调价|配置|创建|新建|更新|修改|发布|上架|下架)/.test(normalized) ||
-      /^(?:帮|替).{1,48}(?:创建|新建|修改|更新|改约|取消|核销|扣次|退款|发送|发布|保存|记录|提交|安排|配置|调价|上架|下架)/.test(
+      /^(?:给|为)(?!我(?:看|查|分析|统计|算|列出)).{1,64}(?:充值|退款)/.test(normalized) ||
+      /^(?:帮|替)(?!我(?:看|查|分析|统计|算|列出))(?!看|查|分析|统计|算|列出).{1,48}(?:创建|新建|修改|更新|改约|取消|核销|扣次|退款|发送|发布|保存|记录|提交|安排|配置|调价|上架|下架)/.test(
         normalized,
       ) ||
+      /^(?:帮|替)(?!我(?:看|查|分析|统计|算|列出))(?!看|查|分析|统计|算|列出).{1,48}开(?:一张|个)?[^，。！？!?]{0,32}卡/.test(
+        normalized,
+      ) ||
+      /^(?!.*(?:查询|查一下|看一下|记录|明细|统计|多少)).{1,32}结账(?:[，,。；;！？!?]|$)/.test(normalized) ||
       /^(?:(?:帮我|请|直接|立即|马上|替我|给我)\s*)?(?:发布|上架|下架|配置|调价|排班|智能排班|一键智能排)/.test(
         normalized,
       ) ||
@@ -3508,6 +3548,9 @@ export class BrainChatService {
       return /(?:建议|应该|怎么|如何|安排|清单|补多少|买多少|采购多少|要买什么|补什么货)/.test(question)
         ? { intent: 'recommendation', answerShape: 'list' }
         : { intent: 'query', answerShape: 'list' };
+    }
+    if (card.key === 'inventory_operations_overview' && this.isProjectMaterialCoverageQuestion(question)) {
+      return { intent: 'diagnosis', answerShape: 'diagnosis' };
     }
     return { intent: 'query', answerShape: 'list' };
   }
@@ -4222,6 +4265,7 @@ export class BrainChatService {
     const managerStaffDirectoryCapability = this.modelManagerStaffDirectoryCapabilityCard(cards, question);
     const managerStaffMetricCapability = this.modelManagerStaffMetricCapabilityCard(cards, question);
     const cardPackageSalesCapability = this.modelCardPackageSalesCapabilityCard(cards, question);
+    const projectMaterialCoverageCapability = this.modelProjectMaterialCoverageCapabilityCard(cards, question);
     const projectMarginCapability = this.modelProjectMarginCapabilityCard(cards, question);
     const projectCatalogCapability = this.modelProjectCatalogCapabilityCard(cards, question);
     const ordered = [
@@ -4234,6 +4278,7 @@ export class BrainChatService {
       managerStaffDirectoryCapability,
       managerStaffMetricCapability,
       cardPackageSalesCapability,
+      projectMaterialCoverageCapability,
       projectMarginCapability,
       projectCatalogCapability,
       ...topK.map((candidate) => candidate.card),
@@ -4331,7 +4376,7 @@ export class BrainChatService {
     question: string,
   ): BrainCapabilityCard | undefined {
     if (
-      !/(?:次卡|套餐卡).*(?:卖得最好|卖得最多|销量最高|销售排行|销售排名|哪个卖得好)|(?:卖得最好|卖得最多|销量最高|销售排行|销售排名).*(?:次卡|套餐卡)/.test(
+      !/(?:次卡|套餐卡).*(?:卖得最好|卖得最多|销量最高|销售排行|销售排名|哪个卖得好)|(?:卖得最好|卖得最多|销量最高|销售排行|销售排名).*(?:次卡|套餐卡)|(?:有哪些|哪些|有没有).*(?:\d+\s*次卡|次卡|套餐卡).*(?:在售|可售|正在销售)|(?:在售|可售|正在销售).*(?:次卡|套餐卡)/.test(
         question,
       )
     ) {
@@ -4348,9 +4393,13 @@ export class BrainChatService {
     question: string,
   ): BrainCapabilityCard | undefined {
     if (
-      !/(?:各个?|每个|所有)(?:项目|护理项目|服务项目).*(?:毛利|利润)|(?:毛利|利润).*(?:各个?|每个|所有)(?:项目|护理项目|服务项目)|(?:项目|护理项目|服务项目)(?:的)?(?:毛利|利润)(?:排行|排名|对比|分析)/.test(
-        question,
-      ) ||
+      this.isProjectMaterialCoverageQuestion(question) ||
+      (!this.isProjectReputationSalesQuestion(question) &&
+        !this.isProjectOperatingAdviceQuestion(question) &&
+        !this.isProjectOperatingRiskQuestion(question) &&
+        !/(?:各个?|每个|所有)(?:项目|护理项目|服务项目).*(?:毛利|利润)|(?:毛利|利润).*(?:各个?|每个|所有)(?:项目|护理项目|服务项目)|(?:项目|护理项目|服务项目)(?:的)?(?:毛利|利润)(?:排行|排名|对比|分析)/.test(
+          question,
+        )) ||
       /(?:商品|产品|订单|单号)/.test(question)
     ) {
       return undefined;
@@ -4358,6 +4407,99 @@ export class BrainChatService {
     return cards.find(
       (card) =>
         card.key === 'project_margin_analysis' && card.readOnly && !card.sideEffect && card.intents.includes('query'),
+    );
+  }
+
+  private isProjectMaterialCoverageQuestion(question: string): boolean {
+    const normalized = question.replace(/\s+/gu, '');
+    const projectSignal = /(?:项目|护理|SPA|spa|管理|养护|修护|提拉|焕肤|清洁|舒缓|净透|淡斑)/u.test(normalized);
+    const materialSignal = /(?:库存|耗材|物料|材料|BOM|bom)/iu.test(normalized);
+    const demandSignal = /(?:销量|销售|服务量|服务次数|需求)/u.test(normalized);
+    const coverageSignal = /(?:跟得上|跟不上|够不够|是否足够|够用|支撑|满足)/u.test(normalized);
+    return (
+      projectSignal && materialSignal && demandSignal && coverageSignal && !this.hasExplicitSideEffectRequest(question)
+    );
+  }
+
+  private modelProjectMaterialCoverageCapabilityCard(
+    cards: readonly BrainCapabilityCard[],
+    question: string,
+  ): BrainCapabilityCard | undefined {
+    if (!this.isProjectMaterialCoverageQuestion(question)) return undefined;
+    return cards.find(
+      (card) =>
+        card.key === 'inventory_operations_overview' &&
+        card.readOnly &&
+        !card.sideEffect &&
+        (card.intents.includes('diagnosis') || card.intents.includes('query')),
+    );
+  }
+
+  private findProjectMaterialCoverageCapabilityCard(
+    question: string,
+    cards: readonly BrainCapabilityCard[],
+  ): BrainCapabilityCard | undefined {
+    return this.modelProjectMaterialCoverageCapabilityCard(cards, question);
+  }
+
+  private isProjectOperatingAdviceQuestion(question: string): boolean {
+    const normalized = question.replace(/\s+/gu, '');
+    const projectSignal = /(?:项目|护理|SPA|spa|管理|养护|修护|提拉|焕肤|清洁|舒缓|净透|淡斑)/u.test(normalized);
+    const sellThroughAdvice =
+      /(?:卖不动|销量(?:太)?低|销售(?:太)?少).*(?:建议|怎么办|怎么处理|如何处理|是不是|是否|吗)|(?:建议|怎么办|怎么处理|如何处理|是不是|是否).*(?:卖不动|销量(?:太)?低|销售(?:太)?少)/u.test(
+        normalized,
+      );
+    const priceAdvice = /(?:该不该|是否|要不要).{0,24}(?:调价)|(?:调价).{0,24}(?:建议|该不该|是否|要不要)/u.test(
+      normalized,
+    );
+    const averageOrderValueAdvice =
+      /(?:提升|提高).*(?:客单价).*(?:主推|推荐|哪些项目)|(?:主推|推荐).*(?:项目|护理).*(?:提升|提高).*(?:客单价)/u.test(
+        normalized,
+      );
+    const explicitMutation =
+      /(?:调价|价格).{0,12}(?:到|为)\s*\d|(?:直接|立即|马上).{0,8}(?:调价|改价|上架|下架)|(?:上架|下架).*(?:这个|该|项目|护理)/u.test(
+        normalized,
+      );
+    return projectSignal && (sellThroughAdvice || priceAdvice || averageOrderValueAdvice) && !explicitMutation;
+  }
+
+  private findProjectOperatingAdviceCapabilityCard(
+    question: string,
+    cards: readonly BrainCapabilityCard[],
+  ): BrainCapabilityCard | undefined {
+    if (!this.isProjectOperatingAdviceQuestion(question)) return undefined;
+    return cards.find(
+      (card) =>
+        card.key === 'project_margin_analysis' &&
+        card.readOnly &&
+        !card.sideEffect &&
+        (card.intents.includes('diagnosis') || card.intents.includes('query')),
+    );
+  }
+
+  private isProjectOperatingRiskQuestion(question: string): boolean {
+    const normalized = question.replace(/\s+/gu, '');
+    const projectSignal = /(?:项目|护理|SPA|spa|管理|养护|修护|提拉|焕肤|清洁|舒缓|净透|淡斑)/u.test(normalized);
+    const lowMarginRisk =
+      /(?:哪些|有哪些|列出)?.*(?:项目|护理)?.*(?:毛利过低|低毛利)|(?:毛利过低|低毛利).*(?:项目|护理)/u.test(normalized);
+    const zeroSalesRisk =
+      /(?:项目|护理).*(?:长期)?(?:零销量|零销售|没有销量)|(?:长期)?(?:零销量|零销售|没有销量).*(?:项目|护理)/u.test(
+        normalized,
+      );
+    return projectSignal && (lowMarginRisk || zeroSalesRisk);
+  }
+
+  private findProjectOperatingRiskCapabilityCard(
+    question: string,
+    cards: readonly BrainCapabilityCard[],
+  ): BrainCapabilityCard | undefined {
+    if (!this.isProjectOperatingRiskQuestion(question)) return undefined;
+    return cards.find(
+      (card) =>
+        card.key === 'project_margin_analysis' &&
+        card.readOnly &&
+        !card.sideEffect &&
+        (card.intents.includes('diagnosis') || card.intents.includes('query')),
     );
   }
 
@@ -5337,6 +5479,15 @@ export class BrainChatService {
     ) {
       return undefined;
     }
+    if (this.isProjectMaterialCoverageQuestion(question)) {
+      return cards.find(
+        (card) =>
+          card.key === 'inventory_operations_overview' &&
+          card.readOnly &&
+          !card.sideEffect &&
+          (card.intents.includes('diagnosis') || card.intents.includes('query')),
+      );
+    }
     const procurementQuestion =
       /(?:采购|补货|进货|备货|买多少|补多少|供应商|报价|交货|交期|收货|待收货|采购金额|采购总额|采购成本|采购单|采购订单|结算待付款|最便宜)/.test(
         question,
@@ -5448,6 +5599,24 @@ export class BrainChatService {
 
   private isProjectCatalogQuestion(question: string) {
     return this.isProjectServiceSalesQuestion(question) || this.isProjectSpecificBomQuestion(question);
+  }
+
+  private isProjectReputationSalesQuestion(question: string): boolean {
+    return /(?:项目|护理|服务).*(?:叫好不叫座)|(?:叫好不叫座).*(?:项目|护理|服务)/u.test(question);
+  }
+
+  private findProjectReputationSalesCapabilityCard(
+    question: string,
+    cards: readonly BrainCapabilityCard[],
+  ): BrainCapabilityCard | undefined {
+    if (!this.isProjectReputationSalesQuestion(question)) return undefined;
+    return cards.find(
+      (card) =>
+        card.key === 'project_margin_analysis' &&
+        card.readOnly &&
+        !card.sideEffect &&
+        (card.intents.includes('diagnosis') || card.intents.includes('query')),
+    );
   }
 
   private isProjectServiceSalesQuestion(question: string) {
@@ -5607,6 +5776,36 @@ export class BrainChatService {
       metrics,
       orderBy,
       assumptions: [...intent.assumptions, '预约项目排行按预约事实分组统计，不使用服务核销次数或订单指标替代。'],
+    };
+  }
+
+  private normalizeProjectReputationSalesIntent(
+    intent: BrainSemanticIntent,
+    card: BrainCapabilityCard,
+    question: string,
+  ): BrainSemanticIntent {
+    if (card.key !== 'project_margin_analysis' || !this.isProjectReputationSalesQuestion(question)) return intent;
+    const projectEntities = intent.entities.filter((entity) => entity.entityType === 'project');
+    return {
+      ...intent,
+      objective: question.trim(),
+      domains: ['project', 'finance'],
+      intent: 'diagnosis',
+      entities: projectEntities,
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+      answerShape: 'diagnosis',
+      successCriteria: ['读取当前门店真实项目服务次数与收入', '明确披露项目评价、满意度和口碑数据缺口'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: [
+        ...intent.assumptions,
+        '“叫好不叫座”需要口碑和销量两类事实；当前只按真实项目销量列出人工对照，不用预约列表或低销量冒充口碑结论。',
+      ],
+      confidence: 1,
+      decisionSummary: '项目口碑与销量问题由项目经营事实能力诚实降级回答。',
     };
   }
 

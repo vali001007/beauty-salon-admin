@@ -534,6 +534,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '给我一份库存金额、低库存、临期和采购建议总览',
       '哪些耗材消耗速度最快',
       '有没有哪个项目因为缺耗材没法做',
+      '紧致抗衰护理的库存耗材跟得上销量吗',
       '这个月产品销售额是多少',
     ],
     negativeExamples: ['直接创建采购单', '修改商品当前库存'],
@@ -557,6 +558,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       'metric.stock_risk_score',
       'metric.inventory_consumption_quantity',
       'metric.product_sales_amount',
+      'metric.project_service_count',
     ],
     readOnly: true,
     storeScope: 'required',
@@ -602,6 +604,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '帮我统计一下本月折扣总金额和折扣率',
       '本月退款和上月比增加了多少',
       '本月卖得最好的次卡是哪个',
+      '最近三个月有订单支付和金额对不上吗',
     ],
     negativeExamples: ['直接修改结算数据', '查看其他门店的财务数据', '有没有项目成本明显上涨影响毛利的'],
     synonyms: [
@@ -913,7 +916,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     key: 'marketing_customer_segment',
     name: '营销客户分群摘要',
     description:
-      '基于当前门店客户、订单、项目类型、优惠和客户卡事实，返回营销分群摘要或消费分层、优惠敏感、基础项目未升单、疗程续购等具体客户名单。',
+      '基于当前门店客户、订单、项目类型、优惠和客户卡事实，返回营销分群摘要或消费分层、优惠敏感、基础项目未升单、疗程续购等具体客户名单；指定客户的流失风险只能读取最新完成模型批次中的 CustomerPredictionSnapshot。',
     intents: ['query', 'ranking', 'diagnosis'],
     examples: [
       '本月客户可以分成哪些营销人群',
@@ -927,6 +930,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '未来30天哪些客户复购评分最高',
       '哪些客户的营销响应评分最高',
       '预测某位客户的12个月生命周期价值',
+      '预测马欣怡的流失风险有多高',
     ],
     negativeExamples: [
       '直接给沉睡客户群发消息',
@@ -948,6 +952,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '客户复购预测排行',
       '营销响应预测排行',
       '客户12个月生命周期价值',
+      '客户流失风险预测',
     ],
     businessDefinitionKeys: ['entity.customer', 'entity.project', 'dimension.customerId', 'dimension.customerName'],
     readOnly: true,
@@ -1008,6 +1013,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '这个月比上个月少收了多少',
       '收入环比是涨了还是跌了，差额多少',
       '今天储值卡消耗了多少，新充值了多少',
+      '最近三个月各支付方式的金额分别多少',
+      '最近三个月营业额和最近7天比怎么样',
+      '最近三个月订单量的趋势',
     ],
     negativeExamples: ['直接修改支付记录', '查询其他门店的支付明细'],
     synonyms: [
@@ -4196,6 +4204,95 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             },
           };
         }
+        if (isProjectMaterialCoverageQuestion(input.question)) {
+          const demandRange = this.resolveProjectMaterialDemandRange(input, range);
+          const coverage = await this.projectMaterialDemandCoverage(
+            input.context.storeId,
+            input.question,
+            demandRange.startDate,
+            demandRange.endDate,
+          );
+          const citation = {
+            sourceType: 'db_skill',
+            sourceId: 'project_material_sales_coverage',
+            label: '项目服务销量、标准 BOM 与当前耗材库存核对',
+          } as const;
+          if (!coverage.project) {
+            return {
+              status: 'completed',
+              answer: '没有匹配到当前门店项目，无法核对该项目的销量需求、BOM 和当前耗材库存。',
+              citations: [citation],
+              grounding: 'db_skill',
+              blocks: [{ kind: 'limitations', items: ['no_data: project_not_matched'] }],
+              metadata: {
+                capabilityKey: 'inventory_operations_overview',
+                answerScope: 'project_material_sales_coverage',
+                unsupportedReason: 'project_not_matched',
+                actionWriteCount: 0,
+              },
+            };
+          }
+          if (coverage.rows.length === 0) {
+            return {
+              status: 'completed',
+              answer: `${coverage.project.name} 当前没有配置标准 BOM，无法判断库存耗材是否跟得上销量。`,
+              citations: [citation],
+              grounding: 'db_skill',
+              blocks: [{ kind: 'limitations', items: ['no_data: project_bom_not_configured'] }],
+              metadata: {
+                capabilityKey: 'inventory_operations_overview',
+                answerScope: 'project_material_sales_coverage',
+                projectId: coverage.project.id,
+                projectName: coverage.project.name,
+                serviceCount: coverage.serviceCount,
+                unsupportedReason: 'project_bom_not_configured',
+                actionWriteCount: 0,
+              },
+            };
+          }
+          const shortageRows = coverage.rows.filter((row) => row.shortageQty > 0 || row.productStatus !== 'active');
+          const answer =
+            coverage.serviceCount <= 0
+              ? `${demandRange.label}${coverage.project.name}没有已完成或已支付的项目订单，暂时无法用真实销量形成耗材需求基线；已返回当前 BOM 与库存供人工核对。`
+              : shortageRows.length
+                ? `${demandRange.label}${coverage.project.name}服务销量 ${coverage.serviceCount} 次，按标准 BOM 估算有 ${shortageRows.length} 项耗材库存不足，当前库存跟不上该观察期销量需求。仅返回只读缺口，不创建采购单、不补货。`
+                : `${demandRange.label}${coverage.project.name}服务销量 ${coverage.serviceCount} 次，按标准 BOM 核对，当前耗材库存可覆盖该观察期的同等销量需求。该结论是历史需求基线，不是未来销量预测；本次不创建采购单、不补货。`;
+          return {
+            status: 'completed',
+            answer,
+            citations: [citation],
+            grounding: 'db_skill',
+            blocks: [
+              {
+                kind: 'table',
+                rows: coverage.rows,
+                columns: [
+                  'projectName',
+                  'productName',
+                  'serviceCount',
+                  'standardQty',
+                  'demandQty',
+                  'currentStock',
+                  'coverageServiceCount',
+                  'shortageQty',
+                  'unit',
+                ],
+                citationIds: [citation.sourceId],
+              },
+            ],
+            metadata: {
+              capabilityKey: 'inventory_operations_overview',
+              answerScope: 'project_material_sales_coverage',
+              projectId: coverage.project.id,
+              projectName: coverage.project.name,
+              serviceCount: coverage.serviceCount,
+              shortageItemCount: shortageRows.length,
+              rangeLabel: demandRange.label,
+              actionWriteCount: 0,
+              completionCriteria: ['project_sales_loaded', 'project_bom_loaded', 'current_material_stock_loaded'],
+            },
+          };
+        }
         if (
           /(?:项目|护理|服务).*(?:缺|不足|没有).*(?:耗材|物料)|(?:耗材|物料).*(?:缺|不足).*(?:项目|护理|服务)/.test(
             input.question,
@@ -4471,6 +4568,91 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             },
           };
         }
+        if (isActiveCardCatalogQuestion(input.question)) {
+          if (!this.prisma) throw new Error('active_card_catalog_prisma_unavailable');
+          const normalizedQuestion = normalizeCardCatalogText(input.question);
+          const requestedTimes = Number(input.question.match(/(\d+)\s*次卡/u)?.[1] ?? 0) || undefined;
+          const keyword = normalizedQuestion.replace(
+            /(?:有哪些|哪些|有没有|在售|可售|正在销售|\d+次卡|套餐卡|次卡)/gu,
+            '',
+          );
+          const catalogCards = await this.prisma.card.findMany({
+            where: {
+              status: 'active',
+              OR: [{ storeId: input.context.storeId }, { storeId: null }],
+              ...(requestedTimes ? { totalTimes: requestedTimes } : {}),
+            },
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              totalTimes: true,
+              price: true,
+              projects: true,
+              status: true,
+              storeId: true,
+            },
+            orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+            take: 200,
+          });
+          const rows = catalogCards
+            .map((card) => {
+              const projects = Array.isArray(card.projects)
+                ? card.projects.flatMap((item) => {
+                    if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
+                    const value = item as Record<string, unknown>;
+                    const projectName = String(value.projectName ?? value.name ?? '').trim();
+                    return projectName ? [projectName] : [];
+                  })
+                : [];
+              return {
+                cardId: card.id,
+                cardName: card.name,
+                totalTimes: card.totalTimes,
+                price: Number(card.price),
+                projects,
+                description: card.description ?? '',
+                scope: card.storeId === null ? 'shared' : 'store',
+              };
+            })
+            .filter((card) => {
+              if (!keyword) return true;
+              const haystacks = [card.cardName, ...card.projects].map(normalizeCardCatalogText);
+              return haystacks.some((value) => value.includes(keyword) || keyword.includes(value));
+            })
+            .slice(0, this.resolveLimit(input.args.limit, 20));
+          const citation = {
+            sourceType: 'db_skill',
+            sourceId: 'active_card_catalog',
+            label: '当前门店在售次卡目录',
+          } as const;
+          return {
+            status: 'completed',
+            answer: rows.length
+              ? `当前有 ${rows.length} 张匹配的在售次卡：${rows.map((row) => `${row.cardName}（${row.totalTimes} 次，${row.price.toFixed(2)} 元，适用项目：${row.projects.join('、') || '未配置'}）`).join('；')}。`
+              : '当前门店没有匹配该名称、项目或次数条件的在售次卡。',
+            citations: [citation],
+            grounding: 'db_skill',
+            blocks: rows.length
+              ? [
+                  {
+                    kind: 'table',
+                    rows,
+                    columns: ['cardName', 'totalTimes', 'price', 'projects', 'description', 'scope'],
+                    citationIds: ['active_card_catalog'],
+                  },
+                ]
+              : [{ kind: 'limitations', items: ['no_data: active_card_catalog_not_matched'] }],
+            metadata: {
+              capabilityKey: 'finance_risk_overview',
+              answerScope: 'active_card_catalog',
+              requestedTimes: requestedTimes ?? null,
+              keyword: keyword || null,
+              matchedCardCount: rows.length,
+              actionWriteCount: 0,
+            },
+          };
+        }
         const diagnosisAnswer = input.answerShape === 'diagnosis';
         const diagnosisRange = diagnosisAnswer ? this.resolveFinanceDiagnosisRange(input, range) : range;
         const cardRecognizedRevenue = await this.buildCardRecognizedRevenueAnswer(input, diagnosisRange);
@@ -4479,6 +4661,8 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         if (structuredFinanceAnswer) return structuredFinanceAnswer;
         const projectOrderProfit = await this.buildProjectOrderProfitAnswer(input, diagnosisRange);
         if (projectOrderProfit) return projectOrderProfit;
+        const orderPaymentMismatch = await this.buildOrderPaymentMismatchAnswer(input, diagnosisRange);
+        if (orderPaymentMismatch) return orderPaymentMismatch;
         if (
           /(?:次卡|套餐卡).*(?:卖得最好|卖得最多|销量最高|销售排行|销售排名|哪个卖得好)|(?:卖得最好|卖得最多|销量最高|销售排行|销售排名).*(?:次卡|套餐卡)/.test(
             input.question,
@@ -6815,6 +6999,104 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             },
           });
         }
+        if (isScalarOrderCountQuestion(input.question)) {
+          if (!this.prisma) throw new Error('order_count_query_prisma_unavailable');
+          const orderCount = await this.prisma.productOrder.count({
+            where: {
+              storeId: input.context.storeId,
+              createdAt: { gte: range.startDate, lte: range.endDate },
+              status: { in: ['completed', 'paid'] },
+            },
+          });
+          return this.answer({
+            answer: `${range.label}有效订单共 ${orderCount} 笔（按订单创建时间计数，仅统计已完成或已支付订单）。`,
+            citationId: 'product_order_count',
+            citationLabel: '当前门店有效订单计数',
+            citations: [
+              {
+                sourceType: 'business_definition',
+                sourceId: 'metric.order_count',
+                label: '业务定义：有效订单数',
+              },
+            ],
+            blocks: [
+              {
+                kind: 'kpi',
+                items: [{ label: `${range.label}有效订单`, value: `${orderCount} 笔` }],
+                citationIds: ['product_order_count', 'metric.order_count'],
+              },
+            ],
+            metadata: {
+              rangeLabel: range.label,
+              ...this.executionTimeRange(range, input.context.timezone),
+              answerScope: 'valid_product_order_count',
+              orderCount,
+              includedStatuses: ['completed', 'paid'],
+              actionWriteCount: 0,
+            },
+          });
+        }
+        const orderCountTrend =
+          input.answerShape === 'trend' &&
+          /(?:订单量|订单数|订单数量).*(?:趋势|走势)|(?:趋势|走势).*(?:订单量|订单数|订单数量)/.test(
+            input.question,
+          );
+        if (orderCountTrend) {
+          if (!this.prisma) throw new Error('order_count_trend_query_prisma_unavailable');
+          const orders = await this.prisma.productOrder.findMany({
+            where: {
+              storeId: input.context.storeId,
+              createdAt: { gte: range.startDate, lte: range.endDate },
+              status: { in: ['completed', 'paid'] },
+            },
+            select: { createdAt: true },
+            orderBy: { createdAt: 'asc' },
+          });
+          const countByDate = new Map<string, number>();
+          for (const order of orders) {
+            const date = this.formatDateOnly(order.createdAt, input.context.timezone);
+            countByDate.set(date, (countByDate.get(date) ?? 0) + 1);
+          }
+          const startDateKey = this.formatDateOnly(range.startDate, input.context.timezone);
+          const endDateKey = this.formatDateOnly(range.endDate, input.context.timezone);
+          const rows = Array.from(
+            { length: Math.max(1, this.dateKeyDifference(startDateKey, endDateKey) + 1) },
+            (_, index) => {
+              const date = this.addDateKeyDays(startDateKey, index);
+              return { date, orderCount: countByDate.get(date) ?? 0 };
+            },
+          );
+          return this.answer({
+            answer: `${range.label}订单量趋势已生成，共 ${rows.length} 个按日有效订单数据点（仅统计已完成或已支付订单）。`,
+            citationId: 'product_order_daily_count',
+            citationLabel: '当前门店有效订单按日计数',
+            citations: [
+              {
+                sourceType: 'business_definition',
+                sourceId: 'metric.order_count',
+                label: '业务定义：有效订单数',
+              },
+            ],
+            blocks: [
+              {
+                kind: 'chart',
+                chartType: 'line',
+                rows,
+                xKey: 'date',
+                yKeys: ['orderCount'],
+                citationIds: ['product_order_daily_count', 'metric.order_count'],
+              },
+            ],
+            metadata: {
+              rangeLabel: range.label,
+              ...this.executionTimeRange(range, input.context.timezone),
+              trendMetric: 'order_count',
+              trendDataSource: 'ProductOrder',
+              includedStatuses: ['completed', 'paid'],
+              actionWriteCount: 0,
+            },
+          });
+        }
         const requestedMethods = this.requestedPaymentMethods(input.question);
         const requestedDimensions = structuredDefinitionKeys(input.args.dimensions);
         const comparisonRequested = input.answerShape === 'comparison';
@@ -6841,13 +7123,24 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
               })
             : Promise.resolve(undefined),
         ]);
-        const rowsByMethod = new Map(analysis.paymentBreakdown.map((item) => [item.method, { ...item }]));
+        const rowsByMethod = new Map<string, { method: string; amount: number; count: number }>();
+        for (const item of analysis.paymentBreakdown) {
+          const method = this.normalizePaymentMethodKey(item.method);
+          const current = rowsByMethod.get(method) ?? { method, amount: 0, count: 0 };
+          current.amount = this.roundMoney(current.amount + item.amount);
+          current.count += item.count;
+          rowsByMethod.set(method, current);
+        }
         for (const method of requestedMethods) {
           if (!rowsByMethod.has(method)) rowsByMethod.set(method, { method, amount: 0, count: 0 });
         }
+        const normalizedPaymentRows = [...rowsByMethod.values()].sort(
+          (left, right) =>
+            right.amount - left.amount || right.count - left.count || left.method.localeCompare(right.method),
+        );
         const paymentRows = [
           ...requestedMethods.flatMap((method) => (rowsByMethod.has(method) ? [rowsByMethod.get(method)!] : [])),
-          ...[...rowsByMethod.values()].filter((item) => !requestedMethods.includes(item.method)),
+          ...normalizedPaymentRows.filter((item) => !requestedMethods.includes(item.method)),
         ];
         const breakdown = paymentRows
           .map((item) => `${this.paymentMethodLabel(item.method)}：${item.amount.toFixed(2)} 元，共 ${item.count} 笔`)
@@ -6907,23 +7200,53 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             ? '（上期为 0，无法计算增减比例）'
             : `（${this.signed(comparisonRate * 100, 1)}%）`
         }`;
+        const currentPeriodDays = comparisonRange
+          ? Math.max(
+              1,
+              Math.floor(
+                (comparisonRange.current.endDate.getTime() - comparisonRange.current.startDate.getTime()) / 86_400_000,
+              ) + 1,
+            )
+          : 0;
+        const previousPeriodDays = comparisonRange
+          ? Math.max(
+              1,
+              Math.floor(
+                (comparisonRange.previous.endDate.getTime() - comparisonRange.previous.startDate.getTime()) /
+                  86_400_000,
+              ) + 1,
+            )
+          : 0;
+        const unequalComparisonPeriods = Boolean(
+          comparisonAnswer &&
+          comparisonRange &&
+          currentPeriodDays !== previousPeriodDays &&
+          [...input.question.matchAll(/(?:最近|过去|近)\s*[一二三四五六七八九十\d]{1,3}\s*(?:个月|天|年)/gu)].length >=
+            2,
+        );
+        const currentDailyAverage = currentPeriodDays ? analysis.totalCollected / currentPeriodDays : 0;
+        const previousDailyAverage =
+          previousAnalysis && previousPeriodDays ? previousAnalysis.totalCollected / previousPeriodDays : 0;
+        const dailyAverageDelta = currentDailyAverage - previousDailyAverage;
+        const dailyAverageRate = previousDailyAverage !== 0 ? dailyAverageDelta / previousDailyAverage : undefined;
+        const dailyAverageDirection = dailyAverageDelta > 0 ? '高' : dailyAverageDelta < 0 ? '低' : '持平';
         return this.answer({
           answer:
             comparisonAnswer && comparisonRange && previousAnalysis
-              ? `${comparisonRange.current.label}实收 ${analysis.totalCollected.toFixed(2)} 元，${comparisonRange.previous.label}实收 ${previousAnalysis.totalCollected.toFixed(2)} 元，${comparisonDirection} ${Math.abs(comparisonDelta).toFixed(2)} 元${comparisonRate === undefined ? '；上期为 0，无法计算增减比例。' : `，增减幅度 ${this.signed(comparisonRate * 100, 1)}%。`}`
+              ? unequalComparisonPeriods
+                ? `${comparisonRange.current.label}实收 ${analysis.totalCollected.toFixed(2)} 元（${currentPeriodDays} 天，日均 ${currentDailyAverage.toFixed(2)} 元）；${comparisonRange.previous.label}实收 ${previousAnalysis.totalCollected.toFixed(2)} 元（${previousPeriodDays} 天，日均 ${previousDailyAverage.toFixed(2)} 元）。按可比的日均口径，${comparisonRange.current.label}比${comparisonRange.previous.label}${dailyAverageDirection} ${Math.abs(dailyAverageDelta).toFixed(2)} 元${dailyAverageRate === undefined ? '；对比期日均为 0，无法计算比例。' : `，变化 ${this.signed(dailyAverageRate * 100, 1)}%。`}两个周期天数不同，实收总额只展示，不直接用于判断经营强弱。`
+                : `${comparisonRange.current.label}实收 ${analysis.totalCollected.toFixed(2)} 元，${comparisonRange.previous.label}实收 ${previousAnalysis.totalCollected.toFixed(2)} 元，${comparisonDirection} ${Math.abs(comparisonDelta).toFixed(2)} 元${comparisonRate === undefined ? '；上期为 0，无法计算增减比例。' : `，增减幅度 ${this.signed(comparisonRate * 100, 1)}%。`}`
               : trendAnswer
                 ? `${range.label}实收趋势已生成，共 ${analysis.dailyTrend.length} 个按日数据点。`
                 : scalarAnswer
                   ? `${range.label}实收合计 ${analysis.totalCollected.toFixed(2)} 元。`
-                  : `实收合计 ${analysis.totalCollected.toFixed(2)} 元。${breakdown ? `支付方式拆分：${breakdown}。` : '当前没有支付方式明细。'}`,
+                  : `${range.label}实收合计 ${analysis.totalCollected.toFixed(2)} 元。${breakdown ? `各支付方式金额：${breakdown}。` : '当前没有支付方式明细。'}`,
           citationId: 'capability_finance_payment_breakdown',
           citationLabel: '财务支付方式拆分',
           citations: [
             {
               sourceType: 'business_definition',
-              sourceId: paidMetric
-                ? `${paidMetric.definitionKey}@${paidMetric.definitionVersion}`
-                : 'metric.paid_amount',
+              sourceId: paidMetric ? `${paidMetric.definitionKey}@${paidMetric.definitionVersion}` : 'metric.paid_amount',
               label: '业务定义：实收金额',
             },
           ],
@@ -6934,28 +7257,48 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                     kind: 'comparison',
                     items: [
                       {
-                        label: '实收金额',
+                        label: unequalComparisonPeriods ? '实收总额' : '实收金额',
                         current: `${comparisonRange.current.label} ${analysis.totalCollected.toFixed(2)} 元`,
                         previous: `${comparisonRange.previous.label} ${previousAnalysis.totalCollected.toFixed(2)} 元`,
                         delta: comparisonDeltaText,
                       },
+                      ...(unequalComparisonPeriods
+                        ? [
+                            {
+                              label: '日均实收',
+                              current: `${comparisonRange.current.label} ${currentDailyAverage.toFixed(2)} 元/天`,
+                              previous: `${comparisonRange.previous.label} ${previousDailyAverage.toFixed(2)} 元/天`,
+                              delta: `${this.signed(dailyAverageDelta, 2)} 元/天${
+                                dailyAverageRate === undefined
+                                  ? '（对比期为 0，无法计算比例）'
+                                  : `（${this.signed(dailyAverageRate * 100, 1)}%）`
+                              }`,
+                            },
+                          ]
+                        : []),
                     ],
                     citationIds: ['capability_finance_payment_breakdown'],
                   },
                 ]
               : trendAnswer
-                ? analysis.dailyTrend.length
-                  ? [
-                      {
-                        kind: 'chart',
-                        chartType: 'line',
-                        rows: analysis.dailyTrend,
-                        xKey: 'date',
-                        yKeys: ['revenue'],
-                        citationIds: ['capability_finance_payment_breakdown'],
-                      },
-                    ]
-                  : []
+                ? [
+                    {
+                      kind: 'chart',
+                      chartType: 'line',
+                      rows: analysis.dailyTrend,
+                      xKey: 'date',
+                      yKeys: ['revenue'],
+                      citationIds: ['capability_finance_payment_breakdown'],
+                    },
+                    ...(!analysis.dailyTrend.length
+                      ? [
+                          {
+                            kind: 'limitations' as const,
+                            items: [`no_data: ${range.label}没有按日实收数据`],
+                          },
+                        ]
+                      : []),
+                  ]
                 : scalarAnswer
                   ? [
                       {
@@ -6965,6 +7308,13 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                       },
                     ]
                   : [
+                      {
+                        kind: 'text',
+                        text: analysis.paymentBreakdown.length
+                          ? `${range.label}按统一实收金额口径汇总，实收合计 ${analysis.totalCollected.toFixed(2)} 元；同义支付方式已合并为 ${normalizedPaymentRows.length} 类。`
+                          : `${range.label}按统一实收金额口径汇总，当前没有实际支付流水。`,
+                        citationIds: ['capability_finance_payment_breakdown', 'metric.paid_amount'],
+                      },
                       {
                         kind: 'table',
                         rows: paymentRows.map((item) => ({
@@ -6985,8 +7335,16 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             previousTotalCollected: previousAnalysis?.totalCollected ?? null,
             comparisonDelta: previousAnalysis ? comparisonDelta : null,
             comparisonRate: comparisonRate ?? null,
+            comparisonPeriodDays: comparisonRange ? { current: currentPeriodDays, previous: previousPeriodDays } : null,
+            comparisonDailyAverage: previousAnalysis
+              ? { current: currentDailyAverage, previous: previousDailyAverage, delta: dailyAverageDelta }
+              : null,
             paymentMethodCount: paymentRows.length,
+            rawPaymentMethodCount: analysis.paymentBreakdown.length,
+            normalizedPaymentMethodCount: normalizedPaymentRows.length,
+            mergedPaymentMethodAliasCount: Math.max(0, analysis.paymentBreakdown.length - normalizedPaymentRows.length),
             requestedPaymentMethods: requestedMethods,
+            trendMetric: trendAnswer ? 'paid_amount' : null,
           },
         });
       }
@@ -7362,6 +7720,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         id: true,
         name: true,
         bomItems: {
+          where: { product: { storeId } },
           select: {
             standardQty: true,
             unit: true,
@@ -7406,6 +7765,79 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       unconfiguredProjectCount: projects.length - configuredProjects.length,
       blockedProjects,
     };
+  }
+
+  private resolveProjectMaterialDemandRange(input: BrainCapabilityExecutionInput, fallback: BrainDateRange) {
+    const parsed = this.timeRangeParser.parse(input.question);
+    if (readCapabilityStructuredTime(input.args, input.context.timezone) || parsed.range) return fallback;
+    const today = defaultBrainDateRange();
+    return {
+      label: '最近30天',
+      startDate: new Date(today.startDate.getTime() - 29 * 86_400_000),
+      endDate: today.endDate,
+      granularity: 'day' as const,
+    };
+  }
+
+  private async projectMaterialDemandCoverage(storeId: number, question: string, startDate: Date, endDate: Date) {
+    if (!this.prisma) throw new Error('project_material_sales_coverage_prisma_unavailable');
+    const projects = await this.prisma.project.findMany({
+      where: { storeId, deletedAt: null, status: 'active' },
+      select: {
+        id: true,
+        name: true,
+        bomItems: {
+          where: { product: { storeId } },
+          select: {
+            standardQty: true,
+            unit: true,
+            product: {
+              select: { id: true, name: true, currentStock: true, status: true, deletedAt: true },
+            },
+          },
+        },
+      },
+      orderBy: [{ sort: 'asc' }, { id: 'asc' }],
+      take: 500,
+    });
+    const normalizedQuestion = normalizeProjectMaterialCoverageText(question);
+    const project = projects
+      .map((candidate) => ({ candidate, name: normalizeProjectMaterialCoverageText(candidate.name) }))
+      .filter((candidate) => candidate.name.length >= 2 && normalizedQuestion.includes(candidate.name))
+      .sort((left, right) => right.name.length - left.name.length)[0]?.candidate;
+    if (!project) return { project: undefined, serviceCount: 0, rows: [] };
+    const orderItems = await this.prisma.orderItem.findMany({
+      where: {
+        itemType: 'project',
+        itemId: project.id,
+        order: {
+          storeId,
+          status: { in: ['completed', 'paid'] },
+          createdAt: { gte: startDate, lte: endDate },
+        },
+      },
+      select: { quantity: true },
+    });
+    const serviceCount = orderItems.reduce((sum, item) => sum + Number(item.quantity), 0);
+    const rows = project.bomItems.map((item) => {
+      const standardQty = Number(item.standardQty);
+      const currentStock = Number(item.product.currentStock);
+      const demandQty = standardQty * serviceCount;
+      const unavailable = item.product.deletedAt !== null || item.product.status !== 'active';
+      return {
+        projectName: project.name,
+        productName: item.product.name,
+        serviceCount,
+        standardQty,
+        demandQty,
+        currentStock,
+        coverageServiceCount: standardQty > 0 ? Math.floor(currentStock / standardQty) : null,
+        shortageQty: unavailable ? demandQty : Math.max(0, demandQty - currentStock),
+        unit: item.unit,
+        productStatus: unavailable ? 'unavailable' : 'active',
+      };
+    });
+    return { project: { id: project.id, name: project.name }, serviceCount, rows };
   }
 
   private buildFocusedReservationAnswer(
@@ -8348,6 +8780,137 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     return this.timeRangeParser.parse(input.question).comparison;
   }
 
+  private async buildOrderPaymentMismatchAnswer(
+    input: BrainCapabilityExecutionInput,
+    range: BrainDateRange,
+  ): Promise<BrainDomainAnswer | undefined> {
+    if (!/(?:订单).*(?:支付|收款).*(?:金额).*(?:对不上|不一致|不相等)/.test(input.question)) {
+      return undefined;
+    }
+    if (!this.prisma) throw new Error('order_payment_reconciliation_prisma_unavailable');
+    const orders = await this.prisma.productOrder.findMany({
+      where: {
+        storeId: input.context.storeId,
+        status: { in: ['completed', 'paid'] },
+        createdAt: { gte: range.startDate, lte: range.endDate },
+      },
+      select: {
+        id: true,
+        orderNo: true,
+        netAmount: true,
+        totalAmount: true,
+        paymentRecords: {
+          where: { status: { in: ['success', 'paid', 'completed'] } },
+          select: { id: true, amount: true },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    const mismatches: Array<{
+      orderId: number;
+      orderNo: string;
+      orderAmount: number;
+      successfulPaymentAmount: number;
+      difference: number;
+      paymentRecordCount: number;
+    }> = [];
+    const unverifiable: Array<{ orderId: number; orderNo: string; orderAmount: number }> = [];
+    let auditableOrderCount = 0;
+    for (const order of orders) {
+      const netAmount = Number(order.netAmount ?? 0);
+      const totalAmount = Number(order.totalAmount ?? 0);
+      const orderAmount = this.roundMoney(netAmount > 0 ? netAmount : totalAmount);
+      if (!order.paymentRecords.length && orderAmount > 0.01) {
+        unverifiable.push({ orderId: order.id, orderNo: order.orderNo, orderAmount });
+        continue;
+      }
+      auditableOrderCount += 1;
+      const successfulPaymentAmount = this.roundMoney(
+        order.paymentRecords.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0),
+      );
+      const difference = this.roundMoney(successfulPaymentAmount - orderAmount);
+      if (Math.abs(difference) <= 0.01) continue;
+      mismatches.push({
+        orderId: order.id,
+        orderNo: order.orderNo,
+        orderAmount,
+        successfulPaymentAmount,
+        difference,
+        paymentRecordCount: order.paymentRecords.length,
+      });
+    }
+    const limitation = unverifiable.length
+      ? `${unverifiable.length} 张有效订单缺少成功支付明细，本次只标记为“无法核对”，不将它们判定为金额不一致。`
+      : undefined;
+    const answer = mismatches.length
+      ? `${range.label}核对 ${auditableOrderCount} 张有成功支付流水的有效订单，发现 ${mismatches.length} 张订单的订单净额与成功支付合计不一致。${limitation ?? ''}`
+      : `${range.label}核对 ${auditableOrderCount} 张有成功支付流水的有效订单，未发现订单净额与成功支付合计不一致。${limitation ?? ''}`;
+    const citationId = 'order_payment_amount_reconciliation';
+    return {
+      status: 'completed',
+      answer,
+      citations: [
+        {
+          sourceType: 'db_skill',
+          sourceId: citationId,
+          label: '当前门店订单净额与成功支付流水勾稽',
+          definition:
+            '仅核对已完成或已支付订单；订单金额取 netAmount（历史数据缺失时取 totalAmount），支付金额取 success/paid/completed PaymentRecord 合计，容差 0.01 元。',
+        },
+      ],
+      grounding: 'db_skill',
+      blocks: [
+        {
+          kind: 'kpi',
+          items: [
+            { label: '可核对订单', value: `${auditableOrderCount} 张` },
+            { label: '金额不一致订单', value: `${mismatches.length} 张` },
+            { label: '缺支付明细待核对', value: `${unverifiable.length} 张` },
+          ],
+          citationIds: [citationId],
+        },
+        {
+          kind: 'table',
+          rows: mismatches,
+          columns: ['orderId', 'orderNo', 'orderAmount', 'successfulPaymentAmount', 'difference', 'paymentRecordCount'],
+          citationIds: [citationId],
+        },
+        {
+          kind: 'diagnosis',
+          findings: [
+            {
+              title: mismatches.length ? '发现订单支付金额差异' : '未发现可核对订单金额差异',
+              detail: mismatches.length
+                ? `${mismatches.length} 张订单超过 0.01 元容差，应按订单号复核支付流水。`
+                : '所有可核对订单均在 0.01 元容差内一致。',
+              severity: mismatches.length ? ('critical' as const) : ('info' as const),
+            },
+          ],
+          citationIds: [citationId],
+        },
+        ...(limitation ? [{ kind: 'limitations' as const, items: [limitation] }] : []),
+      ],
+      metadata: {
+        capabilityKey: 'finance_risk_overview',
+        answerScope: 'order_payment_amount_reconciliation',
+        rangeLabel: range.label,
+        sourceOrderCount: orders.length,
+        auditableOrderCount,
+        mismatchOrderCount: mismatches.length,
+        unverifiableOrderCount: unverifiable.length,
+        toleranceAmount: 0.01,
+        actionWriteCount: 0,
+        ...this.executionTimeRange(range, input.context.timezone),
+        completionCriteria: [
+          'valid_orders_loaded',
+          'successful_payment_records_loaded',
+          'order_amounts_reconciled',
+          'unverifiable_orders_disclosed',
+        ],
+      },
+    };
+  }
+
   private previousComparableRange(current: BrainDateRange): BrainDateRange {
     if (current.granularity === 'month') {
       const startDate = new Date(current.startDate.getFullYear(), current.startDate.getMonth() - 1, 1, 0, 0, 0, 0);
@@ -8716,6 +9279,10 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
   private signed(value: number, digits: number) {
     const normalized = Math.abs(value) < 10 ** -digits / 2 ? 0 : value;
     return `${normalized > 0 ? '+' : ''}${normalized.toFixed(digits)}`;
+  }
+
+  private roundMoney(value: number) {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
   }
 
   private async buildStructuredFinanceMetricAnswer(
@@ -9787,6 +10354,21 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     return methods;
   }
 
+  private normalizePaymentMethodKey(method: string): string {
+    const normalized = String(method ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_-]+/gu, '');
+    if (/^(?:cash|现金|现金支付|现付)$/u.test(normalized)) return 'cash';
+    if (/^(?:wechat|weixin|wx|微信|微信支付|微信付款|微信收款)$/u.test(normalized)) return 'wechat';
+    if (/^(?:alipay|支付宝|支付宝支付|支付宝付款|支付宝收款)$/u.test(normalized)) return 'alipay';
+    if (/^(?:card|bankcard|pos|银行卡|银行卡支付|刷卡|银联|银联支付)$/u.test(normalized)) return 'card';
+    if (/^(?:memberbalance|balance|storedvalue|储值|储值余额|会员余额|余额|余额支付)$/u.test(normalized)) {
+      return 'member_balance';
+    }
+    return normalized || 'unknown';
+  }
+
   private paymentMethodLabel(method: string): string {
     return (
       (
@@ -10680,6 +11262,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
 
   private isCustomerPredictionQuestion(question: string) {
     return (
+      isCustomerChurnPredictionQuestion(question) ||
       /(?:最可能复购|复购(?:概率|评分|可能性).*(?:最高|排行)|(?:最高|排行).*(?:复购概率|复购评分|复购可能性))/.test(
         question,
       ) ||
@@ -10706,6 +11289,113 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       };
     }
     const citationId = 'customer_prediction_snapshot_latest_completed';
+    if (isCustomerChurnPredictionQuestion(input.question)) {
+      const customerName =
+        extractSpecificCustomerNameFromQuestion(input.question) ?? extractCustomerChurnPredictionName(input.question);
+      const phoneTail = extractCustomerPhoneTail(input.question);
+      const result = await this.predictionSkills.getLatestCustomerChurnPrediction({
+        storeId: input.context.storeId,
+        customerName,
+        phoneTail,
+      });
+      if (result.status === 'ambiguous') {
+        const question = `找到 ${result.candidates.length} 位匹配客户，请选择客户或补充手机号后四位后继续。`;
+        return this.answer({
+          answer: `${question}\n${result.candidates
+            .map(
+              (candidate, index) =>
+                `${index + 1}. ${candidate.customerName}，手机 ${candidate.maskedPhone}，${candidate.memberLevel}`,
+            )
+            .join('\n')}\n${result.boundary}`,
+          citationId: 'customer_churn_prediction_identity_candidates',
+          citationLabel: `CustomerPredictionSnapshot 客户身份候选（PredictionRun #${result.predictionRun.id}，${result.predictionRun.modelVersion}）`,
+          blocks: [
+            {
+              kind: 'text',
+              text: `最新完成 CustomerPredictionSnapshot 预测批次 #${result.predictionRun.id} 中找到 ${result.candidates.length} 位“${customerName ?? '匹配客户'}”。身份未唯一确认前，本次不返回任何一位客户的 churnScore 或 churnLevel。`,
+              citationIds: ['customer_churn_prediction_identity_candidates'],
+            },
+            {
+              kind: 'table',
+              rows: result.candidates,
+              columns: ['customerName', 'maskedPhone', 'memberLevel'],
+              citationIds: ['customer_churn_prediction_identity_candidates'],
+            },
+            {
+              kind: 'clarification',
+              question,
+              options: customerIdentityClarificationOptions(result.candidates),
+            },
+            { kind: 'limitations', items: [result.boundary] },
+          ],
+          metadata: {
+            capabilityKey: 'marketing_customer_segment',
+            answerScope: 'customer_churn_prediction_identity_clarification',
+            predictionRun: result.predictionRun,
+            clarification: {
+              questions: [question],
+              missingSlots: ['entity'],
+              ambiguities: result.candidates,
+            },
+            completion: { status: 'partial', missingCriteria: ['entity'], recoverable: true },
+          },
+        });
+      }
+      if (result.status === 'available') {
+        const churnScore = predictionScorePercent(result.churnScore);
+        const churnLevel = churnLevelLabel(result.churnLevel);
+        return this.answer({
+          answer: `${result.customerName}（手机 ${result.maskedPhone}）的流失风险评分为 ${churnScore}，风险等级为${churnLevel}。结果来自模型 ${result.modelVersion} 的最新完成预测批次 #${result.predictionRun.id}。${result.boundary}`,
+          citationId,
+          citationLabel: `CustomerPredictionSnapshot.churnScore/churnLevel（PredictionRun #${result.predictionRun.id}，${result.predictionRun.modelVersion}）`,
+          blocks: [
+            {
+              kind: 'text',
+              text: `预测来源：CustomerPredictionSnapshot #${result.snapshotId}；模型 ${result.modelVersion}；最新完成 PredictionRun #${result.predictionRun.id}；业务日期 ${result.predictionRun.businessDate ?? '未记录'}；快照生成时间 ${result.generatedAt}。`,
+              citationIds: [citationId],
+            },
+            {
+              kind: 'kpi',
+              items: [
+                {
+                  label: `${result.customerName} 流失风险评分`,
+                  value: churnScore,
+                  hint: `风险等级：${churnLevel}`,
+                },
+              ],
+              citationIds: [citationId],
+            },
+            { kind: 'limitations', items: [result.boundary] },
+          ],
+          metadata: {
+            capabilityKey: 'marketing_customer_segment',
+            answerScope: 'customer_churn_prediction',
+            predictionMetric: 'churn',
+            predictionRun: result.predictionRun,
+            predictionSnapshotId: result.snapshotId,
+            customerId: result.customerId,
+            modelVersion: result.modelVersion,
+            completionCriteria: [
+              'latest_completed_prediction_run_loaded',
+              'customer_identity_uniquely_matched',
+              'churn_prediction_snapshot_loaded',
+            ],
+          },
+        });
+      }
+      return this.answer({
+        answer: result.boundary,
+        citationId,
+        citationLabel: '最新完成客户流失预测批次查询',
+        blocks: [{ kind: 'limitations', items: [result.boundary] }],
+        metadata: {
+          capabilityKey: 'marketing_customer_segment',
+          answerScope: 'customer_churn_prediction_unavailable',
+          predictionRun: 'predictionRun' in result ? result.predictionRun : null,
+          unsupportedReason: result.status,
+        },
+      });
+    }
     if (/(?:12个月|十二个月).*(?:生命周期价值|LTV)|(?:生命周期价值|LTV).*(?:12个月|十二个月)/i.test(input.question)) {
       const customerName = extractSpecificCustomerNameFromQuestion(input.question);
       const phoneTail = extractCustomerPhoneTail(input.question);
@@ -10903,6 +11593,45 @@ function structuredDefinitionKeys(value: unknown): Set<string> {
   );
 }
 
+function isProjectMaterialCoverageQuestion(question: string): boolean {
+  const normalized = question.replace(/\s+/gu, '');
+  return (
+    /(?:项目|护理|SPA|spa|管理|养护|修护|提拉|焕肤|清洁|舒缓|净透|淡斑)/u.test(normalized) &&
+    /(?:库存|耗材|物料|材料|BOM|bom)/iu.test(normalized) &&
+    /(?:销量|销售|服务量|服务次数|需求)/u.test(normalized) &&
+    /(?:跟得上|跟不上|够不够|是否足够|够用|支撑|满足)/u.test(normalized)
+  );
+}
+
+function isScalarOrderCountQuestion(question: string): boolean {
+  const normalized = question.replace(/\s+/gu, '');
+  if (/(?:趋势|走势|按日|每天|分布|对比|相比)/u.test(normalized)) return false;
+  return /(?:(?:一共|总共|合计|共有|有)?多少笔订单|订单(?:一共|总共|合计|共有)?(?:有)?多少笔|订单数(?:量)?(?:一共|总共|合计|是|有)?多少)/u.test(
+    normalized,
+  );
+}
+
+function isActiveCardCatalogQuestion(question: string): boolean {
+  const normalized = question.replace(/\s+/gu, '');
+  return /(?:有哪些|哪些|有没有).*(?:\d+次卡|次卡|套餐卡).*(?:在售|可售|正在销售)|(?:在售|可售|正在销售).*(?:次卡|套餐卡)/u.test(
+    normalized,
+  );
+}
+
+function normalizeCardCatalogText(value: string): string {
+  return value
+    .normalize('NFKC')
+    .toLocaleLowerCase('zh-CN')
+    .replace(/[^a-z0-9\u4e00-\u9fff]+/g, '');
+}
+
+function normalizeProjectMaterialCoverageText(value: string): string {
+  return value
+    .normalize('NFKC')
+    .toLocaleLowerCase('zh-CN')
+    .replace(/[^a-z0-9\u4e00-\u9fff]+/g, '');
+}
+
 function isCustomerIdentityMatchClarification(answer: unknown): answer is BrainCustomerIdentityClarification {
   return (
     Boolean(answer) &&
@@ -10932,6 +11661,33 @@ function customerIdentityClarificationOptions(
       candidate: `${candidate.customerName} 手机号后四位 ${candidate.maskedPhone.slice(-4)}`,
     },
   }));
+}
+
+function isCustomerChurnPredictionQuestion(question: string): boolean {
+  return (
+    /(?:预测|预估).*(?:流失风险|流失评分)/u.test(question) ||
+    /(?:流失风险|流失评分).*(?:预测|预估|多高|多少)/u.test(question)
+  );
+}
+
+function extractCustomerChurnPredictionName(question: string): string | undefined {
+  const candidate = question
+    .match(/(?:预测|预估)(?:一下|下)?(?:客户|顾客)?([\u3400-\u9fff·]{2,5}?)(?:的)?(?=流失(?:风险|评分))/u)?.[1]
+    ?.trim();
+  return candidate ? extractSpecificCustomerNameFromMention(candidate) : undefined;
+}
+
+function predictionScorePercent(score: number): string {
+  const percentage = Math.max(0, Math.min(100, score > 1 ? score : score * 100));
+  return `${Number.isInteger(percentage) ? percentage.toFixed(0) : percentage.toFixed(1)}%`;
+}
+
+function churnLevelLabel(level: string): string {
+  const normalized = level.trim().toLowerCase();
+  if (normalized === 'high') return '高风险';
+  if (normalized === 'medium' || normalized === 'moderate') return '中风险';
+  if (normalized === 'low') return '低风险';
+  return level.endsWith('风险') ? level : `${level}风险`;
 }
 
 function structuredDefinitionRef(value: unknown, definitionKey: string) {

@@ -145,6 +145,22 @@ export class BrainSemanticIntentCompilerService {
           },
         };
       }
+      const financeReleaseCoreFastPath = this.buildFinanceReleaseCoreFastPath(input);
+      if (financeReleaseCoreFastPath) {
+        return {
+          status: 'completed',
+          intent: financeReleaseCoreFastPath.intent,
+          selectedCapabilityKey: financeReleaseCoreFastPath.selectedCapabilityKey,
+          provider: 'governed_contract',
+          model: 'finance_release_core_fast_path',
+          usage: {
+            provider: 'governed_contract',
+            model: 'finance_release_core_fast_path',
+            inputTokens: 0,
+            outputTokens: 0,
+          },
+        };
+      }
       const financeOrderProfitFastPath = this.buildFinanceOrderProfitCapabilityFastPath(input);
       if (financeOrderProfitFastPath) {
         return {
@@ -236,6 +252,22 @@ export class BrainSemanticIntentCompilerService {
           usage: {
             provider: 'governed_contract',
             model: 'exact_example_fast_path',
+            inputTokens: 0,
+            outputTokens: 0,
+          },
+        };
+      }
+      const projectMaterialCoverageFastPath = this.buildProjectMaterialCoverageFastPath(input);
+      if (projectMaterialCoverageFastPath) {
+        return {
+          status: 'completed',
+          intent: projectMaterialCoverageFastPath,
+          selectedCapabilityKey: 'inventory_operations_overview',
+          provider: 'governed_contract',
+          model: 'project_material_coverage_fast_path',
+          usage: {
+            provider: 'governed_contract',
+            model: 'project_material_coverage_fast_path',
             inputTokens: 0,
             outputTokens: 0,
           },
@@ -599,9 +631,14 @@ export class BrainSemanticIntentCompilerService {
       /(?:预测|预估).*(?:12个月|十二个月).*(?:生命周期价值|LTV)|(?:12个月|十二个月).*(?:生命周期价值|LTV).*(?:预测|预估)/i.test(
         input.question,
       );
-    if (!repurchaseRanking && !marketingResponseRanking && !customerLtv12m) return undefined;
+    const customerChurnPrediction =
+      /(?:预测|预估).*(?:流失风险|流失评分)|(?:流失风险|流失评分).*(?:预测|预估|多高|多少)/u.test(input.question);
+    if (!repurchaseRanking && !marketingResponseRanking && !customerLtv12m && !customerChurnPrediction) {
+      return undefined;
+    }
     const timeRange = this.resolveQuestionTimeRange(input.question, input.timezone);
-    const customerName = customerLtv12m ? extractSpecificCustomerNameFromQuestion(input.question) : undefined;
+    const customerName =
+      customerLtv12m || customerChurnPrediction ? extractSpecificCustomerNameFromQuestion(input.question) : undefined;
     const customerEntityRef =
       resolveCanonicalDefinitionRef('entity', 'entity.customer', input) ??
       findCapabilityDefinitionRef(capability, 'entity', 'entity.customer');
@@ -627,18 +664,25 @@ export class BrainSemanticIntentCompilerService {
       filters: [],
       ...(timeRange ? { timeRange } : {}),
       orderBy: [],
-      answerShape: customerLtv12m ? 'list' : 'ranking',
-      successCriteria: customerLtv12m
-        ? ['读取当前门店最新完成预测批次中的12个月生命周期价值', '同名客户必须先返回脱敏候选并澄清身份']
-        : ['读取当前门店最新完成预测批次并返回结构化客户排行', '明确预测评分不是确定事实或周末专属概率'],
+      answerShape: customerLtv12m || customerChurnPrediction ? 'list' : 'ranking',
+      successCriteria: customerChurnPrediction
+        ? [
+            '读取当前门店最新完成预测批次中的 CustomerPredictionSnapshot.churnScore/churnLevel',
+            '同名客户必须先返回脱敏候选并澄清身份，预测结果必须披露模型批次和非确定事实边界',
+          ]
+        : customerLtv12m
+          ? ['读取当前门店最新完成预测批次中的12个月生命周期价值', '同名客户必须先返回脱敏候选并澄清身份']
+          : ['读取当前门店最新完成预测批次并返回结构化客户排行', '明确预测评分不是确定事实或周末专属概率'],
       ambiguities: [],
       missingSlots: [],
       assumptions: [
-        customerLtv12m
-          ? '生命周期价值只读取最新完成 CustomerPredictionSnapshot；不得临场估算或猜测同名客户。'
-          : repurchaseRanking
-            ? '“本周末最可能复购”按已发布30天复购评分提供人工跟进优先级，并披露不是周末专属概率。'
-            : '营销响应度按最新完成预测批次的 marketingResponseScore 降序展示。',
+        customerChurnPrediction
+          ? '流失风险只读取最新完成 CustomerPredictionSnapshot；不得用普通客户规则、历史消费或生命周期标签冒充，也不得猜测同名客户。'
+          : customerLtv12m
+            ? '生命周期价值只读取最新完成 CustomerPredictionSnapshot；不得临场估算或猜测同名客户。'
+            : repurchaseRanking
+              ? '“本周末最可能复购”按已发布30天复购评分提供人工跟进优先级，并披露不是周末专属概率。'
+              : '营销响应度按最新完成预测批次的 marketingResponseScore 降序展示。',
       ],
       confidence: 1,
       decisionSummary: '问题明确要求已存在的客户预测资产，使用受控预测读取合同直接编译。',
@@ -873,10 +917,20 @@ export class BrainSemanticIntentCompilerService {
       (candidate) => candidate.key === 'project_margin_analysis' && candidate.readOnly && !candidate.sideEffect,
     );
     if (!capability) return undefined;
-    if (
-      !/(?:各个?|每个|所有)(?:项目|护理项目|服务项目).*(?:毛利|利润)|(?:毛利|利润).*(?:各个?|每个|所有)(?:项目|护理项目|服务项目)|(?:项目|护理项目|服务项目)(?:的)?(?:毛利|利润)(?:排行|排名|对比|分析)/.test(
+    const aggregateMarginQuestion =
+      /(?:各个?|每个|所有)(?:项目|护理项目|服务项目).*(?:毛利|利润)|(?:毛利|利润).*(?:各个?|每个|所有)(?:项目|护理项目|服务项目)|(?:项目|护理项目|服务项目)(?:的)?(?:毛利|利润)(?:排行|排名|对比|分析)/.test(
         input.question,
-      ) ||
+      );
+    const projectOperatingQuestion =
+      /(?:项目|护理|SPA|spa).*(?:叫好不叫座|复购|客单价|主推|卖不动|销量|销售|调价|毛利过低|低毛利|零销量)|(?:叫好不叫座|提升客单价|主推|卖不动|调价|毛利过低|低毛利|零销量).*(?:项目|护理|SPA|spa)/u.test(
+        input.question,
+      );
+    const projectOperatingDiagnosis = /(?:叫好不叫座|复购|主推|卖不动|建议|怎么办|该不该|调价|风险)/.test(
+      input.question,
+    );
+    if (
+      isProjectMaterialCoverageQuestion(input.question) ||
+      (!aggregateMarginQuestion && !projectOperatingQuestion) ||
       /(?:商品|产品|订单|单号)/.test(input.question)
     ) {
       return undefined;
@@ -888,7 +942,7 @@ export class BrainSemanticIntentCompilerService {
       schemaVersion: '1.0',
       objective: input.question.trim(),
       domains: ['project', 'finance'],
-      intent: 'query',
+      intent: projectOperatingDiagnosis ? 'diagnosis' : 'query',
       entities: projectRef
         ? [
             {
@@ -906,13 +960,68 @@ export class BrainSemanticIntentCompilerService {
       ...(timeRange ? { timeRange } : {}),
       orderBy: [],
       limit: 100,
-      answerShape: 'ranking',
-      successCriteria: ['返回各项目服务收入、耗材成本、提成成本、贡献毛利和毛利率', '披露成本缺口'],
+      answerShape: projectOperatingDiagnosis ? 'diagnosis' : 'ranking',
+      successCriteria: [
+        '返回各项目服务次数、收入、标准价、成交价、耗材成本、提成成本、贡献毛利和毛利率',
+        '经营建议只基于真实项目经营事实，披露成本、评价或客户级复购数据缺口',
+      ],
       ambiguities: [],
       missingSlots: [],
-      assumptions: ['项目毛利使用管理端 OperationProfit 项目毛利口径，不用全店毛利或商品成本替代。'],
+      assumptions: [
+        '项目经营分析使用管理端 OperationProfit 项目收入、销量、价格和项目毛利口径，不用全店毛利或商品成本替代。',
+        '只生成只读经营判断，不执行调价、上下架或营销动作。',
+      ],
       confidence: 1,
       decisionSummary: '项目毛利问法命中已发布项目毛利分析能力，优先于客户事实与项目 BOM 能力。',
+    };
+  }
+
+  private buildProjectMaterialCoverageFastPath(
+    input: BrainSemanticIntentCompilerInput,
+  ): BrainSemanticIntent | undefined {
+    if (!isProjectMaterialCoverageQuestion(input.question)) return undefined;
+    const capability = input.capabilitySummaries.find(
+      (candidate) => candidate.key === 'inventory_operations_overview' && candidate.readOnly && !candidate.sideEffect,
+    );
+    if (!capability) return undefined;
+    const projectRef = findCapabilityDefinitionRef(capability, 'entity', 'entity.project');
+    const projectNameDimension = findCapabilityDefinitionRef(capability, 'dimension', 'dimension.projectName');
+    const productNameDimension = findCapabilityDefinitionRef(capability, 'dimension', 'dimension.productName');
+    const timeRange = this.resolveQuestionTimeRange(input.question, input.timezone);
+    return {
+      schemaVersion: '1.0',
+      objective: input.question.trim(),
+      domains: ['project', 'inventory', 'product'],
+      intent: 'diagnosis',
+      entities: projectRef
+        ? [
+            {
+              entityType: 'project',
+              mention: '项目',
+              source: 'user',
+              definitionRef: projectRef,
+              confidence: 1,
+            },
+          ]
+        : [],
+      metrics: [],
+      dimensions: [projectNameDimension, productNameDimension].filter(
+        (definition): definition is NonNullable<typeof definition> => Boolean(definition),
+      ),
+      filters: [],
+      ...(timeRange ? { timeRange } : {}),
+      orderBy: [],
+      answerShape: 'diagnosis',
+      successCriteria: [
+        '读取指定项目在观察期内的真实服务销量作为耗材需求基线',
+        '按项目 BOM 标准用量核对当前耗材库存并披露可用性或缺口',
+        '只返回只读诊断，不创建采购单、不补货、不修改库存',
+      ],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: ['未指定时间时使用最近30天已完成或已支付项目订单作为销量需求基线，并明确该结果不是未来销量预测。'],
+      confidence: 1,
+      decisionSummary: '项目销量与耗材库存覆盖问题命中库存运营只读能力，不使用项目毛利能力替代。',
     };
   }
 
@@ -1186,6 +1295,80 @@ export class BrainSemanticIntentCompilerService {
       assumptions: [`问题只包含已发布时间范围和财务标量指标，按能力 ${capability.key} 直接编译`],
       confidence: 1,
       decisionSummary: `问题中的财务标量指标唯一匹配已发布能力 ${capability.key}。`,
+    };
+  }
+
+  private buildFinanceReleaseCoreFastPath(
+    input: BrainSemanticIntentCompilerInput,
+  ): { intent: BrainSemanticIntent; selectedCapabilityKey: string } | undefined {
+    const normalized = normalizeSemanticText(input.question);
+    const paymentMethodBreakdown =
+      /(?:最近|过去|近)(?:三|3)个月/.test(normalized) &&
+      /(?:各|各种|每种)?(?:支付方式|收款方式|付款方式|支付渠道|收款渠道).*(?:金额|分别多少|各多少)/.test(normalized);
+    const unequalRollingRevenueComparison =
+      /(?:营业额|营收|收入|实收)/.test(normalized) &&
+      [...normalized.matchAll(/(?:最近|过去|近)[一二三四五六七八九十\d]{1,3}(?:个月|天|年)/gu)].length >= 2 &&
+      /(?:相比|对比|比较|跟.*比|和.*比|与.*比)/.test(normalized);
+    const orderCountTrend = /(?:订单量|订单数|订单数量).*(?:趋势|走势)|(?:趋势|走势).*(?:订单量|订单数|订单数量)/.test(
+      normalized,
+    );
+    const orderCountScalar =
+      !orderCountTrend &&
+      /(?:(?:一共|总共|合计|共有|有)?多少笔订单|订单(?:一共|总共|合计|共有)?(?:有)?多少笔|订单数(?:量)?(?:一共|总共|合计|是|有)?多少)/.test(
+        normalized,
+      );
+    const activeCardCatalog =
+      /(?:有哪些|哪些|有没有).*(?:\d+次卡|次卡|套餐卡).*(?:在售|可售|正在销售)|(?:在售|可售|正在销售).*(?:次卡|套餐卡)/.test(
+        normalized,
+      );
+    const orderPaymentMismatch = /订单.*(?:支付|收款).*金额.*(?:对不上|不一致|不相等)/.test(normalized);
+    const selectedCapabilityKey =
+      orderPaymentMismatch || activeCardCatalog
+        ? 'finance_risk_overview'
+        : paymentMethodBreakdown || unequalRollingRevenueComparison || orderCountTrend || orderCountScalar
+          ? 'finance_payment_breakdown'
+          : undefined;
+    if (!selectedCapabilityKey) return undefined;
+    const capability = this.orderedCapabilitySummaries(input).find(
+      (candidate) => candidate.key === selectedCapabilityKey && candidate.readOnly && !candidate.sideEffect,
+    );
+    if (!capability) return undefined;
+    const intent = this.buildGovernedCapabilityIntent(capability, input, 'catalog_match');
+    if (!intent) return undefined;
+    return {
+      selectedCapabilityKey,
+      intent: {
+        ...intent,
+        ...(orderCountTrend || orderCountScalar
+          ? {
+              metrics: this.resolveGovernedMetricRefs(['metric.order_count'], input),
+              dimensions: [],
+            }
+          : {}),
+        ...(activeCardCatalog
+          ? {
+              metrics: [],
+              dimensions: this.resolveGovernedDimensionRefs(['dimension.cardName'], input),
+            }
+          : {}),
+        ...(orderCountScalar ? { answerShape: 'scalar' as const } : {}),
+        successCriteria: orderPaymentMismatch
+          ? [
+              '按当前门店和时间范围核对有效订单净额与成功支付流水合计',
+              '缺少成功支付明细的订单必须单独披露为无法核对，不得判定为金额不一致',
+            ]
+          : activeCardCatalog
+            ? ['只返回当前门店可用的在售 Card，按次数和名称/项目条件过滤']
+            : orderCountTrend
+              ? ['返回按日有效订单数趋势，不得用实收趋势替代']
+              : orderCountScalar
+                ? ['按当前门店和指定时间范围计数有效 ProductOrder，排除取消和退款订单']
+                : unequalRollingRevenueComparison
+                  ? ['同时返回两个明确周期的实收总额和可比日均实收，披露周期天数不同']
+                  : ['返回指定周期的真实支付方式金额拆分'],
+        assumptions: [`问题命中 RC-350 财务确定性合同，按已发布能力 ${selectedCapabilityKey} 直接编译，不调用模型。`],
+        decisionSummary: `RC-350 财务确定性路由命中 ${selectedCapabilityKey}。`,
+      },
     };
   }
 
@@ -2577,7 +2760,7 @@ function exactCapabilityIntent(
       : []),
     ...(hasTimeComparison || /对比|相比|跟.*比|和.*比|差多少/.test(question) ? ['comparison' as const] : []),
     ...(/趋势|走势|每天|近三天|最近三天/.test(question) ? ['trend' as const] : []),
-    ...(/怎么样|情况|风险|分析|概览|总结|异常|不正常|原因|为什么|下降|变差|不赚钱|根因|活动.*花了多少钱.*(?:收入|营收)/.test(
+    ...(/怎么样|情况|风险|分析|概览|总结|异常|不正常|对不上|不一致|原因|为什么|下降|变差|不赚钱|根因|活动.*花了多少钱.*(?:收入|营收)/.test(
       question,
     )
       ? ['diagnosis' as const]
@@ -2658,6 +2841,15 @@ function isProjectServiceSalesQuestion(question: string) {
   const aggregateSignal =
     /(?:各项目|每个项目|所有项目|全店|哪个项目|哪些项目|排行|排名|最多|最少|最高|最低|前\d+|top\d+)/iu.test(normalized);
   return projectSignal && serviceSalesSignal && !productSignal && !materialSignal && !aggregateSignal;
+}
+
+function isProjectMaterialCoverageQuestion(question: string) {
+  const normalized = question.replace(/\s+/gu, '');
+  const projectSignal = /(?:项目|护理|SPA|spa|管理|养护|修护|提拉|焕肤|清洁|舒缓|净透|淡斑)/u.test(normalized);
+  const materialSignal = /(?:库存|耗材|物料|材料|BOM|bom)/iu.test(normalized);
+  const demandSignal = /(?:销量|销售|服务量|服务次数|需求)/u.test(normalized);
+  const coverageSignal = /(?:跟得上|跟不上|够不够|是否足够|够用|支撑|满足)/u.test(normalized);
+  return projectSignal && materialSignal && demandSignal && coverageSignal;
 }
 
 function isProjectSpecificBomQuestion(question: string) {

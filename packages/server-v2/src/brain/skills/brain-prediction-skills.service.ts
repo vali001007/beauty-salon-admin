@@ -58,11 +58,7 @@ export class BrainPredictionSkillsService {
     };
   }
 
-  async getLatestCustomerLtv12m(input: {
-    storeId: number;
-    customerName?: string;
-    phoneTail?: string;
-  }) {
+  async getLatestCustomerLtv12m(input: { storeId: number; customerName?: string; phoneTail?: string }) {
     const run = await this.latestCompletedRun(input.storeId);
     if (!run) {
       return {
@@ -133,6 +129,88 @@ export class BrainPredictionSkillsService {
       ltvTier: snapshot.ltvTier,
       predictionRun: this.runMetadata(run),
       boundary: '12个月生命周期价值是预测值，不是已实现收入；只能用于人工经营判断。',
+    };
+  }
+
+  async getLatestCustomerChurnPrediction(input: { storeId: number; customerName?: string; phoneTail?: string }) {
+    const run = await this.latestCompletedRun(input.storeId);
+    if (!run) {
+      return {
+        status: 'missing_run' as const,
+        boundary: '当前门店没有已完成的客户预测批次，不能用普通客户规则、历史消费或生命周期标签冒充流失预测。',
+      };
+    }
+    const customerName = input.customerName?.trim();
+    const phoneDigits = input.phoneTail?.replace(/\D/g, '') ?? '';
+    const phoneTail = phoneDigits.length === 4 ? phoneDigits : undefined;
+    if (!customerName && !phoneTail) {
+      return {
+        status: 'missing_identity' as const,
+        predictionRun: this.runMetadata(run),
+        boundary: '请提供客户姓名或手机号后四位后查询流失风险预测。',
+      };
+    }
+    const snapshots = await this.prisma.customerPredictionSnapshot.findMany({
+      where: {
+        storeId: input.storeId,
+        runId: run.id,
+        customer: {
+          storeId: input.storeId,
+          deletedAt: null,
+          ...(customerName && phoneTail
+            ? { AND: [{ name: customerName }, { phone: { endsWith: phoneTail } }] }
+            : customerName
+              ? { name: customerName }
+              : { phone: { endsWith: phoneTail! } }),
+        },
+      },
+      select: {
+        id: true,
+        modelVersion: true,
+        churnScore: true,
+        churnLevel: true,
+        createdAt: true,
+        customer: { select: { id: true, storeId: true, name: true, phone: true, memberLevel: true } },
+      },
+      orderBy: [{ customerId: 'asc' }, { id: 'asc' }],
+      take: 10,
+    });
+    const storeScopedSnapshots = snapshots.filter((snapshot) => snapshot.customer.storeId === input.storeId);
+    if (!storeScopedSnapshots.length) {
+      return {
+        status: 'not_found' as const,
+        predictionRun: this.runMetadata(run),
+        boundary: '最新完成预测批次中没有找到匹配客户的流失预测快照，请核对姓名或手机号后四位。',
+      };
+    }
+    if (storeScopedSnapshots.length > 1) {
+      return {
+        status: 'ambiguous' as const,
+        predictionRun: this.runMetadata(run),
+        candidates: storeScopedSnapshots.map((snapshot) => ({
+          customerId: snapshot.customer.id,
+          customerName: snapshot.customer.name,
+          maskedPhone: this.maskPhone(snapshot.customer.phone),
+          memberLevel: snapshot.customer.memberLevel,
+        })),
+        boundary: '找到多位匹配客户，必须先用手机号后四位确认唯一身份；本次不会猜测或返回其中任何一人的流失评分。',
+      };
+    }
+    const snapshot = storeScopedSnapshots[0]!;
+    return {
+      status: 'available' as const,
+      snapshotId: snapshot.id,
+      customerId: snapshot.customer.id,
+      customerName: snapshot.customer.name,
+      maskedPhone: this.maskPhone(snapshot.customer.phone),
+      memberLevel: snapshot.customer.memberLevel,
+      churnScore: snapshot.churnScore,
+      churnLevel: snapshot.churnLevel,
+      modelVersion: snapshot.modelVersion,
+      generatedAt: snapshot.createdAt.toISOString(),
+      predictionRun: this.runMetadata(run),
+      boundary:
+        '流失评分和等级是该模型批次生成时的风险排序信号，不是客户一定会流失的事实；人工跟进前仍需回查最新到店、预约、消费和权益状态。',
     };
   }
 
