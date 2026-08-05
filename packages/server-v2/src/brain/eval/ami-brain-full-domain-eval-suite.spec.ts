@@ -143,6 +143,49 @@ describe('Ami Brain Judge infrastructure classification', () => {
     ).toBe('honest_boundary');
   });
 
+  it('keeps a cited no-sales result as an honest boundary even when the Judge cannot verify the frozen target', () => {
+    const test = {
+      id: 'BQ0499',
+      domain: '商品域',
+      role: '店长',
+      roleKey: 'store_manager',
+      type: 'query_cross' as const,
+      difficulty: 'medium',
+      question: '本月卖得最好的焕肤清洁 12 次卡是哪个',
+      expectedTarget: 'Project×OrderItem×ProjectBomItem',
+      notes: '跨表',
+      turns: ['本月卖得最好的焕肤清洁 12 次卡是哪个'],
+    };
+    const citations = [
+      {
+        sourceType: 'db_skill',
+        sourceId: 'finance_card_package_sales_ranking',
+        label: '当前门店次卡开卡张数与实收排行',
+      },
+    ];
+    const answer =
+      '排行：当前时间范围没有可排行的数据。\n\n说明：当前没有匹配的次卡开卡销售数据。\n\n数据依据：当前门店次卡开卡张数与实收排行。';
+    const deterministic = deterministicFullDomainGrade({
+      test,
+      answer,
+      status: 'completed',
+      citations,
+      completedTurns: 1,
+    });
+
+    expect(deterministic.passed).toBe(true);
+    expect(
+      classifyFullDomainOutcome({
+        test,
+        deterministic,
+        answer,
+        citations,
+        judge: { verdict: 'insufficient_evidence', targetAlignment: false, factualGrounding: 'insufficient' },
+        judgeEvidenceStatus: 'success',
+      }),
+    ).toBe('honest_boundary');
+  });
+
   it('keeps a deterministic cited answer in manual review when the Judge schema remains unavailable', () => {
     const test = {
       id: 'BQ-unit-judge-schema',

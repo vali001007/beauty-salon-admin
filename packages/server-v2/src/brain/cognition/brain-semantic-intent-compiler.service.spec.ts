@@ -2901,41 +2901,44 @@ describe('BrainSemanticIntentCompilerService', () => {
       expectedIntent: 'query',
       expectedShape: 'list',
     },
-  ])('routes customer prediction assets without spending model budget: $question', async ({ question, expectedIntent, expectedShape }) => {
-    const aiService = fakeAiService(async () => {
-      throw new AiStructuredOutputError('BUDGET_EXCEEDED', 'structured budget exhausted');
-    });
-    const compiler = createCompiler(aiService);
-    const input = compilerInput(question);
-    input.capabilitySummaries = [
-      {
-        key: 'marketing_customer_segment',
-        name: '营销客户分群摘要',
-        description: '读取客户分群与最新预测快照',
-        domains: ['customer', 'marketing'],
-        intents: ['query', 'diagnosis'],
-        readOnly: true,
-        definitionRefs: [customerEntityRef],
-      },
-    ];
-    input.rankedCapabilityKeys = ['marketing_customer_segment'];
+  ])(
+    'routes customer prediction assets without spending model budget: $question',
+    async ({ question, expectedIntent, expectedShape }) => {
+      const aiService = fakeAiService(async () => {
+        throw new AiStructuredOutputError('BUDGET_EXCEEDED', 'structured budget exhausted');
+      });
+      const compiler = createCompiler(aiService);
+      const input = compilerInput(question);
+      input.capabilitySummaries = [
+        {
+          key: 'marketing_customer_segment',
+          name: '营销客户分群摘要',
+          description: '读取客户分群与最新预测快照',
+          domains: ['customer', 'marketing'],
+          intents: ['query', 'diagnosis'],
+          readOnly: true,
+          definitionRefs: [customerEntityRef],
+        },
+      ];
+      input.rankedCapabilityKeys = ['marketing_customer_segment'];
 
-    const result = await compiler.compile(input);
+      const result = await compiler.compile(input);
 
-    expect(result).toMatchObject({
-      status: 'completed',
-      selectedCapabilityKey: 'marketing_customer_segment',
-      provider: 'governed_contract',
-      model: 'customer_prediction_fast_path',
-      intent: { intent: expectedIntent, answerShape: expectedShape, missingSlots: [] },
-    });
-    if (question.includes('黄婉清')) {
-      expect(result.status === 'completed' ? result.intent.entities : []).toEqual([
-        expect.objectContaining({ entityType: 'customer', mention: '黄婉清' }),
-      ]);
-    }
-    expect(aiService.generateStructured).not.toHaveBeenCalled();
-  });
+      expect(result).toMatchObject({
+        status: 'completed',
+        selectedCapabilityKey: 'marketing_customer_segment',
+        provider: 'governed_contract',
+        model: 'customer_prediction_fast_path',
+        intent: { intent: expectedIntent, answerShape: expectedShape, missingSlots: [] },
+      });
+      if (question.includes('黄婉清')) {
+        expect(result.status === 'completed' ? result.intent.entities : []).toEqual([
+          expect.objectContaining({ entityType: 'customer', mention: '黄婉清' }),
+        ]);
+      }
+      expect(aiService.generateStructured).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([
     {
@@ -2952,65 +2955,63 @@ describe('BrainSemanticIntentCompilerService', () => {
       expectedIntent: 'ranking',
       expectedShape: 'ranking',
     },
-  ])('routes governed staff cross-table metrics before customer or model fallback: $question', async ({
-    question,
-    metricRef,
-    expectedIntent,
-    expectedShape,
-  }) => {
-    const aiService = fakeAiService(async () => {
-      throw new Error('model_should_not_be_called');
-    });
-    const compiler = createCompiler(aiService);
-    const input = compilerInput(question);
-    input.capabilitySummaries = [
-      {
-        key: 'customer_facts',
-        name: '客户事实',
-        description: '客户事实查询',
-        domains: ['customer'],
-        intents: ['query'],
-        readOnly: true,
-        definitionRefs: [customerEntityRef],
-      },
-      {
-        key: 'manager_staff_overview',
-        name: '店长员工运营分析',
-        description: '员工服务客户数和关联业绩排行',
-        domains: ['staff', 'beautician'],
-        intents: ['query', 'ranking'],
-        readOnly: true,
-        definitionRefs: [
-          beauticianEntityRef,
-          beauticianNameDimensionRef,
-          staffUniqueCustomerCountMetricRef,
-          staffServiceRevenueMetricRef,
-        ],
-      },
-    ];
-    input.rankedCapabilityKeys = ['customer_facts', 'manager_staff_overview'];
+  ])(
+    'routes governed staff cross-table metrics before customer or model fallback: $question',
+    async ({ question, metricRef, expectedIntent, expectedShape }) => {
+      const aiService = fakeAiService(async () => {
+        throw new Error('model_should_not_be_called');
+      });
+      const compiler = createCompiler(aiService);
+      const input = compilerInput(question);
+      input.capabilitySummaries = [
+        {
+          key: 'customer_facts',
+          name: '客户事实',
+          description: '客户事实查询',
+          domains: ['customer'],
+          intents: ['query'],
+          readOnly: true,
+          definitionRefs: [customerEntityRef],
+        },
+        {
+          key: 'manager_staff_overview',
+          name: '店长员工运营分析',
+          description: '员工服务客户数和关联业绩排行',
+          domains: ['staff', 'beautician'],
+          intents: ['query', 'ranking'],
+          readOnly: true,
+          definitionRefs: [
+            beauticianEntityRef,
+            beauticianNameDimensionRef,
+            staffUniqueCustomerCountMetricRef,
+            staffServiceRevenueMetricRef,
+          ],
+        },
+      ];
+      input.rankedCapabilityKeys = ['customer_facts', 'manager_staff_overview'];
 
-    const result = await compiler.compile(input);
+      const result = await compiler.compile(input);
 
-    expect(result).toMatchObject({
-      status: 'completed',
-      selectedCapabilityKey: 'manager_staff_overview',
-      provider: 'governed_contract',
-      model: 'manager_staff_metric_fast_path',
-      intent: {
-        intent: expectedIntent,
-        answerShape: expectedShape,
-        metrics: [metricRef],
-        missingSlots: [],
-      },
-    });
-    if (expectedIntent === 'ranking') {
-      expect(result.status === 'completed' ? result.intent.orderBy : []).toEqual([
-        { definitionRef: metricRef, direction: 'desc' },
-      ]);
-    }
-    expect(aiService.generateStructured).not.toHaveBeenCalled();
-  });
+      expect(result).toMatchObject({
+        status: 'completed',
+        selectedCapabilityKey: 'manager_staff_overview',
+        provider: 'governed_contract',
+        model: 'manager_staff_metric_fast_path',
+        intent: {
+          intent: expectedIntent,
+          answerShape: expectedShape,
+          metrics: [metricRef],
+          missingSlots: [],
+        },
+      });
+      if (expectedIntent === 'ranking') {
+        expect(result.status === 'completed' ? result.intent.orderBy : []).toEqual([
+          { definitionRef: metricRef, direction: 'desc' },
+        ]);
+      }
+      expect(aiService.generateStructured).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([
     {
@@ -3050,6 +3051,25 @@ describe('BrainSemanticIntentCompilerService', () => {
       expectedIntent: 'diagnosis',
       expectedShape: 'diagnosis',
       expectedEntity: '唐伊',
+    },
+    {
+      // BQ0412
+      question: '昨天排班怎么优化能提升产能',
+      expectedIntent: 'diagnosis',
+      expectedShape: 'diagnosis',
+    },
+    {
+      // BQ0414
+      question: '给宋乔制定成长建议',
+      expectedIntent: 'diagnosis',
+      expectedShape: 'diagnosis',
+      expectedEntity: '宋乔',
+    },
+    {
+      // BQ0415
+      question: '技能缺口怎么补，要不要培训',
+      expectedIntent: 'diagnosis',
+      expectedShape: 'diagnosis',
     },
   ])(
     'routes release-core staff analysis to the governed manager capability: $question',
@@ -3104,6 +3124,115 @@ describe('BrainSemanticIntentCompilerService', () => {
       expect(aiService.generateStructured).not.toHaveBeenCalled();
     },
   );
+
+  it('routes a card-package sales superlative to the governed finance read path', async () => {
+    const aiService = fakeAiService(async () => {
+      throw new Error('model_should_not_be_called');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput('本月卖得最好的焕肤清洁 12 次卡是哪个'); // BQ0499
+    input.capabilitySummaries = [
+      {
+        key: 'customer_facts',
+        name: '客户事实',
+        description: '客户持卡事实查询',
+        domains: ['customer'],
+        intents: ['query'],
+        readOnly: true,
+        definitionRefs: [customerEntityRef],
+      },
+      {
+        key: 'finance_risk_overview',
+        name: '财务经营风险概览',
+        description: '读取次卡开卡销售张数与实收排行',
+        domains: ['finance', 'order'],
+        intents: ['query', 'ranking'],
+        readOnly: true,
+        definitionRefs: [],
+      },
+    ];
+    input.rankedCapabilityKeys = ['customer_facts', 'finance_risk_overview'];
+
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      selectedCapabilityKey: 'finance_risk_overview',
+      provider: 'governed_contract',
+      model: 'card_package_sales_ranking_fast_path',
+      intent: {
+        intent: 'query',
+        answerShape: 'ranking',
+        missingSlots: [],
+        assumptions: [expect.stringContaining('开卡张数降序')],
+      },
+    });
+    expect(aiService.generateStructured).not.toHaveBeenCalled();
+  });
+
+  it('prioritizes aggregate project margin analysis over customer facts, finance and project BOM routing', async () => {
+    const aiService = fakeAiService(async () => {
+      throw new Error('model_should_not_be_called');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput('分析下最近三个月各项目的毛利'); // BQ0536
+    input.capabilitySummaries = [
+      {
+        key: 'customer_facts',
+        name: '客户事实',
+        description: '客户事实查询',
+        domains: ['customer'],
+        intents: ['query'],
+        readOnly: true,
+        definitionRefs: [customerEntityRef],
+      },
+      {
+        key: 'project_material_consumption_analysis',
+        name: '项目耗材分析',
+        description: '读取项目 BOM 和实际耗材',
+        domains: ['project', 'inventory'],
+        intents: ['query', 'ranking'],
+        readOnly: true,
+        definitionRefs: [projectEntityRef],
+      },
+      {
+        key: 'finance_risk_overview',
+        name: '财务经营风险概览',
+        description: '财务风险与订单利润',
+        domains: ['finance'],
+        intents: ['query', 'diagnosis'],
+        readOnly: true,
+        definitionRefs: [],
+      },
+      {
+        key: 'project_margin_analysis',
+        name: '项目毛利分析',
+        description: '返回各项目收入、成本、贡献毛利和毛利率',
+        domains: ['project', 'finance'],
+        intents: ['query', 'ranking', 'diagnosis'],
+        readOnly: true,
+        definitionRefs: [projectEntityRef],
+      },
+    ];
+    input.rankedCapabilityKeys = [
+      'customer_facts',
+      'project_material_consumption_analysis',
+      'finance_risk_overview',
+      'project_margin_analysis',
+    ];
+
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      selectedCapabilityKey: 'project_margin_analysis',
+      provider: 'governed_contract',
+      model: 'project_margin_fast_path',
+      intent: {
+        intent: 'query',
+        answerShape: 'ranking',
+        entities: [expect.objectContaining({ entityType: 'project' })],
+        missingSlots: [],
+      },
+    });
+    expect(aiService.generateStructured).not.toHaveBeenCalled();
+  });
 
   it('routes governed order profit even when finance risk is missing from the retrieved Top-K summaries', async () => {
     const aiService = fakeAiService(async () => {

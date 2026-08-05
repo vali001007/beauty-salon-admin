@@ -178,6 +178,22 @@ export class BrainSemanticIntentCompilerService {
           },
         };
       }
+      const cardPackageSalesRankingFastPath = this.buildCardPackageSalesRankingFastPath(input);
+      if (cardPackageSalesRankingFastPath) {
+        return {
+          status: 'completed',
+          intent: cardPackageSalesRankingFastPath,
+          selectedCapabilityKey: 'finance_risk_overview',
+          provider: 'governed_contract',
+          model: 'card_package_sales_ranking_fast_path',
+          usage: {
+            provider: 'governed_contract',
+            model: 'card_package_sales_ranking_fast_path',
+            inputTokens: 0,
+            outputTokens: 0,
+          },
+        };
+      }
       const customerPredictionFastPath = this.buildCustomerPredictionCapabilityFastPath(input);
       if (customerPredictionFastPath) {
         return {
@@ -220,6 +236,22 @@ export class BrainSemanticIntentCompilerService {
           usage: {
             provider: 'governed_contract',
             model: 'exact_example_fast_path',
+            inputTokens: 0,
+            outputTokens: 0,
+          },
+        };
+      }
+      const projectMarginFastPath = this.buildProjectMarginAnalysisFastPath(input);
+      if (projectMarginFastPath) {
+        return {
+          status: 'completed',
+          intent: projectMarginFastPath,
+          selectedCapabilityKey: 'project_margin_analysis',
+          provider: 'governed_contract',
+          model: 'project_margin_fast_path',
+          usage: {
+            provider: 'governed_contract',
+            model: 'project_margin_fast_path',
             inputTokens: 0,
             outputTokens: 0,
           },
@@ -562,9 +594,7 @@ export class BrainSemanticIntentCompilerService {
         input.question,
       );
     const marketingResponseRanking =
-      /(?:营销触达|营销).*(?:响应度|响应评分).*(?:最高|排行)|(?:响应度|响应评分).*(?:最高|排行)/.test(
-        input.question,
-      );
+      /(?:营销触达|营销).*(?:响应度|响应评分).*(?:最高|排行)|(?:响应度|响应评分).*(?:最高|排行)/.test(input.question);
     const customerLtv12m =
       /(?:预测|预估).*(?:12个月|十二个月).*(?:生命周期价值|LTV)|(?:12个月|十二个月).*(?:生命周期价值|LTV).*(?:预测|预估)/i.test(
         input.question,
@@ -619,8 +649,7 @@ export class BrainSemanticIntentCompilerService {
     input: BrainSemanticIntentCompilerInput,
   ): BrainSemanticIntent | undefined {
     const capability = input.capabilitySummaries.find(
-      (candidate) =>
-        candidate.key === 'manager_staff_overview' && candidate.readOnly && !candidate.sideEffect,
+      (candidate) => candidate.key === 'manager_staff_overview' && candidate.readOnly && !candidate.sideEffect,
     );
     if (!capability) return undefined;
     const namedCustomerCount = /(?:服务了多少个客户|服务了多少客户|服务客户(?:数)?(?:有)?多少)/.test(input.question);
@@ -642,6 +671,18 @@ export class BrainSemanticIntentCompilerService {
       /(?:业绩|实收).*(?:下滑|下降).*(?:建议|怎么帮|怎么办|如何帮)|(?:建议|怎么帮|怎么办|如何帮).*(?:业绩|实收).*(?:下滑|下降)/.test(
         input.question,
       );
+    const scheduleCapacityAdvice =
+      /(?:排班).*(?:怎么|如何|怎样)?.*(?:优化|调整).*(?:产能|人效)|(?:提升|提高).*(?:产能|人效).*(?:排班)/.test(
+        input.question,
+      );
+    const namedStaffGrowthAdvice =
+      /(?:给|帮).{0,8}(?:美容师|员工|技师)?.{0,6}(?:制定|做|给出).{0,4}(?:成长|提升|发展)(?:建议|方案)|(?:成长|提升|发展)(?:建议|方案).{0,8}(?:美容师|员工|技师)/.test(
+        input.question,
+      );
+    const staffSkillTrainingAdvice =
+      /(?:技能).*(?:缺口|短板|不足).*(?:怎么补|如何补|培训|训练|提升)|(?:培训|训练).*(?:技能).*(?:缺口|短板|不足)/.test(
+        input.question,
+      );
     if (
       !namedCustomerCount &&
       !staffRevenueRanking &&
@@ -650,7 +691,10 @@ export class BrainSemanticIntentCompilerService {
       !staffLevelRevenue &&
       !primaryStaffDecline &&
       !staffSkillCoverage &&
-      !staffDeclineAdvice
+      !staffDeclineAdvice &&
+      !scheduleCapacityAdvice &&
+      !namedStaffGrowthAdvice &&
+      !staffSkillTrainingAdvice
     ) {
       return undefined;
     }
@@ -679,10 +723,13 @@ export class BrainSemanticIntentCompilerService {
     }
     const beauticianEntityRef = findCapabilityDefinitionRef(capability, 'entity', 'entity.beautician');
     const beauticianDimensionRef = findCapabilityDefinitionRef(capability, 'dimension', 'dimension.beauticianName');
-    const staffName =
-      namedCustomerCount || staffPerformanceTrend || staffDeclineAdvice
+    const staffName = namedStaffGrowthAdvice
+      ? input.question.match(
+          /(?:给|帮)(?:美容师|员工|技师)?([\u3400-\u9fff·]{2,5}?)(?:制定|做|给出)(?:成长|提升|发展)(?:建议|方案)/u,
+        )?.[1]
+      : namedCustomerCount || staffPerformanceTrend || staffDeclineAdvice
         ? input.question.match(
-            /(?:^|[，,。\s])([\u3400-\u9fff·]{2,5}?)(?=(?:的)?(?:(?:这半年|半年|去年同期|昨天|今天|本周|上周|本月|上月|最近\d*天|最近))?(?:业绩|实收|服务了多少个客户|服务了多少客户|服务客户))/u,
+            /(?:给|帮)?([\u3400-\u9fff·]{2,5}?)(?=(?:的)?(?:(?:这半年|半年|去年同期|昨天|今天|本周|上周|本月|上月|最近\d*天|最近))?(?:业绩|实收|服务了多少个客户|服务了多少客户|服务客户))/u,
           )?.[1]
         : undefined;
     const timeRange = this.resolveQuestionTimeRange(input.question, input.timezone);
@@ -701,10 +748,14 @@ export class BrainSemanticIntentCompilerService {
           : 'diagnosis';
     const metrics = [
       ...(namedCustomerCount && uniqueCustomerMetricRef ? [uniqueCustomerMetricRef] : []),
-      ...(!namedCustomerCount && revenueMetricRef && !staffCrossSell && !staffSkillCoverage ? [revenueMetricRef] : []),
-      ...(staffDeclineAdvice && serviceMetricRef ? [serviceMetricRef] : []),
-      ...(staffDeclineAdvice && uniqueCustomerMetricRef ? [uniqueCustomerMetricRef] : []),
-      ...(staffDeclineAdvice && repurchaseMetricRef ? [repurchaseMetricRef] : []),
+      ...(!namedCustomerCount && revenueMetricRef && !staffCrossSell && !staffSkillCoverage && !staffSkillTrainingAdvice
+        ? [revenueMetricRef]
+        : []),
+      ...((staffDeclineAdvice || namedStaffGrowthAdvice || scheduleCapacityAdvice) && serviceMetricRef
+        ? [serviceMetricRef]
+        : []),
+      ...((staffDeclineAdvice || namedStaffGrowthAdvice) && uniqueCustomerMetricRef ? [uniqueCustomerMetricRef] : []),
+      ...((staffDeclineAdvice || namedStaffGrowthAdvice) && repurchaseMetricRef ? [repurchaseMetricRef] : []),
     ];
     const successCriteria = namedCustomerCount
       ? ['按当前门店和时间范围返回指定员工服务的独立客户数']
@@ -720,7 +771,11 @@ export class BrainSemanticIntentCompilerService {
                 ? ['以上一周期业绩实收高位员工定义主力并检查当前期下滑']
                 : staffSkillCoverage
                   ? ['对照全部在售项目与在职美容师技能配置，返回无人或单人覆盖短板']
-                  : ['按指定员工当前期与上一等长周期的服务、客户、复购和业绩变化生成只读建议'];
+                  : staffSkillTrainingAdvice
+                    ? ['基于当前门店项目技能覆盖事实，返回培训优先级与只读补位建议']
+                    : scheduleCapacityAdvice
+                      ? ['基于指定周期排班、请假和员工服务事实，返回可人工执行的产能优化建议']
+                      : ['按指定员工当前期与上一等长周期的服务、客户、复购和业绩变化生成只读成长建议'];
     const assumption = namedCustomerCount
       ? '服务客户数使用 manager_staff_overview 的 uniqueCustomerCount，不使用客户总数替代。'
       : staffRevenueRanking
@@ -735,7 +790,11 @@ export class BrainSemanticIntentCompilerService {
                 ? '主力美容师按上一等长周期业绩实收排名前25%且至少1人定义。'
                 : staffSkillCoverage
                   ? '技能覆盖短板指在售项目只有0或1位在职美容师配置对应技能，认证人数另行披露。'
-                  : '建议只基于真实服务、独立客户、复购客户和业绩变化生成，不创建任何业务动作。';
+                  : staffSkillTrainingAdvice
+                    ? '培训建议按在售项目无人覆盖、单人覆盖和认证人数排序，只生成建议，不创建培训任务。'
+                    : scheduleCapacityAdvice
+                      ? '排班优化仅使用真实排班、请假和服务事实生成只读建议，不发布或修改排班。'
+                      : '成长建议只基于真实服务、独立客户、复购客户、项目技能和业绩变化生成，不创建任何业务动作。';
     return {
       schemaVersion: '1.0',
       objective: input.question.trim(),
@@ -768,6 +827,92 @@ export class BrainSemanticIntentCompilerService {
       assumptions: [assumption],
       confidence: 1,
       decisionSummary: '员工经营问法命中已发布店长员工运营能力，使用真实只读事实合同直接编译。',
+    };
+  }
+
+  private buildCardPackageSalesRankingFastPath(
+    input: BrainSemanticIntentCompilerInput,
+  ): BrainSemanticIntent | undefined {
+    const capability = input.capabilitySummaries.find(
+      (candidate) => candidate.key === 'finance_risk_overview' && candidate.readOnly && !candidate.sideEffect,
+    );
+    if (!capability) return undefined;
+    if (
+      !/(?:次卡|套餐卡).*(?:卖得最好|卖得最多|销量最高|销售排行|销售排名|哪个卖得好)|(?:卖得最好|卖得最多|销量最高|销售排行|销售排名).*(?:次卡|套餐卡)/.test(
+        input.question,
+      )
+    ) {
+      return undefined;
+    }
+    const timeRange = this.resolveQuestionTimeRange(input.question, input.timezone);
+    const cardNameDimension = findCapabilityDefinitionRef(capability, 'dimension', 'dimension.cardName');
+    return {
+      schemaVersion: '1.0',
+      objective: input.question.trim(),
+      domains: ['finance', 'order'],
+      intent: 'query',
+      entities: [],
+      metrics: [],
+      dimensions: cardNameDimension ? [cardNameDimension] : [],
+      filters: [],
+      ...(timeRange ? { timeRange } : {}),
+      orderBy: [],
+      limit: 20,
+      answerShape: 'ranking',
+      successCriteria: ['按当前门店和时间范围读取真实开卡记录', '按开卡张数排序并同时披露实收金额'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: ['“卖得最好”默认按开卡张数降序，张数相同时按实收金额降序；不使用核销次数替代销售。'],
+      confidence: 1,
+      decisionSummary: '卡项畅销问法由财务只读能力读取 CustomerCard 开卡事实并返回结构化排行。',
+    };
+  }
+
+  private buildProjectMarginAnalysisFastPath(input: BrainSemanticIntentCompilerInput): BrainSemanticIntent | undefined {
+    const capability = input.capabilitySummaries.find(
+      (candidate) => candidate.key === 'project_margin_analysis' && candidate.readOnly && !candidate.sideEffect,
+    );
+    if (!capability) return undefined;
+    if (
+      !/(?:各个?|每个|所有)(?:项目|护理项目|服务项目).*(?:毛利|利润)|(?:毛利|利润).*(?:各个?|每个|所有)(?:项目|护理项目|服务项目)|(?:项目|护理项目|服务项目)(?:的)?(?:毛利|利润)(?:排行|排名|对比|分析)/.test(
+        input.question,
+      ) ||
+      /(?:商品|产品|订单|单号)/.test(input.question)
+    ) {
+      return undefined;
+    }
+    const timeRange = this.resolveQuestionTimeRange(input.question, input.timezone);
+    const projectRef = findCapabilityDefinitionRef(capability, 'entity', 'entity.project');
+    const projectNameDimension = findCapabilityDefinitionRef(capability, 'dimension', 'dimension.projectName');
+    return {
+      schemaVersion: '1.0',
+      objective: input.question.trim(),
+      domains: ['project', 'finance'],
+      intent: 'query',
+      entities: projectRef
+        ? [
+            {
+              entityType: 'project',
+              mention: '项目',
+              source: 'user',
+              definitionRef: projectRef,
+              confidence: 1,
+            },
+          ]
+        : [],
+      metrics: [],
+      dimensions: projectNameDimension ? [projectNameDimension] : [],
+      filters: [],
+      ...(timeRange ? { timeRange } : {}),
+      orderBy: [],
+      limit: 100,
+      answerShape: 'ranking',
+      successCriteria: ['返回各项目服务收入、耗材成本、提成成本、贡献毛利和毛利率', '披露成本缺口'],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: ['项目毛利使用管理端 OperationProfit 项目毛利口径，不用全店毛利或商品成本替代。'],
+      confidence: 1,
+      decisionSummary: '项目毛利问法命中已发布项目毛利分析能力，优先于客户事实与项目 BOM 能力。',
     };
   }
 
