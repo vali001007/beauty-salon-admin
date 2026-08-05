@@ -77,6 +77,8 @@ describe('AskDataWorkbench', () => {
     expect(await screen.findByText('上个月项目收入 580 元。')).toBeInTheDocument();
     expect(screen.getByText('肩颈舒压')).toBeInTheDocument();
     expect(screen.getByText('580')).toBeInTheDocument();
+    expect(screen.queryByText('ProductOrder')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '展开数据查询详情' }));
     expect(screen.getByText('ProductOrder')).toBeInTheDocument();
     expect(screen.getByText('OrderItem')).toBeInTheDocument();
   });
@@ -149,9 +151,17 @@ describe('AskDataWorkbench', () => {
     expect(screen.getByText('方式：自由 SQL')).toBeInTheDocument();
     expect(screen.getByText('范围：2026-07-01 至 2026-08-01')).toBeInTheDocument();
     expect(screen.getByText('耗时：12ms')).toBeInTheDocument();
+    expect(screen.getByText('查询限制（1）')).toBeInTheDocument();
+    expect(screen.queryByText('仅查询已登记视图。')).not.toBeVisible();
+    fireEvent.click(screen.getByText('查询限制（1）'));
     expect(screen.getByText('仅查询已登记视图。')).toBeInTheDocument();
+    expect(screen.queryByText('管理员调试 SQL')).not.toBeInTheDocument();
+    expect(screen.queryByText('识别：')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '展开语义路由详情' }));
+    expect(screen.getByText('识别：')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '展开权限与 SQL 安全详情' }));
     expect(screen.getByText('管理员调试 SQL')).toBeInTheDocument();
-    expect(screen.getByText('管理员语义路由')).toBeInTheDocument();
+    expect(screen.queryByText('识别：')).not.toBeInTheDocument();
   });
 
   it('shows clarification question and candidates when the backend needs follow-up', async () => {
@@ -179,6 +189,7 @@ describe('AskDataWorkbench', () => {
 
     expect(await screen.findByText('找到多个客户，请选择客户。')).toBeInTheDocument();
     expect(screen.getByText('张三丰')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '展开数据查询详情' }));
     expect(screen.getByText('Customer')).toBeInTheDocument();
   });
 
@@ -276,6 +287,7 @@ describe('AskDataWorkbench', () => {
     fireEvent.click(screen.getByRole('button', { name: '查询' }));
 
     expect(await screen.findByText('营销 ROI 为 2.5。')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '展开数据查询详情' }));
     expect(screen.getByText('口径：estimated 成本不代表实际渠道账单')).toBeInTheDocument();
     expect(screen.getAllByText(/数据截至：/)).toHaveLength(2);
   });

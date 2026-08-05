@@ -3,6 +3,7 @@ import {
   AlertCircle,
   BarChart3,
   CheckCircle2,
+  ChevronDown,
   ClipboardCheck,
   Clock3,
   Database,
@@ -421,46 +422,15 @@ function AskResultMessage({ result, onClear }: { result: AskDataQueryResponse; o
         ) : null}
 
         {result.limitations?.length ? (
-          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-            <div className="font-medium">查询限制</div>
-            <ul className="mt-1 list-disc space-y-1 pl-5">{result.limitations.map((item) => <li key={item}>{item}</li>)}</ul>
-          </div>
-        ) : null}
-
-        <div className="mt-4 border-t border-border pt-4">
-          <div className="text-sm font-medium text-foreground">来源</div>
-          {result.sources.length ? (
-            <div className="mt-2 grid gap-2 md:grid-cols-2">
-              {result.sources.map((source) => (
-                <div key={`${source.model}-${source.reason}`} className="rounded-md border border-border bg-background p-3">
-                  <div className="text-sm font-semibold text-foreground">{source.model}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">{source.reason}</div>
-                  <div className="mt-2 text-xs text-muted-foreground">字段：{source.fields.join('、')}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">过滤：{source.filters.join('、')}</div>
-                  {source.dataPolicy ? <div className="mt-1 text-xs text-amber-700">口径：{source.dataPolicy}</div> : null}
-                  {source.dataAsOf ? <div className="mt-1 text-xs text-muted-foreground">数据截至：{new Date(source.dataAsOf).toLocaleString('zh-CN')}</div> : null}
-                </div>
-              ))}
-            </div>
-          ) : <div className="mt-2 text-sm text-muted-foreground">当前没有可展示来源。</div>}
-        </div>
-
-        {result.queryMeta?.generatedSql && result.queryPlan?.semanticIntent ? (
-          <details className="mt-4 rounded border border-border bg-background p-2 text-xs text-muted-foreground">
-            <summary className="cursor-pointer font-medium text-foreground">管理员语义路由</summary>
-            <div className="mt-2 space-y-1">
-              <div>识别：{result.queryPlan.semanticIntent.intent} / {result.queryPlan.semanticIntent.answerShape}</div>
-              <div>指标：{result.queryPlan.semanticIntent.metricKeys.join('、') || '-'}</div>
-              <div>路由：{result.queryPlan.semanticIntent.routeMode}，置信度：{(result.queryPlan.semanticIntent.confidence * 100).toFixed(0)}%</div>
-            </div>
+          <details className="group mt-4 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-800">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 font-medium marker:content-none">
+              <span>查询限制（{result.limitations.length}）</span>
+              <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" />
+            </summary>
+            <ul className="border-t border-amber-200 px-3 py-2.5 pl-8 list-disc space-y-1">{result.limitations.map((item) => <li key={item}>{item}</li>)}</ul>
           </details>
         ) : null}
-        {result.queryMeta?.generatedSql ? (
-          <details className="mt-2 rounded border border-border bg-background p-2 text-xs text-muted-foreground">
-            <summary className="cursor-pointer font-medium text-foreground">管理员调试 SQL</summary>
-            <pre className="mt-2 overflow-auto whitespace-pre-wrap break-all">{result.queryMeta.generatedSql}</pre>
-          </details>
-        ) : null}
+
       </div>
     </div>
   );
@@ -477,13 +447,18 @@ function AskRunPanel({
   catalog: AskDataCatalogResponse | null;
   catalogGroups: Array<{ domain: string; label: string; tables: AskDataCatalogResponse['tables'] }>;
 }) {
+  const [expandedStage, setExpandedStage] = useState<string | null>(null);
   const semantic = result?.queryPlan?.semanticIntent;
+  const generatedSql = result?.queryPlan?.generatedSql ?? result?.queryMeta?.generatedSql;
+  useEffect(() => {
+    setExpandedStage(null);
+  }, [result]);
   const stages = [
-    { label: '意图理解', detail: semantic ? `${semantic.intent} · ${semantic.answerShape}` : '等待问题', ready: Boolean(result), running: loading },
-    { label: '语义路由', detail: semantic ? `${semantic.metricKeys.join('、') || '通用指标'} · ${Math.round(semantic.confidence * 100)}%` : '尚未路由', ready: Boolean(result && semantic), running: false },
-    { label: '权限与 SQL 安全', detail: result ? `${result.queryMeta?.connectionMode === 'development_admin' ? '开发管理员只读事务' : '只读连接'} · ${result.queryPlan?.planner ?? '-'}` : '等待生成', ready: Boolean(result), running: false },
-    { label: '数据查询', detail: result ? `${result.rows.length} 行 · ${result.queryMeta?.executionMs ?? '-'}ms` : '等待执行', ready: Boolean(result && ['success', 'no_data', 'feature_disabled'].includes(result.status)), running: false },
-    { label: '回答组织', detail: result ? statusLabel(result.status) : '等待结果', ready: Boolean(result), running: false },
+    { key: 'intent', label: '意图理解', detail: semantic ? `${semantic.intent} · ${semantic.answerShape}` : '等待问题', ready: Boolean(result), running: loading, expandable: false },
+    { key: 'semantic', label: '语义路由', detail: semantic ? `${semantic.metricKeys.join('、') || '通用指标'} · ${Math.round(semantic.confidence * 100)}%` : '尚未路由', ready: Boolean(result && semantic), running: false, expandable: Boolean(semantic) },
+    { key: 'sql', label: '权限与 SQL 安全', detail: result ? `${result.queryMeta?.connectionMode === 'development_admin' ? '开发管理员只读事务' : '只读连接'} · ${result.queryPlan?.planner ?? '-'}` : '等待生成', ready: Boolean(result), running: false, expandable: Boolean(generatedSql) },
+    { key: 'sources', label: '数据查询', detail: result ? `${result.rows.length} 行 · ${result.queryMeta?.executionMs ?? '-'}ms` : '等待执行', ready: Boolean(result && ['success', 'no_data', 'feature_disabled'].includes(result.status)), running: false, expandable: Boolean(result) },
+    { key: 'answer', label: '回答组织', detail: result ? statusLabel(result.status) : '等待结果', ready: Boolean(result), running: false, expandable: false },
   ];
   return (
     <aside className="hidden min-h-0 flex-col overflow-hidden border-l border-border bg-muted/10 xl:flex">
@@ -496,11 +471,33 @@ function AskRunPanel({
           {stages.map((stage, index) => {
             const failed = Boolean(result && index >= 2 && ['blocked', 'failed', 'error', 'unsupported'].includes(result.status));
             const Icon = failed ? XCircle : stage.ready ? CheckCircle2 : stage.running ? Loader2 : ShieldCheck;
+            const expanded = expandedStage === stage.key;
             return (
-              <div key={stage.label} className="relative flex gap-3 pb-4 last:pb-0">
+              <div key={stage.label} className="relative pb-4 last:pb-0">
                 {index < stages.length - 1 ? <span className="absolute left-[9px] top-5 h-[calc(100%-12px)] w-px bg-border" /> : null}
-                <Icon className={`relative z-10 mt-0.5 h-5 w-5 shrink-0 bg-muted/10 ${failed ? 'text-destructive' : stage.ready ? 'text-emerald-600' : stage.running ? 'animate-spin text-primary' : 'text-muted-foreground'}`} />
-                <div className="min-w-0"><div className="text-sm font-medium text-foreground">{stage.label}</div><div className="mt-0.5 break-words text-xs leading-5 text-muted-foreground">{stage.detail}</div></div>
+                <button
+                  type="button"
+                  className={`relative flex w-full gap-3 text-left ${stage.expandable ? 'cursor-pointer rounded-md hover:bg-muted/60' : 'cursor-default'}`}
+                  aria-expanded={stage.expandable ? expanded : undefined}
+                  aria-label={stage.expandable ? `${expanded ? '收起' : '展开'}${stage.label}详情` : undefined}
+                  onClick={() => {
+                    if (stage.expandable) setExpandedStage((current) => current === stage.key ? null : stage.key);
+                  }}
+                >
+                  <Icon className={`relative z-10 mt-0.5 h-5 w-5 shrink-0 bg-muted/10 ${failed ? 'text-destructive' : stage.ready ? 'text-emerald-600' : stage.running ? 'animate-spin text-primary' : 'text-muted-foreground'}`} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium text-foreground">{stage.label}</span>
+                    <span className="mt-0.5 block break-words text-xs leading-5 text-muted-foreground">{stage.detail}</span>
+                  </span>
+                  {stage.expandable ? <ChevronDown className={`mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`} /> : null}
+                </button>
+                {expanded ? (
+                  <div className="ml-8 mt-2 rounded-lg border border-border bg-background p-3 text-xs text-muted-foreground">
+                    {stage.key === 'semantic' && semantic ? <SemanticRouteDetails semantic={semantic} /> : null}
+                    {stage.key === 'sql' && generatedSql ? <SqlDetails sql={generatedSql} /> : null}
+                    {stage.key === 'sources' && result ? <SourceDetails result={result} /> : null}
+                  </div>
+                ) : null}
               </div>
             );
           })}
@@ -533,6 +530,45 @@ function AskRunPanel({
         </section>
       </div>
     </aside>
+  );
+}
+
+function SemanticRouteDetails({ semantic }: { semantic: NonNullable<AskDataQueryResponse['queryPlan']['semanticIntent']> }) {
+  return (
+    <div className="space-y-1.5">
+      <div><span className="font-medium text-foreground">识别：</span>{semantic.intent} / {semantic.answerShape}</div>
+      <div><span className="font-medium text-foreground">指标：</span>{semantic.metricKeys.join('、') || '-'}</div>
+      <div><span className="font-medium text-foreground">维度：</span>{semantic.dimensionKeys.join('、') || '-'}</div>
+      <div><span className="font-medium text-foreground">路由：</span>{semantic.routeMode} · {Math.round(semantic.confidence * 100)}%</div>
+      {semantic.assumptions.length ? <div><span className="font-medium text-foreground">假设：</span>{semantic.assumptions.join('；')}</div> : null}
+    </div>
+  );
+}
+
+function SqlDetails({ sql }: { sql: string }) {
+  return (
+    <div>
+      <div className="font-medium text-foreground">管理员调试 SQL</div>
+      <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/40 p-2 font-mono text-[11px] leading-5">{sql}</pre>
+    </div>
+  );
+}
+
+function SourceDetails({ result }: { result: AskDataQueryResponse }) {
+  if (!result.sources.length) return <div>当前没有可展示来源。</div>;
+  return (
+    <div className="space-y-2">
+      {result.sources.map((source) => (
+        <div key={`${source.model}-${source.reason}`} className="rounded-md border border-border bg-card p-2.5">
+          <div className="font-semibold text-foreground">{source.model}</div>
+          <div className="mt-1">{source.reason}</div>
+          <div className="mt-1">字段：{source.fields.join('、')}</div>
+          <div className="mt-1">过滤：{source.filters.join('、')}</div>
+          {source.dataPolicy ? <div className="mt-1 text-amber-700">口径：{source.dataPolicy}</div> : null}
+          {source.dataAsOf ? <div className="mt-1">数据截至：{new Date(source.dataAsOf).toLocaleString('zh-CN')}</div> : null}
+        </div>
+      ))}
+    </div>
   );
 }
 
