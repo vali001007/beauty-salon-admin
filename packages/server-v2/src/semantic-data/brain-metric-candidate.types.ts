@@ -51,6 +51,7 @@ export interface BrainMetricDomainResolver {
     | 'finance_unfulfilled_card_liability_summary'
     | 'inventory_risk_summary'
     | 'inventory_consumption_rows'
+    | 'inventory_turnover_summary'
     | 'product_margin_rows'
     | 'marketing_follow_up_opportunities'
     | 'customer_retention_summary'

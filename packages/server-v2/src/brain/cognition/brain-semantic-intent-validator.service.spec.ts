@@ -433,6 +433,50 @@ describe('BrainSemanticIntentValidatorService', () => {
     expect(result.status).toBe('valid');
   });
 
+  it('accepts a same-period comparison between two governed metrics without inventing a comparison target', () => {
+    const paidMetricRef = { ...metricRef, definitionKey: 'metric.paid_amount' } as const;
+    const recognizedMetricRef = {
+      ...metricRef,
+      definitionKey: 'metric.card_recognized_revenue_amount',
+      definitionFingerprint: 'd'.repeat(64),
+      sourceFingerprint: 'e'.repeat(64),
+    } as const;
+    const comparisonSnapshot: ProductionReadyBusinessDefinitionSnapshot = {
+      ...snapshot,
+      metrics: [
+        ...snapshot.metrics,
+        {
+          ...snapshot.metrics[0]!,
+          definitionKey: paidMetricRef.definitionKey,
+          metricKey: 'paid_amount',
+          name: '实收金额',
+        },
+        {
+          ...snapshot.metrics[0]!,
+          definitionKey: recognizedMetricRef.definitionKey,
+          definitionFingerprint: recognizedMetricRef.definitionFingerprint,
+          sourceFingerprint: recognizedMetricRef.sourceFingerprint,
+          metricKey: 'card_recognized_revenue_amount',
+          name: '次卡核销确认收入',
+        },
+      ],
+    };
+    const result = createValidator(comparisonSnapshot).validate(
+      rankingIntent({
+        objective: '最近三个月实收口径和确认口径差多少',
+        intent: 'comparison',
+        answerShape: 'comparison',
+        entities: [],
+        dimensions: [],
+        metrics: [paidMetricRef, recognizedMetricRef],
+        comparisonTarget: undefined,
+        missingSlots: ['comparisonTarget'],
+      }),
+    );
+
+    expect(result.status).toBe('valid');
+  });
+
   it('requires executable primary and comparison time ranges', () => {
     const result = createValidator().validate(
       rankingIntent({

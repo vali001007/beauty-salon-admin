@@ -199,6 +199,61 @@ describe('Brain role skills', () => {
     expect(result.products[0]!.coverageDays).toBeGreaterThanOrEqual(180);
   });
 
+  it('calculates operational inventory turnover and consumption occupancy from stock movement samples', async () => {
+    const prisma = {
+      product: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 1, name: '精华液', currentStock: 2, costPrice: 10 },
+        ]),
+      },
+      stockMovement: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            productId: 1,
+            movementType: 'sale_out',
+            quantity: -10,
+            beforeStock: 20,
+            afterStock: 10,
+            occurredAt: new Date('2026-06-10T00:00:00.000Z'),
+          },
+          {
+            productId: 1,
+            movementType: 'sale_out',
+            quantity: -4,
+            beforeStock: 10,
+            afterStock: 6,
+            occurredAt: new Date('2026-07-10T00:00:00.000Z'),
+          },
+          {
+            productId: 1,
+            movementType: 'consume',
+            quantity: -4,
+            beforeStock: 6,
+            afterStock: 2,
+            occurredAt: new Date('2026-07-20T00:00:00.000Z'),
+          },
+        ]),
+      },
+    };
+
+    const result = await new BrainInventorySkillsService(prisma as any).buildInventoryTurnoverAnalysis({
+      storeId: 6,
+      startDate: new Date('2026-07-01T00:00:00.000Z'),
+      endDate: new Date('2026-07-31T23:59:59.999Z'),
+    });
+
+    expect(result.current).toMatchObject({
+      outboundQuantity: 8,
+      eventWeightedAverageStock: 6,
+      estimatedOutboundCost: 80,
+      eventWeightedAverageStockValue: 60,
+    });
+    expect(result.current.operationalTurnoverRatio).toBeCloseTo(8 / 6);
+    expect(result.current.consumptionOccupancyRatio).toBeCloseTo(80 / 60);
+    expect(result.previous.operationalTurnoverRatio).toBeCloseTo(10 / 15);
+    expect(result.rows[0]).toMatchObject({ productName: '精华液', currentStock: 2, outboundQuantity: 8 });
+  });
+
   it('summarizes finance risks from refunds, discounts and settlement margin', async () => {
     const prisma = {
       refundRecord: { findMany: jest.fn().mockResolvedValue([{ amount: 120 }, { amount: 80 }]) },

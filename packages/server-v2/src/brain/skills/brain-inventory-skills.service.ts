@@ -58,6 +58,33 @@ export interface InventoryAgingAnalysis {
   }>;
 }
 
+export interface InventoryTurnoverAnalysis {
+  rangeDays: number;
+  current: InventoryTurnoverPeriod;
+  previous: InventoryTurnoverPeriod;
+  rows: Array<{
+    productId: number;
+    productName: string;
+    currentStock: number;
+    outboundQuantity: number;
+    eventWeightedAverageStock: number;
+    operationalTurnoverRatio?: number;
+    consumptionOccupancyRatio?: number;
+    previousConsumptionOccupancyRatio?: number;
+    consumptionOccupancyDelta?: number;
+  }>;
+  policy: 'operational_event_weighted_not_financial_turnover';
+}
+
+export interface InventoryTurnoverPeriod {
+  outboundQuantity: number;
+  eventWeightedAverageStock: number;
+  operationalTurnoverRatio?: number;
+  estimatedOutboundCost: number;
+  eventWeightedAverageStockValue: number;
+  consumptionOccupancyRatio?: number;
+}
+
 export interface InventoryProcurementAnalysis {
   suggestions: Array<{
     productId: number;
@@ -369,6 +396,149 @@ export class BrainInventorySkillsService {
         quantity: this.toNumber(movement.quantity),
         costAmount: this.toNumber(movement.costAmount),
       })),
+    };
+  }
+
+  async buildInventoryTurnoverAnalysis(input: {
+    storeId: number;
+    startDate: Date;
+    endDate: Date;
+  }): Promise<InventoryTurnoverAnalysis> {
+    const rangeMs = Math.max(86_400_000, input.endDate.getTime() - input.startDate.getTime());
+    const previousStartDate = new Date(input.startDate.getTime() - rangeMs);
+    const rangeDays = Math.max(1, Math.ceil(rangeMs / 86_400_000));
+    const products = await this.prisma.product.findMany({
+      where: { storeId: input.storeId, deletedAt: null, status: 'active' },
+      select: { id: true, name: true, currentStock: true, costPrice: true },
+      take: 1000,
+    });
+    const productIds = products.map((product) => product.id);
+    const movements = productIds.length
+      ? await this.prisma.stockMovement.findMany({
+          where: {
+            storeId: input.storeId,
+            productId: { in: productIds },
+            occurredAt: { gte: previousStartDate, lte: input.endDate },
+          },
+          select: {
+            productId: true,
+            movementType: true,
+            quantity: true,
+            beforeStock: true,
+            afterStock: true,
+            occurredAt: true,
+          },
+          orderBy: [{ productId: 'asc' }, { occurredAt: 'asc' }],
+          take: 50_000,
+        })
+      : [];
+    const productById = new Map(products.map((product) => [product.id, product]));
+    type ProductPeriod = {
+      outboundQuantity: number;
+      averageStockTotal: number;
+      averageStockSamples: number;
+      estimatedOutboundCost: number;
+    };
+    const emptyPeriod = (): ProductPeriod => ({
+      outboundQuantity: 0,
+      averageStockTotal: 0,
+      averageStockSamples: 0,
+      estimatedOutboundCost: 0,
+    });
+    const currentByProduct = new Map<number, ProductPeriod>();
+    const previousByProduct = new Map<number, ProductPeriod>();
+    const outboundMovement = (movementType: string, quantity: number) =>
+      quantity < 0 || /(?:out|consume|consumption|sale|usage|deduct|scrap|transfer_out|manual_outbound|出库|消耗|销售|报损)/i.test(movementType);
+    for (const movement of movements) {
+      const currentPeriod = movement.occurredAt >= input.startDate;
+      const target = currentPeriod ? currentByProduct : previousByProduct;
+      const period = target.get(movement.productId) ?? emptyPeriod();
+      const quantity = this.toNumber(movement.quantity);
+      const product = productById.get(movement.productId);
+      if (outboundMovement(movement.movementType, quantity)) {
+        const outbound = Math.abs(quantity);
+        period.outboundQuantity += outbound;
+        period.estimatedOutboundCost += outbound * this.toNumber(product?.costPrice);
+      }
+      if (movement.beforeStock !== null && movement.afterStock !== null) {
+        period.averageStockTotal += (this.toNumber(movement.beforeStock) + this.toNumber(movement.afterStock)) / 2;
+        period.averageStockSamples += 1;
+      }
+      target.set(movement.productId, period);
+    }
+    const summarize = (byProduct: Map<number, ProductPeriod>): InventoryTurnoverPeriod => {
+      let outboundQuantity = 0;
+      let eventWeightedAverageStock = 0;
+      let estimatedOutboundCost = 0;
+      let eventWeightedAverageStockValue = 0;
+      for (const [productId, period] of byProduct) {
+        const averageStock = period.averageStockSamples > 0 ? period.averageStockTotal / period.averageStockSamples : 0;
+        const costPrice = this.toNumber(productById.get(productId)?.costPrice);
+        outboundQuantity += period.outboundQuantity;
+        eventWeightedAverageStock += averageStock;
+        estimatedOutboundCost += period.estimatedOutboundCost;
+        eventWeightedAverageStockValue += averageStock * costPrice;
+      }
+      return {
+        outboundQuantity,
+        eventWeightedAverageStock,
+        ...(eventWeightedAverageStock > 0
+          ? { operationalTurnoverRatio: outboundQuantity / eventWeightedAverageStock }
+          : {}),
+        estimatedOutboundCost,
+        eventWeightedAverageStockValue,
+        ...(eventWeightedAverageStockValue > 0
+          ? { consumptionOccupancyRatio: estimatedOutboundCost / eventWeightedAverageStockValue }
+          : {}),
+      };
+    };
+    const rows = products
+      .map((product) => {
+        const current = currentByProduct.get(product.id) ?? emptyPeriod();
+        const previous = previousByProduct.get(product.id) ?? emptyPeriod();
+        const currentAverageStock =
+          current.averageStockSamples > 0 ? current.averageStockTotal / current.averageStockSamples : 0;
+        const previousAverageStock =
+          previous.averageStockSamples > 0 ? previous.averageStockTotal / previous.averageStockSamples : 0;
+        const costPrice = this.toNumber(product.costPrice);
+        const currentRatio = currentAverageStock > 0 ? current.outboundQuantity / currentAverageStock : undefined;
+        const currentConsumptionRatio =
+          currentAverageStock > 0 && costPrice > 0
+            ? current.estimatedOutboundCost / (currentAverageStock * costPrice)
+            : undefined;
+        const previousConsumptionRatio =
+          previousAverageStock > 0 && costPrice > 0
+            ? previous.estimatedOutboundCost / (previousAverageStock * costPrice)
+            : undefined;
+        return {
+          productId: product.id,
+          productName: product.name,
+          currentStock: this.toNumber(product.currentStock),
+          outboundQuantity: current.outboundQuantity,
+          eventWeightedAverageStock: currentAverageStock,
+          ...(currentRatio === undefined ? {} : { operationalTurnoverRatio: currentRatio }),
+          ...(currentConsumptionRatio === undefined ? {} : { consumptionOccupancyRatio: currentConsumptionRatio }),
+          ...(previousConsumptionRatio === undefined
+            ? {}
+            : { previousConsumptionOccupancyRatio: previousConsumptionRatio }),
+          ...(currentConsumptionRatio === undefined || previousConsumptionRatio === undefined
+            ? {}
+            : { consumptionOccupancyDelta: currentConsumptionRatio - previousConsumptionRatio }),
+        };
+      })
+      .filter((row) => row.outboundQuantity > 0 || row.currentStock > 0)
+      .sort(
+        (left, right) =>
+          (right.operationalTurnoverRatio ?? -1) - (left.operationalTurnoverRatio ?? -1) ||
+          right.outboundQuantity - left.outboundQuantity ||
+          left.productName.localeCompare(right.productName, 'zh-CN'),
+      );
+    return {
+      rangeDays,
+      current: summarize(currentByProduct),
+      previous: summarize(previousByProduct),
+      rows,
+      policy: 'operational_event_weighted_not_financial_turnover',
     };
   }
 

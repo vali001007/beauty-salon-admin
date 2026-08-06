@@ -111,7 +111,7 @@ export class BrainSemanticIntentValidatorService {
     }
 
     const missingSlots = new Set(intent.missingSlots.map((slot) => slot.trim()).filter(Boolean));
-    if (isGroupedDimensionComparison(intent)) {
+    if (isGroupedDimensionComparison(intent) || isMetricToMetricComparison(intent)) {
       missingSlots.delete('comparisonTarget');
       missingSlots.delete('comparisonEntities');
     }
@@ -381,7 +381,9 @@ export class BrainSemanticIntentValidatorService {
       )
         missingSlots.add('metric');
       if (!intent.comparisonTarget) {
-        if (!isGroupedDimensionComparison(intent)) missingSlots.add('comparisonTarget');
+        if (!isGroupedDimensionComparison(intent) && !isMetricToMetricComparison(intent)) {
+          missingSlots.add('comparisonTarget');
+        }
       } else if (intent.comparisonTarget.type === 'time') {
         if (!intent.timeRange) missingSlots.add('timeRange');
       } else {
@@ -739,6 +741,16 @@ function isGroupedDimensionComparison(intent: BrainSemanticIntent): boolean {
     !intent.comparisonTarget &&
     intent.metrics.length > 0 &&
     intent.dimensions.length > 0
+  );
+}
+
+function isMetricToMetricComparison(intent: BrainSemanticIntent): boolean {
+  return (
+    intent.intent === 'comparison' &&
+    !intent.comparisonTarget &&
+    intent.entities.length === 0 &&
+    intent.dimensions.length === 0 &&
+    new Set(intent.metrics.map((metric) => `${metric.definitionKey}@${metric.definitionVersion}`)).size >= 2
   );
 }
 

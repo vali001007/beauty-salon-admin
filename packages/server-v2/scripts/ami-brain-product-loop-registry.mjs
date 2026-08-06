@@ -97,6 +97,15 @@ const FEATURE_BUNDLES = [
     orderEvidence(['ProductOrder', 'OrderItem', 'PaymentRecord', 'RefundRecord', 'Customer']),
   ),
   featureBundle(
+    'card_recognized_revenue_fact',
+    '交易域',
+    [
+      '次卡核销确认收入(card recognized revenue)',
+      '实收金额(paid amount)×次卡核销确认收入(card recognized revenue)',
+    ],
+    cardRecognitionEvidence(['CardUsageRecord', 'PaymentRecord', 'DailySettlement', 'ProductOrder']),
+  ),
+  featureBundle(
     'order_profit',
     '交易域',
     ['订单利润(orders profit)'],
@@ -642,6 +651,20 @@ function orderEvidence(models) {
   return evidence(
     [management('src/app/pages/ProductOrderManagement.tsx', "path: 'orders/products'")],
     [api('packages/server-v2/src/orders/orders.controller.ts', "@Controller('orders')")],
+    models,
+  );
+}
+
+function cardRecognitionEvidence(models) {
+  return evidence(
+    [
+      management('src/app/pages/CardVerification.tsx', "path: 'orders/card-usage'"),
+      management('src/app/pages/operation-profit/PrepaidLiabilityAnalysis.tsx', "path: 'operation-profit/card-liabilities'"),
+    ],
+    [
+      api('packages/server-v2/src/cards/cards.controller.ts', "@Controller('cards')"),
+      api('packages/server-v2/src/operation-profit/operation-profit.controller.ts', "@Controller('operation-profit')"),
+    ],
     models,
   );
 }

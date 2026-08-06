@@ -821,16 +821,16 @@ BQ0819,交易域,前台,action,high,孙晓雯结账，做了紧致抗衰护理,o
 BQ0820,交易域,前台,action,high,核销孙俊杰的补水护理 10 次卡一次,orders/terminal 收银API,"高风险,须先确认"
 BQ0821,交易域,财务,query_cross,hard,最近三个月每张订单的毛利分别多少,订单利润(orders profit),需区分口径
 BQ0822,交易域,财务,query_cross,hard,精华导入护理订单最近三个月的利润情况,订单利润(orders profit),需区分口径
-BQ0823,交易域,财务,query_cross,hard,最近三个月次卡核销确认的收入有多少,订单利润(orders profit),需区分口径
-BQ0824,交易域,财务,query_cross,hard,最近三个月实收口径和确认口径差多少,订单利润(orders profit),需区分口径
+BQ0823,交易域,财务,query_cross,hard,最近三个月次卡核销确认的收入有多少,次卡核销确认收入(card recognized revenue),需区分口径
+BQ0824,交易域,财务,query_cross,hard,最近三个月实收口径和确认口径差多少,实收金额(paid amount)×次卡核销确认收入(card recognized revenue),需区分口径
 BQ0825,交易域,财务,query_cross,hard,最近三个月哪些订单毛利为负,订单利润(orders profit),需区分口径
 BQ0826,交易域,财务,query_cross,hard,最近三个月开卡订单的利润分析,订单利润(orders profit),需区分口径
 BQ0827,交易域,财务,query_cross,hard,最近三个月产品订单的成本和毛利,订单利润(orders profit),需区分口径
 BQ0828,交易域,财务,query_cross,hard,综合养护 20 次卡的确认收入进度,订单利润(orders profit),需区分口径
 BQ0829,交易域,财务,query_cross,hard,这个季度每张订单的毛利分别多少,订单利润(orders profit),需区分口径
 BQ0830,交易域,财务,query_cross,hard,痘肌净颜舒缓护理订单这个季度的利润情况,订单利润(orders profit),需区分口径
-BQ0831,交易域,财务,query_cross,hard,这个季度次卡核销确认的收入有多少,订单利润(orders profit),需区分口径
-BQ0832,交易域,财务,query_cross,hard,这个季度实收口径和确认口径差多少,订单利润(orders profit),需区分口径
+BQ0831,交易域,财务,query_cross,hard,这个季度次卡核销确认的收入有多少,次卡核销确认收入(card recognized revenue),需区分口径
+BQ0832,交易域,财务,query_cross,hard,这个季度实收口径和确认口径差多少,实收金额(paid amount)×次卡核销确认收入(card recognized revenue),需区分口径
 BQ0833,交易域,财务,query_cross,hard,这个季度哪些订单毛利为负,订单利润(orders profit),需区分口径
 BQ0834,交易域,财务,query_cross,hard,这个季度开卡订单的利润分析,订单利润(orders profit),需区分口径
 BQ0835,交易域,财务,query_cross,hard,这个季度产品订单的成本和毛利,订单利润(orders profit),需区分口径
@@ -845,8 +845,8 @@ BQ0843,交易域,财务,query_cross,hard,双十一期间产品订单的成本和
 BQ0844,交易域,财务,query_cross,hard,焕肤清洁 12 次卡的确认收入进度,订单利润(orders profit),需区分口径
 BQ0845,交易域,财务,query_cross,hard,最近14天每张订单的毛利分别多少,订单利润(orders profit),需区分口径
 BQ0846,交易域,财务,query_cross,hard,晒后舒缓修护订单最近14天的利润情况,订单利润(orders profit),需区分口径
-BQ0847,交易域,财务,query_cross,hard,最近14天次卡核销确认的收入有多少,订单利润(orders profit),需区分口径
-BQ0848,交易域,财务,query_cross,hard,最近14天实收口径和确认口径差多少,订单利润(orders profit),需区分口径
+BQ0847,交易域,财务,query_cross,hard,最近14天次卡核销确认的收入有多少,次卡核销确认收入(card recognized revenue),需区分口径
+BQ0848,交易域,财务,query_cross,hard,最近14天实收口径和确认口径差多少,实收金额(paid amount)×次卡核销确认收入(card recognized revenue),需区分口径
 BQ0849,交易域,财务,query_cross,hard,最近14天哪些订单毛利为负,订单利润(orders profit),需区分口径
 BQ0850,交易域,财务,query_cross,hard,最近14天开卡订单的利润分析,订单利润(orders profit),需区分口径
 BQ0851,交易域,财务,query_cross,hard,最近14天产品订单的成本和毛利,订单利润(orders profit),需区分口径

@@ -242,6 +242,22 @@ export class BrainSemanticIntentCompilerService {
           },
         };
       }
+      const releaseCoreOperationsFastPath = this.buildReleaseCoreOperationsFastPath(input);
+      if (releaseCoreOperationsFastPath) {
+        return {
+          status: 'completed',
+          intent: releaseCoreOperationsFastPath.intent,
+          selectedCapabilityKey: releaseCoreOperationsFastPath.selectedCapabilityKey,
+          provider: 'governed_contract',
+          model: 'release_core_operations_fast_path',
+          usage: {
+            provider: 'governed_contract',
+            model: 'release_core_operations_fast_path',
+            inputTokens: 0,
+            outputTokens: 0,
+          },
+        };
+      }
       const governedFastPath = this.buildExactCapabilityFallback(input, 'contract_fast_path');
       if (governedFastPath) {
         return {
@@ -871,6 +887,160 @@ export class BrainSemanticIntentCompilerService {
       assumptions: [assumption],
       confidence: 1,
       decisionSummary: '员工经营问法命中已发布店长员工运营能力，使用真实只读事实合同直接编译。',
+    };
+  }
+
+  private buildReleaseCoreOperationsFastPath(input: BrainSemanticIntentCompilerInput):
+    | { selectedCapabilityKey: string; intent: BrainSemanticIntent }
+    | undefined {
+    const normalized = normalizeSemanticText(input.question);
+    const financeRecognitionComparison =
+      /(?:实收口径.*(?:确认口径|确认收入).*(?:差|对比|比较)|(?:确认口径|确认收入).*实收口径.*(?:差|对比|比较))/u.test(
+        normalized,
+    );
+    const beauticianReservationMatch = normalized.match(
+      /^([\p{Script=Han}]{2,4}?)(?:今年|本年|本月|这个月|本周|这周|最近[^，。！？]{0,12})?接了哪些预约$/u,
+    );
+    const reservationConversion = /(?:预约)?到店转化率|预约转化率/u.test(normalized);
+    const reservationPeak =
+      /(?:预约|到店).*(?:高峰时段|哪些时段.*最满|时段.*最满)|哪些时段.*(?:预约|到店).*(?:最满|最多)/u.test(
+        normalized,
+      );
+    const reservationNoShowConcentration = /爽约.*(?:集中|哪些客户|哪些时段)/u.test(normalized);
+    const beauticianCapacityMatch = normalized.match(
+      /^([\p{Script=Han}]{2,4}?)(?:今年|本年|本月|这个月|本周|这周)?(?:是不是|是否)?(?:排太满|排得太满|预约太满|超负荷)/u,
+    );
+    const beauticianCapacity = Boolean(beauticianCapacityMatch);
+    const gapAdvice = /空档.*(?:太多|很多).*(?:建议|怎么填|如何填|怎么补|如何补)/u.test(normalized);
+    const noShowAdvice = /(?:怎么|如何).*(?:降低|减少).*(?:爽约率|爽约)|(?:降低|减少).*(?:爽约率|爽约).*(?:怎么|如何)/u.test(
+      normalized,
+    );
+    const peakStaffingAdvice = /(?:高峰|高峰时段).*(?:人手不够|缺人).*(?:调度|怎么安排|如何安排)|(?:人手不够|缺人).*(?:怎么调度|如何调度)/u.test(
+      normalized,
+    );
+    const inventoryAging = /(?:库存|产品|商品).*(?:积压|周转慢)|(?:积压|周转慢).*(?:库存|产品|商品)/u.test(
+      normalized,
+    );
+    const inventoryTurnover = /库存周转率/u.test(normalized);
+    const inventoryConsumptionOccupancy = /耗占比/u.test(normalized);
+
+    let selectedCapabilityKey: string | undefined;
+    let intentKind: BrainSemanticIntent['intent'] = 'diagnosis';
+    let answerShape: BrainSemanticIntent['answerShape'] = 'diagnosis';
+    let metricKeys: string[] = [];
+    let entityName: string | undefined;
+
+    if (financeRecognitionComparison) {
+      selectedCapabilityKey = 'finance_risk_overview';
+      intentKind = 'comparison';
+      answerShape = 'comparison';
+      metricKeys = ['metric.paid_amount', 'metric.card_recognized_revenue_amount'];
+    } else if (beauticianReservationMatch) {
+      selectedCapabilityKey = 'reservation_list';
+      intentKind = 'query';
+      answerShape = 'list';
+      entityName = beauticianReservationMatch[1];
+    } else if (gapAdvice) {
+      selectedCapabilityKey = 'appointment_gap_list';
+      intentKind = 'recommendation';
+      answerShape = 'diagnosis';
+    } else if (
+      reservationConversion ||
+      reservationPeak ||
+      reservationNoShowConcentration ||
+      beauticianCapacity ||
+      noShowAdvice ||
+      peakStaffingAdvice
+    ) {
+      selectedCapabilityKey = 'front_desk_operations_overview';
+      if (reservationConversion && /趋势|走势/u.test(normalized)) {
+        intentKind = 'trend';
+        answerShape = 'trend';
+      } else if (reservationConversion) {
+        intentKind = 'query';
+        answerShape = 'scalar';
+      } else if (reservationPeak) {
+        intentKind = 'ranking';
+        answerShape = 'ranking';
+      } else if (beauticianCapacity) {
+        intentKind = 'diagnosis';
+        answerShape = 'diagnosis';
+        entityName = beauticianCapacityMatch?.[1];
+      } else if (noShowAdvice || peakStaffingAdvice) {
+        intentKind = 'recommendation';
+        answerShape = 'diagnosis';
+      }
+    } else if (inventoryAging || inventoryTurnover || inventoryConsumptionOccupancy) {
+      selectedCapabilityKey = 'inventory_operations_overview';
+      if (inventoryAging) {
+        intentKind = 'ranking';
+        answerShape = 'ranking';
+      } else if (inventoryTurnover) {
+        intentKind = 'query';
+        answerShape = 'scalar';
+        metricKeys = ['metric.inventory_operational_turnover_ratio'];
+      } else {
+        intentKind = 'trend';
+        answerShape = 'trend';
+        metricKeys = ['metric.inventory_consumption_occupancy_ratio'];
+      }
+    }
+    if (!selectedCapabilityKey) return undefined;
+
+    const capability = this.orderedCapabilitySummaries(input).find(
+      (candidate) => candidate.key === selectedCapabilityKey && candidate.readOnly && !candidate.sideEffect,
+    );
+    if (!capability) return undefined;
+    const timeRange = this.resolveQuestionTimeRange(input.question, input.timezone);
+    const metrics = metricKeys.flatMap((key) => {
+      const ref = (capability.definitionRefs ?? []).find(
+        (candidate) => candidate.definitionType === 'metric' && candidate.definitionKey === key,
+      );
+      return ref ? [copyDefinitionRef(ref as BrainDefinitionRef<'metric'>)] : [];
+    });
+    const beauticianRef = entityName
+      ? (capability.definitionRefs ?? []).find(
+          (candidate) => candidate.definitionType === 'entity' && candidate.definitionKey === 'entity.beautician',
+        )
+      : undefined;
+    return {
+      selectedCapabilityKey,
+      intent: {
+        schemaVersion: '1.0',
+        objective: input.question.trim(),
+        domains: [...capability.domains],
+        intent: intentKind,
+        entities: entityName
+          ? [
+              {
+                entityType: 'beautician',
+                mention: entityName,
+                source: 'user',
+                ...(beauticianRef
+                  ? { definitionRef: copyDefinitionRef(beauticianRef as BrainDefinitionRef<'entity'>) }
+                  : {}),
+                confidence: 1,
+              },
+            ]
+          : [],
+        metrics,
+        dimensions: [],
+        filters: [],
+        ...(timeRange ? { timeRange } : {}),
+        orderBy: [],
+        answerShape,
+        successCriteria: [
+          `执行已发布能力 ${selectedCapabilityKey}，按当前门店和明确时间范围返回可追溯事实`,
+          '不得因模型补充了执行器不支持的筛选、排序或内部口径槽位而要求用户再次澄清',
+        ],
+        ambiguities: [],
+        missingSlots: [],
+        assumptions: [
+          `问题命中 RC-350 履约、库存或财务确定性合同，按能力 ${selectedCapabilityKey} 直接编译，不调用模型。`,
+        ],
+        confidence: 1,
+        decisionSummary: `RC-350 运营确定性路由命中 ${selectedCapabilityKey}。`,
+      },
     };
   }
 
@@ -3082,6 +3252,10 @@ function governedMetricKeyMatchesQuestion(question: string, definitionKey: strin
       return /(商品|产品)/.test(normalizedQuestion) && /(销量|销售数量|卖出多少|卖了多少)/.test(normalizedQuestion);
     case 'inventory_consumption_quantity':
       return /(耗材|物料|产品|商品)/.test(normalizedQuestion) && /(消耗|用量|出库)/.test(normalizedQuestion);
+    case 'inventory_operational_turnover_ratio':
+      return /库存周转率/.test(normalizedQuestion);
+    case 'inventory_consumption_occupancy_ratio':
+      return /耗占比/.test(normalizedQuestion);
     case 'product_gross_margin_rate':
       return /(产品|商品|货品)/.test(normalizedQuestion) && /(毛利率|利润率)/.test(normalizedQuestion);
     case 'product_below_cost_sale_count':

@@ -18,6 +18,7 @@ export interface BusinessMetricResolverContract {
     | 'finance_unfulfilled_card_liability_summary'
     | 'inventory_risk_summary'
     | 'inventory_consumption_rows'
+    | 'inventory_turnover_summary'
     | 'product_margin_rows'
     | 'marketing_follow_up_opportunities'
     | 'customer_retention_summary'
@@ -158,6 +159,19 @@ const CONTRACTS: Readonly<Record<BusinessMetricResolverContract['key'], Business
       storeModel: 'Product',
       dimensionFields: Object.freeze(['productId', 'name']),
       numericExpressionFields: Object.freeze(['outboundQty']),
+    }),
+    inventory_turnover_summary: Object.freeze({
+      key: 'inventory_turnover_summary' as const,
+      storeModel: 'Product',
+      dimensionFields: Object.freeze([]),
+      numericExpressionFields: Object.freeze([
+        'outboundQuantity',
+        'eventWeightedAverageStock',
+        'operationalTurnoverRatio',
+        'estimatedOutboundCost',
+        'eventWeightedAverageStockValue',
+        'consumptionOccupancyRatio',
+      ]),
     }),
     product_margin_rows: Object.freeze({
       key: 'product_margin_rows' as const,

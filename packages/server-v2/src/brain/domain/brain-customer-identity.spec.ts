@@ -44,6 +44,14 @@ describe('brain customer identity helpers', () => {
     expect(isSpecificCustomerReadOnlyQuestion('给何思琪充值100元')).toBe(false);
   });
 
+  it.each([
+    '今年的预约到店转化率是多少',
+    '分析下今年的到店高峰时段',
+    '登记罗若兰到店',
+  ])('does not extract an operational phrase as a customer name: %s', (question) => {
+    expect(extractSpecificCustomerNameFromQuestion(question)).toBeUndefined();
+  });
+
   it('classifies a named-customer project recommendation without classifying ordinary facts as recommendations', () => {
     expect(isSpecificCustomerProjectRecommendationQuestion('王思琪适合推荐什么项目，为什么')).toBe(true);
     expect(isSpecificCustomerProjectRecommendationQuestion('何思琪累计消费了多少钱')).toBe(false);

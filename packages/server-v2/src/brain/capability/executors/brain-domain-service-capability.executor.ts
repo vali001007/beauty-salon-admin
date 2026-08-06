@@ -305,7 +305,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     name: '客户等待流失分析',
     description:
       '基于统一客户等待事实，查询当前门店等待中、已服务、离店、因等待过久离店和等待记录采集覆盖率。没有结构化离店原因或采集覆盖不足时必须披露缺口，不得用取消预约或爽约替代等待流失。',
-    intents: ['query', 'diagnosis'],
+    intents: ['query', 'ranking', 'trend', 'diagnosis', 'recommendation'],
     examples: ['最近有没有客户因为等待时间长而离开', '本月有多少客户等太久走了', '今天还有多少客户在等待'],
     negativeExamples: ['查询其他门店客户等待记录', '把取消预约都算成等待流失', '直接给等待客户发补偿'],
     synonyms: ['等待流失', '等太久离店', '等待过久离开', '排队离店', '客户等待情况'],
@@ -332,8 +332,13 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     name: '门店可预约空档清单',
     description:
       '基于当前门店排班、预约占用和可用容量，计算指定日期范围内可预约的具体空档时段。只返回日期、开始时间、结束时间、可用容量和预计收入，不自动匹配客户、不创建触达任务、不修改预约。',
-    intents: ['query'],
-    examples: ['今天哪个时间段还有空档', '明天下午有哪些可预约时段', '列出今天还能加客的空档'],
+    intents: ['query', 'diagnosis'],
+    examples: [
+      '今天哪个时间段还有空档',
+      '明天下午有哪些可预约时段',
+      '列出今天还能加客的空档',
+      '今年空档太多建议怎么填',
+    ],
     negativeExamples: ['直接把客户加进空档', '给最合适的客户发送邀约', '修改美容师排班'],
     synonyms: ['预约空档时段', '可加客时间段', '可预约时段', '空档清单'],
     businessDefinitionKeys: ['entity.reservation'],
@@ -354,7 +359,17 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     description:
       '查询当前门店前台现场的预约到店、员工忙闲、到店率、爽约率和服务超时等汇总与异常事实。指定钟点、指定客户、指定美容师、预约项目分类、首个/下一个/最后一个预约以及预约名单明细由门店预约清单能力负责，避免两个能力同时声明同一问题。',
     intents: ['query', 'diagnosis'],
-    examples: ['今天前台现场情况怎么样', '前台现场的预约到店和员工忙闲概览', '前台现场有哪些服务超时和接待风险'],
+    examples: [
+      '今天前台现场情况怎么样',
+      '前台现场的预约到店和员工忙闲概览',
+      '前台现场有哪些服务超时和接待风险',
+      '今年的预约到店转化率是多少',
+      '今年哪些时段的预约最满',
+      '今年预约转化率趋势',
+      '今年爽约集中在哪些客户或时段',
+      '怎么降低今年的爽约率',
+      '今年高峰人手不够怎么调度',
+    ],
     negativeExamples: [
       '今天有几个预约是做面部的，几个是身体的',
       '今天下午还有几个预约没到',
@@ -386,6 +401,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     businessDefinitionKeys: [
       'entity.reservation',
       'entity.customer',
+      'entity.beautician',
       'dimension.customerName',
       'dimension.projectName',
     ],
@@ -536,6 +552,8 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       '有没有哪个项目因为缺耗材没法做',
       '紧致抗衰护理的库存耗材跟得上销量吗',
       '这个月产品销售额是多少',
+      '最近30天库存周转率如何',
+      '最近30天耗占比的趋势',
     ],
     negativeExamples: ['直接创建采购单', '修改商品当前库存'],
     synonyms: [
@@ -557,6 +575,8 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       'dimension.projectName',
       'metric.stock_risk_score',
       'metric.inventory_consumption_quantity',
+      'metric.inventory_operational_turnover_ratio',
+      'metric.inventory_consumption_occupancy_ratio',
       'metric.product_sales_amount',
       'metric.project_service_count',
     ],
@@ -3467,7 +3487,8 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           sourceId: 'appointment_gap_readonly_preview',
           label: '排班、预约占用与可用容量计算',
         };
-        const answer = rows.length
+        const adviceRequested = /(?:空档|空闲).*(?:建议|怎么填|如何填|怎么补|如何补)/.test(input.question);
+        const gapSummary = rows.length
           ? `${range.label}共有 ${rows.length} 个可预约空档：${rows
               .map(
                 (item, index) =>
@@ -3475,6 +3496,9 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
               )
               .join('；')}。`
           : `${range.label}没有计算出可预约空档。`;
+        const answer = adviceRequested
+          ? `${gapSummary}\n建议按以下顺序人工补位：1. 先处理可用容量最高且预计收入较高的空档；2. 复核候选客户近期到店、项目适配和触达冷却期；3. 先生成可编辑邀约草稿，小范围确认后再发送；4. 每日复盘填充率和实际到店率。当前仅生成只读建议，不自动选客、不发送消息、不修改预约。`
+          : gapSummary;
         return this.applyDataQualityGuard(
           {
             status: 'completed',
@@ -3492,12 +3516,30 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                 kind: 'limitations',
                 items: ['本能力只计算空档，不匹配客户、不创建触达任务、不修改预约。'],
               },
+              ...(adviceRequested
+                ? [
+                    {
+                      kind: 'diagnosis' as const,
+                      findings: [
+                        {
+                          title: '空档补位优先级',
+                          detail: rows.length
+                            ? `先处理 ${rows[0]!.date} ${rows[0]!.startTime}-${rows[0]!.endTime}，该时段可加 ${rows[0]!.availableCapacity} 人。`
+                            : '当前没有可执行空档，先复核排班和预约占用是否完整。',
+                          severity: rows.length ? ('info' as const) : ('warning' as const),
+                        },
+                      ],
+                      citationIds: [citation.sourceId],
+                    },
+                  ]
+                : []),
             ],
             metadata: {
               capabilityKey: 'appointment_gap_list',
               answerScope: 'appointment_gap_time_list',
               rangeLabel: range.label,
               persisted: preview.persisted,
+              adviceRequested,
               mappingOutputs: { appointmentGaps: rows },
               completionCriteria: ['appointment_gaps_computed', 'readonly_boundary_disclosed'],
             },
@@ -3533,6 +3575,312 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         const focusedReservationAnswer = this.buildFocusedReservationAnswer(schedule, input, range, citations);
         if (focusedReservationAnswer)
           return this.applyDataQualityGuard(this.ensureAnswerTextBlock(focusedReservationAnswer), dataQuality);
+        const activeReservations = schedule.reservations.filter((item) => !this.isCancelledReservation(item.status));
+        const noShowReservations = activeReservations.filter((item) => this.isNoShowReservation(item.status));
+        const groupByHour = (rows: typeof activeReservations) => {
+          const grouped = new Map<string, number>();
+          for (const item of rows) {
+            const hour = `${item.startTime.slice(0, 2)}:00-${item.startTime.slice(0, 2)}:59`;
+            grouped.set(hour, (grouped.get(hour) ?? 0) + 1);
+          }
+          return [...grouped.entries()]
+            .map(([timeSlot, count]) => ({ timeSlot, count }))
+            .sort((left, right) => right.count - left.count || left.timeSlot.localeCompare(right.timeSlot));
+        };
+        const noShowAdvice = /(?:怎么|如何).*(?:降低|减少).*(?:爽约率|爽约)|(?:降低|减少).*(?:爽约率|爽约).*(?:怎么|如何)/.test(
+          input.question,
+        );
+        if (noShowAdvice) {
+          const highRiskSlots = groupByHour(noShowReservations).slice(0, 3);
+          const answer = `${range.label}有效预约 ${snapshot.total} 个，已到店 ${snapshot.checkedIn} 人，到店率 ${(snapshot.arrivalRate * 100).toFixed(1)}%；爽约 ${snapshot.noShow} 人，爽约率 ${(snapshot.noShowRate * 100).toFixed(1)}%。建议：1. 对待确认和待到店预约分层提醒，优先处理临近到店仍未确认的客户；2. 在${highRiskSlots.length ? highRiskSlots.map((item) => item.timeSlot).join('、') : '历史爽约样本积累后的高风险时段'}增加二次确认；3. 记录未到原因并区分取消、改期和真实爽约；4. 每周复盘提醒触达率、确认率和到店率。当前只生成建议，不自动发送消息、不修改预约。`;
+          return this.applyDataQualityGuard(
+            {
+              status: 'completed',
+              answer,
+              citations,
+              grounding: 'db_skill',
+              blocks: [
+                {
+                  kind: 'kpi',
+                  items: [
+                    { label: '有效预约', value: `${snapshot.total} 个` },
+                    { label: '到店率', value: `${(snapshot.arrivalRate * 100).toFixed(1)}%` },
+                    { label: '爽约率', value: `${(snapshot.noShowRate * 100).toFixed(1)}%` },
+                  ],
+                  citationIds: ['reception_operations_snapshot'],
+                },
+                {
+                  kind: 'diagnosis',
+                  findings: [
+                    {
+                      title: '爽约治理建议',
+                      detail: '分层提醒、临近到店二次确认、结构化记录未到原因，并按周复盘确认率与到店率。',
+                      severity: snapshot.noShowRate >= 0.1 ? 'warning' : 'info',
+                    },
+                  ],
+                  citationIds: ['reception_operations_snapshot', 'reception_reservation_schedule'],
+                },
+                { kind: 'limitations', items: ['建议为只读运营方案，未发送提醒、未修改预约。'] },
+              ],
+              metadata: {
+                capabilityKey: 'front_desk_operations_overview',
+                answerScope: 'reservation_no_show_reduction_advice',
+                rangeLabel: range.label,
+                noShowRate: snapshot.noShowRate,
+                actionWriteCount: 0,
+                completionCriteria: ['reservation_arrival_loaded', 'no_show_loaded', 'readonly_advice_generated'],
+              },
+            },
+            dataQuality,
+          );
+        }
+        const peakStaffingAdvice = /(?:高峰|高峰时段).*(?:人手不够|缺人).*(?:调度|怎么安排|如何安排)|(?:人手不够|缺人).*(?:怎么调度|如何调度)/.test(
+          input.question,
+        );
+        if (peakStaffingAdvice) {
+          const peakSlots = groupByHour(activeReservations).slice(0, 3);
+          const staffRows = [...snapshot.staff]
+            .sort((left, right) => right.appointmentCount - left.appointmentCount || left.name.localeCompare(right.name, 'zh-CN'))
+            .map((item) => ({
+              staff: item.name,
+              appointmentCount: item.appointmentCount,
+              status: item.onTimeOff ? '请假' : item.inService ? '服务中' : item.available ? '可接待' : '暂不可用',
+              nextAvailableAt: item.nextAvailableAt ?? '',
+            }));
+          const answer = `${range.label}预约高峰集中在${peakSlots.length ? peakSlots.map((item) => `${item.timeSlot}（${item.count} 个）`).join('、') : '当前无有效预约时段'}。建议：1. 将休息、培训和非紧急后台工作移出高峰；2. 高峰前确认可接待员工和项目技能，优先把可替代项目分配给空闲员工；3. 对超出接待能力的加客设置人工审批；4. 高峰结束后复盘服务超时和受影响预约。当前不会自动修改排班。`;
+          return this.applyDataQualityGuard(
+            {
+              status: 'completed',
+              answer,
+              citations,
+              grounding: 'db_skill',
+              blocks: [
+                {
+                  kind: 'ranking',
+                  rows: peakSlots,
+                  columns: ['timeSlot', 'count'],
+                  citationIds: ['reception_reservation_schedule'],
+                },
+                {
+                  kind: 'table',
+                  rows: staffRows,
+                  columns: ['staff', 'appointmentCount', 'status', 'nextAvailableAt'],
+                  citationIds: ['reception_operations_snapshot'],
+                },
+                { kind: 'limitations', items: ['当前只提供人工调度建议，不发布或修改排班。'] },
+              ],
+              metadata: {
+                capabilityKey: 'front_desk_operations_overview',
+                answerScope: 'peak_staffing_advice',
+                rangeLabel: range.label,
+                peakSlots,
+                actionWriteCount: 0,
+                completionCriteria: ['reservation_peak_loaded', 'staff_state_loaded', 'readonly_advice_generated'],
+              },
+            },
+            dataQuality,
+          );
+        }
+        if (/(?:预约)?到店转化率|预约转化率/.test(input.question)) {
+          const trendRequested = /趋势|走势/.test(input.question);
+          if (trendRequested) {
+            const grouped = new Map<string, { total: number; arrived: number }>();
+            for (const item of activeReservations) {
+              const period = item.date.slice(0, 7);
+              const current = grouped.get(period) ?? { total: 0, arrived: 0 };
+              current.total += 1;
+              if (Boolean(item.checkedInAt) || this.isArrivedReservation(item.status)) current.arrived += 1;
+              grouped.set(period, current);
+            }
+            const rows = [...grouped.entries()]
+              .sort(([left], [right]) => left.localeCompare(right))
+              .map(([period, value]) => ({
+                period,
+                reservationCount: value.total,
+                arrivedCount: value.arrived,
+                arrivalConversionRate: value.total > 0 ? value.arrived / value.total : 0,
+              }));
+            const first = rows[0];
+            const last = rows.at(-1);
+            const delta = first && last ? last.arrivalConversionRate - first.arrivalConversionRate : 0;
+            return this.applyDataQualityGuard(
+              {
+                status: 'completed',
+                answer: rows.length
+                  ? `${range.label}预约到店转化率趋势共 ${rows.length} 个按月数据点；最新 ${last!.period} 为 ${(last!.arrivalConversionRate * 100).toFixed(1)}%，较首期${delta > 0 ? '提升' : delta < 0 ? '下降' : '持平'} ${Math.abs(delta * 100).toFixed(1)} 个百分点。`
+                  : `${range.label}没有有效预约，无法形成到店转化率趋势。`,
+                citations,
+                grounding: 'db_skill',
+                blocks: [
+                  {
+                    kind: 'chart',
+                    chartType: 'line',
+                    rows,
+                    xKey: 'period',
+                    yKeys: ['arrivalConversionRate'],
+                    citationIds: ['reception_reservation_schedule'],
+                  },
+                  {
+                    kind: 'table',
+                    rows,
+                    columns: ['period', 'reservationCount', 'arrivedCount', 'arrivalConversionRate'],
+                    citationIds: ['reception_reservation_schedule'],
+                  },
+                ],
+                metadata: {
+                  capabilityKey: 'front_desk_operations_overview',
+                  answerScope: 'reservation_arrival_conversion_trend',
+                  rangeLabel: range.label,
+                  pointCount: rows.length,
+                  completionCriteria: ['reservation_schedule_loaded', 'arrival_conversion_grouped'],
+                },
+              },
+              dataQuality,
+            );
+          }
+          return this.applyDataQualityGuard(
+            {
+              status: 'completed',
+              answer: `${range.label}有效预约 ${snapshot.total} 个，已到店 ${snapshot.checkedIn} 人，预约到店转化率 ${(snapshot.arrivalRate * 100).toFixed(1)}%。`,
+              citations,
+              grounding: 'db_skill',
+              blocks: [
+                {
+                  kind: 'kpi',
+                  items: [
+                    { label: '有效预约', value: `${snapshot.total} 个` },
+                    { label: '已到店', value: `${snapshot.checkedIn} 人` },
+                    { label: '预约到店转化率', value: `${(snapshot.arrivalRate * 100).toFixed(1)}%` },
+                  ],
+                  citationIds: ['reception_operations_snapshot'],
+                },
+              ],
+              metadata: {
+                capabilityKey: 'front_desk_operations_overview',
+                answerScope: 'reservation_arrival_conversion_rate',
+                rangeLabel: range.label,
+                arrivalRate: snapshot.arrivalRate,
+                completionCriteria: ['reservation_arrival_loaded', 'arrival_rate_calculated'],
+              },
+            },
+            dataQuality,
+          );
+        }
+        if (/(?:预约|到店).*(?:高峰时段|哪些时段.*最满|时段.*最满)/.test(input.question)) {
+          const rows = groupByHour(activeReservations).slice(0, this.resolveLimit(input.args.limit, 10));
+          return this.applyDataQualityGuard(
+            {
+              status: 'completed',
+              answer: rows.length
+                ? `${range.label}预约最满的时段是 ${rows[0]!.timeSlot}，共 ${rows[0]!.count} 个预约；前 ${Math.min(rows.length, 5)} 个高峰时段为 ${rows
+                    .slice(0, 5)
+                    .map((item) => `${item.timeSlot} ${item.count} 个`)
+                    .join('，')}。`
+                : `${range.label}没有有效预约，无法形成时段排行。`,
+              citations,
+              grounding: 'db_skill',
+              blocks: [
+                {
+                  kind: 'ranking',
+                  rows,
+                  columns: ['timeSlot', 'count'],
+                  citationIds: ['reception_reservation_schedule'],
+                },
+              ],
+              metadata: {
+                capabilityKey: 'front_desk_operations_overview',
+                answerScope: 'reservation_peak_time_ranking',
+                rangeLabel: range.label,
+                completionCriteria: ['reservation_schedule_loaded', 'reservation_hours_ranked'],
+              },
+            },
+            dataQuality,
+          );
+        }
+        if (/爽约.*(?:集中|哪些客户|哪些时段)/.test(input.question)) {
+          const customerCounts = new Map<string, number>();
+          for (const item of noShowReservations)
+            customerCounts.set(item.customerName, (customerCounts.get(item.customerName) ?? 0) + 1);
+          const customers = [...customerCounts.entries()]
+            .map(([customerName, count]) => ({ customerName, count }))
+            .sort((left, right) => right.count - left.count || left.customerName.localeCompare(right.customerName, 'zh-CN'))
+            .slice(0, 10);
+          const slots = groupByHour(noShowReservations).slice(0, 10);
+          return this.applyDataQualityGuard(
+            {
+              status: 'completed',
+              answer: noShowReservations.length
+                ? `${range.label}共 ${noShowReservations.length} 个爽约记录；客户集中度最高的是 ${customers[0]?.customerName ?? '无'}（${customers[0]?.count ?? 0} 次），时段集中度最高的是 ${slots[0]?.timeSlot ?? '无'}（${slots[0]?.count ?? 0} 次）。`
+                : `${range.label}没有已记录爽约，无法形成客户或时段集中度排行。`,
+              citations,
+              grounding: 'db_skill',
+              blocks: [
+                {
+                  kind: 'ranking',
+                  rows: customers,
+                  columns: ['customerName', 'count'],
+                  citationIds: ['reception_reservation_schedule'],
+                },
+                {
+                  kind: 'ranking',
+                  rows: slots,
+                  columns: ['timeSlot', 'count'],
+                  citationIds: ['reception_reservation_schedule'],
+                },
+              ],
+              metadata: {
+                capabilityKey: 'front_desk_operations_overview',
+                answerScope: 'reservation_no_show_concentration',
+                rangeLabel: range.label,
+                noShowCount: noShowReservations.length,
+                completionCriteria: ['no_show_reservations_loaded', 'customer_and_time_concentration_ranked'],
+              },
+            },
+            dataQuality,
+          );
+        }
+        if (/[\p{Script=Han}]{2,4}.*(?:排太满|排得太满|预约太满|超负荷)/u.test(input.question)) {
+          const staffName = [...new Set(activeReservations.map((item) => item.beauticianName).filter(Boolean))]
+            .sort((left, right) => right!.length - left!.length)
+            .find((name) => input.question.includes(name!));
+          const rows = staffName ? activeReservations.filter((item) => item.beauticianName === staffName) : [];
+          const byDate = new Map<string, number>();
+          for (const item of rows) byDate.set(item.date, (byDate.get(item.date) ?? 0) + 1);
+          const daily = [...byDate.entries()]
+            .map(([date, count]) => ({ date, count }))
+            .sort((left, right) => right.count - left.count || left.date.localeCompare(right.date));
+          const averagePerBookedDay = daily.length ? rows.length / daily.length : 0;
+          const limitation = '当前没有已发布的单人每日最大接待阈值，因此只能披露预约密度和峰值，不能武断判定超负荷。';
+          return this.applyDataQualityGuard(
+            {
+              status: 'completed',
+              answer: staffName
+                ? `${range.label}${staffName}共有 ${rows.length} 个有效预约，覆盖 ${daily.length} 个有预约日期，日均 ${averagePerBookedDay.toFixed(1)} 个，单日峰值 ${daily[0]?.count ?? 0} 个。${limitation}`
+                : `${range.label}没有识别到问题中的美容师，无法做个人预约密度诊断。${limitation}`,
+              citations,
+              grounding: 'db_skill',
+              blocks: [
+                {
+                  kind: 'ranking',
+                  rows: daily.slice(0, 10),
+                  columns: ['date', 'count'],
+                  citationIds: ['reception_reservation_schedule'],
+                },
+                { kind: 'limitations', items: [limitation] },
+              ],
+              metadata: {
+                capabilityKey: 'front_desk_operations_overview',
+                answerScope: 'beautician_reservation_capacity_diagnosis',
+                rangeLabel: range.label,
+                staffName: staffName ?? null,
+                reservationCount: rows.length,
+                peakDailyCount: daily[0]?.count ?? 0,
+                completionCriteria: ['staff_reservations_loaded', 'daily_density_calculated', 'capacity_limit_disclosed'],
+              },
+            },
+            dataQuality,
+          );
+        }
         if (
           /(?:预约了|有预约|预约).*(?:还没来|未到店|待到店)|(?:还没来|未到店|待到店).*(?:客人|客户)/.test(
             input.question,
@@ -4107,6 +4455,172 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             dataQuality,
           );
         }
+        if (/库存周转率|耗占比/.test(input.question)) {
+          const turnover = await this.skillRuntime.buildInventoryTurnoverAnalysis({
+            storeId: input.context.storeId,
+            startDate: range.startDate,
+            endDate: range.endDate,
+          });
+          const citation = {
+            sourceType: 'db_skill',
+            sourceId: 'inventory_operational_turnover_analysis',
+            label: '库存出库量、事件加权平均库存与成本估算',
+          } as const;
+          const asksConsumptionOccupancy = /耗占比/.test(input.question);
+          if (asksConsumptionOccupancy) {
+            const current = turnover.current.consumptionOccupancyRatio;
+            const previous = turnover.previous.consumptionOccupancyRatio;
+            const delta = current !== undefined && previous !== undefined ? current - previous : undefined;
+            const direction = delta === undefined ? '无法比较' : delta > 0 ? '上升' : delta < 0 ? '下降' : '持平';
+            const rows = turnover.rows
+              .filter((row) => row.consumptionOccupancyRatio !== undefined)
+              .sort(
+                (left, right) =>
+                  (right.consumptionOccupancyRatio ?? -1) - (left.consumptionOccupancyRatio ?? -1) ||
+                  left.productName.localeCompare(right.productName, 'zh-CN'),
+              )
+              .slice(0, this.resolveLimit(input.args.limit, 10));
+            const trendRows = [
+              ...(previous === undefined
+                ? []
+                : [{ period: '上一等长周期', consumptionOccupancyRatio: previous }]),
+              ...(current === undefined ? [] : [{ period: range.label, consumptionOccupancyRatio: current }]),
+            ];
+            const limitation =
+              '耗占比采用“观察期估算出库成本 ÷ 库存事件加权平均库存金额”的运营口径，不是财务会计成本率；缺少库存事件时不补造比例。';
+            return this.applyDataQualityGuard(
+              {
+                status: 'completed',
+                answer:
+                  current === undefined
+                    ? `${range.label}缺少可计算耗占比的库存前后量事件。${limitation}`
+                    : `${range.label}耗占比 ${(current * 100).toFixed(1)}%；前一等长周期${previous === undefined ? '缺少可比数据' : `为 ${(previous * 100).toFixed(1)}%`}，${direction}${delta === undefined ? '' : ` ${Math.abs(delta * 100).toFixed(1)} 个百分点`}。${limitation}`,
+                citations: [citation],
+                grounding: 'db_skill',
+                blocks: [
+                  {
+                    kind: 'comparison',
+                    items: [
+                      {
+                        label: '耗占比',
+                        current: current === undefined ? '不可计算' : `${(current * 100).toFixed(1)}%`,
+                        previous: previous === undefined ? '不可计算' : `${(previous * 100).toFixed(1)}%`,
+                        ...(delta === undefined ? {} : { delta: `${this.signed(delta * 100, 1)} 个百分点` }),
+                      },
+                    ],
+                    citationIds: [citation.sourceId],
+                  },
+                  {
+                    kind: 'chart',
+                    chartType: 'line',
+                    rows: trendRows,
+                    xKey: 'period',
+                    yKeys: ['consumptionOccupancyRatio'],
+                    citationIds: [citation.sourceId],
+                  },
+                  {
+                    kind: 'table',
+                    rows,
+                    columns: [
+                      'productName',
+                      'outboundQuantity',
+                      'eventWeightedAverageStock',
+                      'consumptionOccupancyRatio',
+                      'previousConsumptionOccupancyRatio',
+                      'consumptionOccupancyDelta',
+                    ],
+                    citationIds: [citation.sourceId],
+                  },
+                  { kind: 'limitations', items: [limitation] },
+                ],
+                metadata: {
+                  capabilityKey: 'inventory_operations_overview',
+                  answerScope: 'inventory_consumption_occupancy_trend',
+                  rangeLabel: range.label,
+                  currentRatio: current ?? null,
+                  previousRatio: previous ?? null,
+                  policy: turnover.policy,
+                  completionCriteria: ['stock_movements_loaded', 'event_weighted_stock_calculated', 'ratio_compared'],
+                },
+              },
+              dataQuality,
+            );
+          }
+          const ratio = turnover.current.operationalTurnoverRatio;
+          const previousRatio = turnover.previous.operationalTurnoverRatio;
+          const ratioDelta = ratio !== undefined && previousRatio !== undefined ? ratio - previousRatio : undefined;
+          const rows = turnover.rows
+            .filter((row) => row.operationalTurnoverRatio !== undefined)
+            .sort(
+              (left, right) =>
+                (left.operationalTurnoverRatio ?? Number.MAX_SAFE_INTEGER) -
+                  (right.operationalTurnoverRatio ?? Number.MAX_SAFE_INTEGER) ||
+                left.productName.localeCompare(right.productName, 'zh-CN'),
+            )
+            .slice(0, this.resolveLimit(input.args.limit, 10));
+          const limitation =
+            '库存周转率采用“观察期出库数量 ÷ 库存事件加权平均库存”的运营口径，不是财务存货周转率；缺少库存前后量事件的商品不进入比率分母。';
+          return this.applyDataQualityGuard(
+            {
+              status: 'completed',
+              answer:
+                ratio === undefined
+                  ? `${range.label}缺少可计算运营库存周转率的库存前后量事件。${limitation}`
+                  : `${range.label}整体运营库存周转率 ${ratio.toFixed(2)}，出库量 ${turnover.current.outboundQuantity.toFixed(2)}，库存事件加权平均库存 ${turnover.current.eventWeightedAverageStock.toFixed(2)}。${limitation}`,
+              citations: [citation],
+              grounding: 'db_skill',
+              blocks: [
+                {
+                  kind: 'kpi',
+                  items: [
+                    { label: '运营库存周转率', value: ratio === undefined ? '不可计算' : ratio.toFixed(2) },
+                    { label: '观察期出库量', value: turnover.current.outboundQuantity.toFixed(2) },
+                    {
+                      label: '事件加权平均库存',
+                      value: turnover.current.eventWeightedAverageStock.toFixed(2),
+                    },
+                  ],
+                  citationIds: [citation.sourceId],
+                },
+                {
+                  kind: 'comparison',
+                  items: [
+                    {
+                      label: '运营库存周转率',
+                      current: ratio === undefined ? '不可计算' : ratio.toFixed(2),
+                      previous: previousRatio === undefined ? '不可计算' : previousRatio.toFixed(2),
+                      ...(ratioDelta === undefined ? {} : { delta: this.signed(ratioDelta, 2) }),
+                    },
+                  ],
+                  citationIds: [citation.sourceId],
+                },
+                {
+                  kind: 'ranking',
+                  rows,
+                  columns: [
+                    'productName',
+                    'operationalTurnoverRatio',
+                    'outboundQuantity',
+                    'eventWeightedAverageStock',
+                    'currentStock',
+                  ],
+                  citationIds: [citation.sourceId],
+                },
+                { kind: 'limitations', items: [limitation] },
+              ],
+              metadata: {
+                capabilityKey: 'inventory_operations_overview',
+                answerScope: 'inventory_operational_turnover',
+                rangeLabel: range.label,
+                turnoverRatio: ratio ?? null,
+                previousTurnoverRatio: previousRatio ?? null,
+                policy: turnover.policy,
+                completionCriteria: ['stock_movements_loaded', 'event_weighted_stock_calculated', 'turnover_calculated'],
+              },
+            },
+            dataQuality,
+          );
+        }
         const expiringBefore = new Date(range.endDate.getTime() + 30 * 86_400_000);
         const requestedMetricKeys = structuredDefinitionKeys(input.args.metrics);
         const stockRiskRanking = requestedMetricKeys.has('metric.stock_risk_score');
@@ -4655,6 +5169,78 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         }
         const diagnosisAnswer = input.answerShape === 'diagnosis';
         const diagnosisRange = diagnosisAnswer ? this.resolveFinanceDiagnosisRange(input, range) : range;
+        if (
+          /(?:实收口径.*(?:确认口径|确认收入).*(?:差|对比|比较)|(?:确认口径|确认收入).*实收口径.*(?:差|对比|比较))/.test(
+            input.question,
+          )
+        ) {
+          if (!this.prisma) throw new Error('prisma_service_unavailable');
+          const [income, usageRows] = await Promise.all([
+            this.skillRuntime.buildFinanceIncomeAnalysis({
+              storeId: input.context.storeId,
+              startDate: diagnosisRange.startDate,
+              endDate: diagnosisRange.endDate,
+            }),
+            this.prisma.cardUsageRecord.findMany({
+              where: {
+                storeId: input.context.storeId,
+                verifiedAt: { gte: diagnosisRange.startDate, lte: diagnosisRange.endDate },
+              },
+              select: { recognizedAmount: true, recognizedUnitValue: true, times: true },
+            }),
+          ]);
+          const recognizedRevenue = usageRows.reduce((sum, row) => {
+            const recognizedAmount = Number(row.recognizedAmount ?? 0);
+            const fallbackAmount = Number(row.recognizedUnitValue ?? 0) * Number(row.times ?? 0);
+            return sum + (recognizedAmount > 0 ? recognizedAmount : fallbackAmount);
+          }, 0);
+          const paidAmount = income.totalCollected;
+          const delta = paidAmount - recognizedRevenue;
+          const direction = delta > 0 ? '高于' : delta < 0 ? '低于' : '等于';
+          return {
+            status: 'completed',
+            answer: `${diagnosisRange.label}实收口径 ${paidAmount.toFixed(2)} 元，次卡核销确认收入 ${recognizedRevenue.toFixed(2)} 元；实收${direction}确认收入 ${Math.abs(delta).toFixed(2)} 元。两者不是同一会计口径：实收反映支付成功流水，确认收入仅反映已核销次卡的履约确认金额。`,
+            citations: [
+              { sourceType: 'business_definition', sourceId: 'metric.paid_amount', label: '业务定义：实收金额' },
+              {
+                sourceType: 'business_definition',
+                sourceId: 'metric.card_recognized_revenue_amount',
+                label: '业务定义：次卡核销确认收入',
+              },
+              { sourceType: 'db_skill', sourceId: 'finance_income_analysis', label: '当前门店成功支付流水' },
+              { sourceType: 'db_skill', sourceId: 'card_usage_recognized_revenue', label: '次卡核销确认收入' },
+            ],
+            grounding: 'db_skill',
+            blocks: [
+              {
+                kind: 'comparison',
+                items: [
+                  {
+                    label: '实收与确认收入',
+                    current: `实收 ${paidAmount.toFixed(2)} 元`,
+                    previous: `确认收入 ${recognizedRevenue.toFixed(2)} 元`,
+                    delta: `${this.signed(delta, 2)} 元`,
+                  },
+                ],
+                citationIds: ['finance_income_analysis', 'card_usage_recognized_revenue'],
+              },
+              {
+                kind: 'limitations',
+                items: ['实收与次卡核销确认收入属于不同业务口径，差额不是利润，也不能直接解释为收入异常。'],
+              },
+            ],
+            metadata: {
+              capabilityKey: 'finance_risk_overview',
+              answerScope: 'paid_vs_card_recognized_revenue',
+              rangeLabel: diagnosisRange.label,
+              paidAmount,
+              recognizedRevenue,
+              delta,
+              sourceRowCount: usageRows.length,
+              completionCriteria: ['paid_amount_loaded', 'recognized_revenue_loaded', 'scope_difference_disclosed'],
+            },
+          };
+        }
         const cardRecognizedRevenue = await this.buildCardRecognizedRevenueAnswer(input, diagnosisRange);
         if (cardRecognizedRevenue) return cardRecognizedRevenue;
         const structuredFinanceAnswer = await this.buildStructuredFinanceMetricAnswer(input, diagnosisRange);
@@ -5678,7 +6264,11 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           );
         }
         const activeReservations = schedule.reservations.filter((item) => !this.isCancelledReservation(item.status));
-        const rows = activeReservations
+        const beauticianName = this.resolveEntityName(input, 'beautician');
+        const scopedReservations = beauticianName
+          ? activeReservations.filter((item) => item.beauticianName === beauticianName)
+          : activeReservations;
+        const rows = scopedReservations
           .slice(0, this.resolveLimit(input.args.limit, 100))
           .map(
             (item, index) =>
@@ -5690,7 +6280,7 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         return this.applyDataQualityGuard(
           {
             status: 'completed',
-            answer: `${range.label}有效预约共 ${activeReservations.length} 个。${rows ? `\n${rows}` : ''}`,
+            answer: `${range.label}${beauticianName ? `${beauticianName}的` : ''}有效预约共 ${scopedReservations.length} 个。${rows ? `\n${rows}` : ''}`,
             citations,
             grounding: 'db_skill',
             blocks: [
@@ -5699,14 +6289,14 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                 items: [
                   {
                     label: `${range.label}有效预约`,
-                    value: `${activeReservations.length} 个`,
+                    value: `${scopedReservations.length} 个`,
                   },
                 ],
                 citationIds: ['capability_reservation_list'],
               },
               {
                 kind: 'table',
-                rows: activeReservations
+                rows: scopedReservations
                   .slice(0, this.resolveLimit(input.args.limit, 100))
                   .map((item) => this.reservationRow(item)),
                 columns: [
@@ -5727,9 +6317,10 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
               capabilityKey: 'reservation_list',
               answerScope: 'reservation_schedule_list',
               rangeLabel: range.label,
-              count: activeReservations.length,
+              count: scopedReservations.length,
+              beauticianName: beauticianName ?? null,
               mappingOutputs: {
-                customerIds: [...new Set(activeReservations.map((item) => item.customerId))],
+                customerIds: [...new Set(scopedReservations.map((item) => item.customerId))],
               },
               completionCriteria: ['reservation_schedule_loaded'],
             },
@@ -8641,6 +9232,11 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     return ['cancelled', 'canceled', '已取消'].includes(status);
   }
 
+  private isNoShowReservation(status?: string | null) {
+    if (typeof status !== 'string') return false;
+    return ['no_show', 'noshow', 'missed', '爽约', '未到店'].includes(status.trim().toLowerCase());
+  }
+
   private isPendingConfirmation(status: string) {
     return ['pending', '待确认'].includes(status);
   }
@@ -10093,7 +10689,8 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     ) {
       throw new Error(`domain_comparison_args_unsupported:${input.card.key}`);
     }
-    const specificEntities = structuredEntityMentions(input.args as BrainCapabilityToolArgs).filter(
+    const allEntities = structuredEntityMentions(input.args as BrainCapabilityToolArgs);
+    const specificEntities = allEntities.filter(
       (entity) => entity.entityKey && entity.entityKey !== entity.entityType,
     );
     const supportsConversationReference =
@@ -10107,6 +10704,19 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       specificEntities.length > 0 &&
       input.card.key === 'manager_staff_overview' &&
       specificEntities.every((entity) => entity.entityType === 'beautician' && input.question.includes(entity.mention));
+    const supportsReservationStaffReference =
+      specificEntities.length === 1 &&
+      allEntities.length === 1 &&
+      input.card.key === 'reservation_list' &&
+      specificEntities.every(
+        (entity) =>
+          entity.entityType === 'beautician' &&
+          entity.definitionKey === 'entity.beautician' &&
+          entity.source === 'user' &&
+          /^\d+$/u.test(String(entity.entityKey ?? '')) &&
+          Number(entity.entityKey) > 0 &&
+          input.question.includes(entity.mention),
+      );
     const supportsFinanceReference =
       specificEntities.length > 0 &&
       input.card.key === 'finance_risk_overview' &&
@@ -10115,7 +10725,12 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           ['beautician', 'project'].includes(entity.entityType) && /^\d+$/u.test(String(entity.entityKey ?? '')),
       );
     const supportsVerifiedReference =
-      supportsConversationReference || supportsStaffReference || supportsFinanceReference;
+      supportsConversationReference || supportsStaffReference || supportsReservationStaffReference || supportsFinanceReference;
+    const requiresVerifiedReservationStaffReference =
+      input.card.key === 'reservation_list' && allEntities.some((entity) => entity.entityType === 'beautician');
+    if (requiresVerifiedReservationStaffReference && !supportsReservationStaffReference) {
+      throw new Error(`domain_entity_filter_args_unsupported:${input.card.key}`);
+    }
     if (input.card.key !== 'customer_facts' && specificEntities.length > 0 && !supportsVerifiedReference) {
       throw new Error(`domain_entity_filter_args_unsupported:${input.card.key}`);
     }
