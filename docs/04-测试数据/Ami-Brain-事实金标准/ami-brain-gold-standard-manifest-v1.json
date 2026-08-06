@@ -1,17 +1,17 @@
 {
   "schemaVersion": "ami-brain-gold-standard/v1",
-  "manifestVersion": "2026-07-31-v3",
+  "manifestVersion": "2026-07-29-v1",
   "status": "ready",
   "generatedAt": "2026-07-29T00:00:00.000+08:00",
   "source": {
     "classificationPath": "docs/04-测试数据/Ami-Brain-全领域题集治理/ami-brain-suite-classification-v2.csv",
-    "classificationChecksum": "5ad4088948f9235fbee38a812f0203c250582b4f135433426f2270fb9ab1c9e9",
+    "classificationChecksum": "d5e164cdc4f336be7e5fd515a60801c6069b547ac0329616899620b8483d649f",
     "suiteManifestPath": "docs/04-测试数据/Ami-Brain-全领域题集治理/ami-brain-suite-manifest-v2.json",
-    "suiteManifestChecksum": "88570d7c62f40db6e882606978a66fe1c903610c20ad219ed91f9922602d4ebd",
+    "suiteManifestChecksum": "23959e90b64cf4665f4871ea70bc497b87ac6205e495e80067aa23f4fb5ee264",
     "standardRegressionSuiteKey": "ami_brain_standard_regression_v2",
     "standardRegressionCaseIdsChecksum": "d1a8afc646f802da057a3fe9b4e806b9b86bf5ef31807d525ff8cad572fca98f",
     "productLoopEligibilityPath": "docs/04-测试数据/Ami-Brain-全领域题集治理/ami-brain-product-loop-eligibility-v1.json",
-    "productLoopEligibilityChecksum": "2f99a0787106ee8b45e836a2359120aff04111e62daf5ad6fd237995ec03efb5",
+    "productLoopEligibilityChecksum": "24f4ec261d19ac333e8c00511dcb29ed98f741155d4a10353f74e3a91b1b32c9",
     "releaseCapabilitySnapshot": {
       "releaseId": 416,
       "releaseKey": "ami-brain-production-baseline-p0-release-20260722-full",
@@ -20,11 +20,7 @@
       "capabilityCount": 41,
       "capabilityKeysChecksum": "5c31306112612b632af46c06a680cc2bf5c30c63b3f65808573777c5cdc26575"
     },
-    "candidateManifestChecksum": "43f625a26af661285ad687f2de5e8189ead06cf7b9cbc2a711c7831bba20ef2c",
-    "goldEligibilityCasesChecksum": "d1e6def46201d7718ed3f958a70df4ffc60f3314f1726036235467a589099633",
-    "sourceIdentityRevalidatedAt": "2026-08-05T14:59:07.406Z",
-    "sourceIdentityRevalidationPolicy": "classification_and_standard_case_ids_unchanged;all_gold_cases_current_release_test_with_same_question_contract_and_three_present_evidence",
-    "lastTruthRefreshSourceManifestChecksum": "50896c28d08049f323333ebaf408adc4cd284a296db2b707d3ccbf8bf6a55da9"
+    "candidateManifestChecksum": "cfc94b9941ff118941c700ed3e4bccc1559a17750b9a09c47cf1f381bb3f6954"
   },
   "fixedDataContract": {
     "storeId": 6,
@@ -106,7 +102,7 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.058Z",
+        "generatedAt": "2026-08-06T04:26:59.479Z",
         "sourceRowCount": 8,
         "sourceChecksum": "4c60a9126901abe36beed7c6867ae91e8072e655a07f56a235151caa7a1f3e63",
         "value": [
@@ -126,7 +122,7 @@
         "checksum": "9d43ab4635189bb8bd30ebaeb218f1b9f99b46173cf13dd0ef88ba2b266d1663",
         "definition": "固定周期 2026-06-29T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；有效 PaymentRecord 按 method 汇总 amount",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-finance-v1.json",
-        "truthArtifactChecksum": "16aead14adea410d75a4cd7726b2bbe9a835d1e486dfef52be451246ef6679fc"
+        "truthArtifactChecksum": "ecaac3f83893eedfbd190c5afe30e3f3a68d62b870754abafd7f5976254102ab"
       },
       "releaseBlocking": true
     },
@@ -140,7 +136,7 @@
       "questionType": "query_cross",
       "difficulty": "hard",
       "sourceQuestion": "综合养护 20 次卡的确认收入进度",
-      "evaluationQuestion": "截至2026/07/29 12:45:41，综合养护 20 次卡的确认收入进度",
+      "evaluationQuestion": "截至2026/08/06 12:26:59，综合养护 20 次卡的确认收入进度",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -167,14 +163,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.058Z",
-        "sourceRowCount": 8,
-        "sourceChecksum": "c1dfc21612af1a3e2296f9de8c3050b1e50d3d30862c38760b7bd7209b6309bc",
-        "value": 1485,
-        "checksum": "c010bb0f7f8f335ccb2bc4e598eee48be11f87ac60a39a1a1cb4185688857003",
+        "generatedAt": "2026-08-06T04:26:59.479Z",
+        "sourceRowCount": 9,
+        "sourceChecksum": "68a1e3d7d0462120d8ad2af4da35fca64111aac39cad5b5bea1cd76a2a6cb14d",
+        "value": 1784,
+        "checksum": "a142832c40dfb4b20f965c8822574a41a333be125fa010660b52494061515d6b",
         "definition": "Store.createdAt 至 snapshotAt；cardName=综合养护 20 次卡，优先汇总 recognizedAmount，缺失时使用 recognizedUnitValue×times",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-finance-v1.json",
-        "truthArtifactChecksum": "16aead14adea410d75a4cd7726b2bbe9a835d1e486dfef52be451246ef6679fc"
+        "truthArtifactChecksum": "ecaac3f83893eedfbd190c5afe30e3f3a68d62b870754abafd7f5976254102ab"
       },
       "releaseBlocking": true
     },
@@ -227,14 +223,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-30T21:14:30.099Z",
+        "generatedAt": "2026-08-06T04:26:59.479Z",
         "sourceRowCount": 1,
         "sourceChecksum": "c30ea2f15ac61ba8f8502856a719a1ac839bd8e32066d9882a3cb94ac323c1ed",
         "value": 0,
         "checksum": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
         "definition": "固定周期 2026-06-16T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；项目=晒后舒缓修护；仅商品/项目履约明细确认经营收入，开卡和充值预收不在收款时确认利润；毛利 = 明细净收入 - 有效退款分摊 - 商品或项目成本 - 有效提成",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-finance-v1.json",
-        "truthArtifactChecksum": "16aead14adea410d75a4cd7726b2bbe9a835d1e486dfef52be451246ef6679fc"
+        "truthArtifactChecksum": "ecaac3f83893eedfbd190c5afe30e3f3a68d62b870754abafd7f5976254102ab"
       },
       "releaseBlocking": true
     },
@@ -287,7 +283,7 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-30T21:14:32.317Z",
+        "generatedAt": "2026-08-06T04:26:59.479Z",
         "sourceRowCount": 33,
         "sourceChecksum": "7c07a2312c38664e11a74ecbc43e246e8476422a6d3fbb91f0b7417b0fce2413",
         "value": [
@@ -327,7 +323,7 @@
         "checksum": "0e02805ebb92ffdf7334ef077a50e3fd571c3f642a676aa9e87f549a30a87800",
         "definition": "固定周期 2026-06-29T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；业务类型=all；仅商品/项目履约明细确认经营收入，开卡和充值预收不在收款时确认利润；毛利 = 明细净收入 - 有效退款分摊 - 商品或项目成本 - 有效提成；按 ProductOrder.id 升序",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-finance-v1.json",
-        "truthArtifactChecksum": "16aead14adea410d75a4cd7726b2bbe9a835d1e486dfef52be451246ef6679fc"
+        "truthArtifactChecksum": "ecaac3f83893eedfbd190c5afe30e3f3a68d62b870754abafd7f5976254102ab"
       },
       "releaseBlocking": true
     },
@@ -367,14 +363,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.058Z",
+        "generatedAt": "2026-08-06T04:26:59.479Z",
         "sourceRowCount": 19,
         "sourceChecksum": "90c3b58a0968b587396774dce9ae79f99b7f7197f47d98fa79c32308f5cb80c0",
         "value": 60745.42,
         "checksum": "bfad8315aa5e60c2b71ace86e71b6804cc711c2fddf2f581d4e4a22bbbc43a81",
         "definition": "固定周期 2025-12-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；按上海营业日选择 confirmed/passed 优先的权威 DailySettlement 后汇总 grossProfit",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-finance-v1.json",
-        "truthArtifactChecksum": "16aead14adea410d75a4cd7726b2bbe9a835d1e486dfef52be451246ef6679fc"
+        "truthArtifactChecksum": "ecaac3f83893eedfbd190c5afe30e3f3a68d62b870754abafd7f5976254102ab"
       },
       "releaseBlocking": true
     },
@@ -388,7 +384,7 @@
       "questionType": "query_single",
       "difficulty": "easy",
       "sourceQuestion": "现在的储值负债总额",
-      "evaluationQuestion": "截至2026/07/29 12:45:41的储值负债总额",
+      "evaluationQuestion": "截至2026/08/06 12:26:59的储值负债总额",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -414,14 +410,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.058Z",
+        "generatedAt": "2026-08-06T04:26:59.479Z",
         "sourceRowCount": 338,
         "sourceChecksum": "4f8cdc5ef4b834f1317771020a6db8ed16ac9b227c7f408a6f0c604c3f969c75",
         "value": 1164127.56,
         "checksum": "22a864e9a7afc7c6bc56afafd70dd252eb309c90fafe06a137c01101adc58eda",
         "definition": "截至 snapshotAt 的 active CustomerBalanceAccount，储值负债 = cashBalance + giftBalance",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-finance-v1.json",
-        "truthArtifactChecksum": "16aead14adea410d75a4cd7726b2bbe9a835d1e486dfef52be451246ef6679fc"
+        "truthArtifactChecksum": "ecaac3f83893eedfbd190c5afe30e3f3a68d62b870754abafd7f5976254102ab"
       },
       "releaseBlocking": true
     },
@@ -461,14 +457,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.058Z",
+        "generatedAt": "2026-08-06T04:26:59.479Z",
         "sourceRowCount": 1,
         "sourceChecksum": "a105cca181685c8e90fef1b0a0fd37a8bfcb0607dfb0c83b07998b456ca5a588",
         "value": true,
         "checksum": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
         "definition": "固定周期 2026-06-28T16:00:00.000Z 至 2026-06-29T16:00:00.000Z，左闭右开；每个上海营业日选择权威 DailySettlement，全部 confirmed 且 reconciliationStatus=passed 才视为对平",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-finance-v1.json",
-        "truthArtifactChecksum": "16aead14adea410d75a4cd7726b2bbe9a835d1e486dfef52be451246ef6679fc"
+        "truthArtifactChecksum": "ecaac3f83893eedfbd190c5afe30e3f3a68d62b870754abafd7f5976254102ab"
       },
       "releaseBlocking": true
     },
@@ -508,14 +504,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.058Z",
+        "generatedAt": "2026-08-06T04:26:59.479Z",
         "sourceRowCount": 19,
         "sourceChecksum": "90c3b58a0968b587396774dce9ae79f99b7f7197f47d98fa79c32308f5cb80c0",
         "value": false,
         "checksum": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
         "definition": "固定周期 2026-05-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；每个上海营业日选择权威 DailySettlement，全部 confirmed 且 reconciliationStatus=passed 才视为对平",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-finance-v1.json",
-        "truthArtifactChecksum": "16aead14adea410d75a4cd7726b2bbe9a835d1e486dfef52be451246ef6679fc"
+        "truthArtifactChecksum": "ecaac3f83893eedfbd190c5afe30e3f3a68d62b870754abafd7f5976254102ab"
       },
       "releaseBlocking": true
     },
@@ -555,14 +551,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.058Z",
+        "generatedAt": "2026-08-06T04:26:59.479Z",
         "sourceRowCount": 19,
         "sourceChecksum": "90c3b58a0968b587396774dce9ae79f99b7f7197f47d98fa79c32308f5cb80c0",
         "value": false,
         "checksum": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
         "definition": "固定周期 2026-05-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；每个上海营业日选择权威 DailySettlement，全部 confirmed 且 reconciliationStatus=passed 才视为对平",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-finance-v1.json",
-        "truthArtifactChecksum": "16aead14adea410d75a4cd7726b2bbe9a835d1e486dfef52be451246ef6679fc"
+        "truthArtifactChecksum": "ecaac3f83893eedfbd190c5afe30e3f3a68d62b870754abafd7f5976254102ab"
       },
       "releaseBlocking": true
     },
@@ -604,14 +600,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.058Z",
+        "generatedAt": "2026-08-06T04:26:59.479Z",
         "sourceRowCount": 18,
         "sourceChecksum": "513a0b6e078b99d4991aa63a766a859364785c7b54787f7379163621bbed3cec",
         "value": 2496.98,
         "checksum": "1eafb9afb0fcc5296052451bb2b9841bb69d814be2ba4c15290d44ae77feca2a",
         "definition": "固定周期 2026-06-28T16:00:00.000Z 至 2026-06-29T16:00:00.000Z，左闭右开；经营利润 = DailySettlement.grossProfit - 有效提成 - OperatingCost",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-finance-v1.json",
-        "truthArtifactChecksum": "16aead14adea410d75a4cd7726b2bbe9a835d1e486dfef52be451246ef6679fc"
+        "truthArtifactChecksum": "ecaac3f83893eedfbd190c5afe30e3f3a68d62b870754abafd7f5976254102ab"
       },
       "releaseBlocking": true
     },
@@ -625,7 +621,7 @@
       "questionType": "query_cross",
       "difficulty": "medium",
       "sourceQuestion": "次卡未履约负债有多少",
-      "evaluationQuestion": "截至2026/07/29 12:45:41，次卡未履约负债有多少",
+      "evaluationQuestion": "截至2026/08/06 12:26:59，次卡未履约负债有多少",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -651,14 +647,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.058Z",
+        "generatedAt": "2026-08-06T04:26:59.479Z",
         "sourceRowCount": 359,
-        "sourceChecksum": "6c5a96320b0fafced5896998464211cdfccf1a227767bd8dd964ab7c7b39dbaa",
-        "value": 1066931.14,
-        "checksum": "fca2eda1aec0d2aca40d4f1e6a331b7b9b7dbefd09923a601f43701d9dfae741",
+        "sourceChecksum": "b39a5711dc25cee0105305c551c6d8f6ebd2200b5c846b413eed24e1ccec1ec0",
+        "value": 1066018.81,
+        "checksum": "e5128df7ed9ba5adf25e4f5224c9e6f9a0b0d091726ae05a358e0fd8ba1e0804",
         "definition": "截至 snapshotAt 的 active CustomerCard；未履约负债 = remainingTimes × recognizedUnitValue",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-finance-v1.json",
-        "truthArtifactChecksum": "16aead14adea410d75a4cd7726b2bbe9a835d1e486dfef52be451246ef6679fc"
+        "truthArtifactChecksum": "ecaac3f83893eedfbd190c5afe30e3f3a68d62b870754abafd7f5976254102ab"
       },
       "releaseBlocking": true
     },
@@ -700,14 +696,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.058Z",
+        "generatedAt": "2026-08-06T04:26:59.479Z",
         "sourceRowCount": 119,
         "sourceChecksum": "4281e36572a828701a10cb08e2f832ad21991b7e07009bada5fa5477c86a8690",
         "value": 0.934,
         "checksum": "f16251900145a90baf962de225cc5d2fdc4c98d4f48d2470f286820f752b756a",
         "definition": "固定周期 2026-05-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；成本收入比 = (耗材成本 + 有效提成 + 经营费用) / 收入",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-finance-v1.json",
-        "truthArtifactChecksum": "16aead14adea410d75a4cd7726b2bbe9a835d1e486dfef52be451246ef6679fc"
+        "truthArtifactChecksum": "ecaac3f83893eedfbd190c5afe30e3f3a68d62b870754abafd7f5976254102ab"
       },
       "releaseBlocking": true
     },
@@ -749,14 +745,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.058Z",
+        "generatedAt": "2026-08-06T04:26:59.479Z",
         "sourceRowCount": 119,
         "sourceChecksum": "4281e36572a828701a10cb08e2f832ad21991b7e07009bada5fa5477c86a8690",
         "value": 0.934,
         "checksum": "f16251900145a90baf962de225cc5d2fdc4c98d4f48d2470f286820f752b756a",
         "definition": "固定周期 2026-05-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；成本收入比 = (耗材成本 + 有效提成 + 经营费用) / 收入",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-finance-v1.json",
-        "truthArtifactChecksum": "16aead14adea410d75a4cd7726b2bbe9a835d1e486dfef52be451246ef6679fc"
+        "truthArtifactChecksum": "ecaac3f83893eedfbd190c5afe30e3f3a68d62b870754abafd7f5976254102ab"
       },
       "releaseBlocking": true
     },
@@ -797,7 +793,7 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.058Z",
+        "generatedAt": "2026-08-06T04:26:59.479Z",
         "sourceRowCount": 8,
         "sourceChecksum": "4eab6359a98cad1faeafcad214eb1166d33df93ad4c0d94b33ed54d75216ab16",
         "value": [
@@ -813,7 +809,7 @@
         "checksum": "d33ae7e7980bb4bd12a42f6957099f4b4f4cb8de662a1ee894fbbc7af8fcb18e",
         "definition": "固定周期 2026-06-21T16:00:00.000Z 至 2026-06-28T16:00:00.000Z，左闭右开；按 CommissionRecord.type 汇总有效提成，金额降序",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-finance-v1.json",
-        "truthArtifactChecksum": "16aead14adea410d75a4cd7726b2bbe9a835d1e486dfef52be451246ef6679fc"
+        "truthArtifactChecksum": "ecaac3f83893eedfbd190c5afe30e3f3a68d62b870754abafd7f5976254102ab"
       },
       "releaseBlocking": true
     },
@@ -827,7 +823,7 @@
       "questionType": "query_cross",
       "difficulty": "hard",
       "sourceQuestion": "焕肤清洁 12 次卡的确认收入进度",
-      "evaluationQuestion": "截至2026/07/29 12:45:41，焕肤清洁 12 次卡的确认收入进度",
+      "evaluationQuestion": "截至2026/08/06 12:26:59，焕肤清洁 12 次卡的确认收入进度",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -854,14 +850,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.058Z",
+        "generatedAt": "2026-08-06T04:26:59.479Z",
         "sourceRowCount": 12,
         "sourceChecksum": "f00263c7407b64b10b958ec1178cc55dc5df870c4a5117c95416558df7382600",
         "value": 2447.48,
         "checksum": "97905b2a891d3d11d15e5ecb444e98806842a5e9abe111276000aae840a2d880",
         "definition": "Store.createdAt 至 snapshotAt；cardName=焕肤清洁 12 次卡，优先汇总 recognizedAmount，缺失时使用 recognizedUnitValue×times",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-finance-v1.json",
-        "truthArtifactChecksum": "16aead14adea410d75a4cd7726b2bbe9a835d1e486dfef52be451246ef6679fc"
+        "truthArtifactChecksum": "ecaac3f83893eedfbd190c5afe30e3f3a68d62b870754abafd7f5976254102ab"
       },
       "releaseBlocking": true
     },
@@ -875,7 +871,7 @@
       "questionType": "query_cross",
       "difficulty": "hard",
       "sourceQuestion": "抗衰管理 6 次卡的确认收入进度",
-      "evaluationQuestion": "截至2026/07/29 12:45:41，抗衰管理 6 次卡的确认收入进度",
+      "evaluationQuestion": "截至2026/08/06 12:26:59，抗衰管理 6 次卡的确认收入进度",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -902,14 +898,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.058Z",
-        "sourceRowCount": 15,
-        "sourceChecksum": "b483db2ffd8eaab25c89121a421cf261822ea72fe7135b2e082122cf2ddee8fb",
-        "value": 6713.33,
-        "checksum": "3cbbd71550caad687b01dd7f04352845255106ce7e4f9a551dcf42c5a7b7d606",
+        "generatedAt": "2026-08-06T04:26:59.479Z",
+        "sourceRowCount": 16,
+        "sourceChecksum": "cf058c70d277819efc0b15505f845a373b94f7229f3ceec9394acecec79fb1d5",
+        "value": 7326.66,
+        "checksum": "ac2f9938f768da8542e443ec6053e7313265abcd9023613fe31ce2564ad87fe7",
         "definition": "Store.createdAt 至 snapshotAt；cardName=抗衰管理 6 次卡，优先汇总 recognizedAmount，缺失时使用 recognizedUnitValue×times",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-finance-v1.json",
-        "truthArtifactChecksum": "16aead14adea410d75a4cd7726b2bbe9a835d1e486dfef52be451246ef6679fc"
+        "truthArtifactChecksum": "ecaac3f83893eedfbd190c5afe30e3f3a68d62b870754abafd7f5976254102ab"
       },
       "releaseBlocking": true
     },
@@ -962,14 +958,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-30T21:14:34.461Z",
+        "generatedAt": "2026-08-06T04:26:59.479Z",
         "sourceRowCount": 11,
         "sourceChecksum": "5b0d5701f0e9b1cf62a1a42c656dc2a1c81cdadf026e53dd71c1901a747a805e",
         "value": 924.36,
         "checksum": "0331c2401c160101e741fe8ace21e4198dce179c0bb29e9ffcaf7691192fdd80",
         "definition": "固定周期 2026-06-29T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；项目=亮肤淡斑管理；仅商品/项目履约明细确认经营收入，开卡和充值预收不在收款时确认利润；毛利 = 明细净收入 - 有效退款分摊 - 商品或项目成本 - 有效提成",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-finance-v1.json",
-        "truthArtifactChecksum": "16aead14adea410d75a4cd7726b2bbe9a835d1e486dfef52be451246ef6679fc"
+        "truthArtifactChecksum": "ecaac3f83893eedfbd190c5afe30e3f3a68d62b870754abafd7f5976254102ab"
       },
       "releaseBlocking": true
     },
@@ -1010,14 +1006,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.058Z",
+        "generatedAt": "2026-08-06T04:26:59.479Z",
         "sourceRowCount": 3,
         "sourceChecksum": "1e0e2f9cc18e863d014f6a1a7395d1621870b04c46836d888cbd61f8400f7256",
         "value": 845.66,
         "checksum": "1c671c85a4c9041d4e96e179d774318c0e411dcd0fbe834cc15d65d9bf9432a0",
         "definition": "固定周期 2026-06-29T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；优先汇总 recognizedAmount，缺失时使用 recognizedUnitValue×times",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-finance-v1.json",
-        "truthArtifactChecksum": "16aead14adea410d75a4cd7726b2bbe9a835d1e486dfef52be451246ef6679fc"
+        "truthArtifactChecksum": "ecaac3f83893eedfbd190c5afe30e3f3a68d62b870754abafd7f5976254102ab"
       },
       "releaseBlocking": true
     },
@@ -1070,14 +1066,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-30T21:14:36.643Z",
+        "generatedAt": "2026-08-06T04:26:59.479Z",
         "sourceRowCount": 33,
         "sourceChecksum": "7c07a2312c38664e11a74ecbc43e246e8476422a6d3fbb91f0b7417b0fce2413",
         "value": [],
         "checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "definition": "固定周期 2026-06-29T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；业务类型=all；仅商品/项目履约明细确认经营收入，开卡和充值预收不在收款时确认利润；毛利 = 明细净收入 - 有效退款分摊 - 商品或项目成本 - 有效提成",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-finance-v1.json",
-        "truthArtifactChecksum": "16aead14adea410d75a4cd7726b2bbe9a835d1e486dfef52be451246ef6679fc"
+        "truthArtifactChecksum": "ecaac3f83893eedfbd190c5afe30e3f3a68d62b870754abafd7f5976254102ab"
       },
       "releaseBlocking": true
     },
@@ -1131,14 +1127,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-30T21:14:38.819Z",
+        "generatedAt": "2026-08-06T04:26:59.479Z",
         "sourceRowCount": 5,
         "sourceChecksum": "571f7497ab4bd3a0a7f44bfa3df8603e7337e37429f7cc3ed9de80db617a2796",
         "value": 0,
         "checksum": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
         "definition": "固定周期 2026-06-29T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；业务类型=member_card_open、card_sale；仅商品/项目履约明细确认经营收入，开卡和充值预收不在收款时确认利润；毛利 = 明细净收入 - 有效退款分摊 - 商品或项目成本 - 有效提成",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-finance-v1.json",
-        "truthArtifactChecksum": "16aead14adea410d75a4cd7726b2bbe9a835d1e486dfef52be451246ef6679fc"
+        "truthArtifactChecksum": "ecaac3f83893eedfbd190c5afe30e3f3a68d62b870754abafd7f5976254102ab"
       },
       "releaseBlocking": true
     },
@@ -1191,7 +1187,7 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-30T21:14:40.806Z",
+        "generatedAt": "2026-08-06T04:26:59.479Z",
         "sourceRowCount": 10,
         "sourceChecksum": "4e81cf20627cdc983ec188aba07ac856682954fe1eb9b5135f37271c6cf7085c",
         "value": {
@@ -1201,7 +1197,7 @@
         "checksum": "86c516e31db0520d96b3124000a77a48bc3bba358a4421ee5e6b97f81f51555a",
         "definition": "固定周期 2026-06-29T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；业务类型=product_sale；仅商品/项目履约明细确认经营收入，开卡和充值预收不在收款时确认利润；毛利 = 明细净收入 - 有效退款分摊 - 商品或项目成本 - 有效提成",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-finance-v1.json",
-        "truthArtifactChecksum": "16aead14adea410d75a4cd7726b2bbe9a835d1e486dfef52be451246ef6679fc"
+        "truthArtifactChecksum": "ecaac3f83893eedfbd190c5afe30e3f3a68d62b870754abafd7f5976254102ab"
       },
       "releaseBlocking": true
     },
@@ -1241,14 +1237,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-30T20:39:22.324Z",
+        "generatedAt": "2026-08-06T04:26:59.479Z",
         "sourceRowCount": 1,
         "sourceChecksum": "a105cca181685c8e90fef1b0a0fd37a8bfcb0607dfb0c83b07998b456ca5a588",
         "value": 0.6678,
         "checksum": "1d7b4443cccf43485f1acb7553addc36142e7de6baf1ac296dce2a2d3d9133b9",
         "definition": "固定周期 2026-06-28T16:00:00.000Z 至 2026-06-29T16:00:00.000Z，左闭右开；按上海营业日选择 confirmed/passed 优先的权威 DailySettlement，毛利率 = 汇总 grossProfit / 汇总 totalRevenue",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-finance-v1.json",
-        "truthArtifactChecksum": "16aead14adea410d75a4cd7726b2bbe9a835d1e486dfef52be451246ef6679fc"
+        "truthArtifactChecksum": "ecaac3f83893eedfbd190c5afe30e3f3a68d62b870754abafd7f5976254102ab"
       },
       "releaseBlocking": true
     },
@@ -1290,14 +1286,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:51.323Z",
+        "generatedAt": "2026-08-06T04:27:10.178Z",
         "sourceRowCount": 1,
         "sourceChecksum": "1645bb23138db8eedbdc89aa199500aea352764dbc24b87b8d54056ac30ddb84",
         "value": 0,
         "checksum": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
         "definition": "固定周期 2026-05-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；有效项目订单行 quantity 汇总，Project.name 精确匹配 背部净透护理",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-catalog-v1.json",
-        "truthArtifactChecksum": "418905a26ce674cb21f8b2fafd4852c2eb8277b74e47e309564f582ea5ef322f"
+        "truthArtifactChecksum": "1197eb37f68cf78a9ceef62ad8260deb511663702a62082bd229d8ad90990716"
       },
       "releaseBlocking": true
     },
@@ -1311,7 +1307,7 @@
       "questionType": "query_cross",
       "difficulty": "medium",
       "sourceQuestion": "胶原焕活提拉用到哪些耗材",
-      "evaluationQuestion": "截至2026/07/29 12:45:51，胶原焕活提拉用到哪些耗材",
+      "evaluationQuestion": "截至2026/08/06 12:27:10，胶原焕活提拉用到哪些耗材",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -1339,9 +1335,9 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:51.323Z",
+        "generatedAt": "2026-08-06T04:27:10.178Z",
         "sourceRowCount": 9,
-        "sourceChecksum": "3ba04fb511619213b93898f1d464581e4b857fa158e44843ffd6a10b490426ad",
+        "sourceChecksum": "32eb9df5447f1b4f982bf788957cc3f220b382a75b71d11fdc3c3e68597f5223",
         "value": [
           110,
           125,
@@ -1351,7 +1347,7 @@
         "checksum": "1d628ae76ce983330e4014d48e0b9aedae41b961b580dbbe615f4557b051bea3",
         "definition": "projectId=80 的 ProjectBomItem.productId 集合",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-catalog-v1.json",
-        "truthArtifactChecksum": "418905a26ce674cb21f8b2fafd4852c2eb8277b74e47e309564f582ea5ef322f"
+        "truthArtifactChecksum": "1197eb37f68cf78a9ceef62ad8260deb511663702a62082bd229d8ad90990716"
       },
       "releaseBlocking": true
     },
@@ -1365,7 +1361,7 @@
       "questionType": "query_cross",
       "difficulty": "medium",
       "sourceQuestion": "全身精油 SPA的BOM成本是多少",
-      "evaluationQuestion": "截至2026/07/29 12:45:51，全身精油 SPA的BOM成本是多少",
+      "evaluationQuestion": "截至2026/08/06 12:27:10，全身精油 SPA的BOM成本是多少",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -1393,14 +1389,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:51.323Z",
+        "generatedAt": "2026-08-06T04:27:10.178Z",
         "sourceRowCount": 7,
-        "sourceChecksum": "e8f1bf519b587e9351918824d32cafa8cb62464a6bd0b131ff53a0471ea1a9b4",
+        "sourceChecksum": "19f64c2a9ef934bbe315fe1baf0f00f2a4024c2e9f69b507851866c365f2025f",
         "value": 39.6,
         "checksum": "34b83a967c732f0184a11fc9cb4fa3714fab96a618837bb6557b38c520c668c4",
         "definition": "ProjectBomItem.standardQty × Product.costPrice 汇总；projectId=85",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-catalog-v1.json",
-        "truthArtifactChecksum": "418905a26ce674cb21f8b2fafd4852c2eb8277b74e47e309564f582ea5ef322f"
+        "truthArtifactChecksum": "1197eb37f68cf78a9ceef62ad8260deb511663702a62082bd229d8ad90990716"
       },
       "releaseBlocking": true
     },
@@ -1414,7 +1410,7 @@
       "questionType": "query_cross",
       "difficulty": "medium",
       "sourceQuestion": "水氧清洁焕肤用到哪些耗材",
-      "evaluationQuestion": "截至2026/07/29 12:45:51，水氧清洁焕肤用到哪些耗材",
+      "evaluationQuestion": "截至2026/08/06 12:27:10，水氧清洁焕肤用到哪些耗材",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -1442,9 +1438,9 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:51.323Z",
+        "generatedAt": "2026-08-06T04:27:10.178Z",
         "sourceRowCount": 9,
-        "sourceChecksum": "e930cce7311e3c88b1c38775a8b4114544c2710c6b394cba0a94bed40cfa25a4",
+        "sourceChecksum": "7dfdec2c4008c81f79f1a98804eb99491897bfe5932438f99068581874896512",
         "value": [
           110,
           111,
@@ -1454,7 +1450,7 @@
         "checksum": "a8eb167dde46c20c5359354d10b01aa56bce81d5a0004bde0591dfa2ee83e13c",
         "definition": "projectId=74 的 ProjectBomItem.productId 集合",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-catalog-v1.json",
-        "truthArtifactChecksum": "418905a26ce674cb21f8b2fafd4852c2eb8277b74e47e309564f582ea5ef322f"
+        "truthArtifactChecksum": "1197eb37f68cf78a9ceef62ad8260deb511663702a62082bd229d8ad90990716"
       },
       "releaseBlocking": true
     },
@@ -1468,7 +1464,7 @@
       "questionType": "query_cross",
       "difficulty": "medium",
       "sourceQuestion": "晒后舒缓修护的BOM成本是多少",
-      "evaluationQuestion": "截至2026/07/29 12:45:51，晒后舒缓修护的BOM成本是多少",
+      "evaluationQuestion": "截至2026/08/06 12:27:10，晒后舒缓修护的BOM成本是多少",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -1496,14 +1492,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:51.323Z",
+        "generatedAt": "2026-08-06T04:27:10.178Z",
         "sourceRowCount": 9,
-        "sourceChecksum": "11628e599ce3fb867a2eebe0f42f047d9a023dc960c481b9f54712b499a5c954",
+        "sourceChecksum": "fa3ceffb87898630d4cadbe716f0f630dc76f3f79808cf2e98e832e334a9f48e",
         "value": 28.5,
         "checksum": "1fc9751ecae53b75a9e41299443acc6a0ed7f89946fce19bf1a0180331bc8301",
         "definition": "ProjectBomItem.standardQty × Product.costPrice 汇总；projectId=81",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-catalog-v1.json",
-        "truthArtifactChecksum": "418905a26ce674cb21f8b2fafd4852c2eb8277b74e47e309564f582ea5ef322f"
+        "truthArtifactChecksum": "1197eb37f68cf78a9ceef62ad8260deb511663702a62082bd229d8ad90990716"
       },
       "releaseBlocking": true
     },
@@ -1517,7 +1513,7 @@
       "questionType": "query_cross",
       "difficulty": "medium",
       "sourceQuestion": "背部净透护理用到哪些耗材",
-      "evaluationQuestion": "截至2026/07/29 12:45:51，背部净透护理用到哪些耗材",
+      "evaluationQuestion": "截至2026/08/06 12:27:10，背部净透护理用到哪些耗材",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -1545,9 +1541,9 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:51.323Z",
+        "generatedAt": "2026-08-06T04:27:10.178Z",
         "sourceRowCount": 11,
-        "sourceChecksum": "22a068958318ce440bb3f1a060c7da512af6633d06a6f554be6dfa4b650f3e34",
+        "sourceChecksum": "294208acf48f86b83be03e4ca0c8fbaddf35b801ff571f2ddc080a9d91ad5cf3",
         "value": [
           110,
           112,
@@ -1558,7 +1554,7 @@
         "checksum": "4728f055ce2e6507244942463b6606dcce7274c5ee950c8e2e075f50a572bfbd",
         "definition": "projectId=92 的 ProjectBomItem.productId 集合",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-catalog-v1.json",
-        "truthArtifactChecksum": "418905a26ce674cb21f8b2fafd4852c2eb8277b74e47e309564f582ea5ef322f"
+        "truthArtifactChecksum": "1197eb37f68cf78a9ceef62ad8260deb511663702a62082bd229d8ad90990716"
       },
       "releaseBlocking": true
     },
@@ -1572,7 +1568,7 @@
       "questionType": "query_cross",
       "difficulty": "medium",
       "sourceQuestion": "亮肤淡斑管理的BOM成本是多少",
-      "evaluationQuestion": "截至2026/07/29 12:45:51，亮肤淡斑管理的BOM成本是多少",
+      "evaluationQuestion": "截至2026/08/06 12:27:10，亮肤淡斑管理的BOM成本是多少",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -1600,14 +1596,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:51.323Z",
+        "generatedAt": "2026-08-06T04:27:10.178Z",
         "sourceRowCount": 9,
-        "sourceChecksum": "af325313c712af4ba0a893b282d9e2ced3f15ab976a9800a0ddfcacd02c3eb93",
+        "sourceChecksum": "96e36833f3550c7e28130e95d4e21d9e82ee17a0cf2497b742ac13565a53e8a8",
         "value": 56.1,
         "checksum": "346ac423f13b33a8c24719a2c67aca2633b5535a10874638ccaaed70549d3137",
         "definition": "ProjectBomItem.standardQty × Product.costPrice 汇总；projectId=75",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-catalog-v1.json",
-        "truthArtifactChecksum": "418905a26ce674cb21f8b2fafd4852c2eb8277b74e47e309564f582ea5ef322f"
+        "truthArtifactChecksum": "1197eb37f68cf78a9ceef62ad8260deb511663702a62082bd229d8ad90990716"
       },
       "releaseBlocking": true
     },
@@ -1647,14 +1643,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:40.024Z",
+        "generatedAt": "2026-08-06T04:27:13.930Z",
         "sourceRowCount": 5,
         "sourceChecksum": "e908bc7085bdcf022242d6c4981b728f4a125ad0551404262b087ce8b48eca4d",
         "value": 5,
         "checksum": "ef2d127de37b942baad06145e54b0c619a1f22327b2ebbcfbec78f5564afe39d",
         "definition": "Customer.createdAt 左闭右开计数",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-customer-v1.json",
-        "truthArtifactChecksum": "91fbc72b456178a13e0230df2cd869358b58800898cc6da4b6d53504eda7cf05"
+        "truthArtifactChecksum": "8af140837468ba1113c94432a6daeccaa901f3b639d4b03ca3ade2a02074251b"
       },
       "releaseBlocking": true
     },
@@ -1668,7 +1664,7 @@
       "questionType": "query_single",
       "difficulty": "easy",
       "sourceQuestion": "一共有多少个钻石会员",
-      "evaluationQuestion": "截至2026/07/29 12:45:40，一共有多少个钻石会员",
+      "evaluationQuestion": "截至2026/08/06 12:27:13，一共有多少个钻石会员",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -1694,14 +1690,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:40.024Z",
+        "generatedAt": "2026-08-06T04:27:13.930Z",
         "sourceRowCount": 80,
-        "sourceChecksum": "c1ff4f86b8447c528b8a83d453f002bc7ce154c3dcb679cdeae7a9d58c143447",
+        "sourceChecksum": "8c51b21f66cfd6167632952fecd203981d95c9e65013e2d61d7551ef30111b7a",
         "value": 80,
         "checksum": "48449a14a4ff7d79bb7a1b6f3d488eba397c36ef25634c111b49baf362511afc",
         "definition": "Customer.memberLevel 精确匹配 钻石会员",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-customer-v1.json",
-        "truthArtifactChecksum": "91fbc72b456178a13e0230df2cd869358b58800898cc6da4b6d53504eda7cf05"
+        "truthArtifactChecksum": "8af140837468ba1113c94432a6daeccaa901f3b639d4b03ca3ade2a02074251b"
       },
       "releaseBlocking": true
     },
@@ -1742,14 +1738,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:40.024Z",
+        "generatedAt": "2026-08-06T04:27:13.930Z",
         "sourceRowCount": 77,
         "sourceChecksum": "e3d95f8d4463956e6ce723cf3977f5a2686ffb68897dba306bd845e366891277",
         "value": 77,
         "checksum": "a88a7902cb4ef697ba0b6759c50e8c10297ff58f942243de19b984841bfe1f73",
         "definition": "到店口径：checkedInAt 或已治理到店状态",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-customer-v1.json",
-        "truthArtifactChecksum": "91fbc72b456178a13e0230df2cd869358b58800898cc6da4b6d53504eda7cf05"
+        "truthArtifactChecksum": "8af140837468ba1113c94432a6daeccaa901f3b639d4b03ca3ade2a02074251b"
       },
       "releaseBlocking": true
     },
@@ -1789,14 +1785,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:40.024Z",
+        "generatedAt": "2026-08-06T04:27:13.930Z",
         "sourceRowCount": 9,
         "sourceChecksum": "a8000213ace20259c7289d3762e6361743c73996fbd8a8674da00c370757ec0b",
         "value": 9,
         "checksum": "19581e27de7ced00ff1ce50b2047e7a567c76b1cbaebabe5ef03f7c3017bb5b7",
         "definition": "Customer.createdAt 左闭右开计数",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-customer-v1.json",
-        "truthArtifactChecksum": "91fbc72b456178a13e0230df2cd869358b58800898cc6da4b6d53504eda7cf05"
+        "truthArtifactChecksum": "8af140837468ba1113c94432a6daeccaa901f3b639d4b03ca3ade2a02074251b"
       },
       "releaseBlocking": true
     },
@@ -1810,7 +1806,7 @@
       "questionType": "query_cross",
       "difficulty": "medium",
       "sourceQuestion": "哪些客户的综合养护 20 次卡快到期还没预约",
-      "evaluationQuestion": "截至2026/07/29 12:45:40，哪些客户的综合养护 20 次卡快到期还没预约",
+      "evaluationQuestion": "截至2026/08/06 12:27:13，哪些客户的综合养护 20 次卡快到期还没预约",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -1838,14 +1834,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:40.024Z",
+        "generatedAt": "2026-08-06T04:27:13.930Z",
         "sourceRowCount": 0,
         "sourceChecksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "value": [],
         "checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "definition": "指定卡项 30 天内到期、剩余次数大于 0，且 snapshotAt 之后无有效预约；cardName=综合养护 20 次卡",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-customer-v1.json",
-        "truthArtifactChecksum": "91fbc72b456178a13e0230df2cd869358b58800898cc6da4b6d53504eda7cf05"
+        "truthArtifactChecksum": "8af140837468ba1113c94432a6daeccaa901f3b639d4b03ca3ade2a02074251b"
       },
       "releaseBlocking": true
     },
@@ -1887,7 +1883,7 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:40.024Z",
+        "generatedAt": "2026-08-06T04:27:13.930Z",
         "sourceRowCount": 76,
         "sourceChecksum": "af0152a87093fb7fdb355036c627161b6f0ba032d95bec852891c56db33bbf7f",
         "value": [
@@ -1963,7 +1959,7 @@
         "checksum": "d073165c6e5845fea99a8721b05dda6fe5e43709d2b991dcf8ddcb2df8119690",
         "definition": "持有指定卡项且周期内无到店记录；cardName=综合养护 20 次卡",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-customer-v1.json",
-        "truthArtifactChecksum": "91fbc72b456178a13e0230df2cd869358b58800898cc6da4b6d53504eda7cf05"
+        "truthArtifactChecksum": "8af140837468ba1113c94432a6daeccaa901f3b639d4b03ca3ade2a02074251b"
       },
       "releaseBlocking": true
     },
@@ -2004,7 +2000,7 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:40.024Z",
+        "generatedAt": "2026-08-06T04:27:13.930Z",
         "sourceRowCount": 28,
         "sourceChecksum": "507e593d49501b082ec71300c1e9d041e51062471cc521e1e920fca0d24f198a",
         "value": [
@@ -2019,7 +2015,7 @@
         "checksum": "51dd2f5e69dd43220e8866103516c86177b840e4287fdf54559047f9c261c8d9",
         "definition": "固定周期 2026-06-21T16:00:00.000Z 至 2026-06-28T16:00:00.000Z，左闭右开；会员等级顺序 无<普通<普通会员<银卡<金卡<钻石<钻石会员，最低金卡",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-customer-v1.json",
-        "truthArtifactChecksum": "91fbc72b456178a13e0230df2cd869358b58800898cc6da4b6d53504eda7cf05"
+        "truthArtifactChecksum": "8af140837468ba1113c94432a6daeccaa901f3b639d4b03ca3ade2a02074251b"
       },
       "releaseBlocking": true
     },
@@ -2060,14 +2056,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:40.024Z",
+        "generatedAt": "2026-08-06T04:27:13.930Z",
         "sourceRowCount": 0,
         "sourceChecksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "value": 0,
         "checksum": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
         "definition": "周期内新建客户，截至周期结束有效净额订单不少于 2 单",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-customer-v1.json",
-        "truthArtifactChecksum": "91fbc72b456178a13e0230df2cd869358b58800898cc6da4b6d53504eda7cf05"
+        "truthArtifactChecksum": "8af140837468ba1113c94432a6daeccaa901f3b639d4b03ca3ade2a02074251b"
       },
       "releaseBlocking": true
     },
@@ -2081,7 +2077,7 @@
       "questionType": "query_single",
       "difficulty": "easy",
       "sourceQuestion": "钻石会员一共有多少人",
-      "evaluationQuestion": "截至2026/07/29 12:45:40，钻石会员一共有多少人",
+      "evaluationQuestion": "截至2026/08/06 12:27:13，钻石会员一共有多少人",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -2107,14 +2103,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:40.024Z",
+        "generatedAt": "2026-08-06T04:27:13.930Z",
         "sourceRowCount": 80,
-        "sourceChecksum": "c1ff4f86b8447c528b8a83d453f002bc7ce154c3dcb679cdeae7a9d58c143447",
+        "sourceChecksum": "8c51b21f66cfd6167632952fecd203981d95c9e65013e2d61d7551ef30111b7a",
         "value": 80,
         "checksum": "48449a14a4ff7d79bb7a1b6f3d488eba397c36ef25634c111b49baf362511afc",
         "definition": "Customer.memberLevel 精确匹配 钻石会员",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-customer-v1.json",
-        "truthArtifactChecksum": "91fbc72b456178a13e0230df2cd869358b58800898cc6da4b6d53504eda7cf05"
+        "truthArtifactChecksum": "8af140837468ba1113c94432a6daeccaa901f3b639d4b03ca3ade2a02074251b"
       },
       "releaseBlocking": true
     },
@@ -2154,14 +2150,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:40.024Z",
+        "generatedAt": "2026-08-06T04:27:13.930Z",
         "sourceRowCount": 9,
         "sourceChecksum": "a8000213ace20259c7289d3762e6361743c73996fbd8a8674da00c370757ec0b",
         "value": 9,
         "checksum": "19581e27de7ced00ff1ce50b2047e7a567c76b1cbaebabe5ef03f7c3017bb5b7",
         "definition": "Customer.createdAt 左闭右开计数",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-customer-v1.json",
-        "truthArtifactChecksum": "91fbc72b456178a13e0230df2cd869358b58800898cc6da4b6d53504eda7cf05"
+        "truthArtifactChecksum": "8af140837468ba1113c94432a6daeccaa901f3b639d4b03ca3ade2a02074251b"
       },
       "releaseBlocking": true
     },
@@ -2175,7 +2171,7 @@
       "questionType": "query_cross",
       "difficulty": "medium",
       "sourceQuestion": "开业至今到店的客户里有哪些是金卡以上",
-      "evaluationQuestion": "截至2026/07/29 12:45:40，开业至今到店的客户里有哪些是金卡以上",
+      "evaluationQuestion": "截至2026/08/06 12:27:13，开业至今到店的客户里有哪些是金卡以上",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -2202,7 +2198,7 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:40.024Z",
+        "generatedAt": "2026-08-06T04:27:13.930Z",
         "sourceRowCount": 106,
         "sourceChecksum": "0e214b9045e852705beded4fcfb8e826d7aaf5fa2d17c6aa89787d7598e2ef5e",
         "value": [
@@ -2230,7 +2226,7 @@
         "checksum": "5b4fea067dece63af319266ce98bee86acef6367632d0a90832211ecd497e7aa",
         "definition": "开业至 snapshotAt，开业时间取 Store.createdAt=2026-06-01T13:11:37.793Z；会员等级顺序 无<普通<普通会员<银卡<金卡<钻石<钻石会员，最低金卡",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-customer-v1.json",
-        "truthArtifactChecksum": "91fbc72b456178a13e0230df2cd869358b58800898cc6da4b6d53504eda7cf05"
+        "truthArtifactChecksum": "8af140837468ba1113c94432a6daeccaa901f3b639d4b03ca3ade2a02074251b"
       },
       "releaseBlocking": true
     },
@@ -2244,7 +2240,7 @@
       "questionType": "query_single",
       "difficulty": "easy",
       "sourceQuestion": "店里现在有多少个在职美容师",
-      "evaluationQuestion": "店里截至2026/07/29 12:48:14有多少个在职美容师",
+      "evaluationQuestion": "店里截至2026/08/06 12:27:17有多少个在职美容师",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -2270,14 +2266,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:48:14.660Z",
+        "generatedAt": "2026-08-06T04:27:17.081Z",
         "sourceRowCount": 6,
         "sourceChecksum": "f53b410689fd24d9cfd1b5a2c54b6c1434353c3bbdf72ca76a77b3ec5b1251d4",
         "value": 6,
         "checksum": "e7f6c011776e8db7cd330b54174fd76f7d0216b612387a5ffcfb81e6f0919683",
         "definition": "Beautician.status = active 的当前在职人数",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-staff-v1.json",
-        "truthArtifactChecksum": "5ddf8ff6e591cee6911473b091e5fa9c4e2324f79776a81fb547aa7c9dd3dfa8"
+        "truthArtifactChecksum": "6e559a4cc5f2f57daf986985b7f57a22d7705ed905a9eae1fabdd230e3e57baf"
       },
       "releaseBlocking": true
     },
@@ -2319,14 +2315,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:48:14.660Z",
+        "generatedAt": "2026-08-06T04:27:17.081Z",
         "sourceRowCount": 1,
         "sourceChecksum": "fc624a067b0f70c033cd4bb3ec243bb6a017bfc3f9cecd67fb9b5c7febb20711",
         "value": [],
         "checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "definition": "固定周期 2026-04-30T16:00:00.000Z 至 2026-05-31T16:00:00.000Z，左闭右开；排除 cancelled/canceled/deleted，按日期、开始时间、Schedule.id 确定排序",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-staff-v1.json",
-        "truthArtifactChecksum": "5ddf8ff6e591cee6911473b091e5fa9c4e2324f79776a81fb547aa7c9dd3dfa8"
+        "truthArtifactChecksum": "6e559a4cc5f2f57daf986985b7f57a22d7705ed905a9eae1fabdd230e3e57baf"
       },
       "releaseBlocking": true
     },
@@ -2367,14 +2363,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:48:14.660Z",
+        "generatedAt": "2026-08-06T04:27:17.081Z",
         "sourceRowCount": 0,
         "sourceChecksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "value": [],
         "checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "definition": "固定周期 2026-06-16T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；BeauticianTimeOff.status = approved，输出在职 Beautician.id 集合",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-staff-v1.json",
-        "truthArtifactChecksum": "5ddf8ff6e591cee6911473b091e5fa9c4e2324f79776a81fb547aa7c9dd3dfa8"
+        "truthArtifactChecksum": "6e559a4cc5f2f57daf986985b7f57a22d7705ed905a9eae1fabdd230e3e57baf"
       },
       "releaseBlocking": true
     },
@@ -2415,14 +2411,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:48:14.660Z",
+        "generatedAt": "2026-08-06T04:27:17.081Z",
         "sourceRowCount": 0,
         "sourceChecksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "value": [],
         "checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "definition": "固定周期 2026-06-29T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；BeauticianTimeOff.status = approved，输出在职 Beautician.id 集合",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-staff-v1.json",
-        "truthArtifactChecksum": "5ddf8ff6e591cee6911473b091e5fa9c4e2324f79776a81fb547aa7c9dd3dfa8"
+        "truthArtifactChecksum": "6e559a4cc5f2f57daf986985b7f57a22d7705ed905a9eae1fabdd230e3e57baf"
       },
       "releaseBlocking": true
     },
@@ -2464,14 +2460,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:48:14.660Z",
+        "generatedAt": "2026-08-06T04:27:17.081Z",
         "sourceRowCount": 93,
         "sourceChecksum": "75744084a526c8bcf0243cd8665c1eadd5d6e421a70afae7d6a91cff5c63c258",
         "value": 46,
         "checksum": "25fc0e7096fc653718202dc30b0c580b8ab87eac11a700cba03a7c021bc35b0c",
         "definition": "固定周期 2025-12-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z 左闭右开；ServiceTask.status != cancelled，按 Customer.id 去重",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-staff-v1.json",
-        "truthArtifactChecksum": "5ddf8ff6e591cee6911473b091e5fa9c4e2324f79776a81fb547aa7c9dd3dfa8"
+        "truthArtifactChecksum": "6e559a4cc5f2f57daf986985b7f57a22d7705ed905a9eae1fabdd230e3e57baf"
       },
       "releaseBlocking": true
     },
@@ -2515,14 +2511,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:48:14.660Z",
+        "generatedAt": "2026-08-06T04:27:17.081Z",
         "sourceRowCount": 1,
         "sourceChecksum": "035b414acfb32f275151f8eef4e4651aade780fa441b25555c4e5015a162044b",
         "value": [],
         "checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "definition": "固定周期 2026-06-28T16:00:00.000Z 至 2026-06-29T16:00:00.000Z，左闭右开；Schedule.status 属于 available/working/published 且未被 approved 请假完全覆盖，并具备指定项目技能",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-staff-v1.json",
-        "truthArtifactChecksum": "5ddf8ff6e591cee6911473b091e5fa9c4e2324f79776a81fb547aa7c9dd3dfa8"
+        "truthArtifactChecksum": "6e559a4cc5f2f57daf986985b7f57a22d7705ed905a9eae1fabdd230e3e57baf"
       },
       "releaseBlocking": true
     },
@@ -2564,14 +2560,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:48:14.660Z",
+        "generatedAt": "2026-08-06T04:27:17.081Z",
         "sourceRowCount": 41,
         "sourceChecksum": "df47f2c77cb7f05d71ce1fb001150226f8289d44f01376c5595a37f66586f7c8",
         "value": 20,
         "checksum": "f5ca38f748a1d6eaf726b8a42fb575c3c71f1864a8143301782de13da2d9202b",
         "definition": "固定周期 2026-05-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z 左闭右开；ServiceTask.status != cancelled，按 Customer.id 去重",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-staff-v1.json",
-        "truthArtifactChecksum": "5ddf8ff6e591cee6911473b091e5fa9c4e2324f79776a81fb547aa7c9dd3dfa8"
+        "truthArtifactChecksum": "6e559a4cc5f2f57daf986985b7f57a22d7705ed905a9eae1fabdd230e3e57baf"
       },
       "releaseBlocking": true
     },
@@ -2613,14 +2609,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:48:14.660Z",
+        "generatedAt": "2026-08-06T04:27:17.081Z",
         "sourceRowCount": 48,
         "sourceChecksum": "b9e4a97a73cb7502c2ca525c8616aadf6a5b21a36d0b72461306d47dc2a5bf26",
         "value": 23,
         "checksum": "535fa30d7e25dd8a49f1536779734ec8286108d115da5045d77f3b4185d8f790",
         "definition": "固定周期 2026-05-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z 左闭右开；ServiceTask.status != cancelled，按 Customer.id 去重",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-staff-v1.json",
-        "truthArtifactChecksum": "5ddf8ff6e591cee6911473b091e5fa9c4e2324f79776a81fb547aa7c9dd3dfa8"
+        "truthArtifactChecksum": "6e559a4cc5f2f57daf986985b7f57a22d7705ed905a9eae1fabdd230e3e57baf"
       },
       "releaseBlocking": true
     },
@@ -2634,7 +2630,7 @@
       "questionType": "query_single",
       "difficulty": "easy",
       "sourceQuestion": "唐伊是什么职级",
-      "evaluationQuestion": "截至2026/07/29 12:48:14，唐伊是什么职级",
+      "evaluationQuestion": "截至2026/08/06 12:27:17，唐伊是什么职级",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -2661,7 +2657,7 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:48:14.660Z",
+        "generatedAt": "2026-08-06T04:27:17.081Z",
         "sourceRowCount": 2,
         "sourceChecksum": "a9a125e46740e4bc0ceff3de48f13ad1a5c839667f8a1f0931dde58200a4ef1a",
         "value": {
@@ -2671,7 +2667,7 @@
         "checksum": "638825e360aa45bbf8420a5f0a1c1a25d5a17a10ad914c5edd15574d1b72e522",
         "definition": "Beautician.levelId 关联 BeauticianLevel，输出 levelId 和职级名称",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-staff-v1.json",
-        "truthArtifactChecksum": "5ddf8ff6e591cee6911473b091e5fa9c4e2324f79776a81fb547aa7c9dd3dfa8"
+        "truthArtifactChecksum": "6e559a4cc5f2f57daf986985b7f57a22d7705ed905a9eae1fabdd230e3e57baf"
       },
       "releaseBlocking": true
     },
@@ -2713,14 +2709,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:48:14.660Z",
+        "generatedAt": "2026-08-06T04:27:17.081Z",
         "sourceRowCount": 0,
         "sourceChecksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "value": [],
         "checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "definition": "固定周期 2026-04-30T16:00:00.000Z 至 2026-05-31T16:00:00.000Z，左闭右开；Schedule.status 属于 available/working/published 且未被 approved 请假完全覆盖",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-staff-v1.json",
-        "truthArtifactChecksum": "5ddf8ff6e591cee6911473b091e5fa9c4e2324f79776a81fb547aa7c9dd3dfa8"
+        "truthArtifactChecksum": "6e559a4cc5f2f57daf986985b7f57a22d7705ed905a9eae1fabdd230e3e57baf"
       },
       "releaseBlocking": true
     },
@@ -2734,7 +2730,7 @@
       "questionType": "query_single",
       "difficulty": "easy",
       "sourceQuestion": "唐伊会做哪些项目",
-      "evaluationQuestion": "截至2026/07/29 12:48:14，唐伊会做哪些项目",
+      "evaluationQuestion": "截至2026/08/06 12:27:17，唐伊会做哪些项目",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -2762,14 +2758,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:48:14.660Z",
+        "generatedAt": "2026-08-06T04:27:17.081Z",
         "sourceRowCount": 1,
         "sourceChecksum": "fc624a067b0f70c033cd4bb3ec243bb6a017bfc3f9cecd67fb9b5c7febb20711",
         "value": [],
         "checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "definition": "有效 BeauticianProjectSkill 关联本店 active 且未删除 Project，输出 Project.id 集合",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-staff-v1.json",
-        "truthArtifactChecksum": "5ddf8ff6e591cee6911473b091e5fa9c4e2324f79776a81fb547aa7c9dd3dfa8"
+        "truthArtifactChecksum": "6e559a4cc5f2f57daf986985b7f57a22d7705ed905a9eae1fabdd230e3e57baf"
       },
       "releaseBlocking": true
     },
@@ -2783,7 +2779,7 @@
       "questionType": "query_single",
       "difficulty": "easy",
       "sourceQuestion": "宋乔是什么职级",
-      "evaluationQuestion": "截至2026/07/29 12:48:14，宋乔是什么职级",
+      "evaluationQuestion": "截至2026/08/06 12:27:17，宋乔是什么职级",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -2810,7 +2806,7 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:48:14.660Z",
+        "generatedAt": "2026-08-06T04:27:17.081Z",
         "sourceRowCount": 2,
         "sourceChecksum": "24c9a787769bcd8a2fcde0c031982e04cce52fc83a8815bc19b44d3cc88e28b5",
         "value": {
@@ -2820,7 +2816,7 @@
         "checksum": "e9fc3de06e5fc8ff59a8861fba6eedffd467e93247ec2e8ba99b18c6566fe2c6",
         "definition": "Beautician.levelId 关联 BeauticianLevel，输出 levelId 和职级名称",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-staff-v1.json",
-        "truthArtifactChecksum": "5ddf8ff6e591cee6911473b091e5fa9c4e2324f79776a81fb547aa7c9dd3dfa8"
+        "truthArtifactChecksum": "6e559a4cc5f2f57daf986985b7f57a22d7705ed905a9eae1fabdd230e3e57baf"
       },
       "releaseBlocking": true
     },
@@ -2834,7 +2830,7 @@
       "questionType": "query_single",
       "difficulty": "easy",
       "sourceQuestion": "宋乔会做哪些项目",
-      "evaluationQuestion": "截至2026/07/29 12:48:14，宋乔会做哪些项目",
+      "evaluationQuestion": "截至2026/08/06 12:27:17，宋乔会做哪些项目",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -2862,14 +2858,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:48:14.660Z",
+        "generatedAt": "2026-08-06T04:27:17.081Z",
         "sourceRowCount": 1,
         "sourceChecksum": "b8b690fadc3e36e96bd84b6b25e1072509fec276455dd08355eb87d95f8500d6",
         "value": [],
         "checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "definition": "有效 BeauticianProjectSkill 关联本店 active 且未删除 Project，输出 Project.id 集合",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-staff-v1.json",
-        "truthArtifactChecksum": "5ddf8ff6e591cee6911473b091e5fa9c4e2324f79776a81fb547aa7c9dd3dfa8"
+        "truthArtifactChecksum": "6e559a4cc5f2f57daf986985b7f57a22d7705ed905a9eae1fabdd230e3e57baf"
       },
       "releaseBlocking": true
     },
@@ -2883,7 +2879,7 @@
       "questionType": "query_single",
       "difficulty": "easy",
       "sourceQuestion": "沈晴是什么职级",
-      "evaluationQuestion": "截至2026/07/29 12:48:14，沈晴是什么职级",
+      "evaluationQuestion": "截至2026/08/06 12:27:17，沈晴是什么职级",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -2910,7 +2906,7 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:48:14.660Z",
+        "generatedAt": "2026-08-06T04:27:17.081Z",
         "sourceRowCount": 2,
         "sourceChecksum": "79bfc8213774efb5bded3514067e125ab136a389b679c13221f578711a968501",
         "value": {
@@ -2920,7 +2916,7 @@
         "checksum": "56b207c56909829482ef2781d0366d76f3951f89cf3e63aed2b25e689a02e158",
         "definition": "Beautician.levelId 关联 BeauticianLevel，输出 levelId 和职级名称",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-staff-v1.json",
-        "truthArtifactChecksum": "5ddf8ff6e591cee6911473b091e5fa9c4e2324f79776a81fb547aa7c9dd3dfa8"
+        "truthArtifactChecksum": "6e559a4cc5f2f57daf986985b7f57a22d7705ed905a9eae1fabdd230e3e57baf"
       },
       "releaseBlocking": true
     },
@@ -2934,7 +2930,7 @@
       "questionType": "query_single",
       "difficulty": "easy",
       "sourceQuestion": "沈晴会做哪些项目",
-      "evaluationQuestion": "截至2026/07/29 12:48:14，沈晴会做哪些项目",
+      "evaluationQuestion": "截至2026/08/06 12:27:17，沈晴会做哪些项目",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -2962,14 +2958,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:48:14.660Z",
+        "generatedAt": "2026-08-06T04:27:17.081Z",
         "sourceRowCount": 1,
         "sourceChecksum": "00b319cb708cefb95a24bcc1cd0776539f7c563962dd166d0fd7495a16ec809d",
         "value": [],
         "checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "definition": "有效 BeauticianProjectSkill 关联本店 active 且未删除 Project，输出 Project.id 集合",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-staff-v1.json",
-        "truthArtifactChecksum": "5ddf8ff6e591cee6911473b091e5fa9c4e2324f79776a81fb547aa7c9dd3dfa8"
+        "truthArtifactChecksum": "6e559a4cc5f2f57daf986985b7f57a22d7705ed905a9eae1fabdd230e3e57baf"
       },
       "releaseBlocking": true
     },
@@ -2983,7 +2979,7 @@
       "questionType": "query_single",
       "difficulty": "easy",
       "sourceQuestion": "顾然是什么职级",
-      "evaluationQuestion": "截至2026/07/29 12:48:14，顾然是什么职级",
+      "evaluationQuestion": "截至2026/08/06 12:27:17，顾然是什么职级",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -3010,7 +3006,7 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:48:14.660Z",
+        "generatedAt": "2026-08-06T04:27:17.081Z",
         "sourceRowCount": 2,
         "sourceChecksum": "4d93a005aabfb37293b890893e3af11e97a8f40933e16499e2d184fc6f4efa0d",
         "value": {
@@ -3020,7 +3016,7 @@
         "checksum": "ce806493db3460a575e7feaf5ce1bfd510848d5fcc476ab8b040850a6d7ac631",
         "definition": "Beautician.levelId 关联 BeauticianLevel，输出 levelId 和职级名称",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-staff-v1.json",
-        "truthArtifactChecksum": "5ddf8ff6e591cee6911473b091e5fa9c4e2324f79776a81fb547aa7c9dd3dfa8"
+        "truthArtifactChecksum": "6e559a4cc5f2f57daf986985b7f57a22d7705ed905a9eae1fabdd230e3e57baf"
       },
       "releaseBlocking": true
     },
@@ -3034,7 +3030,7 @@
       "questionType": "query_single",
       "difficulty": "easy",
       "sourceQuestion": "顾然会做哪些项目",
-      "evaluationQuestion": "截至2026/07/29 12:48:14，顾然会做哪些项目",
+      "evaluationQuestion": "截至2026/08/06 12:27:17，顾然会做哪些项目",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -3062,14 +3058,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:48:14.660Z",
+        "generatedAt": "2026-08-06T04:27:17.081Z",
         "sourceRowCount": 1,
         "sourceChecksum": "41d1b91b22f0ca1ad58688c93c0177e33f5f69c8c094dbec0ed22992afa271d3",
         "value": [],
         "checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "definition": "有效 BeauticianProjectSkill 关联本店 active 且未删除 Project，输出 Project.id 集合",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-staff-v1.json",
-        "truthArtifactChecksum": "5ddf8ff6e591cee6911473b091e5fa9c4e2324f79776a81fb547aa7c9dd3dfa8"
+        "truthArtifactChecksum": "6e559a4cc5f2f57daf986985b7f57a22d7705ed905a9eae1fabdd230e3e57baf"
       },
       "releaseBlocking": true
     },
@@ -3113,14 +3109,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:48:14.660Z",
+        "generatedAt": "2026-08-06T04:27:17.081Z",
         "sourceRowCount": 1,
         "sourceChecksum": "21b6946e5f66da180cf9219ffa9b7bf2a24703398f2064bdd3316d1ba3cbf0cd",
         "value": [],
         "checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "definition": "固定周期 2025-12-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；Schedule.status 属于 available/working/published 且未被 approved 请假完全覆盖，并具备指定项目技能",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-staff-v1.json",
-        "truthArtifactChecksum": "5ddf8ff6e591cee6911473b091e5fa9c4e2324f79776a81fb547aa7c9dd3dfa8"
+        "truthArtifactChecksum": "6e559a4cc5f2f57daf986985b7f57a22d7705ed905a9eae1fabdd230e3e57baf"
       },
       "releaseBlocking": true
     },
@@ -3164,14 +3160,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:48:14.660Z",
+        "generatedAt": "2026-08-06T04:27:17.081Z",
         "sourceRowCount": 2,
         "sourceChecksum": "d30f96b13f5a6c6f98c84a4d3a4e6441327edcd35b3296da88b6c645a12f6643",
         "value": [],
         "checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "definition": "固定周期 2026-05-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；Schedule.status 属于 available/working/published 且未被 approved 请假完全覆盖，并具备指定项目技能",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-staff-v1.json",
-        "truthArtifactChecksum": "5ddf8ff6e591cee6911473b091e5fa9c4e2324f79776a81fb547aa7c9dd3dfa8"
+        "truthArtifactChecksum": "6e559a4cc5f2f57daf986985b7f57a22d7705ed905a9eae1fabdd230e3e57baf"
       },
       "releaseBlocking": true
     },
@@ -3214,14 +3210,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.741Z",
+        "generatedAt": "2026-08-06T04:27:22.221Z",
         "sourceRowCount": 104,
         "sourceChecksum": "e653f4cecf046e3161830416bcc2298537aee3522795e7ad52008a3e2e7380e7",
         "value": 39,
         "checksum": "0b918943df0962bc7a1824c0555a389347b4febdc7cf9d1254406d80ce44e3f9",
         "definition": "固定周期 2026-06-14T16:00:00.000Z 至 2026-06-21T16:00:00.000Z，左闭右开；排除已取消预约计数",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-fulfillment-v1.json",
-        "truthArtifactChecksum": "e01e417bfd1039bef883c321210884a491670f24855f5b5fa751b63f40908598"
+        "truthArtifactChecksum": "7066df032d351167cc426117bf7713944479a53978bc6718a8db68f8001c49bb"
       },
       "releaseBlocking": true
     },
@@ -3235,7 +3231,7 @@
       "questionType": "query_single",
       "difficulty": "easy",
       "sourceQuestion": "现在有哪些未确认的预约",
-      "evaluationQuestion": "截至2026/07/29 12:45:41有哪些未确认的预约",
+      "evaluationQuestion": "截至2026/08/06 12:27:22有哪些未确认的预约",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -3264,14 +3260,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.741Z",
+        "generatedAt": "2026-08-06T04:27:22.221Z",
         "sourceRowCount": 0,
         "sourceChecksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "value": [],
         "checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "definition": "snapshotAt 所在业务日 2026-07-29，Asia/Shanghai 左闭右开；Reservation.status 属于 pending/待确认",
+        "definition": "snapshotAt 所在业务日 2026-08-06，Asia/Shanghai 左闭右开；Reservation.status 属于 pending/待确认",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-fulfillment-v1.json",
-        "truthArtifactChecksum": "e01e417bfd1039bef883c321210884a491670f24855f5b5fa751b63f40908598"
+        "truthArtifactChecksum": "7066df032d351167cc426117bf7713944479a53978bc6718a8db68f8001c49bb"
       },
       "releaseBlocking": true
     },
@@ -3313,14 +3309,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.741Z",
+        "generatedAt": "2026-08-06T04:27:22.221Z",
         "sourceRowCount": 24,
         "sourceChecksum": "726c7e69fdeb16fe9f723567e5c5fedafa939403a6e03aea6acb1782aed91768",
         "value": 24,
         "checksum": "c2356069e9d1e79ca924378153cfbbfb4d4416b1f99d41a2940bfdb66c5319db",
         "definition": "固定周期 2026-06-23T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；ServiceTask.appointmentTime 左闭右开计数，不按执行状态排除",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-fulfillment-v1.json",
-        "truthArtifactChecksum": "e01e417bfd1039bef883c321210884a491670f24855f5b5fa751b63f40908598"
+        "truthArtifactChecksum": "7066df032d351167cc426117bf7713944479a53978bc6718a8db68f8001c49bb"
       },
       "releaseBlocking": true
     },
@@ -3360,14 +3356,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.741Z",
+        "generatedAt": "2026-08-06T04:27:22.221Z",
         "sourceRowCount": 220,
         "sourceChecksum": "cd25a69a5fb831e99f9767fa9c0182b32fe0dc1ed1090ef72c0700a706ad61cf",
         "value": 220,
         "checksum": "36790ecd55c2030dc553685bef719df653f413a20cdad1bfd1dc934c76686ddd",
         "definition": "固定周期 2025-12-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；CardUsageRecord.verifiedAt 左闭右开，汇总 times 而不是记录条数",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-fulfillment-v1.json",
-        "truthArtifactChecksum": "e01e417bfd1039bef883c321210884a491670f24855f5b5fa751b63f40908598"
+        "truthArtifactChecksum": "7066df032d351167cc426117bf7713944479a53978bc6718a8db68f8001c49bb"
       },
       "releaseBlocking": true
     },
@@ -3410,7 +3406,7 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.741Z",
+        "generatedAt": "2026-08-06T04:27:22.221Z",
         "sourceRowCount": 41,
         "sourceChecksum": "201e58df58c506dac34bf884432dfd9134d1daf461ededc3deeb0d3cb7ec4d04",
         "value": [
@@ -3435,7 +3431,7 @@
         "checksum": "3ed03d8f55dcc3ef7d1aedb9fb3a511436dccc48b9d1b42cc92e62610a4a1b07",
         "definition": "固定周期 2025-12-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；Project.name 精确匹配 水氧清洁焕肤，返回有效预约客户 ID 集合",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-fulfillment-v1.json",
-        "truthArtifactChecksum": "e01e417bfd1039bef883c321210884a491670f24855f5b5fa751b63f40908598"
+        "truthArtifactChecksum": "7066df032d351167cc426117bf7713944479a53978bc6718a8db68f8001c49bb"
       },
       "releaseBlocking": true
     },
@@ -3478,14 +3474,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.741Z",
+        "generatedAt": "2026-08-06T04:27:22.221Z",
         "sourceRowCount": 1,
         "sourceChecksum": "bf9d6af54bc9cd8231630fa7aa22454d57a11ce8f9cddd7c57a4236064a1094b",
         "value": [],
         "checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "definition": "固定周期 2026-06-28T16:00:00.000Z 至 2026-06-29T16:00:00.000Z，左闭右开；Project.name 精确匹配 季节屏障养护，返回有效预约客户 ID 集合",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-fulfillment-v1.json",
-        "truthArtifactChecksum": "e01e417bfd1039bef883c321210884a491670f24855f5b5fa751b63f40908598"
+        "truthArtifactChecksum": "7066df032d351167cc426117bf7713944479a53978bc6718a8db68f8001c49bb"
       },
       "releaseBlocking": true
     },
@@ -3528,7 +3524,7 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.741Z",
+        "generatedAt": "2026-08-06T04:27:22.221Z",
         "sourceRowCount": 104,
         "sourceChecksum": "e653f4cecf046e3161830416bcc2298537aee3522795e7ad52008a3e2e7380e7",
         "value": [
@@ -3575,7 +3571,7 @@
         "checksum": "f4c02a530d6d5c6237029ef5ba266c36cd03c00f36b0ace3c25450df3b147ccb",
         "definition": "固定周期 2026-06-14T16:00:00.000Z 至 2026-06-21T16:00:00.000Z，左闭右开；排除已取消预约后返回客户 ID 集合",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-fulfillment-v1.json",
-        "truthArtifactChecksum": "e01e417bfd1039bef883c321210884a491670f24855f5b5fa751b63f40908598"
+        "truthArtifactChecksum": "7066df032d351167cc426117bf7713944479a53978bc6718a8db68f8001c49bb"
       },
       "releaseBlocking": true
     },
@@ -3589,7 +3585,7 @@
       "questionType": "query_single",
       "difficulty": "easy",
       "sourceQuestion": "哪些客户预约了还没到店",
-      "evaluationQuestion": "截至2026/07/29 12:45:41，哪些客户预约了还没到店",
+      "evaluationQuestion": "截至2026/08/06 12:27:22，哪些客户预约了还没到店",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -3618,14 +3614,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.741Z",
+        "generatedAt": "2026-08-06T04:27:22.221Z",
         "sourceRowCount": 0,
         "sourceChecksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "value": [],
         "checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "definition": "snapshotAt 所在业务日 2026-07-29，Asia/Shanghai 左闭右开；待到店状态为 pending/confirmed/scheduled/待确认/已确认 且无 checkedInAt",
+        "definition": "snapshotAt 所在业务日 2026-08-06，Asia/Shanghai 左闭右开；待到店状态为 pending/confirmed/scheduled/待确认/已确认 且无 checkedInAt",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-fulfillment-v1.json",
-        "truthArtifactChecksum": "e01e417bfd1039bef883c321210884a491670f24855f5b5fa751b63f40908598"
+        "truthArtifactChecksum": "7066df032d351167cc426117bf7713944479a53978bc6718a8db68f8001c49bb"
       },
       "releaseBlocking": true
     },
@@ -3667,14 +3663,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.741Z",
+        "generatedAt": "2026-08-06T04:27:22.221Z",
         "sourceRowCount": 327,
         "sourceChecksum": "920b3fdcc092e8de97d649802ee5246599e25db890a0a213850de58da9479a7e",
         "value": 150,
         "checksum": "9ae2bdd7beedc2e766c6b76585530e16925115707dc7a06ab5ee4aa2776b2c7b",
         "definition": "固定周期 2025-12-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；checkedInAt 非空或已治理到店状态，按 Customer.id 去重计人数",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-fulfillment-v1.json",
-        "truthArtifactChecksum": "e01e417bfd1039bef883c321210884a491670f24855f5b5fa751b63f40908598"
+        "truthArtifactChecksum": "7066df032d351167cc426117bf7713944479a53978bc6718a8db68f8001c49bb"
       },
       "releaseBlocking": true
     },
@@ -3717,7 +3713,7 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.741Z",
+        "generatedAt": "2026-08-06T04:27:22.221Z",
         "sourceRowCount": 57,
         "sourceChecksum": "b3057803baf607ba0439a3ec0462ad661756612145991c65553f95e686feefd0",
         "value": [
@@ -3750,7 +3746,7 @@
         "checksum": "24a4e281d62d9848a80aebf973bd2536b63a8b50f25e2472845ecc6f1b9f5596",
         "definition": "固定周期 2025-12-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；排除已取消预约，返回 唐伊 的 Reservation.id 集合",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-fulfillment-v1.json",
-        "truthArtifactChecksum": "e01e417bfd1039bef883c321210884a491670f24855f5b5fa751b63f40908598"
+        "truthArtifactChecksum": "7066df032d351167cc426117bf7713944479a53978bc6718a8db68f8001c49bb"
       },
       "releaseBlocking": true
     },
@@ -3793,14 +3789,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.741Z",
+        "generatedAt": "2026-08-06T04:27:22.221Z",
         "sourceRowCount": 565,
         "sourceChecksum": "625809d49c3f2bea21ce99c820d0a1daca1642e54685352e0ea90ba81cd14181",
         "value": 0.4706,
         "checksum": "b967b4d0be3f570259311bfaa6d9d4df3c47acb07eb71fb7623b91df75b4e579",
         "definition": "固定周期 2025-12-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；分母为非取消预约 272，分子为 checkedInAt 非空或已治理到店状态 128",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-fulfillment-v1.json",
-        "truthArtifactChecksum": "e01e417bfd1039bef883c321210884a491670f24855f5b5fa751b63f40908598"
+        "truthArtifactChecksum": "7066df032d351167cc426117bf7713944479a53978bc6718a8db68f8001c49bb"
       },
       "releaseBlocking": true
     },
@@ -3843,7 +3839,7 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.741Z",
+        "generatedAt": "2026-08-06T04:27:22.221Z",
         "sourceRowCount": 565,
         "sourceChecksum": "625809d49c3f2bea21ce99c820d0a1daca1642e54685352e0ea90ba81cd14181",
         "value": [
@@ -3886,7 +3882,7 @@
         "checksum": "12ba2d749a45a7f255f3f7c3ac19209b3078a27ccd6e148e24a91f7fd0457034",
         "definition": "固定周期 2025-12-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；按业务日期和开始时刻分组，返回并列最大预约量时段",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-fulfillment-v1.json",
-        "truthArtifactChecksum": "e01e417bfd1039bef883c321210884a491670f24855f5b5fa751b63f40908598"
+        "truthArtifactChecksum": "7066df032d351167cc426117bf7713944479a53978bc6718a8db68f8001c49bb"
       },
       "releaseBlocking": true
     },
@@ -3929,14 +3925,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.741Z",
+        "generatedAt": "2026-08-06T04:27:22.221Z",
         "sourceRowCount": 0,
         "sourceChecksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "value": [],
         "checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "definition": "固定周期 2025-12-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；Reservation.status 属于 no_show/missed/爽约/未到店",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-fulfillment-v1.json",
-        "truthArtifactChecksum": "e01e417bfd1039bef883c321210884a491670f24855f5b5fa751b63f40908598"
+        "truthArtifactChecksum": "7066df032d351167cc426117bf7713944479a53978bc6718a8db68f8001c49bb"
       },
       "releaseBlocking": true
     },
@@ -3979,7 +3975,7 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.741Z",
+        "generatedAt": "2026-08-06T04:27:22.221Z",
         "sourceRowCount": 565,
         "sourceChecksum": "625809d49c3f2bea21ce99c820d0a1daca1642e54685352e0ea90ba81cd14181",
         "value": [
@@ -3991,7 +3987,7 @@
         "checksum": "a5b33994a1d15901da6a08f1652bd54034e6c32cac7c274a6c906528646ea7d3",
         "definition": "固定周期 2025-12-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；排除已取消预约后按 Project.id 分组，返回并列最大预约量项目",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-fulfillment-v1.json",
-        "truthArtifactChecksum": "e01e417bfd1039bef883c321210884a491670f24855f5b5fa751b63f40908598"
+        "truthArtifactChecksum": "7066df032d351167cc426117bf7713944479a53978bc6718a8db68f8001c49bb"
       },
       "releaseBlocking": true
     },
@@ -4034,7 +4030,7 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:41.741Z",
+        "generatedAt": "2026-08-06T04:27:22.221Z",
         "sourceRowCount": 565,
         "sourceChecksum": "625809d49c3f2bea21ce99c820d0a1daca1642e54685352e0ea90ba81cd14181",
         "value": [
@@ -4090,7 +4086,7 @@
         "checksum": "b586f2bb6d893fb9264ff731bfd222c6f9d56439f3916ae2e53675ba53f31b9c",
         "definition": "固定周期 2025-12-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；排除已取消和未分配美容师的预约，按 Beautician.id 分组后按预约量降序",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-fulfillment-v1.json",
-        "truthArtifactChecksum": "e01e417bfd1039bef883c321210884a491670f24855f5b5fa751b63f40908598"
+        "truthArtifactChecksum": "7066df032d351167cc426117bf7713944479a53978bc6718a8db68f8001c49bb"
       },
       "releaseBlocking": true
     },
@@ -4104,7 +4100,7 @@
       "questionType": "query_single",
       "difficulty": "easy",
       "sourceQuestion": "滋养手膜现在还有多少库存",
-      "evaluationQuestion": "滋养手膜截至2026/07/29 12:45:54还有多少库存",
+      "evaluationQuestion": "滋养手膜截至2026/08/06 12:27:26还有多少库存",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -4133,14 +4129,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 1,
         "sourceChecksum": "bb7625f868c810128b33aff62e5576994287b390c4fbd35c7b972ca14f82be1b",
         "value": 108,
         "checksum": "9537f32ec7599e1ae953af6c9f929fe747ff9dadf79a9beff1f304c550173011",
         "definition": "Product.currentStock 或固定周期期末库存",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -4182,9 +4178,9 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 341,
-        "sourceChecksum": "ec635a7314d99cdba0b1757ef14e09ee4896733846cd7fc241af61e06815b1a1",
+        "sourceChecksum": "acf34dfe42d5403e14cdb263d448aadc692effe569a709b95c6f8817868b25c4",
         "value": [
           110,
           111,
@@ -4216,7 +4212,7 @@
         "checksum": "53625aab76b785651a20ceb5cb0d092f964a3c76b0fae3b186f3fbdaf8ddef72",
         "definition": "固定周期 2026-05-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；期初已为 0 或周期内任一 StockMovement.afterStock<=0 的 active Product",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -4258,14 +4254,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 48,
-        "sourceChecksum": "41f9230c23463ef7796622af0d5231613cd2a5112034d43a24918fb43da20a32",
+        "sourceChecksum": "adf0c9ed22e215f2cd3705245297f613185c73fdeb5e50f5bf8638a15250ffbe",
         "value": 2,
         "checksum": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
         "definition": "固定周期 2026-06-16T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；期末库存低于当前 Product.safetyStock 且 safetyStock>0",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -4307,9 +4303,9 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 341,
-        "sourceChecksum": "ec635a7314d99cdba0b1757ef14e09ee4896733846cd7fc241af61e06815b1a1",
+        "sourceChecksum": "acf34dfe42d5403e14cdb263d448aadc692effe569a709b95c6f8817868b25c4",
         "value": [
           110,
           111,
@@ -4341,7 +4337,7 @@
         "checksum": "53625aab76b785651a20ceb5cb0d092f964a3c76b0fae3b186f3fbdaf8ddef72",
         "definition": "固定周期 2026-05-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；期初已为 0 或周期内任一 StockMovement.afterStock<=0 的 active Product",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -4383,14 +4379,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 48,
-        "sourceChecksum": "41f9230c23463ef7796622af0d5231613cd2a5112034d43a24918fb43da20a32",
+        "sourceChecksum": "adf0c9ed22e215f2cd3705245297f613185c73fdeb5e50f5bf8638a15250ffbe",
         "value": 2,
         "checksum": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
         "definition": "固定周期 2026-06-29T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；期末库存低于当前 Product.safetyStock 且 safetyStock>0",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -4433,14 +4429,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 1,
-        "sourceChecksum": "31597252b9bdbe8239042d5b2682c0c3a827f94dbf1d35f57c7e8e9f9a9e6194",
+        "sourceChecksum": "a33edcc32df457eba273ee977f8a0fbce9d8bca6713892b0117736967b550f14",
         "value": [],
         "checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "definition": "固定周期 2026-06-14T16:00:00.000Z 至 2026-06-21T16:00:00.000Z，左闭右开；按 occurredAt、id 升序返回 StockMovement",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -4483,14 +4479,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 39,
-        "sourceChecksum": "53c71288bebd12dddd875fc6c138d8be8083d99dd1391a0cc01a138ad15b2d61",
+        "sourceChecksum": "7b5d5170744467b0e9ce829da7f6351c05970d79902e116dcfacddfdb17d36ab",
         "value": 184,
         "checksum": "52f11620e397f867b7d9f19e48caeb64658356a6b5d17138c00dd9feaf5d7ad6",
         "definition": "固定周期 2026-06-16T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；只汇总消费/服务耗用类 StockMovement.quantity 绝对值",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -4533,14 +4529,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 1,
         "sourceChecksum": "673657b11a52095987a5a21d9eaf6f7e5453e1bad68810ae51d453334dcfd611",
         "value": 0,
         "checksum": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
         "definition": "固定周期 2026-06-29T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；只汇总消费/服务耗用类 StockMovement.quantity 绝对值",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -4583,14 +4579,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 7,
         "sourceChecksum": "4def0e5f6dc93c43b35690564485686c1709bd3db756116b7b0700b0fa9af3ea",
         "value": 6,
         "checksum": "e7f6c011776e8db7cd330b54174fd76f7d0216b612387a5ffcfb81e6f0919683",
         "definition": "固定周期 2026-06-14T16:00:00.000Z 至 2026-06-21T16:00:00.000Z，左闭右开；只汇总消费/服务耗用类 StockMovement.quantity 绝对值",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -4633,14 +4629,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 7,
-        "sourceChecksum": "0517794f8b7bf529ea8898c87b999131897b954f4f851913c23e865d60e9b3c5",
+        "sourceChecksum": "40b3d35671faafb15e2e5dcf5a542f80462c46d2c80cbdca90da7dcfcb52146c",
         "value": 32,
         "checksum": "e29c9c180c6279b0b02abd6a1801c7c04082cf486ec027aa13515e4f3884bb6b",
         "definition": "固定周期 2025-12-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；只汇总消费/服务耗用类 StockMovement.quantity 绝对值",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -4654,7 +4650,7 @@
       "questionType": "query_single",
       "difficulty": "easy",
       "sourceQuestion": "有多少个供应商",
-      "evaluationQuestion": "截至2026/07/29 12:45:54，有多少个供应商",
+      "evaluationQuestion": "截至2026/08/06 12:27:26，有多少个供应商",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -4686,14 +4682,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 3,
         "sourceChecksum": "5a80a7ebf972b295c09b67b74dd8369d8e8a72a9bb8673ab989442944c7c35c7",
         "value": 3,
         "checksum": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
         "definition": "active、approved 且未删除的 SupplySupplier 数量",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -4739,14 +4735,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 0,
         "sourceChecksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "value": 0,
         "checksum": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
         "definition": "固定周期 2026-06-29T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；有效 ProcurementOrder.totalAmount 汇总",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -4792,14 +4788,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 1,
         "sourceChecksum": "d9871f19e07332a83420c2c777c3bc0bbf450cc2678049428b46e53a06015f1f",
         "value": 9496,
         "checksum": "e91246f11ce99f19a927291b47b14b79801184628854d4a4a4d1e0302cedf4d4",
         "definition": "固定周期 2026-06-14T16:00:00.000Z 至 2026-06-21T16:00:00.000Z，左闭右开；未付款且非取消的 SupplySettlement.netPayable 汇总",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -4813,7 +4809,7 @@
       "questionType": "query_cross",
       "difficulty": "medium",
       "sourceQuestion": "小气泡一次性探头哪个供应商最便宜",
-      "evaluationQuestion": "截至2026/07/29 12:45:54，小气泡一次性探头哪个供应商最便宜",
+      "evaluationQuestion": "截至2026/08/06 12:27:26，小气泡一次性探头哪个供应商最便宜",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -4845,14 +4841,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 1,
         "sourceChecksum": "a96836af5639b331f461d40c50dda6c72c9bf9d27573425bf63a3b72072ab869",
         "value": null,
         "checksum": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
         "definition": "截至 snapshotAt 未找到该产品的 active/approved 供应商报价",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -4898,14 +4894,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 0,
         "sourceChecksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "value": [],
         "checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "definition": "固定周期 2026-06-28T16:00:00.000Z 至 2026-06-29T16:00:00.000Z，左闭右开；有效 ProcurementOrder 按 supplierId 汇总 totalAmount",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -4951,7 +4947,7 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 2,
         "sourceChecksum": "aa610a26d2306253f1deeb352853eee36ee04fef24a7c96699c120b535c1b927",
         "value": [
@@ -4963,7 +4959,7 @@
         "checksum": "ed892f40de39d76d534558dbe9be6732fb01fa3b40d6341e952783b6da4b6516",
         "definition": "固定周期 2026-05-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；有效 ProcurementOrder 按 supplierId 汇总 totalAmount",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -5009,14 +5005,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 0,
         "sourceChecksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "value": [],
         "checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "definition": "固定周期 2026-06-21T16:00:00.000Z 至 2026-06-28T16:00:00.000Z，左闭右开；ProcurementOrderItem.subtotal 按 Product.categoryId 汇总，返回并列最高品类",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -5062,7 +5058,7 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 2,
         "sourceChecksum": "aa610a26d2306253f1deeb352853eee36ee04fef24a7c96699c120b535c1b927",
         "value": [
@@ -5074,7 +5070,7 @@
         "checksum": "ed892f40de39d76d534558dbe9be6732fb01fa3b40d6341e952783b6da4b6516",
         "definition": "固定周期 2026-05-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；有效 ProcurementOrder 按 supplierId 汇总 totalAmount",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -5116,14 +5112,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 0,
         "sourceChecksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "value": 0,
         "checksum": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
         "definition": "固定周期 2026-05-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；当前仍有库存且 expiryDate 落在周期内的 StockBatch，按 Product.id 去重",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -5166,14 +5162,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 82,
-        "sourceChecksum": "6a5b29bdb86bd1785b77ed06d727888d5c0ec3ee42e249a572f67d2e3e712bca",
+        "sourceChecksum": "9acd00ef128c3f2c35246349b47f7b2af6ad77f8ee49a825527de261fa47247c",
         "value": 171054.9,
         "checksum": "3f1c727fcc43b2796bb2607a127dc78021bd41ab1f9057b0ef34a32610d4bd95",
         "definition": "固定周期 2026-05-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；期末库存价值 = 每个 active Product 的期末库存 × 当前 costPrice",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -5187,7 +5183,7 @@
       "questionType": "query_single",
       "difficulty": "easy",
       "sourceQuestion": "水氧护理精华液的安全库存是多少",
-      "evaluationQuestion": "截至2026/07/29 12:45:54，水氧护理精华液的安全库存是多少",
+      "evaluationQuestion": "截至2026/08/06 12:27:26，水氧护理精华液的安全库存是多少",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -5216,14 +5212,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 1,
         "sourceChecksum": "78c99dbbc2a5fa55b39677d115733c05efcc0ed4bc7bc67389106a5650d9c134",
         "value": 0,
         "checksum": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
         "definition": "Product.safetyStock 当前配置值",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -5237,7 +5233,7 @@
       "questionType": "query_single",
       "difficulty": "easy",
       "sourceQuestion": "有几个待收货的采购单",
-      "evaluationQuestion": "截至2026/07/29 12:45:54，有几个待收货的采购单",
+      "evaluationQuestion": "截至2026/08/06 12:27:26，有几个待收货的采购单",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -5269,14 +5265,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 1,
         "sourceChecksum": "55ce6e9f2d526f5e04b9872586b12536e95a5beec72a49d08114f6e93a452ce9",
         "value": 1,
         "checksum": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
         "definition": "ProcurementOrder.status 不属于 cancelled/canceled/rejected/closed/received/settled/completed/closed",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -5290,7 +5286,7 @@
       "questionType": "query_single",
       "difficulty": "easy",
       "sourceQuestion": "胶原蛋白面膜的批次信息",
-      "evaluationQuestion": "截至2026/07/29 12:45:54，胶原蛋白面膜的批次信息",
+      "evaluationQuestion": "截至2026/08/06 12:27:26，胶原蛋白面膜的批次信息",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -5319,7 +5315,7 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 3,
         "sourceChecksum": "52cd940517509ba87e85632c6c4e272a42eb3283fa32cb95df4eccede4357ad4",
         "value": [
@@ -5347,7 +5343,7 @@
         "checksum": "739a6d487200904ae8fd9e0a8f4bc164b6d3bc33004f05e18059390e1e68159e",
         "definition": "截至 snapshotAt 的 StockBatch，按 createdAt、id 升序返回批次事实",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -5390,7 +5386,7 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 2,
         "sourceChecksum": "d53a3624d0041148ab8bba89ca0d05b8c861cd79ecb949322c481850ab245fbd",
         "value": [
@@ -5406,7 +5402,7 @@
         "checksum": "5e199601220761053505685ed545ad4e2c9fceee20f0b6292f9bab11eca65b1b",
         "definition": "固定周期 2026-06-16T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；按 occurredAt、id 升序返回 StockMovement",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -5420,7 +5416,7 @@
       "questionType": "query_single",
       "difficulty": "easy",
       "sourceQuestion": "院装温和洁面乳现在还有多少库存",
-      "evaluationQuestion": "院装温和洁面乳截至2026/07/29 12:45:54还有多少库存",
+      "evaluationQuestion": "院装温和洁面乳截至2026/08/06 12:27:26还有多少库存",
       "synonyms": [],
       "storeId": 6,
       "timezone": "Asia/Shanghai",
@@ -5449,14 +5445,14 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 1,
-        "sourceChecksum": "276803a5d23fa339dba2d0942480e7aee1cae0a11b50e998eae063843be39b2a",
-        "value": 88,
-        "checksum": "8b940be7fb78aaa6b6567dd7a3987996947460df1c668e698eb92ca77e425349",
+        "sourceChecksum": "8e8592e10665385269bcf4a1d7c6e1965b0b50bc20eb91e768fe60b6ccab10d1",
+        "value": 74,
+        "checksum": "eb624dbe56eb6620ae62080c10a273cab73ae8eca98ab17b731446a31c79393a",
         "definition": "Product.currentStock 或固定周期期末库存",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     },
@@ -5498,104 +5494,73 @@
       },
       "expectedSnapshot": {
         "status": "ready",
-        "generatedAt": "2026-07-29T04:45:54.594Z",
+        "generatedAt": "2026-08-06T04:27:26.171Z",
         "sourceRowCount": 0,
         "sourceChecksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "value": 0,
         "checksum": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
         "definition": "固定周期 2026-05-31T16:00:00.000Z 至 2026-06-30T16:00:00.000Z，左闭右开；当前仍有库存且 expiryDate 落在周期内的 StockBatch，按 Product.id 去重",
         "truthArtifactPath": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-        "truthArtifactChecksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736"
+        "truthArtifactChecksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a"
       },
       "releaseBlocking": true
     }
   ],
-  "finalizedAt": "2026-07-29T04:48:24.459Z",
+  "finalizedAt": "2026-08-06T04:27:39.707Z",
   "truthArtifacts": [
     {
       "groupKey": "finance",
       "path": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-finance-v1.json",
-      "checksum": "16aead14adea410d75a4cd7726b2bbe9a835d1e486dfef52be451246ef6679fc",
-      "truthVersion": "finance-v1-2026-07-30T21:14:40.806Z",
-      "generatedAt": "2026-07-30T21:14:40.806Z",
+      "checksum": "ecaac3f83893eedfbd190c5afe30e3f3a68d62b870754abafd7f5976254102ab",
+      "truthVersion": "finance-v1-2026-08-06T04:26:59.479Z",
+      "generatedAt": "2026-08-06T04:26:59.479Z",
       "caseCount": 22,
-      "sourceDatasetChecksum": "1cf21f5e24f579ac4cd94a571a45f175480178def5685fe8523aecc84ea74d12"
+      "sourceDatasetChecksum": "2e3290f85976a2fbb77022ca73c39c835f31d2aa474240c7cc10dbd9d6284efe"
     },
     {
       "groupKey": "catalog",
       "path": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-catalog-v1.json",
-      "checksum": "418905a26ce674cb21f8b2fafd4852c2eb8277b74e47e309564f582ea5ef322f",
-      "truthVersion": "catalog-v1-2026-07-29T04:45:51.323Z",
-      "generatedAt": "2026-07-29T04:45:51.323Z",
+      "checksum": "1197eb37f68cf78a9ceef62ad8260deb511663702a62082bd229d8ad90990716",
+      "truthVersion": "catalog-v1-2026-08-06T04:27:10.178Z",
+      "generatedAt": "2026-08-06T04:27:10.178Z",
       "caseCount": 7,
-      "sourceDatasetChecksum": "3552d7190e7cc6bcc23f8d9fef4f08f05275e29fbef4851f19fcbd58346c0a73"
+      "sourceDatasetChecksum": "9f49abec2004b62dc77ec03f2d5118d85392283efd91de4ec63c40681f0a7712"
     },
     {
       "groupKey": "customer",
       "path": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-customer-v1.json",
-      "checksum": "91fbc72b456178a13e0230df2cd869358b58800898cc6da4b6d53504eda7cf05",
-      "truthVersion": "customer-v1-2026-07-29T04:45:40.024Z",
-      "generatedAt": "2026-07-29T04:45:40.024Z",
+      "checksum": "8af140837468ba1113c94432a6daeccaa901f3b639d4b03ca3ade2a02074251b",
+      "truthVersion": "customer-v1-2026-08-06T04:27:13.930Z",
+      "generatedAt": "2026-08-06T04:27:13.930Z",
       "caseCount": 11,
-      "sourceDatasetChecksum": "18c3c380df25596e1b65238e3cead7e9afa92a71db8bcab5419f3080e99c64ae"
+      "sourceDatasetChecksum": "6f793b94e914f3cf1c1117c91917c55c2ab921012a2d1d4c3e94f06f257bf743"
     },
     {
       "groupKey": "staff",
       "path": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-staff-v1.json",
-      "checksum": "5ddf8ff6e591cee6911473b091e5fa9c4e2324f79776a81fb547aa7c9dd3dfa8",
-      "truthVersion": "staff-v1-2026-07-29T04:48:14.660Z",
-      "generatedAt": "2026-07-29T04:48:14.660Z",
+      "checksum": "6e559a4cc5f2f57daf986985b7f57a22d7705ed905a9eae1fabdd230e3e57baf",
+      "truthVersion": "staff-v1-2026-08-06T04:27:17.081Z",
+      "generatedAt": "2026-08-06T04:27:17.081Z",
       "caseCount": 19,
       "sourceDatasetChecksum": "e7d12396c76bd6c1e4a368d63448179a6f7416ea4845ae19cea3506896ffaceb"
     },
     {
       "groupKey": "fulfillment",
       "path": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-fulfillment-v1.json",
-      "checksum": "e01e417bfd1039bef883c321210884a491670f24855f5b5fa751b63f40908598",
-      "truthVersion": "fulfillment-v1-2026-07-29T04:45:41.741Z",
-      "generatedAt": "2026-07-29T04:45:41.741Z",
+      "checksum": "7066df032d351167cc426117bf7713944479a53978bc6718a8db68f8001c49bb",
+      "truthVersion": "fulfillment-v1-2026-08-06T04:27:22.221Z",
+      "generatedAt": "2026-08-06T04:27:22.221Z",
       "caseCount": 15,
       "sourceDatasetChecksum": "41b1c1456c294625e6ad99cf79502fc151702ba1426667119c6ab7b994a33901"
     },
     {
       "groupKey": "inventory",
       "path": "docs/04-测试数据/Ami-Brain-事实金标准/ami-brain-gold-standard-truth-inventory-v1.json",
-      "checksum": "9826100bd47bb6a00c2b73b645184ec7201fc51ae1fc837e5cd429c49f37e736",
-      "truthVersion": "inventory-v1-2026-07-29T04:45:54.594Z",
-      "generatedAt": "2026-07-29T04:45:54.594Z",
+      "checksum": "8a26421603760a70d08fe061863a8429c8ead5a16b0378372f2926bd97077f2a",
+      "truthVersion": "inventory-v1-2026-08-06T04:27:26.171Z",
+      "generatedAt": "2026-08-06T04:27:26.171Z",
       "caseCount": 26,
-      "sourceDatasetChecksum": "8c3b4a9e1bb69ca8ca2e6f05c376e5fc9ae58576a92261a87862e5edd7a54cba"
-    }
-  ],
-  "truthRefreshedAt": "2026-07-30T21:14:58.989Z",
-  "truthRefreshHistory": [
-    {
-      "refreshedAt": "2026-07-30T20:39:44.563Z",
-      "groupKey": "finance",
-      "previousManifestVersion": "2026-07-29-v1",
-      "manifestVersion": "2026-07-31-v2",
-      "sourceManifestChecksum": "2876b99c0b96df464bdd43656b0361b230058e2323b8b51b8e50fbb0f2a44ada",
-      "truthArtifactChecksum": "1d640062e1ef39edf4e2247fca8e7102110d30c07e43088a6a81a0f9bded1b84",
-      "truthVersion": "finance-v1-2026-07-30T20:39:22.324Z",
-      "changedCaseIds": [
-        "BQ1268"
-      ],
-      "policy": "ready_group_rebind_from_single_case_audit_refresh"
-    },
-    {
-      "refreshedAt": "2026-07-30T21:14:58.989Z",
-      "groupKey": "finance",
-      "previousManifestVersion": "2026-07-31-v2",
-      "manifestVersion": "2026-07-31-v3",
-      "sourceManifestChecksum": "50896c28d08049f323333ebaf408adc4cd284a296db2b707d3ccbf8bf6a55da9",
-      "truthArtifactChecksum": "16aead14adea410d75a4cd7726b2bbe9a835d1e486dfef52be451246ef6679fc",
-      "truthVersion": "finance-v1-2026-07-30T21:14:40.806Z",
-      "changedCaseIds": [
-        "BQ0853",
-        "BQ0858",
-        "BQ0859"
-      ],
-      "policy": "ready_group_rebind_from_single_case_audit_refresh"
+      "sourceDatasetChecksum": "cf5158510422a05b00b40fb5272560583cfb4986149c4aa576cab1ac491f50a5"
     }
   ]
 }

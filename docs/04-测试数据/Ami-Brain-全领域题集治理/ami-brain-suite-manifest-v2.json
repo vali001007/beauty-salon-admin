@@ -15,39 +15,39 @@
     "thresholdAttempts": [
       {
         "threshold": 0.92,
-        "keepCount": 1138
+        "keepCount": 1140
       },
       {
         "threshold": 0.9,
-        "keepCount": 1133
+        "keepCount": 1135
       },
       {
         "threshold": 0.88,
-        "keepCount": 1112
+        "keepCount": 1114
       },
       {
         "threshold": 0.86,
-        "keepCount": 1099
+        "keepCount": 1101
       },
       {
         "threshold": 0.85,
-        "keepCount": 1089
+        "keepCount": 1091
       },
       {
         "threshold": 0.84,
-        "keepCount": 1078
+        "keepCount": 1080
       },
       {
         "threshold": 0.83,
-        "keepCount": 1062
+        "keepCount": 1064
       },
       {
         "threshold": 0.82,
-        "keepCount": 1060
+        "keepCount": 1062
       },
       {
         "threshold": 0.8,
-        "keepCount": 1041
+        "keepCount": 1043
       }
     ],
     "groupingFields": [
@@ -624,7 +624,7 @@
       "key": "ami_brain_release_core_v2",
       "label": "Ami Brain 发布核心集",
       "caseCount": 350,
-      "caseIdsChecksum": "ac8f87b0f4a9ff2e01ef593fdc3355ec93d7e9101670fc6b3cdc20f9ac1a4c8f",
+      "caseIdsChecksum": "985effec92007f1a13058727a9b060d342a78ec211f708063900312e21143c43",
       "caseIds": [
         "BQ0001",
         "BQ0002",
@@ -754,9 +754,9 @@
         "BQ0780",
         "BQ0821",
         "BQ0822",
+        "BQ0823",
+        "BQ0824",
         "BQ0825",
-        "BQ0826",
-        "BQ0827",
         "BQ0861",
         "BQ0862",
         "BQ0863",
@@ -982,7 +982,7 @@
       "key": "ami_brain_standard_regression_v2",
       "label": "Ami Brain 标准回归集",
       "caseCount": 1040,
-      "caseIdsChecksum": "92339687289a86a1547438338517866f84b5059bd2e8e31e8230ca04523c9da6",
+      "caseIdsChecksum": "d1a8afc646f802da057a3fe9b4e806b9b86bf5ef31807d525ff8cad572fca98f",
       "includesSuite": "ami_brain_release_core_v2",
       "caseIds": [
         "BQ0001",
@@ -1385,6 +1385,8 @@
         "BQ0820",
         "BQ0821",
         "BQ0822",
+        "BQ0823",
+        "BQ0824",
         "BQ0825",
         "BQ0826",
         "BQ0827",
@@ -1951,8 +1953,6 @@
         "BQ1913",
         "BQ1914",
         "BQ1915",
-        "BQ1916",
-        "BQ1918",
         "BQ1922",
         "BQ1923",
         "BQ1924",
@@ -2030,8 +2030,8 @@
     "extendedRotation": {
       "key": "ami_brain_extended_rotation_v2",
       "label": "Ami Brain 扩展轮换池",
-      "caseCount": 665,
-      "caseIdsChecksum": "179bbb234f28e0bc3aea7b5ceac200992b7c3f819ceb41030cc0d752036fefea",
+      "caseCount": 671,
+      "caseIdsChecksum": "5b9b22c57a6b9f195c8d596541c1de218782d5c155aa530985e14757ac532222",
       "caseIds": [
         "BQ0014",
         "BQ0015",
@@ -2350,11 +2350,15 @@
         "BQ0815",
         "BQ0816",
         "BQ0829",
+        "BQ0831",
+        "BQ0832",
         "BQ0833",
         "BQ0834",
         "BQ0835",
         "BQ0836",
         "BQ0845",
+        "BQ0847",
+        "BQ0848",
         "BQ0849",
         "BQ0850",
         "BQ0851",
@@ -2695,7 +2699,9 @@
         "BQ1877",
         "BQ1879",
         "BQ1892",
+        "BQ1916",
         "BQ1917",
+        "BQ1918",
         "BQ1919",
         "BQ1920"
       ]
@@ -2717,8 +2723,8 @@
     "evidenceReviewRequired": {
       "key": "ami_brain_evidence_review_required_v1",
       "label": "Ami Brain 产品闭环证据待核对（本轮不执行）",
-      "caseCount": 290,
-      "caseIdsChecksum": "c3454aab2c3a3888ae4b5aafcb3b2890b5c3ba30e73492943f68b41dbdbc0db1",
+      "caseCount": 284,
+      "caseIdsChecksum": "900cfd19ac369ffa41ce266c1c0bb52aa43a3c5c2933f8b7abd7668a3eaeaac8",
       "caseIds": [
         "BQ0028",
         "BQ0033",
@@ -2821,10 +2827,6 @@
         "BQ0768",
         "BQ0769",
         "BQ0798",
-        "BQ0823",
-        "BQ0824",
-        "BQ0831",
-        "BQ0832",
         "BQ0837",
         "BQ0838",
         "BQ0839",
@@ -2832,8 +2834,6 @@
         "BQ0841",
         "BQ0842",
         "BQ0843",
-        "BQ0847",
-        "BQ0848",
         "BQ0883",
         "BQ0884",
         "BQ0885",
@@ -3022,15 +3022,15 @@
   },
   "classificationSummary": {
     "KEEP": 1040,
-    "ROTATE": 665,
+    "ROTATE": 671,
     "REMOVE": 0,
-    "REVIEW": 290,
+    "REVIEW": 284,
     "NEXT_ITERATION": 6
   },
   "productLoopEligibility": {
     "schemaVersion": "ami-brain-product-loop-eligibility/v1",
     "path": "docs/04-测试数据/Ami-Brain-全领域题集治理/ami-brain-product-loop-eligibility-v1.json",
-    "checksum": "b065088712688f6556b85da075f9e7d65c020deb6058bf70e22fd075f10ccda8",
+    "checksum": "24f4ec261d19ac333e8c00511dcb29ed98f741155d4a10353f74e3a91b1b32c9",
     "sourceBaselineChecksum": "75950821c4fa8604069b84be0021dc60ba722d569b6eb0597bf462a76c1dd4e7",
     "caseCount": 2001,
     "baselineCaseCount": 2000,
@@ -3044,9 +3044,9 @@
     "dataFactsAudit": {
       "schemaVersion": "ami-brain-product-loop-data-facts/v1",
       "path": "docs/04-测试数据/Ami-Brain-全领域题集治理/ami-brain-product-loop-data-facts-v1.json",
-      "checksum": "39f5fae9b37ae8c02ddd8ed28f4756236cf5489674e779a9984c1ff93b1c8d3d",
+      "checksum": "ae8cff3939735962ec028a858e397ea4767a01a53ff4640006ae80082891cf57",
       "schemaChecksum": "5e5b5acde9a22194703f0eed01b18e05cfff689b15e5faeb01cf357e337af965",
-      "snapshotChecksum": "2b530d153f569110d06570fc61a77e12edb9e995ffa5dc4cfbb714fc5a57df2b",
+      "snapshotChecksum": "ae34487ab60f5106af5768c301ed73cd8acfdc2e50213bbfbed339e32e6c82ad",
       "databaseHost": "aws-1-ap-northeast-1.pooler.supabase.com",
       "storeId": 6
     }

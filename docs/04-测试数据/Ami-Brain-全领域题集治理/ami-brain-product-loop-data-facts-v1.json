@@ -1,15 +1,15 @@
 {
   "schemaVersion": "ami-brain-product-loop-data-facts/v1",
-  "generatedAt": "2026-08-05T14:39:21.287Z",
+  "generatedAt": "2026-08-06T04:17:22.962Z",
   "environment": "approved_supabase_development_read_only",
   "databaseHost": "aws-1-ap-northeast-1.pooler.supabase.com",
   "storeId": 6,
   "schemaPath": "packages/server-v2/prisma/schema.prisma",
   "schemaChecksum": "5e5b5acde9a22194703f0eed01b18e05cfff689b15e5faeb01cf357e337af965",
-  "snapshotChecksum": "2b530d153f569110d06570fc61a77e12edb9e995ffa5dc4cfbb714fc5a57df2b",
+  "snapshotChecksum": "ae34487ab60f5106af5768c301ed73cd8acfdc2e50213bbfbed339e32e6c82ad",
   "summary": {
-    "featureCount": 32,
-    "present": 32,
+    "featureCount": 33,
+    "present": 33,
     "evidenceReviewRequired": 0
   },
   "features": {
@@ -103,7 +103,7 @@
         {
           "model": "CustomerPredictionSnapshot",
           "status": "queried",
-          "count": 67256,
+          "count": 68509,
           "scope": "storeId=6"
         },
         {
@@ -132,13 +132,13 @@
         {
           "model": "CustomerPredictionSnapshot",
           "status": "queried",
-          "count": 67256,
+          "count": 68509,
           "scope": "storeId=6"
         },
         {
           "model": "PredictionRun",
           "status": "queried",
-          "count": 22,
+          "count": 23,
           "scope": "storeId=6"
         }
       ]
@@ -270,7 +270,7 @@
         {
           "model": "CommissionRecord",
           "status": "queried",
-          "count": 147,
+          "count": 148,
           "scope": "storeId=6"
         },
         {
@@ -317,7 +317,7 @@
         {
           "model": "CommissionRecord",
           "status": "queried",
-          "count": 147,
+          "count": 148,
           "scope": "storeId=6"
         }
       ]
@@ -555,6 +555,42 @@
         }
       ]
     },
+    "card_recognized_revenue_fact": {
+      "domain": "交易域",
+      "expectedTargets": [
+        "次卡核销确认收入(card recognized revenue)",
+        "实收金额(paid amount)×次卡核销确认收入(card recognized revenue)"
+      ],
+      "status": "present",
+      "reason": "核心事实模型存在真实记录，全部声明的数据来源均已完成只读计数。",
+      "primaryModel": "CardUsageRecord",
+      "modelFacts": [
+        {
+          "model": "CardUsageRecord",
+          "status": "queried",
+          "count": 258,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "PaymentRecord",
+          "status": "queried",
+          "count": 671,
+          "scope": "global"
+        },
+        {
+          "model": "DailySettlement",
+          "status": "queried",
+          "count": 47,
+          "scope": "storeId=6"
+        },
+        {
+          "model": "ProductOrder",
+          "status": "queried",
+          "count": 670,
+          "scope": "storeId=6"
+        }
+      ]
+    },
     "order_profit": {
       "domain": "交易域",
       "expectedTargets": [
@@ -669,7 +705,7 @@
         {
           "model": "CardUsageRecord",
           "status": "queried",
-          "count": 257,
+          "count": 258,
           "scope": "storeId=6"
         }
       ]
@@ -779,7 +815,7 @@
         {
           "model": "StockMovement",
           "status": "queried",
-          "count": 565,
+          "count": 568,
           "scope": "storeId=6"
         },
         {
@@ -855,13 +891,13 @@
         {
           "model": "DailySettlement",
           "status": "queried",
-          "count": 46,
+          "count": 47,
           "scope": "storeId=6"
         },
         {
           "model": "CommissionRecord",
           "status": "queried",
-          "count": 147,
+          "count": 148,
           "scope": "storeId=6"
         },
         {
@@ -899,13 +935,13 @@
         {
           "model": "DailySettlement",
           "status": "queried",
-          "count": 46,
+          "count": 47,
           "scope": "storeId=6"
         },
         {
           "model": "CommissionRecord",
           "status": "queried",
-          "count": 147,
+          "count": 148,
           "scope": "storeId=6"
         },
         {
@@ -946,7 +982,7 @@
         {
           "model": "CommissionRecord",
           "status": "queried",
-          "count": 147,
+          "count": 148,
           "scope": "storeId=6"
         },
         {
@@ -983,13 +1019,13 @@
         {
           "model": "MarketingAutomationExecution",
           "status": "queried",
-          "count": 197,
+          "count": 206,
           "scope": "storeId=6"
         },
         {
           "model": "MarketingAutomationTouch",
           "status": "queried",
-          "count": 18279,
+          "count": 18356,
           "scope": "global"
         }
       ]
@@ -1020,7 +1056,7 @@
         {
           "model": "MarketingAutomationTouch",
           "status": "queried",
-          "count": 18279,
+          "count": 18356,
           "scope": "global"
         },
         {
@@ -1043,19 +1079,19 @@
         {
           "model": "CustomerPredictionSnapshot",
           "status": "queried",
-          "count": 67256,
+          "count": 68509,
           "scope": "storeId=6"
         },
         {
           "model": "PredictionRun",
           "status": "queried",
-          "count": 22,
+          "count": 23,
           "scope": "storeId=6"
         },
         {
           "model": "MarketingRecommendationSnapshot",
           "status": "queried",
-          "count": 46,
+          "count": 47,
           "scope": "storeId=6"
         }
       ]
@@ -1167,19 +1203,19 @@
         {
           "model": "BrainConversation",
           "status": "queried",
-          "count": 42356,
+          "count": 42742,
           "scope": "storeId=6"
         },
         {
           "model": "BrainRun",
           "status": "queried",
-          "count": 42744,
+          "count": 43149,
           "scope": "storeId=6"
         },
         {
           "model": "BrainRelease",
           "status": "queried",
-          "count": 453,
+          "count": 454,
           "scope": "global"
         }
       ]
@@ -1196,19 +1232,19 @@
         {
           "model": "BrainConversation",
           "status": "queried",
-          "count": 42356,
+          "count": 42742,
           "scope": "storeId=6"
         },
         {
           "model": "BrainRun",
           "status": "queried",
-          "count": 42744,
+          "count": 43149,
           "scope": "storeId=6"
         },
         {
           "model": "BrainRelease",
           "status": "queried",
-          "count": 453,
+          "count": 454,
           "scope": "global"
         }
       ]
@@ -1225,19 +1261,19 @@
         {
           "model": "BrainConversation",
           "status": "queried",
-          "count": 42356,
+          "count": 42742,
           "scope": "storeId=6"
         },
         {
           "model": "BrainRun",
           "status": "queried",
-          "count": 42744,
+          "count": 43149,
           "scope": "storeId=6"
         },
         {
           "model": "BrainRelease",
           "status": "queried",
-          "count": 453,
+          "count": 454,
           "scope": "global"
         }
       ]

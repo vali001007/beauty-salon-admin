@@ -9232,7 +9232,8 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
     return ['cancelled', 'canceled', '已取消'].includes(status);
   }
 
-  private isNoShowReservation(status: string) {
+  private isNoShowReservation(status?: string | null) {
+    if (typeof status !== 'string') return false;
     return ['no_show', 'noshow', 'missed', '爽约', '未到店'].includes(status.trim().toLowerCase());
   }
 
