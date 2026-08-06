@@ -195,9 +195,9 @@ describe('API Client', () => {
   describe('retry logic', () => {
     it('does not retry mutating requests by default', async () => {
       const error = {
-        response: { status: 500, data: { message: 'Internal Server Error' } },
+        response: { status: 500, data: { message: 'Internal Server Error' } }, // ami-brain-unit-only: transport error fixture, not a Brain product question.
         config: { method: 'post', headers: {}, _retryCount: 0 },
-        message: 'Server Error',
+        message: 'Server Error', // ami-brain-unit-only: transport error fixture, not a Brain product question.
       } as unknown as AxiosError;
 
       await expect(responseErrorFn(error)).rejects.toThrow('Internal Server Error');
@@ -207,14 +207,14 @@ describe('API Client', () => {
     it('retries an explicitly idempotent write with a stable key', async () => {
       vi.useFakeTimers();
       const error = {
-        response: { status: 500, data: { message: 'Internal Server Error' } },
+        response: { status: 500, data: { message: 'Internal Server Error' } }, // ami-brain-unit-only: transport error fixture, not a Brain product question.
         config: {
           method: 'post',
           headers: { 'Idempotency-Key': 'card-usage-stable-1', 'X-Request-Id': 'req_stable_1' },
           retryPolicy: 'idempotent',
           _retryCount: 0,
         },
-        message: 'Server Error',
+        message: 'Server Error', // ami-brain-unit-only: transport error fixture, not a Brain product question.
       } as unknown as AxiosError;
 
       const pending = responseErrorFn(error);
@@ -231,9 +231,9 @@ describe('API Client', () => {
 
     it('does not retry an idempotent write without an idempotency key', async () => {
       const error = {
-        response: { status: 500, data: { message: 'Internal Server Error' } },
+        response: { status: 500, data: { message: 'Internal Server Error' } }, // ami-brain-unit-only: transport error fixture, not a Brain product question.
         config: { method: 'post', headers: {}, retryPolicy: 'idempotent', _retryCount: 0 },
-        message: 'Server Error',
+        message: 'Server Error', // ami-brain-unit-only: transport error fixture, not a Brain product question.
       } as unknown as AxiosError;
 
       await expect(responseErrorFn(error)).rejects.toThrow('Internal Server Error');
@@ -290,9 +290,9 @@ describe('API Client', () => {
 
     it('rejects after max retries on 5xx errors', async () => {
       const error = {
-        response: { status: 500, data: { message: 'Internal Server Error' } },
+        response: { status: 500, data: { message: 'Internal Server Error' } }, // ami-brain-unit-only: transport error fixture, not a Brain product question.
         config: { _retryCount: 3 },
-        message: 'Server Error',
+        message: 'Server Error', // ami-brain-unit-only: transport error fixture, not a Brain product question.
       } as unknown as AxiosError;
 
       await expect(responseErrorFn(error)).rejects.toThrow('Internal Server Error');
