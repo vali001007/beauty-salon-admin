@@ -293,6 +293,7 @@ describe('BrainRolloutSequenceService', () => {
       healthThresholds: { maxErrorRate: 0.02, maxTimeoutRate: 0.01, maxPermissionViolationCount: 0 },
       releases: [{ id: 101, rolloutStage: 'shadow', status: 'active', activatedAt: new Date() }],
     } as never);
+    jest.spyOn(service as any, 'validateTransitionEvidence').mockResolvedValue([]);
 
     await expect(service.promote(51, { actorId: 9 }))
       .rejects.toMatchObject({ message: 'rollout_health_not_ready:rollout_health_threshold_exceeded:errorRate' });
@@ -329,6 +330,7 @@ describe('BrainRolloutSequenceService', () => {
         ],
       } as never)
       .mockResolvedValueOnce({ id: 51, currentStage: 'canary_20' } as never);
+    jest.spyOn(service as any, 'validateTransitionEvidence').mockResolvedValue([]);
 
     await expect(service.promote(51, { actorId: 9 })).resolves.toMatchObject({
       sequence: { id: 51, currentStage: 'canary_20' },
@@ -351,6 +353,44 @@ describe('BrainRolloutSequenceService', () => {
         releaseId: 103,
         completed: false,
       }),
+    }));
+  });
+
+  it('pauses rollout and blocks promotion when frozen release evidence expires or drifts', async () => {
+    const prisma = {
+      brainRolloutSequence: { update: jest.fn().mockResolvedValue({}) },
+      brainGovernanceCandidate: { update: jest.fn().mockResolvedValue({}) },
+      $transaction: jest.fn((operations: Promise<unknown>[]) => Promise.all(operations)),
+    };
+    const events = { record: jest.fn().mockResolvedValue({}) };
+    const service = new BrainRolloutSequenceService(prisma as never, {} as never, undefined, events as never);
+    jest.spyOn(service, 'get').mockResolvedValue({
+      id: 51,
+      candidateId: 17,
+      status: 'active',
+      currentStage: 'shadow',
+      releases: [{ id: 101, rolloutStage: 'shadow', status: 'active', rollout: {} }],
+    } as never);
+    jest.spyOn(service as any, 'validateTransitionEvidence')
+      .mockResolvedValue(['rollout_evaluation_readiness_invalid']);
+
+    await expect(service.promote(51, { actorId: 9 })).rejects.toMatchObject({
+      message: 'rollout_evidence_not_ready:rollout_evaluation_readiness_invalid',
+    });
+    expect(prisma.brainRolloutSequence.update).toHaveBeenCalledWith({
+      where: { id: 51 },
+      data: {
+        status: 'paused',
+        pauseReason: 'evidence_drift:rollout_evaluation_readiness_invalid',
+        approvedBy: 9,
+      },
+    });
+    expect(prisma.brainGovernanceCandidate.update).toHaveBeenCalledWith({
+      where: { id: 17 },
+      data: { status: 'blocked' },
+    });
+    expect(events.record).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'rollout_evidence_drift_paused',
     }));
   });
 

@@ -235,7 +235,7 @@ function transition(overrides: Record<string, unknown> = {}) {
       trustLevel: 'verified_release',
       verificationStatus: 'verified',
       issuerType: 'release_service',
-      issuer: 'brain-governance-release-snapshot',
+      issuer: 'Release Acceptance',
       identityChecksum: HASH,
       resultChecksum: HASH,
       evaluationReleaseId: EVALUATION_RELEASE_ID,
@@ -246,9 +246,16 @@ function transition(overrides: Record<string, unknown> = {}) {
       dataSnapshot: 'shared-supabase-20260805',
       suiteChecksum: HASH,
       capabilities: [],
+      gates: CORE_REQUIRED_EVIDENCE_TYPES.map((gateKey) => ({
+        gateKey,
+        status: 'passed',
+        expiresAt: new Date('2099-08-05T00:00:00.000Z'),
+      })),
       expiresAt: new Date('2099-08-05T00:00:00.000Z'),
       result: {
-        schemaVersion: 'ami-brain-verified-release-snapshot/v1',
+        schemaVersion: 3,
+        stage: 'release',
+        workflow: 'Release Acceptance',
         candidateKey: 'candidate-1',
         headCommit: HEAD_COMMIT,
         sourceFingerprint: HASH,
@@ -256,7 +263,8 @@ function transition(overrides: Record<string, unknown> = {}) {
           status: 'verified',
           trustLevel: 'verified_release',
           admissionEligible: true,
-          issuer: 'brain-governance-release-snapshot',
+          authentication: 'github_oidc',
+          issuer: 'Release Acceptance',
         },
       },
     },
@@ -348,6 +356,35 @@ describe('BrainGovernanceTransitionService', () => {
         runtime: { code: 'RT-001', status: 'available' },
         blockers: [],
       },
+    });
+  });
+
+  it('accepts one protected OIDC release receipt with the exact six gates and 33+8 capability manifest', async () => {
+    const candidate = {
+      id: 3,
+      candidateKey: 'candidate-1',
+      headCommit: HEAD_COMMIT,
+      sourceFingerprint: HASH,
+      status: 'ready',
+      receipts: [{
+        ...transition().evidenceReceipt,
+        candidateId: 3,
+        headCommit: HEAD_COMMIT,
+        sourceFingerprint: HASH,
+        capabilities: [
+          ...BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS,
+          ...BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS,
+        ].map((capabilityKey) => ({ capabilityKey })),
+      }],
+    };
+    const releaseService = { getReleaseReadiness: jest.fn().mockResolvedValue(releaseReadiness()) };
+    const service = new BrainGovernanceTransitionService({} as never, {} as never, releaseService as never, {} as never);
+
+    await expect((service as any).resolveCandidateEvidence(candidate)).resolves.toMatchObject({
+      receipt: { id: EVIDENCE_RECEIPT_ID },
+      missingEvidence: [],
+      blockers: [],
+      materialization: null,
     });
   });
 
@@ -469,57 +506,16 @@ describe('BrainGovernanceTransitionService', () => {
     }));
   });
 
-  it('derives one verified release snapshot only after binding OIDC candidate, close eligibility, lock and RC-350 v2', async () => {
+  it('retires local self-verified snapshot materialization and requires a protected OIDC release receipt', async () => {
     const lineage = releaseSnapshotLineage();
-    const receiptCreate = jest.fn().mockResolvedValue({ id: 990, receiptKey: 'verified-release-snapshot' });
-    const capabilityCreateMany = jest.fn().mockResolvedValue({ count: 41 });
-    const gateCreateMany = jest.fn().mockResolvedValue({ count: 8 });
-    const tx = {
-      brainGateReceipt: { findUnique: jest.fn().mockResolvedValue(null), create: receiptCreate },
-      brainGateReceiptCapability: { createMany: capabilityCreateMany },
-      brainGateReceiptGate: { createMany: gateCreateMany },
-    };
-    const prisma = {
-      brainGateReceipt: {
-        findMany: jest.fn()
-          .mockResolvedValueOnce([lineage.candidateReceipt])
-          .mockResolvedValueOnce([lineage.eligibilityReceipt]),
-        findUnique: jest.fn(({ where }: { where: { receiptKey: string } }) => {
-          if (where.receiptKey === lineage.candidateLockReceipt.receiptKey) return lineage.candidateLockReceipt;
-          if (where.receiptKey === lineage.officialPointer.receiptKey) return lineage.officialPointer;
-          return null;
-        }),
-      },
-      $transaction: jest.fn((work: (client: typeof tx) => Promise<unknown>) => work(tx)),
-    };
-    const releaseService = { getReleaseReadiness: jest.fn().mockResolvedValue(releaseReadiness()) };
-    const service = new BrainGovernanceTransitionService(prisma as never, {} as never, releaseService as never, {} as never);
+    const service = new BrainGovernanceTransitionService({} as never, {} as never, {} as never, {} as never);
 
-    const resolved = await (service as any).resolveReleaseSnapshotMaterialization(lineage.candidate);
-    expect(resolved.blockers).toEqual([]);
-    expect(resolved.materialization).toBeTruthy();
-    await (service as any).materializeVerifiedReleaseSnapshot(lineage.candidate, resolved.materialization);
-
-    expect(receiptCreate).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        stage: 'release',
-        trustLevel: 'verified_release',
-        verificationStatus: 'verified',
-        provider: 'openai_compatible',
-        model: 'gpt-5.6-luna',
-        candidateId: lineage.candidate.id,
-        evalRunId: EVAL_RUN_ID,
-        evaluationReleaseId: EVALUATION_RELEASE_ID,
-      }),
-    }));
-    expect(capabilityCreateMany).toHaveBeenCalledWith({
-      data: expect.arrayContaining([
-        ...BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS,
-        ...BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS,
-      ].map((capabilityKey) => expect.objectContaining({ capabilityKey }))),
+    await expect((service as any).resolveReleaseSnapshotMaterialization(lineage.candidate)).resolves.toEqual({
+      materialization: null,
+      blockers: ['candidate_oidc_verified_release_receipt_required'],
     });
-    expect(capabilityCreateMany.mock.calls[0][0].data).toHaveLength(41);
-    expect(gateCreateMany.mock.calls[0][0].data).toHaveLength(6);
+    await expect((service as any).materializeVerifiedReleaseSnapshot(lineage.candidate, {}))
+      .rejects.toThrow('self_verified_release_materialization_retired');
   });
 
   it.each(CORE_REQUIRED_EVIDENCE_TYPES)(
@@ -543,7 +539,7 @@ describe('BrainGovernanceTransitionService', () => {
 
       await expect((service as any).resolveReleaseSnapshotMaterialization(lineage.candidate)).resolves.toEqual({
         materialization: null,
-        blockers: ['release_eligibility_lineage_invalid'],
+        blockers: ['candidate_oidc_verified_release_receipt_required'],
       });
       expect(releaseService.getReleaseReadiness).not.toHaveBeenCalled();
     },
@@ -568,7 +564,7 @@ describe('BrainGovernanceTransitionService', () => {
 
     await expect((service as any).resolveReleaseSnapshotMaterialization(lineage.candidate)).resolves.toEqual({
       materialization: null,
-      blockers: ['release_eligibility_lineage_invalid'],
+      blockers: ['candidate_oidc_verified_release_receipt_required'],
     });
     expect(releaseService.getReleaseReadiness).not.toHaveBeenCalled();
   });
@@ -593,7 +589,7 @@ describe('BrainGovernanceTransitionService', () => {
 
     await expect((service as any).resolveReleaseSnapshotMaterialization(lineage.candidate)).resolves.toEqual({
       materialization: null,
-      blockers: ['release_eligibility_lineage_invalid'],
+      blockers: ['candidate_oidc_verified_release_receipt_required'],
     });
     expect(releaseService.getReleaseReadiness).not.toHaveBeenCalled();
   });
@@ -619,7 +615,7 @@ describe('BrainGovernanceTransitionService', () => {
 
     await expect((service as any).resolveReleaseSnapshotMaterialization(lineage.candidate)).resolves.toEqual({
       materialization: null,
-      blockers: ['release_eligibility_lineage_invalid'],
+      blockers: ['candidate_oidc_verified_release_receipt_required'],
     });
   });
 
@@ -644,7 +640,7 @@ describe('BrainGovernanceTransitionService', () => {
 
     await expect((service as any).resolveReleaseSnapshotMaterialization(lineage.candidate)).resolves.toEqual({
       materialization: null,
-      blockers: ['release_eligibility_lineage_invalid'],
+      blockers: ['candidate_oidc_verified_release_receipt_required'],
     });
   });
 
@@ -1090,6 +1086,9 @@ describe('BrainGovernanceTransitionService', () => {
     jest.spyOn(service, 'get')
       .mockResolvedValueOnce(row as never)
       .mockResolvedValueOnce({ ...row, status: 'completed' } as never);
+    jest.spyOn(service as any, 'validateFrozenEvidence').mockResolvedValue({ blockers: [] });
+    jest.spyOn(service as any, 'currentPolicy').mockResolvedValue({ id: 453 });
+    jest.spyOn(service as any, 'currentRuntime').mockResolvedValue({ id: 458 });
 
     await expect(service.finalize(7, 5)).resolves.toMatchObject({ status: 'completed' });
     expect(prisma.brainRelease.update).toHaveBeenCalledWith({
@@ -1107,6 +1106,57 @@ describe('BrainGovernanceTransitionService', () => {
         supersededRuntimeReleaseId: 452,
         activeRuntimeReleaseId: 458,
       }),
+    }));
+  });
+
+  it('pauses the full sequence and preserves the old runtime when final evidence or active resolution drifts', async () => {
+    const row = transition({
+      status: 'observing',
+      runtimeSequence: {
+        id: 9,
+        status: 'completed',
+        currentStage: 'full',
+        releases: [{ id: 458, rolloutStage: 'full', status: 'active' }],
+      },
+    });
+    const prisma = {
+      brainRelease: { update: jest.fn().mockResolvedValue({}) },
+      brainRolloutSequence: { update: jest.fn().mockResolvedValue({}) },
+      brainGovernanceCandidate: { update: jest.fn().mockResolvedValue({}) },
+      brainGovernanceTransition: {
+        update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      $transaction: transactionMock(),
+    };
+    const events = { record: jest.fn().mockResolvedValue({}) };
+    const service = new BrainGovernanceTransitionService(
+      prisma as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      events as never,
+    );
+    jest.spyOn(service, 'get').mockResolvedValue(row as never);
+    jest.spyOn(service as any, 'validateFrozenEvidence')
+      .mockResolvedValue({ blockers: ['transition_evidence_receipt_invalid'] });
+    jest.spyOn(service as any, 'currentPolicy').mockResolvedValue({ id: 453 });
+    jest.spyOn(service as any, 'currentRuntime').mockResolvedValue({ id: 999 });
+
+    await expect(service.finalize(7, 5)).rejects.toMatchObject({
+      message: expect.stringContaining('governance_transition_evidence_not_ready'),
+    });
+    expect(prisma.brainRolloutSequence.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 9 },
+      data: expect.objectContaining({ status: 'paused' }),
+    }));
+    expect(prisma.brainGovernanceCandidate.update).toHaveBeenCalledWith({
+      where: { id: 3 },
+      data: { status: 'blocked' },
+    });
+    expect(prisma.brainRelease.update).not.toHaveBeenCalled();
+    expect(events.record).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'transition_evidence_drift_paused',
     }));
   });
 });

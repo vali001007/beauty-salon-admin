@@ -54,6 +54,34 @@ export class BrainGovernanceCandidateService {
     });
   }
 
+  async bindVerifiedReleaseReceipt(receipt: Record<string, unknown>) {
+    const candidateKey = requiredString(receipt.candidateKey, 'candidate_key_missing');
+    const candidate = await this.prisma.brainGovernanceCandidate.findUnique({ where: { candidateKey } });
+    if (!candidate) throw new NotFoundException('brain_governance_candidate_not_found');
+    const identity = {
+      repository: requiredString(receipt.repository, 'candidate_repository_missing'),
+      branch: optionalString(receipt.branch),
+      baseCommit: commit(receipt.baseCommit, 'candidate_base_commit_invalid'),
+      mergeBaseCommit: commit(receipt.mergeBaseCommit, 'candidate_merge_base_commit_invalid'),
+      headCommit: commit(receipt.headCommit, 'candidate_head_commit_invalid'),
+      changedFilesChecksum: hash(receipt.changedFilesChecksum, 'candidate_changed_files_checksum_invalid'),
+      diffChecksum: hash(receipt.diffChecksum, 'candidate_diff_checksum_invalid'),
+      sourceFingerprint: hash(receipt.sourceFingerprint, 'candidate_source_fingerprint_invalid'),
+    };
+    if (
+      candidate.repository !== identity.repository
+      || (candidate.branch && identity.branch && candidate.branch !== identity.branch)
+      || candidate.baseCommit !== identity.baseCommit
+      || candidate.mergeBaseCommit !== identity.mergeBaseCommit
+      || candidate.headCommit !== identity.headCommit
+      || candidate.changedFilesChecksum !== identity.changedFilesChecksum
+      || candidate.diffChecksum !== identity.diffChecksum
+      || candidate.sourceFingerprint !== identity.sourceFingerprint
+    ) throw new ConflictException('candidate_release_receipt_identity_conflict');
+    if (candidate.status === 'superseded') throw new ConflictException('candidate_superseded');
+    return candidate;
+  }
+
   async upsert(input: BrainGovernanceCandidateIdentity) {
     const existing = await this.prisma.brainGovernanceCandidate.findUnique({
       where: { candidateKey: input.candidateKey },

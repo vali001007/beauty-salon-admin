@@ -13,6 +13,15 @@ const STAGES = [
   { key: 'canary_50', suffix: 'canary-50', mode: 'model', percentage: 50 },
   { key: 'full', suffix: 'full', mode: 'model', percentage: 100 },
 ] as const;
+const RELEASE_ACCEPTANCE_V2 = 'ami-brain-release-acceptance/v2';
+const QUERY_ONLY_REQUIRED_EVIDENCE_TYPES = [
+  'release_contract',
+  'permission_matrix',
+  'cross_client_e2e',
+  'target_database',
+  'provider_fallback',
+  'rollback_drill',
+] as const;
 
 @Injectable()
 export class BrainRolloutSequenceService {
@@ -348,6 +357,11 @@ export class BrainRolloutSequenceService {
     if (currentIndex < 0 || currentIndex >= STAGES.length - 1) throw new BadRequestException('rollout_sequence_already_full');
     const currentRelease = sequence.releases.find((item) => item.rolloutStage === sequence.currentStage && item.status === 'active');
     if (!currentRelease) throw new BadRequestException('active_rollout_stage_release_missing');
+    const evidenceBlockers = await this.validateTransitionEvidence(sequence, currentRelease);
+    if (evidenceBlockers.length) {
+      await this.pauseForEvidenceDrift(sequence.id, sequence.candidateId, evidenceBlockers, input.actorId);
+      throw new BadRequestException(`rollout_evidence_not_ready:${evidenceBlockers.join(',')}`);
+    }
     const observedHealth = await this.observeHealth(sequence, currentRelease);
     if (observedHealth.status !== 'ready') {
       throw new BadRequestException(`rollout_health_not_ready:${observedHealth.blockers.join(',')}`);
@@ -394,6 +408,114 @@ export class BrainRolloutSequenceService {
       },
     });
     return { sequence: await this.get(id), release: activated };
+  }
+
+  private async validateTransitionEvidence(
+    sequence: Awaited<ReturnType<BrainRolloutSequenceService['get']>>,
+    currentRelease: { id: number; rollout: Prisma.JsonValue },
+  ) {
+    const blockers: string[] = [];
+    const transition = await this.prisma.brainGovernanceTransition.findFirst({
+      where: {
+        runtimeSequenceId: sequence.id,
+        status: { in: ['approved', 'switching', 'observing'] },
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        candidate: { select: { id: true, candidateKey: true, headCommit: true, sourceFingerprint: true } },
+        evidenceReceipt: { include: { gates: true } },
+      },
+    });
+    if (!transition?.evidenceReceipt) return ['rollout_transition_evidence_missing'];
+    const receipt = transition.evidenceReceipt;
+    const result = record(receipt.result);
+    const verification = record(result.verification as Prisma.JsonValue);
+    const gateKeys = receipt.gates
+      .filter((gate) => gate.status === 'passed' && gate.expiresAt.getTime() > Date.now())
+      .map((gate) => gate.gateKey);
+    const currentRollout = record(currentRelease.rollout);
+    if (
+      receipt.stage !== 'release'
+      || receipt.status !== 'passed'
+      || receipt.trustLevel !== 'verified_release'
+      || receipt.verificationStatus !== 'verified'
+      || receipt.issuerType !== 'release_service'
+      || !receipt.issuer
+      || receipt.expiresAt.getTime() <= Date.now()
+      || receipt.candidateId !== transition.candidate.id
+      || receipt.headCommit !== transition.candidate.headCommit
+      || receipt.sourceFingerprint !== transition.candidate.sourceFingerprint
+      || result.candidateKey !== transition.candidate.candidateKey
+      || result.headCommit !== transition.candidate.headCommit
+      || result.sourceFingerprint !== transition.candidate.sourceFingerprint
+      || verification.status !== 'verified'
+      || verification.trustLevel !== 'verified_release'
+      || verification.admissionEligible !== true
+      || verification.authentication !== 'github_oidc'
+      || verification.issuer !== receipt.issuer
+    ) blockers.push('rollout_transition_evidence_identity_invalid');
+    if (!sameStringSet(gateKeys, [...QUERY_ONLY_REQUIRED_EVIDENCE_TYPES])) {
+      blockers.push('rollout_transition_evidence_gates_invalid');
+    }
+    if (
+      sequence.policySnapshot.id !== transition.newPolicyReleaseId
+      || sequence.policySnapshot.status !== 'active'
+    ) blockers.push('rollout_governance_policy_drift');
+    if (
+      Number(currentRollout.evaluationEvidenceReceiptId) !== receipt.id
+      || Number(currentRollout.evaluationEvidenceReleaseId) !== receipt.evaluationReleaseId
+      || Number(currentRollout.evaluationEvidenceEvalRunId) !== receipt.evalRunId
+    ) blockers.push('rollout_stage_evidence_identity_drift');
+    if (!receipt.evaluationReleaseId) {
+      blockers.push('rollout_evaluation_identity_missing');
+      return [...new Set(blockers)];
+    }
+    const readiness = await this.releaseService.getReleaseReadiness(receipt.evaluationReleaseId).catch(() => null);
+    const readinessExpiresAt = Date.parse(String(readiness?.expiresAt ?? ''));
+    if (
+      !readiness
+      || readiness.status !== 'ready'
+      || readiness.canRelease !== true
+      || readiness.contractVersion !== RELEASE_ACCEPTANCE_V2
+      || readiness.evaluationReleaseId !== receipt.evaluationReleaseId
+      || readiness.evalRunId !== receipt.evalRunId
+      || readiness.releaseFingerprint !== receipt.releaseFingerprint
+      || readiness.suiteChecksum !== receipt.suiteChecksum
+      || readiness.provider !== receipt.provider
+      || readiness.model !== receipt.model
+      || readiness.sourceCommit !== transition.candidate.headCommit
+      || !Number.isFinite(readinessExpiresAt)
+      || readinessExpiresAt <= Date.now()
+    ) blockers.push('rollout_evaluation_readiness_invalid');
+    return [...new Set(blockers)];
+  }
+
+  private async pauseForEvidenceDrift(
+    sequenceId: number,
+    candidateId: number,
+    blockers: string[],
+    actorId: number,
+  ) {
+    const reason = `evidence_drift:${blockers.join(',')}`;
+    await this.prisma.$transaction([
+      this.prisma.brainRolloutSequence.update({
+        where: { id: sequenceId },
+        data: { status: 'paused', pauseReason: reason, approvedBy: actorId },
+      }),
+      this.prisma.brainGovernanceCandidate.update({
+        where: { id: candidateId },
+        data: { status: 'blocked' },
+      }),
+    ]);
+    await this.events?.record({
+      candidateId,
+      eventType: 'rollout_evidence_drift_paused',
+      entityType: 'rollout_sequence',
+      entityId: sequenceId,
+      actorType: 'user',
+      actorId,
+      payload: { blockers },
+    });
   }
 
   async pause(id: number, reason: string, actorId: number) {
@@ -543,6 +665,13 @@ function json(value: unknown): Prisma.InputJsonValue {
 
 function record(value: Prisma.JsonValue): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function sameStringSet(left: string[], right: string[]) {
+  const normalizedLeft = [...new Set(left)].sort();
+  const normalizedRight = [...new Set(right)].sort();
+  return normalizedLeft.length === normalizedRight.length
+    && normalizedLeft.every((value, index) => value === normalizedRight[index]);
 }
 
 function hasCompleteRolloutStages(releases: Array<{ rolloutStage?: string | null }>) {

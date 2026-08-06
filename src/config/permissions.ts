@@ -171,7 +171,7 @@ export const PERMISSION_CATALOG: Permission[] = [
     type: 'operation',
     module: 'Ami Brain 治理',
     platform: 'core',
-    description: '激活、驳回和回滚 Ami Brain 正式运行 Release',
+    description: '激活、晋级和回滚 Ami Brain 运行版本（RT）',
     legacyCodes: [],
   },
   {

@@ -3,6 +3,19 @@ import {
   BrainGateReceiptVerificationService,
   verifyGithubOidcClaims,
 } from './brain-gate-receipt-verification.service.js';
+import {
+  BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS,
+  BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS,
+} from './brain-release-product-profile.js';
+
+const RELEASE_GATE_KEYS = [
+  'release_contract',
+  'permission_matrix',
+  'cross_client_e2e',
+  'target_database',
+  'provider_fallback',
+  'rollback_drill',
+];
 
 describe('BrainGateReceiptVerificationService', () => {
   const service = new BrainGateReceiptVerificationService();
@@ -37,9 +50,11 @@ describe('BrainGateReceiptVerificationService', () => {
     restoreEnv('BRAIN_GOVERNANCE_RECEIPT_RELEASE_ISSUERS', previousReleaseIssuers);
   });
 
-  it('accepts an explicitly enabled HMAC fallback receipt and recomputes identity and result checksums', async () => {
+  it('keeps HMAC fallback observation-only and never grants admission trust', async () => {
     const now = new Date('2026-08-02T10:00:00.000Z');
-    const receipt = candidateReceipt(now);
+    const candidate = candidateReceipt(now);
+    const identity = identityFields({ ...candidate, stage: 'observe' });
+    const receipt = { ...candidate, ...identity, stage: 'observe', identityChecksum: sha256(identity) };
     const timestamp = now.toISOString();
     const issuer = 'CI/CD';
     const signature = sign(receipt, timestamp, issuer, 'test-receipt-secret');
@@ -47,16 +62,25 @@ describe('BrainGateReceiptVerificationService', () => {
     await expect(service.verifyEnvelope({ body: receipt, timestamp, issuer, signature, now })).resolves.toEqual({
       issuer,
       bodyChecksum: sha256(receipt),
+      authentication: 'hmac',
     });
-    const verified = service.verifyReceipt(receipt, issuer, now);
-    expect(verified.trustLevel).toBe('trusted_candidate');
+    const verified = service.verifyReceipt(receipt, issuer, now, 'hmac');
+    expect(verified.trustLevel).toBe('untrusted_dev');
     expect(verified.admissionEligible).toBe(false);
     expect(verified.receipt.verification).toEqual(expect.objectContaining({
       status: 'verified',
-      trustLevel: 'trusted_candidate',
+      trustLevel: 'untrusted_dev',
       admissionEligible: false,
       issuer,
     }));
+  });
+
+  it('rejects HMAC candidate and release receipts even when their signatures are valid', () => {
+    const now = new Date('2026-08-02T10:00:00.000Z');
+    expect(() => service.verifyReceipt(candidateReceipt(now), 'CI/CD', now, 'hmac'))
+      .toThrow('receipt_hmac_admission_forbidden');
+    expect(() => service.verifyReceipt(releaseReceipt(now), 'release-service', now, 'hmac'))
+      .toThrow('receipt_hmac_admission_forbidden');
   });
 
   it('marks a fully identified candidate receipt as admission eligible', () => {
@@ -236,17 +260,35 @@ describe('BrainGateReceiptVerificationService', () => {
       evalRunId: 501,
       evaluationReleaseId: 21,
     });
-    const receipt = {
+    const receipt = withReleaseManifest({
       ...candidate,
       ...releaseIdentity,
       stage: 'release',
       workflow: 'release-service',
       identityChecksum: sha256(releaseIdentity),
-    };
+    });
     expect(() => service.verifyReceipt(receipt, 'CI/CD', now)).toThrow('receipt_workflow_issuer_mismatch');
     const verified = service.verifyReceipt(receipt, 'release-service', now);
     expect(verified.trustLevel).toBe('verified_release');
     expect(verified.admissionEligible).toBe(true);
+  });
+
+  it('rejects duplicate gates or capabilities instead of treating set equality as exact coverage', () => {
+    const now = new Date('2026-08-02T10:00:00.000Z');
+    const receipt = releaseReceipt(now);
+    const duplicateGateResults = [...receipt.results, receipt.results[0]];
+    expect(() => service.verifyReceipt({
+      ...receipt,
+      results: duplicateGateResults,
+      resultChecksum: sha256(duplicateGateResults),
+    }, 'release-service', now)).toThrow('release_receipt_gate_manifest_invalid');
+    expect(() => service.verifyReceipt({
+      ...receipt,
+      plan: {
+        ...receipt.plan,
+        capabilities: [...receipt.plan.capabilities, receipt.plan.capabilities[0]],
+      },
+    }, 'release-service', now)).toThrow('release_receipt_capability_manifest_invalid');
   });
 
   it('cross-checks release receipts against the persisted release readiness evidence', async () => {
@@ -264,13 +306,13 @@ describe('BrainGateReceiptVerificationService', () => {
       evalRunId: 501,
       evaluationReleaseId: 21,
     });
-    const receipt = {
+    const receipt = withReleaseManifest({
       ...candidate,
       ...releaseIdentity,
       stage: 'release',
       workflow: 'release-service',
       identityChecksum: sha256(releaseIdentity),
-    };
+    });
     const releaseService = {
       getReleaseReadiness: jest.fn().mockResolvedValue({
         status: 'ready',
@@ -308,13 +350,13 @@ describe('BrainGateReceiptVerificationService', () => {
       evalRunId: 501,
       evaluationReleaseId: 21,
     });
-    const receipt = {
+    const receipt = withReleaseManifest({
       ...candidate,
       ...releaseIdentity,
       stage: 'release',
       workflow: 'release-service',
       identityChecksum: sha256(releaseIdentity),
-    };
+    });
     const releaseService = {
       getReleaseReadiness: jest.fn().mockResolvedValue({
         status: 'ready',
@@ -382,12 +424,33 @@ function releaseReceipt(now: Date) {
     evalRunId: 501,
     evaluationReleaseId: 21,
   });
-  return {
+  return withReleaseManifest({
     ...candidate,
     ...releaseIdentity,
     stage: 'release',
     workflow: 'release-service',
     identityChecksum: sha256(releaseIdentity),
+  });
+}
+
+function withReleaseManifest<T extends Record<string, unknown>>(receipt: T) {
+  const results = RELEASE_GATE_KEYS.map((gateKey, index) => ({
+    gateId: gateKey,
+    gateKey,
+    status: 'passed',
+    inputChecksum: String(index + 1).repeat(64),
+  }));
+  return {
+    ...receipt,
+    plan: {
+      capabilities: [
+        ...BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS,
+        ...BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS,
+      ],
+      gates: RELEASE_GATE_KEYS.map((id) => ({ id })),
+    },
+    results,
+    resultChecksum: sha256(results),
   };
 }
 

@@ -1,9 +1,13 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import type { Request } from 'express';
-import { BrainGateReceiptVerificationService } from './brain-gate-receipt-verification.service.js';
+import {
+  BrainGateReceiptVerificationService,
+  type BrainReceiptAuthentication,
+} from './brain-gate-receipt-verification.service.js';
 
 export type BrainReceiptIngestRequest = Request & {
   brainReceiptIssuer?: string;
+  brainReceiptAuthentication?: BrainReceiptAuthentication;
 };
 
 @Injectable()
@@ -23,6 +27,7 @@ export class BrainGovernanceReceiptIngestGuard implements CanActivate {
       issuer: request.headers['x-brain-receipt-issuer'],
     });
     request.brainReceiptIssuer = verified.issuer;
+    request.brainReceiptAuthentication = verified.authentication;
     return true;
   }
 }

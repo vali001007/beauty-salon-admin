@@ -267,18 +267,56 @@ async function collectState(client) {
   const candidates = await queryRows(client, `
       SELECT id, "candidateKey", "headCommit", status
       FROM brain_governance_candidate
-      WHERE status IN ('governing', 'ready', 'releasing')
+      WHERE status IN ('governing', 'ready', 'releasing', 'observing', 'completed')
       ORDER BY "updatedAt" DESC
       LIMIT 1
     `);
   const verifiedReceipts = await queryRows(client, `
       SELECT COUNT(*)::int AS count
-      FROM brain_gate_receipt
-      WHERE stage = 'release'
-        AND status = 'passed'
-        AND "trustLevel" = 'verified_release'
-        AND "verificationStatus" = 'verified'
-        AND "expiresAt" > NOW()
+      FROM brain_gate_receipt receipt
+      JOIN brain_governance_candidate candidate ON candidate.id = receipt."candidateId"
+      WHERE receipt.stage = 'release'
+        AND receipt.status = 'passed'
+        AND receipt."trustLevel" = 'verified_release'
+        AND receipt."verificationStatus" = 'verified'
+        AND receipt."issuerType" = 'release_service'
+        AND receipt.issuer IS NOT NULL
+        AND receipt."expiresAt" > NOW()
+        AND receipt."headCommit" = candidate."headCommit"
+        AND receipt."sourceFingerprint" = candidate."sourceFingerprint"
+        AND receipt.result #>> '{verification,status}' = 'verified'
+        AND receipt.result #>> '{verification,trustLevel}' = 'verified_release'
+        AND receipt.result #>> '{verification,admissionEligible}' = 'true'
+        AND receipt.result #>> '{verification,authentication}' = 'github_oidc'
+        AND receipt.result #>> '{verification,issuer}' = receipt.issuer
+        AND receipt.result ->> 'workflow' = receipt.issuer
+        AND candidate.id = (
+          SELECT current_candidate.id
+          FROM brain_governance_candidate current_candidate
+          WHERE current_candidate.status IN ('governing', 'ready', 'releasing', 'observing', 'completed')
+          ORDER BY current_candidate."updatedAt" DESC
+          LIMIT 1
+        )
+        AND (
+          SELECT COUNT(DISTINCT gate."gateKey")
+          FROM brain_gate_receipt_gate gate
+          WHERE gate."receiptId" = receipt.id
+            AND gate.status = 'passed'
+            AND gate."expiresAt" > NOW()
+            AND gate."gateKey" IN (
+              'release_contract',
+              'permission_matrix',
+              'cross_client_e2e',
+              'target_database',
+              'provider_fallback',
+              'rollback_drill'
+            )
+        ) = 6
+        AND (
+          SELECT COUNT(DISTINCT capability."capabilityKey")
+          FROM brain_gate_receipt_capability capability
+          WHERE capability."receiptId" = receipt.id
+        ) = 41
     `);
   return {
     counters,

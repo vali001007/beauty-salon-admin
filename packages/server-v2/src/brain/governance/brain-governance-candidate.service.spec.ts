@@ -80,6 +80,33 @@ describe('BrainGovernanceCandidateService', () => {
     expect(upsert).not.toHaveBeenCalled();
   });
 
+  it('binds a protected release workflow to the existing candidate without rewriting its event identity', async () => {
+    const candidate = { id: 9, ...identity, status: 'ready' };
+    const service = new BrainGovernanceCandidateService({
+      brainGovernanceCandidate: { findUnique: jest.fn().mockResolvedValue(candidate) },
+    } as never);
+
+    await expect(service.bindVerifiedReleaseReceipt({
+      ...identity,
+      eventName: 'workflow_dispatch',
+      workflow: 'Release Acceptance',
+    })).resolves.toEqual(candidate);
+  });
+
+  it('rejects a release workflow whose immutable candidate fingerprint drifted', async () => {
+    const service = new BrainGovernanceCandidateService({
+      brainGovernanceCandidate: {
+        findUnique: jest.fn().mockResolvedValue({ id: 9, ...identity, status: 'ready' }),
+      },
+    } as never);
+
+    await expect(service.bindVerifiedReleaseReceipt({
+      ...identity,
+      sourceFingerprint: 'd'.repeat(64),
+      eventName: 'workflow_dispatch',
+    })).rejects.toMatchObject({ message: 'candidate_release_receipt_identity_conflict' });
+  });
+
   it('returns server-paginated candidates without loading receipt payloads', async () => {
     const findMany = jest.fn().mockResolvedValue([{ id: 1, candidateKey: 'candidate-1' }]);
     const service = new BrainGovernanceCandidateService({

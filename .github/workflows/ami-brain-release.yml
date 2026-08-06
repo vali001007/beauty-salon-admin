@@ -1,0 +1,343 @@
+name: Ami Brain Release Acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_commit:
+        description: Protected main commit to release (full 40-character SHA)
+        required: true
+        type: string
+      candidate_ci_run_id:
+        description: Successful CI/CD run ID whose Candidate Receipt is bound to expected_commit
+        required: true
+        type: string
+      evidence_commit:
+        description: Immutable commit containing the four reviewed manual evidence JSON files
+        required: true
+        type: string
+      evidence_directory:
+        description: Directory inside evidence_commit containing permission_matrix.json, cross_client_e2e.json, provider_fallback.json and rollback_drill.json
+        required: true
+        default: outputs/ami-brain-release-evidence
+        type: string
+      evaluation_release_id:
+        description: Internal EV release ID used by RC-350
+        required: true
+        type: string
+      store_id:
+        description: Approved store used by the frozen RC-350 contract
+        required: true
+        default: '6'
+        type: string
+      run_key:
+        description: Optional filesystem-safe RC-350 run key
+        required: false
+        type: string
+      production_health_url:
+        description: Optional override for the production health endpoint
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+concurrency:
+  group: ami-brain-release-${{ inputs.expected_commit }}
+  cancel-in-progress: false
+
+jobs:
+  release-acceptance:
+    name: RC-350 and protected OIDC Release Receipt
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    environment: ami-brain-release
+    defaults:
+      run:
+        working-directory: packages/server-v2
+    env:
+      DATABASE_URL: ${{ secrets.BRAIN_RELEASE_DATABASE_URL }}
+      BRAIN_RUNTIME_SOURCE: database
+      BRAIN_EXPECTED_PRODUCT_PROFILE: query_only_v1
+      BRAIN_LLM_PRIMARY_ROUTE: primary
+      LLM_PROVIDER: ${{ vars.BRAIN_LLM_PROVIDER }}
+      LLM_API_KEY: ${{ secrets.BRAIN_LLM_API_KEY }}
+      LLM_BASE_URL: ${{ vars.BRAIN_LLM_BASE_URL }}
+      LLM_CHAT_PATH: ${{ vars.BRAIN_LLM_CHAT_PATH }}
+      LLM_MODEL: ${{ vars.BRAIN_LLM_MODEL }}
+      LLM_TIMEOUT_MS: ${{ vars.BRAIN_LLM_TIMEOUT_MS }}
+      LLM_STRUCTURED_OUTPUT_MODE: ${{ vars.BRAIN_LLM_STRUCTURED_OUTPUT_MODE }}
+      LLM_FALLBACK_PROVIDER: ${{ vars.BRAIN_LLM_FALLBACK_PROVIDER }}
+      LLM_FALLBACK_API_KEY: ${{ secrets.BRAIN_LLM_FALLBACK_API_KEY }}
+      LLM_FALLBACK_BASE_URL: ${{ vars.BRAIN_LLM_FALLBACK_BASE_URL }}
+      LLM_FALLBACK_CHAT_PATH: ${{ vars.BRAIN_LLM_FALLBACK_CHAT_PATH }}
+      LLM_FALLBACK_MODEL: ${{ vars.BRAIN_LLM_FALLBACK_MODEL }}
+      LLM_FALLBACK_TIMEOUT_MS: ${{ vars.BRAIN_LLM_FALLBACK_TIMEOUT_MS }}
+      LLM_FALLBACK_STRUCTURED_OUTPUT_MODE: ${{ vars.BRAIN_LLM_FALLBACK_STRUCTURED_OUTPUT_MODE }}
+      BRAIN_GOVERNANCE_RECEIPT_URL: ${{ vars.BRAIN_GOVERNANCE_RECEIPT_URL }}
+      BRAIN_GOVERNANCE_RECEIPT_OIDC_AUDIENCE: ${{ vars.BRAIN_GOVERNANCE_RECEIPT_OIDC_AUDIENCE }}
+      PRODUCTION_HEALTH_URL: ${{ inputs.production_health_url || vars.BRAIN_RELEASE_PRODUCTION_HEALTH_URL }}
+      INPUT_EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+      INPUT_CANDIDATE_CI_RUN_ID: ${{ inputs.candidate_ci_run_id }}
+      INPUT_EVIDENCE_COMMIT: ${{ inputs.evidence_commit }}
+      INPUT_EVIDENCE_DIRECTORY: ${{ inputs.evidence_directory }}
+      INPUT_EVALUATION_RELEASE_ID: ${{ inputs.evaluation_release_id }}
+      INPUT_STORE_ID: ${{ inputs.store_id }}
+      INPUT_RUN_KEY: ${{ inputs.run_key }}
+      RELEASE_REF_PROTECTED: ${{ github.ref_protected }}
+      RELEASE_ENVIRONMENT_PROTECTED: ${{ vars.BRAIN_RELEASE_ENVIRONMENT_PROTECTED }}
+    steps:
+      - name: Checkout the protected main commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout immutable reviewed evidence
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.evidence_commit }}
+          path: release-evidence
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Download the same-commit Candidate Receipt
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.candidate_ci_run_id }}
+          pattern: ami-brain-candidate-receipt-${{ inputs.candidate_ci_run_id }}-*
+          path: candidate-receipt
+          merge-multiple: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: packages/server-v2/package-lock.json
+
+      - name: Install the frozen backend toolchain
+        run: |
+          npm install --global npm@11.16.0
+          npm ci
+          npx prisma generate
+
+      - name: Verify protected identity and required configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "Release Receipt is allowed only from refs/heads/main." >&2
+            exit 1
+          fi
+          if [ "$RELEASE_REF_PROTECTED" != "true" ] || [ "$RELEASE_ENVIRONMENT_PROTECTED" != "true" ]; then
+            echo "Protected main and the reviewed ami-brain-release Environment are required." >&2
+            exit 1
+          fi
+          if ! [[ "$INPUT_EXPECTED_COMMIT" =~ ^[0-9a-f]{40}$ ]] || [ "$GITHUB_SHA" != "$INPUT_EXPECTED_COMMIT" ]; then
+            echo "The workflow commit does not match expected_commit." >&2
+            exit 1
+          fi
+          if ! [[ "$INPUT_EVIDENCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "evidence_commit must be an immutable full SHA." >&2
+            exit 1
+          fi
+          evidence_head="$(git -C "$GITHUB_WORKSPACE/release-evidence" rev-parse HEAD)"
+          if [ "$evidence_head" != "$INPUT_EVIDENCE_COMMIT" ]; then
+            echo "The checked-out evidence commit drifted." >&2
+            exit 1
+          fi
+          if ! [[ "$INPUT_EVIDENCE_DIRECTORY" =~ ^[a-zA-Z0-9_./-]+$ ]] \
+            || [[ "$INPUT_EVIDENCE_DIRECTORY" = /* ]] \
+            || [[ "$INPUT_EVIDENCE_DIRECTORY" == *".."* ]]; then
+            echo "evidence_directory must stay inside the evidence checkout." >&2
+            exit 1
+          fi
+          if [ -z "${DATABASE_URL}" ] || [ -z "${LLM_PROVIDER}" ] || [ -z "${LLM_MODEL}" ] || [ -z "${LLM_API_KEY}" ]; then
+            echo "The release database or primary model configuration is incomplete." >&2
+            exit 1
+          fi
+          if [ -z "${PRODUCTION_HEALTH_URL}" ] || [ -z "${BRAIN_GOVERNANCE_RECEIPT_URL}" ] || [ -z "${BRAIN_GOVERNANCE_RECEIPT_OIDC_AUDIENCE}" ]; then
+            echo "The production health or OIDC Receipt endpoint configuration is incomplete." >&2
+            exit 1
+          fi
+          candidate_receipt="$(find "$GITHUB_WORKSPACE/candidate-receipt" -type f -name 'ci-candidate-receipt.json' -print -quit)"
+          if [ -z "$candidate_receipt" ]; then
+            echo "The Candidate Receipt artifact is missing." >&2
+            exit 1
+          fi
+          release_id="$INPUT_EVALUATION_RELEASE_ID"
+          store_id="$INPUT_STORE_ID"
+          if ! [[ "$release_id" =~ ^[1-9][0-9]*$ ]] \
+            || ! [[ "$store_id" =~ ^[1-9][0-9]*$ ]] \
+            || ! [[ "$INPUT_CANDIDATE_CI_RUN_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo "candidate_ci_run_id, evaluation_release_id and store_id must be positive integers." >&2
+            exit 1
+          fi
+          run_key="$INPUT_RUN_KEY"
+          if [ -z "$run_key" ]; then
+            run_key="rc350_${GITHUB_SHA:0:12}_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          fi
+          if ! [[ "$run_key" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            echo "run_key is not filesystem safe." >&2
+            exit 1
+          fi
+          evidence_root="release-evidence/$INPUT_EVIDENCE_DIRECTORY"
+          for evidence_type in permission_matrix cross_client_e2e provider_fallback rollback_drill; do
+            if [ ! -f "$GITHUB_WORKSPACE/$evidence_root/$evidence_type.json" ]; then
+              echo "Reviewed evidence is missing: $evidence_type.json" >&2
+              exit 1
+            fi
+          done
+          {
+            echo "/candidate-receipt/"
+            echo "/release-evidence/"
+          } >> "$GITHUB_WORKSPACE/.git/info/exclude"
+          if [ -n "$(git -C "$GITHUB_WORKSPACE" status --porcelain=v1 --untracked-files=all)" ]; then
+            echo "The protected main checkout is not clean after excluding read-only workflow inputs." >&2
+            exit 1
+          fi
+          {
+            echo "CANDIDATE_RECEIPT=${candidate_receipt#$GITHUB_WORKSPACE/}"
+            echo "EVALUATION_RELEASE_ID=$release_id"
+            echo "RELEASE_STORE_ID=$store_id"
+            echo "RELEASE_RUN_KEY=$run_key"
+            echo "EVIDENCE_ROOT=$evidence_root"
+          } >> "$GITHUB_ENV"
+
+      - name: Freeze the same deployment, database and model Candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          lock_report="$(npm run --silent brain:release:candidate -- lock \
+            --product-profile=query_only_v1 \
+            --evaluation-release-id="$EVALUATION_RELEASE_ID" \
+            --runtime-commit="$GITHUB_SHA" \
+            --production-health-url="$PRODUCTION_HEALTH_URL" \
+            --store-id="$RELEASE_STORE_ID" \
+            --run-key="$RELEASE_RUN_KEY" \
+            --no-persist)"
+          echo "$lock_report"
+          lock_path="$(echo "$lock_report" | jq -r '.output')"
+          if [ -z "$lock_path" ] || [ "$lock_path" = "null" ] || [ ! -f "$GITHUB_WORKSPACE/$lock_path" ]; then
+            echo "Candidate lock was not generated." >&2
+            exit 1
+          fi
+          echo "CANDIDATE_LOCK=$lock_path" >> "$GITHUB_ENV"
+
+      - name: Run the formal 350-question release contract
+        run: |
+          npm run brain:release:acceptance -- \
+            --release-id="$EVALUATION_RELEASE_ID" \
+            --evaluation-release-id="$EVALUATION_RELEASE_ID" \
+            --runtime-commit="$GITHUB_SHA" \
+            --production-health-url="$PRODUCTION_HEALTH_URL" \
+            --store-id="$RELEASE_STORE_ID" \
+            --run-key="$RELEASE_RUN_KEY" \
+            --concurrency=2 \
+            --checkpoint-every=25 \
+            --max-cases-per-invocation=100 \
+            --max-invocations=30
+
+      - name: Audit the exact target database without writing
+        run: |
+          npm run brain:migration:target-audit -- \
+            --candidate-lock="$CANDIDATE_LOCK" \
+            --label=ami-brain-release-target \
+            --out="$GITHUB_WORKSPACE/outputs/ami-brain-release-evidence/target_database.json" \
+            --strict
+
+      - name: Re-verify and freeze all six release evidence receipts
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_contract="outputs/ami-brain-release-acceptance/$RELEASE_RUN_KEY/acceptance-evidence.json"
+          target_database="outputs/ami-brain-release-evidence/target_database.json"
+          npm run brain:release:candidate -- receipt \
+            --candidate-lock="$CANDIDATE_LOCK" \
+            --evidence-type=release_contract \
+            --status=passed \
+            --artifact="$release_contract"
+          npm run brain:release:candidate -- receipt \
+            --candidate-lock="$CANDIDATE_LOCK" \
+            --evidence-type=target_database \
+            --status=passed \
+            --artifact="$target_database"
+          for evidence_type in permission_matrix cross_client_e2e provider_fallback rollback_drill; do
+            artifact="$EVIDENCE_ROOT/$evidence_type.json"
+            npm run brain:release:candidate -- receipt \
+              --candidate-lock="$CANDIDATE_LOCK" \
+              --evidence-type="$evidence_type" \
+              --status=passed \
+              --artifact="$artifact" \
+              --reviewed-by="$GITHUB_ACTOR" \
+              --reviewer-role=github_release_dispatcher \
+              --trace-ref="github-actions:$GITHUB_RUN_ID:$GITHUB_RUN_ATTEMPT:$evidence_type" \
+              --review-account="$GITHUB_ACTOR" \
+              --review-role=ami-brain-release-dispatcher \
+              --review-store="store-$RELEASE_STORE_ID" \
+              --review-run="github-actions-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+              --review-media="$artifact"
+          done
+          evidence_dir="$(dirname "$CANDIDATE_LOCK")/evidence"
+          npm run brain:release:candidate -- close \
+            --candidate-lock="$CANDIDATE_LOCK" \
+            --evidence-dir="$evidence_dir" \
+            --no-persist
+          echo "RELEASE_EVIDENCE_DIR=$evidence_dir" >> "$GITHUB_ENV"
+
+      - name: Create and upload the protected GitHub OIDC Release Receipt
+        run: |
+          npm run brain:release:receipt -- \
+            --candidate-lock="$CANDIDATE_LOCK" \
+            --candidate-receipt="$CANDIDATE_RECEIPT" \
+            --evidence-dir="$RELEASE_EVIDENCE_DIR" \
+            --workflow="$GITHUB_WORKFLOW" \
+            --event-name="$GITHUB_EVENT_NAME" \
+            --branch="$GITHUB_REF_NAME" \
+            --receipt-output="outputs/ami-brain-release-receipts/$RELEASE_RUN_KEY.json" \
+            --upload-receipt
+
+      - name: Publish the release evidence summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Ami Brain protected release acceptance"
+            echo ""
+            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- Evaluation Release: \`$EVALUATION_RELEASE_ID\`"
+            echo "- Run key: \`$RELEASE_RUN_KEY\`"
+            echo "- Candidate CI run: \`$INPUT_CANDIDATE_CI_RUN_ID\`"
+            echo "- Manual evidence commit: \`$INPUT_EVIDENCE_COMMIT\`"
+            echo "- Receipt authentication: GitHub OIDC only"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Collect only this run's raw RC-350 evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${RELEASE_RUN_KEY:-}" ]; then
+            source_dir="$GITHUB_WORKSPACE/docs/04-测试数据/Ami-Brain-分层验收/$RELEASE_RUN_KEY"
+            if [ -d "$source_dir" ]; then
+              destination="$GITHUB_WORKSPACE/outputs/ami-brain-release-raw/$RELEASE_RUN_KEY"
+              mkdir -p "$(dirname "$destination")"
+              cp -R "$source_dir" "$destination"
+            fi
+          fi
+
+      - name: Upload frozen release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ami-brain-release-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            outputs/ami-brain-release-acceptance/
+            outputs/ami-brain-release-evidence/
+            outputs/ami-brain-release-receipts/
+            outputs/ami-brain-release-candidates/
+            outputs/ami-brain-release-raw/
+          if-no-files-found: warn
+          retention-days: 90
