@@ -421,6 +421,10 @@ async function installGovernanceMocks(
   let transitionState = {
     ...governanceTransition,
     status: options.fullTransition ? 'observing' : String(governanceTransition.status),
+    evidenceReceiptId: options.fullTransition ? 904 : 903,
+    evidenceReceipt: options.fullTransition
+      ? { id: 904, receiptKey: 'release-receipt', stage: 'release', status: 'passed', trustLevel: 'verified_release', verificationStatus: 'verified', issuerType: 'release_service', issuer: 'Release Acceptance', gates: [] }
+      : { id: 903, receiptKey: 'prerelease-receipt', stage: 'prerelease', status: 'passed', trustLevel: 'verified_prerelease', verificationStatus: 'verified', issuerType: 'release_service', issuer: 'Release Acceptance', gates: [] },
     policyApprovedAt: options.fullTransition ? '2026-08-04T00:10:00.000Z' : null as string | null,
     runtimeApprovedAt: options.fullTransition ? '2026-08-04T00:11:00.000Z' : null as string | null,
     currentStep: options.fullTransition ? 'runtime_full_active' : String(governanceTransition.currentStep),

@@ -22,6 +22,9 @@ const QUERY_ONLY_REQUIRED_EVIDENCE_TYPES = [
   'provider_fallback',
   'rollback_drill',
 ] as const;
+const QUERY_ONLY_PRERELEASE_EVIDENCE_TYPES = QUERY_ONLY_REQUIRED_EVIDENCE_TYPES.filter(
+  (gateKey) => gateKey !== 'rollback_drill',
+);
 
 @Injectable()
 export class BrainRolloutSequenceService {
@@ -49,7 +52,7 @@ export class BrainRolloutSequenceService {
         include: {
           candidate: { select: { candidateKey: true, headCommit: true, status: true } },
           policySnapshot: { select: { id: true, releaseKey: true, releaseFamily: true, displayCode: true, displayName: true, scope: true, status: true } },
-          releases: { orderBy: { id: 'asc' }, select: { id: true, releaseKey: true, status: true, rolloutStage: true, activatedAt: true, failureReason: true } },
+          releases: { orderBy: { id: 'asc' }, select: { id: true, releaseKey: true, status: true, rollout: true, rolloutStage: true, activatedAt: true, failureReason: true } },
         },
       }),
       this.prisma.brainRolloutSequence.count({ where }),
@@ -102,6 +105,7 @@ export class BrainRolloutSequenceService {
     evaluationEvidenceReleaseId?: number;
     evaluationEvidenceEvalRunId?: number;
     evaluationEvidenceReceiptId?: number;
+    admissionPhase?: 'prerelease' | 'release';
     allowDraftPolicy?: boolean;
     expectedRuntimeVersionCode?: string;
     transitionPreparation?: boolean;
@@ -237,6 +241,7 @@ export class BrainRolloutSequenceService {
                 ...(input.evaluationEvidenceReleaseId ? { evaluationEvidenceReleaseId: input.evaluationEvidenceReleaseId } : {}),
                 ...(input.evaluationEvidenceEvalRunId ? { evaluationEvidenceEvalRunId: input.evaluationEvidenceEvalRunId } : {}),
                 ...(input.evaluationEvidenceReceiptId ? { evaluationEvidenceReceiptId: input.evaluationEvidenceReceiptId } : {}),
+                ...(input.admissionPhase ? { admissionPhase: input.admissionPhase } : {}),
                 ...(input.productProfile ? { productProfile: input.productProfile } : {}),
               },
               resourceVersionIds: input.resourceVersionIds,
@@ -306,6 +311,9 @@ export class BrainRolloutSequenceService {
     const observedHealth = sequence.status === 'active' && release.activatedAt
       ? await this.observeHealth(sequence, release)
       : null;
+    const evidenceBlockers = sequence.status === 'active'
+      ? await this.validateTransitionEvidence(sequence, release)
+      : [];
     return {
       sequenceId: sequence.id,
       stage: sequence.currentStage,
@@ -313,10 +321,12 @@ export class BrainRolloutSequenceService {
       canActivate: readiness.canRelease && sequence.policySnapshot.status === 'active',
       readiness,
       observedHealth,
-      canPromote: Boolean(observedHealth?.status === 'ready'),
+      admissionPhase: sequence.admissionPhase,
+      canPromote: Boolean(observedHealth?.status === 'ready' && evidenceBlockers.length === 0),
       blockers: [
         ...(sequence.policySnapshot.status === 'active' ? [] : ['governance_policy_snapshot_not_active']),
         ...readiness.blockers,
+        ...evidenceBlockers,
       ],
     };
   }
@@ -430,14 +440,21 @@ export class BrainRolloutSequenceService {
     const receipt = transition.evidenceReceipt;
     const result = record(receipt.result);
     const verification = record(result.verification as Prisma.JsonValue);
+    const receiptPhase = receipt.stage === 'release' ? 'release' : receipt.stage === 'prerelease' ? 'prerelease' : null;
+    const prereleaseAllowed = sequence.currentStage === 'shadow';
+    const requiredEvidenceTypes = receiptPhase === 'prerelease'
+      ? QUERY_ONLY_PRERELEASE_EVIDENCE_TYPES
+      : QUERY_ONLY_REQUIRED_EVIDENCE_TYPES;
+    const expectedTrustLevel = receiptPhase === 'release' ? 'verified_release' : 'verified_prerelease';
     const gateKeys = receipt.gates
       .filter((gate) => gate.status === 'passed' && gate.expiresAt.getTime() > Date.now())
       .map((gate) => gate.gateKey);
     const currentRollout = record(currentRelease.rollout);
     if (
-      receipt.stage !== 'release'
+      !receiptPhase
+      || (receiptPhase === 'prerelease' && !prereleaseAllowed)
       || receipt.status !== 'passed'
-      || receipt.trustLevel !== 'verified_release'
+      || receipt.trustLevel !== expectedTrustLevel
       || receipt.verificationStatus !== 'verified'
       || receipt.issuerType !== 'release_service'
       || !receipt.issuer
@@ -449,12 +466,12 @@ export class BrainRolloutSequenceService {
       || result.headCommit !== transition.candidate.headCommit
       || result.sourceFingerprint !== transition.candidate.sourceFingerprint
       || verification.status !== 'verified'
-      || verification.trustLevel !== 'verified_release'
+      || verification.trustLevel !== expectedTrustLevel
       || verification.admissionEligible !== true
       || verification.authentication !== 'github_oidc'
       || verification.issuer !== receipt.issuer
     ) blockers.push('rollout_transition_evidence_identity_invalid');
-    if (!sameStringSet(gateKeys, [...QUERY_ONLY_REQUIRED_EVIDENCE_TYPES])) {
+    if (!sameStringSet(gateKeys, [...requiredEvidenceTypes])) {
       blockers.push('rollout_transition_evidence_gates_invalid');
     }
     if (
@@ -580,14 +597,21 @@ export class BrainRolloutSequenceService {
         targetReleaseId: sequence.previousRuntimeReleaseId,
       },
     });
-    await this.prisma.brainRolloutSequence.update({
-      where: { id },
-      data: { status: 'rolled_back', pauseReason: reason.trim(), approvedBy: actorId, completedAt: new Date() },
-    });
-    await this.prisma.brainGovernanceCandidate.update({
-      where: { id: sequence.candidateId },
-      data: { status: 'blocked', completedAt: new Date() },
-    });
+    const rolledBackAt = new Date();
+    await this.prisma.$transaction([
+      this.prisma.brainRelease.updateMany({
+        where: { rolloutSequenceId: id, status: 'active' },
+        data: { status: 'rolled_back', rolledBackAt, failureReason: reason.trim() },
+      }),
+      this.prisma.brainRolloutSequence.update({
+        where: { id },
+        data: { status: 'rolled_back', pauseReason: reason.trim(), approvedBy: actorId, completedAt: rolledBackAt },
+      }),
+      this.prisma.brainGovernanceCandidate.update({
+        where: { id: sequence.candidateId },
+        data: { status: 'blocked', completedAt: rolledBackAt },
+      }),
+    ]);
     await this.events?.record({
       candidateId: sequence.candidateId,
       eventType: 'rollout_rolled_back',
@@ -619,10 +643,15 @@ export class BrainRolloutSequenceService {
     runtimeVersionCode?: string | null;
     displayName?: string | null;
     policySnapshot?: Record<string, unknown> | null;
-    releases?: Array<Record<string, unknown> & { id: number; releaseKey: string; rolloutStage?: string | null }>;
+    releases?: Array<Record<string, unknown> & { id: number; releaseKey: string; rollout?: Prisma.JsonValue; rolloutStage?: string | null }>;
   }>(sequence: T) {
-    const legacyReleaseId = sequence.releases?.find((release) => release.rolloutStage === sequence.currentStage)?.id
-      ?? sequence.releases?.[0]?.id;
+    const currentRelease = sequence.releases?.find((release) => release.rolloutStage === sequence.currentStage)
+      ?? sequence.releases?.[0];
+    const legacyReleaseId = currentRelease?.id;
+    const rollout = record(currentRelease?.rollout ?? {});
+    const admissionPhase = rollout.admissionPhase === 'prerelease' || rollout.admissionPhase === 'release'
+      ? rollout.admissionPhase
+      : null;
     const runtimeCode = sequence.runtimeVersionCode ?? (legacyReleaseId ? `LEGACY-RT-${legacyReleaseId}` : 'RT-UNASSIGNED');
     const runtimeIdentity = {
       family: sequence.runtimeVersionCode ? 'runtime' : 'legacy',
@@ -647,7 +676,7 @@ export class BrainRolloutSequenceService {
         rolloutSequence: { runtimeVersionCode: sequence.runtimeVersionCode, displayName: sequence.displayName },
       }) ?? null,
     }));
-    return { ...sequence, productIdentity: runtimeIdentity, policySnapshot, ...(releases ? { releases } : {}) };
+    return { ...sequence, admissionPhase, productIdentity: runtimeIdentity, policySnapshot, ...(releases ? { releases } : {}) };
   }
 }
 
