@@ -1,5 +1,74 @@
 import { BrainRolloutSequenceService } from './brain-rollout-sequence.service.js';
 
+const HASH = 'a'.repeat(64);
+const HEAD_COMMIT = 'abcdef1234567890abcdef1234567890abcdef12';
+const PRERELEASE_GATES = [
+  'release_contract',
+  'permission_matrix',
+  'cross_client_e2e',
+  'target_database',
+  'provider_fallback',
+];
+
+function prereleaseTransition() {
+  return {
+    candidate: { id: 17, candidateKey: 'repo:head:merge', headCommit: HEAD_COMMIT, sourceFingerprint: HASH },
+    newPolicyReleaseId: 81,
+    evidenceReceipt: {
+      id: 903,
+      stage: 'prerelease',
+      status: 'passed',
+      trustLevel: 'verified_prerelease',
+      verificationStatus: 'verified',
+      issuerType: 'release_service',
+      issuer: 'Ami Brain Release Acceptance',
+      expiresAt: new Date('2099-08-05T00:00:00.000Z'),
+      candidateId: 17,
+      headCommit: HEAD_COMMIT,
+      sourceFingerprint: HASH,
+      evaluationReleaseId: 901,
+      evalRunId: 902,
+      releaseFingerprint: HASH,
+      suiteChecksum: HASH,
+      provider: 'openai_compatible',
+      model: 'gpt-5.6-luna',
+      gates: PRERELEASE_GATES.map((gateKey) => ({ gateKey, status: 'passed', expiresAt: new Date('2099-08-05T00:00:00.000Z') })),
+      result: {
+        schemaVersion: 3,
+        stage: 'prerelease',
+        workflow: 'Ami Brain Release Acceptance',
+        candidateKey: 'repo:head:merge',
+        headCommit: HEAD_COMMIT,
+        sourceFingerprint: HASH,
+        verification: {
+          status: 'verified',
+          trustLevel: 'verified_prerelease',
+          admissionEligible: true,
+          authentication: 'github_oidc',
+          issuer: 'Ami Brain Release Acceptance',
+        },
+      },
+    },
+  };
+}
+
+function releaseReadiness() {
+  return {
+    status: 'ready',
+    canRelease: true,
+    blockers: [],
+    contractVersion: 'ami-brain-release-acceptance/v2',
+    evaluationReleaseId: 901,
+    evalRunId: 902,
+    releaseFingerprint: HASH,
+    suiteChecksum: HASH,
+    provider: 'openai_compatible',
+    model: 'gpt-5.6-luna',
+    sourceCommit: HEAD_COMMIT,
+    expiresAt: '2099-08-05T00:00:00.000Z',
+  };
+}
+
 describe('BrainRolloutSequenceService', () => {
   it('creates one sequence and binds all five runtime release stages to it', async () => {
     const releaseCreate = jest.fn().mockImplementation(({ releaseKey }) => Promise.resolve({ id: releaseCreate.mock.calls.length + 100, releaseKey }));
@@ -356,6 +425,89 @@ describe('BrainRolloutSequenceService', () => {
     }));
   });
 
+  it('allows a protected prerelease receipt to promote Shadow to C05 for the rollback drill', async () => {
+    const releaseService = {
+      getReleaseReadiness: jest.fn().mockResolvedValue(releaseReadiness()),
+      activateRelease: jest.fn().mockResolvedValue({ id: 102, status: 'active' }),
+    };
+    const prisma = {
+      brainGovernanceTransition: { findFirst: jest.fn().mockResolvedValue(prereleaseTransition()) },
+      brainRolloutSequence: { update: jest.fn().mockResolvedValue({}) },
+      brainGovernanceCandidate: { update: jest.fn() },
+    };
+    const events = { record: jest.fn().mockResolvedValue({}) };
+    const service = new BrainRolloutSequenceService(
+      prisma as never,
+      releaseService as never,
+      { observe: jest.fn().mockResolvedValue({ status: 'ready', blockers: [] }) } as never,
+      events as never,
+    );
+    jest.spyOn(service, 'get')
+      .mockResolvedValueOnce({
+        id: 51,
+        candidateId: 17,
+        status: 'active',
+        currentStage: 'shadow',
+        policySnapshot: { id: 81, status: 'active' },
+        promotionPolicy: { observationMinutes: 30, minimumSampleSize: 20 },
+        healthThresholds: {},
+        releases: [
+          {
+            id: 101,
+            rolloutStage: 'shadow',
+            status: 'active',
+            activatedAt: new Date(),
+            rollout: { evaluationEvidenceReceiptId: 903, evaluationEvidenceReleaseId: 901, evaluationEvidenceEvalRunId: 902 },
+          },
+          { id: 102, rolloutStage: 'canary_5', status: 'draft', rollout: {} },
+        ],
+      } as never)
+      .mockResolvedValueOnce({ id: 51, currentStage: 'canary_5', admissionPhase: 'prerelease' } as never);
+
+    await expect(service.promote(51, { actorId: 9 })).resolves.toMatchObject({
+      sequence: { id: 51, currentStage: 'canary_5' },
+      release: { id: 102 },
+    });
+    expect(releaseService.activateRelease).toHaveBeenCalledWith({
+      releaseId: 102,
+      activatedBy: 9,
+      rolloutTransition: { sequenceId: 51, fromStage: 'shadow', toStage: 'canary_5' },
+    });
+  });
+
+  it('pauses at C05 and blocks C20 promotion while only prerelease evidence is bound', async () => {
+    const prisma = {
+      brainGovernanceTransition: { findFirst: jest.fn().mockResolvedValue(prereleaseTransition()) },
+      brainRolloutSequence: { update: jest.fn().mockResolvedValue({}) },
+      brainGovernanceCandidate: { update: jest.fn().mockResolvedValue({}) },
+      $transaction: jest.fn((operations: Promise<unknown>[]) => Promise.all(operations)),
+    };
+    const releaseService = { activateRelease: jest.fn(), getReleaseReadiness: jest.fn().mockResolvedValue(releaseReadiness()) };
+    const service = new BrainRolloutSequenceService(prisma as never, releaseService as never);
+    jest.spyOn(service, 'get').mockResolvedValue({
+      id: 51,
+      candidateId: 17,
+      status: 'active',
+      currentStage: 'canary_5',
+      policySnapshot: { id: 81, status: 'active' },
+      releases: [{
+        id: 102,
+        rolloutStage: 'canary_5',
+        status: 'active',
+        activatedAt: new Date(),
+        rollout: { evaluationEvidenceReceiptId: 903, evaluationEvidenceReleaseId: 901, evaluationEvidenceEvalRunId: 902 },
+      }],
+    } as never);
+
+    await expect(service.promote(51, { actorId: 9 })).rejects.toMatchObject({
+      message: 'rollout_evidence_not_ready:rollout_transition_evidence_identity_invalid',
+    });
+    expect(prisma.brainRolloutSequence.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'paused' }),
+    }));
+    expect(releaseService.activateRelease).not.toHaveBeenCalled();
+  });
+
   it('pauses rollout and blocks promotion when frozen release evidence expires or drifts', async () => {
     const prisma = {
       brainRolloutSequence: { update: jest.fn().mockResolvedValue({}) },
@@ -401,6 +553,8 @@ describe('BrainRolloutSequenceService', () => {
     const prisma = {
       brainRolloutSequence: { update: jest.fn().mockResolvedValue({}) },
       brainGovernanceCandidate: { update: jest.fn().mockResolvedValue({}) },
+      brainRelease: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      $transaction: jest.fn((operations: Promise<unknown>[]) => Promise.all(operations)),
     };
     const service = new BrainRolloutSequenceService(prisma as never, releaseService as never);
     jest.spyOn(service, 'get')
@@ -422,6 +576,10 @@ describe('BrainRolloutSequenceService', () => {
       releaseId: 103,
       reason: 'error rate increased',
       rolloutTransition: { sequenceId: 51, fromStage: 'canary_20', targetReleaseId: 82 },
+    });
+    expect(prisma.brainRelease.updateMany).toHaveBeenCalledWith({
+      where: { rolloutSequenceId: 51, status: 'active' },
+      data: { status: 'rolled_back', rolledBackAt: expect.any(Date), failureReason: 'error rate increased' },
     });
     expect(prisma.brainGovernanceCandidate.update).toHaveBeenCalledWith({
       where: { id: 17 },

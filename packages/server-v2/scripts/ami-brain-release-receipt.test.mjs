@@ -6,6 +6,7 @@ import {
   calculateEvidenceResultChecksum,
   createCandidateLock,
   createEvidenceReceipt,
+  QUERY_ONLY_PRERELEASE_EVIDENCE_TYPES,
   QUERY_ONLY_REQUIRED_EVIDENCE_TYPES,
 } from './ami-brain-candidate-identity-core.mjs';
 import { checksum } from './ami-brain-check-core.mjs';
@@ -215,6 +216,27 @@ test('builds one protected release receipt from the exact Candidate identity, si
   }));
 });
 
+test('builds a protected prerelease receipt from five gates and excludes rollback drill', () => {
+  const lock = candidateLock();
+  const receipt = buildProtectedReleaseReceipt({
+    candidateReceipt: candidateReceipt(lock),
+    candidateLock: lock,
+    evidenceReceipts: evidenceReceipts(lock).filter((item) => item.evidenceType !== 'rollback_drill'),
+    releaseContract: releaseContract(lock),
+    workflow: 'Ami Brain Release Acceptance',
+    eventName: 'workflow_dispatch',
+    branch: 'main',
+    phase: 'prerelease',
+    now,
+  });
+
+  assert.equal(receipt.stage, 'prerelease');
+  assert.equal(receipt.releaseEvidence.phase, 'prerelease');
+  assert.deepEqual(receipt.results.map((result) => result.gateKey), QUERY_ONLY_PRERELEASE_EVIDENCE_TYPES);
+  assert.equal(receipt.results.some((result) => result.gateKey === 'rollback_drill'), false);
+  assert.equal(receipt.plan.capabilities.length, 41);
+});
+
 test('rejects a Candidate Receipt or lock from another source commit', () => {
   const lock = candidateLock();
   const receipt = candidateReceipt(lock);
@@ -285,4 +307,15 @@ test('release workflow is protected, OIDC-only and consumes immutable CI and man
   assert.match(workflow, /brain:release:receipt/u);
   assert.match(workflow, /--upload-receipt/u);
   assert.doesNotMatch(workflow, /BRAIN_GOVERNANCE_RECEIPT_INGEST_SECRET/u);
+});
+
+test('release workflow keeps prerelease and release evidence phases separate', () => {
+  const workflow = readFileSync(resolve('../..', '.github/workflows/ami-brain-release.yml'), 'utf8');
+  assert.match(workflow, /release_phase:/u);
+  assert.match(workflow, /default:\s*prerelease/u);
+  assert.match(workflow, /INPUT_RELEASE_PHASE: \$\{\{ inputs\.release_phase \}\}/u);
+  assert.match(workflow, /if \[ "\$INPUT_RELEASE_PHASE" = "release" \]; then\s+manual_evidence_types="\$manual_evidence_types rollback_drill"/u);
+  assert.match(workflow, /if \[ "\$INPUT_RELEASE_PHASE" = "release" \]; then\s+npm run brain:release:candidate -- close/u);
+  assert.match(workflow, /--phase="\$INPUT_RELEASE_PHASE"/u);
+  assert.match(workflow, /--receipt-output="outputs\/ami-brain-release-receipts\/\$RELEASE_RUN_KEY-\$INPUT_RELEASE_PHASE\.json"/u);
 });

@@ -30,7 +30,7 @@ export class BrainGovernanceReceiptController {
     await this.verificationService.verifyReleaseEvidence(verified);
     const candidate = verified.trustLevel === 'untrusted_dev'
       ? null
-      : verified.receipt.stage === 'release'
+      : verified.receipt.stage === 'release' || verified.receipt.stage === 'prerelease'
         ? await this.candidateService.bindVerifiedReleaseReceipt(verified.receipt)
         : await this.candidateService.upsertFromReceipt(verified.receipt);
     const result = await this.governanceControlPlaneService.ingestReceipt(

@@ -784,12 +784,12 @@ export class BrainGovernanceControlPlaneService {
   async ingestReceipt(
     input: Record<string, unknown>,
     actorId?: number,
-    trustLevel: 'untrusted_dev' | 'trusted_candidate' | 'verified_release' = 'untrusted_dev',
+    trustLevel: 'untrusted_dev' | 'trusted_candidate' | 'verified_prerelease' | 'verified_release' = 'untrusted_dev',
   ) {
     const receiptKey = nonEmpty(input.receiptId ?? input.receiptKey, 'receiptKey');
     const expiresAt = new Date(String(input.expiresAt ?? ''));
     if (!Number.isFinite(expiresAt.getTime())) throw new BadRequestException('receipt_expires_at_invalid');
-    const trusted = trustLevel === 'trusted_candidate' || trustLevel === 'verified_release';
+    const trusted = trustLevel !== 'untrusted_dev';
     const storedStatus = trusted ? nonEmpty(input.status, 'status') : 'untrusted';
     if (trusted && storedStatus !== 'passed') throw new BadRequestException('trusted_receipt_must_pass');
     const verification = record(input.verification);
@@ -829,7 +829,11 @@ export class BrainGovernanceControlPlaneService {
       headCommit: optionalString(input.headCommit),
       mergeBaseCommit: optionalString(input.mergeBaseCommit),
       identityChecksum: optionalHash64(input.identityChecksum),
-      issuerType: trusted ? trustLevel === 'verified_release' ? 'release_service' : 'ci' : 'local',
+      issuerType: trusted
+        ? trustLevel === 'verified_release' || trustLevel === 'verified_prerelease'
+          ? 'release_service'
+          : 'ci'
+        : 'local',
       issuer: optionalString(verification.issuer ?? input.issuer),
       trustLevel,
       verificationStatus: trusted ? 'verified' : 'received',
@@ -1186,12 +1190,14 @@ export class BrainGovernanceControlPlaneService {
         receipts: {
           where: {
             id: input.evidenceReceiptId,
-            stage: 'release',
             status: 'passed',
             expiresAt: { gt: new Date() },
-            trustLevel: 'verified_release',
             verificationStatus: 'verified',
             result: { path: ['verification', 'admissionEligible'], equals: true },
+            OR: [
+              { stage: 'release', trustLevel: 'verified_release' },
+              { stage: 'prerelease', trustLevel: 'verified_prerelease' },
+            ],
           },
           orderBy: { createdAt: 'desc' },
           include: { capabilities: true },
@@ -1199,7 +1205,7 @@ export class BrainGovernanceControlPlaneService {
       },
     });
     if (!candidate) throw new NotFoundException('brain_governance_candidate_not_found');
-    if (candidate.receipts.length !== 1) throw new BadRequestException('query_only_policy_verified_release_receipt_missing');
+    if (candidate.receipts.length !== 1) throw new BadRequestException('query_only_policy_verified_admission_receipt_missing');
     const active = await this.prisma.brainRelease.findFirst({
       where: { scope: 'governance_policy', status: 'active' },
       orderBy: { activatedAt: 'desc' },
@@ -1578,7 +1584,7 @@ export class BrainGovernanceControlPlaneService {
             status: 'passed',
             expiresAt: { gt: new Date() },
             stage: String(payload.stage ?? task.stage),
-            trustLevel: { in: ['trusted_candidate', 'verified_release'] },
+            trustLevel: { in: ['trusted_candidate', 'verified_prerelease', 'verified_release'] },
             verificationStatus: 'verified',
             capabilities: { some: { capabilityKey } },
             result: { path: ['verification', 'admissionEligible'], equals: true },
