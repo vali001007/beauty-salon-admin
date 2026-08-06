@@ -194,6 +194,22 @@ export class BrainSemanticIntentCompilerService {
           },
         };
       }
+      const marketingAcquisitionCostFastPath = this.buildMarketingAcquisitionCostTrendFastPath(input);
+      if (marketingAcquisitionCostFastPath) {
+        return {
+          status: 'completed',
+          intent: marketingAcquisitionCostFastPath,
+          selectedCapabilityKey: 'marketing_growth_overview',
+          provider: 'governed_contract',
+          model: 'marketing_acquisition_cost_trend_fast_path',
+          usage: {
+            provider: 'governed_contract',
+            model: 'marketing_acquisition_cost_trend_fast_path',
+            inputTokens: 0,
+            outputTokens: 0,
+          },
+        };
+      }
       const cardPackageSalesRankingFastPath = this.buildCardPackageSalesRankingFastPath(input);
       if (cardPackageSalesRankingFastPath) {
         return {
@@ -1418,8 +1434,10 @@ export class BrainSemanticIntentCompilerService {
     input: BrainSemanticIntentCompilerInput,
   ): BrainSemanticIntent | undefined {
     const cardRecognizedRevenueQuestion = isCardRecognizedRevenueQuestion(normalizeSemanticText(input.question));
+    const metricKeys = inferFinanceScalarMetricKeys(input.question);
+    if (!metricKeys.length) return undefined;
     if (
-      isExplicitListQuestion(input.question) ||
+      (isExplicitListQuestion(input.question) && !metricKeys.length) ||
       (/排行|排名|对比|相比|趋势|走势|分析|诊断|原因|为什么|建议|推荐|写一|文案|提醒|发送|创建|修改|删除|确认/.test(
         input.question,
       ) &&
@@ -1428,7 +1446,16 @@ export class BrainSemanticIntentCompilerService {
       return undefined;
     }
     const parsedTime = this.timeRangeParser.parse(input.question);
-    if (!parsedTime.range || parsedTime.comparison || parsedTime.unsupportedExpressions.length > 0) return undefined;
+    const isLiabilitySnapshot = metricKeys.every((key) =>
+      ['metric.stored_value_liability', 'metric.unfulfilled_card_liability'].includes(key),
+    );
+    if (
+      (!parsedTime.range && !isLiabilitySnapshot) ||
+      parsedTime.comparison ||
+      parsedTime.unsupportedExpressions.length > 0
+    ) {
+      return undefined;
+    }
 
     const mentionsDimension = input.dimensionRefs.some((ref) => {
       const definition = input.ontologySnapshot?.dimensions.find((item) => item.definitionKey === ref.definitionKey);
@@ -1436,15 +1463,13 @@ export class BrainSemanticIntentCompilerService {
     });
     if (mentionsDimension) return undefined;
 
-    const metricKeys = inferFinanceScalarMetricKeys(input.question);
-    if (!metricKeys.length) return undefined;
     const capability = this.orderedCapabilitySummaries(input).find(
       (candidate) =>
         candidate.key === 'finance_risk_overview' && candidate.readOnly && candidate.intents.includes('query'),
     );
     if (!capability) return undefined;
     const timeRange = this.resolveQuestionTimeRange(input.question, input.timezone);
-    if (!timeRange) return undefined;
+    if (!timeRange && !isLiabilitySnapshot) return undefined;
     const metrics = this.resolveGovernedMetricRefs(metricKeys, input);
     if (!metrics.length) return undefined;
     return {
@@ -1456,7 +1481,7 @@ export class BrainSemanticIntentCompilerService {
       metrics,
       dimensions: [],
       filters: [],
-      timeRange,
+      ...(timeRange ? { timeRange } : {}),
       orderBy: [],
       answerShape: 'scalar',
       successCriteria: [`执行已发布能力 ${capability.key} 并返回可追溯结果`],
@@ -1783,6 +1808,42 @@ export class BrainSemanticIntentCompilerService {
       assumptions: ['问题只包含已发布时间范围、指定员工和提成构成指标，按能力 finance_risk_overview 直接编译'],
       confidence: 1,
       decisionSummary: '问题中的员工提成构成唯一匹配已发布能力 finance_risk_overview。',
+    };
+  }
+
+  private buildMarketingAcquisitionCostTrendFastPath(
+    input: BrainSemanticIntentCompilerInput,
+  ): BrainSemanticIntent | undefined {
+    if (!isMarketingAcquisitionCostTrendQuestion(input.question)) return undefined;
+    const capability = this.orderedCapabilitySummaries(input).find(
+      (candidate) =>
+        candidate.key === 'marketing_growth_overview' && candidate.readOnly && candidate.intents.includes('query'),
+    );
+    if (!capability) return undefined;
+    const timeRange = this.resolveQuestionTimeRange(input.question, input.timezone);
+    if (!timeRange) return undefined;
+    const metrics = this.resolveGovernedMetricRefs(['metric.customer_acquisition_cost'], input);
+    return {
+      schemaVersion: '1.0',
+      objective: input.question.trim(),
+      domains: [...new Set([...(capability.domains ?? ['marketing']), 'customer'])],
+      intent: 'query',
+      entities: [],
+      metrics,
+      dimensions: [],
+      filters: [],
+      timeRange,
+      orderBy: [],
+      answerShape: 'diagnosis',
+      successCriteria: [
+        '如果营销成本事实未治理发布，必须说明不能计算拓客成本趋势',
+        '返回可核验的新客建档、首单转化和转化率基线',
+      ],
+      ambiguities: [],
+      missingSlots: [],
+      assumptions: ['拓客成本趋势命中治理边界，按 marketing_growth_overview 直接编译，不向用户追问内部指标口径。'],
+      confidence: 1,
+      decisionSummary: '拓客成本趋势由营销增长能力返回有依据边界和新客转化事实。',
     };
   }
 
@@ -3333,8 +3394,16 @@ function governedDimensionKeyMatchesQuestion(question: string, definitionKey: st
 function isStaffCommissionCompositionQuestion(normalizedQuestion: string): boolean {
   return (
     /提成/.test(normalizedQuestion) &&
-    (/(?:构成|组成|拆分|分布|来源|结构|类型|分类)/.test(normalizedQuestion) ||
+    (/(?:构成|组成|拆分|分布|来源|结构|类型|分类|汇总|合计|总计|分别)/.test(normalizedQuestion) ||
+      /(?:各|每个|每位|所有|全部|全体).*(?:美容师|员工|技师)/.test(normalizedQuestion) ||
       /(?:项目|服务).*(?:产品|商品)|(?:产品|商品).*(?:项目|服务)/.test(normalizedQuestion))
+  );
+}
+
+function isMarketingAcquisitionCostTrendQuestion(question: string): boolean {
+  const normalized = normalizeSemanticText(question);
+  return /(?:获客|拓客)成本.*(?:趋势|走势|变化|按天|每天|最近7天|近7天|本周)|(?:趋势|走势|变化|按天|每天|最近7天|近7天|本周).*(?:获客|拓客)成本/u.test(
+    normalized,
   );
 }
 
