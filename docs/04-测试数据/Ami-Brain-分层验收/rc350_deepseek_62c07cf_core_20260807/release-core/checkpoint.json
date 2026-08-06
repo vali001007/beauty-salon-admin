@@ -1,0 +1,1598 @@
+{
+  "runId": 321,
+  "stage": "release-core",
+  "sourceChecksum": "75950821c4fa8604069b84be0021dc60ba722d569b6eb0597bf462a76c1dd4e7",
+  "completed": 318,
+  "items": [
+    {
+      "caseKey": "BQ0461",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1746",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1748",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1785",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1806",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1842",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1884",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1923",
+      "deterministicPassed": false,
+      "failureCluster": "multi_turn_not_continued"
+    },
+    {
+      "caseKey": "BQ1952",
+      "deterministicPassed": false,
+      "failureCluster": "multi_turn_not_continued"
+    },
+    {
+      "caseKey": "BQ1955",
+      "deterministicPassed": false,
+      "failureCluster": "ambiguity_not_clarified"
+    },
+    {
+      "caseKey": "BQ1959",
+      "deterministicPassed": false,
+      "failureCluster": "ambiguity_not_clarified"
+    },
+    {
+      "caseKey": "BQ1960",
+      "deterministicPassed": false,
+      "failureCluster": "ambiguity_not_clarified"
+    },
+    {
+      "caseKey": "BQ1961",
+      "deterministicPassed": false,
+      "failureCluster": "ambiguity_not_clarified"
+    },
+    {
+      "caseKey": "BQ1922",
+      "deterministicPassed": false,
+      "failureCluster": "multi_turn_not_continued"
+    },
+    {
+      "caseKey": "BQ1924",
+      "deterministicPassed": false,
+      "failureCluster": "multi_turn_not_continued"
+    },
+    {
+      "caseKey": "BQ0537",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1942",
+      "deterministicPassed": false,
+      "failureCluster": "multi_turn_not_continued"
+    },
+    {
+      "caseKey": "BQ1447",
+      "deterministicPassed": false,
+      "failureCluster": "suspected_false_success"
+    },
+    {
+      "caseKey": "BQ0568",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1943",
+      "deterministicPassed": false,
+      "failureCluster": "multi_turn_not_continued"
+    },
+    {
+      "caseKey": "BQ1948",
+      "deterministicPassed": false,
+      "failureCluster": "provider_unavailable"
+    },
+    {
+      "caseKey": "BQ0746",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ0822",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ0899",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ0938",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ0971",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ0972",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ0975",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1036",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1037",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1038",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1139",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1178",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1263",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1297",
+      "deterministicPassed": false,
+      "failureCluster": "suspected_false_success"
+    },
+    {
+      "caseKey": "BQ1298",
+      "deterministicPassed": false,
+      "failureCluster": "suspected_false_success"
+    },
+    {
+      "caseKey": "BQ1336",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1299",
+      "deterministicPassed": false,
+      "failureCluster": "suspected_false_success"
+    },
+    {
+      "caseKey": "BQ1337",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1339",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1376",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1701",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1338",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1377",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1449",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1517",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1563",
+      "deterministicPassed": false,
+      "failureCluster": "suspected_false_success"
+    },
+    {
+      "caseKey": "BQ1602",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1603",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1724",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1704",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1722",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1723",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1728",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1781",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1783",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1784",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1749",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1809",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1841",
+      "deterministicPassed": false,
+      "failureCluster": "provider_unavailable"
+    },
+    {
+      "caseKey": "BQ1861",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1863",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1881",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1862",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1864",
+      "deterministicPassed": false,
+      "failureCluster": "answer_not_grounded"
+    },
+    {
+      "caseKey": "BQ1935",
+      "deterministicPassed": false,
+      "failureCluster": "multi_turn_not_continued"
+    },
+    {
+      "caseKey": "BQ1931",
+      "deterministicPassed": false,
+      "failureCluster": "multi_turn_not_continued"
+    },
+    {
+      "caseKey": "BQ1934",
+      "deterministicPassed": false,
+      "failureCluster": "multi_turn_not_continued"
+    },
+    {
+      "caseKey": "BQ1939",
+      "deterministicPassed": false,
+      "failureCluster": "multi_turn_not_continued"
+    },
+    {
+      "caseKey": "BQ1940",
+      "deterministicPassed": false,
+      "failureCluster": "multi_turn_not_continued"
+    },
+    {
+      "caseKey": "BQ1953",
+      "deterministicPassed": false,
+      "failureCluster": "multi_turn_not_continued"
+    },
+    {
+      "caseKey": "BQ1957",
+      "deterministicPassed": false,
+      "failureCluster": "ambiguity_not_clarified"
+    },
+    {
+      "caseKey": "BQ1962",
+      "deterministicPassed": false,
+      "failureCluster": "ambiguity_not_clarified"
+    },
+    {
+      "caseKey": "BQ1001",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1005",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1416",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1676",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1677",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1826",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1827",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1828",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1829",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1830",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1904",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1956",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1964",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0498",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0540",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0497",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0499",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0500",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0536",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0539",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0538",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0566",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0567",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0569",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0593",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0595",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0570",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1378",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0215",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0439",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0592",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0612",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1415",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0438",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0440",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0442",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0591",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0611",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1417",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1945",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1947",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1481",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0613",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0623",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0624",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0625",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0706",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0614",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0621",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0622",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0616",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1949",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0661",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0707",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0709",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0708",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0710",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0747",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0748",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0752",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0749",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0779",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1808",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0821",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0823",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0825",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0863",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1484",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1524",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0212",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0824",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0861",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0862",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0865",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0897",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0936",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0937",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0214",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0213",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0864",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0896",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0898",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0901",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0939",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0940",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0974",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0973",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1003",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1004",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1039",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1061",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0594",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1040",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0777",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1062",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1096",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1063",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1064",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1097",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0778",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1098",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1099",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1562",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1136",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1137",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1138",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1176",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1207",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1177",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1206",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1179",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1208",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1231",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1233",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1234",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0211",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1209",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0776",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1002",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1261",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1264",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1296",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0780",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1232",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1262",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0001",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0002",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0004",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0006",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0009",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0003",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0005",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0007",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0008",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0010",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0043",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0045",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0047",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0087",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0090",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0044",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0046",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0086",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0088",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0089",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0242",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0121",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0123",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0151",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0153",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0413",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0122",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0124",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0127",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0152",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0154",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0155",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0181",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0183",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0185",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0182",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0184",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0241",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0244",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0245",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0243",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0276",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0277",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0295",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0304",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0278",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0316",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0320",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0351",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0356",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0317",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0318",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0336",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0352",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0353",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0354",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0381",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0382",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0385",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0412",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0383",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0384",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0411",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0414",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0415",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0441",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0462",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0463",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0464",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0496",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ0465",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1386",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1418",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1446",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1448",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1482",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1483",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1520",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1516",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1561",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1564",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1631",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1601",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1608",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1632",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1635",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1679",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1634",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1678",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1702",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1721",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1703",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1782",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1747",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1760",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1807",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1810",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1844",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1883",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1843",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1882",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1901",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1902",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1903",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1925",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1928",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1930",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1932",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1937",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1938",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1941",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1927",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1929",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1933",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1936",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1944",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1946",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1950",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1954",
+      "deterministicPassed": true,
+      "failureCluster": null
+    },
+    {
+      "caseKey": "BQ1958",
+      "deterministicPassed": true,
+      "failureCluster": null
+    }
+  ]
+}
