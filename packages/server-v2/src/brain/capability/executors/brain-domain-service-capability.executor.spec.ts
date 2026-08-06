@@ -7354,6 +7354,206 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     expect(skillRuntime.buildInventoryProcurementAnalysis).not.toHaveBeenCalled();
   });
 
+  it('filters reservation lists by one verified current-store beautician and rejects weak bindings', async () => {
+    const skillRuntime = {
+      listReceptionReservations: jest.fn().mockResolvedValue({
+        count: 2,
+        reservations: [
+          {
+            reservationId: 1,
+            customerId: 11,
+            date: '2026-07-18',
+            customerName: '王女士',
+            memberLevel: '银卡',
+            visitCount: 2,
+            projectName: '补水护理',
+            startTime: '14:00',
+            endTime: '15:00',
+            status: 'confirmed',
+            beauticianName: '唐伊',
+            attentionItems: [],
+            createdAt: new Date('2026-07-17T08:00:00.000Z'),
+          },
+          {
+            reservationId: 2,
+            customerId: 12,
+            date: '2026-07-18',
+            customerName: '李女士',
+            memberLevel: '普通会员',
+            visitCount: 1,
+            projectName: '射频护理',
+            startTime: '15:00',
+            endTime: '16:00',
+            status: 'confirmed',
+            beauticianName: '沈晴',
+            attentionItems: [],
+            createdAt: new Date('2026-07-17T09:00:00.000Z'),
+          },
+        ],
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+    const beauticianDefinitionRef = {
+      definitionType: 'entity',
+      definitionKey: 'entity.beautician',
+      definitionVersion: 1,
+      definitionFingerprint: 'a'.repeat(64),
+      sourceFingerprint: 'b'.repeat(64),
+    };
+    const base = {
+      card: { ...storeCard(), key: 'reservation_list', name: '门店预约清单' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['receptionist'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'reservation-staff-filter-test',
+        timezone: 'Asia/Shanghai' as const,
+      },
+      runId: 78,
+      question: '唐伊今年接了哪些预约', // BQ0897
+      answerShape: 'list' as const,
+    };
+    const args = {
+      objective: base.question,
+      entities: [
+        {
+          entityType: 'beautician',
+          entityKey: '7',
+          mention: '唐伊',
+          source: 'user',
+          definitionRef: beauticianDefinitionRef,
+        },
+      ],
+      metrics: [],
+      dimensions: [],
+      filters: [],
+      orderBy: [],
+    };
+
+    const result = await executor.execute({ ...base, args });
+
+    expect(result.answer).toContain('找到 1 个匹配预约');
+    expect(result.answer).toContain('王女士');
+    expect(result.answer).not.toContain('李女士');
+    expect(result.metadata).toMatchObject({ count: 1 });
+
+    await expect(
+      executor.execute({
+        ...base,
+        runId: 79,
+        args: { ...args, entities: [{ ...args.entities[0], entityKey: undefined }] },
+      }),
+    ).rejects.toThrow('domain_entity_filter_args_unsupported:reservation_list');
+    await expect(
+      executor.execute({
+        ...base,
+        runId: 80,
+        args: {
+          ...args,
+          entities: [args.entities[0], { ...args.entities[0], entityKey: '8' }],
+        },
+      }),
+    ).rejects.toThrow('domain_entity_filter_args_unsupported:reservation_list');
+  });
+
+  it('returns governed operational turnover and consumption occupancy answers without reusing the consumption quantity metric', async () => {
+    const skillRuntime = {
+      buildInventoryTurnoverAnalysis: jest.fn().mockResolvedValue({
+        rangeDays: 30,
+        current: {
+          outboundQuantity: 80,
+          eventWeightedAverageStock: 40,
+          operationalTurnoverRatio: 2,
+          estimatedOutboundCost: 800,
+          eventWeightedAverageStockValue: 500,
+          consumptionOccupancyRatio: 1.6,
+        },
+        previous: {
+          outboundQuantity: 45,
+          eventWeightedAverageStock: 50,
+          operationalTurnoverRatio: 0.9,
+          estimatedOutboundCost: 450,
+          eventWeightedAverageStockValue: 500,
+          consumptionOccupancyRatio: 0.9,
+        },
+        rows: [
+          {
+            productId: 1,
+            productName: '精华液',
+            currentStock: 20,
+            outboundQuantity: 80,
+            eventWeightedAverageStock: 40,
+            operationalTurnoverRatio: 2,
+            consumptionOccupancyRatio: 1.6,
+            previousConsumptionOccupancyRatio: 0.9,
+            consumptionOccupancyDelta: 0.7,
+          },
+        ],
+        policy: 'operational_event_weighted_not_financial_turnover',
+      }),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+    const base = {
+      card: { ...storeCard(), key: 'inventory_operations_overview', name: '库存采购运营概览' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'inventory-turnover-test',
+        timezone: 'Asia/Shanghai' as const,
+      },
+      runId: 76,
+      args: { objective: '库存分析', entities: [], metrics: [], dimensions: [], filters: [], orderBy: [] },
+    };
+
+    const turnover = await executor.execute({
+      ...base,
+      question: '最近30天库存周转率如何', // BQ1177
+      answerShape: 'scalar',
+    });
+    const occupancy = await executor.execute({
+      ...base,
+      runId: 77,
+      question: '最近30天耗占比的趋势', // BQ1178
+      answerShape: 'trend',
+    });
+
+    expect(turnover.answer).toContain('整体运营库存周转率 2.00');
+    expect(turnover.answer).toContain('不是财务存货周转率');
+    expect(turnover.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'kpi' }),
+        expect.objectContaining({ kind: 'comparison' }),
+        expect.objectContaining({ kind: 'ranking' }),
+      ]),
+    );
+    expect(turnover.metadata).toMatchObject({ answerScope: 'inventory_operational_turnover' });
+    expect(occupancy.answer).toContain('耗占比 160.0%');
+    expect(occupancy.answer).toContain('不是财务会计成本率');
+    expect(occupancy.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'comparison' }),
+        expect.objectContaining({ kind: 'chart', chartType: 'line' }),
+        expect.objectContaining({ kind: 'table' }),
+      ]),
+    );
+    expect(occupancy.metadata).toMatchObject({ answerScope: 'inventory_consumption_occupancy_trend' });
+  });
+
   it('summarizes only current supported urgent risks and discloses external fact gaps', async () => {
     const skillRuntime = {
       buildReceptionOperationsSnapshot: jest.fn().mockResolvedValue({

@@ -845,6 +845,14 @@ export class BrainSemanticQueryCapabilityExecutor implements BrainCapabilityExec
       });
       return result.products as unknown as UnknownRecord[];
     }
+    if (resolverKey === 'inventory_turnover_summary') {
+      const result = await this.skillRuntime!.buildInventoryTurnoverAnalysis({
+        storeId,
+        startDate: timeRange.startDate,
+        endDate: new Date(timeRange.endExclusive.getTime() - 1),
+      });
+      return [result.current as unknown as UnknownRecord];
+    }
     if (resolverKey === 'product_margin_rows') {
       const result = await this.skillRuntime!.buildFinanceProductMarginAnalysis({
         storeId,

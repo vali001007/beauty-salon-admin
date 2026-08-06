@@ -4653,6 +4653,97 @@ describe('BrainSemanticIntentCompilerService', () => {
     expect(aiService.generateStructured).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['最近三个月实收口径和确认口径差多少', 'finance_risk_overview', 'comparison', 'comparison', undefined, undefined],
+    ['唐伊今年接了哪些预约', 'reservation_list', 'query', 'list', undefined, '唐伊'],
+    ['今年的预约到店转化率是多少', 'front_desk_operations_overview', 'query', 'scalar', undefined, undefined],
+    ['今年哪些时段的预约最满', 'front_desk_operations_overview', 'ranking', 'ranking', undefined, undefined],
+    ['唐伊今年是不是排太满了', 'front_desk_operations_overview', 'diagnosis', 'diagnosis', undefined, '唐伊'],
+    ['分析下今年的到店高峰时段', 'front_desk_operations_overview', 'ranking', 'ranking', undefined, undefined],
+    ['今年预约转化率趋势', 'front_desk_operations_overview', 'trend', 'trend', undefined, undefined],
+    ['今年爽约集中在哪些客户或时段', 'front_desk_operations_overview', 'diagnosis', 'diagnosis', undefined, undefined],
+    ['今年空档太多建议怎么填', 'appointment_gap_list', 'recommendation', 'diagnosis', undefined, undefined],
+    ['怎么降低今年的爽约率', 'front_desk_operations_overview', 'recommendation', 'diagnosis', undefined, undefined],
+    ['今年高峰人手不够怎么调度', 'front_desk_operations_overview', 'recommendation', 'diagnosis', undefined, undefined],
+    ['最近14天有库存积压的产品吗', 'inventory_operations_overview', 'ranking', 'ranking', undefined, undefined],
+    [
+      '最近30天库存周转率如何',
+      'inventory_operations_overview',
+      'query',
+      'scalar',
+      'metric.inventory_operational_turnover_ratio',
+      undefined,
+    ],
+    [
+      '最近30天耗占比的趋势',
+      'inventory_operations_overview',
+      'trend',
+      'trend',
+      'metric.inventory_consumption_occupancy_ratio',
+      undefined,
+    ],
+  ] as const)(
+    'uses the RC-350 deterministic operations contract for %s',
+    async (question, capabilityKey, intentKind, answerShape, metricKey, entityMention) => {
+      const definitionRef = (
+        definitionType: 'entity' | 'relation' | 'metric' | 'dimension' | 'action',
+        definitionKey: string,
+        seed: string,
+      ): BrainDefinitionRef<'entity' | 'relation' | 'metric' | 'dimension' | 'action'> => ({
+        definitionType,
+        definitionKey,
+        definitionVersion: 1,
+        definitionFingerprint: seed.repeat(64).slice(0, 64),
+        sourceFingerprint: `${seed}f`.repeat(64).slice(0, 64),
+      });
+      const beauticianRef = definitionRef('entity', 'entity.beautician', 'b');
+      const capabilityRefs: Record<
+        string,
+        Array<BrainDefinitionRef<'entity' | 'relation' | 'metric' | 'dimension' | 'action'>>
+      > = {
+        finance_risk_overview: [paidAmountMetricRef, cardRecognizedRevenueMetricRef],
+        reservation_list: [beauticianRef],
+        front_desk_operations_overview: [beauticianRef],
+        appointment_gap_list: [definitionRef('entity', 'entity.reservation', 'r')],
+        inventory_operations_overview: [
+          definitionRef('metric', 'metric.inventory_operational_turnover_ratio', 't'),
+          definitionRef('metric', 'metric.inventory_consumption_occupancy_ratio', 'o'),
+        ],
+      };
+      const aiService = fakeAiService(async () => structuredResult(productRankingIntent));
+      const compiler = createCompiler(aiService);
+      const input = compilerInput(question);
+      input.capabilitySummaries = [
+        {
+          key: capabilityKey,
+          name: capabilityKey,
+          description: 'RC-350 确定性运营能力',
+          domains: ['reservation', 'finance', 'inventory'],
+          intents: ['query', 'ranking', 'comparison', 'trend', 'diagnosis', 'recommendation'],
+          examples: [question],
+          readOnly: true,
+          sideEffect: false,
+          definitionRefs: capabilityRefs[capabilityKey] ?? [],
+        },
+      ];
+
+      const result = await compiler.compile(input);
+
+      expect(result).toMatchObject({
+        status: 'completed',
+        provider: 'governed_contract',
+        model: 'release_core_operations_fast_path',
+        intent: {
+          intent: intentKind,
+          answerShape,
+          ...(metricKey ? { metrics: [expect.objectContaining({ definitionKey: metricKey })] } : {}),
+          ...(entityMention ? { entities: [expect.objectContaining({ mention: entityMention })] } : {}),
+        },
+      });
+      expect(aiService.generateStructured).not.toHaveBeenCalled();
+    },
+  );
+
   it('is registered through BrainModule with AiModule as its only AI provider source', () => {
     const imports = Reflect.getMetadata(MODULE_METADATA.IMPORTS, BrainModule) as unknown[];
     const providers = Reflect.getMetadata(MODULE_METADATA.PROVIDERS, BrainModule) as unknown[];

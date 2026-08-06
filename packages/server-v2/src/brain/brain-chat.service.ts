@@ -3171,6 +3171,8 @@ export class BrainChatService {
         normalized,
       ) ||
       /^(?:帮我|请|替我|给我|能不能|可以|是否可以)\s*(?:约|预约)(?:一下|一个|一位)?/.test(normalized) ||
+      /^(?:帮|替|给|为)(?!我(?:查|看|统计|列出)).{1,32}预约/.test(normalized) ||
+      /^(?:(?:帮我|请|直接|立即|马上|替我|给我)\s*)?(?:确认.{1,48}(?:预约|提成结算|供应商.{0,16}报价)|登记.{1,48}(?:到店|收货)|取消.{1,48}预约)/.test(normalized) ||
       /^(?:给|向).{0,20}发(?:个|一条)?.{0,12}(?:通知|消息|短信)/.test(normalized) ||
       /^(?:(?:帮我|请|直接|立即|马上|替我|给我|能不能|可以|是否可以)\s*)?(?:把|将).{1,48}(?:改到|改成|取消|提交)/.test(
         normalized,
@@ -3193,6 +3195,16 @@ export class BrainChatService {
       /^(?:(?:帮我|请|直接|立即|马上|替我|给我)\s*)?(?:启动|执行|运行).{0,48}(?:策略|任务|流程|触达|方案)/.test(
         normalized,
       ) ||
+      /^(?:开启.{0,48}(?:策略|自动化|任务|流程)|标记.{0,48}已发放|录入.{0,64}(?:成本|收入|支出|费用)|复制.{0,48}成本)/.test(
+        normalized,
+      ) ||
+      /^(?:给|向).{1,64}下(?:一个)?采购单/.test(normalized) ||
+      /^(?!.*(?:记录|明细|统计|查询|多少)).{1,48}入库(?:\d|[一二三四五六七八九十百千])/u.test(normalized) ||
+      /^(?:调整.{1,48}库存|从别的店调.{1,48}过来)/.test(normalized) ||
+      /^(?:给|为).{1,64}生成.{0,32}(?:活动草稿|召回草稿|营销草稿)/.test(normalized) ||
+      /^(?:给.{1,64})?批量发(?:邀约|短信|消息)/.test(normalized) ||
+      /^生成.{1,48}(?:供应商结算|结算)/.test(normalized) ||
+      /^(?:把|将)?.{0,32}(?:采纳|引用).{0,64}(?:模板|项目|产品|BOM)/i.test(normalized) ||
       /^(?:(?:帮我|请|替我|给我)\s*)?(?:生成|准备|创建).{0,48}(?:预览|待确认.{0,12}(?:任务|操作|方案)|确认方案)/.test(
         normalized,
       ) ||
@@ -5680,6 +5692,13 @@ export class BrainChatService {
 
   private isSpecificCustomerFactQuestion(question: string, intent: BrainSemanticIntent) {
     if (['action', 'workflow'].includes(intent.intent) || this.hasExplicitSideEffectRequest(question)) return false;
+    if (
+      /(?:预约到店转化率|预约转化率|到店高峰|预约高峰|爽约.*集中|员工.*排太满|美容师.*排太满|预约.*趋势)/.test(
+        question,
+      )
+    ) {
+      return false;
+    }
     if (/(?:预约).*(?:几点|时间|安排|改期|取消|确认)|(?:几点|时间|安排).*(?:预约)/.test(question)) {
       return false;
     }

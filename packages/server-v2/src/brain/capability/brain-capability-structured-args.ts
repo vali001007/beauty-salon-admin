@@ -86,17 +86,23 @@ export function structuredEntityMentions(args: BrainCapabilityToolArgs): Array<{
   entityKey?: string;
   mention: string;
   source?: string;
+  definitionKey?: string;
 }> {
   if (!Array.isArray(args.entities)) return [];
   return args.entities.flatMap((value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
     const entity = value as Record<string, unknown>;
     if (typeof entity.entityType !== 'string' || typeof entity.mention !== 'string') return [];
+    const definitionRef =
+      entity.definitionRef && typeof entity.definitionRef === 'object' && !Array.isArray(entity.definitionRef)
+        ? (entity.definitionRef as Record<string, unknown>)
+        : undefined;
     return [{
       entityType: entity.entityType,
       ...(typeof entity.entityKey === 'string' ? { entityKey: entity.entityKey } : {}),
       mention: entity.mention,
       ...(typeof entity.source === 'string' ? { source: entity.source } : {}),
+      ...(typeof definitionRef?.definitionKey === 'string' ? { definitionKey: definitionRef.definitionKey } : {}),
     }];
   });
 }

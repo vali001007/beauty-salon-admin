@@ -22,7 +22,7 @@ export function extractSpecificCustomerNameFromMention(mention: string): string 
 
 const GENERIC_CUSTOMER_SCOPE = /^(?:全店|本店|门店|所有|全部|全体|整体|本月|上月|本周|上周|今天|昨天|近期|最近)$/u;
 const INVALID_CUSTOMER_NAME_PHRASE =
-  /^(?:的|说|当前|今天|明天|后天|本周|上周|本月|上月)|(?:说她叫|说他叫|她叫|他叫|这个|那个|这位|那位)/u;
+  /^(?:的|说|当前|今天|明天|后天|今年|本年|本周|上周|本月|上月|分析|分析下|预约|到店|来店|转化率|高峰|爽约|趋势|登记)|(?:说她叫|说他叫|她叫|他叫|这个|那个|这位|那位)/u;
 const SPECIFIC_CUSTOMER_READ_ONLY_SIGNAL =
   /(?:累计|总共|一共)?消费|上次|最近|到店|来店|会员等级|办过卡|卡项|还有多少次|余额|来源|渠道|标签|备注|服务记录|做过|做的什么项目|过敏|皮肤|注意事项|生命周期价值|LTV|流失风险|流失评分|适合.*(?:推荐|项目)|推荐.*项目/iu;
 const EXPLICIT_CUSTOMER_SIDE_EFFECT_SIGNAL =

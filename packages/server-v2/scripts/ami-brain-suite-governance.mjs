@@ -26,8 +26,10 @@ const PRODUCT_LOOP_PATH = resolve(OUTPUT_DIR, 'ami-brain-product-loop-eligibilit
 const NEXT_ITERATION_PATH = resolve(OUTPUT_DIR, 'ami-brain-next-iteration-feature-candidates-v1.json');
 const METRIC_DEFINITION_PATH = resolve(OUTPUT_DIR, 'ami-brain-metric-definition-governance-required-v1.json');
 
-const MANIFEST_VERSION = '2026-07-29-v5';
-const FROZEN_BASELINE_V1_CHECKSUM = 'eeabcf0ba6d2652cabe91950bfc04bb2fa6f3fd6c95510d583d9ed6d99f186ec';
+const MANIFEST_VERSION = '2026-08-06-v6';
+// Reviewed contract correction: BQ0823/BQ0824 and their quarter/14-day rotations now target
+// card-recognized revenue or paid-vs-recognized comparison instead of unrelated order profit.
+const FROZEN_BASELINE_V1_CHECKSUM = '75950821c4fa8604069b84be0021dc60ba722d569b6eb0597bf462a76c1dd4e7';
 const RELEASE_CORE_TARGET = 350;
 const STANDARD_MIN = 1000;
 const STANDARD_TARGET = 1040;
