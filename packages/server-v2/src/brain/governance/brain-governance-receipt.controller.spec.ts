@@ -42,11 +42,19 @@ describe('BrainGovernanceReceiptController', () => {
       governanceControlPlaneService as never,
       candidateService as never,
     );
-    const request = { brainReceiptIssuer: 'CI/CD' } as BrainReceiptIngestRequest;
+    const request = {
+      brainReceiptIssuer: 'CI/CD',
+      brainReceiptAuthentication: 'github_oidc',
+    } as BrainReceiptIngestRequest;
     const body = { receiptId: 'receipt-client', status: 'passed' };
 
     await expect(controller.ingestReceipt(request, body)).resolves.toEqual({ id: 31, status: 'passed' });
-    expect(verificationService.verifyReceipt).toHaveBeenCalledWith(body, 'CI/CD');
+    expect(verificationService.verifyReceipt).toHaveBeenCalledWith(
+      body,
+      'CI/CD',
+      expect.any(Date),
+      'github_oidc',
+    );
     expect(verificationService.verifyReleaseEvidence).toHaveBeenCalledWith({
       receipt: { receiptId: 'receipt-verified', status: 'passed', candidateId: 'a'.repeat(64) },
       trustLevel: 'trusted_candidate',
@@ -65,6 +73,42 @@ describe('BrainGovernanceReceiptController', () => {
       },
       undefined,
       'trusted_candidate',
+    );
+  });
+
+  it('stores HMAC observations as untrusted diagnostics without creating or superseding a candidate', async () => {
+    const verificationService = {
+      verifyReceipt: jest.fn().mockReturnValue({
+        receipt: { receiptId: 'observe-1', stage: 'observe', status: 'passed' },
+        trustLevel: 'untrusted_dev',
+      }),
+      verifyReleaseEvidence: jest.fn().mockResolvedValue(undefined),
+    };
+    const governanceControlPlaneService = {
+      ingestReceipt: jest.fn().mockResolvedValue({ id: 41, status: 'untrusted' }),
+    };
+    const candidateService = {
+      upsertFromReceipt: jest.fn(),
+      bindVerifiedReleaseReceipt: jest.fn(),
+    };
+    const controller = new BrainGovernanceReceiptController(
+      verificationService as never,
+      governanceControlPlaneService as never,
+      candidateService as never,
+    );
+    const request = {
+      brainReceiptIssuer: 'observe-client',
+      brainReceiptAuthentication: 'hmac',
+    } as BrainReceiptIngestRequest;
+
+    await expect(controller.ingestReceipt(request, { stage: 'observe' }))
+      .resolves.toEqual({ id: 41, status: 'untrusted' });
+    expect(candidateService.upsertFromReceipt).not.toHaveBeenCalled();
+    expect(candidateService.bindVerifiedReleaseReceipt).not.toHaveBeenCalled();
+    expect(governanceControlPlaneService.ingestReceipt).toHaveBeenCalledWith(
+      expect.not.objectContaining({ governanceCandidateId: expect.anything() }),
+      undefined,
+      'untrusted_dev',
     );
   });
 });
@@ -97,7 +141,7 @@ describe('BrainGovernanceReceiptIngestGuard', () => {
     restoreEnv('BRAIN_GOVERNANCE_RECEIPT_ALLOWED_REPOSITORIES', previousRepositories);
   });
 
-  it('verifies HTTP headers and attaches the trusted issuer to the request', async () => {
+  it('verifies HTTP headers and marks HMAC envelopes as observation-only authentication', async () => {
     const body = { schemaVersion: 3, receiptId: 'receipt-1', repository: 'owner/repo', workflow: issuer };
     const timestamp = now.toISOString();
     const request = requestFor(body, {
@@ -109,6 +153,7 @@ describe('BrainGovernanceReceiptIngestGuard', () => {
 
     await expect(guard.canActivate(contextFor(request))).resolves.toBe(true);
     expect(request.brainReceiptIssuer).toBe(issuer);
+    expect(request.brainReceiptAuthentication).toBe('hmac');
   });
 
   it.each([

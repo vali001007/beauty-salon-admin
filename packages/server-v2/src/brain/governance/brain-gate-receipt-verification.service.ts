@@ -4,6 +4,10 @@ import * as jsonwebtokenModule from 'jsonwebtoken';
 import type { JwtPayload } from 'jsonwebtoken';
 import { JwksClient } from 'jwks-rsa';
 import { BrainReleaseService } from './brain-release.service.js';
+import {
+  BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS,
+  BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS,
+} from './brain-release-product-profile.js';
 
 const jsonwebtoken = (jsonwebtokenModule as typeof jsonwebtokenModule & {
   default?: typeof jsonwebtokenModule;
@@ -15,6 +19,18 @@ const RECEIPT_RISK_LEVELS = ['low', 'medium', 'high', 'critical'] as const;
 const HEX_64 = /^[a-f0-9]{64}$/;
 const CAPABILITY_KEY = /^[a-z][a-z0-9_]{1,127}$/;
 const GITHUB_OIDC_ISSUER = 'https://token.actions.githubusercontent.com';
+const QUERY_ONLY_REQUIRED_RELEASE_GATES = [
+  'release_contract',
+  'permission_matrix',
+  'cross_client_e2e',
+  'target_database',
+  'provider_fallback',
+  'rollback_drill',
+] as const;
+const QUERY_ONLY_RELEASE_CAPABILITIES = [
+  ...BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS,
+  ...BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS,
+];
 const GITHUB_OIDC_JWKS = new JwksClient({
   jwksUri: `${GITHUB_OIDC_ISSUER}/.well-known/jwks`,
   cache: true,
@@ -26,11 +42,13 @@ const GITHUB_OIDC_JWKS = new JwksClient({
 export interface VerifiedBrainGateReceipt {
   receipt: Record<string, unknown>;
   issuer: string;
-  trustLevel: 'trusted_candidate' | 'verified_release';
+  trustLevel: 'untrusted_dev' | 'trusted_candidate' | 'verified_release';
   admissionEligible: boolean;
   identityChecksum: string;
   resultChecksum: string;
 }
+
+export type BrainReceiptAuthentication = 'github_oidc' | 'hmac';
 
 @Injectable()
 export class BrainGateReceiptVerificationService {
@@ -43,13 +61,16 @@ export class BrainGateReceiptVerificationService {
     signature: unknown;
     issuer: unknown;
     now?: Date;
-  }): Promise<{ issuer: string; bodyChecksum: string }> {
+  }): Promise<{ issuer: string; bodyChecksum: string; authentication: BrainReceiptAuthentication }> {
     const oidcToken = bearerToken(input.authorization);
     if (oidcToken) return this.verifyGithubOidcEnvelope(input.body, oidcToken);
     return this.verifyHmacEnvelope(input);
   }
 
-  private async verifyGithubOidcEnvelope(body: Record<string, unknown>, token: string) {
+  private async verifyGithubOidcEnvelope(
+    body: Record<string, unknown>,
+    token: string,
+  ): Promise<{ issuer: string; bodyChecksum: string; authentication: BrainReceiptAuthentication }> {
     const audience = String(process.env.BRAIN_GOVERNANCE_RECEIPT_OIDC_AUDIENCE ?? '').trim();
     if (!audience) throw new UnauthorizedException('receipt_oidc_audience_missing');
     let payload: JwtPayload;
@@ -69,7 +90,7 @@ export class BrainGateReceiptVerificationService {
       throw new UnauthorizedException('receipt_oidc_token_invalid');
     }
     const issuer = verifyGithubOidcClaims(payload, body);
-    return { issuer, bodyChecksum: sha256(body) };
+    return { issuer, bodyChecksum: sha256(body), authentication: 'github_oidc' };
   }
 
   private verifyHmacEnvelope(input: {
@@ -78,7 +99,7 @@ export class BrainGateReceiptVerificationService {
     signature: unknown;
     issuer: unknown;
     now?: Date;
-  }): { issuer: string; bodyChecksum: string } {
+  }): { issuer: string; bodyChecksum: string; authentication: BrainReceiptAuthentication } {
     if (process.env.BRAIN_GOVERNANCE_RECEIPT_ALLOW_HMAC_FALLBACK !== 'true') {
       throw new UnauthorizedException('receipt_oidc_token_required');
     }
@@ -115,12 +136,20 @@ export class BrainGateReceiptVerificationService {
     if (!allowedRepositories.includes(repository)) throw new UnauthorizedException('receipt_repository_not_allowed');
     const workflow = requiredString(input.body.workflow, 'receipt_workflow_missing');
     if (workflow !== issuer) throw new UnauthorizedException('receipt_workflow_issuer_mismatch');
-    return { issuer, bodyChecksum };
+    return { issuer, bodyChecksum, authentication: 'hmac' };
   }
 
-  verifyReceipt(input: Record<string, unknown>, issuer: string, now = new Date()): VerifiedBrainGateReceipt {
+  verifyReceipt(
+    input: Record<string, unknown>,
+    issuer: string,
+    now = new Date(),
+    authentication: BrainReceiptAuthentication = 'github_oidc',
+  ): VerifiedBrainGateReceipt {
     if (Number(input.schemaVersion) !== 3) throw new BadRequestException('receipt_schema_version_invalid');
     const stage = enumString(input.stage, RECEIPT_STAGES, 'receipt_stage_invalid');
+    if (authentication === 'hmac' && stage !== 'observe') {
+      throw new UnauthorizedException('receipt_hmac_admission_forbidden');
+    }
     const riskLevel = enumString(input.riskLevel, RECEIPT_RISK_LEVELS, 'receipt_risk_level_invalid');
     const status = requiredString(input.status, 'receipt_status_missing');
     if (status !== 'passed') throw new BadRequestException('trusted_receipt_must_pass');
@@ -201,13 +230,31 @@ export class BrainGateReceiptVerificationService {
     if (!Array.isArray(capabilities) || capabilities.some((key) => !CAPABILITY_KEY.test(String(key)))) {
       throw new BadRequestException('receipt_capabilities_invalid');
     }
+    if (stage === 'release') {
+      const gateKeys = results.map((result) => String(record(result).gateKey ?? record(result).gateId ?? '')).filter(Boolean);
+      const planGateKeys = Array.isArray(record(input.plan).gates)
+        ? (record(input.plan).gates as unknown[]).map((gate) => String(record(gate).id ?? '')).filter(Boolean)
+        : [];
+      if (gateKeys.length !== QUERY_ONLY_REQUIRED_RELEASE_GATES.length
+        || planGateKeys.length !== QUERY_ONLY_REQUIRED_RELEASE_GATES.length
+        || !sameStringSet(gateKeys, [...QUERY_ONLY_REQUIRED_RELEASE_GATES])
+        || !sameStringSet(planGateKeys, [...QUERY_ONLY_REQUIRED_RELEASE_GATES])) {
+        throw new BadRequestException('release_receipt_gate_manifest_invalid');
+      }
+      if (capabilities.length !== QUERY_ONLY_RELEASE_CAPABILITIES.length
+        || !sameStringSet(capabilities.map(String), QUERY_ONLY_RELEASE_CAPABILITIES)) {
+        throw new BadRequestException('release_receipt_capability_manifest_invalid');
+      }
+    }
     const expiresAt = new Date(requiredString(input.expiresAt, 'receipt_expires_at_missing'));
     if (!Number.isFinite(expiresAt.getTime()) || expiresAt <= now) {
       throw new BadRequestException('receipt_expired');
     }
 
-    const trustLevel = stage === 'release' ? 'verified_release' : 'trusted_candidate';
-    const admissionEligible = Boolean(
+    const trustLevel = authentication === 'hmac'
+      ? 'untrusted_dev'
+      : stage === 'release' ? 'verified_release' : 'trusted_candidate';
+    const admissionEligible = authentication !== 'hmac' && Boolean(
       releaseFingerprint
       && dataSnapshot
       && provider
@@ -225,6 +272,7 @@ export class BrainGateReceiptVerificationService {
           status: 'verified',
           trustLevel,
           admissionEligible,
+          authentication,
           issuer,
           verifiedAt: now.toISOString(),
         },
@@ -339,6 +387,13 @@ function stableStringify(value: unknown): string {
 function safeEqual(left: string, right: string) {
   if (!HEX_64.test(left) || !HEX_64.test(right)) return false;
   return timingSafeEqual(Buffer.from(left, 'hex'), Buffer.from(right, 'hex'));
+}
+
+function sameStringSet(left: string[], right: string[]) {
+  const normalizedLeft = [...new Set(left)].sort();
+  const normalizedRight = [...new Set(right)].sort();
+  return normalizedLeft.length === normalizedRight.length
+    && normalizedLeft.every((value, index) => value === normalizedRight[index]);
 }
 
 function bearerToken(value: unknown) {

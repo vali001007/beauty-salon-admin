@@ -52,7 +52,7 @@ export function BrainGovernanceCenter() {
     return <LegacyGovernanceRedirect resolution={resolution} />;
   }
 
-  const content = renderSection(resolution.section);
+  const content = renderSection(resolution.section, resolution.legacy);
   const redirectTarget = resolution.legacy
     ? resolveBrainGovernanceRoute(location.pathname, location.search, 'redirect')
     : null;
@@ -79,7 +79,7 @@ export function BrainGovernanceCenter() {
   );
 }
 
-function renderSection(activeSection: BrainGovernanceSectionKey) {
+function renderSection(activeSection: BrainGovernanceSectionKey, legacy = false) {
   switch (activeSection) {
     case 'workbench':
       return <BrainGovernanceWorkbenchPage />;
@@ -98,7 +98,7 @@ function renderSection(activeSection: BrainGovernanceSectionKey) {
     case 'policy-snapshots':
       return <BrainPolicySnapshotsPage />;
     case 'runtime-releases':
-      return <BrainReleaseCenter />;
+      return <BrainReleaseCenter historicalOnly={legacy} />;
     case 'planning':
       return <BrainModelPlanningGovernance />;
     case 'semantic':
@@ -114,7 +114,7 @@ function renderSection(activeSection: BrainGovernanceSectionKey) {
     case 'eval':
       return <BrainEvalCenter />;
     case 'release':
-      return <BrainReleaseCenter />;
+      return <BrainReleaseCenter historicalOnly={legacy} />;
     case 'feedback':
       return <BrainFeedbackBoard />;
   }

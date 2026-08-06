@@ -21,16 +21,25 @@ export class BrainGovernanceReceiptController {
   @UseGuards(BrainGovernanceReceiptIngestGuard)
   async ingestReceipt(@Req() request: BrainReceiptIngestRequest, @Body() body: Record<string, unknown>) {
     if (!request.brainReceiptIssuer) throw new NotFoundException('receipt_verified_issuer_missing');
-    const verified = this.verificationService.verifyReceipt(body, request.brainReceiptIssuer);
+    const verified = this.verificationService.verifyReceipt(
+      body,
+      request.brainReceiptIssuer,
+      new Date(),
+      request.brainReceiptAuthentication,
+    );
     await this.verificationService.verifyReleaseEvidence(verified);
-    const candidate = await this.candidateService.upsertFromReceipt(verified.receipt);
+    const candidate = verified.trustLevel === 'untrusted_dev'
+      ? null
+      : verified.receipt.stage === 'release'
+        ? await this.candidateService.bindVerifiedReleaseReceipt(verified.receipt)
+        : await this.candidateService.upsertFromReceipt(verified.receipt);
     const result = await this.governanceControlPlaneService.ingestReceipt(
-      { ...verified.receipt, governanceCandidateId: candidate.id },
+      { ...verified.receipt, ...(candidate ? { governanceCandidateId: candidate.id } : {}) },
       undefined,
       verified.trustLevel,
     );
     await this.events?.record({
-      candidateId: candidate.id,
+      candidateId: candidate?.id,
       eventType: 'receipt_verified',
       entityType: 'receipt',
       entityId: result.id,
