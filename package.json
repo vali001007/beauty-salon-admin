@@ -45,6 +45,8 @@
     "check:brain-mvp": "node scripts/check-brain-mvp.mjs",
     "check:ami-brain-cross-client-contract": "node scripts/check-ami-brain-cross-client-contract.mjs",
     "brain:check": "npm --prefix packages/server-v2 run brain:check --",
+    "brain:warmup:shadow": "node scripts/ami-brain-warmup-shadow.mjs",
+    "brain:release:audit:416-452": "node scripts/ami-brain-release-pair-audit.mjs",
     "brain:capability:scan": "npm --prefix packages/server-v2 run brain:capability:scan --",
     "brain:capability:scan:strict": "npm --prefix packages/server-v2 run brain:capability:scan:strict --",
     "brain:capability:generate": "npm --prefix packages/server-v2 run brain:capability:generate --",
