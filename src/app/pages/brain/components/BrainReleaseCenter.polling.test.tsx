@@ -7,6 +7,8 @@ const api = vi.hoisted(() => ({
   listBrainResourceVersions: vi.fn(),
   listBrainReleases: vi.fn(),
   listBrainCapabilityRegenerationJobs: vi.fn(),
+  retryBrainCapabilityRegenerationJob: vi.fn(),
+  submitBrainReleaseModification: vi.fn(),
 }));
 const permissionState = vi.hoisted(() => ({ denied: new Set<string>() }));
 
@@ -15,9 +17,9 @@ vi.mock('@/api/brain', () => ({
   activateBrainRelease: vi.fn(),
   createBrainRolloutSequence: vi.fn(),
   rejectBrainRelease: vi.fn(),
-  retryBrainCapabilityRegenerationJob: vi.fn(),
+  retryBrainCapabilityRegenerationJob: api.retryBrainCapabilityRegenerationJob,
   rollbackBrainReleaseToRules: vi.fn(),
-  submitBrainReleaseModification: vi.fn(),
+  submitBrainReleaseModification: api.submitBrainReleaseModification,
 }));
 vi.mock('@/hooks/usePermission', () => ({ usePermission: (permission: string) => !permissionState.denied.has(permission) }));
 vi.mock('../brainGovernanceNavigation', () => ({ BRAIN_GOVERNANCE_UI_MODE: 'manage' }));
@@ -65,6 +67,8 @@ describe('BrainReleaseCenter regeneration polling', () => {
     api.listBrainResourceVersions.mockResolvedValue({ items: [] });
     api.listBrainReleases.mockResolvedValue({ items: [] });
     api.listBrainCapabilityRegenerationJobs.mockResolvedValue({ items: [queuedJob] });
+    api.retryBrainCapabilityRegenerationJob.mockResolvedValue(queuedJob);
+    api.submitBrainReleaseModification.mockResolvedValue({ requestType: 'capability_regeneration', status: 'queued' });
   });
 
   afterEach(() => {
@@ -188,6 +192,86 @@ describe('BrainReleaseCenter regeneration polling', () => {
     expect(screen.queryByRole('button', { name: '批准运行阶段' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '拒绝' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '修改要求' })).not.toBeInTheDocument();
+  });
+
+  it('keeps approval, modification and rejection commands on the operational runtime surface', async () => {
+    api.listBrainCapabilityRegenerationJobs.mockResolvedValue({ items: [] });
+    api.listBrainReleases.mockResolvedValue({
+      items: [{
+        id: 61,
+        releaseKey: 'runtime-draft-v1',
+        scope: 'percentage',
+        rollout: { stage: 'shadow', mode: 'shadow', userPercentage: 100 },
+        status: 'draft',
+        previousReleaseId: 60,
+        createdAt: '2026-08-01T00:00:00.000Z',
+        items: [],
+      }],
+    });
+
+    renderReleaseCenter();
+    await flush();
+
+    expect(screen.getByRole('button', { name: '批准运行阶段' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '修改要求' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '拒绝' })).toBeInTheDocument();
+  });
+
+  it('allows retry and requirement modification only on the operational runtime surface', async () => {
+    api.listBrainReleases.mockResolvedValue({
+      items: [{
+        id: 61,
+        releaseKey: 'runtime-draft-v1',
+        scope: 'percentage',
+        rollout: { stage: 'shadow', mode: 'shadow', userPercentage: 100 },
+        status: 'draft',
+        previousReleaseId: 60,
+        createdAt: '2026-08-01T00:00:00.000Z',
+        items: [],
+      }],
+    });
+    api.listBrainCapabilityRegenerationJobs.mockResolvedValue({
+      items: [{
+        ...queuedJob,
+        id: 502,
+        status: 'blocked',
+        progress: 100,
+        blockingReasons: ['runtime_redaction_policy_unavailable'],
+        errorCode: 'regeneration_blocked',
+        errorMessage: 'runtime_redaction_policy_unavailable',
+        retryable: true,
+        nextAction: 'retry',
+      }],
+    });
+
+    renderReleaseCenter();
+    await flush();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '重新排队' }));
+      await Promise.resolve();
+    });
+    expect(api.retryBrainCapabilityRegenerationJob).toHaveBeenCalledWith(502);
+
+    api.listBrainCapabilityRegenerationJobs.mockResolvedValue({
+      items: [{
+        ...queuedJob,
+        id: 503,
+        status: 'blocked',
+        progress: 100,
+        affectedCapabilities: [],
+        blockingReasons: ['无法唯一确定需要修改的能力。'],
+        errorCode: 'affected_capability_ambiguous',
+        errorMessage: '无法唯一确定需要修改的能力。',
+        retryable: false,
+        nextAction: 'modify_requirement',
+      }],
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '刷新发布数据' }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.getAllByRole('button', { name: '修改要求' }).length).toBeGreaterThan(0);
   });
 
   it('renders server-verified readiness instead of inferring tests from snapshots', async () => {

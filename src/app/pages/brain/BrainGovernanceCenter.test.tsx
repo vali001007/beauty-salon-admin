@@ -278,24 +278,17 @@ describe('BrainGovernanceCenter', () => {
     expect(screen.getByText('完整完成')).toBeInTheDocument();
   });
 
-  it('uses a business approval card with approve, modify and reject as the only draft commands', async () => {
+  it('keeps the legacy runtime route read-only even for privileged users', async () => {
     renderCenter('/brain-governance/releases?tab=runtime&legacy=1');
 
     expect(await screen.findByText('读取商品销售明细并按销量排序')).toBeInTheDocument();
     expect(screen.getByText('只读')).toBeInTheDocument();
     expect(screen.getByText('低风险')).toBeInTheDocument();
     expect(screen.getByText('店长、财务')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '批准运行阶段' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '修改要求' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '拒绝' })).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole('button', { name: '修改要求' }));
-    await userEvent.type(screen.getByLabelText('修改要求'), '只允许店长使用，手机号必须脱敏');
-    await userEvent.click(screen.getByRole('button', { name: '提交修改要求' }));
-
-    await waitFor(() => {
-      expect(brainApi.submitBrainReleaseModification).toHaveBeenCalledWith(61, '只允许店长使用，手机号必须脱敏');
-    });
+    expect(screen.getByText(/历史页面为只读入口/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '批准运行阶段' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '修改要求' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '拒绝' })).not.toBeInTheDocument();
   });
 
   it('filters capability change requests out of the publishable draft list', async () => {
@@ -343,7 +336,7 @@ describe('BrainGovernanceCenter', () => {
     renderCenter('/brain-governance/releases?tab=runtime&legacy=1');
     await waitFor(() => expect(brainApi.listBrainCapabilityRegenerationJobs).toHaveBeenCalled());
     expect(await screen.findByText('等待自动再生成')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '批准运行阶段' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: '批准运行阶段' })).not.toBeInTheDocument();
 
     expect(await screen.findByText('已生成新草稿', {}, { timeout: 5_000 })).toBeInTheDocument();
     const callsAtCompletion = brainApi.listBrainCapabilityRegenerationJobs.mock.calls.length;
@@ -377,8 +370,7 @@ describe('BrainGovernanceCenter', () => {
     expect(await screen.findByText('runtime_redaction_policy_unavailable')).toBeInTheDocument();
     expect(screen.getByText('需要修改后重试')).toBeInTheDocument();
     expect(screen.queryByText('等待自动再生成')).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: '重新排队' }));
-    expect(brainApi.retryBrainCapabilityRegenerationJob).toHaveBeenCalledWith(502);
+    expect(screen.queryByRole('button', { name: '重新排队' })).not.toBeInTheDocument();
   });
 
   it('hides retry and asks for requirement modification for a permanent blocker', async () => {
@@ -393,7 +385,7 @@ describe('BrainGovernanceCenter', () => {
 
     expect(await screen.findByText('无法唯一确定需要修改的能力。')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '重新排队' })).not.toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: '修改要求' }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: '修改要求' })).not.toBeInTheDocument();
   });
 
   it('shows the business-definition action for a permanent definition blocker', async () => {
