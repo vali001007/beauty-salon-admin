@@ -97,7 +97,7 @@ export function BrainGovernanceReleasesPage() {
     >
       <BrainCurrentCombinationBanner />
       {activeTab === 'policy' ? <BrainPolicySnapshotsPage /> : null}
-      {activeTab === 'runtime' && legacyRuntime ? <BrainReleaseCenter /> : null}
+      {activeTab === 'runtime' && legacyRuntime ? <BrainReleaseCenter historicalOnly /> : null}
       {activeTab === 'runtime' && !legacyRuntime ? <BrainRolloutSequencePage /> : null}
     </GovernanceContainer>
   );

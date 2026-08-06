@@ -316,7 +316,14 @@ describe('BrainGovernanceTransitionService', () => {
         findFirst: jest.fn()
           .mockResolvedValueOnce({ id: 436, scope: 'governance_policy', status: 'active' })
           .mockResolvedValueOnce({ id: 452, scope: 'percentage', status: 'active' }),
+        findUnique: jest.fn().mockResolvedValue(null),
       },
+      brainVersionCounter: {
+        findUnique: jest.fn(({ where }: { where: { family: string } }) => Promise.resolve({
+          lastNumber: where.family === 'policy' ? 2 : 0,
+        })),
+      },
+      brainRolloutSequence: { findUnique: jest.fn().mockResolvedValue(null) },
       brainGovernanceTransition: { findFirst: jest.fn().mockResolvedValue(null) },
       brainGateReceipt: { findMany: jest.fn().mockResolvedValue([]) },
     };
@@ -330,7 +337,136 @@ describe('BrainGovernanceTransitionService', () => {
     const result = await service.preview('candidate-1');
     expect(result.canPrepare).toBe(false);
     expect(result.missingEvidence).toHaveLength(41);
-    expect(result.target).toMatchObject({ productProfile: 'query_only_v1', allowedCapabilityCount: 33, deniedCapabilityCount: 8 });
+    expect(result.target).toMatchObject({
+      policyCode: 'GP-003',
+      runtimeCode: 'RT-001',
+      productProfile: 'query_only_v1',
+      allowedCapabilityCount: 33,
+      deniedCapabilityCount: 8,
+      identity: {
+        policy: { code: 'GP-003', status: 'available' },
+        runtime: { code: 'RT-001', status: 'available' },
+        blockers: [],
+      },
+    });
+  });
+
+  it('prepares the fixed GP-003 and RT-001 targets without moving the candidate to ready or releasing', async () => {
+    const candidate = {
+      id: 3,
+      candidateKey: 'candidate-1',
+      headCommit: HEAD_COMMIT,
+      sourceFingerprint: HASH,
+      status: 'governing',
+    };
+    const receipt = {
+      ...transition().evidenceReceipt,
+      id: EVIDENCE_RECEIPT_ID,
+      evaluationReleaseId: EVALUATION_RELEASE_ID,
+      evalRunId: EVAL_RUN_ID,
+      resultChecksum: HASH,
+    };
+    const policy = {
+      id: 453,
+      releaseKey: `ami-brain-policy-query-only-v1-${HEAD_COMMIT.slice(0, 12)}`,
+      scope: 'governance_policy',
+      status: 'draft',
+      releaseFamily: 'policy',
+      displayCode: 'GP-003',
+      displayName: 'Query Only V1 强制治理策略',
+      items: [],
+    };
+    const sequence = {
+      id: 9,
+      runtimeVersionCode: 'RT-001',
+      displayName: 'Query Only V1',
+      productProfile: 'query_only_v1',
+      status: 'draft',
+      currentStage: 'shadow',
+      releases: rolloutReleases(),
+    };
+    const runtimeSource = {
+      id: 452,
+      items: BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS.map((resourceKey, index) => ({
+        resourceType: 'skill',
+        resourceKey,
+        resourceVersionId: 2000 + index,
+        snapshot: { readOnly: true, sideEffect: false },
+      })),
+    };
+    const candidateUpdate = jest.fn().mockResolvedValue({});
+    const transitionCreate = jest.fn().mockResolvedValue(transition({
+      candidate,
+      newPolicy: policy,
+      runtimeSequence: sequence,
+    }));
+    const prisma = {
+      brainGovernanceCandidate: { update: candidateUpdate },
+      brainGovernanceTransition: { create: transitionCreate, findFirst: jest.fn() },
+    };
+    const controlPlane = {
+      createQueryOnlyPolicyVersions: jest.fn().mockResolvedValue({
+        sourcePolicyReleaseId: 436,
+        resourceVersionIds: [11, 12],
+      }),
+      createPolicySnapshot: jest.fn().mockResolvedValue(policy),
+    };
+    const rollout = { create: jest.fn().mockResolvedValue(sequence) };
+    const releaseIdentity = {
+      productIdentity: jest.fn((release: { id: number; releaseKey: string; scope: string; displayCode?: string | null }) => (
+        release.scope === 'governance_policy' && release.displayCode
+          ? {
+              family: 'policy',
+              code: release.displayCode,
+              stageCode: null,
+              name: release.releaseKey,
+              internalReleaseId: release.id,
+            }
+          : null
+      )),
+    };
+    const service = new BrainGovernanceTransitionService(
+      prisma as never,
+      controlPlane as never,
+      {} as never,
+      rollout as never,
+      undefined,
+      releaseIdentity as never,
+    );
+    jest.spyOn(service, 'preview').mockResolvedValue({ existingTransition: null, canPrepare: true, blockers: [] } as never);
+    jest.spyOn(service as any, 'loadCandidateEvidence').mockResolvedValue(candidate);
+    jest.spyOn(service as any, 'resolveCandidateEvidence').mockResolvedValue({
+      receipt,
+      readiness: releaseReadiness(),
+      missingEvidence: [],
+      blockers: [],
+      materialization: null,
+    });
+    jest.spyOn(service as any, 'currentRuntime').mockResolvedValue(runtimeSource);
+
+    await expect(service.prepare({ candidateKey: candidate.candidateKey, actorId: 5 }))
+      .resolves.toMatchObject({ newPolicy: { productIdentity: { code: 'GP-003' } } });
+
+    expect(controlPlane.createPolicySnapshot).toHaveBeenCalledWith(expect.objectContaining({
+      releaseKey: `ami-brain-policy-query-only-v1-${HEAD_COMMIT.slice(0, 12)}`,
+      displayName: 'Query Only V1 强制治理策略',
+      expectedDisplayCode: 'GP-003',
+    }));
+    expect(rollout.create).toHaveBeenCalledWith(expect.objectContaining({
+      releaseKey: `ami-brain-runtime-query-only-v1-${HEAD_COMMIT.slice(0, 12)}`,
+      displayName: 'Query Only V1',
+      expectedRuntimeVersionCode: 'RT-001',
+      transitionPreparation: true,
+      productProfile: 'query_only_v1',
+    }));
+    expect(candidateUpdate).toHaveBeenCalledTimes(1);
+    expect(candidateUpdate).toHaveBeenCalledWith({
+      where: { id: candidate.id },
+      data: { policySnapshotId: policy.id, policyDecision: 'create_query_only_snapshot' },
+    });
+    expect(candidateUpdate).not.toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: expect.anything() }),
+    }));
   });
 
   it('derives one verified release snapshot only after binding OIDC candidate, close eligibility, lock and RC-350 v2', async () => {

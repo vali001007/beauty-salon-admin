@@ -43,53 +43,89 @@ const FAMILY_CODE_PATTERN: Record<BrainReleaseFamily, RegExp> = {
 export class BrainReleaseIdentityService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async assignPolicyIdentity(releaseId: number, displayName: string) {
-    return this.serializable(async (tx) => {
-      const release = await tx.brainRelease.findUnique({ where: { id: releaseId } });
-      if (!release || release.scope !== 'governance_policy') throw new Error('policy_snapshot_not_found');
-      if (release.displayCode) {
-        assertStoredIdentity(release.releaseFamily, release.displayCode, 'policy');
-        familyDisplayName('policy', release.displayName, 'policy_display_name_required');
-        return release;
+  async assignPolicyIdentity(releaseId: number, displayName: string, expectedCode?: string) {
+    return this.serializable((tx) => this.assignPolicyIdentityWithClient(tx, releaseId, displayName, expectedCode));
+  }
+
+  async assignPolicyIdentityWithClient(
+    tx: Prisma.TransactionClient,
+    releaseId: number,
+    displayName: string,
+    expectedCode?: string,
+  ) {
+    const release = await tx.brainRelease.findUnique({ where: { id: releaseId } });
+    if (!release || release.scope !== 'governance_policy') throw new Error('policy_snapshot_not_found');
+    if (release.displayCode) {
+      assertStoredIdentity(release.releaseFamily, release.displayCode, 'policy');
+      if (expectedCode && release.displayCode !== expectedCode) {
+        throw new Error(`policy_identity_expected_code_mismatch:${expectedCode}:${release.displayCode}`);
       }
-      const identity = await this.allocate(tx, 'policy');
-      return tx.brainRelease.update({
-        where: { id: release.id },
-        data: {
-          releaseFamily: 'policy',
-          displayCode: identity.code,
-          displayName: familyDisplayName('policy', displayName, 'policy_display_name_required'),
-        },
-      });
+      familyDisplayName('policy', release.displayName, 'policy_display_name_required');
+      return release;
+    }
+    const identity = expectedCode
+      ? await this.allocateExpected(tx, 'policy', expectedCode)
+      : await this.allocate(tx, 'policy');
+    return tx.brainRelease.update({
+      where: { id: release.id },
+      data: {
+        releaseFamily: 'policy',
+        displayCode: identity.code,
+        displayName: familyDisplayName('policy', displayName, 'policy_display_name_required'),
+      },
     });
   }
 
-  async assignRuntimeIdentity(sequenceId: number, displayName: string, productProfile?: string | null) {
-    return this.serializable(async (tx) => {
-      const sequence = await tx.brainRolloutSequence.findUnique({ where: { id: sequenceId } });
-      if (!sequence) throw new Error('rollout_sequence_not_found');
-      if (sequence.runtimeVersionCode) {
-        assertCode('runtime', sequence.runtimeVersionCode);
-        familyDisplayName('runtime', sequence.displayName, 'runtime_display_name_required');
-        if (
-          sequence.runtimeVersionNumber !== null
-          && sequence.runtimeVersionNumber !== undefined
-          && sequence.runtimeVersionCode !== codeFor('runtime', sequence.runtimeVersionNumber)
-        ) {
-          throw new Error('runtime_identity_number_mismatch');
-        }
-        return sequence;
+  async assignRuntimeIdentity(
+    sequenceId: number,
+    displayName: string,
+    productProfile?: string | null,
+    expectedCode?: string,
+  ) {
+    return this.serializable((tx) => this.assignRuntimeIdentityWithClient(
+      tx,
+      sequenceId,
+      displayName,
+      productProfile,
+      expectedCode,
+    ));
+  }
+
+  async assignRuntimeIdentityWithClient(
+    tx: Prisma.TransactionClient,
+    sequenceId: number,
+    displayName: string,
+    productProfile?: string | null,
+    expectedCode?: string,
+  ) {
+    const sequence = await tx.brainRolloutSequence.findUnique({ where: { id: sequenceId } });
+    if (!sequence) throw new Error('rollout_sequence_not_found');
+    if (sequence.runtimeVersionCode) {
+      assertCode('runtime', sequence.runtimeVersionCode);
+      if (expectedCode && sequence.runtimeVersionCode !== expectedCode) {
+        throw new Error(`runtime_identity_expected_code_mismatch:${expectedCode}:${sequence.runtimeVersionCode}`);
       }
-      const identity = await this.allocate(tx, 'runtime');
-      return tx.brainRolloutSequence.update({
-        where: { id: sequence.id },
-        data: {
-          runtimeVersionNumber: identity.number,
-          runtimeVersionCode: identity.code,
-          displayName: familyDisplayName('runtime', displayName, 'runtime_display_name_required'),
-          productProfile: optionalText(productProfile),
-        },
-      });
+      familyDisplayName('runtime', sequence.displayName, 'runtime_display_name_required');
+      if (
+        sequence.runtimeVersionNumber !== null
+        && sequence.runtimeVersionNumber !== undefined
+        && sequence.runtimeVersionCode !== codeFor('runtime', sequence.runtimeVersionNumber)
+      ) {
+        throw new Error('runtime_identity_number_mismatch');
+      }
+      return sequence;
+    }
+    const identity = expectedCode
+      ? await this.allocateExpected(tx, 'runtime', expectedCode)
+      : await this.allocate(tx, 'runtime');
+    return tx.brainRolloutSequence.update({
+      where: { id: sequence.id },
+      data: {
+        runtimeVersionNumber: identity.number,
+        runtimeVersionCode: identity.code,
+        displayName: familyDisplayName('runtime', displayName, 'runtime_display_name_required'),
+        productProfile: optionalText(productProfile),
+      },
     });
   }
 
@@ -180,6 +216,23 @@ export class BrainReleaseIdentityService {
       number: counter.lastNumber,
       code: codeFor(family, counter.lastNumber),
     };
+  }
+
+  private async allocateExpected(tx: Prisma.TransactionClient, family: BrainReleaseFamily, expectedCode: string) {
+    assertCode(family, expectedCode);
+    const expectedNumber = Number(expectedCode.slice(FAMILY_PREFIX[family].length + 1));
+    const current = await tx.brainVersionCounter.findUnique({ where: { family }, select: { lastNumber: true } });
+    if (!Number.isInteger(expectedNumber) || expectedNumber <= 0 || (current?.lastNumber ?? 0) !== expectedNumber - 1) {
+      throw new Error(`${family}_identity_expected_code_unavailable:${expectedCode}`);
+    }
+    const counter = await tx.brainVersionCounter.upsert({
+      where: { family },
+      create: { family, lastNumber: expectedNumber },
+      update: { lastNumber: { increment: 1 } },
+      select: { lastNumber: true },
+    });
+    if (counter.lastNumber !== expectedNumber) throw new Error(`${family}_identity_expected_code_raced:${expectedCode}`);
+    return { number: expectedNumber, code: expectedCode };
   }
 
   private async serializable<T>(work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {

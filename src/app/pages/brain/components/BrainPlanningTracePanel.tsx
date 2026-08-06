@@ -71,20 +71,27 @@ export function BrainPlanningTracePanel({
 
   return (
     <div className="min-w-0 space-y-5">
-      <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <TraceSummary
           icon={ShieldCheck}
-          title="运行身份"
-          value={identityLabel(runtimeIdentity, '运行版本', runtime.releaseKey)}
+          title="运行版本（RT）"
+          value={productIdentityLabel(runtimeIdentity, 'RT', runtime.releaseId)}
           detail={[
             runtimeIdentity.stageCode ? `当前阶段 ${String(runtimeIdentity.stageCode)}` : '',
             runtime.mode ? `模式 ${String(runtime.mode)}` : '',
-            policyIdentity.code ? `治理策略 ${String(policyIdentity.code)}` : '',
-            runtime.governanceTransitionStatus ? `切换 ${String(runtime.governanceTransitionStatus)}` : '',
-            runtime.releaseFingerprint ? `fingerprint ${String(runtime.releaseFingerprint).slice(0, 12)}` : '',
             model.provider,
             model.model,
           ].filter(Boolean).join(' · ') || '当前轨迹未记录模型身份'}
+        />
+        <TraceSummary
+          icon={ShieldCheck}
+          title="治理策略（GP）"
+          value={productIdentityLabel(policyIdentity, 'GP', runtime.governancePolicyReleaseId)}
+          detail={[
+            runtime.governancePolicyMode ? `模式 ${String(runtime.governancePolicyMode)}` : '',
+            runtime.governanceTransitionStatus ? `切换 ${String(runtime.governanceTransitionStatus)}` : '',
+            runtime.governanceTransitionStep ? `步骤 ${String(runtime.governanceTransitionStep)}` : '',
+          ].filter(Boolean).join(' · ') || '当前轨迹未记录治理策略绑定'}
         />
         <TraceSummary
           icon={Route}
@@ -93,6 +100,14 @@ export function BrainPlanningTracePanel({
           detail={`语义版本 ${semanticVersion} · ${String(semanticIntent.objective ?? plan.objective ?? message.content ?? '未记录目标')}`}
         />
       </div>
+      {(runtime.releaseId || runtime.governancePolicyReleaseId || runtime.releaseKey || runtime.releaseFingerprint) ? (
+        <details className="rounded-md border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+          <summary className="cursor-pointer font-medium text-foreground">运行身份审计信息</summary>
+          <div className="mt-2 break-all">
+            运行数据库记录 #{String(runtime.releaseId ?? '-')} · 策略数据库记录 #{String(runtime.governancePolicyReleaseId ?? '-')} · 内部 key {String(runtime.releaseKey ?? '-')} · Fingerprint {String(runtime.releaseFingerprint ?? '-').slice(0, 16)}
+          </div>
+        </details>
+      ) : null}
 
       <TraceSection title="规则 / 模型意图差异" emptyText="当前运行没有 Shadow 差异。" empty={!Object.keys(intentDiff).length}>
         <div className="space-y-2">
@@ -245,12 +260,13 @@ function record(value: unknown): RecordValue {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as RecordValue : {};
 }
 
-function identityLabel(identity: RecordValue, fallbackType: string, fallbackKey: unknown) {
+function productIdentityLabel(identity: RecordValue, legacyFamily: 'GP' | 'RT', internalReleaseId: unknown) {
   const code = String(identity.stageCode ?? identity.code ?? '').trim();
   const name = String(identity.name ?? '').trim();
   if (code) return name && name !== code ? `${code} · ${name}` : code;
-  if (typeof fallbackKey === 'string' && fallbackKey.trim()) return `${fallbackType}（历史）· ${fallbackKey}`;
-  return `未记录${fallbackType}`;
+  const numericId = Number(internalReleaseId);
+  if (Number.isInteger(numericId) && numericId > 0) return `LEGACY-${legacyFamily}-${numericId}`;
+  return legacyFamily === 'GP' ? '未记录治理策略' : '未记录运行版本';
 }
 
 function arrayOfRecords(value: unknown): RecordValue[] {

@@ -410,6 +410,8 @@ async function installGovernanceMocks(
     lowRiskAutoAdmission?: boolean;
     reusePolicy?: boolean;
     combinedTransition?: boolean;
+    targetIdentityConflict?: boolean;
+    fullTransition?: boolean;
   } = {},
 ) {
   let policyPublished = false;
@@ -418,15 +420,15 @@ async function installGovernanceMocks(
   let rolloutPaused = Boolean(options.pausedRollout);
   let transitionState = {
     ...governanceTransition,
-    status: String(governanceTransition.status),
-    policyApprovedAt: null as string | null,
-    runtimeApprovedAt: null as string | null,
-    currentStep: String(governanceTransition.currentStep),
+    status: options.fullTransition ? 'observing' : String(governanceTransition.status),
+    policyApprovedAt: options.fullTransition ? '2026-08-04T00:10:00.000Z' : null as string | null,
+    runtimeApprovedAt: options.fullTransition ? '2026-08-04T00:11:00.000Z' : null as string | null,
+    currentStep: options.fullTransition ? 'runtime_full_active' : String(governanceTransition.currentStep),
     oldPolicy: { ...governanceTransition.oldPolicy, retiredAt: null as string | null },
     runtimeSequence: {
       ...governanceTransition.runtimeSequence,
-      status: String(governanceTransition.runtimeSequence.status),
-      currentStage: String(governanceTransition.runtimeSequence.currentStage),
+      status: options.fullTransition ? 'completed' : String(governanceTransition.runtimeSequence.status),
+      currentStage: options.fullTransition ? 'full' : String(governanceTransition.runtimeSequence.currentStage),
     },
   };
   const stores = options.allStores ? [store, { id: 2, name: 'Ami 治理验收二店', status: 'active' }] : [store];
@@ -536,6 +538,45 @@ async function installGovernanceMocks(
     }
     if (path === '/brain/governance/transitions' && request.method() === 'GET') {
       return fulfillJson(route, { items: options.combinedTransition ? [transitionState] : [], total: options.combinedTransition ? 1 : 0, page: 1, pageSize: 5 });
+    }
+    if (path === '/brain/governance/transitions/preview' && request.method() === 'POST') {
+      const blocker = 'target_policy_identity_conflict:GP-003:release_454';
+      return fulfillJson(route, {
+        candidate: governanceCandidate,
+        oldPolicy: governanceTransition.oldPolicy,
+        oldRuntime: governanceTransition.oldRuntime,
+        existingTransition: null,
+        target: {
+          policyCode: 'GP-003',
+          runtimeCode: 'RT-001',
+          productProfile: 'query_only_v1',
+          allowedCapabilityCount: 33,
+          deniedCapabilityCount: 8,
+          identity: {
+            policy: {
+              code: 'GP-003',
+              name: 'Query Only V1 强制治理策略',
+              releaseKey: 'ami-brain-policy-query-only-v1-head',
+              status: options.targetIdentityConflict ? 'conflict' : 'available',
+              internalReleaseId: options.targetIdentityConflict ? 454 : null,
+              counterNumber: options.targetIdentityConflict ? 3 : 2,
+            },
+            runtime: {
+              code: 'RT-001',
+              name: 'Query Only V1',
+              releaseKey: 'ami-brain-runtime-query-only-v1-head',
+              status: 'available',
+              internalSequenceId: null,
+              counterNumber: 0,
+            },
+            blockers: options.targetIdentityConflict ? [blocker] : [],
+          },
+        },
+        evidenceReceipt: null,
+        missingEvidence: options.targetIdentityConflict ? ['release_contract'] : [],
+        canPrepare: !options.targetIdentityConflict,
+        blockers: options.targetIdentityConflict ? [blocker] : [],
+      });
     }
     if (path === '/brain/governance/transitions/801/validate' && request.method() === 'POST') {
       if (!permissions.includes('*') && !permissions.includes('core:brain-governance:manage')) return fulfillJson(route, { message: 'Forbidden' }, 403); // ami-brain-unit-only: mocked permission response.
@@ -829,6 +870,30 @@ test('combined transition keeps GP and RT identities separate and hides validati
   await expect(page.getByRole('button', { name: '组合校验' })).toHaveCount(0);
 });
 
+test('transition preview explains GP-003 identity occupation and keeps internal release id in audit details', async ({ page }) => {
+  await installGovernanceMocks(page, ['core:brain-governance:view', 'core:brain-governance:manage'], { targetIdentityConflict: true });
+  await page.goto('/brain-governance');
+
+  await page.getByRole('button', { name: '预检新策略与运行版本' }).click();
+  await expect(page.getByText('GP-003 已被其他治理策略对象占用，当前 Candidate 不能安全复用。')).toBeVisible();
+  await expect(page.getByRole('button', { name: '创建 GP 与 RT 草稿' })).toHaveCount(0);
+  const audit = page.locator('details').filter({ hasText: /原始阻断代码：target_policy_identity_conflict/ });
+  await expect(audit).not.toHaveAttribute('open');
+  await expect(audit).toContainText('数据库记录 #454');
+});
+
+test('transition finalization remains hidden without GP publish permission', async ({ page }) => {
+  await installGovernanceMocks(page, ['core:brain-governance:view', 'core:brain-governance:release'], { combinedTransition: true, fullTransition: true });
+  await page.goto('/brain-governance');
+  await expect(page.getByRole('button', { name: '完成退役' })).toHaveCount(0);
+});
+
+test('transition finalization is available with both GP publish and RT release permissions', async ({ page }) => {
+  await installGovernanceMocks(page, ['core:brain-governance:view', 'core:brain-governance:publish', 'core:brain-governance:release'], { combinedTransition: true, fullTransition: true });
+  await page.goto('/brain-governance');
+  await expect(page.getByRole('button', { name: '完成退役' })).toBeVisible();
+});
+
 test('combined transition validation requires manage permission and remains separate from GP and RT approval', async ({ page }) => {
   await installGovernanceMocks(page, ['core:brain-governance:view', 'core:brain-governance:manage'], { combinedTransition: true });
   await page.goto('/brain-governance');
@@ -849,9 +914,9 @@ test('combined transition is the only default GP/RT activation path and complete
   await page.goto('/brain-governance');
 
   await page.getByRole('button', { name: '审批 GP' }).click();
-  await expect(page.getByText('治理策略已审批')).toBeVisible();
+  await expect(page.getByText('治理策略已审批', { exact: true }).last()).toBeVisible();
   await page.getByRole('button', { name: '审批 RT' }).click();
-  await expect(page.getByText('运行版本已审批')).toBeVisible();
+  await expect(page.getByText('运行版本已审批', { exact: true }).last()).toBeVisible();
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: '组合切换' }).click();
   await expect(page.getByText('新治理策略与运行版本 Shadow 已组合生效')).toBeVisible();

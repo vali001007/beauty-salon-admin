@@ -329,6 +329,99 @@ export function classifyFullDomainOutcome(input: {
   return 'manual_review';
 }
 
+export type FullDomainResumeResult = {
+  caseKey: string;
+  deterministicPassed: boolean;
+  failureCluster: string | null;
+  metadata: unknown;
+};
+
+export type FullDomainResumeDecision = {
+  reusable: boolean;
+  reason:
+    | 'clean_result'
+    | 'quality_bucket_missing'
+    | 'provider_unavailable'
+    | 'judge_infrastructure_failed'
+    | 'runtime_route_missing'
+    | 'runtime_fallback_used'
+    | 'runtime_provider_model_mismatch'
+    | 'judge_route_missing'
+    | 'judge_fallback_used'
+    | 'judge_provider_model_mismatch';
+};
+
+export function classifyFullDomainResumeResult(
+  result: FullDomainResumeResult,
+  expected: { provider: string; model: string },
+): FullDomainResumeDecision {
+  const metadata = resumeRecord(result.metadata);
+  const qualityBucket = resumeText(metadata.qualityBucket);
+  if (!qualityBucket) return { reusable: false, reason: 'quality_bucket_missing' };
+  if (result.failureCluster === 'provider_unavailable') return { reusable: false, reason: 'provider_unavailable' };
+
+  const judgeEvidence = resumeRecord(metadata.judgeEvidence);
+  const judgeStatus = resumeText(judgeEvidence.status);
+  if (judgeStatus === 'failed') return { reusable: false, reason: 'judge_infrastructure_failed' };
+
+  const runtimeModel = resumeRecord(resumeRecord(metadata.evidence).runtimeModel);
+  const runtimeProvider = resumeText(runtimeModel.provider);
+  const runtimeModelName = resumeText(runtimeModel.model);
+  const runtimeRouting = resumeRecord(runtimeModel.routing);
+  if (!runtimeProvider) return { reusable: false, reason: 'runtime_route_missing' };
+  if (runtimeRouting.fallbackUsed === true || /\(fallback\)$/u.test(runtimeProvider)) {
+    return { reusable: false, reason: 'runtime_fallback_used' };
+  }
+  if (
+    runtimeProvider !== 'governed_contract'
+    && (runtimeProvider !== expected.provider || runtimeModelName !== expected.model)
+  ) {
+    return { reusable: false, reason: 'runtime_provider_model_mismatch' };
+  }
+
+  if (result.deterministicPassed) {
+    if (judgeStatus === 'skipped' && qualityBucket === 'safety_pass') {
+      return { reusable: true, reason: 'clean_result' };
+    }
+    if (judgeStatus !== 'success') return { reusable: false, reason: 'judge_route_missing' };
+    const judgeProvider = resumeText(judgeEvidence.provider);
+    const judgeModel = resumeText(judgeEvidence.model);
+    const judgeRouting = resumeRecord(judgeEvidence.routing);
+    if (judgeRouting.fallbackUsed === true || /\(fallback\)$/u.test(judgeProvider ?? '')) {
+      return { reusable: false, reason: 'judge_fallback_used' };
+    }
+    if (judgeProvider !== expected.provider || judgeModel !== expected.model) {
+      return { reusable: false, reason: 'judge_provider_model_mismatch' };
+    }
+  }
+
+  return { reusable: true, reason: 'clean_result' };
+}
+
+export function fullDomainResumeModelIdentityMismatches(input: {
+  previousProvider: unknown;
+  previousModel: unknown;
+  currentProvider: unknown;
+  currentModel: unknown;
+}) {
+  const previousProvider = resumeText(input.previousProvider);
+  const previousModel = resumeText(input.previousModel);
+  const currentProvider = resumeText(input.currentProvider);
+  const currentModel = resumeText(input.currentModel);
+  return [
+    !previousProvider || !currentProvider || previousProvider !== currentProvider ? 'provider' : null,
+    !previousModel || !currentModel || previousModel !== currentModel ? 'model' : null,
+  ].filter((value): value is string => Boolean(value));
+}
+
+function resumeRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function resumeText(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
 function isGroundedCustomerIdentityClarification(answer: string, citations: unknown[]) {
   const hasIdentityCitation = citations.some((citation) => {
     if (!citation || typeof citation !== 'object') return false;

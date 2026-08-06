@@ -1322,7 +1322,7 @@ export class BrainController {
   }
 
   @Post('governance/transitions/:id/finalize')
-  @Permissions('core:brain-governance:release')
+  @Permissions('core:brain-governance:publish', 'core:brain-governance:release')
   finalizeGovernanceTransition(@Req() req: Request, @Param('id') id: string) {
     const context = this.contextService.fromGlobalRequest(req, 'Asia/Shanghai');
     if (!this.governanceTransitionService) throw new NotFoundException('治理切换服务不可用');

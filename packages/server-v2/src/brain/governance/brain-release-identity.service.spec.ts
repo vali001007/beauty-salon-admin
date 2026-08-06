@@ -169,6 +169,154 @@ describe('BrainReleaseIdentityService', () => {
       .rejects.toThrow('policy_identity_family_mismatch');
   });
 
+  it('allocates the explicitly reserved GP-003 and RT-001 identities', async () => {
+    const releases = new Map<number, Record<string, unknown>>([
+      [10, { id: 10, scope: 'governance_policy', releaseKey: 'policy-draft', displayCode: null }],
+    ]);
+    const sequences = new Map<number, Record<string, unknown>>([
+      [20, { id: 20, sequenceKey: 'runtime-draft', runtimeVersionCode: null }],
+    ]);
+    const counters = new Map<string, number>([['policy', 2], ['runtime', 0]]);
+    const tx = {
+      brainVersionCounter: {
+        findUnique: jest.fn(async ({ where }: { where: { family: string } }) => ({
+          lastNumber: counters.get(where.family) ?? 0,
+        })),
+        upsert: jest.fn(async ({ where }: { where: { family: string } }) => {
+          const next = (counters.get(where.family) ?? 0) + 1;
+          counters.set(where.family, next);
+          return { lastNumber: next };
+        }),
+      },
+      brainRelease: {
+        findUnique: jest.fn(async ({ where }: { where: { id: number } }) => releases.get(where.id) ?? null),
+        update: jest.fn(async ({ where, data }: { where: { id: number }; data: Record<string, unknown> }) => {
+          const updated = { ...releases.get(where.id), ...data };
+          releases.set(where.id, updated);
+          return updated;
+        }),
+      },
+      brainRolloutSequence: {
+        findUnique: jest.fn(async ({ where }: { where: { id: number } }) => sequences.get(where.id) ?? null),
+        update: jest.fn(async ({ where, data }: { where: { id: number }; data: Record<string, unknown> }) => {
+          const updated = { ...sequences.get(where.id), ...data };
+          sequences.set(where.id, updated);
+          return updated;
+        }),
+      },
+    };
+    const prisma = { $transaction: jest.fn(async (work: (client: typeof tx) => unknown) => work(tx)) };
+    const service = new BrainReleaseIdentityService(prisma as never);
+
+    await expect(service.assignPolicyIdentity(10, 'Query Only V1 强制治理策略', 'GP-003'))
+      .resolves.toMatchObject({ displayCode: 'GP-003', releaseFamily: 'policy' });
+    await expect(service.assignRuntimeIdentity(20, 'Query Only V1', 'query_only_v1', 'RT-001'))
+      .resolves.toMatchObject({ runtimeVersionCode: 'RT-001', runtimeVersionNumber: 1 });
+  });
+
+  it('rejects an expected code when the release or sequence already owns a different identity', async () => {
+    const tx = {
+      brainRelease: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 10,
+          scope: 'governance_policy',
+          releaseKey: 'policy-draft',
+          releaseFamily: 'policy',
+          displayCode: 'GP-004',
+          displayName: 'Another Policy',
+        }),
+      },
+      brainRolloutSequence: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 20,
+          runtimeVersionNumber: 2,
+          runtimeVersionCode: 'RT-002',
+          displayName: 'Another Runtime',
+        }),
+      },
+    };
+    const prisma = { $transaction: jest.fn(async (work: (client: typeof tx) => unknown) => work(tx)) };
+    const service = new BrainReleaseIdentityService(prisma as never);
+
+    await expect(service.assignPolicyIdentity(10, 'Query Only V1 强制治理策略', 'GP-003'))
+      .rejects.toThrow('policy_identity_expected_code_mismatch:GP-003:GP-004');
+    await expect(service.assignRuntimeIdentity(20, 'Query Only V1', 'query_only_v1', 'RT-001'))
+      .rejects.toThrow('runtime_identity_expected_code_mismatch:RT-001:RT-002');
+  });
+
+  it('rejects GP-003 when its counter has already been consumed', async () => {
+    const tx = {
+      brainRelease: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 10,
+          scope: 'governance_policy',
+          releaseKey: 'policy-draft',
+          displayCode: null,
+        }),
+        update: jest.fn(),
+      },
+      brainVersionCounter: {
+        findUnique: jest.fn().mockResolvedValue({ lastNumber: 3 }),
+        upsert: jest.fn(),
+      },
+    };
+    const prisma = { $transaction: jest.fn(async (work: (client: typeof tx) => unknown) => work(tx)) };
+    const service = new BrainReleaseIdentityService(prisma as never);
+
+    await expect(service.assignPolicyIdentity(10, 'Query Only V1 强制治理策略', 'GP-003'))
+      .rejects.toThrow('policy_identity_expected_code_unavailable:GP-003');
+    expect(tx.brainVersionCounter.upsert).not.toHaveBeenCalled();
+    expect(tx.brainRelease.update).not.toHaveBeenCalled();
+  });
+
+  it('detects an expected-code race after the availability precheck', async () => {
+    const tx = {
+      brainRelease: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 10,
+          scope: 'governance_policy',
+          releaseKey: 'policy-draft',
+          displayCode: null,
+        }),
+        update: jest.fn(),
+      },
+      brainVersionCounter: {
+        findUnique: jest.fn().mockResolvedValue({ lastNumber: 2 }),
+        upsert: jest.fn().mockResolvedValue({ lastNumber: 4 }),
+      },
+    };
+    const prisma = { $transaction: jest.fn(async (work: (client: typeof tx) => unknown) => work(tx)) };
+    const service = new BrainReleaseIdentityService(prisma as never);
+
+    await expect(service.assignPolicyIdentity(10, 'Query Only V1 强制治理策略', 'GP-003'))
+      .rejects.toThrow('policy_identity_expected_code_raced:GP-003');
+    expect(tx.brainRelease.update).not.toHaveBeenCalled();
+  });
+
+  it('retries a serializable conflict while reserving GP-003', async () => {
+    const release = { id: 10, scope: 'governance_policy', releaseKey: 'policy-draft', displayCode: null };
+    const tx = {
+      brainRelease: {
+        findUnique: jest.fn().mockResolvedValue(release),
+        update: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({ ...release, ...data })),
+      },
+      brainVersionCounter: {
+        findUnique: jest.fn().mockResolvedValue({ lastNumber: 2 }),
+        upsert: jest.fn().mockResolvedValue({ lastNumber: 3 }),
+      },
+    };
+    const prisma = {
+      $transaction: jest.fn()
+        .mockRejectedValueOnce({ code: 'P2034' })
+        .mockImplementationOnce(async (work: (client: typeof tx) => unknown) => work(tx)),
+    };
+    const service = new BrainReleaseIdentityService(prisma as never);
+
+    await expect(service.assignPolicyIdentity(10, 'Query Only V1 强制治理策略', 'GP-003'))
+      .resolves.toMatchObject({ displayCode: 'GP-003' });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+  });
+
   it('retries a serializable allocation conflict without skipping or duplicating the next code', async () => {
     const release = { id: 10, scope: 'governance_policy', releaseKey: 'policy-draft', displayCode: null };
     let counter = 2;

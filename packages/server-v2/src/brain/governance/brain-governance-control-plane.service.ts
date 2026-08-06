@@ -977,7 +977,14 @@ export class BrainGovernanceControlPlaneService {
     };
   }
 
-  async createPolicySnapshot(input: { releaseKey: string; resourceVersionIds?: number[]; actorId: number; note?: string; displayName?: string }) {
+  async createPolicySnapshot(input: {
+    releaseKey: string;
+    resourceVersionIds?: number[];
+    actorId: number;
+    note?: string;
+    displayName?: string;
+    expectedDisplayCode?: string;
+  }) {
     const releaseKey = nonEmpty(input.releaseKey, 'releaseKey');
     const requestedIds = uniqueNumbers(input.resourceVersionIds);
     const versions = requestedIds.length
@@ -1002,7 +1009,13 @@ export class BrainGovernanceControlPlaneService {
     if (existing) {
       assertReusablePolicySnapshot(existing, versions.map((version) => version.id));
       if (this.releaseIdentity && !existing.displayCode) {
-        await this.releaseIdentity.assignPolicyIdentity(existing.id, input.displayName ?? 'Governance Policy');
+        await this.releaseIdentity.assignPolicyIdentity(
+          existing.id,
+          input.displayName ?? 'Governance Policy',
+          input.expectedDisplayCode,
+        );
+      } else if (input.expectedDisplayCode && existing.displayCode !== input.expectedDisplayCode) {
+        throw new ConflictException(`policy_snapshot_display_code_conflict:${input.expectedDisplayCode}:${existing.displayCode ?? 'unassigned'}`);
       }
       return this.prisma.brainRelease.findUniqueOrThrow({ where: { id: existing.id }, include: { items: true } });
     }
@@ -1035,7 +1048,19 @@ export class BrainGovernanceControlPlaneService {
             snapshot: this.json(version.snapshot),
           })),
         });
+        if (this.releaseIdentity) {
+          await this.releaseIdentity.assignPolicyIdentityWithClient(
+            tx,
+            release.id,
+            input.displayName ?? 'Governance Policy',
+            input.expectedDisplayCode,
+          );
+        }
         return tx.brainRelease.findUniqueOrThrow({ where: { id: release.id }, include: { items: true } });
+      }, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 10_000,
+        timeout: 30_000,
       });
       newlyCreated = true;
     } catch (error) {
@@ -1048,8 +1073,12 @@ export class BrainGovernanceControlPlaneService {
       assertReusablePolicySnapshot(raced, versions.map((version) => version.id));
       created = await this.prisma.brainRelease.findUniqueOrThrow({ where: { id: raced.id }, include: { items: true } });
     }
-    const identified = this.releaseIdentity
-      ? await this.releaseIdentity.assignPolicyIdentity(created.id, input.displayName ?? 'Governance Policy')
+    const identified = this.releaseIdentity && !newlyCreated
+      ? await this.releaseIdentity.assignPolicyIdentity(
+          created.id,
+          input.displayName ?? 'Governance Policy',
+          input.expectedDisplayCode,
+        )
       : created;
     if (newlyCreated) await this.events?.record({
       eventType: 'policy_snapshot_created',

@@ -30,10 +30,17 @@ describe('brain real API contract', () => {
 
     const response = await sendBrainMessage(1, { message: '今天预约多少', timezone: 'Asia/Shanghai' });
 
-    expect(apiClientMock.post).toHaveBeenCalledWith('/brain/conversations/1/messages', {
-      message: '今天预约多少',
-      timezone: 'Asia/Shanghai',
-    });
+    expect(apiClientMock.post).toHaveBeenCalledWith(
+      '/brain/conversations/1/messages',
+      {
+        message: '今天预约多少',
+        timezone: 'Asia/Shanghai',
+      },
+      {
+        timeout: 90_000,
+        skipRetry: true,
+      },
+    );
     expect(response.answer).toBe('ok');
   });
 

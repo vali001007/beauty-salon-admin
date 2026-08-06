@@ -105,7 +105,7 @@ describe('BrainController', () => {
     expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.rollbackGovernanceTransition))
       .toEqual(['core:brain-governance:publish', 'core:brain-governance:release']);
     expect(Reflect.getMetadata(PERMISSIONS_KEY, BrainController.prototype.finalizeGovernanceTransition))
-      .toEqual(['core:brain-governance:release']);
+      .toEqual(['core:brain-governance:publish', 'core:brain-governance:release']);
   });
 
   it('allows governance latency APIs for view users and denies users without view permission', () => {

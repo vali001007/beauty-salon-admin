@@ -43,10 +43,12 @@ const REGENERATION_POLL_DELAYS = [3_000, 6_000, 12_000, 30_000] as const;
 const REGENERATION_POLL_TIMEOUT = 10 * 60_000;
 const REGENERATION_POLL_FAILURE_LIMIT = 3;
 
-export function BrainReleaseCenter() {
+export function BrainReleaseCenter({ historicalOnly = false }: { historicalOnly?: boolean } = {}) {
   const navigate = useNavigate();
-  const canManage = usePermission('core:brain-governance:manage') && BRAIN_GOVERNANCE_UI_MODE !== 'shadow';
-  const canRelease = usePermission('core:brain-governance:release') && BRAIN_GOVERNANCE_UI_MODE !== 'shadow';
+  const hasManagePermission = usePermission('core:brain-governance:manage');
+  const hasReleasePermission = usePermission('core:brain-governance:release');
+  const canManage = !historicalOnly && hasManagePermission && BRAIN_GOVERNANCE_UI_MODE !== 'shadow';
+  const canRelease = !historicalOnly && hasReleasePermission && BRAIN_GOVERNANCE_UI_MODE !== 'shadow';
   const [versions, setVersions] = useState<BrainGovernanceResourceVersion[]>([]);
   const [releases, setReleases] = useState<BrainGovernanceRelease[]>([]);
   const [selected, setSelected] = useState<number[]>([]);
@@ -258,9 +260,11 @@ export function BrainReleaseCenter() {
     <section className="min-w-0">
       <header className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-base font-semibold">运行版本（RT）审批与灰度</h2>
+          <h2 className="text-base font-semibold">{historicalOnly ? '历史运行快照（LEGACY）' : '运行版本（RT）审批与灰度'}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            一个 RT 运行版本包含 Shadow、5%、20%、50%、100% 五个阶段；阶段记录用于审计，不会生成五个产品版本号。治理策略请在 GP 策略区单独审批。
+            {historicalOnly
+              ? '仅供审计和故障排查。新 GP/RT 的创建、审批、首次切换和组合回滚必须回到治理总览的 transition 向导完成。'
+              : '一个 RT 运行版本包含 Shadow、5%、20%、50%、100% 五个阶段；阶段记录用于审计，不会生成五个产品版本号。治理策略请在 GP 策略区单独审批。'}
           </p>
         </div>
         <button
@@ -274,7 +278,13 @@ export function BrainReleaseCenter() {
         </button>
       </header>
 
-      <div className="grid min-w-0 gap-6 py-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+      {historicalOnly ? (
+        <div className="mt-5 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900" role="status">
+          历史页面为只读入口，不提供创建、批准、拒绝、修改或回滚操作。
+        </div>
+      ) : null}
+
+      <div className={`grid min-w-0 gap-6 py-5 ${historicalOnly ? '' : 'xl:grid-cols-[minmax(0,1fr)_340px]'}`}>
         <div className="min-w-0 space-y-4">
           {pollingNotice ? (
             <div role="status" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -314,12 +324,12 @@ export function BrainReleaseCenter() {
             );
           }) : (
             <div className="rounded-md border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-              暂无运行阶段记录。先从右侧选择已生成的能力版本，创建一个 RT 运行版本。
+              {historicalOnly ? '暂无历史运行快照。' : '暂无运行阶段记录。先从右侧选择已生成的能力版本，创建一个 RT 运行版本。'}
             </div>
           )}
         </div>
 
-        <aside className="min-w-0 border-t border-border pt-5 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+        {!historicalOnly ? <aside className="min-w-0 border-t border-border pt-5 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
           <h3 className="text-sm font-semibold">创建一个 RT 运行版本</h3>
           <p className="mt-1 text-xs text-muted-foreground">这里只选择运行能力；五个灰度阶段共用同一个 RT 编号，治理策略 GP 不在这里创建。</p>
           {!canManage ? <p className="mt-4 rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">当前账号只有查看权限，创建发布序列需要 Brain 治理管理权限。</p> : null}
@@ -365,7 +375,7 @@ export function BrainReleaseCenter() {
             {busyId === 'create' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
             创建 RT 及 Shadow 到 Full 阶段
           </button> : null}
-        </aside>
+        </aside> : null}
       </div>
     </section>
   );
